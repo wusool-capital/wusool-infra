@@ -1,0 +1,54 @@
+# --- Terraform ---
+# Local .terraform directories (providers, modules cache)
+**/.terraform/*
+.terraform.lock.hcl.bak
+
+# State files — never commit; they live in the S3 remote backend
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Plan output files
+*.tfplan
+tfplan
+*.tfplan.*
+
+# Secret variable files — values containing credentials/secrets.
+# Non-secret terraform.tfvars (committed per-env) are force-included below.
+*.tfvars
+*.auto.tfvars
+*.tfvars.json
+!environments/*/terraform.tfvars
+
+# Terraform CLI config & override files
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# --- Claude Code ---
+# Personal, machine-local overrides — do NOT share.
+# .claude/settings.json IS committed (shared team config).
+.claude/settings.local.json
+
+# --- Secrets / credentials ---
+.env
+.env.*
+*.pem
+*.key
+*_rsa
+*_rsa.pub
+.aws/
+
+# --- Editor / OS ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
