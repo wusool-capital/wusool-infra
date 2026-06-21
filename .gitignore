@@ -22,7 +22,7 @@ tfplan
 *.tfvars
 *.auto.tfvars
 *.tfvars.json
-!environments/*/terraform.tfvars
+!*.tfvars.example
 
 # Terraform CLI config & override files
 .terraformrc

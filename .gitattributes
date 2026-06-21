@@ -1,0 +1,6 @@
+* text=auto
+*.tf text eol=lf
+*.tfvars.example text eol=lf
+*.sh text eol=lf
+*.tpl text eol=lf
+*.md text eol=lf
