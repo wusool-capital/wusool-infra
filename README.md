@@ -1,5 +1,11 @@
 # Wusool Infrastructure
 
+> Current status: the `dev` n8n environment is deployed in Frankfurt
+> (`eu-central-1`) with HTTPS, SSM, CloudWatch, SNS, CloudTrail, GuardDuty, and
+> Security Hub. See [`environments/dev/README.md`](environments/dev/README.md)
+> for the tested operating workflow. Production is a template and has not yet
+> been promoted from this validated dev baseline.
+
 Infrastructure-as-Code for the **Wusool** platform, managed with [Terraform](https://www.terraform.io/) on **AWS**.
 
 This repository is the single source of truth for all cloud infrastructure. Every change to the environment — networking, compute, databases, IAM, DNS — flows through Terraform in a pull request and is applied by CI. No manual changes are made in the AWS Console (the console is read-only for humans, except for break-glass scenarios documented below).
