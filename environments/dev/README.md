@@ -1,5 +1,8 @@
 # Development environment
 
+See the [development infrastructure architecture](../../DOCS/dev-infrastructure-architecture.md)
+for diagrams of the deployed AWS resources, request path, and operational controls.
+
 The development environment runs n8n on an Amazon Linux EC2 instance in
 Frankfurt (`eu-central-1`). Terraform state is stored remotely in the S3
 backend declared in `backend.tf`.
