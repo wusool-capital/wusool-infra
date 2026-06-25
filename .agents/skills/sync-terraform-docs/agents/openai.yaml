@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sync Terraform Docs"
+  short_description: "Keep Terraform architecture docs synchronized"
+  default_prompt: "Use $sync-terraform-docs to update README and architecture documentation from the current Terraform configuration."
