@@ -2,10 +2,12 @@
 
 See the [development infrastructure architecture](../../DOCS/dev-infrastructure-architecture.md)
 for diagrams of the deployed AWS resources, request path, and operational controls.
+The [Markdown network diagram](../../DOCS/wusool-dev-network-diagram.md) can
+also be viewed directly in GitHub or an IDE Markdown preview.
 
-The development environment runs n8n on an Amazon Linux EC2 instance in
-Frankfurt (`eu-central-1`). Terraform state is stored remotely in the S3
-backend declared in `backend.tf`.
+The development Terraform configuration declares n8n on an Amazon Linux EC2
+instance in Frankfurt (`eu-central-1`). Terraform state is stored remotely in
+the S3 backend declared in `backend.tf`.
 
 ## Architecture
 
@@ -30,8 +32,10 @@ Git and must not be committed.
 Copy-Item terraform.tfvars.example terraform.tfvars
 ```
 
-Required local values include the EC2 key-pair name, the administrator's
-current public IP in CIDR notation, and the alert email address.
+Local values include the EC2 key-pair name and optional alert email address.
+An administrator CIDR is required only when SSH ingress is intentionally
+enabled; the supplied configuration uses Systems Manager and an empty SSH
+CIDR list.
 
 ## Workflow
 

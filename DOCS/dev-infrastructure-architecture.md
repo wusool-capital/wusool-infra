@@ -3,6 +3,11 @@
 This diagram is derived from the Terraform in `environments/dev`,
 `modules/network`, `modules/n8n-ec2`, and `bootstrap-frankfurt`.
 
+![Wusool development AWS network architecture](wusool-dev-network-diagram.svg)
+
+For a Markdown-only version, see
+[Wusool development network diagram](wusool-dev-network-diagram.md).
+
 ```mermaid
 flowchart TB
   user([n8n users])
