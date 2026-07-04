@@ -123,18 +123,19 @@ Cloudflare should keep the `n8n-dev` record pointed at the EC2 Elastic IP.
 ## n8n SMTP email
 
 Each environment creates a Secrets Manager secret at
-`/${project}/${environment}/n8n`. To enable n8n email delivery, add SMTP keys to
-that secret after `terraform apply`; do not put the SMTP password in
-`terraform.tfvars`.
+`/${project}/${environment}/n8n`. Add SMTP keys and other sensitive runtime
+environment variables to that secret after `terraform apply`; do not put API
+keys, webhooks, or SMTP passwords in `terraform.tfvars`.
 
 ```powershell
 aws secretsmanager put-secret-value `
   --secret-id /wusool/dev/n8n `
-  --secret-string '{"smtp_host":"smtp.example.com","smtp_port":587,"smtp_user":"user@example.com","smtp_password":"replace-me","smtp_sender":"Wusool <no-reply@example.com>","smtp_ssl":false}'
+  --secret-string '{"smtp_host":"smtp.example.com","smtp_port":587,"smtp_user":"user@example.com","smtp_password":"replace-me","smtp_sender":"Wusool <no-reply@example.com>","smtp_ssl":false,"env":{"GEMINI_API_KEY":"replace-me","SLACK_WEBHOOK_CI":"https://hooks.slack.com/services/replace-me","SLACK_WEBHOOK_ALERTS":"https://hooks.slack.com/services/replace-me"}}'
 ```
 
 Use `/wusool/prod/n8n` for production. The bootstrap reads the secret and
-creates an n8n Docker env file only when `smtp_host` is present.
+creates an n8n Docker env file from SMTP settings and any key/value pairs under
+the `env` object.
 
 ## n8n users
 

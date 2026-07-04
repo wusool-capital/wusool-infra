@@ -309,7 +309,7 @@ that environment's secret ARN. Secret values should be inserted after apply
 with AWS CLI or the AWS console, not committed to Git or managed as Terraform
 secret versions.
 
-Optional SMTP email settings use these JSON keys:
+Optional SMTP email settings and runtime secrets use these JSON keys:
 
 ```json
 {
@@ -318,14 +318,20 @@ Optional SMTP email settings use these JSON keys:
   "smtp_user": "user@example.com",
   "smtp_password": "replace-me",
   "smtp_sender": "Wusool <no-reply@example.com>",
-  "smtp_ssl": false
+  "smtp_ssl": false,
+  "env": {
+    "GEMINI_API_KEY": "replace-me",
+    "SLACK_WEBHOOK_CI": "https://hooks.slack.com/services/replace-me",
+    "SLACK_WEBHOOK_ALERTS": "https://hooks.slack.com/services/replace-me"
+  }
 }
 ```
 
 When `smtp_host` is present, the n8n bootstrap writes `/opt/n8n/n8n.env` and
 passes the values to the container as `N8N_EMAIL_MODE=smtp` and `N8N_SMTP_*`
-variables. Use the dev secret for development and the prod secret for
-production so credentials stay environment-scoped.
+variables. Any key/value pairs under `env` are appended to the same env file and
+passed through to the n8n container. Use the dev secret for development and the
+prod secret for production so credentials stay environment-scoped.
 
 SMTP also enables n8n user invitation emails and forgot-password/reset emails.
 Without SMTP, users can be created only through an admin-mediated flow and they
