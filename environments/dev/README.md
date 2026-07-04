@@ -76,13 +76,19 @@ For SMTP email, store these optional JSON keys in the n8n secret:
   "smtp_user": "user@example.com",
   "smtp_password": "replace-me",
   "smtp_sender": "Wusool <no-reply@example.com>",
-  "smtp_ssl": false
+  "smtp_ssl": false,
+  "env": {
+    "GEMINI_API_KEY": "replace-me",
+    "SLACK_WEBHOOK_CI": "https://hooks.slack.com/services/replace-me",
+    "SLACK_WEBHOOK_ALERTS": "https://hooks.slack.com/services/replace-me"
+  }
 }
 ```
 
 The EC2 bootstrap reads `/wusool/dev/n8n`, writes `/opt/n8n/n8n.env`, and passes
-the values to n8n as `N8N_SMTP_*` environment variables. Repeat the same shape
-in `/wusool/prod/n8n` for production.
+the SMTP values to n8n as `N8N_SMTP_*` environment variables. Key/value pairs
+under `env` are also written to the n8n env file. Repeat the same shape in
+`/wusool/prod/n8n` for production.
 
 ## User invites and password resets
 
