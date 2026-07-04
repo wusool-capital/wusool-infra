@@ -19,7 +19,7 @@ data "aws_ami" "amazon_linux_2023" {
 }
 
 resource "aws_security_group" "n8n" {
-  name        = "wusool-${var.environment}-n8n"
+  name        = "${var.project}-${var.environment}-n8n"
   description = "Security group for the n8n EC2 instance"
   vpc_id      = var.vpc_id
 
@@ -70,12 +70,12 @@ resource "aws_security_group" "n8n" {
   }
 
   tags = {
-    Name = "wusool-${var.environment}-n8n-sg"
+    Name = "${var.project}-${var.environment}-n8n-sg"
   }
 }
 
 resource "aws_iam_role" "n8n" {
-  name = "wusool-${var.environment}-n8n-ec2"
+  name = "${var.project}-${var.environment}-n8n-ec2"
   assume_role_policy = jsonencode({
     Version   = "2012-10-17"
     Statement = [{ Effect = "Allow", Principal = { Service = "ec2.amazonaws.com" }, Action = "sts:AssumeRole" }]
@@ -92,26 +92,46 @@ resource "aws_iam_role_policy_attachment" "cloudwatch" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
+resource "aws_iam_role_policy" "secrets_manager" {
+  count = length(var.secrets_manager_secret_arns) > 0 ? 1 : 0
+
+  name = "${var.project}-${var.environment}-n8n-secrets-manager"
+  role = aws_iam_role.n8n.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue"
+      ]
+      Resource = var.secrets_manager_secret_arns
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "n8n" {
-  name = "wusool-${var.environment}-n8n"
+  name = "${var.project}-${var.environment}-n8n"
   role = aws_iam_role.n8n.name
 }
 
 resource "aws_cloudwatch_log_group" "n8n" {
-  name              = "/wusool/${var.environment}/n8n"
+  name              = "/${var.project}/${var.environment}/n8n"
   retention_in_days = 30
 }
 
 resource "aws_eip" "n8n" {
   domain = "vpc"
 
-  tags = { Name = "wusool-${var.environment}-n8n-eip" }
+  tags = { Name = "${var.project}-${var.environment}-n8n-eip" }
 }
 
 locals {
-  public_hostname = "${replace(aws_eip.n8n.public_ip, ".", "-")}.sslip.io"
-  webhook_url     = var.n8n_webhook_url != "" ? var.n8n_webhook_url : "https://${local.public_hostname}/"
-  alarm_actions   = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
+  generated_hostname = "${replace(aws_eip.n8n.public_ip, ".", "-")}.sslip.io"
+  public_hostname    = var.n8n_webhook_url != "" ? regex("^https?://([^/]+)", var.n8n_webhook_url)[0] : local.generated_hostname
+  webhook_url        = var.n8n_webhook_url != "" ? var.n8n_webhook_url : "https://${local.public_hostname}/"
+  alarm_actions      = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
 }
 
 resource "aws_instance" "n8n" {
@@ -119,7 +139,7 @@ resource "aws_instance" "n8n" {
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.n8n.id]
-  key_name               = var.key_name
+  key_name               = var.key_name != "" ? var.key_name : null
   iam_instance_profile   = aws_iam_instance_profile.n8n.name
 
   root_block_device {
@@ -133,6 +153,7 @@ resource "aws_instance" "n8n" {
     n8n_timezone    = var.n8n_timezone
     public_hostname = local.public_hostname
     log_group_name  = aws_cloudwatch_log_group.n8n.name
+    n8n_secret_id   = var.n8n_secret_id
   }), "\r\n", "\n")
 
   metadata_options {
@@ -140,8 +161,12 @@ resource "aws_instance" "n8n" {
     http_tokens   = "required"
   }
 
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   tags = {
-    Name = "wusool-${var.environment}-n8n"
+    Name = "${var.project}-${var.environment}-n8n"
   }
 }
 
@@ -154,7 +179,7 @@ resource "aws_eip_association" "n8n" {
 # association applies the same idempotent bootstrap without replacing the
 # instance (and therefore preserves the n8n Docker volume).
 resource "aws_ssm_document" "bootstrap" {
-  name            = "wusool-${var.environment}-n8n-bootstrap"
+  name            = "${var.project}-${var.environment}-n8n-bootstrap"
   document_type   = "Command"
   document_format = "JSON"
 
@@ -172,9 +197,10 @@ resource "aws_ssm_document" "bootstrap" {
             n8n_timezone    = var.n8n_timezone
             public_hostname = local.public_hostname
             log_group_name  = aws_cloudwatch_log_group.n8n.name
-          }), "\r\n", "\n"))}' | base64 -d > /tmp/wusool-n8n-bootstrap.sh",
-          "chmod 700 /tmp/wusool-n8n-bootstrap.sh",
-          "sudo bash /tmp/wusool-n8n-bootstrap.sh"
+            n8n_secret_id   = var.n8n_secret_id
+          }), "\r\n", "\n"))}' | base64 -d > /tmp/${var.project}-n8n-bootstrap.sh",
+          "chmod 700 /tmp/${var.project}-n8n-bootstrap.sh",
+          "sudo bash /tmp/${var.project}-n8n-bootstrap.sh"
         ]
       }
     }]
@@ -183,7 +209,7 @@ resource "aws_ssm_document" "bootstrap" {
 
 resource "aws_ssm_association" "bootstrap" {
   name             = aws_ssm_document.bootstrap.name
-  association_name = "wusool-${var.environment}-n8n-bootstrap"
+  association_name = "${var.project}-${var.environment}-n8n-bootstrap"
 
   targets {
     key    = "InstanceIds"
@@ -198,7 +224,7 @@ resource "aws_ssm_association" "bootstrap" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "status" {
-  alarm_name          = "wusool-${var.environment}-n8n-status-check"
+  alarm_name          = "${var.project}-${var.environment}-n8n-status-check"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
   metric_name         = "StatusCheckFailed"
@@ -212,7 +238,7 @@ resource "aws_cloudwatch_metric_alarm" "status" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu" {
-  alarm_name          = "wusool-${var.environment}-n8n-high-cpu"
+  alarm_name          = "${var.project}-${var.environment}-n8n-high-cpu"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   metric_name         = "CPUUtilization"

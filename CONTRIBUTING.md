@@ -122,7 +122,6 @@ for `dev` in GitHub:
 8. Select these required checks:
    - `Terraform Format`
    - `Terraform Validate (bootstrap)`
-   - `Terraform Validate (bootstrap-frankfurt)`
    - `Terraform Validate (environments/dev)`
    - `Terraform Validate (environments/prod)`
 9. Enable **Require branches to be up to date before merging**.

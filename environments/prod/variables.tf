@@ -1,13 +1,25 @@
 variable "aws_region" {
   description = "AWS region."
   type        = string
-  default     = "me-central-1"
+  default     = "eu-central-1"
 }
 
 variable "owner" {
   description = "Team or person responsible for these resources."
   type        = string
   default     = "wusool-infra"
+}
+
+variable "project" {
+  description = "Project name used in tags and resource names."
+  type        = string
+  default     = "wusool"
+}
+
+variable "environment" {
+  description = "Environment name used in tags and resource names."
+  type        = string
+  default     = "prod"
 }
 
 variable "vpc_cidr" {
@@ -36,7 +48,18 @@ variable "key_name" {
 variable "instance_type" {
   description = "EC2 instance type for production n8n."
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
+}
+
+variable "ami_architecture" {
+  description = "CPU architecture for the production n8n AMI."
+  type        = string
+  default     = "x86_64"
+
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.ami_architecture)
+    error_message = "ami_architecture must be x86_64 or arm64."
+  }
 }
 
 variable "root_volume_size" {
@@ -57,7 +80,7 @@ variable "web_cidr_blocks" {
 }
 
 variable "expose_n8n_port" {
-  description = "Expose port 5678 publicly until Nginx or an ALB is configured."
+  description = "Expose port 5678 publicly. Keep false when Caddy serves HTTPS."
   type        = bool
   default     = false
 }
@@ -65,11 +88,17 @@ variable "expose_n8n_port" {
 variable "n8n_webhook_url" {
   description = "Public webhook URL for n8n. Set to your HTTPS domain before apply."
   type        = string
-  default     = "https://n8n.example.com/"
+  default     = ""
 }
 
 variable "n8n_timezone" {
   description = "Timezone for n8n."
   type        = string
   default     = "Asia/Dubai"
+}
+
+variable "alert_email" {
+  description = "Email subscribed to infrastructure alerts; leave empty to skip subscription."
+  type        = string
+  default     = ""
 }

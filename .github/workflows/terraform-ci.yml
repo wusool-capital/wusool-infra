@@ -48,7 +48,6 @@ jobs:
       matrix:
         root:
           - bootstrap
-          - bootstrap-frankfurt
           - environments/dev
           - environments/prod
 

@@ -52,3 +52,6 @@ override.tf.json
 .vscode/
 *.swp
 *~
+
+# Local archived workspace files
+_archive/

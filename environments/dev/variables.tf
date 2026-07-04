@@ -10,6 +10,18 @@ variable "owner" {
   default     = "wusool-infra"
 }
 
+variable "project" {
+  description = "Project name used in tags and resource names."
+  type        = string
+  default     = "wusool"
+}
+
+variable "environment" {
+  description = "Environment name used in tags and resource names."
+  type        = string
+  default     = "dev"
+}
+
 variable "vpc_cidr" {
   description = "Development VPC CIDR."
   type        = string
@@ -63,13 +75,13 @@ variable "web_cidr_blocks" {
 }
 
 variable "expose_n8n_port" {
-  description = "Expose port 5678 publicly until Nginx or an ALB is configured."
+  description = "Expose port 5678 publicly. Keep false when Caddy serves HTTPS."
   type        = bool
   default     = true
 }
 
 variable "n8n_webhook_url" {
-  description = "Optional public webhook URL. Empty derives the HTTPS sslip.io hostname from the Elastic IP."
+  description = "Optional public HTTPS URL for n8n. Empty derives an sslip.io hostname from the Elastic IP."
   type        = string
   default     = ""
 }

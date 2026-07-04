@@ -31,3 +31,13 @@ output "ssm_command" {
 output "alert_topic_arn" {
   value = aws_sns_topic.alerts.arn
 }
+
+output "n8n_secret_name" {
+  description = "Secrets Manager secret name for development n8n."
+  value       = aws_secretsmanager_secret.n8n.name
+}
+
+output "n8n_secret_arn" {
+  description = "Secrets Manager secret ARN for development n8n."
+  value       = aws_secretsmanager_secret.n8n.arn
+}

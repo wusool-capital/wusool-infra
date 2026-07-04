@@ -1,3 +1,15 @@
+variable "project" {
+  description = "Project tag applied to backend bootstrap resources."
+  type        = string
+  default     = "wusool"
+}
+
+variable "component" {
+  description = "Component tag applied to backend bootstrap resources."
+  type        = string
+  default     = "bootstrap"
+}
+
 variable "aws_region" {
   description = "AWS region for the Terraform state backend."
   type        = string
