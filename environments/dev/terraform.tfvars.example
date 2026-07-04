@@ -1,3 +1,5 @@
+project          = "wusool"
+environment      = "dev"
 key_name         = "wusool-dev-frankfurt"
 # SSM is the default administration path; leave empty to disable public SSH.
 ssh_cidr_blocks  = []
@@ -6,5 +8,6 @@ ami_architecture = "x86_64"
 
 # HTTPS is verified; n8n must not be exposed directly.
 expose_n8n_port = false
+n8n_webhook_url = "https://n8n-dev.wusoolcapital.com/"
 
-alert_email = "your-email@example.com"
+alert_email = "raoof@azmora.ai"

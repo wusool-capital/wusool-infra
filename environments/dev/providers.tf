@@ -14,8 +14,8 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "wusool"
-      Environment = "dev"
+      Project     = var.project
+      Environment = var.environment
       ManagedBy   = "terraform"
       Owner       = var.owner
     }

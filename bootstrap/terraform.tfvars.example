@@ -1,0 +1,4 @@
+project           = "wusool"
+aws_region        = "me-central-1"
+state_bucket_name = "wusool-tfstate"
+lock_table_name   = "wusool-tfstate-locks"

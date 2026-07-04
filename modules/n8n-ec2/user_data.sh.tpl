@@ -2,8 +2,13 @@
 set -euxo pipefail
 
 dnf update -y
+dnf install -y amazon-ssm-agent
 dnf install -y docker
 dnf install -y amazon-cloudwatch-agent
+dnf install -y awscli
+dnf install -y jq
+systemctl enable amazon-ssm-agent
+systemctl restart amazon-ssm-agent
 systemctl enable docker
 systemctl start docker
 usermod -aG docker ec2-user
@@ -14,6 +19,28 @@ curl -SL "https://github.com/docker/compose/releases/download/v2.32.4/docker-com
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 mkdir -p /opt/n8n
+cat > /opt/n8n/n8n.env <<EOF
+EOF
+chmod 600 /opt/n8n/n8n.env
+
+if [ -n "${n8n_secret_id}" ]; then
+  if SMTP_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${n8n_secret_id}" --query SecretString --output text 2>/dev/null); then
+    SMTP_HOST=$(echo "$SMTP_SECRET_JSON" | jq -r '.smtp_host // empty')
+    if [ -n "$SMTP_HOST" ]; then
+      {
+        echo "N8N_EMAIL_MODE=smtp"
+        echo "N8N_SMTP_HOST=$SMTP_HOST"
+        echo "N8N_SMTP_PORT=$(echo "$SMTP_SECRET_JSON" | jq -r '.smtp_port // 587')"
+        echo "N8N_SMTP_USER=$(echo "$SMTP_SECRET_JSON" | jq -r '.smtp_user // empty')"
+        echo "N8N_SMTP_PASS=$(echo "$SMTP_SECRET_JSON" | jq -r '.smtp_password // empty')"
+        echo "N8N_SMTP_SENDER=$(echo "$SMTP_SECRET_JSON" | jq -r '.smtp_sender // empty')"
+        echo "N8N_SMTP_SSL=$(echo "$SMTP_SECRET_JSON" | jq -r '.smtp_ssl // false')"
+      } > /opt/n8n/n8n.env
+      chmod 600 /opt/n8n/n8n.env
+    fi
+  fi
+fi
+
 cat > /opt/n8n/docker-compose.yml <<EOF
 services:
   n8n:
@@ -28,6 +55,8 @@ services:
       - NODE_ENV=production
       - WEBHOOK_URL=${n8n_webhook_url}
       - GENERIC_TIMEZONE=${n8n_timezone}
+    env_file:
+      - ./n8n.env
     volumes:
       - n8n_data:/home/node/.n8n
   caddy:

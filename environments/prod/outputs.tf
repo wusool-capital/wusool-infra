@@ -14,11 +14,31 @@ output "n8n_public_ip" {
 }
 
 output "n8n_url" {
-  description = "Direct URL to access production n8n (only if expose_n8n_port is true)."
+  description = "HTTPS URL served by Caddy for production n8n."
   value       = module.n8n.n8n_url
 }
 
 output "ssh_command" {
   description = "Example SSH command for the n8n instance."
   value       = "ssh -i ~/.ssh/${var.key_name}.pem ec2-user@${module.n8n.public_ip}"
+}
+
+output "ssm_command" {
+  description = "Start a shell without opening SSH."
+  value       = "aws ssm start-session --target ${module.n8n.ssm_instance_id} --region ${var.aws_region}"
+}
+
+output "alert_topic_arn" {
+  description = "SNS topic receiving production infrastructure alerts."
+  value       = aws_sns_topic.alerts.arn
+}
+
+output "n8n_secret_name" {
+  description = "Secrets Manager secret name for production n8n."
+  value       = aws_secretsmanager_secret.n8n.name
+}
+
+output "n8n_secret_arn" {
+  description = "Secrets Manager secret ARN for production n8n."
+  value       = aws_secretsmanager_secret.n8n.arn
 }

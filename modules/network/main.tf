@@ -8,7 +8,7 @@ resource "aws_vpc" "this" {
   enable_dns_support   = true
 
   tags = {
-    Name = "wusool-${var.environment}-vpc"
+    Name = "${var.project}-${var.environment}-vpc"
   }
 }
 
@@ -16,7 +16,7 @@ resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
   tags = {
-    Name = "wusool-${var.environment}-igw"
+    Name = "${var.project}-${var.environment}-igw"
   }
 }
 
@@ -27,7 +27,7 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "wusool-${var.environment}-public"
+    Name = "${var.project}-${var.environment}-public"
     Tier = "public"
   }
 }
@@ -38,7 +38,7 @@ resource "aws_subnet" "private" {
   availability_zone = data.aws_availability_zones.available.names[var.private_subnet_az_index]
 
   tags = {
-    Name = "wusool-${var.environment}-private"
+    Name = "${var.project}-${var.environment}-private"
     Tier = "private"
   }
 }
@@ -52,7 +52,7 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name = "wusool-${var.environment}-public-rt"
+    Name = "${var.project}-${var.environment}-public-rt"
   }
 }
 
@@ -60,7 +60,7 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this.id
 
   tags = {
-    Name = "wusool-${var.environment}-private-rt"
+    Name = "${var.project}-${var.environment}-private-rt"
   }
 }
 

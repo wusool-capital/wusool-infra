@@ -1,3 +1,8 @@
+variable "project" {
+  description = "Project name used in resource names and log paths."
+  type        = string
+}
+
 variable "environment" {
   description = "Environment name (dev, prod)."
   type        = string
@@ -14,8 +19,9 @@ variable "subnet_id" {
 }
 
 variable "key_name" {
-  description = "Name of an existing EC2 key pair for SSH access."
+  description = "Name of an existing EC2 key pair for SSH access. Leave empty when using SSM only."
   type        = string
+  default     = ""
 }
 
 variable "instance_type" {
@@ -53,13 +59,13 @@ variable "web_cidr_blocks" {
 }
 
 variable "expose_n8n_port" {
-  description = "Expose port 5678 publicly until Nginx/ALB is configured."
+  description = "Expose port 5678 publicly. Keep false when Caddy serves HTTPS."
   type        = bool
   default     = true
 }
 
 variable "n8n_webhook_url" {
-  description = "Public webhook URL used by n8n (update after DNS/HTTPS is configured)."
+  description = "Public HTTPS URL used by n8n. When set, Caddy serves the URL hostname."
   type        = string
   default     = ""
 }
@@ -74,4 +80,16 @@ variable "n8n_timezone" {
   description = "Timezone for n8n."
   type        = string
   default     = "Asia/Dubai"
+}
+
+variable "secrets_manager_secret_arns" {
+  description = "Secrets Manager secret ARNs the n8n EC2 role can read."
+  type        = list(string)
+  default     = []
+}
+
+variable "n8n_secret_id" {
+  description = "Secrets Manager secret ID containing optional n8n runtime settings such as SMTP configuration."
+  type        = string
+  default     = ""
 }

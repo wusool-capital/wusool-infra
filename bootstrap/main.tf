@@ -14,9 +14,9 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project   = "wusool"
+      Project   = var.project
       ManagedBy = "terraform"
-      Component = "bootstrap"
+      Component = var.component
     }
   }
 }
