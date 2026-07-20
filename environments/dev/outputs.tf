@@ -41,3 +41,24 @@ output "n8n_secret_arn" {
   description = "Secrets Manager secret ARN for development n8n."
   value       = aws_secretsmanager_secret.n8n.arn
 }
+
+output "postgres_endpoint" {
+  description = "Private RDS PostgreSQL endpoint for the CRM machine layer."
+  value       = module.postgres.endpoint
+}
+
+output "postgres_database_name" {
+  description = "Initial PostgreSQL database name."
+  value       = module.postgres.database_name
+}
+
+output "postgres_security_group_id" {
+  description = "Security group attached to the private PostgreSQL instance."
+  value       = module.postgres.security_group_id
+}
+
+output "postgres_master_user_secret_arn" {
+  description = "Secrets Manager ARN containing the RDS managed master user password."
+  value       = module.postgres.master_user_secret_arn
+  sensitive   = true
+}

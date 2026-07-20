@@ -40,6 +40,12 @@ variable "private_subnet_cidr" {
   default     = "10.10.2.0/24"
 }
 
+variable "database_private_subnet_cidr" {
+  description = "Development second private subnet CIDR for RDS PostgreSQL."
+  type        = string
+  default     = "10.10.3.0/24"
+}
+
 variable "key_name" {
   description = "Existing EC2 key pair name for SSH access."
   type        = string
@@ -96,4 +102,34 @@ variable "alert_email" {
   description = "Email subscribed to infrastructure alerts; leave empty to skip subscription."
   type        = string
   default     = ""
+}
+
+variable "postgres_db_name" {
+  description = "Initial PostgreSQL database name for the CRM machine layer."
+  type        = string
+  default     = "wusool_crm"
+}
+
+variable "postgres_master_username" {
+  description = "RDS PostgreSQL master username."
+  type        = string
+  default     = "wusool_admin"
+}
+
+variable "postgres_engine_version" {
+  description = "RDS PostgreSQL engine version."
+  type        = string
+  default     = "16"
+}
+
+variable "postgres_instance_class" {
+  description = "RDS PostgreSQL instance class for development."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "postgres_allocated_storage" {
+  description = "Allocated PostgreSQL storage in GiB."
+  type        = number
+  default     = 20
 }
