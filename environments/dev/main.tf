@@ -1,11 +1,12 @@
 module "network" {
   source = "../../modules/network"
 
-  project             = var.project
-  environment         = var.environment
-  vpc_cidr            = var.vpc_cidr
-  public_subnet_cidr  = var.public_subnet_cidr
-  private_subnet_cidr = var.private_subnet_cidr
+  project                      = var.project
+  environment                  = var.environment
+  vpc_cidr                     = var.vpc_cidr
+  public_subnet_cidr           = var.public_subnet_cidr
+  private_subnet_cidr          = var.private_subnet_cidr
+  database_private_subnet_cidr = var.database_private_subnet_cidr
 }
 
 module "n8n" {
@@ -27,6 +28,21 @@ module "n8n" {
   alarm_topic_arn             = aws_sns_topic.alerts.arn
   secrets_manager_secret_arns = [aws_secretsmanager_secret.n8n.arn]
   n8n_secret_id               = aws_secretsmanager_secret.n8n.id
+}
+
+module "postgres" {
+  source = "../../modules/postgres-rds"
+
+  project                    = var.project
+  environment                = var.environment
+  vpc_id                     = module.network.vpc_id
+  subnet_ids                 = module.network.database_private_subnet_ids
+  allowed_security_group_ids = [module.n8n.security_group_id]
+  db_name                    = var.postgres_db_name
+  master_username            = var.postgres_master_username
+  engine_version             = var.postgres_engine_version
+  instance_class             = var.postgres_instance_class
+  allocated_storage          = var.postgres_allocated_storage
 }
 
 data "aws_caller_identity" "current" {}

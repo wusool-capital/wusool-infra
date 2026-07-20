@@ -36,7 +36,7 @@ state and matching operational controls before a real production rollout.
 The editable draw.io source is:
 
 ```text
-DOCS/wusool-infrastructure-architecture.drawio
+DOCS/n8n/wusool-infrastructure-architecture.drawio
 ```
 
 Open it in Cursor with `Open With -> Draw.io Editor`, or open it from

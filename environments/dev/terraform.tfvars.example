@@ -11,3 +11,11 @@ expose_n8n_port = false
 n8n_webhook_url = "https://n8n-dev.wusoolcapital.com/"
 
 alert_email = "raoof@azmora.ai"
+
+# Private PostgreSQL for the CRM machine/intelligence layer.
+database_private_subnet_cidr = "10.10.3.0/24"
+postgres_db_name             = "wusool_crm"
+postgres_master_username     = "wusool_admin"
+postgres_engine_version      = "16"
+postgres_instance_class      = "db.t4g.micro"
+postgres_allocated_storage   = 20

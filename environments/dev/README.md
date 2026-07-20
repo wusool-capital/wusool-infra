@@ -1,6 +1,6 @@
 # Development environment
 
-See the [infrastructure overview](../../DOCS/infrastructure-overview.md) for
+See the [infrastructure overview](../../DOCS/n8n/infrastructure-overview.md) for
 diagrams of the deployed AWS resources, request path, and operational controls.
 
 The development Terraform configuration declares n8n on an Amazon Linux EC2

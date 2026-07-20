@@ -26,7 +26,7 @@ The development environment contains:
 
 See:
 
-- [Infrastructure overview](DOCS/infrastructure-overview.md)
+- [Infrastructure overview](DOCS/n8n/infrastructure-overview.md)
 - [Development operating guide](environments/dev/README.md)
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
 
@@ -41,7 +41,7 @@ wusool-infra/
 |-- modules/
 |   |-- network/               # VPC, subnets, route tables and IGW
 |   `-- n8n-ec2/               # EC2, n8n, Caddy, IAM, SSM and monitoring
-|-- DOCS/                      # Architecture documents and diagrams
+|-- DOCS/                      # Architecture, n8n, and migration documentation
 |-- scripts/                   # Repository helper scripts
 `-- .agents/skills/            # Project-local Codex skills
 ```

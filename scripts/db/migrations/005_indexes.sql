@@ -1,0 +1,17 @@
+CREATE INDEX IF NOT EXISTS idx_organizations_domains ON organizations USING gin (domains);
+CREATE INDEX IF NOT EXISTS idx_organizations_type ON organizations USING gin (type);
+CREATE INDEX IF NOT EXISTS idx_people_email ON people USING gin (email);
+CREATE INDEX IF NOT EXISTS idx_people_company ON people (company_attio_id);
+CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals (stage);
+CREATE INDEX IF NOT EXISTS idx_deals_buyer_org ON deals (buyer_organization_attio_id);
+CREATE INDEX IF NOT EXISTS idx_deals_seller_org ON deals (seller_organization_attio_id);
+CREATE INDEX IF NOT EXISTS idx_activities_subject ON activities (subject_type, subject_attio_id);
+CREATE INDEX IF NOT EXISTS idx_activities_ts ON activities (ts DESC);
+CREATE INDEX IF NOT EXISTS idx_deal_stage_events_deal_ts ON deal_stage_events (deal_attio_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_signals_buyer_ts ON signals (buyer_attio_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_buyer_intel_buyer_generated ON buyer_intel (buyer_attio_id, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_seller_financials_seller ON seller_financials (seller_attio_id);
+CREATE INDEX IF NOT EXISTS idx_match_scores_pair_generated ON match_scores (buyer_attio_id, seller_attio_id, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_documents_deal_kind ON documents (deal_attio_id, kind);
+CREATE INDEX IF NOT EXISTS idx_vertical_kb_sector ON vertical_kb (sector);
+CREATE INDEX IF NOT EXISTS idx_graph_edges_people ON graph_edges (person_a_attio_id, person_b_attio_id);

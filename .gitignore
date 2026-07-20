@@ -55,3 +55,6 @@ override.tf.json
 
 # Local archived workspace files
 _archive/
+
+# Generated migration/discovery outputs
+outputs/

@@ -7,6 +7,7 @@ dnf install -y docker
 dnf install -y amazon-cloudwatch-agent
 dnf install -y awscli
 dnf install -y jq
+dnf install -y openssl
 systemctl enable amazon-ssm-agent
 systemctl restart amazon-ssm-agent
 systemctl enable docker
@@ -44,6 +45,11 @@ if [ -n "${n8n_secret_id}" ]; then
   fi
 fi
 
+if ! grep -q '^N8N_RUNNERS_AUTH_TOKEN=' /opt/n8n/n8n.env; then
+  echo "N8N_RUNNERS_AUTH_TOKEN=$(openssl rand -hex 32)" >> /opt/n8n/n8n.env
+  chmod 600 /opt/n8n/n8n.env
+fi
+
 cat > /opt/n8n/docker-compose.yml <<EOF
 services:
   n8n:
@@ -58,10 +64,24 @@ services:
       - NODE_ENV=production
       - WEBHOOK_URL=${n8n_webhook_url}
       - GENERIC_TIMEZONE=${n8n_timezone}
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      - N8N_NATIVE_PYTHON_RUNNER=true
     env_file:
       - ./n8n.env
     volumes:
       - n8n_data:/home/node/.n8n
+  task-runners:
+    image: n8nio/runners:latest
+    restart: always
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
+      - N8N_NATIVE_PYTHON_RUNNER=true
+    env_file:
+      - ./n8n.env
+    depends_on:
+      - n8n
   caddy:
     image: caddy:2
     restart: always
