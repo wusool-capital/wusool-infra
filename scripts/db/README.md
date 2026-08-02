@@ -1,37 +1,167 @@
-# Wusool CRM Database Migrations
+# DEV Attio to PostgreSQL
 
-These migrations implement the PostgreSQL machine layer from
-`Database_Architecture_ER_Diagram.drawio`.
+This folder defines the `wusool_crm` PostgreSQL schema and the transactional
+sync from canonical DEV Attio. Attio owns human-facing CRM state; PostgreSQL
+stores a relational mirror plus automation, history, analytics, and AI data.
 
-Attio remains the CRM system of record. PostgreSQL stores the reusable
-automation and intelligence layer: activity history, documents, extracted JSON,
-buyer signals, normalized seller financials, matching scores, graph edges,
-stage history, and sync state. The durable join key is `attio_id`.
+## Command surface
 
-## Run
+| Script | Responsibility |
+| --- | --- |
+| `setup-postgres.ps1` | Apply four idempotent SQL schema files and validate required tables/columns. Optional guarded reset. |
+| `sync-postgres.ps1` | Read canonical DEV Attio, map values, and dry-run or transactionally upsert PostgreSQL rows. |
+| `validate-postgres.ps1` | Independently compare DEV/PostgreSQL counts and validate key relationships. Read-only. |
 
-Set a PostgreSQL connection string and run the migrations:
+## Prerequisites
 
-```powershell
-$env:DATABASE_URL = "postgresql://wusool_admin:password@host:5432/wusool_crm?sslmode=require"
-.\scripts\db\migrate.ps1
-.\scripts\db\validate.ps1
-```
+- Python with `psycopg[binary]`.
+- Active AWS SSM port-forwarding tunnel to private RDS.
+- `DATABASE_URL` for `wusool_crm` through `localhost:15432`.
+- `DEV_ATTIO_API_KEY` for synchronization.
 
-The scripts are idempotent for the current baseline: they use `CREATE TABLE IF
-NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and extension guards.
+See `rds-tunnel-runbook.md` for tunnel and credential retrieval commands.
+Never share the RDS master password, complete admin `DATABASE_URL`, AWS keys,
+or Attio keys.
 
-## Migration Files
+## SQL schema files
+
+`setup-postgres.ps1` reads `sql/*.sql`, sorts them by filename, and executes:
 
 | File | Purpose |
 | --- | --- |
-| `001_extensions.sql` | Enables `pgcrypto` and attempts `pgvector`. |
-| `002_core_attio_mirror.sql` | Mirrors core Attio objects: users, organizations, people, deals, mandates. |
-| `003_crm_roles.sql` | Adds buyer, seller, and investor/lender role tables. |
-| `004_machine_layer.sql` | Adds Postgres-owned automation/intelligence tables. |
-| `005_indexes.sql` | Adds lookup and relationship indexes. |
+| `001_extensions.sql` | Enable `pgcrypto` and pgvector when available. |
+| `002_core_attio_mirror.sql` | Create Users, Organizations, People, Deals, and Mandates. |
+| `003_crm_roles.sql` | Create Buyer Role, Seller Role, and optional investor/lender roles. |
+| `004_machine_layer.sql` | Create activities, stage history, intelligence, matching, documents, graph, scorecards, reconciliation columns, and indexes. |
 
-## Next Step
+The files use `CREATE ... IF NOT EXISTS` and controlled `ALTER` statements.
+Normal setup does not recreate tables or delete data.
 
-After dev RDS is created, fetch the RDS managed password from Secrets Manager,
-build `DATABASE_URL`, run `migrate.ps1`, then run `validate.ps1`.
+## First-time or changed-schema setup
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\db\setup-postgres.ps1
+```
+
+The script verifies `current_database()` is exactly `wusool_crm`, runs the SQL
+files, and validates required tables and columns. It is not required for every
+routine data sync.
+
+## DEV extraction dry-run
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\db\sync-postgres.ps1
+```
+
+This reads, paginates, and maps:
+
+```text
+/workspace_members
+/objects/organizations/records/query
+/objects/person/records/query
+/objects/deals/records/query
+/lists/buyer_role/entries/query
+/lists/seller_role/entries/query
+/lists/mandates/entries/query
+```
+
+Raw API records and mapped rows exist temporarily in RAM. No CSV or staging
+database is used. The dry-run prints counts and exits before connecting to
+PostgreSQL.
+
+## Apply DEV to PostgreSQL
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\db\sync-postgres.ps1 `
+  -Apply
+```
+
+Sync order preserves foreign keys:
+
+```text
+Users -> Organizations -> People -> Deals -> Mandates -> Buyer Roles -> Seller Roles
+```
+
+The script uses parameterized `INSERT ... ON CONFLICT ... DO UPDATE` queries.
+Core tables conflict on DEV `attio_id`; role tables conflict on
+`org_attio_id`. The complete original Attio payload is also preserved in each
+row's `raw_attio` JSONB column.
+
+PostgreSQL identity rule:
+
+```text
+PostgreSQL attio_id = DEV Attio record ID
+```
+
+SOURCE identity remains inside DEV `legacy_attio_id` and `raw_attio`; it does
+not replace the DEV key in PostgreSQL.
+
+Before commit, the script verifies exact row counts. Any SQL, relationship, or
+count failure rolls back the transaction.
+
+## Last successful counts
+
+| Table | Rows |
+| --- | ---: |
+| users | 1 |
+| organizations | 3,040 |
+| people | 4,329 |
+| deals | 48 |
+| buyer_roles | 264 |
+| seller_roles | 172 |
+| mandates | 2 |
+
+## Routine synchronization
+
+After DEV Attio is canonical, routine execution normally requires only:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\db\sync-postgres.ps1
+
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\db\sync-postgres.ps1 -Apply
+
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\db\validate-postgres.ps1
+```
+
+The sync is idempotent: existing rows update and missing rows insert without
+creating duplicate DEV identities. PostgreSQL-owned intelligence fields are
+not replaced by Attio projections.
+
+The final validation command reads both systems, compares Users,
+Organizations, People, Deals, Buyer Roles, Seller Roles, and Mandates, checks
+critical foreign-key relationships, and returns a failing exit code on any
+mismatch. It never writes to Attio or PostgreSQL.
+
+## Destructive reset—exception only
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\db\setup-postgres.ps1 `
+  -Reset -ConfirmDatabase wusool_crm
+```
+
+This drops the entire `public` schema. Never use it for routine setup or sync.
+
+## Manager read-only access
+
+Do not share the RDS master account. Create a dedicated read-only PostgreSQL
+role with `CONNECT`, schema `USAGE`, and table `SELECT` only. The manager also
+needs separately authorized AWS SSM access because RDS is private. Typical
+DBeaver/pgAdmin settings after opening the tunnel are:
+
+```text
+Host: localhost
+Port: 15432
+Database: wusool_crm
+SSL mode: require
+Username: dedicated read-only role
+```
+
+Deliver the password through an approved password manager or Secrets Manager,
+never Git, chat, screenshots, or email.

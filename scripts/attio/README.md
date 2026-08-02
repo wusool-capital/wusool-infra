@@ -1,227 +1,186 @@
-# Attio Migration Scripts
+# SOURCE Attio to DEV Attio Migration
 
-These scripts support the reusable Attio migration path:
+This folder contains the canonical, one-way migration from the legacy SOURCE
+Attio workspace to the DEV Wusool Capital workspace. SOURCE is always
+read-only. All mutations are guarded and target DEV only.
+
+## Command surface
+
+Run only these four public scripts:
+
+| Script | Responsibility |
+| --- | --- |
+| `ensure-schema.ps1` | Validate or create the approved DEV object/list schema. Does not migrate records. |
+| `sync-objects.ps1` | Migrate Organizations, Persons, and Deals. |
+| `sync-lists.ps1` | Migrate Buyer Role, Seller Role, and Mandates. |
+| `validate-attio.ps1` | Compare SOURCE counts with canonical DEV counts after migration. Read-only. |
+
+`_internal/schema.ps1`, `_internal/objects.ps1`, and `_internal/lists.ps1`
+contain consolidated implementation logic and are not run directly. The JSON
+files in `config/` define workspace decisions, field mappings, and target
+schema.
+
+## Prerequisites
+
+Set these environment variables without printing or committing their values:
+
+```powershell
+$env:SOURCE_ATTIO_API_KEY = "<source-read-key>"
+$env:DEV_ATTIO_API_KEY = "<dev-write-key>"
+```
+
+Every apply verifies DEV workspace ID
+`c9ef3cda-2501-4d19-b7da-1273700721e5`. Never place credentials in Git,
+screenshots, logs, or documentation.
+
+## Migration order
 
 ```text
-Source Attio workspace
--> discover schema, lists, and records
--> map fields
--> create/update DEV Attio
--> sync DEV Attio to PostgreSQL
+Schema preflight
+  -> Organizations
+  -> Persons
+  -> Deals
+  -> Buyer Role
+  -> Seller Role
+  -> Mandates
+  -> DEV validation
+  -> PostgreSQL sync
 ```
 
-The first script is read-only. It discovers object and list metadata from both
-workspaces so mappings are based on real Attio IDs/slugs instead of guesses.
-
-## Required Environment Variables
+### 1. Schema dry-run
 
 ```powershell
-$env:SOURCE_ATTIO_API_KEY = "source-token"
-$env:DEV_ATTIO_API_KEY = "dev-token"
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\ensure-schema.ps1
 ```
 
-Do not commit API keys or `.env` files.
-
-## Discovery
-
-Discover both workspaces when both tokens are available:
+Review missing attributes, wrong types/cardinality, list parents, relationship
+targets, and option drift. Apply approved schema changes only when needed:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\discover-attio.ps1
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\ensure-schema.ps1 `
+  -Apply
 ```
 
-Discover only DEV while waiting for source access:
+### 2. Object dry-run
 
 ```powershell
-$env:DEV_ATTIO_API_KEY = "dev-token"
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\discover-attio.ps1 -Workspace dev
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\sync-objects.ps1 `
+  -Limit 0 `
+  -Parallel `
+  -Workers 4 `
+  -ExistingDealsOnly
 ```
 
-Outputs are written to:
+The dry-run reads SOURCE and DEV, matches by `legacy_attio_id`, resolves
+relationships, builds payloads in memory, and reports proposed creates,
+updates, conflicts, and errors. It performs no writes.
 
-```text
-outputs/attio/source-objects.json
-outputs/attio/source-lists.json
-outputs/attio/source-object-attributes.json
-outputs/attio/source-list-attributes.json
-outputs/attio/dev-objects.json
-outputs/attio/dev-lists.json
-outputs/attio/dev-object-attributes.json
-outputs/attio/dev-list-attributes.json
-```
+### 3. Object apply
 
-After discovery, create the field mapping:
-
-```text
-scripts/attio/config/field-mapping.example.json
-```
-
-and save the real mapping as:
-
-```text
-outputs/attio/field-mapping.json
-```
-
-## DEV Legacy IDs
-
-To make source-to-DEV migration rerunnable, DEV Attio records should store the
-source record ID in `legacy_attio_id`.
+Run only after the object dry-run has no blocking errors:
 
 ```powershell
-$env:DEV_ATTIO_API_KEY = "dev-token"
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\ensure-dev-legacy-fields.ps1
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\sync-objects.ps1 `
+  -Limit 0 `
+  -Parallel `
+  -Workers 4 `
+  -ExistingDealsOnly `
+  -Apply `
+  -Confirmation APPLY_SELECTED_OBJECTS_TO_DEV
 ```
 
-The script checks and creates `legacy_attio_id` on:
+Objects use `PUT` for an existing DEV record and `POST` for a missing record.
+The SOURCE record ID is stored in DEV `legacy_attio_id`; the DEV record ID
+remains DEV identity.
 
-```text
-companies
-people
-deals
-scorecards
-```
-
-## Core DEV Schema
-
-After source and DEV discovery have run, create the core Wusool DEV schema:
+### 4. List dry-run
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\ensure-dev-core-schema.ps1
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\sync-lists.ps1 `
+  -Limit 0 `
+  -Workers 3
 ```
 
-The script is scoped to:
+### 5. Apply lists one at a time
 
-```text
-Objects: companies, people, deals
-Lists: buyer_brain, valuation_tool_leads, buy_side_mandates
-```
-
-Relationship, actor, and interaction attributes are skipped for explicit review.
-After it completes, rerun discovery and comparison.
-
-Deal stages are status values and use a separate API. Sync source deal stages to
-DEV before migrating deals:
+Buyer Role:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\ensure-dev-deal-stages.ps1
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\sync-lists.ps1 `
+  -Lists buyer_role -Limit 0 -Workers 3 -Apply `
+  -Confirmation APPLY_ALL_BUYER_ROLE_TO_DEV
 ```
 
-## Source Record Samples
-
-Before writing records into DEV, export a small read-only sample to inspect value
-shapes:
+Seller Role:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\export-attio-records.ps1 -Limit 10
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\sync-lists.ps1 `
+  -Lists seller_role -Limit 0 -Apply `
+  -Confirmation APPLY_ALL_SELLER_ROLE_TO_DEV
 ```
 
-Outputs:
-
-```text
-outputs/attio/records/companies.sample.json
-outputs/attio/records/people.sample.json
-outputs/attio/records/deals.sample.json
-```
-
-## Company Migration
-
-Run a dry-run first:
+Mandates:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\migrate-companies.ps1 -Limit 1
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\sync-lists.ps1 `
+  -Lists mandates -Limit 0 -Apply `
+  -Confirmation APPLY_ALL_MANDATES_TO_DEV
 ```
 
-Apply one record after reviewing the dry run:
+Existing list entries use `PATCH`; missing entries use `POST`. Each list entry
+is attached to its resolved DEV Organization parent.
+
+### 6. Final SOURCE to DEV validation
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\migrate-companies.ps1 -Limit 1 -Apply
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\attio\validate-attio.ps1
 ```
 
-The script uses `legacy_attio_id` to detect whether a source company already
-exists in DEV.
+The validator is read-only. It compares SOURCE and DEV object counts. For
+lists it reports the raw SOURCE count and the canonical unique-parent count,
+because duplicate SOURCE entries for the same parent intentionally become one
+DEV list entry. It also fails on missing SOURCE parents, duplicate DEV list
+parents, a count mismatch, or connection to the wrong DEV workspace.
 
-By default it skips select fields because DEV must have matching option values
-first. Use `-IncludeSelects` only after option sync/review.
+## Expected canonical DEV counts
 
-## People Migration
+Use these as reconciliation evidence, not hard-coded migration limits:
 
-Run a dry-run first:
+| Entity | Expected count |
+| --- | ---: |
+| Organizations | 3,040 |
+| Persons | 4,329 |
+| Deals | 48 |
+| Buyer Role | 264 |
+| Seller Role | 172 |
+| Mandates | 2 |
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\migrate-people.ps1 -Limit 1
-```
+## Mapping rules to highlight
 
-Apply one record:
+- SOURCE Companies -> custom DEV `organizations`.
+- SOURCE People -> custom DEV `person`.
+- SOURCE `associated_company` -> DEV Deal `seller_id`.
+- Existing Deal `buyer_id` remains blank.
+- Organization/Person Relationship Status is an optional single select.
+- Deal readiness fields are optional Booleans.
+- Exclusivity start/end dates are preserved separately.
+- List duplicates are canonicalized by parent before writing.
+- Ambiguous relationships remain blank and are reported; names are not IDs.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\migrate-people.ps1 -Limit 1 -Apply
-```
+## Outputs and recovery
 
-People are linked to DEV companies only when the referenced source company has
-already been migrated and can be found by `legacy_attio_id`.
+Plans, summaries, worker logs, and conflict reports are written beneath
+`outputs/attio_migration/`. They are migration evidence, not a staging
+database. SOURCE/DEV records are otherwise transformed in process memory.
 
-## Deal Migration
-
-Run a dry-run first:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\migrate-deals.ps1 -Limit 1
-```
-
-Apply one record:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\migrate-deals.ps1 -Limit 1 -Apply
-```
-
-Deals are linked to DEV companies only when the referenced source company has
-already been migrated and can be found by `legacy_attio_id`.
-
-Currency fields are skipped by default until value formatting is confirmed. Use
-`-IncludeCurrency` only after a small test.
-
-## Counts
-
-Check source and DEV record counts:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\count-attio-records.ps1
-```
-
-## Core Batch Runner
-
-Run all core object migrations in batches. Dry-run:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\run-core-migration.ps1 -BatchSize 100
-```
-
-Apply:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\run-core-migration.ps1 -BatchSize 100 -Apply
-```
-
-Run only one object:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\run-core-migration.ps1 -Object companies -BatchSize 100 -Apply
-```
-
-Run a bounded range:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\run-core-migration.ps1 -Object companies -BatchSize 50 -StartOffset 1000 -MaxRecords 500 -Apply
-```
-
-Deals require an owner in DEV. List DEV workspace members:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\attio\list-dev-members.ps1
-```
-
-Then set:
-
-```powershell
-$env:DEV_ATTIO_OWNER_WORKSPACE_MEMBER_ID = "workspace-member-id"
-```
+All commands default to dry-run. Do not interrupt an apply unless necessary;
+if interrupted, rerun from the beginning because writes are idempotent.
