@@ -1,0 +1,62 @@
+{
+  "version": "0.1",
+  "dev_workspace_id": "c9ef3cda-2501-4d19-b7da-1273700721e5",
+  "objects": {
+    "organization": {
+      "kind": "custom",
+      "singular_noun": "Organization",
+      "plural_noun": "Organizations",
+      "api_slug": "organizations",
+      "source_object": "companies"
+    },
+    "person": {
+      "kind": "custom",
+      "singular_noun": "Person",
+      "plural_noun": "Person",
+      "api_slug": "person",
+      "source_object": "people"
+    },
+    "deal": {
+      "kind": "standard",
+      "singular_noun": "Deal",
+      "plural_noun": "Deals",
+      "api_slug": "deals",
+      "source_object": "deals"
+    }
+  },
+  "lists": {
+    "buyer_role": {
+      "api_slug": "buyer_role",
+      "parent_object": "organizations",
+      "source_list": "buyer_brain"
+    },
+    "seller_role": {
+      "api_slug": "seller_role",
+      "parent_object": "organizations",
+      "source_list": "valuation_tool_leads"
+    },
+    "mandates": {
+      "api_slug": "mandates",
+      "parent_object": "organizations",
+      "source_list": "buy_side_mandates"
+    }
+  },
+  "pending": [
+    "investor_lender_role design",
+    "new enum option sets",
+    "Deal buyer and seller relationship mapping",
+    "owner backfill after DEV workspace members are populated"
+  ],
+  "deferred_backfills": {
+    "organization_owner": {
+      "source_field": "relationship_owner",
+      "initial_value": null,
+      "rule": "Leave blank during initial Organization migration; never default to Tech Wusool.",
+      "resume_when": "All approved advisors exist as DEV workspace members and the user mapping has no unmatched or ambiguous owners."
+    }
+  },
+  "system_objects": {
+    "companies": "empty_and_leave_unused",
+    "people": "empty_and_leave_unused"
+  }
+}

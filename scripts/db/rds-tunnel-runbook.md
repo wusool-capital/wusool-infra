@@ -37,33 +37,14 @@ $pass = [System.Uri]::EscapeDataString($secret.password)
 $env:DATABASE_URL = "postgresql://${user}:${pass}@localhost:15432/wusool_crm?sslmode=require"
 ```
 
-## Run Migrations With Local psql
+## Set Up and Sync
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\db\migrate.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\db\validate.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\db\setup-postgres.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\db\sync-postgres.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\db\sync-postgres.ps1 -Apply
 ```
 
-## Run Migrations With Docker
+## Client
 
-```powershell
-$dockerDatabaseUrl = $env:DATABASE_URL.Replace("localhost:15432","host.docker.internal:15432")
-
-Get-ChildItem .\scripts\db\migrations\*.sql | Sort-Object Name | ForEach-Object {
-  Write-Host "Running $($_.Name)"
-  docker run --rm `
-    -e DATABASE_URL="$dockerDatabaseUrl" `
-    -v "${PWD}\scripts\db\migrations:/migrations:ro" `
-    postgres:16 `
-    psql "$dockerDatabaseUrl" -v ON_ERROR_STOP=1 -f "/migrations/$($_.Name)"
-}
-```
-
-Validate:
-
-```powershell
-docker run --rm `
-  -e DATABASE_URL="$dockerDatabaseUrl" `
-  postgres:16 `
-  psql "$dockerDatabaseUrl" -c "\dt"
-```
+Both commands use Python `psycopg`; local `psql` and Docker are not required.

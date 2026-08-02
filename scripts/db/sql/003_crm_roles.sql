@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS seller_roles (
   org_attio_id text NOT NULL REFERENCES organizations(attio_id) ON DELETE CASCADE,
   outreach_tier text,
   appetite_signal text,
+  relationship_status text,
   est_revenue jsonb,
   est_ebitda jsonb,
   owner_salary jsonb,
