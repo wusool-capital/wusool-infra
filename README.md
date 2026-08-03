@@ -27,6 +27,8 @@ The development environment contains:
 See:
 
 - [Infrastructure overview](DOCS/n8n/infrastructure-overview.md)
+- [Client schema overview](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md) — Attio
+  and PostgreSQL overview
 - [Development operating guide](environments/dev/README.md)
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
 
@@ -41,8 +43,11 @@ wusool-infra/
 |-- modules/
 |   |-- network/               # VPC, subnets, route tables and IGW
 |   `-- n8n-ec2/               # EC2, n8n, Caddy, IAM, SSM and monitoring
-|-- DOCS/                      # Architecture, n8n, and migration documentation
-|-- scripts/                   # Repository helper scripts
+|-- DOCS/                      # Architecture, schema, n8n, and migration documentation
+|-- scripts/
+|   |-- attio/                 # Attio schema and synchronization tools
+|   |-- db/                    # PostgreSQL migrations and database tools
+|   `-- docs/                  # Schema documentation generators
 `-- .agents/skills/            # Project-local Codex skills
 ```
 
@@ -58,6 +63,85 @@ $env:TF_VAR_project = "wusool"
 $env:TF_VAR_environment = "dev"
 $env:TF_VAR_aws_region = "eu-central-1"
 ```
+
+## CRM and data-platform schema
+
+Wusool uses Attio and PostgreSQL as connected parts of the same data platform.
+Attio is the operational CRM used by the business team. PostgreSQL is the
+structured platform layer used for synchronization, enrichment, automation,
+analysis, scoring, and generated outputs.
+
+### Platform responsibilities
+
+| Platform | Primary responsibility | Example data |
+| --- | --- | --- |
+| Attio | Business-facing CRM and workflow management | Organizations, people, deals, mandates, relationship status, and ownership |
+| PostgreSQL | Structured storage and machine-processing layer | CRM mirrors, activities, signals, intelligence, matching, documents, events, and synchronization state |
+| Shared | Records exchanged between both platforms | Attio identifiers, operational metrics, relationship keys, and selected workflow results |
+
+Core Attio records are mirrored into PostgreSQL using stable Attio record
+identifiers. PostgreSQL can then associate CRM records with research,
+enrichment, scoring, events, and automation outputs without duplicating their
+business identity.
+
+```text
+Business users
+      |
+      v
+Attio CRM  <------ selected operational results ------+
+      |                                               |
+      +------ identifiers and CRM records ------> PostgreSQL
+                                                   |
+                                                   +--> automation
+                                                   +--> enrichment
+                                                   +--> analysis and scoring
+                                                   `--> documents and reporting
+```
+
+### Schema documentation
+
+| Document | Audience | Contents |
+| --- | --- | --- |
+| [Client schema overview](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md) | Clients, management, engineering, and operations | Executive explanation, platform mapping, Attio and PostgreSQL schemas, functional areas, relationships, constraints, and ownership |
+
+### Documented schema scope
+
+The current documentation covers:
+
+- Attio objects and lists for organizations, people, users, buyer roles, seller
+  roles, investor/lender roles, deals, and mandates.
+- PostgreSQL CRM mirror tables, business-role tables, activities, pipeline
+  events, signals, buyer intelligence, seller financials, mandate targets,
+  match scores, documents, sector knowledge, relationship graphs, scorecards,
+  and Attio synchronization tables.
+- Cross-platform mappings, record relationships, ownership boundaries,
+  database constraints, and indexes.
+
+### Schema sources of truth
+
+| Schema | Source |
+| --- | --- |
+| Attio target model | `scripts/attio/config/target-schema.json` |
+| Attio migration mapping | `scripts/attio/config/source-to-target-mapping.json` |
+| PostgreSQL schema | `scripts/db/sql/001_extensions.sql` through `004_machine_layer.sql` |
+
+The generated documents describe the schema declared in this repository. They
+do not prove the current state of a live Attio workspace or PostgreSQL database.
+Live validation must be performed separately using the repository validation
+scripts.
+
+### Regenerating the documentation
+
+Run the generator from the repository root after changing the Attio model or
+PostgreSQL migrations:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/docs/generate-client-schema-overview.ps1
+```
+
+Do not manually edit the generated Markdown file; update the schema sources or
+generator script and regenerate it instead.
 
 ## Development state backend
 
