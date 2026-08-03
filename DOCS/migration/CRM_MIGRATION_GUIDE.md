@@ -1,5 +1,10 @@
 # CRM Migration
 
+See also:
+
+- [Client schema overview](CLIENT_SCHEMA_OVERVIEW.md) — Attio and PostgreSQL
+  schema reference for the migration target model
+
 ## Overview
 
 ```text
