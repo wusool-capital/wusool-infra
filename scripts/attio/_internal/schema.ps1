@@ -573,17 +573,30 @@ if([string]$deal.data.api_slug-ne"deals"){throw "DEV standard Deals object was n
 $workspaceId=[string]$deal.data.id.workspace_id
 if($workspaceId-ne$expectedWorkspaceId){throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $workspaceId."}
 $attrs=Map @((Request Get "/objects/deals/attributes" $null).data)
+$allAttrs=Map @((Request Get "/objects/deals/attributes?show_archived=true" $null).data)
+function Clear-ArchivedSlug($slug,$title){
+  if(-not $allAttrs.ContainsKey($slug)){return}
+  $archived=$allAttrs[$slug]
+  $archivedId=[string]$archived.id.attribute_id
+  $legacySlug="$($slug)_legacy_$($archivedId.Substring(0,8))"
+  $actions.Add("rename_archived_attribute:$($slug):$legacySlug")
+  if($Apply){
+    Request Patch "/objects/deals/attributes/$archivedId" @{data=@{title="$title (Legacy)";api_slug=$legacySlug;is_archived=$true}}|Out-Null
+    Write-Host "RENAMED ARCHIVED: $slug -> $legacySlug"
+  }else{Write-Host "DRY RUN: would rename archived $slug -> $legacySlug."}
+  $allAttrs.Remove($slug)
+}
 $fields=@(
-  [pscustomobject]@{Title="Buyer ID";Slug="buyer_id";Type="record-reference";Config=@{record_reference=@{allowed_objects=@("organizations","person")}}},
-  [pscustomobject]@{Title="Seller ID";Slug="seller_id";Type="record-reference";Config=@{record_reference=@{allowed_objects=@("organizations")}}},
-  [pscustomobject]@{Title="Stage Changed At";Slug="stage_changed_at";Type="timestamp";Config=@{}},
-  [pscustomobject]@{Title="Time In Stage (Days)";Slug="time_in_stage";Type="number";Config=@{}},
-  [pscustomobject]@{Title="NDA Count";Slug="nda_count";Type="number";Config=@{}},
-  [pscustomobject]@{Title="CIM Ready";Slug="cim_ready";Type="checkbox";Config=@{}},
-  [pscustomobject]@{Title="Deal Memo Ready";Slug="deal_memo_ready";Type="checkbox";Config=@{}},
-  [pscustomobject]@{Title="Exclusivity Start Date";Slug="exclusivity_start_date";Type="date";Config=@{}},
-  [pscustomobject]@{Title="Exclusivity End Date";Slug="exclusivity_end_date";Type="date";Config=@{}},
-  [pscustomobject]@{Title="Data Room Substatus";Slug="data_room_substatus";Type="select";Config=@{}}
+  [pscustomobject]@{Title="Buyer ID";Slug="buyer_id";Type="record-reference";Config=@{record_reference=@{allowed_objects=@("organizations","person")}};RenameFrom=$null},
+  [pscustomobject]@{Title="Seller ID";Slug="seller_id";Type="record-reference";Config=@{record_reference=@{allowed_objects=@("organizations")}};RenameFrom=$null},
+  [pscustomobject]@{Title="Stage Changed At";Slug="stage_changed_at";Type="timestamp";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Time In Stage (Days)";Slug="time_in_stage";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="NDA Count";Slug="nda_count";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="CIM Ready";Slug="cim_ready";Type="checkbox";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Deal Memo Ready";Slug="deal_memo_ready";Type="checkbox";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Contract Signed Date";Slug="contract_signed_date";Type="date";Config=@{};RenameFrom="exclusivity_start_date"},
+  [pscustomobject]@{Title="Exclusivity Date";Slug="exclusivity_date";Type="date";Config=@{};RenameFrom="exclusivity_end_date"},
+  [pscustomobject]@{Title="Data Room Substatus";Slug="data_room_substatus";Type="select";Config=@{};RenameFrom=$null}
 )
 $actions=[Collections.Generic.List[string]]::new()
 foreach($field in $fields){
@@ -599,6 +612,18 @@ foreach($field in $fields){
     }else{Write-Host "EXISTS: $($field.Slug)"}
     continue
   }
+  if($field.RenameFrom-and$attrs.ContainsKey($field.RenameFrom)){
+    $current=$attrs[$field.RenameFrom]
+    if([string]$current.type-ne$field.Type-or[bool]$current.is_multiselect){throw "DEV deals/$($field.RenameFrom) has unexpected type or cardinality for rename to $($field.Slug)."}
+    Clear-ArchivedSlug $field.Slug $field.Title
+    $actions.Add("rename_attribute:$($field.RenameFrom):$($field.Slug)")
+    if($Apply){
+      Request Patch "/objects/deals/attributes/$($current.id.attribute_id)" @{data=@{title=$field.Title;api_slug=$field.Slug}}|Out-Null
+      Write-Host "RENAMED: $($field.RenameFrom) -> $($field.Slug) ($($field.Title))"
+    }else{Write-Host "DRY RUN: would rename $($field.RenameFrom) -> $($field.Slug) ($($field.Title))."}
+    continue
+  }
+  Clear-ArchivedSlug $field.Slug $field.Title
   $actions.Add("create_attribute:$($field.Slug)")
   if($Apply){
     Request Post "/objects/deals/attributes" @{data=@{
@@ -649,7 +674,7 @@ $expectedWorkspaceId = [string]$decisions.dev_workspace_id
 
 function Invoke-AttioRequest {
   param(
-    [ValidateSet("Get", "Post")][string]$Method,
+    [ValidateSet("Get", "Post", "Patch")][string]$Method,
     [hashtable]$Headers,
     [string]$Path,
     [object]$Body
@@ -687,6 +712,7 @@ function Get-OptionTitles {
 
 $devOrganization = Invoke-AttioRequest -Method Get -Headers $devHeaders `
   -Path "/objects/organizations"
+
 $connectedWorkspaceId = [string]$devOrganization.data.id.workspace_id
 if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
   throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
@@ -736,7 +762,7 @@ $fields = @(
   [pscustomobject]@{ Title="Check Size Min"; Slug="check_size_min"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
   [pscustomobject]@{ Title="Check Size Max"; Slug="check_size_max"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
   [pscustomobject]@{ Title="EV Ceiling"; Slug="ev_ceiling"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Deal Structure Tolerance"; Slug="deal_structure_tolerance"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  [pscustomobject]@{ Title="Deal Structure Tolerance"; Slug="deal_structure_tolerance"; Type="select"; Multi=$false; SourceOption=$null; FixedOptions=@("Majority","Minority","Flexible","Acquisition Financing"); Config=@{} },
   [pscustomobject]@{ Title="Earnout Tolerance"; Slug="earnout_tolerance"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Profitable Only"; Slug="profitable_only"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Investment Strategy"; Slug="investment_strategy"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
@@ -764,10 +790,29 @@ foreach ($field in $fields) {
     $current = $attributes[$field.Slug]
     if ([string]$current.type -ne $field.Type -or
         [bool]$current.is_multiselect -ne [bool]$field.Multi) {
-      throw "DEV buyer_role/$($field.Slug) has type=$($current.type), multiselect=$($current.is_multiselect); expected $($field.Type), multiselect=$($field.Multi)."
+      if ($field.Slug -ne "deal_structure_tolerance" -or [string]$current.type -ne "text") {
+        throw "DEV buyer_role/$($field.Slug) has type=$($current.type), multiselect=$($current.is_multiselect); expected $($field.Type), multiselect=$($field.Multi)."
+      }
+      $currentId = [string]$current.id.attribute_id
+      $legacySlug = "deal_structure_tolerance_legacy_$($currentId.Substring(0, 8))"
+      $actions.Add("archive_text_attribute:deal_structure_tolerance:$legacySlug")
+      if ($Apply) {
+        Invoke-AttioRequest -Method Patch -Headers $devHeaders `
+          -Path "/lists/buyer_role/attributes/$currentId" `
+          -Body @{ data = @{
+            title = "Deal Structure Tolerance (Legacy Text)"
+            api_slug = $legacySlug
+            is_archived = $true
+          } } | Out-Null
+        Write-Host "ARCHIVED: deal_structure_tolerance -> $legacySlug"
+      } else {
+        Write-Host "DRY RUN: would archive legacy text deal_structure_tolerance -> $legacySlug, then create a select attribute at the original slug."
+      }
+      $attributes.Remove($field.Slug)
+    } else {
+      Write-Host "EXISTS: $($field.Slug)"
+      continue
     }
-    Write-Host "EXISTS: $($field.Slug)"
-    continue
   }
 
   $actions.Add("create_attribute:$($field.Slug)")
@@ -830,6 +875,34 @@ foreach ($field in @($fields | Where-Object SourceOption)) {
   }
 }
 
+foreach ($field in @($fields | Where-Object FixedOptions)) {
+  if (-not $Apply -and -not $attributes.ContainsKey($field.Slug)) {
+    foreach ($title in $field.FixedOptions) {
+      $actions.Add("create_option:$($field.Slug):$title")
+      Write-Host "DRY RUN: would create $($field.Slug) option '$title'."
+    }
+    continue
+  }
+
+  $targetTitles = Get-OptionTitles -Headers $devHeaders `
+    -ListSlug "buyer_role" -AttributeSlug $field.Slug
+  $existing = @{}
+  foreach ($title in $targetTitles) { $existing[$title.Trim().ToLowerInvariant()] = $true }
+  foreach ($title in $field.FixedOptions) {
+    $key = $title.Trim().ToLowerInvariant()
+    if ($existing.ContainsKey($key)) { continue }
+    $actions.Add("create_option:$($field.Slug):$title")
+    if (-not $Apply) {
+      Write-Host "DRY RUN: would create $($field.Slug) option '$title'."
+    } else {
+      Invoke-AttioRequest -Method Post -Headers $devHeaders `
+        -Path "/lists/buyer_role/attributes/$($field.Slug)/options" `
+        -Body @{ data = @{ title = $title } } | Out-Null
+      Write-Host "CREATED OPTION: $($field.Slug) -> $title"
+    }
+  }
+}
+
 Write-Host ""
 if ($FailOnDrift -and $actions.Count -gt 0) {
   throw "Buyer Role schema drift detected. Planned actions: $($actions.Count)."
@@ -878,7 +951,7 @@ $expectedWorkspaceId = [string]$decisions.dev_workspace_id
 
 function Invoke-AttioRequest {
   param(
-    [ValidateSet("Get", "Post")][string]$Method,
+    [ValidateSet("Get", "Post", "Patch")][string]$Method,
     [hashtable]$Headers,
     [string]$Path,
     [object]$Body
@@ -966,10 +1039,10 @@ $fields = @(
   [pscustomobject]@{ Title="Valuation Low"; Slug="valuation_low"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
   [pscustomobject]@{ Title="Valuation Mid"; Slug="valuation_mid"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
   [pscustomobject]@{ Title="Valuation High"; Slug="valuation_high"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Sell Timeline"; Slug="sell_timeline"; Type="select"; SourceOptions=@(); TargetOptions=@("immediate","within_6_months","six_to_12_months","twelve_to_24_months","exploring","not_selling"); Config=@{} },
+  [pscustomobject]@{ Title="Sell Timeline"; Slug="sell_timeline"; Type="select"; SourceOptions=@(); TargetOptions=@("Immediate","Within 6 Months","6-12 Months","12-24 Months","Not Selling"); Config=@{} },
   [pscustomobject]@{ Title="Readiness Score"; Slug="readiness_score"; Type="number"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Readiness Band"; Slug="readiness_band"; Type="select"; SourceOptions=@(); Config=@{} },
-  [pscustomobject]@{ Title="Intake Source"; Slug="intake_source"; Type="select"; SourceOptions=@(); TargetOptions=@("inbound_lead_magnet","outbound","referral_partner","direct","reengagement"); Config=@{} },
+  [pscustomobject]@{ Title="Intake Source"; Slug="intake_source"; Type="select"; SourceOptions=@(); TargetOptions=@("Inbound Lead Magnet","Outbound","Referral Partner","Direct","Reengagement"); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Date"; Slug="last_attempt_date"; Type="date"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Channel"; Slug="last_attempt_channel"; Type="select"; SourceOptions=@("attempt_1_channel","attempt_2_channel","attempt_2_channel_6"); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Outcome"; Slug="last_attempt_outcome"; Type="select"; SourceOptions=@("attempt_1_outcome","attempt_2_outcome","attempt_2_outcome_6"); Config=@{} },
@@ -1043,13 +1116,32 @@ foreach ($field in @($fields | Where-Object { @($_.SourceOptions).Count -gt 0 -o
     continue
   }
 
-  $targetTitles = Get-OptionTitles -Headers $devHeaders `
-    -ListSlug "seller_role" -AttributeSlug $field.Slug
+  $targetOptions = @((Invoke-AttioRequest -Method Get -Headers $devHeaders `
+        -Path "/lists/seller_role/attributes/$($field.Slug)/options").data |
+      Where-Object { -not $_.is_archived -and $_.title })
   $existing = @{}
-  foreach ($title in $targetTitles) { $existing[$title.Trim().ToLowerInvariant()] = $true }
+  foreach ($option in $targetOptions) { $existing[$option.title.Trim().ToLowerInvariant()] = $option }
   foreach ($title in $sourceTitles) {
     $key = $title.Trim().ToLowerInvariant()
-    if ($existing.ContainsKey($key)) { continue }
+    if ($existing.ContainsKey($key)) {
+      $current = $existing[$key]
+      if ([string]$current.title -cne $title) {
+        # Same option case-insensitively, but the exact casing drifted from
+        # the approved title (e.g. a legacy "direct" vs approved "Direct").
+        # Rename in place rather than archive+create, so existing entry
+        # associations to this option are preserved.
+        $actions.Add("rename_option:$($field.Slug):$($current.title)->$title")
+        if ($Apply) {
+          Invoke-AttioRequest -Method Patch -Headers $devHeaders `
+            -Path "/lists/seller_role/attributes/$($field.Slug)/options/$([string]$current.id.option_id)" `
+            -Body @{ data = @{ title = $title } } | Out-Null
+          Write-Host "RENAMED OPTION: $($field.Slug) -> '$($current.title)' to '$title'"
+        } else {
+          Write-Host "DRY RUN: would rename $($field.Slug) option '$($current.title)' to '$title'."
+        }
+      }
+      continue
+    }
     $actions.Add("create_option:$($field.Slug):$title")
     if (-not $Apply) {
       Write-Host "DRY RUN: would create $($field.Slug) option '$title'."
@@ -1058,6 +1150,34 @@ foreach ($field in @($fields | Where-Object { @($_.SourceOptions).Count -gt 0 -o
         -Path "/lists/seller_role/attributes/$($field.Slug)/options" `
         -Body @{ data = @{ title = $title } } | Out-Null
       Write-Host "CREATED OPTION: $($field.Slug) -> $title"
+    }
+  }
+}
+
+# TargetOptions fields declare a closed, approved option set (unlike
+# SourceOptions fields, which intentionally grow from SOURCE data over
+# time). Archive any active option that is no longer in that approved set,
+# so stale/unapproved options (e.g. a superseded value) don't linger in the
+# dropdown after a decision changes the approved list.
+foreach ($field in @($fields | Where-Object { $_.TargetOptions -and @($_.TargetOptions).Count -gt 0 })) {
+  if (-not $Apply -and -not $attributes.ContainsKey($field.Slug)) { continue }
+  $approved = @{}
+  foreach ($title in @($field.TargetOptions)) { $approved[$title.Trim().ToLowerInvariant()] = $true }
+  $existingOptions = @((Invoke-AttioRequest -Method Get -Headers $devHeaders `
+        -Path "/lists/seller_role/attributes/$($field.Slug)/options").data |
+      Where-Object { -not $_.is_archived -and $_.title })
+  foreach ($option in $existingOptions) {
+    $key = $option.title.Trim().ToLowerInvariant()
+    if ($approved.ContainsKey($key)) { continue }
+    $optionId = [string]$option.id.option_id
+    $actions.Add("archive_option:$($field.Slug):$($option.title)")
+    if (-not $Apply) {
+      Write-Host "DRY RUN: would archive stale $($field.Slug) option '$($option.title)'."
+    } else {
+      Invoke-AttioRequest -Method Patch -Headers $devHeaders `
+        -Path "/lists/seller_role/attributes/$($field.Slug)/options/$optionId" `
+        -Body @{ data = @{ is_archived = $true } } | Out-Null
+      Write-Host "ARCHIVED OPTION: $($field.Slug) -> $($option.title)"
     }
   }
 }

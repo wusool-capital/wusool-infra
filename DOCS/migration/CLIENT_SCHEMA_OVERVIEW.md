@@ -109,7 +109,7 @@ Type: list | API identifier: `buyer_role` | Parent: `organizations`
 | `check_size_min` | `money` | attio | - |
 | `check_size_max` | `money` | attio | - |
 | `ev_ceiling` | `money` | attio | - |
-| `deal_structure_tolerance` | `text` | attio | - |
+| `deal_structure_tolerance` | `enum` | attio | - |
 | `earnout_tolerance` | `boolean` | attio | - |
 | `profitable_only` | `boolean` | attio | - |
 | `investment_strategy` | `text` | attio | - |
@@ -181,8 +181,8 @@ Type: object | API identifier: `deals`
 | `nda_count` | `integer` | attio | - |
 | `cim_ready` | `boolean` | attio | - |
 | `deal_memo_ready` | `boolean` | attio | - |
-| `exclusivity_start_date` | `date` | attio | - |
-| `exclusivity_end_date` | `date` | attio | - |
+| `contract_signed_date` | `date` | attio | - |
+| `exclusivity_date` | `date` | attio | - |
 | `next_task` | `text` | attio | - |
 | `data_room_substatus` | `enum` | both | - |
 | `comparables` | `jsonb` | postgres | - |
@@ -297,8 +297,8 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `nda_count` | `integer` | No | - | - | `0` |
 | `cim_ready` | `boolean` | Yes | - | - | - |
 | `deal_memo_ready` | `boolean` | Yes | - | - | - |
-| `exclusivity_start_date` | `date` | Yes | - | - | - |
-| `exclusivity_end_date` | `date` | Yes | - | - | - |
+| `contract_signed_date` | `date` | Yes | - | - | - |
+| `exclusivity_date` | `date` | Yes | - | - | - |
 | `next_task` | `text` | Yes | - | - | - |
 | `data_room_substatus` | `text` | Yes | - | - | - |
 | `comparables` | `jsonb` | No | - | - | `'{}'::jsonb` |

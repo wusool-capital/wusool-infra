@@ -148,9 +148,39 @@ $$;
 -- Final target-schema reconciliation and indexes.
 ALTER TABLE deals
   ADD COLUMN IF NOT EXISTS stage_changed_at timestamptz,
-  ADD COLUMN IF NOT EXISTS time_in_stage interval,
-  ADD COLUMN IF NOT EXISTS exclusivity_start_date date,
-  ADD COLUMN IF NOT EXISTS exclusivity_end_date date;
+  ADD COLUMN IF NOT EXISTS time_in_stage interval;
+
+-- Rename exclusivity start/end dates to contract_signed_date/exclusivity_date
+-- (2026-08-08 decision): a deployed database still has the old columns
+-- since CREATE TABLE IF NOT EXISTS above never re-applies to it; a fresh
+-- install already gets the new names from 002_core_attio_mirror.sql, so
+-- these guards are no-ops there.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'deals' AND column_name = 'exclusivity_start_date'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'deals' AND column_name = 'contract_signed_date'
+  ) THEN
+    ALTER TABLE deals RENAME COLUMN exclusivity_start_date TO contract_signed_date;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'deals' AND column_name = 'exclusivity_end_date'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'deals' AND column_name = 'exclusivity_date'
+  ) THEN
+    ALTER TABLE deals RENAME COLUMN exclusivity_end_date TO exclusivity_date;
+  END IF;
+END
+$$;
+
+ALTER TABLE deals
+  ADD COLUMN IF NOT EXISTS contract_signed_date date,
+  ADD COLUMN IF NOT EXISTS exclusivity_date date;
 
 ALTER TABLE deals
   ALTER COLUMN cim_ready DROP NOT NULL,

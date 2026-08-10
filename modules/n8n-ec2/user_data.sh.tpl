@@ -50,6 +50,65 @@ if ! grep -q '^N8N_RUNNERS_AUTH_TOKEN=' /opt/n8n/n8n.env; then
   chmod 600 /opt/n8n/n8n.env
 fi
 
+cat > /opt/n8n/n8n-task-runners.json <<EOF
+{
+	"task-runners": [
+		{
+			"runner-type": "javascript",
+			"workdir": "/home/runner",
+			"command": "/usr/local/bin/node",
+			"args": [
+				"--disallow-code-generation-from-strings",
+				"--disable-proto=delete",
+				"/opt/runners/task-runner-javascript/dist/start.js"
+			],
+			"health-check-server-port": "5681",
+			"allowed-env": [
+				"PATH",
+				"GENERIC_TIMEZONE",
+				"NODE_OPTIONS",
+				"NODE_PATH",
+				"N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT",
+				"N8N_RUNNERS_TASK_TIMEOUT",
+				"N8N_RUNNERS_MAX_CONCURRENCY",
+				"N8N_SENTRY_DSN",
+				"N8N_VERSION",
+				"ENVIRONMENT",
+				"DEPLOYMENT_NAME",
+				"HOME"
+			],
+			"env-overrides": {
+				"NODE_FUNCTION_ALLOW_BUILTIN": "crypto",
+				"NODE_FUNCTION_ALLOW_EXTERNAL": "moment",
+				"N8N_RUNNERS_HEALTH_CHECK_SERVER_HOST": "0.0.0.0"
+			}
+		},
+		{
+			"runner-type": "python",
+			"workdir": "/home/runner",
+			"command": "/opt/runners/task-runner-python/.venv/bin/python",
+			"args": ["-I", "-B", "-X", "disable_remote_debug", "-m", "src.main"],
+			"health-check-server-port": "5682",
+			"allowed-env": [
+				"PATH",
+				"N8N_RUNNERS_LAUNCHER_LOG_LEVEL",
+				"N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT",
+				"N8N_RUNNERS_TASK_TIMEOUT",
+				"N8N_RUNNERS_MAX_CONCURRENCY",
+				"N8N_SENTRY_DSN",
+				"N8N_VERSION",
+				"ENVIRONMENT",
+				"DEPLOYMENT_NAME",
+				"N8N_RUNNERS_STDLIB_ALLOW",
+				"N8N_RUNNERS_EXTERNAL_ALLOW",
+				"N8N_BLOCK_RUNNER_ENV_ACCESS"
+			],
+			"env-overrides": {}
+		}
+	]
+}
+EOF
+
 cat > /opt/n8n/docker-compose.yml <<EOF
 services:
   n8n:
@@ -78,8 +137,11 @@ services:
     environment:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
       - N8N_NATIVE_PYTHON_RUNNER=true
+      - N8N_RUNNERS_CONFIG_PATH=/etc/n8n-task-runners-custom.json
     env_file:
       - ./n8n.env
+    volumes:
+      - ./n8n-task-runners.json:/etc/n8n-task-runners-custom.json:ro
     depends_on:
       - n8n
   caddy:

@@ -1,4 +1,4 @@
-# CRM Migration
+u# CRM Migration
 
 See also:
 
@@ -38,7 +38,9 @@ Important rules:
 - Deal `associated_company` maps to Seller; historical Buyer stays empty when
   SOURCE has no approved buyer reference.
 - Deal readiness values are stored as Boolean/null.
-- Exclusivity start and end dates remain separate.
+- Exclusivity dates remain two separate columns: `contract_signed_date`
+  (formerly the exclusivity start date) and `exclusivity_date` (formerly the
+  exclusivity end date).
 - PostgreSQL relationships store Attio IDs; names are displayed using joins.
 - Missing or ambiguous historical values remain null rather than being guessed.
 
@@ -50,9 +52,11 @@ Attio:
 
 | Script | Purpose |
 | --- | --- |
+| `sync-all.ps1` | Single entry point for a full migration run: wraps `sync-objects.ps1`/`sync-lists.ps1` in the required order (`organizations -> person -> buyer_role -> seller_role -> deals -> mandates`), fails fast on the first error, supports running a subset via `-Entities`. Prefer this over the two scripts below unless you need one in isolation. |
 | `ensure-schema.ps1` | Validate/create the approved DEV schema. |
 | `sync-objects.ps1` | Sync Organizations, Persons, and Deals. |
 | `sync-lists.ps1` | Sync Buyer Role, Seller Role, and Mandates. |
+| `backfill-seller-intake-source.ps1` | One-off backfill for Seller Role `intake_source` (not part of the recurring sync — see `FIELD_DECISIONS.md`). |
 | `validate-attio.ps1` | Compare SOURCE and DEV counts. |
 
 PostgreSQL:

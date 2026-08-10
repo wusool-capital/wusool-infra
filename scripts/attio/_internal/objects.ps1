@@ -916,6 +916,12 @@ foreach($r in $devOrganizations){
   if($organizationByLegacy.ContainsKey([string]$legacy)){throw "Duplicate DEV Organization legacy_attio_id '$legacy'."}
   $organizationByLegacy[[string]$legacy]=Id $r
 }
+$sellerRoleEntries=@(All $dh "/lists/seller_role/entries/query")
+$sellerRoleOrgIds=@{}
+foreach($e in $sellerRoleEntries){
+  $sellerRoleParentId=if($e.parent_record_id.record_id){[string]$e.parent_record_id.record_id}else{[string]$e.parent_record_id}
+  if($sellerRoleParentId){$sellerRoleOrgIds[$sellerRoleParentId]=$true}
+}
 $byLegacy=@{}
 foreach($r in $dev){$legacy=Value $r.values "legacy_attio_id";if($legacy){if($byLegacy.ContainsKey([string]$legacy)){throw "Duplicate DEV Deal legacy_attio_id."};$byLegacy[[string]$legacy]=$r}}
 
@@ -956,8 +962,8 @@ foreach($s in $source){
     $memoDecision=Value $s.values "deal_memo_decision"
     if($memoDecision){$values.deal_memo_ready=@("Proceed","Pass")-contains[string]$memoDecision}
   }
-  $exclusivityStart=Value $s.values "exclusivity_start_date";if($exclusivityStart){$values.exclusivity_start_date=[string]$exclusivityStart}
-  $exclusivityEnd=Value $s.values "exclusivity_end_date";if($exclusivityEnd){$values.exclusivity_end_date=[string]$exclusivityEnd}
+  $exclusivityStart=Value $s.values "exclusivity_start_date";if($exclusivityStart){$values.contract_signed_date=[string]$exclusivityStart}
+  $exclusivityEnd=Value $s.values "exclusivity_end_date";if($exclusivityEnd){$values.exclusivity_date=[string]$exclusivityEnd}
   $sourceSellerId=ReferenceId $s.values "associated_company"
   $sellerResolution="missing_source_associated_company"
   if($sourceSellerId-and$organizationByLegacy.ContainsKey($sourceSellerId)){
@@ -970,6 +976,7 @@ foreach($s in $source){
     source_id=$sid
     source_seller_id=$sourceSellerId
     seller_resolution=$sellerResolution
+    seller_org_id=if($sellerResolution-eq"resolved"){$organizationByLegacy[$sourceSellerId]}else{$null}
     dev_record_id=if($existing){Id $existing}else{$null}
     action=$action
     values=$values
@@ -979,9 +986,9 @@ $unresolvedSellers=@($plans|Where-Object seller_resolution -ne "resolved")
 if($unresolvedSellers.Count-gt0){
   throw "Cannot migrate Deals: $($unresolvedSellers.Count) seller relationship(s) did not resolve uniquely to DEV Organizations."
 }
-$populatedDevBuyers=@($dev|Where-Object{@($_.values.buyer_id|Where-Object{$null-eq$_.active_until}).Count-gt0})
+$populatedDevBuyers=@($dev|Where-Object{(Value $_.values "legacy_attio_id")-and@($_.values.buyer_id|Where-Object{$null-eq$_.active_until}).Count-gt0})
 if($populatedDevBuyers.Count-gt0){
-  throw "Confirmed migration rule requires blank buyer_id, but $($populatedDevBuyers.Count) DEV Deal(s) are populated. Review before applying."
+  throw "Confirmed migration rule requires blank buyer_id on SOURCE-migrated Deals, but $($populatedDevBuyers.Count) such DEV Deal(s) are populated. Review before applying."
 }
 $eligiblePlans=if($ExistingOnly){@($plans|Where-Object action -eq "update")}else{@($plans)}
 $selected=if($Limit-eq0){@($eligiblePlans)}else{@($eligiblePlans|Select-Object -First $Limit)}
@@ -989,8 +996,19 @@ $selectedCreates=@($selected|Where-Object action -eq "create")
 if($Apply-and$selectedCreates.Count-gt0-and[string]::IsNullOrWhiteSpace($DevOwnerWorkspaceMemberId)){
   throw "Attio requires Deal owner. Supply an approved DevOwnerWorkspaceMemberId to create $($selectedCreates.Count) missing Deal(s), or use -ExistingOnly."
 }
-$created=0;$updated=0;$errors=0
+$missingSellerRoleOrgIds=@{}
+foreach($plan in $selected){
+  if($plan.seller_org_id-and-not$sellerRoleOrgIds.ContainsKey($plan.seller_org_id)){
+    $missingSellerRoleOrgIds[$plan.seller_org_id]=$true
+  }
+}
+$missingSellerRoleOrgs=@($missingSellerRoleOrgIds.Keys)
+$created=0;$updated=0;$errors=0;$sellerRoleCreated=0
 if($Apply){
+  foreach($orgId in $missingSellerRoleOrgs){
+    Request Post $dh "/lists/seller_role/entries" @{data=@{parent_record_id=$orgId;parent_object="organizations";entry_values=@{}}}|Out-Null
+    $sellerRoleCreated++
+  }
   foreach($plan in $selected){
     $payload=@{};foreach($k in $plan.values.Keys){$payload[$k]=$plan.values[$k]}
     if($payload.ContainsKey("stage")){$title=[string]$payload.stage;if(-not$statusMap.ContainsKey($title)){throw "Missing DEV Deal stage '$title'."};$payload.stage=$statusMap[$title]}
@@ -1002,7 +1020,7 @@ if($Apply){
     }catch{$errors++;throw}
   }
 }
-$summary=[ordered]@{mode=if($Apply){"apply"}else{"dry-run"};existing_only=[bool]$ExistingOnly;source_deals=$source.Count;existing_dev_deals=$dev.Count;resolved_existing=@($plans|Where-Object action -eq "update").Count;resolved_sellers=@($plans|Where-Object seller_resolution -eq "resolved").Count;unresolved_sellers=$unresolvedSellers.Count;populated_dev_buyers=$populatedDevBuyers.Count;would_create=@($plans|Where-Object action -eq "create").Count;owner_blocked_creates=if([string]::IsNullOrWhiteSpace($DevOwnerWorkspaceMemberId)){@($plans|Where-Object action -eq "create").Count}else{0};selected=$selected.Count;created=$created;updated=$updated;errors=$errors}
+$summary=[ordered]@{mode=if($Apply){"apply"}else{"dry-run"};existing_only=[bool]$ExistingOnly;source_deals=$source.Count;existing_dev_deals=$dev.Count;resolved_existing=@($plans|Where-Object action -eq "update").Count;resolved_sellers=@($plans|Where-Object seller_resolution -eq "resolved").Count;unresolved_sellers=$unresolvedSellers.Count;populated_dev_buyers=$populatedDevBuyers.Count;would_create=@($plans|Where-Object action -eq "create").Count;owner_blocked_creates=if([string]::IsNullOrWhiteSpace($DevOwnerWorkspaceMemberId)){@($plans|Where-Object action -eq "create").Count}else{0};selected=$selected.Count;created=$created;updated=$updated;errors=$errors;missing_seller_role_orgs=$missingSellerRoleOrgs.Count;seller_role_created=$sellerRoleCreated}
 [IO.Directory]::CreateDirectory((Split-Path $outputPath -Parent))|Out-Null
 [IO.File]::WriteAllText($outputPath,([ordered]@{summary=$summary;plans=@($plans)}|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
 $summary|Format-List

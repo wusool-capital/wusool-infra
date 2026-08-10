@@ -15,6 +15,7 @@ crash.*.log
 # Plan output files
 *.tfplan
 tfplan
+tfplan[0-9]*
 *.tfplan.*
 
 # Secret variable files — values containing credentials/secrets.

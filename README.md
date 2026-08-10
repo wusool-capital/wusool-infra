@@ -251,18 +251,33 @@ Do not deploy production by changing `TF_VAR_environment` while using the dev
 backend. Production must use its own state key, such as
 `wusool/prod/terraform.tfstate`.
 
+## Project status
+
+[PROGRESS.md](PROGRESS.md) is the single, high-level file that tracks what
+has been done across every workstream (infrastructure, CRM/data-platform
+migration, and any new work). Read it before starting a session instead of
+reconstructing status from git history.
+
 ## Documentation synchronization
 
-After changing Terraform, ask Codex to run the project documentation skill:
+After changing Terraform, run the project documentation skill:
 
 ```text
 Use $sync-terraform-docs
 ```
 
-That phrase is a Codex instruction, not a PowerShell command. The skill
-compares Terraform with the README files and architecture diagrams, updates
-stale documentation, and runs formatting and validation checks. It does not run
-`terraform apply`.
+After any other change worth recording — a migration milestone, a new script,
+a new workstream — run the sibling skill to update `PROGRESS.md` and the
+non-Terraform README files:
+
+```text
+Use $sync-project-docs
+```
+
+Those phrases are agent instructions, not PowerShell commands. The Terraform
+skill compares Terraform with the README files and architecture diagrams,
+updates stale documentation, and runs formatting and validation checks. Neither
+skill runs `terraform apply`.
 
 ## Safety
 

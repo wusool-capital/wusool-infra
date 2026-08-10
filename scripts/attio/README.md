@@ -6,14 +6,30 @@ read-only. All mutations are guarded and target DEV only.
 
 ## Command surface
 
-Run only these four public scripts:
+Run only these public scripts:
 
 | Script | Responsibility |
 | --- | --- |
+| `sync-all.ps1` | Single entry point for a full migration run. Wraps `sync-objects.ps1`/`sync-lists.ps1` in the required dependency order (`organizations -> person -> buyer_role -> seller_role -> deals -> mandates`), fails fast on the first error, and accepts `-Entities` to run a subset instead of everything. Prefer this over calling `sync-objects.ps1`/`sync-lists.ps1` directly unless you specifically need one of them in isolation. |
 | `ensure-schema.ps1` | Validate or create the approved DEV object/list schema. Does not migrate records. |
 | `sync-objects.ps1` | Migrate Organizations, Persons, and Deals. |
 | `sync-lists.ps1` | Migrate Buyer Role, Seller Role, and Mandates. |
+| `backfill-seller-intake-source.ps1` | One-off backfill for Seller Role `intake_source`, not part of the recurring sync (see `FIELD_DECISIONS.md`). |
 | `validate-attio.ps1` | Compare SOURCE counts with canonical DEV counts after migration. Read-only. |
+
+### Full migration order (`sync-all.ps1`)
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\scripts\attio\sync-all.ps1                                    # dry run, all entities
+.\scripts\attio\sync-all.ps1 -Parallel -Workers 8 -Apply         # full apply
+.\scripts\attio\sync-all.ps1 -Entities deals,mandates            # dry run a subset only
+```
+
+`-Parallel` only actually speeds up `organizations`, `person`, and
+`buyer_role` today (the only entities with a parallel-apply path
+implemented) -- `seller_role`, `deals`, and `mandates` always run
+single-threaded regardless of the flag, and `sync-all.ps1` says so.
 
 `_internal/schema.ps1`, `_internal/objects.ps1`, and `_internal/lists.ps1`
 contain consolidated implementation logic and are not run directly. The JSON

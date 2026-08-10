@@ -22,3 +22,8 @@ output "ssm_instance_id" {
   description = "Instance ID usable with AWS Systems Manager Session Manager."
   value       = aws_instance.n8n.id
 }
+
+output "iam_role_name" {
+  description = "Name of the IAM role attached to the n8n EC2 instance profile."
+  value       = aws_iam_role.n8n.name
+}

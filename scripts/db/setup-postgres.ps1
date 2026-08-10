@@ -50,7 +50,7 @@ with psycopg.connect(url,autocommit=True,connect_timeout=10) as conn:
     missing=sorted(required-found)
     if missing: raise RuntimeError("Missing tables: "+", ".join(missing))
     required_columns={
-      "deals":{"stage_changed_at","time_in_stage","exclusivity_start_date","exclusivity_end_date","cim_ready","deal_memo_ready"},
+      "deals":{"stage_changed_at","time_in_stage","contract_signed_date","exclusivity_date","cim_ready","deal_memo_ready"},
       "seller_roles":{"relationship_status","sell_timeline","intake_source","last_attempt_date","last_attempt_channel","last_attempt_outcome"},
       "buyer_roles":{"acquisition_enrichment","deals_introduced","deals_converted"}
     }

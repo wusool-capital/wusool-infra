@@ -57,6 +57,11 @@ output "postgres_security_group_id" {
   value       = module.postgres.security_group_id
 }
 
+output "bedrock_model_arns" {
+  description = "Bedrock foundation model ARNs the n8n instance role can invoke."
+  value       = module.bedrock.model_arns
+}
+
 output "postgres_master_user_secret_arn" {
   description = "Secrets Manager ARN containing the RDS managed master user password."
   value       = module.postgres.master_user_secret_arn

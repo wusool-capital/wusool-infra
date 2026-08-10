@@ -30,6 +30,15 @@ module "n8n" {
   n8n_secret_id               = aws_secretsmanager_secret.n8n.id
 }
 
+module "bedrock" {
+  source = "../../modules/bedrock-access"
+
+  project       = var.project
+  environment   = var.environment
+  iam_role_name = module.n8n.iam_role_name
+  models        = var.bedrock_models
+}
+
 module "postgres" {
   source = "../../modules/postgres-rds"
 

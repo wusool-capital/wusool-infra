@@ -22,6 +22,20 @@ variable "environment" {
   default     = "dev"
 }
 
+variable "bedrock_models" {
+  description = "Bedrock foundation models to grant the n8n instance invoke access to."
+  type = list(object({
+    model_id             = string
+    region               = string
+    inference_profile_id = optional(string)
+  }))
+  default = [
+    { model_id = "anthropic.claude-sonnet-4-6", region = "eu-central-1", inference_profile_id = "eu.anthropic.claude-sonnet-4-6" },
+    { model_id = "anthropic.claude-haiku-4-5-20251001-v1:0", region = "eu-central-1", inference_profile_id = "eu.anthropic.claude-haiku-4-5-20251001-v1:0" },
+    { model_id = "qwen.qwen3-235b-a22b-2507-v1:0", region = "eu-central-1" },
+  ]
+}
+
 variable "vpc_cidr" {
   description = "Development VPC CIDR."
   type        = string

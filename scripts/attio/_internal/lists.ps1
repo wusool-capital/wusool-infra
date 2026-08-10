@@ -298,11 +298,14 @@ foreach ($group in $groups) {
   Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
     -SourceSlug "profitable_companies_only_mandate" -TargetSlug "profitable_only"
   Add-MergedText -Target $values -Entries $entries `
-    -SourceSlug "deal_structure_tolerance" -TargetSlug "deal_structure_tolerance"
-  Add-MergedText -Target $values -Entries $entries `
     -SourceSlug "investment_strategy" -TargetSlug "investment_strategy"
   Add-MergedText -Target $values -Entries $entries `
     -SourceSlug "additional_notes" -TargetSlug "notes"
+  $dealStructureSourceValues = @(Get-DistinctValues -Entries $entries -Slug "deal_structure_tolerance")
+  if ($dealStructureSourceValues.Count -gt 0) {
+    $dealStructureNote = "SOURCE deal structure tolerance (pre-migration wording, not mapped to the new Majority/Minority/Flexible/Acquisition Financing options): " + ($dealStructureSourceValues -join "; ")
+    $values["notes"] = if ($values.ContainsKey("notes")) { $values["notes"] + "`r`n`r`n" + $dealStructureNote } else { $dealStructureNote }
+  }
   Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
     -SourceSlug "deals_introduced_count" -TargetSlug "deals_introduced"
   Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `

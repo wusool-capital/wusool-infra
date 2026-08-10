@@ -253,6 +253,46 @@ modules/n8n-ec2/user_data.sh.tpl
 That template installs and starts the runtime pieces, including Docker Compose,
 Caddy, n8n, and optional SMTP configuration loaded from Secrets Manager.
 
+### 9.1 External task runners (JavaScript and Python Code nodes)
+
+The compose file runs a separate `task-runners` service (image
+`n8nio/runners:latest`) alongside `n8n`, connected via
+`N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679`. That container runs a compiled
+Go `task-runner-launcher` binary that spawns the actual JavaScript/Python
+interpreter per task. The launcher reads its own config from a JSON file
+(default `/etc/n8n-task-runners.json`, baked into the `n8nio/runners` image),
+which declares, per runner type, an `allowed-env` allowlist of which
+environment variables get forwarded to the spawned interpreter, plus an
+`env-overrides` map that force-sets specific variables regardless of the
+container's actual environment.
+
+**Known n8n default gap (found 2026-08-08):** the image's default
+`n8n-task-runners.json` does not include `N8N_RUNNERS_STDLIB_ALLOW` (or
+`N8N_RUNNERS_EXTERNAL_ALLOW`, `N8N_BLOCK_RUNNER_ENV_ACCESS`) in the Python
+runner's `allowed-env`, and additionally force-blanks
+`N8N_RUNNERS_STDLIB_ALLOW`/`N8N_RUNNERS_EXTERNAL_ALLOW` via `env-overrides`.
+This means setting those variables in the `n8n.env` secret-derived file has
+**no effect** on Python Code nodes — every stdlib import gets rejected
+("Security violations detected... Allowed stdlib modules: none") regardless
+of what's configured. Confirmed present on n8n `2.27.5`; dev's older `2.26.8`
+did not exhibit it, so this is very likely an n8n default that changed
+between those versions, not a wusool-side misconfiguration.
+
+**Fix:** the launcher supports `N8N_RUNNERS_CONFIG_PATH` to point at a custom
+config file instead of the image default. `user_data.sh.tpl` now writes a
+corrected `/opt/n8n/n8n-task-runners.json` (same as the image default, but
+the Python runner's `allowed-env` gains `N8N_RUNNERS_STDLIB_ALLOW`,
+`N8N_RUNNERS_EXTERNAL_ALLOW`, `N8N_BLOCK_RUNNER_ENV_ACCESS`, and its
+`env-overrides` is emptied), and the `task-runners` service in the compose
+template mounts it read-only to `/etc/n8n-task-runners-custom.json` and sets
+`N8N_RUNNERS_CONFIG_PATH` to that path.
+
+**Deployment status:** applied live directly on the `wusool-prod-n8n`
+instance (`i-0087f9ecb02462b2e`, `eu-central-1`) via SSM on 2026-08-08 —
+confirmed working. **Not yet applied to dev** (dev's older n8n version isn't
+known to need it) and **not yet reconciled through Terraform** — see
+section 18, "Known Infrastructure Gaps", below.
+
 ## 10. Request Flow
 
 User traffic follows this path:
@@ -295,6 +335,55 @@ Caddy receives secure HTTPS traffic and proxies it internally to n8n, so the
 n8n application port does not need to be public.
 ```
 
+### 11.1 Prod dual-domain rename (2026-08-09)
+
+Prod's public domain was renamed from `n8n-prod.wusoolcapital.com` to
+`n8n.wusoolcapital.com` using a dual-domain approach: both hostnames stay
+live simultaneously, so no existing workflow/webhook/OAuth URL broke.
+Applied live via SSM to `wusool-prod-n8n` (`i-0087f9ecb02462b2e`):
+
+- Cloudflare DNS: added an `A` record for `n8n.wusoolcapital.com` pointing
+  at the same IP as the existing `n8n-prod` record, `DNS only` (not
+  proxied), matching `n8n-prod`'s setting. The `wusoolcapital.com` zone
+  lives under the `Jules@wusoolcapital...` Cloudflare account, not
+  `Tech@wusoolcapital...`.
+- `/opt/n8n/Caddyfile`: one site block now lists both hostnames
+  (`n8n-prod.wusoolcapital.com, n8n.wusoolcapital.com { reverse_proxy
+  n8n:5678 ... }`), so Caddy auto-provisions TLS for both and routes both
+  identically.
+- `/opt/n8n/docker-compose.yml`: `N8N_HOST` and `WEBHOOK_URL` now point at
+  `n8n.wusoolcapital.com`. This only changes what URL n8n *generates* for
+  newly created webhook/OAuth-callback nodes going forward — it does not
+  gate whether the old domain keeps working, since n8n's incoming webhook
+  routing is path-based, not Host-header-validated.
+- Applying required two different restart mechanisms: `docker compose up -d`
+  recreated the `n8n`/`task-runners` containers because their environment
+  changed, but did **not** restart `caddy`, since Compose only recreates a
+  container when its own declared config changes, not when a bind-mounted
+  file's contents change. A separate `docker compose restart caddy` was
+  needed for the new Caddyfile to take effect. Skipping that step is why
+  `n8n.wusoolcapital.com` briefly returned a TLS handshake error
+  (`SSL routines::tlsv1 alert internal error`) — Caddy was still serving its
+  old single-domain config.
+- Verified both `https://n8n-prod.wusoolcapital.com` and
+  `https://n8n.wusoolcapital.com` return `HTTP/2 200` with valid TLS.
+
+`Caddyfile.bak`/`docker-compose.yml.bak` (pre-change copies) were left on
+the box under `/opt/n8n/`. This change is not yet reflected in the
+`modules/n8n-ec2` Terraform template — prod is Terraform-orphaned (see
+section 18) so the live box is unaffected either way, but the template
+should adopt the same dual-domain pattern for future deployments/dev.
+
+**Do not remove the old `n8n-prod.wusoolcapital.com` domain/DNS record
+without first confirming no external system (partner webhook caller,
+OAuth app redirect URI, saved bookmark) still depends on it** — n8n
+computes a webhook's displayed "Production URL" dynamically from the
+current `WEBHOOK_URL`, so old workflow nodes now display the new domain,
+but any external caller that already saved the literal old URL would
+silently break if `n8n-prod` were removed. Recommended check before
+removal: `docker compose logs caddy` / `/data/access.log` on the box for
+any continuing requests to `n8n-prod.wusoolcapital.com`.
+
 ## 12. Secrets Manager
 
 Each environment root declares one AWS Secrets Manager secret for n8n:
@@ -336,6 +425,49 @@ prod secret for production so credentials stay environment-scoped.
 SMTP also enables n8n user invitation emails and forgot-password/reset emails.
 Without SMTP, users can be created only through an admin-mediated flow and they
 cannot self-serve password resets.
+
+### 12.1 SMTP configured (2026-08-09)
+
+Both `/wusool/dev/n8n` and `/wusool/prod/n8n` now carry real `smtp_*` values
+(added via the AWS Console per the rule above, never committed to Git). Setup
+details, for the next person who touches this:
+
+- **Provider:** AWS SES, `eu-central-1`, endpoint
+  `email-smtp.eu-central-1.amazonaws.com:587`. Sender identity for both
+  environments: `no-reply@wusoolcapital.com` (no real mailbox — the whole
+  `wusoolcapital.com` domain is verified in SES via 3 DKIM CNAME records in
+  Cloudflare, so any address under it can send without its own mailbox).
+- **Credentials:** two separate IAM users/SMTP credentials
+  (`wusool-dev-smtp`, `wusool-prod-smtp`) — not shared between environments,
+  same least-privilege reasoning as other per-environment secrets here.
+- **SES sandbox mode, not production access.** Only 3-4 known users need
+  password-reset emails, not arbitrary recipients, so production access
+  (an AWS review) was skipped. Each recipient must be individually verified
+  as an identity in SES first (Identities → Create identity → Email
+  address → they click the confirmation link AWS sends them) —
+  `tech@wusoolcapital.com` is done; the other 3-4 personal-email users are
+  not yet verified and will not receive reset emails until they are.
+- **Applying a secret change requires two steps, not one** — this is the
+  gotcha that cost the most time getting this working:
+  1. Re-run the bootstrap document (`wusool-<env>-n8n-bootstrap` via
+     `aws ssm send-command`) so it re-reads the secret and rewrites
+     `/opt/n8n/n8n.env`.
+  2. **Also force-recreate the containers** —
+     `docker compose up -d --force-recreate n8n task-runners`. Plain
+     `docker compose up -d` (what the bootstrap script itself runs) does
+     **not** detect that a bind-mounted `env_file`'s *contents* changed, only
+     changes to the compose file's own declared config — so the container
+     kept running with the stale environment until forced to recreate.
+  3. Verify with
+     `docker exec n8n-n8n-1 node -e "require('http').get('http://localhost:5678/rest/settings', r => { let d=''; r.on('data', c => d+=c); r.on('end', () => console.log(d)); })"`
+     and check for `"smtpSetup":true` — this is n8n's own server-side
+     source of truth and bypasses any browser caching of the old
+     "isn't set up to send email" page.
+- **Re-running the prod bootstrap document also regenerates
+  `/opt/n8n/Caddyfile`, and it reverted the dual-domain change from §11.1**
+  back down to a single hostname — see the new bullet in section 18. Fixed
+  live again, but this will recur on any future prod bootstrap re-run
+  until it's fixed in the Terraform template itself.
 
 ## 13. Encrypted EBS
 
@@ -430,7 +562,47 @@ Terraform apply compares code against AWS, performs the required changes, and
 updates the remote state so future plans know what exists.
 ```
 
-## 18. Safety Rules
+## 18. Known Infrastructure Gaps
+
+- **Prod is not deployed from `environments/prod`.** That folder targets
+  `me-central-1` with a `10.20.0.0/16` VPC, but the actual running
+  `wusool-prod-n8n` instance (`i-0087f9ecb02462b2e`) lives in `eu-central-1`,
+  alongside dev, and its Secrets Manager secret (`/wusool/prod/n8n`) is also
+  in `eu-central-1`. Confirmed 2026-08-08 via `aws ec2 describe-instances`
+  across both regions. `terraform apply` in `environments/prod` would not
+  affect this real instance at all. Whatever Terraform state (if any)
+  actually manages it hasn't been identified yet — treat direct SSM/console
+  changes to prod as the working method until this is reconciled, and prefer
+  the `wusool-prod-n8n-bootstrap` SSM document (idempotent) over ad hoc
+  changes where possible.
+- **The task-runner-launcher config fix (see 9.1) is not yet reconciled
+  through Terraform.** `modules/n8n-ec2/user_data.sh.tpl` has the corrected
+  template, but because of the point above there is no known `terraform
+  apply` path that would push it to the real prod instance — it was applied
+  directly via SSM. If prod's instance is ever replaced/re-bootstrapped from
+  scratch, confirm this fix is still present (check `N8N_RUNNERS_CONFIG_PATH`
+  is set on `task-runners` and `/opt/n8n/n8n-task-runners.json` exists).
+- **Dev does not have the task-runner-launcher fix applied.** Not known to be
+  needed on dev's current n8n version (`2.26.8`), but if dev is ever upgraded
+  to a version with the same restrictive default, apply the same fix.
+- **`modules/n8n-ec2/user_data.sh.tpl` only templates a single hostname into
+  `/opt/n8n/Caddyfile`.** Every time the bootstrap document is re-run on
+  prod (e.g. to pick up a Secrets Manager change, per section 12.1), it
+  regenerates the Caddyfile from scratch and silently drops the §11.1
+  dual-domain block back down to just `n8n-prod.wusoolcapital.com` —
+  happened once already (2026-08-09, while applying SMTP), fixed live
+  again via the same manual SSM edit. Will keep recurring until the
+  template itself supports multiple hostnames per environment.
+- **`docker compose up -d` does not pick up `env_file` content changes.**
+  Only changes to the compose file's own declared config (image, inline
+  `environment:` entries, etc.) trigger a recreate — editing
+  `/opt/n8n/n8n.env` itself does not. Any workflow that updates the
+  Secrets Manager secret and re-runs the bootstrap must also run
+  `docker compose up -d --force-recreate n8n task-runners` afterward, or
+  the containers keep running with the stale environment. See section
+  12.1 for the full sequence.
+
+## 19. Safety Rules
 
 - Do not edit `terraform.tfstate` manually.
 - Do not commit `.terraform/`, state files, plan files, credentials, or local
@@ -442,7 +614,7 @@ updates the remote state so future plans know what exists.
 - Do not run `terraform destroy` in `bootstrap/` unless intentionally removing
   backend infrastructure.
 
-## 19. Short Demo Talk Track
+## 20. Short Demo Talk Track
 
 ```text
 This repository manages Wusool n8n infrastructure using Terraform. The code is
