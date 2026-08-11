@@ -374,15 +374,19 @@ the box under `/opt/n8n/`. This change is not yet reflected in the
 section 18) so the live box is unaffected either way, but the template
 should adopt the same dual-domain pattern for future deployments/dev.
 
-**Do not remove the old `n8n-prod.wusoolcapital.com` domain/DNS record
-without first confirming no external system (partner webhook caller,
-OAuth app redirect URI, saved bookmark) still depends on it** — n8n
-computes a webhook's displayed "Production URL" dynamically from the
-current `WEBHOOK_URL`, so old workflow nodes now display the new domain,
-but any external caller that already saved the literal old URL would
-silently break if `n8n-prod` were removed. Recommended check before
-removal: `docker compose logs caddy` / `/data/access.log` on the box for
-any continuing requests to `n8n-prod.wusoolcapital.com`.
+**Resolved 2026-08-10 — `n8n-prod.wusoolcapital.com` fully retired.** The
+dual-domain period above was deliberately temporary. Before removing
+anything, Caddy's access log was checked for real dependency on the old
+domain and found active usage (21,320 log lines, 7+ distinct browser
+sessions polling `/healthz`) — the removal proceeded anyway as an
+explicit, accepted risk. `N8N_HOST`/`WEBHOOK_URL` in `docker-compose.yml`
+now point at `n8n.wusoolcapital.com` only, the Caddyfile was rewritten to
+a single-domain block, `n8n`/`task-runners` were recreated and `caddy`
+restarted, and the `n8n-prod.wusoolcapital.com` Cloudflare `A` record was
+deleted. Verified: `n8n.wusoolcapital.com` works, the old domain no longer
+resolves through Caddy. `n8n-prod.wusoolcapital.com` should not appear in
+any current config — treat any remaining reference to it elsewhere in this
+repo as stale.
 
 ## 12. Secrets Manager
 
@@ -582,6 +586,21 @@ updates the remote state so future plans know what exists.
   directly via SSM. If prod's instance is ever replaced/re-bootstrapped from
   scratch, confirm this fix is still present (check `N8N_RUNNERS_CONFIG_PATH`
   is set on `task-runners` and `/opt/n8n/n8n-task-runners.json` exists).
+  **Confirmed this actually happened, 2026-08-10:** re-running the
+  `wusool-prod-n8n-bootstrap` document (for the SMTP work earlier the same
+  night) regenerated `/opt/n8n/docker-compose.yml` from the SSM document's
+  stale embedded script — which predates this fix — silently dropping both
+  `N8N_RUNNERS_CONFIG_PATH` and the `task-runners` volume mount again. Symptom
+  was Python Code nodes failing with "Import of standard library module
+  'datetime' is disallowed. Allowed stdlib modules: none" — the launcher
+  wasn't loading the custom config at all (regardless of what
+  `N8N_RUNNERS_STDLIB_ALLOW` was set to in the environment; without
+  `N8N_RUNNERS_CONFIG_PATH` + the mount, the launcher never reads that
+  allowlist in the first place and falls back to its built-in
+  zero-imports-allowed default). Re-applied live via SSM again (same fix as
+  before). **This will keep recurring on every future bootstrap re-run**
+  until the actual registered SSM document is updated to match the current
+  template — not just the local `.tpl` file.
 - **Dev does not have the task-runner-launcher fix applied.** Not known to be
   needed on dev's current n8n version (`2.26.8`), but if dev is ever upgraded
   to a version with the same restrictive default, apply the same fix.

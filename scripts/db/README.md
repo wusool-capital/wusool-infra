@@ -33,9 +33,15 @@ or Attio keys.
 | `002_core_attio_mirror.sql` | Create Users, Organizations, People, Deals, and Mandates. |
 | `003_crm_roles.sql` | Create Buyer Role, Seller Role, and optional investor/lender roles. |
 | `004_machine_layer.sql` | Create activities, stage history, intelligence, matching, documents, graph, scorecards, reconciliation columns, and indexes. |
+| `005_meetings.sql` | Create the `meetings` table (scribe-published buyer/seller meeting summaries) and enable `fk_meetings_org`. Not part of the Attio mirror — scribe is the sole writer. |
 
-The files use `CREATE ... IF NOT EXISTS` and controlled `ALTER` statements.
-Normal setup does not recreate tables or delete data.
+Files 001-004 use `CREATE ... IF NOT EXISTS` and controlled `ALTER`
+statements, so normal setup does not recreate tables or delete data.
+**`005_meetings.sql` does not follow this convention** — its `CREATE TYPE`/
+`CREATE TABLE` statements have no `IF NOT EXISTS` guard, so re-running
+`setup-postgres.ps1` after it has been applied once will fail trying to
+recreate the existing types/table. Fine for the one-time apply already done
+against `wusool_crm`, but worth guarding before any future full re-run.
 
 ## First-time or changed-schema setup
 

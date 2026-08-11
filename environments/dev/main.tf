@@ -46,7 +46,7 @@ module "postgres" {
   environment                = var.environment
   vpc_id                     = module.network.vpc_id
   subnet_ids                 = module.network.database_private_subnet_ids
-  allowed_security_group_ids = [module.n8n.security_group_id]
+  allowed_security_group_ids = [module.n8n.security_group_id, "sg-0684b8cf83abfd065"]
   db_name                    = var.postgres_db_name
   master_username            = var.postgres_master_username
   engine_version             = var.postgres_engine_version
