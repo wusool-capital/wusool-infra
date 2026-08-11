@@ -1,5 +1,19 @@
 {
   "enabledPlugins": {
     "aws-startup-advisor@claude-plugins-official": true
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$changed = git -C 'C:\\Users\\richu\\OneDrive\\Desktop\\azmora\\project\\wusool\\wusool-infra' status --porcelain 2>$null | Where-Object { $_ -match '\\.(tf|md)$' }; if ($changed) { Write-Output (@{ systemMessage = 'Uncommitted .tf/.md changes detected in wusool-infra - run the sync-terraform-docs and/or sync-project-docs skill before ending this session so PROGRESS.md and READMEs stay current.' } | ConvertTo-Json -Compress) }",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
   }
 }

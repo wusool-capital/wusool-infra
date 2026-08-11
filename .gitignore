@@ -15,6 +15,7 @@ crash.*.log
 # Plan output files
 *.tfplan
 tfplan
+tfplan[0-9]*
 *.tfplan.*
 
 # Secret variable files — values containing credentials/secrets.
@@ -22,7 +23,7 @@ tfplan
 *.tfvars
 *.auto.tfvars
 *.tfvars.json
-!environments/*/terraform.tfvars
+!*.tfvars.example
 
 # Terraform CLI config & override files
 .terraformrc
@@ -52,3 +53,9 @@ override.tf.json
 .vscode/
 *.swp
 *~
+
+# Local archived workspace files
+_archive/
+
+# Generated migration/discovery outputs
+outputs/

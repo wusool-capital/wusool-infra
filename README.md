@@ -1,311 +1,288 @@
 # Wusool Infrastructure
 
-Infrastructure-as-Code for the **Wusool** platform, managed with [Terraform](https://www.terraform.io/) on **AWS**.
+Terraform configuration for the Wusool AWS infrastructure.
 
-This repository is the single source of truth for all cloud infrastructure. Every change to the environment — networking, compute, databases, IAM, DNS — flows through Terraform in a pull request and is applied by CI. No manual changes are made in the AWS Console (the console is read-only for humans, except for break-glass scenarios documented below).
+> The development configuration declares an n8n environment in Frankfurt
+> (`eu-central-1`). Production exists as a separate template and should not be
+> treated as deployed or validated from repository contents alone.
 
----
+## Architecture
 
-## Table of Contents
+The development environment contains:
 
-- [Principles](#principles)
-- [Repository Structure](#repository-structure)
-- [How It Fits Together](#how-it-fits-together)
-- [State Management](#state-management)
-- [Prerequisites](#prerequisites)
-- [One-Time Setup (Bootstrap)](#one-time-setup-bootstrap)
-- [Day-to-Day Workflow](#day-to-day-workflow)
-- [Adding a New Module](#adding-a-new-module)
-- [Adding a New Environment](#adding-a-new-environment)
-- [CI/CD Pipeline](#cicd-pipeline)
-- [Conventions](#conventions)
-- [Break-Glass / Emergency Access](#break-glass--emergency-access)
-- [Troubleshooting](#troubleshooting)
+- VPC `10.10.0.0/16`
+- Public subnet `10.10.1.0/24` with an Internet Gateway route
+- Reserved private subnet `10.10.2.0/24` with no internet route
+- Amazon Linux 2023 EC2 `t3.small` instance with encrypted 30 GiB gp3 storage
+- Elastic IP with `n8n-dev.wusoolcapital.com` DNS
+- Docker Compose running Caddy and n8n
+- HTTPS termination in Caddy, proxying internally to n8n on port `5678`
+- AWS Systems Manager for administration and bootstrap
+- AWS Secrets Manager secret for environment-specific n8n secrets, including optional SMTP settings
+- CloudWatch logs and EC2 status/CPU alarms
+- SNS email notifications
+- Multi-region CloudTrail with encrypted, versioned S3 log storage
+- GuardDuty and Security Hub
 
----
+See:
 
-## Principles
+- [Infrastructure overview](DOCS/n8n/infrastructure-overview.md)
+- [Client schema overview](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md) — Attio
+  and PostgreSQL overview
+- [Development operating guide](environments/dev/README.md)
+- [Contribution and pull-request workflow](CONTRIBUTING.md)
 
-1. **Everything in code.** If it lives in AWS, it lives here. Drift is treated as a bug.
-2. **Environments are isolated.** `dev`, `staging`, and `prod` have separate state files, separate AWS accounts (or at minimum separate VPCs/role boundaries), and are promoted in that order.
-3. **Modules are reusable; environments are thin.** Reusable logic lives in `modules/`. Each environment is a thin composition that wires modules together with environment-specific inputs.
-4. **Remote state, always locked.** State lives in S3 with DynamoDB locking. Local state is never committed.
-5. **PR-driven.** `terraform plan` runs on every PR; `terraform apply` runs only after merge to `main`, gated by environment approvals.
+## Repository structure
 
----
-
-## Repository Structure
-
-```
+```text
 wusool-infra/
-├── README.md                     # You are here
-│
-├── environments/                 # One directory per environment — the "live" infra
-│   ├── dev/
-│   │   ├── backend.tf            # S3 backend config (key = env-specific)
-│   │   ├── providers.tf         # AWS provider + region + assume-role config
-│   │   ├── main.tf              # Composition: calls modules with dev inputs
-│   │   ├── variables.tf        # Input variable declarations
-│   │   ├── terraform.tfvars    # dev-specific values (non-secret)
-│   │   └── outputs.tf          # Useful outputs (endpoints, ARNs, etc.)
-│   ├── staging/
-│   │   └── ...                   # Same shape as dev
-│   └── prod/
-│       └── ...                   # Same shape as dev
-│
-├── modules/                      # Reusable, environment-agnostic building blocks
-│   ├── network/                 # VPC, subnets, NAT, route tables, IGW
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   ├── outputs.tf
-│   │   └── README.md            # Module-level docs (inputs/outputs/usage)
-│   ├── eks/                     # EKS cluster + node groups + IRSA
-│   ├── rds/                     # RDS / Aurora PostgreSQL
-│   ├── s3/                      # Buckets (app assets, backups, etc.)
-│   ├── iam/                     # Roles, policies, OIDC providers
-│   ├── ecr/                     # Container registries
-│   └── dns/                     # Route53 zones + records
-│
-├── bootstrap/                    # One-time setup for the Terraform backend itself
-│   ├── main.tf                  # Creates the S3 state bucket + DynamoDB lock table
-│   ├── variables.tf
-│   └── README.md                # See "One-Time Setup" below
-│
-├── global/                       # Account-wide resources not tied to one environment
-│   ├── iam/                     # Org-level roles, GitHub Actions OIDC provider
-│   └── route53/                 # Apex/public hosted zones shared across envs
-│
-├── .github/
-│   └── workflows/
-│       ├── terraform-plan.yml   # Runs `plan` on PRs, comments the diff
-│       └── terraform-apply.yml  # Runs `apply` on merge to main, per-env approval
-│
-├── scripts/                      # Helper scripts (fmt, validate, lint wrappers)
-│   ├── fmt.sh
-│   └── validate.sh
-│
-├── .terraform-version            # Pinned Terraform version (for tfenv)
-├── .tflint.hcl                   # TFLint ruleset
-├── .gitignore                    # Ignores .terraform/, *.tfstate, secret *.tfvars
-└── .pre-commit-config.yaml       # fmt + validate + tflint + tfsec on commit
+|-- bootstrap/                 # Parameterized backend bootstrap
+|-- environments/
+|   |-- dev/                   # Frankfurt development composition
+|   `-- prod/                  # Production template
+|-- modules/
+|   |-- network/               # VPC, subnets, route tables and IGW
+|   `-- n8n-ec2/               # EC2, n8n, Caddy, IAM, SSM and monitoring
+|-- DOCS/                      # Architecture, schema, n8n, and migration documentation
+|-- scripts/
+|   |-- attio/                 # Attio schema and synchronization tools
+|   |-- db/                    # PostgreSQL migrations and database tools
+|   `-- docs/                  # Schema documentation generators
+`-- .agents/skills/            # Project-local Codex skills
 ```
 
-### Why this shape?
+The environment directories compose reusable modules. Each environment has
+its own provider, backend, variables and outputs.
 
-- **`environments/` vs `modules/`** is the core split. Modules contain *how* to build something; environments declare *what* to build and *with which values*. This keeps `prod` from accidentally diverging from `dev` in structure while still allowing different sizing.
-- **Directory-per-environment** (rather than Terraform workspaces) gives each environment its own backend key, its own provider/role assumption, and a clear, greppable blast radius. A mistake in `dev` cannot touch `prod` state.
-- **`bootstrap/` and `global/`** are separated because they have a different lifecycle: they're created once and rarely change, and `bootstrap/` necessarily uses *local* state (it creates the very backend everything else depends on).
+Project, environment, and region are Terraform variables. They can be supplied
+through `.tfvars` files or `TF_VAR_` environment variables, while each
+environment must keep its own backend state key.
 
----
-
-## How It Fits Together
-
-```
-                 ┌─────────────────────────────────────────┐
-                 │              modules/                     │
-                 │  network · eks · rds · s3 · iam · dns ... │
-                 └───────────────▲───────────────▲───────────┘
-                                 │ source = ../../modules/...
-        ┌────────────────────────┼───────────────┼────────────────────────┐
-        │                        │               │                        │
-  environments/dev        environments/staging   environments/prod
-        │                        │                        │
-        ▼                        ▼                        ▼
-   s3://…/dev/             s3://…/staging/           s3://…/prod/
-   terraform.tfstate       terraform.tfstate         terraform.tfstate
-   (DynamoDB lock)         (DynamoDB lock)           (DynamoDB lock)
+```powershell
+$env:TF_VAR_project = "wusool"
+$env:TF_VAR_environment = "dev"
+$env:TF_VAR_aws_region = "eu-central-1"
 ```
 
-Each environment directory calls the shared modules via relative `source = "../../modules/<name>"` paths and stores its state under an environment-specific key in the shared S3 backend.
+## CRM and data-platform schema
 
----
+Wusool uses Attio and PostgreSQL as connected parts of the same data platform.
+Attio is the operational CRM used by the business team. PostgreSQL is the
+structured platform layer used for synchronization, enrichment, automation,
+analysis, scoring, and generated outputs.
 
-## State Management
+### Platform responsibilities
 
-| Concern        | Implementation                                                        |
-| -------------- | --------------------------------------------------------------------- |
-| Backend        | Amazon S3 (versioned, encrypted with SSE-KMS, public access blocked)  |
-| Locking        | Amazon DynamoDB table (`LockID` partition key)                        |
-| State key      | `wusool/<environment>/terraform.tfstate`                              |
-| Isolation      | One state file per environment — never shared                         |
+| Platform | Primary responsibility | Example data |
+| --- | --- | --- |
+| Attio | Business-facing CRM and workflow management | Organizations, people, deals, mandates, relationship status, and ownership |
+| PostgreSQL | Structured storage and machine-processing layer | CRM mirrors, activities, signals, intelligence, matching, documents, events, and synchronization state |
+| Shared | Records exchanged between both platforms | Attio identifiers, operational metrics, relationship keys, and selected workflow results |
 
-Example `environments/dev/backend.tf`:
+Core Attio records are mirrored into PostgreSQL using stable Attio record
+identifiers. PostgreSQL can then associate CRM records with research,
+enrichment, scoring, events, and automation outputs without duplicating their
+business identity.
 
-```hcl
-terraform {
-  backend "s3" {
-    bucket         = "wusool-tfstate"
-    key            = "wusool/dev/terraform.tfstate"
-    region         = "me-central-1"
-    dynamodb_table = "wusool-tfstate-locks"
-    encrypt        = true
-  }
-}
+```text
+Business users
+      |
+      v
+Attio CRM  <------ selected operational results ------+
+      |                                               |
+      +------ identifiers and CRM records ------> PostgreSQL
+                                                   |
+                                                   +--> automation
+                                                   +--> enrichment
+                                                   +--> analysis and scoring
+                                                   `--> documents and reporting
 ```
 
-> The S3 bucket and DynamoDB table themselves are created by `bootstrap/` (see below). This is the classic chicken-and-egg of Terraform backends: bootstrap runs with local state, everything else uses the remote backend it created.
+### Schema documentation
 
----
+| Document | Audience | Contents |
+| --- | --- | --- |
+| [Client schema overview](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md) | Clients, management, engineering, and operations | Executive explanation, platform mapping, Attio and PostgreSQL schemas, functional areas, relationships, constraints, and ownership |
+
+### Documented schema scope
+
+The current documentation covers:
+
+- Attio objects and lists for organizations, people, users, buyer roles, seller
+  roles, investor/lender roles, deals, and mandates.
+- PostgreSQL CRM mirror tables, business-role tables, activities, pipeline
+  events, signals, buyer intelligence, seller financials, mandate targets,
+  match scores, documents, sector knowledge, relationship graphs, scorecards,
+  and Attio synchronization tables.
+- Cross-platform mappings, record relationships, ownership boundaries,
+  database constraints, and indexes.
+
+### Schema sources of truth
+
+| Schema | Source |
+| --- | --- |
+| Attio target model | `scripts/attio/config/target-schema.json` |
+| Attio migration mapping | `scripts/attio/config/source-to-target-mapping.json` |
+| PostgreSQL schema | `scripts/db/sql/001_extensions.sql` through `004_machine_layer.sql` |
+
+The generated documents describe the schema declared in this repository. They
+do not prove the current state of a live Attio workspace or PostgreSQL database.
+Live validation must be performed separately using the repository validation
+scripts.
+
+### Regenerating the documentation
+
+Run the generator from the repository root after changing the Attio model or
+PostgreSQL migrations:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/docs/generate-client-schema-overview.ps1
+```
+
+Do not manually edit the generated Markdown file; update the schema sources or
+generator script and regenerate it instead.
+
+## Development state backend
+
+The current development backend is declared in
+`environments/dev/backend.tf`.
+
+| Setting | Development value |
+| --- | --- |
+| Backend | Amazon S3 |
+| Region | `eu-central-1` |
+| State key | `wusool/dev/terraform.tfstate` |
+| Encryption | Enabled |
+| Locking | S3 native lock file (`use_lockfile = true`) |
+| Bucket protection | Versioning, encryption and public-access blocking |
+
+`bootstrap/` is the one-time backend setup. It is parameterized by region and
+bucket name; `bootstrap/terraform.tfvars.example` shows the Frankfurt bucket
+used by development. The configuration also declares a DynamoDB lock table for
+older backend styles, but the current development backend uses S3 native lock
+files instead.
 
 ## Prerequisites
 
-| Tool            | Version                  | Install                                  |
-| --------------- | ------------------------ | ---------------------------------------- |
-| Terraform       | see `.terraform-version` | `tfenv install` (recommended)            |
-| AWS CLI         | v2                       | `brew install awscli`                    |
-| tflint          | latest                   | `brew install tflint`                    |
-| tfsec / trivy   | latest                   | `brew install tfsec`                     |
-| pre-commit      | latest                   | `brew install pre-commit`                |
+- Terraform version from `.terraform-version`
+- AWS CLI v2
+- Valid AWS credentials or an active AWS SSO session
+- An EC2 key pair matching the environment configuration
 
-AWS access:
+Verify AWS authentication before planning:
 
-- You authenticate with the AWS CLI (SSO recommended). Terraform assumes an environment-specific role; you never use long-lived static keys for `apply`.
-- Confirm access before running anything:
-
-```bash
+```powershell
 aws sts get-caller-identity
 ```
 
----
+## Development workflow
 
-## One-Time Setup (Bootstrap)
-
-Run **once per AWS account**, by an admin, to create the state backend. After this, no one touches `bootstrap/` again unless the backend itself changes.
-
-```bash
-cd bootstrap
-
-# Bootstrap uses LOCAL state on purpose — it is creating the remote backend.
+```powershell
+Set-Location environments/dev
 terraform init
-terraform plan
-terraform apply
-```
-
-This provisions:
-
-- The versioned, encrypted S3 bucket (`wusool-tfstate`) for all remote state.
-- The DynamoDB lock table (`wusool-tfstate-locks`).
-- (Optionally) the GitHub Actions OIDC provider + CI deploy roles, if managed here rather than in `global/iam/`.
-
-Commit the resulting `bootstrap/terraform.tfstate` to a secure location, or migrate it into the bucket it just created. Once the backend exists, every environment can `terraform init` against it.
-
----
-
-## Day-to-Day Workflow
-
-All changes go through a pull request. Locally:
-
-```bash
-# 1. Move into the environment you're changing
-cd environments/dev
-
-# 2. Initialize (downloads providers, configures the S3 backend)
-terraform init
-
-# 3. Format and validate
-terraform fmt -recursive
+terraform fmt -check
 terraform validate
-
-# 4. See what will change — review this carefully
 terraform plan -out=tfplan
-
-# 5. (Optional locally) apply — but normally CI applies on merge
 terraform apply tfplan
 ```
 
-Then:
+Always review the plan before applying. GitHub Actions checks formatting and
+validation for pull requests targeting `dev`; it does not apply infrastructure.
 
-1. Open a PR. CI runs `fmt`, `validate`, `tflint`, `tfsec`, and `terraform plan` for affected environments, posting the plan as a PR comment.
-2. A reviewer approves both the code and the plan output.
-3. On merge to `main`, the apply workflow runs `terraform apply` against the environment, gated by a GitHub Environment approval for `staging`/`prod`.
-4. Promote the same change `dev → staging → prod`.
+After deployment:
 
----
-
-## Adding a New Module
-
-1. Create `modules/<name>/` with `main.tf`, `variables.tf`, `outputs.tf`, and a `README.md`.
-2. Keep it environment-agnostic — no hardcoded account IDs, regions, or environment names. Take everything as input variables.
-3. Document inputs/outputs in the module's `README.md`.
-4. Reference it from an environment:
-
-```hcl
-module "network" {
-  source = "../../modules/network"
-
-  environment = "dev"
-  cidr_block  = "10.10.0.0/16"
-  azs         = ["me-central-1a", "me-central-1b"]
-}
+```powershell
+terraform output n8n_url
+terraform output ssm_command
 ```
 
-5. Run `terraform init` in the environment to pick up the new module, then `plan`.
+The configured development security group allows HTTP and HTTPS. Port `5678`
+is closed when `expose_n8n_port = false`, and SSH ingress is omitted when
+`ssh_cidr_blocks` is empty. Prefer Systems Manager for shell access.
 
----
+Development n8n is configured for `https://n8n-dev.wusoolcapital.com/`.
+Cloudflare should keep the `n8n-dev` record pointed at the EC2 Elastic IP.
 
-## Adding a New Environment
+## n8n SMTP email
 
-1. Copy an existing environment as a starting point:
+Each environment creates a Secrets Manager secret at
+`/${project}/${environment}/n8n`. Add SMTP keys and other sensitive runtime
+environment variables to that secret after `terraform apply`; do not put API
+keys, webhooks, or SMTP passwords in `terraform.tfvars`.
 
-   ```bash
-   cp -r environments/staging environments/<new-env>
-   ```
+```powershell
+aws secretsmanager put-secret-value `
+  --secret-id /wusool/dev/n8n `
+  --secret-string '{"smtp_host":"smtp.example.com","smtp_port":587,"smtp_user":"user@example.com","smtp_password":"replace-me","smtp_sender":"Wusool <no-reply@example.com>","smtp_ssl":false,"env":{"GEMINI_API_KEY":"replace-me","SLACK_WEBHOOK_CI":"https://hooks.slack.com/services/replace-me","SLACK_WEBHOOK_ALERTS":"https://hooks.slack.com/services/replace-me"}}'
+```
 
-2. Update `backend.tf` with a new, unique `key` (e.g. `wusool/<new-env>/terraform.tfstate`).
-3. Update `terraform.tfvars` with environment-specific values (CIDRs, instance sizes, etc.).
-4. Update `providers.tf` if the environment lives in a different AWS account/role.
-5. Add the environment to the CI matrix in `.github/workflows/`.
-6. `terraform init && terraform plan` to verify before applying.
+Use `/wusool/prod/n8n` for production. The bootstrap reads the secret and
+creates an n8n Docker env file from SMTP settings and any key/value pairs under
+the `env` object.
 
----
+## n8n users
 
-## CI/CD Pipeline
+Use the helper script to invite users to development or production:
 
-Two GitHub Actions workflows drive automation. CI authenticates to AWS via **OIDC** (no stored AWS keys).
+```powershell
+$env:N8N_AUTH_COOKIE = "n8n-auth=..."
+.\scripts\invite-n8n-users.ps1 -Environment dev -Email person@example.com
+.\scripts\invite-n8n-users.ps1 -Environment prod -EmailFile .\scripts\n8n-users.example.txt
+```
 
-**`terraform-plan.yml`** — on every pull request:
-- Detects which environments changed.
-- Runs `fmt -check`, `validate`, `tflint`, `tfsec`.
-- Runs `terraform plan` and posts the plan as a PR comment.
+Run with `-DryRun` first to confirm the target URL and email list. The script
+uses the n8n invite endpoint and accepts either `N8N_AUTH_COOKIE` or
+`N8N_API_KEY`; if the API key cannot invite users in the deployed n8n version,
+use a browser session cookie from an owner/admin session.
 
-**`terraform-apply.yml`** — on push to `main`:
-- Runs `terraform apply` for the changed environment(s).
-- `staging` and `prod` are protected GitHub Environments requiring manual approval before apply proceeds.
+Forgot-password works when n8n can send email. Configure the SMTP secret for
+the environment, let the SSM bootstrap association rerun, and confirm the n8n
+container has `N8N_EMAIL_MODE=smtp` plus the `N8N_SMTP_*` variables.
 
----
+## Production
 
-## Conventions
+`environments/prod` is a template using `me-central-1`, a `10.20.0.0/16` VPC,
+and larger defaults. Review and reconcile its backend and module inputs before
+initialization or deployment. In particular, production still uses the older
+DynamoDB backend-locking configuration.
 
-- **Formatting:** `terraform fmt` is enforced in CI and via pre-commit. PRs that aren't formatted fail.
-- **Naming:** resources are prefixed with `wusool-<env>-<purpose>` (e.g. `wusool-prod-app-bucket`).
-- **Tagging:** every resource carries `Project = "wusool"`, `Environment`, `ManagedBy = "terraform"`, and `Owner` tags via a shared `default_tags` block in `providers.tf`.
-- **Secrets:** never committed. Use AWS Secrets Manager / SSM Parameter Store and reference them via data sources. `*.tfvars` containing secrets are git-ignored; non-secret `terraform.tfvars` may be committed.
-- **Versioning:** Terraform and provider versions are pinned (`.terraform-version`, `required_providers`) so plans are reproducible.
+Do not deploy production by changing `TF_VAR_environment` while using the dev
+backend. Production must use its own state key, such as
+`wusool/prod/terraform.tfstate`.
 
----
+## Project status
 
-## Break-Glass / Emergency Access
+[PROGRESS.md](PROGRESS.md) is the single, high-level file that tracks what
+has been done across every workstream (infrastructure, CRM/data-platform
+migration, and any new work). Read it before starting a session instead of
+reconstructing status from git history.
 
-Manual changes in the AWS Console are forbidden except for genuine incidents. If you must:
+## Documentation synchronization
 
-1. Make the minimal change required to resolve the incident.
-2. Immediately open a PR to codify it in Terraform.
-3. Run `terraform plan` to confirm Terraform now shows **no drift** — i.e. the code matches the manual change.
+After changing Terraform, run the project documentation skill:
 
-Unreconciled drift is an open incident until closed.
+```text
+Use $sync-terraform-docs
+```
 
----
+After any other change worth recording — a migration milestone, a new script,
+a new workstream — run the sibling skill to update `PROGRESS.md` and the
+non-Terraform README files:
 
-## Troubleshooting
+```text
+Use $sync-project-docs
+```
 
-| Symptom                                  | Fix                                                                                  |
-| ---------------------------------------- | ------------------------------------------------------------------------------------ |
-| `Error acquiring the state lock`         | A failed/concurrent run holds the lock. Verify, then `terraform force-unlock <LOCK_ID>`. |
-| `Backend configuration changed`          | Run `terraform init -reconfigure`.                                                   |
-| Plan shows unexpected diffs              | Likely manual drift — reconcile in code, don't fight it with overrides.              |
-| `NoCredentialProviders` / `ExpiredToken` | Re-authenticate: `aws sso login` (or refresh your session), then retry.              |
-| Provider/module not found after edit     | Re-run `terraform init` in the environment directory.                                |
+Those phrases are agent instructions, not PowerShell commands. The Terraform
+skill compares Terraform with the README files and architecture diagrams,
+updates stale documentation, and runs formatting and validation checks. Neither
+skill runs `terraform apply`.
 
----
+## Safety
 
-*Maintained by the Wusool infrastructure team. Questions or changes? Open a PR.*
+- Never commit state files, plan files, credentials, private keys, or local
+  `terraform.tfvars`.
+- Treat Terraform as the source of truth.
+- Reconcile emergency console changes back into Terraform immediately.
+- A repository review proves declared configuration, not live AWS state.

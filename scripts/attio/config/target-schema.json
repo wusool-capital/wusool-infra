@@ -1,0 +1,208 @@
+{
+  "version": "0.1-draft",
+  "source_of_truth": "Database_Architecture_ER_Diagram.drawio (target schema aligned to 2-Jul Attio audit call)",
+  "ownership": {
+    "attio": "Mastered in Attio and mirrored to PostgreSQL where the database model requires it.",
+    "postgres": "Mastered and stored only in PostgreSQL.",
+    "both": "Mastered in PostgreSQL and cached in Attio.",
+    "key": "Attio record identifier or relationship key."
+  },
+  "rules": {
+    "allow_unapproved_custom_attributes": false,
+    "approved_technical_attributes": ["legacy_attio_id"],
+    "allow_unapproved_custom_objects": false,
+    "allow_unapproved_lists": false,
+    "preserve_attio_system_attributes": true,
+    "source_record_identity_storage": "dev_legacy_attio_id",
+    "postgres_attio_id_meaning": "Dev Attio record ID"
+  },
+  "attio_entities": [
+    {
+      "name": "Organization",
+      "attio_kind": "object",
+      "attio_slug": "organizations",
+      "postgres_table": "organizations",
+      "fields": [
+        {"slug": "attio_id", "type": "text", "ownership": "key", "attio_storage": "record_id"},
+        {"slug": "legacy_attio_id", "type": "text", "ownership": "key", "purpose": "Source Attio record ID used for idempotent migration"},
+        {"slug": "name", "type": "text", "ownership": "attio"},
+        {"slug": "description", "type": "text", "ownership": "attio"},
+        {"slug": "type", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "client_type", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "sector_focus", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "stage_focus", "attio_slug": "stage", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "geographic_focus", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "hq_country", "type": "text", "ownership": "attio"},
+        {"slug": "domains", "type": "text[]", "attio_type": "text", "attio_serialization": "comma_delimited", "ownership": "attio", "platform_constraint": "Custom objects do not support domain attributes or multiselect text."},
+        {"slug": "logo_url", "type": "text", "ownership": "attio", "postgres_storage": false, "purpose": "Attio record image presentation only"},
+        {"slug": "categories", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "relationship_status", "type": "enum", "ownership": "attio", "options": ["Warm", "Cold", "Closed"], "normalization": "latest_active_from_after_mapping"},
+        {"slug": "connection_strength", "attio_slug": "strongest_connection_strength", "type": "enum", "ownership": "attio", "system_attribute": true},
+        {"slug": "owner", "type": "user-reference", "ownership": "key", "target": "User", "attio_type_status": "needs_design"},
+        {"slug": "last_interaction_at", "type": "timestamp", "ownership": "both"}
+      ]
+    },
+    {
+      "name": "Person",
+      "attio_kind": "object",
+      "attio_slug": "person",
+      "postgres_table": "people",
+      "fields": [
+        {"slug": "attio_id", "type": "text", "ownership": "key", "attio_storage": "record_id"},
+        {"slug": "legacy_attio_id", "type": "text", "ownership": "key", "purpose": "Source Attio record ID used for idempotent migration"},
+        {"slug": "name", "type": "text", "ownership": "attio"},
+        {"slug": "role", "type": "enum[]", "ownership": "attio", "options_status": "source_preserved"},
+        {"slug": "company", "type": "record-reference", "ownership": "key", "target": "Organization"},
+        {"slug": "email", "attio_slug": "email_addresses", "type": "text[]", "attio_type": "text", "attio_serialization": "comma_delimited", "ownership": "attio", "platform_constraint": "Custom objects do not support email-address attributes."},
+        {"slug": "linkedin", "type": "text", "ownership": "attio"},
+        {"slug": "relationship_status", "type": "enum", "ownership": "attio", "options": ["Warm", "Cold", "Closed"], "normalization": "latest_active_from_after_mapping"},
+        {"slug": "connection_strength", "attio_slug": "strongest_connection_strength", "type": "enum", "ownership": "attio", "system_attribute": true},
+        {"slug": "owner", "type": "user-reference", "ownership": "key", "target": "User", "attio_type_status": "needs_design"},
+        {"slug": "past_employers", "type": "jsonb", "ownership": "postgres"},
+        {"slug": "education", "type": "jsonb", "ownership": "postgres"},
+        {"slug": "enrichment", "type": "jsonb", "ownership": "postgres"},
+        {"slug": "last_interaction_at", "type": "timestamp", "ownership": "both"}
+      ]
+    },
+    {
+      "name": "User",
+      "attio_kind": "workspace-members",
+      "postgres_table": "users",
+      "fields": [
+        {"slug": "attio_id", "type": "text", "ownership": "key", "attio_storage": "workspace_member_id"},
+        {"slug": "name", "type": "text", "ownership": "attio"},
+        {"slug": "email", "type": "text", "ownership": "attio"},
+        {"slug": "access", "type": "enum", "ownership": "attio", "options": ["Admin", "Member"]},
+        {"slug": "active", "type": "boolean", "ownership": "both"}
+      ]
+    },
+    {
+      "name": "buyer_role",
+      "attio_kind": "list",
+      "attio_slug": "buyer_role",
+      "parent_object": "organizations",
+      "parent_object_status": "confirmed",
+      "postgres_table": "buyer_roles",
+      "fields": [
+        {"slug": "id", "type": "uuid", "ownership": "key", "attio_storage": "entry_id"},
+        {"slug": "org_id", "type": "record-reference", "ownership": "key", "target": "Organization"},
+        {"slug": "model", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "mandate_status", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "ebitda_floor", "type": "money", "ownership": "attio"},
+        {"slug": "check_size_min", "type": "money", "ownership": "attio"},
+        {"slug": "check_size_max", "type": "money", "ownership": "attio"},
+        {"slug": "ev_ceiling", "type": "money", "ownership": "attio"},
+        {"slug": "deal_structure_tolerance", "type": "enum", "ownership": "attio", "options_status": "confirmed"},
+        {"slug": "earnout_tolerance", "type": "boolean", "ownership": "attio"},
+        {"slug": "profitable_only", "type": "boolean", "ownership": "attio"},
+        {"slug": "investment_strategy", "type": "text", "ownership": "attio"},
+        {"slug": "notes", "type": "text", "ownership": "attio"},
+        {"slug": "key_contact", "type": "record-reference", "ownership": "key", "target": "Person"},
+        {"slug": "acquisition_enrichment", "type": "text", "ownership": "both"},
+        {"slug": "deals_introduced", "type": "integer", "ownership": "both"},
+        {"slug": "deals_converted", "type": "integer", "ownership": "both"}
+      ]
+    },
+    {
+      "name": "seller_role",
+      "attio_kind": "list",
+      "attio_slug": "seller_role",
+      "parent_object": "organizations",
+      "postgres_table": "seller_roles",
+      "fields": [
+        {"slug": "id", "type": "uuid", "ownership": "key", "attio_storage": "entry_id"},
+        {"slug": "org_id", "type": "record-reference", "ownership": "key", "target": "Organization"},
+        {"slug": "outreach_tier", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "appetite_signal", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "relationship_status", "type": "enum", "ownership": "attio", "options": ["Not Contacted", "Outreach Sent", "Positive Response", "Not Now", "No Response", "Referred Out", "Converted to Mandate"]},
+        {"slug": "est_revenue", "type": "money", "ownership": "attio"},
+        {"slug": "est_ebitda", "type": "money", "ownership": "attio"},
+        {"slug": "owner_salary", "type": "money", "ownership": "attio"},
+        {"slug": "valuation_low", "type": "money", "ownership": "attio"},
+        {"slug": "valuation_mid", "type": "money", "ownership": "attio"},
+        {"slug": "valuation_high", "type": "money", "ownership": "attio"},
+        {"slug": "sell_timeline", "type": "enum", "ownership": "attio", "options": ["Immediate", "Within 6 Months", "6-12 Months", "12-24 Months", "Not Selling"], "nullable_for_historical_migration": true},
+        {"slug": "readiness_score", "type": "numeric", "ownership": "attio"},
+        {"slug": "readiness_band", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "intake_source", "type": "enum", "ownership": "attio", "options": ["Inbound Lead Magnet", "Outbound", "Referral Partner", "Direct", "Reengagement"], "historical_migration_default": "Direct", "required_for_new_workflows": true, "mutability": "write_once_except_correction"},
+        {"slug": "mandate_id", "type": "record-reference", "ownership": "both", "target": "Mandate"},
+        {"slug": "last_attempt_date", "type": "date", "ownership": "both"},
+        {"slug": "last_attempt_channel", "type": "enum", "ownership": "both", "options_status": "needs_approval"},
+        {"slug": "last_attempt_outcome", "type": "enum", "ownership": "both", "options_status": "needs_approval"},
+        {"slug": "lead_quality_score", "type": "numeric", "ownership": "both"},
+        {"slug": "re_engage_date", "type": "date", "ownership": "both"}
+      ]
+    },
+    {
+      "name": "investor_lender_role",
+      "attio_kind": "list",
+      "attio_slug": "investor_lender_role",
+      "scope_status": "needs_approval_graph_only_in_diagram",
+      "parent_object": "companies",
+      "postgres_table": "investor_lender_roles",
+      "fields": [
+        {"slug": "org_id", "type": "record-reference", "ownership": "key", "target": "Organization"},
+        {"slug": "investor_type", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "stage_focus", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "sector_focus", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "interests", "type": "text", "ownership": "attio"},
+        {"slug": "facility_type", "type": "text", "ownership": "attio"},
+        {"slug": "activity_level", "type": "enum", "ownership": "attio", "options_status": "needs_approval"}
+      ]
+    },
+    {
+      "name": "Deal",
+      "attio_kind": "object",
+      "attio_slug": "deals",
+      "postgres_table": "deals",
+      "fields": [
+        {"slug": "attio_id", "type": "text", "ownership": "key", "attio_storage": "record_id"},
+        {"slug": "legacy_attio_id", "type": "text", "ownership": "key", "purpose": "Source Attio record ID used for idempotent migration"},
+        {"slug": "name", "type": "text", "ownership": "attio"},
+        {"slug": "stage", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "stage_changed_at", "type": "timestamp", "ownership": "attio"},
+        {"slug": "time_in_stage", "type": "numeric", "ownership": "attio", "unit": "days", "calculation": "refreshed_by_sync; PostgreSQL derives live interval"},
+        {"slug": "buyer_id", "type": "record-reference", "ownership": "key", "target": "OrganizationOrPerson", "target_status": "needs_design"},
+        {"slug": "seller_id", "type": "record-reference", "ownership": "key", "target": "Organization"},
+        {"slug": "owner", "type": "user-reference", "ownership": "key", "target": "User"},
+        {"slug": "value", "type": "money", "ownership": "attio"},
+        {"slug": "teaser_status", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "nda_count", "type": "integer", "ownership": "attio"},
+        {"slug": "cim_ready", "type": "boolean", "ownership": "attio"},
+        {"slug": "deal_memo_ready", "type": "boolean", "ownership": "attio"},
+        {"slug": "contract_signed_date", "type": "date", "ownership": "attio"},
+        {"slug": "exclusivity_date", "type": "date", "ownership": "attio"},
+        {"slug": "next_task", "type": "text", "ownership": "attio"},
+        {"slug": "data_room_substatus", "type": "enum", "ownership": "both", "options_status": "needs_approval"},
+        {"slug": "comparables", "type": "jsonb", "ownership": "postgres"}
+      ]
+    },
+    {
+      "name": "Mandate",
+      "attio_kind": "list",
+      "attio_slug": "mandates",
+      "parent_object": "organizations",
+      "parent_object_status": "confirmed_for_current_buy_side_source_entries",
+      "postgres_table": "mandates",
+      "fields": [
+        {"slug": "id", "type": "uuid", "ownership": "key", "attio_storage": "entry_id"},
+        {"slug": "side", "type": "enum", "ownership": "attio", "options": ["buy", "sell"]},
+        {"slug": "buyer_id", "type": "record-reference", "ownership": "key", "target": "Organization"},
+        {"slug": "seller_id", "type": "record-reference", "ownership": "key", "target": "Organization"},
+        {"slug": "phase", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "assigned_advisor", "type": "user-reference[]", "ownership": "key", "target": "User"},
+        {"slug": "start_date", "type": "date", "ownership": "attio"},
+        {"slug": "expiry_date", "type": "date", "ownership": "attio"},
+        {"slug": "universe_constructed", "type": "boolean", "ownership": "attio"},
+        {"slug": "shortlist_approved", "type": "boolean", "ownership": "attio"},
+        {"slug": "universe_size", "type": "integer", "ownership": "both"},
+        {"slug": "shortlist_size", "type": "integer", "ownership": "both"},
+        {"slug": "tier1_contacted", "type": "integer", "ownership": "both"},
+        {"slug": "responses", "type": "integer", "ownership": "both"}
+      ]
+    }
+  ],
+  "excluded_pending_scope_approval": [
+    "Scorecards"
+  ]
+}
