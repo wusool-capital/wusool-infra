@@ -7,7 +7,7 @@ in its own document (linked below) — this file stays a short, high-level
 index and is kept current by the `sync-project-docs` skill (or manually,
 see [Keeping this file current](#keeping-this-file-current)).
 
-Last updated: 2026-08-09
+Last updated: 2026-08-11
 
 ## Workstreams
 
@@ -202,25 +202,81 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   from `Wusool Capital <no-reply@wusoolcapital.com>` for both
   `n8n-dev.wusoolcapital.com` and `n8n-prod.wusoolcapital.com`.
 
-**Open decision, paused 2026-08-09 evening — pick up here:** whether/when
-to fully retire `n8n-prod.wusoolcapital.com` in favor of
-`n8n.wusoolcapital.com` alone. Two options discussed, neither actioned yet:
+**Resolved 2026-08-10: `n8n-prod.wusoolcapital.com` fully retired.**
 
-- **Option A — do it now:** flip `N8N_HOST`/`WEBHOOK_URL` to the new domain
-  only and delete the old DNS record. Fast (~15 min), but risky —
-  checking Caddy's access log for only an hour or so beforehand does
-  **not** prove nothing external depends on the old URL (an infrequent
-  partner webhook or OAuth redirect would not show up in a short log
-  window and would break silently later).
-- **Option B (leaning this way) — defer the risky half:** switch n8n's own
-  *generated* links to the new domain now, but leave the old domain's DNS
-  record alive as a no-cost safety net for longer (check
-  `docker compose logs caddy` / `/data/access.log` on `wusool-prod-n8n`
-  periodically for any continued hits to `n8n-prod.wusoolcapital.com`
-  before actually removing it).
+- Before removing anything, checked Caddy's access log for real dependency
+  (per the open decision from the previous night). Found real, active usage:
+  21,320 log lines on the old domain, with the top hits being multiple
+  distinct browser sessions (7+ IPs, real Chrome user-agents) actively
+  polling `/healthz` — i.e. people had the editor open on the old URL right
+  now, not just historical noise. (Some of the volume was self-inflicted
+  telemetry noise from n8n's own frontend calling itself via the wrong
+  `N8N_HOST`, and some was unrelated bot scanning (`/wp-json/...`) — but the
+  `/healthz` browser traffic was real, current usage.)
+- Proceeded anyway (explicit decision, accepting the risk to any open
+  sessions on the old URL) — fixed `N8N_HOST`/`WEBHOOK_URL` in
+  `docker-compose.yml` to `n8n.wusoolcapital.com` only, rewrote the
+  Caddyfile to a single-domain block, recreated `n8n`/`task-runners` +
+  restarted `caddy`. Verified: `n8n.wusoolcapital.com` works,
+  `n8n-prod.wusoolcapital.com` correctly stopped resolving through Caddy.
+  Then deleted the `n8n-prod.wusoolcapital.com` A record in Cloudflare.
+- **Second bug found and fixed during this same cutover:** rewriting
+  `docker-compose.yml` surfaced that the task-runner-launcher fix (see
+  §18 gap in `DOCS/n8n/infrastructure-overview.md`) was *also* missing —
+  same root cause as the Caddyfile issue, confirmed for the first time
+  concretely: the registered `wusool-prod-n8n-bootstrap` SSM document runs
+  a **stale** embedded script that predates several fixes now present only
+  in the local `.tpl` file. Symptom: Python Code nodes failing with
+  "Allowed stdlib modules: none" regardless of `N8N_RUNNERS_STDLIB_ALLOW`
+  being correctly set — the launcher wasn't loading the custom config file
+  at all without `N8N_RUNNERS_CONFIG_PATH` + the volume mount. Re-added
+  both live via SSM; confirmed fixed (workflow's Python node ran
+  successfully after).
+- **Root cause, not yet fixed:** the SSM document itself needs updating to
+  match the current template — not just the local file. Until that
+  happens, *any* future bootstrap re-run on prod (for any reason) will
+  silently revert both the Caddyfile and the task-runner config again.
+  Worth prioritizing a proper fix here rather than patching live a third
+  time.
+- CD pipeline work (developer's auto-deploy-on-push-to-main, hitting a
+  308-with-empty-body on large `PUT /api/v1/workflows/*` bodies) is
+  separate and still unresolved — waiting on verbose curl output from the
+  developer to find the actual redirect cause. Deferred setting up an
+  equivalent pipeline for prod until dev's is confirmed working.
 
-No changes made yet either way — both domains are still live and working
-as of this note.
+### 5. Scribe integration (meetings table + access) — done: role, grants, FK, and networking live
+
+- **Done (2026-08-11):** added `scripts/db/sql/005_meetings.sql` — canonical
+  DDL for the `meetings` table (buyer/seller meeting summaries), owned by
+  Wusool but written only by the standalone scribe service (separate
+  EC2/Postgres, no shared Alembic chain). See
+  [CLIENT_SCHEMA_OVERVIEW.md](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md#meetings)
+  for the column reference.
+- Created the least-privilege `scribe_pub` role on `wusool_crm` and granted
+  `CONNECT` on the database, `USAGE` on `public`, `SELECT, INSERT, UPDATE` on
+  `meetings`, and `SELECT` on `organizations` — scribe needs nothing beyond
+  writing its one table and resolving org names to Attio ids.
+- **`fk_meetings_org` enabled (2026-08-11):** `meetings.org_id` was
+  originally a soft reference (no FK) specifically to survive a race where
+  scribe publishes a meeting before its organization has synced from Attio
+  into the `wusool_crm` mirror — a hard FK would have rejected that insert
+  outright. Enabled the real FK once scribe's publish logic was confirmed to
+  check organization existence immediately before insert against the
+  Postgres mirror, closing that race. If scribe's publish job starts failing
+  on this constraint, that assumption was wrong; revert with
+  `ALTER TABLE meetings DROP CONSTRAINT fk_meetings_org;` (also documented
+  inline in `005_meetings.sql`).
+- **Networking:** added scribe's EC2 security group (`sg-0684b8cf83abfd065`)
+  to `allowed_security_group_ids` on `module.postgres` in
+  `environments/dev/main.tf`, applied — scribe can now reach the RDS
+  security group across VPCs (peering/connectivity on scribe's side was
+  confirmed already in place before this change).
+- **Not yet done:** `scripts/db/sql/005_meetings.sql`'s `CREATE TYPE`/
+  `CREATE TABLE` statements lack the `IF NOT EXISTS` guard every other
+  schema file uses — re-running `setup-postgres.ps1` after this one has
+  applied once will fail. Fine for the one-time apply already done; needs a
+  guard before any future full schema re-run. See
+  [scripts/db/README.md](scripts/db/README.md#sql-schema-files).
 
 ## Keeping this file current
 

@@ -222,6 +222,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | Intelligence and matching | `buyer_intel`, `seller_financials`, `mandate_targets`, `match_scores` | Research, financial normalization, targeting, and opportunity matching |
 | Knowledge and documents | `documents`, `vertical_kb`, `graph_edges`, `scorecards` | Generated files, sector research, relationship networks, and reporting |
 | Integration operations | `attio_sync_state`, `attio_raw_events` | Synchronization progress and incoming Attio events |
+| Scribe integration | `meetings` | Buyer/seller meeting summaries published by the standalone scribe service |
 
 ### users
 
@@ -594,10 +595,40 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
 
+### meetings
+
+Populated by the standalone scribe service (its own EC2/Postgres, no shared
+Alembic chain) via the `scribe_pub` role, which holds `SELECT, INSERT, UPDATE`
+on this table and `SELECT` on `organizations`. Not part of the Attio
+migration — scribe is the sole writer, Wusool owns the DDL. Canonical
+definition: `scripts/db/sql/005_meetings.sql`.
+
+| Column | Type | Nullable | Key | References | Default |
+|---|---|---:|---|---|---|
+| `id` | `uuid` | No | PK | - | - |
+| `org_id` | `text` | Yes | - | `organizations.attio_id` | - |
+| `org_name_raw` | `text` | Yes | - | - | - |
+| `counterparty_role` | `enum (counterparty_role)` | Yes | - | - | - |
+| `meeting_type` | `enum (meeting_type)` | Yes | - | - | - |
+| `occurred_at` | `timestamptz` | No | - | - | - |
+| `title` | `text` | Yes | - | - | - |
+| `source` | `enum (meeting_source)` | No | - | - | `'in_house'` |
+| `audio_ref` | `text` | Yes | - | - | - |
+| `duration_s` | `integer` | Yes | - | - | - |
+| `created_by_ref` | `text` | Yes | - | - | - |
+| `participants` | `jsonb` | Yes | - | - | - |
+| `transcript` | `text` | Yes | - | - | - |
+| `summary` | `text` | Yes | - | - | - |
+| `metadata` | `jsonb` | No | - | - | `'{}'::jsonb` |
+| `created_at` | `timestamptz` | No | - | - | `now()` |
+| `scribe_meeting_id` | `uuid` | Yes | Unique | - | - |
+
 ## Database indexes
 
 | Index | Table | Definition |
 |---|---|---|
+| `ix_meetings_org_id` | `meetings` | `org_id` |
+| `ix_meetings_occurred_at` | `meetings` | `occurred_at` |
 
 ## Data relationships
 
@@ -630,6 +661,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `graph_edges.person_a_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
 | `graph_edges.person_b_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
 | `scorecards.created_by_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
+| `meetings.org_id` | `organizations.attio_id` | Many-to-one; nullable, enforced via `fk_meetings_org` when set |
 
 Notable rules:
 
@@ -637,6 +669,10 @@ Notable rules:
 - Role tables are one-to-one with an organization because `org_attio_id` is unique.
 - `mandate_targets` is unique per `(mandate_id, seller_attio_id)` pair.
 - `graph_edges` rejects self-referencing person edges.
+- `meetings.org_id` is nullable — `org_name_raw` is set instead when scribe
+  cannot resolve an organization at publish time. When `org_id` is set, it
+  must reference an existing `organizations.attio_id` row (`fk_meetings_org`,
+  enabled 2026-08-11).
 
 ## Data ownership
 

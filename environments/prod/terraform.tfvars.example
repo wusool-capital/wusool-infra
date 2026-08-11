@@ -11,7 +11,7 @@ root_volume_size = 50
 # Production traffic should enter through Caddy on HTTPS only.
 expose_n8n_port = false
 web_cidr_blocks = ["0.0.0.0/0"]
-n8n_webhook_url = "https://n8n-prod.wusoolcapital.com/"
+n8n_webhook_url = "https://n8n.wusoolcapital.com/"
 n8n_timezone    = "Asia/Dubai"
 
 alert_email = "raoof@azmora.ai"

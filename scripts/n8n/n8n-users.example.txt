@@ -1,3 +1,0 @@
-# One email address per line. Blank lines and comments are ignored.
-person@example.com
-another.person@example.com
