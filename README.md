@@ -29,20 +29,21 @@ See:
 - [Infrastructure overview](DOCS/n8n/infrastructure-overview.md)
 - [Client schema overview](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md) — Attio
   and PostgreSQL overview
-- [Development operating guide](environments/dev/README.md)
+- [Development operating guide](terraform/environments/dev/README.md)
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
 
 ## Repository structure
 
 ```text
 wusool-infra/
-|-- bootstrap/                 # Parameterized backend bootstrap
-|-- environments/
-|   |-- dev/                   # Frankfurt development composition
-|   `-- prod/                  # Production template
-|-- modules/
-|   |-- network/               # VPC, subnets, route tables and IGW
-|   `-- n8n-ec2/               # EC2, n8n, Caddy, IAM, SSM and monitoring
+|-- terraform/                 # All Terraform configuration
+|   |-- bootstrap/             # Parameterized backend bootstrap
+|   |-- environments/
+|   |   |-- dev/               # Frankfurt development composition
+|   |   `-- prod/              # Production template
+|   `-- modules/
+|       |-- network/           # VPC, subnets, route tables and IGW
+|       `-- n8n-ec2/           # EC2, n8n, Caddy, IAM, SSM and monitoring
 |-- DOCS/                      # Architecture, schema, n8n, and migration documentation
 |-- scripts/
 |   |-- attio/                 # Attio schema and synchronization tools
@@ -146,7 +147,7 @@ generator script and regenerate it instead.
 ## Development state backend
 
 The current development backend is declared in
-`environments/dev/backend.tf`.
+`terraform/environments/dev/backend.tf`.
 
 | Setting | Development value |
 | --- | --- |
@@ -157,15 +158,15 @@ The current development backend is declared in
 | Locking | S3 native lock file (`use_lockfile = true`) |
 | Bucket protection | Versioning, encryption and public-access blocking |
 
-`bootstrap/` is the one-time backend setup. It is parameterized by region and
-bucket name; `bootstrap/terraform.tfvars.example` shows the Frankfurt bucket
+`terraform/bootstrap/` is the one-time backend setup. It is parameterized by region and
+bucket name; `terraform/bootstrap/terraform.tfvars.example` shows the Frankfurt bucket
 used by development. The configuration also declares a DynamoDB lock table for
 older backend styles, but the current development backend uses S3 native lock
 files instead.
 
 ## Prerequisites
 
-- Terraform version from `.terraform-version`
+- Terraform version from `terraform/.terraform-version`
 - AWS CLI v2
 - Valid AWS credentials or an active AWS SSO session
 - An EC2 key pair matching the environment configuration
@@ -179,7 +180,7 @@ aws sts get-caller-identity
 ## Development workflow
 
 ```powershell
-Set-Location environments/dev
+Set-Location terraform/environments/dev
 terraform init
 terraform fmt -check
 terraform validate
@@ -242,7 +243,7 @@ container has `N8N_EMAIL_MODE=smtp` plus the `N8N_SMTP_*` variables.
 
 ## Production
 
-`environments/prod` is a template using `me-central-1`, a `10.20.0.0/16` VPC,
+`terraform/environments/prod` is a template using `me-central-1`, a `10.20.0.0/16` VPC,
 and larger defaults. Review and reconcile its backend and module inputs before
 initialization or deployment. In particular, production still uses the older
 DynamoDB backend-locking configuration.

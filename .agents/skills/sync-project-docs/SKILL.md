@@ -14,7 +14,7 @@ This skill owns two additional things:
    from git log or chat history.
 2. **Every other README** in the repo that isn't already covered by
    `sync-terraform-docs` (e.g. `scripts/attio/README.md`, `scripts/db/README.md`,
-   `environments/dev/README.md`, root `README.md` sections that aren't purely
+   `terraform/environments/dev/README.md`, root `README.md` sections that aren't purely
    Terraform architecture).
 
 ## Workflow

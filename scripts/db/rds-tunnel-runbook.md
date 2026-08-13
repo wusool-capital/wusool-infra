@@ -5,7 +5,7 @@ existing n8n EC2 instance with Systems Manager port forwarding.
 
 ## Open Tunnel
 
-Run from `environments/dev`:
+Run from `terraform/environments/dev`:
 
 ```powershell
 $n8nInstanceId = terraform output -raw n8n_instance_id
