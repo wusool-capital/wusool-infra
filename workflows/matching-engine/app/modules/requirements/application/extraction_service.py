@@ -40,15 +40,15 @@ class BuyerRequirementExtractionService:
             prompt=self._build_prompt(buyer),
             inference_config=self._inference_config,
         )
-        extracted = self._validate(raw)
+        extracted, error = self._validate(raw)
 
         if extracted is None:
             raw_retry = await self._client.generate_structured(
                 model_id=self._model_id,
-                prompt=self._build_repair_prompt(buyer, raw),
+                prompt=self._build_repair_prompt(buyer, raw, error),
                 inference_config=self._inference_config,
             )
-            extracted = self._validate(raw_retry)
+            extracted, error = self._validate(raw_retry)
 
         if extracted is None:
             raise RequirementExtractionError(
@@ -59,11 +59,11 @@ class BuyerRequirementExtractionService:
         return self._to_domain(extracted, next_version, self._model_id)
 
     @staticmethod
-    def _validate(raw: dict) -> ExtractedRequirementProfile | None:
+    def _validate(raw: dict) -> tuple[ExtractedRequirementProfile | None, str | None]:
         try:
-            return ExtractedRequirementProfile.model_validate(raw)
-        except ValidationError:
-            return None
+            return ExtractedRequirementProfile.model_validate(raw), None
+        except ValidationError as exc:
+            return None, str(exc)
 
     def _build_prompt(self, buyer: BuyerContext) -> str:
         known_fields = {
@@ -84,23 +84,32 @@ class BuyerRequirementExtractionService:
             "source, confidence}], strategic_thesis, ideal_target_description, "
             "scoring_rubric: {criterion: weight}, data_confidence: 0-1}. "
             "`source` must be one of crm_field/llm_extracted/llm_inferred/"
-            "unavailable. Only use `human_confirmed: true` for facts already "
+            "unavailable. `confidence` (on each hard_requirement/soft_preference "
+            "item) must be exactly one of the strings high/medium/low — never a "
+            "numeric score. `data_confidence` (top-level, separate field) is the "
+            "only place a 0-1 number belongs. Only use `human_confirmed: true` "
+            "for facts already "
             "present in the structured buyer fields below — everything derived "
             "from free text is `llm_extracted`/`llm_inferred` and "
             "`human_confirmed: false`. Never invent a CRM field; if information "
-            "is absent, omit it or mark it `unavailable`.\n\n"
+            "is absent, omit it or mark it `unavailable`. Return only the JSON "
+            "object itself — no markdown code fences, no explanation before or "
+            "after it.\n\n"
             f"Organization: {buyer.org_name}\n"
             f"Known structured buyer fields: {known_fields}\n"
             f"Investment strategy (free text): {buyer.investment_strategy or 'Unknown'}\n"
             f"Notes (free text): {buyer.notes or 'Unknown'}"
         )
 
-    def _build_repair_prompt(self, buyer: BuyerContext, invalid_raw: dict) -> str:
+    def _build_repair_prompt(
+        self, buyer: BuyerContext, invalid_raw: dict, error: str | None
+    ) -> str:
         return (
             f"{self._build_prompt(buyer)}\n\n"
-            f"Your previous response did not match the required schema: "
-            f"{invalid_raw}. Return only corrected, valid JSON matching the "
-            "schema exactly — no prose, no markdown fences."
+            f"Your previous response was: {invalid_raw}\n"
+            f"It failed schema validation with this specific error: {error}\n"
+            "Return only corrected, valid JSON that fixes exactly that problem — "
+            "no prose, no markdown fences."
         )
 
     @staticmethod

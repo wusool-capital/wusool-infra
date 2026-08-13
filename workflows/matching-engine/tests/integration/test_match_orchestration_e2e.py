@@ -80,6 +80,15 @@ async def test_deterministic_match_run_end_to_end(
         buyer = to_buyer_context(buyer_role)
         seller_candidate = to_seller_candidate(seller_role)
 
+        # Don't assume this buyer has never had a run before — a real
+        # /find-match invocation against this same database (manual testing,
+        # or a prior test run) may have already assigned versions.
+        match_repo = MatchResultRepository(session)
+        previous_version = await match_repo.get_latest_requirement_profile_version(
+            buyer_role.id
+        )
+    expected_next_version = (previous_version or 0) + 1
+
     reasoning_response = {
         "candidates": [
             {
@@ -128,7 +137,7 @@ async def test_deterministic_match_run_end_to_end(
         run = await repo.get_run(uuid.UUID(result.run_id))
         assert run is not None
         assert run.status == "GENERATED"
-        assert run.requirement_profile_version == 1
+        assert run.requirement_profile_version == expected_next_version
         assert run.candidates_considered == 1
 
         candidates = await repo.get_candidates(uuid.UUID(result.run_id))

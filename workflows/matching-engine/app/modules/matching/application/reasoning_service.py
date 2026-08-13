@@ -46,15 +46,15 @@ class MatchReasoningService:
             prompt=self._build_prompt(buyer, profile, shortlist),
             inference_config=self._inference_config,
         )
-        result = self._validate(raw)
+        result, error = self._validate(raw)
 
         if result is None:
             raw_retry = await self._client.generate_reasoning(
                 model_id=self._model_id,
-                prompt=self._build_repair_prompt(buyer, profile, shortlist, raw),
+                prompt=self._build_repair_prompt(buyer, profile, shortlist, raw, error),
                 inference_config=self._inference_config,
             )
-            result = self._validate(raw_retry)
+            result, error = self._validate(raw_retry)
 
         if result is None:
             raise MatchReasoningError(
@@ -64,11 +64,11 @@ class MatchReasoningService:
         return result
 
     @staticmethod
-    def _validate(raw: dict) -> ReasoningResult | None:
+    def _validate(raw: dict) -> tuple[ReasoningResult | None, str | None]:
         try:
-            return ReasoningResult.model_validate(raw)
-        except ValidationError:
-            return None
+            return ReasoningResult.model_validate(raw), None
+        except ValidationError as exc:
+            return None, str(exc)
 
     def _build_prompt(
         self,
@@ -109,7 +109,9 @@ class MatchReasoningService:
             "why_chosen_over_alternatives, recommended_pitch, risks_and_gaps, "
             "confidence_narrative}]}. You are not responsible for the numeric "
             "score, hard-filter decisions, or database writes — those are "
-            "already decided; only explain them.\n\n"
+            "already decided; only explain them. Return only the JSON object "
+            "itself — no markdown code fences, no explanation before or after "
+            "it.\n\n"
             f"Buyer: {buyer.org_name}\n"
             f"Strategic thesis: {profile.strategic_thesis or 'Unknown'}\n"
             f"Ideal target: {profile.ideal_target_description or 'Unknown'}\n"
@@ -124,10 +126,12 @@ class MatchReasoningService:
         profile: RequirementProfile,
         shortlist: list[tuple[SellerCandidate, CandidateScore]],
         invalid_raw: dict,
+        error: str | None,
     ) -> str:
         return (
             f"{self._build_prompt(buyer, profile, shortlist)}\n\n"
-            f"Your previous response did not match the required schema: "
-            f"{invalid_raw}. Return only corrected, valid JSON matching the "
-            "schema exactly — no prose, no markdown fences."
+            f"Your previous response was: {invalid_raw}\n"
+            f"It failed schema validation with this specific error: {error}\n"
+            "Return only corrected, valid JSON that fixes exactly that problem — "
+            "no prose, no markdown fences."
         )

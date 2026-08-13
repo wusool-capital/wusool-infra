@@ -9,6 +9,7 @@ available, success/failure — never raw prompt/response content or credentials.
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -142,6 +143,43 @@ class BedrockConverseClient:
 
     @staticmethod
     def _extract_json(response: dict[str, Any]) -> dict:
+        """Models routinely wrap JSON in a ```json fence and add prose
+        commentary before/after it, despite being asked for strict JSON —
+        confirmed live against real Bedrock output. Best-effort recovery
+        here (direct parse, then fenced block, then the first balanced
+        {...} substring) keeps that the extraction/reasoning services'
+        problem to handle uniformly via their existing repair-retry (§7):
+        returning `{}` on total failure fails Pydantic validation the same
+        way a wrong-shaped-but-valid JSON object would, rather than raising
+        a second, differently-shaped error here.
+        """
         content = response["output"]["message"]["content"]
-        text = "".join(block.get("text", "") for block in content)
-        return json.loads(text)
+        text = "".join(block.get("text", "") for block in content).strip()
+
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if fenced:
+            try:
+                return json.loads(fenced.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        start = text.find("{")
+        if start != -1:
+            depth = 0
+            for i, ch in enumerate(text[start:], start=start):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(text[start : i + 1])
+                        except json.JSONDecodeError:
+                            break
+
+        return {}
