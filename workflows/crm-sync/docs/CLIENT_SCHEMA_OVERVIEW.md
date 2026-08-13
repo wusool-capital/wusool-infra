@@ -601,7 +601,7 @@ Populated by the standalone scribe service (its own EC2/Postgres, no shared
 Alembic chain) via the `scribe_pub` role, which holds `SELECT, INSERT, UPDATE`
 on this table and `SELECT` on `organizations`. Not part of the Attio
 migration — scribe is the sole writer, Wusool owns the DDL. Canonical
-definition: `scripts/db/sql/005_meetings.sql`.
+definition: `database/sql/005_meetings.sql`.
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|

@@ -149,7 +149,7 @@ if ($Apply) {
   Write-Host "Refreshing canonical Buyer Role plan before parallel apply."
   & powershell -NoProfile -ExecutionPolicy Bypass -File $worker -Task buyer_role -SampleSize $SampleSize
   if ($LASTEXITCODE -ne 0) { throw "Buyer Role planning dry-run failed." }
-  $planPath = Join-Path $PSScriptRoot "..\..\outputs\attio_migration\buyer-role-plan.json"
+  $planPath = Join-Path $PSScriptRoot "..\..\..\outputs\attio_migration\buyer-role-plan.json"
   $plan = Get-Content $planPath -Raw | ConvertFrom-Json
   $total = [int]$plan.summary.resolved_plans
   if ($total -lt 1 -or [int]$plan.summary.unresolved_parents -ne 0 -or

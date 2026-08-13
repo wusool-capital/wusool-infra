@@ -1,11 +1,11 @@
 param(
   [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")),
-  [string]$OutputPath = (Join-Path $RepoRoot "DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md")
+  [string]$OutputPath = (Join-Path $RepoRoot "workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md")
 )
 
 $ErrorActionPreference = "Stop"
-$attioPath = Join-Path $RepoRoot "scripts/attio/config/target-schema.json"
-$sqlDir = Join-Path $RepoRoot "scripts/db/sql"
+$attioPath = Join-Path $RepoRoot "workflows/crm-sync/scripts/config/target-schema.json"
+$sqlDir = Join-Path $RepoRoot "database/sql"
 $attio = Get-Content -Raw -LiteralPath $attioPath | ConvertFrom-Json
 
 function Cell([object]$Value) {

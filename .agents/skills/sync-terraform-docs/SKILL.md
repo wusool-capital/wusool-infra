@@ -20,7 +20,7 @@ the source of truth and never infer deployed state that the code cannot prove.
 3. Compare the inventory with:
    - `README.md`
    - environment README files
-   - `DOCS/*architecture*.md`
+   - `workflows/n8n/docs/*architecture*.md`, `workflows/n8n/docs/infrastructure-overview.md`
    - architecture SVG files referenced by those documents
 4. Correct stale statements, diagrams, commands, paths, regions, CIDRs,
    instance types, ports, services, and state-management details.

@@ -21,9 +21,9 @@ Run only these public scripts:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-.\scripts\attio\sync-all.ps1                                    # dry run, all entities
-.\scripts\attio\sync-all.ps1 -Parallel -Workers 8 -Apply         # full apply
-.\scripts\attio\sync-all.ps1 -Entities deals,mandates            # dry run a subset only
+.\workflows\crm-sync\scripts\sync-all.ps1                                    # dry run, all entities
+.\workflows\crm-sync\scripts\sync-all.ps1 -Parallel -Workers 8 -Apply         # full apply
+.\workflows\crm-sync\scripts\sync-all.ps1 -Entities deals,mandates            # dry run a subset only
 ```
 
 `-Parallel` only actually speeds up `organizations`, `person`, and
@@ -67,7 +67,7 @@ Schema preflight
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\ensure-schema.ps1
+  -File .\workflows\crm-sync\scripts\ensure-schema.ps1
 ```
 
 Review missing attributes, wrong types/cardinality, list parents, relationship
@@ -75,7 +75,7 @@ targets, and option drift. Apply approved schema changes only when needed:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\ensure-schema.ps1 `
+  -File .\workflows\crm-sync\scripts\ensure-schema.ps1 `
   -Apply
 ```
 
@@ -83,7 +83,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\sync-objects.ps1 `
+  -File .\workflows\crm-sync\scripts\sync-objects.ps1 `
   -Limit 0 `
   -Parallel `
   -Workers 4 `
@@ -100,7 +100,7 @@ Run only after the object dry-run has no blocking errors:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\sync-objects.ps1 `
+  -File .\workflows\crm-sync\scripts\sync-objects.ps1 `
   -Limit 0 `
   -Parallel `
   -Workers 4 `
@@ -117,7 +117,7 @@ remains DEV identity.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\sync-lists.ps1 `
+  -File .\workflows\crm-sync\scripts\sync-lists.ps1 `
   -Limit 0 `
   -Workers 3
 ```
@@ -128,7 +128,7 @@ Buyer Role:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\sync-lists.ps1 `
+  -File .\workflows\crm-sync\scripts\sync-lists.ps1 `
   -Lists buyer_role -Limit 0 -Workers 3 -Apply `
   -Confirmation APPLY_ALL_BUYER_ROLE_TO_DEV
 ```
@@ -137,7 +137,7 @@ Seller Role:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\sync-lists.ps1 `
+  -File .\workflows\crm-sync\scripts\sync-lists.ps1 `
   -Lists seller_role -Limit 0 -Apply `
   -Confirmation APPLY_ALL_SELLER_ROLE_TO_DEV
 ```
@@ -146,7 +146,7 @@ Mandates:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\sync-lists.ps1 `
+  -File .\workflows\crm-sync\scripts\sync-lists.ps1 `
   -Lists mandates -Limit 0 -Apply `
   -Confirmation APPLY_ALL_MANDATES_TO_DEV
 ```
@@ -158,7 +158,7 @@ is attached to its resolved DEV Organization parent.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\attio\validate-attio.ps1
+  -File .\workflows\crm-sync\scripts\validate-attio.ps1
 ```
 
 The validator is read-only. It compares SOURCE and DEV object counts. For
@@ -195,7 +195,7 @@ Use these as reconciliation evidence, not hard-coded migration limits:
 ## Outputs and recovery
 
 Plans, summaries, worker logs, and conflict reports are written beneath
-`outputs/attio_migration/`. They are migration evidence, not a staging
+`scripts/outputs/attio_migration/`. They are migration evidence, not a staging
 database. SOURCE/DEV records are otherwise transformed in process memory.
 
 All commands default to dry-run. Do not interrupt an apply unless necessary;

@@ -61,7 +61,7 @@ $outputName = if ([string]::IsNullOrWhiteSpace($OutputSuffix)) {
 } else {
   "buyer-role-plan-$OutputSuffix.json"
 }
-$outputPath = Join-Path $migrationRoot "..\..\outputs\attio_migration\$outputName"
+$outputPath = Join-Path $migrationRoot "..\..\..\outputs\attio_migration\$outputName"
 
 function Invoke-AttioRequest {
   param(
@@ -538,7 +538,7 @@ $migrationRoot = Split-Path $PSScriptRoot -Parent
 $decisions = Get-Content (Join-Path $migrationRoot "config\migration-decisions.json") -Raw |
   ConvertFrom-Json
 $expectedWorkspaceId = [string]$decisions.dev_workspace_id
-$outputPath = Join-Path $migrationRoot "..\..\outputs\attio_migration\seller-role-plan.json"
+$outputPath = Join-Path $migrationRoot "..\..\..\outputs\attio_migration\seller-role-plan.json"
 
 function Invoke-AttioRequest {
   param(
@@ -863,7 +863,7 @@ $devHeaders=@{Authorization="Bearer $($DevApiKey.Trim())";Accept="application/js
 $migrationRoot=Split-Path $PSScriptRoot -Parent
 $decisions=Get-Content (Join-Path $migrationRoot "config\migration-decisions.json") -Raw|ConvertFrom-Json
 $expectedWorkspaceId=[string]$decisions.dev_workspace_id
-$outputPath=Join-Path $migrationRoot "..\..\outputs\attio_migration\mandates-plan.json"
+$outputPath=Join-Path $migrationRoot "..\..\..\outputs\attio_migration\mandates-plan.json"
 
 function Invoke-AttioRequest{
   param([ValidateSet("Get","Post","Patch")][string]$Method,[hashtable]$Headers,[string]$Path,[object]$Body)

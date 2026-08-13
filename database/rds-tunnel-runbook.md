@@ -40,9 +40,9 @@ $env:DATABASE_URL = "postgresql://${user}:${pass}@localhost:15432/wusool_crm?ssl
 ## Set Up and Sync
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\db\setup-postgres.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\db\sync-postgres.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\db\sync-postgres.ps1 -Apply
+powershell -ExecutionPolicy Bypass -File .\database\setup-postgres.ps1
+powershell -ExecutionPolicy Bypass -File .\database\sync-postgres.ps1
+powershell -ExecutionPolicy Bypass -File .\database\sync-postgres.ps1 -Apply
 ```
 
 ## Client
