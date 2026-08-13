@@ -16,9 +16,13 @@ from app.modules.approvals.dependencies import (
     build_approve_match_use_case,
     build_reject_match_use_case,
 )
-from app.modules.matching.dependencies import build_match_analysis_use_case
+from app.modules.matching.dependencies import (
+    build_match_analysis_use_case,
+    build_match_run_view_use_case,
+)
 from app.modules.slack.match_dispatch import run_match_and_post
 from app.modules.slack.views.full_analysis import build_full_analysis_blocks
+from app.modules.slack.views.match_result import build_match_result_blocks_from_view
 from app.shared.tasks import InProcessTaskRunner
 
 logger = logging.getLogger(__name__)
@@ -70,21 +74,24 @@ def register(app: AsyncApp) -> None:
             return
 
         await client.chat_postEphemeral(
-            channel=channel_id, user=user_id, blocks=build_full_analysis_blocks(analysis)
+            channel=channel_id,
+            user=user_id,
+            text="Full match analysis",
+            blocks=build_full_analysis_blocks(analysis),
         )
 
     @app.action("approve_match")
-    async def handle_approve_match(ack, body, client):  # noqa: ANN001
+    async def handle_approve_match(ack, body, client, respond):  # noqa: ANN001
         await ack()
-        await _handle_decision(body, client, decision="approve")
+        await _handle_decision(body, client, respond, decision="approve")
 
     @app.action("reject_match")
-    async def handle_reject_match(ack, body, client):  # noqa: ANN001
+    async def handle_reject_match(ack, body, client, respond):  # noqa: ANN001
         await ack()
-        await _handle_decision(body, client, decision="reject")
+        await _handle_decision(body, client, respond, decision="reject")
 
 
-async def _handle_decision(body: dict, client, decision: str) -> None:  # noqa: ANN001
+async def _handle_decision(body: dict, client, respond, decision: str) -> None:  # noqa: ANN001
     action = body["actions"][0]
     match_result_id_raw = action.get("value")
     channel_id = body["channel"]["id"]
@@ -118,5 +125,15 @@ async def _handle_decision(body: dict, client, decision: str) -> None:  # noqa: 
     await client.chat_postEphemeral(
         channel=channel_id,
         user=user_id,
-        text=f"Match {result.status.lower()} by <@{user_id}>.",
+        text=f"Match with {result.seller_org_name} {result.status.lower()} by <@{user_id}>.",
     )
+
+    # Update the original message in place so a decided candidate's buttons
+    # stop looking clickable (§23 — a repeat action must not appear possible).
+    view = await build_match_run_view_use_case().execute(uuid.UUID(result.run_id))
+    if view is not None:
+        await respond(
+            replace_original=True,
+            text=f"Match results for {view.buyer_org_name}",
+            blocks=build_match_result_blocks_from_view(view),
+        )

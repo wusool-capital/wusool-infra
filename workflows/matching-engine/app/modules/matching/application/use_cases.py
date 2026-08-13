@@ -320,3 +320,73 @@ class GetMatchAnalysisUseCase:
             candidates=[MatchResultRead.model_validate(c) for c in candidates],
             scores=[MatchScoreRead.model_validate(s) for s in scores],
         )
+
+
+@dataclass(frozen=True)
+class MatchResultView:
+    match_result_id: str
+    rank: int
+    seller_org_name: str
+    match_score: float
+    data_confidence: float
+    why_it_matches: str | None
+    status: str
+    approved_by: str | None
+    decision: str | None
+
+
+@dataclass(frozen=True)
+class MatchRunView:
+    run_id: str
+    buyer_org_name: str
+    results: list[MatchResultView]
+
+
+class GetMatchRunViewUseCase:
+    """Rebuilds the compact Slack result-message state from persisted data —
+    used to refresh the original message in place after an Approve/Reject
+    action, so a decided candidate's buttons don't keep looking clickable.
+    """
+
+    def __init__(self, sessionmaker: async_sessionmaker) -> None:
+        self._sessionmaker = sessionmaker
+
+    async def execute(self, run_id: uuid.UUID) -> MatchRunView | None:
+        async with self._sessionmaker() as session:
+            repo = MatchResultRepository(session)
+            run = await repo.get_run(run_id)
+            if run is None:
+                return None
+            candidates = await repo.get_candidates(run_id)
+            scores = await repo.get_scores_for_run(run_id)
+            scores_by_seller = {s.seller_attio_id: s for s in scores}
+
+            buyer_org_name = (
+                run.buyer_organization.name if run.buyer_organization else run.buyer_attio_id
+            )
+            results = [
+                MatchResultView(
+                    match_result_id=str(c.id),
+                    rank=c.rank if c.rank is not None else 0,
+                    seller_org_name=(
+                        c.seller_organization.name
+                        if c.seller_organization
+                        else (c.seller_attio_id or "Unknown")
+                    ),
+                    match_score=float(c.match_score) if c.match_score is not None else 0.0,
+                    data_confidence=(
+                        float(c.data_confidence) if c.data_confidence is not None else 0.0
+                    ),
+                    why_it_matches=(
+                        scores_by_seller[c.seller_attio_id].reasoning
+                        if c.seller_attio_id in scores_by_seller
+                        else None
+                    ),
+                    status=c.status,
+                    approved_by=c.approved_by,
+                    decision=c.decision,
+                )
+                for c in candidates
+            ]
+
+        return MatchRunView(run_id=str(run.run_id), buyer_org_name=buyer_org_name, results=results)

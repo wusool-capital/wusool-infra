@@ -1,8 +1,27 @@
-""" "View Full Analysis" (§21) — rendered entirely from persisted data
+"""View Full Analysis (§21) — rendered entirely from persisted data
 (`MatchAnalysis`), never re-running Bedrock. Block Kit builders only.
+
+Slack rejects a whole `chat.postEphemeral`/`chat.postMessage` call
+(`invalid_blocks`) if any single section's `text` exceeds 3000 characters —
+confirmed live: a real reasoning call's combined narrative hit 3150 chars.
+Each narrative field gets its own block (truncated defensively) instead of
+concatenating them into one, so a single verbose LLM field can't blow the
+whole message.
 """
 
 from app.modules.matching.schemas import MatchAnalysis, MatchResultRead, MatchScoreRead
+
+_MAX_SECTION_TEXT = 2900
+
+
+def _truncate(text: str) -> str:
+    if len(text) <= _MAX_SECTION_TEXT:
+        return text
+    return text[: _MAX_SECTION_TEXT - 1] + "…"
+
+
+def _section(text: str) -> dict:
+    return {"type": "section", "text": {"type": "mrkdwn", "text": _truncate(text)}}
 
 
 def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
@@ -22,17 +41,11 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
         or "None extracted."
     )
     blocks.append(
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": (
-                    f"*Strategic thesis:* {thesis}\n"
-                    f"*Ideal target:* {ideal_target}\n"
-                    f"*Hard requirements:*\n{hard_req_lines}"
-                ),
-            },
-        }
+        _section(
+            f"*Strategic thesis:* {thesis}\n"
+            f"*Ideal target:* {ideal_target}\n"
+            f"*Hard requirements:*\n{hard_req_lines}"
+        )
     )
     blocks.append({"type": "divider"})
 
@@ -46,17 +59,11 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
 
 def _candidate_blocks(candidate: MatchResultRead, scores_by_id: dict) -> list[dict]:
     blocks: list[dict] = [
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": (
-                    f"*{candidate.rank}. Seller {candidate.seller_attio_id}* — "
-                    f"{candidate.match_score}/100, confidence {candidate.data_confidence}/100\n"
-                    f"Status: {candidate.status}"
-                ),
-            },
-        }
+        _section(
+            f"*{candidate.rank}. Seller {candidate.seller_attio_id}* — "
+            f"{candidate.match_score}/100, confidence {candidate.data_confidence}/100\n"
+            f"Status: {candidate.status}"
+        )
     ]
 
     score: MatchScoreRead | None = None
@@ -73,17 +80,20 @@ def _candidate_blocks(candidate: MatchResultRead, scores_by_id: dict) -> list[di
             f"[{c.get('data_backing')}]"
             for c in criteria
         )
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": criteria_lines}})
+        blocks.append(_section(criteria_lines))
 
+    # Each narrative field is its own block (not concatenated) — a single
+    # verbose LLM-generated field can't blow the 3000-char section limit for
+    # the whole message the way one combined block did.
     narrative_bits = [
         ("Why it matches", score.reasoning if score else None),
         ("Why chosen over alternatives", candidate.why_chosen_over_alternatives),
         ("Recommended pitch", candidate.recommended_pitch),
         ("Risks and gaps", candidate.risks_and_gaps),
     ]
-    narrative_text = "\n".join(f"*{label}:* {value}" for label, value in narrative_bits if value)
-    if narrative_text:
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": narrative_text}})
+    for label, value in narrative_bits:
+        if value:
+            blocks.append(_section(f"*{label}:* {value}"))
 
     blocks.append({"type": "divider"})
     return blocks

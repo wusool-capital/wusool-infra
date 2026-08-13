@@ -11,6 +11,7 @@ from app.modules.llm.infrastructure.bedrock_converse_client import BedrockConver
 from app.modules.matching.application.reasoning_service import MatchReasoningService
 from app.modules.matching.application.use_cases import (
     GetMatchAnalysisUseCase,
+    GetMatchRunViewUseCase,
     RunBuyerSellerMatchUseCase,
 )
 from app.modules.matching.domain.scoring import ScoringEngine
@@ -68,3 +69,7 @@ def build_run_match_use_case() -> RunBuyerSellerMatchUseCase:
 
 def build_match_analysis_use_case() -> GetMatchAnalysisUseCase:
     return GetMatchAnalysisUseCase(get_sessionmaker())
+
+
+def build_match_run_view_use_case() -> GetMatchRunViewUseCase:
+    return GetMatchRunViewUseCase(get_sessionmaker())

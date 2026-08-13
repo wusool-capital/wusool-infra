@@ -28,6 +28,8 @@ class InvalidTransitionError(Exception):
 @dataclass(frozen=True)
 class ApprovalResult:
     match_result_id: str
+    run_id: str
+    seller_org_name: str
     status: str
 
 
@@ -55,7 +57,14 @@ class ApproveMatchUseCase:
                     decided_at=datetime.now(UTC),
                 )
         assert updated is not None
-        return ApprovalResult(match_result_id=str(updated.id), status=updated.status)
+        return ApprovalResult(
+            match_result_id=str(updated.id),
+            run_id=str(updated.run_id),
+            seller_org_name=updated.seller_organization.name
+            if updated.seller_organization
+            else (updated.seller_attio_id or "Unknown"),
+            status=updated.status,
+        )
 
 
 class RejectMatchUseCase:
@@ -85,4 +94,11 @@ class RejectMatchUseCase:
                     decision_notes=notes,
                 )
         assert updated is not None
-        return ApprovalResult(match_result_id=str(updated.id), status=updated.status)
+        return ApprovalResult(
+            match_result_id=str(updated.id),
+            run_id=str(updated.run_id),
+            seller_org_name=updated.seller_organization.name
+            if updated.seller_organization
+            else (updated.seller_attio_id or "Unknown"),
+            status=updated.status,
+        )

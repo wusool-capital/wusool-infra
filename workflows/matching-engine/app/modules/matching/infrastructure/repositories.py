@@ -9,6 +9,7 @@ from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.modules.matching.infrastructure.models import MatchResult, MatchScore
 
@@ -149,7 +150,11 @@ class MatchResultRepository:
         return candidates
 
     async def get_run(self, run_id: uuid.UUID) -> MatchResult | None:
-        stmt = select(MatchResult).where(MatchResult.run_id == run_id, MatchResult.rank.is_(None))
+        stmt = (
+            select(MatchResult)
+            .where(MatchResult.run_id == run_id, MatchResult.rank.is_(None))
+            .options(selectinload(MatchResult.buyer_organization))
+        )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def get_candidates(self, run_id: uuid.UUID) -> list[MatchResult]:
@@ -157,11 +162,16 @@ class MatchResultRepository:
             select(MatchResult)
             .where(MatchResult.run_id == run_id, MatchResult.rank.is_not(None))
             .order_by(MatchResult.rank.asc())
+            .options(selectinload(MatchResult.seller_organization))
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
     async def get_by_id(self, match_result_id: uuid.UUID) -> MatchResult | None:
-        return await self._session.get(MatchResult, match_result_id)
+        return await self._session.get(
+            MatchResult,
+            match_result_id,
+            options=[selectinload(MatchResult.seller_organization)],
+        )
 
     async def get_latest_requirement_profile_version(self, buyer_role_id: uuid.UUID) -> int | None:
         """Fail-closed versioning: only successful extractions set

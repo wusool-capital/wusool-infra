@@ -13,11 +13,25 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
     # this module, so a top-level import here would be circular.
     from app.modules.slack.bolt_app import get_bolt_app
 
+    app = get_bolt_app()
+    placeholder = await app.client.chat_postMessage(
+        channel=channel_id, text="🔍 Finding matches, please wait…"
+    )
+
     buyer = await resolve_buyer_by_id(buyer_role_id)
     if buyer is None:
+        await app.client.chat_update(
+            channel=channel_id,
+            ts=placeholder["ts"],
+            text="Buyer not found.",
+        )
         return
 
     result = await build_run_match_use_case().execute(buyer, requested_by=requested_by)
 
-    app = get_bolt_app()
-    await app.client.chat_postMessage(channel=channel_id, blocks=build_match_result_blocks(result))
+    await app.client.chat_update(
+        channel=channel_id,
+        ts=placeholder["ts"],
+        text=f"Match results for {result.buyer_org_name}",
+        blocks=build_match_result_blocks(result),
+    )
