@@ -13,14 +13,14 @@ Last updated: 2026-08-11
 
 ### 1. Infrastructure (Terraform / n8n) — dev deployed via Terraform; prod is live but Terraform-orphaned
 
-- Development environment (`environments/dev`) is declared and deployable:
+- Development environment (`terraform/environments/dev`) is declared and deployable:
   VPC, EC2 n8n host behind Caddy/HTTPS, Secrets Manager, CloudWatch alarms,
   SNS, multi-region CloudTrail, GuardDuty, Security Hub. See
   [README.md](README.md#architecture) and
   [DOCS/n8n/infrastructure-overview.md](DOCS/n8n/infrastructure-overview.md).
 - **Correction (2026-08-08):** production is actually deployed and running
   (`wusool-prod-n8n`, `i-0087f9ecb02462b2e`) — but in `eu-central-1`
-  alongside dev, not `me-central-1` as `environments/prod`'s Terraform
+  alongside dev, not `me-central-1` as `terraform/environments/prod`'s Terraform
   config declares. That config is not what created the real prod instance;
   `terraform apply` there would not affect it. See
   [DOCS/n8n/infrastructure-overview.md](DOCS/n8n/infrastructure-overview.md)
@@ -31,7 +31,7 @@ Last updated: 2026-08-11
   regardless of environment variables, breaking all stdlib imports (e.g.
   `datetime`) in Python Code nodes on n8n `2.27.5`. Fixed via a custom
   launcher config file + `N8N_RUNNERS_CONFIG_PATH`, applied live to prod and
-  added to the `modules/n8n-ec2` Terraform template for future deployments;
+  added to the `terraform/modules/n8n-ec2` Terraform template for future deployments;
   not yet applied to dev (not known to be needed there) — see
   infrastructure-overview.md section 9.1.
 - Documentation is kept in sync with actual Terraform via the
@@ -57,7 +57,7 @@ Last updated: 2026-08-11
   `https://n8n.wusoolcapital.com` return `HTTP/2 200` with valid Caddy-issued
   TLS. `Caddyfile.bak`/`docker-compose.yml.bak` left on the box from before
   the change. **Not yet done:** mirroring this into the
-  `modules/n8n-ec2` Terraform template (prod is Terraform-orphaned per the
+  `terraform/modules/n8n-ec2` Terraform template (prod is Terraform-orphaned per the
   gap above, so the live box isn't affected either way, but the template
   should reflect the same dual-domain pattern for future deployments/dev).
 
@@ -113,11 +113,11 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
 ### 3. AI / AWS Bedrock — done: all 3 models confirmed working via Terraform
 
 - Scoped 2026-08-07, built and applied 2026-08-08: new
-  `modules/bedrock-access` Terraform module grants the existing n8n EC2
+  `terraform/modules/bedrock-access` Terraform module grants the existing n8n EC2
   instance role (`wusool-dev-n8n-ec2`) `bedrock:InvokeModel`/
   `InvokeModelWithResponseStream` on specific foundation models, wired into
-  `environments/dev`. See `modules/bedrock-access/` and
-  `environments/dev/variables.tf` (`bedrock_models`).
+  `terraform/environments/dev`. See `terraform/modules/bedrock-access/` and
+  `terraform/environments/dev/variables.tf` (`bedrock_models`).
 - **2026-08-09: swapped `anthropic.claude-sonnet-5` → `anthropic.claude-sonnet-4-6`.**
   Sonnet 5 stayed blocked by an Anthropic account-level access review
   (`AccessDeniedException`, "not available for this account ... contact AWS
@@ -139,7 +139,7 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   resource — reuses his existing IAM identity rather than sharing/reusing
   anyone else's credentials.
 - If Sonnet 5 access ever clears, re-add it the same way (add to
-  `bedrock_models` in `environments/dev/variables.tf`, `terraform apply`,
+  `bedrock_models` in `terraform/environments/dev/variables.tf`, `terraform apply`,
   re-run the test script).
 
 ### 4. n8n SMTP (forgot-password / invite emails) — done: working on dev and prod
@@ -193,7 +193,7 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   (`n8n-prod.wusoolcapital.com, n8n.wusoolcapital.com { reverse_proxy
   n8n:5678 ... }`) and restarted the `caddy` container to reapply — both
   domains confirmed working again.
-  - **Not yet fixed at the root:** `modules/n8n-ec2/user_data.sh.tpl`
+  - **Not yet fixed at the root:** `terraform/modules/n8n-ec2/user_data.sh.tpl`
     still only templates one hostname into the Caddyfile. Any future
     bootstrap re-run on prod (for any reason) will silently break the
     second domain again until this is fixed properly in Terraform, not
@@ -268,7 +268,7 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   inline in `005_meetings.sql`).
 - **Networking:** added scribe's EC2 security group (`sg-0684b8cf83abfd065`)
   to `allowed_security_group_ids` on `module.postgres` in
-  `environments/dev/main.tf`, applied — scribe can now reach the RDS
+  `terraform/environments/dev/main.tf`, applied — scribe can now reach the RDS
   security group across VPCs (peering/connectivity on scribe's side was
   confirmed already in place before this change).
 - **Not yet done:** `scripts/db/sql/005_meetings.sql`'s `CREATE TYPE`/

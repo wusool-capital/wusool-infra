@@ -1,6 +1,6 @@
 # Development environment
 
-See the [infrastructure overview](../../DOCS/n8n/infrastructure-overview.md) for
+See the [infrastructure overview](../../../DOCS/n8n/infrastructure-overview.md) for
 diagrams of the deployed AWS resources, request path, and operational controls.
 
 The development Terraform configuration declares n8n on an Amazon Linux EC2
@@ -99,7 +99,7 @@ $env:N8N_AUTH_COOKIE = "n8n-auth=..."
 ..\..\scripts\invite-n8n-users.ps1 -Environment dev -Email person@example.com
 ```
 
-For bulk invites, copy `../../scripts/n8n-users.example.txt`, replace the
+For bulk invites, copy `../../../scripts/n8n-users.example.txt`, replace the
 placeholder addresses, and pass it with `-EmailFile`. Add `-DryRun` to verify
 the target before sending.
 
