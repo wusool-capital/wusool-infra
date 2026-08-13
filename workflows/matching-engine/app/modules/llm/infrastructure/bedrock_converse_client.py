@@ -72,7 +72,14 @@ class BedrockConverseClient:
                 latency_ms = int((time.monotonic() - started) * 1000)
                 usage = response.get("usage", {})
                 logger.info(
-                    "bedrock_invocation_succeeded",
+                    "bedrock_invocation_succeeded operation=%s model_id=%s attempt=%d "
+                    "latency_ms=%d input_tokens=%s output_tokens=%s",
+                    operation,
+                    model_id,
+                    attempt,
+                    latency_ms,
+                    usage.get("inputTokens"),
+                    usage.get("outputTokens"),
                     extra={
                         "model_id": model_id,
                         "operation": operation,
@@ -86,8 +93,15 @@ class BedrockConverseClient:
             except ClientError as exc:
                 last_error = exc
                 error_code = exc.response.get("Error", {}).get("Code", "")
+                error_message = exc.response.get("Error", {}).get("Message", "")
                 logger.warning(
-                    "bedrock_invocation_failed",
+                    "bedrock_invocation_failed operation=%s model_id=%s attempt=%d "
+                    "error_code=%s error_message=%s",
+                    operation,
+                    model_id,
+                    attempt,
+                    error_code,
+                    error_message,
                     extra={
                         "model_id": model_id,
                         "operation": operation,
@@ -111,13 +125,18 @@ class BedrockConverseClient:
     def _converse(
         self, model_id: str, prompt: str, inference_config: InferenceConfig
     ) -> dict[str, Any]:
+        # Anthropic models reject `temperature` and `top_p` set together
+        # (confirmed live: Bedrock raises ValidationException) — Anthropic's
+        # own guidance is to tune one or the other, never both. `temperature`
+        # wins since a low, deterministic-leaning value is what extraction/
+        # reasoning actually wants here; `top_p` stays configured but unused
+        # unless a future need calls for switching the sampling strategy.
         return self._client.converse(
             modelId=model_id,
             messages=[{"role": "user", "content": [{"text": prompt}]}],
             inferenceConfig={
                 "temperature": inference_config.temperature,
                 "maxTokens": inference_config.max_tokens,
-                "topP": inference_config.top_p,
             },
         )
 

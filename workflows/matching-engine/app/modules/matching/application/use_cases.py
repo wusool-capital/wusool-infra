@@ -127,7 +127,12 @@ class RunBuyerSellerMatchUseCase:
         try:
             return await self._run(run_id, buyer_role_id, buyer, requested_by, started_at)
         except Exception as exc:
-            logger.warning("match_run_failed", extra={"run_id": str(run_id), "error": str(exc)})
+            logger.warning(
+                "match_run_failed run_id=%s error=%s",
+                run_id,
+                exc,
+                extra={"run_id": str(run_id), "error": str(exc)},
+            )
             async with self._sessionmaker() as session:
                 await MatchResultRepository(session).complete_run(
                     run_id,

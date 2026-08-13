@@ -31,7 +31,11 @@ def register(app: AsyncApp) -> None:
         # the same interaction carries the same trigger_id.
         idempotency_key = f"find_match:{command.get('trigger_id')}"
         if _idempotency_store.seen(idempotency_key):
-            logger.info("find_match_duplicate_delivery_skipped", extra={"key": idempotency_key})
+            logger.info(
+                "find_match_duplicate_delivery_skipped key=%s",
+                idempotency_key,
+                extra={"key": idempotency_key},
+            )
             return
         _idempotency_store.mark(idempotency_key)
 
