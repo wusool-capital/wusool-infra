@@ -17,13 +17,13 @@ Last updated: 2026-08-11
   VPC, EC2 n8n host behind Caddy/HTTPS, Secrets Manager, CloudWatch alarms,
   SNS, multi-region CloudTrail, GuardDuty, Security Hub. See
   [README.md](README.md#architecture) and
-  [DOCS/n8n/infrastructure-overview.md](DOCS/n8n/infrastructure-overview.md).
+  [workflows/n8n/docs/infrastructure-overview.md](workflows/n8n/docs/infrastructure-overview.md).
 - **Correction (2026-08-08):** production is actually deployed and running
   (`wusool-prod-n8n`, `i-0087f9ecb02462b2e`) — but in `eu-central-1`
   alongside dev, not `me-central-1` as `terraform/environments/prod`'s Terraform
   config declares. That config is not what created the real prod instance;
   `terraform apply` there would not affect it. See
-  [DOCS/n8n/infrastructure-overview.md](DOCS/n8n/infrastructure-overview.md)
+  [workflows/n8n/docs/infrastructure-overview.md](workflows/n8n/docs/infrastructure-overview.md)
   section 18, "Known Infrastructure Gaps," for details and the workaround
   (direct SSM changes to prod until this is reconciled).
 - Fixed a real n8n default-config bug (2026-08-08): the external Python task
@@ -70,13 +70,13 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
 **Done:**
 - Organization, Person, Buyer Role, Seller Role, Mandates, and Deal objects
   migrated SOURCE Attio → DEV Attio, idempotent by `legacy_attio_id`.
-- Added `scripts/attio/sync-all.ps1` (2026-08-08/09): single entry point for
+- Added `workflows/crm-sync/scripts/sync-all.ps1` (2026-08-08/09): single entry point for
   a full migration run, wrapping the existing `sync-objects.ps1`/
   `sync-lists.ps1` in the required dependency order (`organizations ->
   person -> buyer_role -> seller_role -> deals -> mandates`), fails fast on
   the first error, supports running a subset by name, and parallel workers
   where the underlying scripts support it. See
-  [scripts/attio/README.md](scripts/attio/README.md).
+  [workflows/crm-sync/scripts/README.md](workflows/crm-sync/scripts/README.md).
 - Ran a full re-sync via `sync-all.ps1` (2026-08-09) after several Attio
   decisions/fixes landed the same day: the `exclusivity_date` split-field
   rename, Buyer Role `deal_structure_tolerance` converted to a single-select
@@ -96,8 +96,8 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   with a full DEV extraction mirrored in; record counts there predate this
   latest Attio re-sync and need refreshing (see "Not started" below).
 - Attio/PostgreSQL and CRM migration scripts consolidated (see
-  [CRM_MIGRATION_GUIDE.md](DOCS/migration/CRM_MIGRATION_GUIDE.md) and
-  [CLIENT_SCHEMA_OVERVIEW.md](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md)).
+  [CRM_MIGRATION_GUIDE.md](workflows/crm-sync/docs/CRM_MIGRATION_GUIDE.md) and
+  [CLIENT_SCHEMA_OVERVIEW.md](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md)).
 
 **Not started:**
 - Investor/lender scope
@@ -128,7 +128,7 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   on-demand ID returns a `ValidationException`); confirmed via
   `aws bedrock list-inference-profiles --region eu-central-1`.
 - **Final model set, all in `eu-central-1` (Frankfurt) — all 3 confirmed
-  PASS via `scripts/aws/test-bedrock-models.ps1`:**
+  PASS via `workflows/bedrock-ai/scripts/test-bedrock-models.ps1`:**
   - `anthropic.claude-sonnet-4-6` via inference profile `eu.anthropic.claude-sonnet-4-6`
   - `anthropic.claude-haiku-4-5-20251001-v1:0` via inference profile `eu.anthropic.claude-haiku-4-5-20251001-v1:0`
   - `qwen.qwen3-235b-a22b-2507-v1:0` (on-demand, no profile needed)
@@ -144,7 +144,7 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
 
 ### 4. n8n SMTP (forgot-password / invite emails) — done: working on dev and prod
 
-- The mechanism already existed (see `DOCS/n8n/infrastructure-overview.md`
+- The mechanism already existed (see `workflows/n8n/docs/infrastructure-overview.md`
   §12): the n8n bootstrap script reads `smtp_*` keys from each
   environment's Secrets Manager secret (`/wusool/dev/n8n`,
   `/wusool/prod/n8n`) and writes them into `/opt/n8n/n8n.env` as
@@ -222,7 +222,7 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   Then deleted the `n8n-prod.wusoolcapital.com` A record in Cloudflare.
 - **Second bug found and fixed during this same cutover:** rewriting
   `docker-compose.yml` surfaced that the task-runner-launcher fix (see
-  §18 gap in `DOCS/n8n/infrastructure-overview.md`) was *also* missing —
+  §18 gap in `workflows/n8n/docs/infrastructure-overview.md`) was *also* missing —
   same root cause as the Caddyfile issue, confirmed for the first time
   concretely: the registered `wusool-prod-n8n-bootstrap` SSM document runs
   a **stale** embedded script that predates several fixes now present only
@@ -246,11 +246,11 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
 
 ### 5. Scribe integration (meetings table + access) — done: role, grants, FK, and networking live
 
-- **Done (2026-08-11):** added `scripts/db/sql/005_meetings.sql` — canonical
+- **Done (2026-08-11):** added `database/sql/005_meetings.sql` — canonical
   DDL for the `meetings` table (buyer/seller meeting summaries), owned by
   Wusool but written only by the standalone scribe service (separate
   EC2/Postgres, no shared Alembic chain). See
-  [CLIENT_SCHEMA_OVERVIEW.md](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md#meetings)
+  [CLIENT_SCHEMA_OVERVIEW.md](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md#meetings)
   for the column reference.
 - Created the least-privilege `scribe_pub` role on `wusool_crm` and granted
   `CONNECT` on the database, `USAGE` on `public`, `SELECT, INSERT, UPDATE` on
@@ -271,12 +271,12 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   `terraform/environments/dev/main.tf`, applied — scribe can now reach the RDS
   security group across VPCs (peering/connectivity on scribe's side was
   confirmed already in place before this change).
-- **Not yet done:** `scripts/db/sql/005_meetings.sql`'s `CREATE TYPE`/
+- **Not yet done:** `database/sql/005_meetings.sql`'s `CREATE TYPE`/
   `CREATE TABLE` statements lack the `IF NOT EXISTS` guard every other
   schema file uses — re-running `setup-postgres.ps1` after this one has
   applied once will fail. Fine for the one-time apply already done; needs a
   guard before any future full schema re-run. See
-  [scripts/db/README.md](scripts/db/README.md#sql-schema-files).
+  [database/README.md](database/README.md#sql-schema-files).
 
 ## Keeping this file current
 

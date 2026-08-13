@@ -48,7 +48,7 @@ against `wusool_crm`, but worth guarding before any future full re-run.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\db\setup-postgres.ps1
+  -File .\database\setup-postgres.ps1
 ```
 
 The script verifies `current_database()` is exactly `wusool_crm`, runs the SQL
@@ -59,7 +59,7 @@ routine data sync.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\db\sync-postgres.ps1
+  -File .\database\sync-postgres.ps1
 ```
 
 This reads, paginates, and maps:
@@ -82,7 +82,7 @@ PostgreSQL.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\db\sync-postgres.ps1 `
+  -File .\database\sync-postgres.ps1 `
   -Apply
 ```
 
@@ -127,13 +127,13 @@ After DEV Attio is canonical, routine execution normally requires only:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\db\sync-postgres.ps1
+  -File .\database\sync-postgres.ps1
 
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\db\sync-postgres.ps1 -Apply
+  -File .\database\sync-postgres.ps1 -Apply
 
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\db\validate-postgres.ps1
+  -File .\database\validate-postgres.ps1
 ```
 
 The sync is idempotent: existing rows update and missing rows insert without
@@ -149,7 +149,7 @@ mismatch. It never writes to Attio or PostgreSQL.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\db\setup-postgres.ps1 `
+  -File .\database\setup-postgres.ps1 `
   -Reset -ConfirmDatabase wusool_crm
 ```
 

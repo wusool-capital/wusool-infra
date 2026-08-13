@@ -715,7 +715,7 @@ if ($totalRecords -eq 0) {
   throw "SOURCE contains no $sourceObjectSlug records."
 }
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..\scripts")
 $workerScript = Join-Path $PSScriptRoot "objects.ps1"
 $mode = if ($Apply) { "apply" } else { "dry-run" }
 $logDirectory = Join-Path $repoRoot "outputs\attio_migration\parallel-$Object\$mode"
@@ -866,7 +866,7 @@ $sh=@{Authorization="Bearer $($SourceApiKey.Trim())";Accept="application/json";"
 $dh=@{Authorization="Bearer $($DevApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
 $decisions=Get-Content (Join-Path $PSScriptRoot "..\config\migration-decisions.json") -Raw|ConvertFrom-Json
 $expectedWorkspaceId=[string]$decisions.dev_workspace_id
-$outputPath=Join-Path $PSScriptRoot "..\..\outputs\attio_migration\deals-plan.json"
+$outputPath=Join-Path $PSScriptRoot "..\..\..\..\scripts\outputs\attio_migration\deals-plan.json"
 function Request{
   param([ValidateSet("Get","Post","Put")][string]$Method,[hashtable]$Headers,[string]$Path,[object]$Body)
   $p=@{Method=$Method;Uri="https://api.attio.com/v2$Path";Headers=$Headers}

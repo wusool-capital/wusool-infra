@@ -26,8 +26,8 @@ The development environment contains:
 
 See:
 
-- [Infrastructure overview](DOCS/n8n/infrastructure-overview.md)
-- [Client schema overview](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md) — Attio
+- [Infrastructure overview](workflows/n8n/docs/infrastructure-overview.md)
+- [Client schema overview](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) — Attio
   and PostgreSQL overview
 - [Development operating guide](terraform/environments/dev/README.md)
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
@@ -44,11 +44,14 @@ wusool-infra/
 |   `-- modules/
 |       |-- network/           # VPC, subnets, route tables and IGW
 |       `-- n8n-ec2/           # EC2, n8n, Caddy, IAM, SSM and monitoring
-|-- DOCS/                      # Architecture, schema, n8n, and migration documentation
+|-- database/                  # PostgreSQL migrations, sync, and database tools
+|-- workflows/                 # One folder per workflow: scripts + docs together
+|   |-- n8n/                   # n8n scripts and infrastructure/architecture docs
+|   |-- bedrock-ai/            # AWS Bedrock model access scripts
+|   |-- crm-sync/              # Attio <-> PostgreSQL schema, sync scripts, and docs
+|   `-- matching-engine/       # Placeholder; the app itself lives in its own repo
 |-- scripts/
-|   |-- attio/                 # Attio schema and synchronization tools
-|   |-- db/                    # PostgreSQL migrations and database tools
-|   `-- docs/                  # Schema documentation generators
+|   `-- docs/                  # Cross-cutting schema documentation generators
 `-- .agents/skills/            # Project-local Codex skills
 ```
 
@@ -103,7 +106,7 @@ Attio CRM  <------ selected operational results ------+
 
 | Document | Audience | Contents |
 | --- | --- | --- |
-| [Client schema overview](DOCS/migration/CLIENT_SCHEMA_OVERVIEW.md) | Clients, management, engineering, and operations | Executive explanation, platform mapping, Attio and PostgreSQL schemas, functional areas, relationships, constraints, and ownership |
+| [Client schema overview](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) | Clients, management, engineering, and operations | Executive explanation, platform mapping, Attio and PostgreSQL schemas, functional areas, relationships, constraints, and ownership |
 
 ### Documented schema scope
 
@@ -122,9 +125,9 @@ The current documentation covers:
 
 | Schema | Source |
 | --- | --- |
-| Attio target model | `scripts/attio/config/target-schema.json` |
-| Attio migration mapping | `scripts/attio/config/source-to-target-mapping.json` |
-| PostgreSQL schema | `scripts/db/sql/001_extensions.sql` through `004_machine_layer.sql` |
+| Attio target model | `workflows/crm-sync/scripts/config/target-schema.json` |
+| Attio migration mapping | `workflows/crm-sync/scripts/config/source-to-target-mapping.json` |
+| PostgreSQL schema | `database/sql/001_extensions.sql` through `004_machine_layer.sql` |
 
 The generated documents describe the schema declared in this repository. They
 do not prove the current state of a live Attio workspace or PostgreSQL database.
