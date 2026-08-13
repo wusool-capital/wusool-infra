@@ -97,6 +97,23 @@ uv run uvicorn app.main:app --reload
   interactive actions, view submissions). Signature-verified by Bolt; never
   exposed as a public REST API for matching/buyer/seller/approval data (§29).
 
+### Running with Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Builds the app from the `Dockerfile` and starts it alongside a throwaway
+Postgres (`pgvector/pgvector:pg16` — plain `postgres:16-alpine` lacks the
+extension, which is fatal to Postgres's own init-script runner, unlike the
+manual `docker exec` loop below) that auto-applies `database/sql/*.sql` on
+first start. The app's `DATABASE_URL` always points at that bundled `db`
+service, not whatever's in your `.env` — real Slack/AWS credentials still
+come from your environment or a `.env` file (`SLACK_BOT_TOKEN`,
+`SLACK_SIGNING_SECRET`, `AWS_*`) if you want to exercise real integrations;
+otherwise it starts with harmless local-dev defaults. `docker compose down
+-v` tears down both containers and the DB volume.
+
 ## Testing
 
 ```bash

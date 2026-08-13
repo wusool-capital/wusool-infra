@@ -1,0 +1,45 @@
+services:
+  db:
+    # Plain postgres:16-alpine doesn't ship pgvector, and 001_extensions.sql's
+    # `CREATE EXTENSION vector` failure is fatal to Postgres's own init-script
+    # runner (unlike a manual, non-`set -e` apply) — use an image that
+    # actually has the extension, closer to the real RDS instance anyway.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: matching
+      POSTGRES_PASSWORD: matching
+      POSTGRES_DB: wusool_crm
+    ports:
+      - "55432:5432"
+    volumes:
+      - matching-engine-db-data:/var/lib/postgresql/data
+      # Applies 001-006 in order on first init only (Postgres only runs
+      # /docker-entrypoint-initdb.d/ against an empty data directory) — the
+      # exact same schema files the real wusool_crm database uses. This is
+      # a local, throwaway copy; never point this at the real database.
+      - ../../database/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matching -d wusool_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Always the bundled `db` service — intentionally not overridable via
+      # .env, so a developer's real-tunnel DATABASE_URL never leaks in here.
+      DATABASE_URL: postgresql://matching:matching@db:5432/wusool_crm
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-xoxb-local-dev}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-local-dev-secret}
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  matching-engine-db-data:
