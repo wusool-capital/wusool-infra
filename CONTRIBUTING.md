@@ -36,12 +36,14 @@ Use `fix/short-description` for bug fixes and
 ```powershell
 git status
 git diff
+Set-Location terraform
 terraform fmt -check -recursive
+Set-Location ..
 
-Set-Location environments/dev
+Set-Location terraform/environments/dev
 terraform init -backend=false
 terraform validate
-Set-Location ../..
+Set-Location ../../..
 ```
 
 When Terraform architecture changed:
@@ -121,9 +123,9 @@ for `dev` in GitHub:
 7. Enable **Require status checks to pass**.
 8. Select these required checks:
    - `Terraform Format`
-   - `Terraform Validate (bootstrap)`
-   - `Terraform Validate (environments/dev)`
-   - `Terraform Validate (environments/prod)`
+   - `Terraform Validate (terraform/bootstrap)`
+   - `Terraform Validate (terraform/environments/dev)`
+   - `Terraform Validate (terraform/environments/prod)`
 9. Enable **Require branches to be up to date before merging**.
 10. Enable **Require conversation resolution before merging**.
 11. Enable **Block force pushes** and **Block deletions**.
