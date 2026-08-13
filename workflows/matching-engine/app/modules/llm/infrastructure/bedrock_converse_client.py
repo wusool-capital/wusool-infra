@@ -41,34 +41,42 @@ class BedrockConverseClient:
         self._client = get_bedrock_runtime_client()
 
     async def generate_structured(
-        self, *, model_id: str, prompt: str, inference_config: InferenceConfig
+        self, *, model_id: str, prompt: str, inference_config: InferenceConfig, output_schema: dict
     ) -> dict:
         return await self._invoke(
             model_id=model_id,
             prompt=prompt,
             inference_config=inference_config,
+            output_schema=output_schema,
             operation="extraction",
         )
 
     async def generate_reasoning(
-        self, *, model_id: str, prompt: str, inference_config: InferenceConfig
+        self, *, model_id: str, prompt: str, inference_config: InferenceConfig, output_schema: dict
     ) -> dict:
         return await self._invoke(
             model_id=model_id,
             prompt=prompt,
             inference_config=inference_config,
+            output_schema=output_schema,
             operation="reasoning",
         )
 
     async def _invoke(
-        self, *, model_id: str, prompt: str, inference_config: InferenceConfig, operation: str
+        self,
+        *,
+        model_id: str,
+        prompt: str,
+        inference_config: InferenceConfig,
+        output_schema: dict,
+        operation: str,
     ) -> dict:
         last_error: Exception | None = None
         for attempt in range(1, _MAX_ATTEMPTS + 1):
             started = time.monotonic()
             try:
                 response = await asyncio.to_thread(
-                    self._converse, model_id, prompt, inference_config
+                    self._converse, model_id, prompt, inference_config, output_schema
                 )
                 latency_ms = int((time.monotonic() - started) * 1000)
                 usage = response.get("usage", {})
@@ -124,7 +132,11 @@ class BedrockConverseClient:
         ) from last_error
 
     def _converse(
-        self, model_id: str, prompt: str, inference_config: InferenceConfig
+        self,
+        model_id: str,
+        prompt: str,
+        inference_config: InferenceConfig,
+        output_schema: dict,
     ) -> dict[str, Any]:
         # Anthropic models reject `temperature` and `top_p` set together
         # (confirmed live: Bedrock raises ValidationException) — Anthropic's
@@ -139,21 +151,47 @@ class BedrockConverseClient:
                 "temperature": inference_config.temperature,
                 "maxTokens": inference_config.max_tokens,
             },
+            toolConfig={
+                "tools": [
+                    {
+                        "toolSpec": {
+                            "name": "return_structured_output",
+                            "description": (
+                                "Return the result as structured JSON matching the given schema."
+                            ),
+                            "inputSchema": {"json": output_schema},
+                        }
+                    }
+                ],
+                # Forces the model to emit its answer as this tool's parsed
+                # JSON input instead of free text — removes the root cause of
+                # the markdown-fence/prose-wrapping failure mode entirely,
+                # rather than recovering from it after the fact.
+                "toolChoice": {"tool": {"name": "return_structured_output"}},
+            },
         )
 
     @staticmethod
     def _extract_json(response: dict[str, Any]) -> dict:
-        """Models routinely wrap JSON in a ```json fence and add prose
-        commentary before/after it, despite being asked for strict JSON —
-        confirmed live against real Bedrock output. Best-effort recovery
-        here (direct parse, then fenced block, then the first balanced
-        {...} substring) keeps that the extraction/reasoning services'
-        problem to handle uniformly via their existing repair-retry (§7):
-        returning `{}` on total failure fails Pydantic validation the same
-        way a wrong-shaped-but-valid JSON object would, rather than raising
-        a second, differently-shaped error here.
+        """Prefers the forced tool call's already-parsed JSON input. Falls
+        back to text extraction only if a model/profile ignores the forced
+        tool choice (confirmed live: some models routinely wrap JSON in a
+        ```json fence and add prose commentary despite being asked for
+        strict JSON, or being forced via toolConfig) — best-effort recovery
+        (direct parse, then fenced block, then the first balanced {...}
+        substring) keeps that the extraction/reasoning services' problem to
+        handle uniformly via their existing repair-retry (§7): returning
+        `{}` on total failure fails Pydantic validation the same way a
+        wrong-shaped-but-valid JSON object would, rather than raising a
+        second, differently-shaped error here.
         """
         content = response["output"]["message"]["content"]
+
+        for block in content:
+            tool_use = block.get("toolUse")
+            if tool_use and isinstance(tool_use.get("input"), dict):
+                return tool_use["input"]
+
         text = "".join(block.get("text", "") for block in content).strip()
 
         try:

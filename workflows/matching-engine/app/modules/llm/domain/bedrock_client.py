@@ -19,9 +19,9 @@ class InferenceConfig:
 
 class BedrockClient(Protocol):
     async def generate_structured(
-        self, *, model_id: str, prompt: str, inference_config: InferenceConfig
+        self, *, model_id: str, prompt: str, inference_config: InferenceConfig, output_schema: dict
     ) -> dict: ...
 
     async def generate_reasoning(
-        self, *, model_id: str, prompt: str, inference_config: InferenceConfig
+        self, *, model_id: str, prompt: str, inference_config: InferenceConfig, output_schema: dict
     ) -> dict: ...

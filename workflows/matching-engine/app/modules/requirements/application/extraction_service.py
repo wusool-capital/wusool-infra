@@ -36,10 +36,12 @@ class BuyerRequirementExtractionService:
         self._inference_config = inference_config
 
     async def extract(self, buyer: BuyerContext, *, next_version: int) -> RequirementProfile:
+        output_schema = ExtractedRequirementProfile.model_json_schema()
         raw = await self._client.generate_structured(
             model_id=self._model_id,
             prompt=self._build_prompt(buyer),
             inference_config=self._inference_config,
+            output_schema=output_schema,
         )
         extracted, error = self._validate(raw)
 
@@ -48,6 +50,7 @@ class BuyerRequirementExtractionService:
                 model_id=self._model_id,
                 prompt=self._build_repair_prompt(buyer, raw, error),
                 inference_config=self._inference_config,
+                output_schema=output_schema,
             )
             extracted, error = self._validate(raw_retry)
 

@@ -41,10 +41,12 @@ class MatchReasoningService:
         profile: RequirementProfile,
         shortlist: list[tuple[SellerCandidate, CandidateScore]],
     ) -> ReasoningResult:
+        output_schema = ReasoningResult.model_json_schema()
         raw = await self._client.generate_reasoning(
             model_id=self._model_id,
             prompt=self._build_prompt(buyer, profile, shortlist),
             inference_config=self._inference_config,
+            output_schema=output_schema,
         )
         result, error = self._validate(raw)
 
@@ -53,6 +55,7 @@ class MatchReasoningService:
                 model_id=self._model_id,
                 prompt=self._build_repair_prompt(buyer, profile, shortlist, raw, error),
                 inference_config=self._inference_config,
+                output_schema=output_schema,
             )
             result, error = self._validate(raw_retry)
 

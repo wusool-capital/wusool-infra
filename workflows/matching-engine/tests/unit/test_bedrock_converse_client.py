@@ -11,6 +11,24 @@ def _response(text: str) -> dict:
     return {"output": {"message": {"role": "assistant", "content": [{"text": text}]}}}
 
 
+def _tool_use_response(input_dict: dict) -> dict:
+    return {
+        "output": {
+            "message": {
+                "role": "assistant",
+                "content": [{"toolUse": {"name": "return_structured_output", "input": input_dict}}],
+            }
+        }
+    }
+
+
+def test_prefers_tool_use_input_over_text() -> None:
+    """The forced-tool-call path (§ toolConfig) returns already-parsed JSON —
+    preferred over any text block, and never re-parsed as a string."""
+    result = BedrockConverseClient._extract_json(_tool_use_response({"a": 1}))
+    assert result == {"a": 1}
+
+
 def test_extracts_plain_json() -> None:
     result = BedrockConverseClient._extract_json(_response('{"a": 1}'))
     assert result == {"a": 1}

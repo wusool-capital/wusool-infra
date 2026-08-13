@@ -21,7 +21,7 @@ class FakeBedrockClient:
         self.reasoning_calls: list[str] = []
 
     async def generate_structured(
-        self, *, model_id: str, prompt: str, inference_config: InferenceConfig
+        self, *, model_id: str, prompt: str, inference_config: InferenceConfig, output_schema: dict
     ) -> dict:
         self.structured_calls.append(prompt)
         if not self.structured_responses:
@@ -34,7 +34,7 @@ class FakeBedrockClient:
         return response
 
     async def generate_reasoning(
-        self, *, model_id: str, prompt: str, inference_config: InferenceConfig
+        self, *, model_id: str, prompt: str, inference_config: InferenceConfig, output_schema: dict
     ) -> dict:
         self.reasoning_calls.append(prompt)
         if not self.reasoning_responses:
