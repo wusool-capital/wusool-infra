@@ -8,6 +8,7 @@ strict Pydantic contract Bedrock's Stage 3 reasoning output must validate
 against (§7, §15) — never trust raw LLM text past this boundary.
 """
 
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
@@ -17,7 +18,7 @@ from pydantic import BaseModel, Field
 class MatchScoreRead(BaseModel):
     model_config = {"from_attributes": True}
 
-    id: str
+    id: uuid.UUID
     buyer_attio_id: str
     seller_attio_id: str
     score: Decimal
@@ -32,8 +33,8 @@ class MatchScoreRead(BaseModel):
 class MatchResultRead(BaseModel):
     model_config = {"from_attributes": True}
 
-    id: str
-    run_id: str
+    id: uuid.UUID
+    run_id: uuid.UUID
     rank: int | None = None
     seller_attio_id: str | None = None
     match_score: Decimal | None = None
@@ -63,3 +64,13 @@ class ReasoningCandidateResult(BaseModel):
 
 class ReasoningResult(BaseModel):
     candidates: list[ReasoningCandidateResult] = Field(default_factory=list)
+
+
+class MatchAnalysis(BaseModel):
+    """View Full Analysis output (§21) — built entirely from persisted data,
+    never re-running Bedrock.
+    """
+
+    run: MatchResultRead
+    candidates: list[MatchResultRead]
+    scores: list[MatchScoreRead]

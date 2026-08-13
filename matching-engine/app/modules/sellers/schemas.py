@@ -4,6 +4,7 @@ All nullable DB columns stay `X | None` here — no defaults invented, no
 "Unknown" sentinel at this layer.
 """
 
+import uuid
 from datetime import date
 
 from pydantic import BaseModel
@@ -14,7 +15,7 @@ from app.shared.types import Money, OrganizationSummary
 class SellerSummary(BaseModel):
     model_config = {"from_attributes": True}
 
-    id: str
+    id: uuid.UUID
     organization: OrganizationSummary
     outreach_tier: str | None = None
     relationship_status: str | None = None
@@ -23,7 +24,7 @@ class SellerSummary(BaseModel):
 class SellerRoleRead(BaseModel):
     model_config = {"from_attributes": True}
 
-    id: str
+    id: uuid.UUID
     org_attio_id: str
     outreach_tier: str | None = None
     appetite_signal: str | None = None

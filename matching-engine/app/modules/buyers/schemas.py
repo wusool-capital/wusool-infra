@@ -5,6 +5,8 @@ All nullable DB columns stay `X | None` here — no defaults invented, no
 higher-level application service, not the persistence/schema layer).
 """
 
+import uuid
+
 from pydantic import BaseModel
 
 from app.shared.types import Money, OrganizationSummary
@@ -13,7 +15,7 @@ from app.shared.types import Money, OrganizationSummary
 class BuyerSummary(BaseModel):
     model_config = {"from_attributes": True}
 
-    id: str
+    id: uuid.UUID
     organization: OrganizationSummary
     model: str | None = None
     mandate_status: str | None = None
@@ -22,7 +24,7 @@ class BuyerSummary(BaseModel):
 class BuyerRoleRead(BaseModel):
     model_config = {"from_attributes": True}
 
-    id: str
+    id: uuid.UUID
     org_attio_id: str
     model: str | None = None
     mandate_status: str | None = None

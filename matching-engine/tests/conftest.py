@@ -19,7 +19,7 @@ os.environ.setdefault("SLACK_BOT_TOKEN", "xoxb-test-token")
 os.environ.setdefault("SLACK_SIGNING_SECRET", "test-signing-secret")
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.shared.database import get_engine, import_all_models
 from app.shared.database.models import Organization
@@ -45,6 +45,31 @@ async def db_session():
         yield session
     finally:
         await session.close()
+        await trans.rollback()
+        await conn.close()
+
+
+@pytest.fixture
+async def db_sessionmaker():
+    """Like `db_session`, but yields a sessionmaker rather than a single
+    session — for code (e.g. `RunBuyerSellerMatchUseCase`) that opens
+    several short-lived sessions itself. Each session it creates joins the
+    same outer transaction via a savepoint, so everything still rolls back
+    together at teardown.
+    """
+    engine = get_engine()
+    try:
+        conn = await engine.connect()
+    except Exception as exc:
+        pytest.skip(f"database not reachable: {exc}")
+
+    trans = await conn.begin()
+    maker = async_sessionmaker(
+        bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False
+    )
+    try:
+        yield maker
+    finally:
         await trans.rollback()
         await conn.close()
 
