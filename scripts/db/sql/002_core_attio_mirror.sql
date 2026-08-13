@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS organizations (
   connection_strength text,
   owner_attio_id text REFERENCES users(attio_id),
   last_interaction_at timestamptz,
+  funding_raised jsonb,
+  estimated_arr text,
   raw_attio jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
