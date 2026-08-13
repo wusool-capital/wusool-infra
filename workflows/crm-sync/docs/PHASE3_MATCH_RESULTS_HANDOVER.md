@@ -17,7 +17,7 @@ See also:
 ## Why this table exists
 
 The matching-engine backend (`matching-engine/`) was scaffolded against the
-real, already-deployed `wusool_crm` schema (`scripts/db/sql/001-005*.sql`).
+real, already-deployed `wusool_crm` schema (`database/sql/001-005*.sql`).
 That schema has `buyer_roles`, `seller_roles`, and a single `match_scores`
 table (one row per scored buyer/seller pair — score, a JSONB scoring
 breakdown, an LLM reasoning narrative, JSONB citations). It does **not**
@@ -72,20 +72,20 @@ per run" at the database level, so this invariant can't silently drift.
 ## DDL
 
 Purely additive — `CREATE TABLE IF NOT EXISTS`, matching the exact guarded
-style already used in `scripts/db/sql/002-004` (`005` skipped the guard;
+style already used in `database/sql/002-004` (`005` skipped the guard;
 this shouldn't repeat that). Safe to re-run. Applied as
-`scripts/db/sql/006_match_results.sql`. (`organizations.funding_raised`/
+`database/sql/006_match_results.sql`. (`organizations.funding_raised`/
 `estimated_arr` were folded directly into `002_core_attio_mirror.sql`'s
 original `CREATE TABLE organizations` instead of getting their own file,
 so this slot was free.)
 
 ```sql
--- scripts/db/sql/006_match_results.sql
+-- database/sql/006_match_results.sql
 --
 -- One new, additive table for the Phase 3 Slack matching workflow's
 -- run-audit / shortlist / status / approval needs. Does not alter, rename,
 -- or drop any existing table or column. See
--- DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md for full rationale.
+-- workflows/crm-sync/docs/PHASE3_MATCH_RESULTS_HANDOVER.md for full rationale.
 
 CREATE TABLE IF NOT EXISTS match_results (
     id                            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -170,14 +170,14 @@ One table covers everything Phase 3's persistence needs.
 
 ## How to apply
 
-Same flow as `001-005` — see `scripts/db/README.md`:
+Same flow as `001-005` — see `database/README.md`:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\db\setup-postgres.ps1
+  -File .\database\setup-postgres.ps1
 ```
 
-`setup-postgres.ps1` picks up `scripts/db/sql/*.sql` in filename order, so
+`setup-postgres.ps1` picks up `database/sql/*.sql` in filename order, so
 `006_match_results.sql` runs after `001-005` automatically once the file is
 in place. It uses `CREATE ... IF NOT EXISTS`, so re-running it is safe.
 

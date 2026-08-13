@@ -44,7 +44,7 @@ Important rules:
 - PostgreSQL relationships store Attio IDs; names are displayed using joins.
 - Missing or ambiguous historical values remain null rather than being guessed.
 
-The executable mapping is in `scripts/attio/config/`.
+The executable mapping is in `workflows/crm-sync/scripts/config/`.
 
 ## Scripts
 
@@ -67,8 +67,8 @@ PostgreSQL:
 | `sync-postgres.ps1` | Preview or apply DEV-to-PostgreSQL upserts. |
 | `validate-postgres.ps1` | Compare DEV/PostgreSQL counts and relationships. |
 
-Full commands are documented in `scripts/attio/README.md` and
-`scripts/db/README.md`.
+Full commands are documented in `workflows/crm-sync/scripts/README.md` and
+`database/README.md`.
 
 ## Execution order
 
