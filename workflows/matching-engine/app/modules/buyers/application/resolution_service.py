@@ -1,6 +1,12 @@
 """Buyer resolution semantics (§4). The repository owns lookup mechanics
 (`search_by_organization_name`'s ILIKE strategy); this service owns what to
 do with 0/1/many results — kept out of the Slack handler entirely.
+
+Every non-empty result always populates `candidates` (length 1 for a single
+match) — the Slack layer always shows the "choose the right buyer"
+confirmation modal, even for one strong match, rather than silently
+proceeding straight into the expensive matching workflow. `status` still
+distinguishes single vs. multiple for callers that care.
 """
 
 from dataclasses import dataclass
@@ -17,7 +23,6 @@ ResolutionStatus = Literal["none", "single", "multiple"]
 @dataclass(frozen=True)
 class BuyerResolution:
     status: ResolutionStatus
-    buyer: BuyerContext | None = None
     candidates: list[BuyerSummary] | None = None
 
 
@@ -31,13 +36,9 @@ class BuyerResolutionService:
         if not matches:
             return BuyerResolution(status="none")
 
-        if len(matches) == 1:
-            role = await self._buyers.get_with_organization(str(matches[0].id))
-            assert role is not None
-            return BuyerResolution(status="single", buyer=to_buyer_context(role))
-
+        status: ResolutionStatus = "single" if len(matches) == 1 else "multiple"
         return BuyerResolution(
-            status="multiple",
+            status=status,
             candidates=[BuyerSummary.model_validate(role) for role in matches],
         )
 

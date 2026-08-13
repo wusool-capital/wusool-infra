@@ -1,8 +1,10 @@
 """`/find-match <buyer name>` (§3-4). Thin adapter: parse/validate the
 payload, resolve the buyer (fast — a single lookup, not a long-running
-call), then either open a disambiguation modal or dispatch the expensive
-matching workflow (Bedrock + scoring + persistence) to the background task
-runner. Never blocks the Slack ack on Bedrock/DB work.
+call), then always open the "confirm buyer" modal for any non-empty
+result — even one strong match requires an explicit confirm before the
+expensive matching workflow (Bedrock + scoring + persistence) runs. That
+workflow itself is dispatched from the modal's submission handler
+(`actions.py`), not here.
 """
 
 import logging
@@ -10,15 +12,12 @@ import logging
 from slack_bolt.async_app import AsyncApp
 
 from app.modules.buyers.dependencies import resolve_buyer
-from app.modules.slack.match_dispatch import run_match_and_post
 from app.modules.slack.views.buyer_selection import build_buyer_selection_modal
 from app.shared.idempotency import InMemoryIdempotencyStore
-from app.shared.tasks import InProcessTaskRunner
 
 logger = logging.getLogger(__name__)
 
 _idempotency_store = InMemoryIdempotencyStore()
-_task_runner = InProcessTaskRunner()
 
 
 def register(app: AsyncApp) -> None:
@@ -59,19 +58,10 @@ def register(app: AsyncApp) -> None:
             )
             return
 
-        if resolution.status == "multiple":
-            assert resolution.candidates is not None
-            await client.views_open(
-                trigger_id=command["trigger_id"],
-                view=build_buyer_selection_modal(
-                    resolution.candidates, requested_by=user_id, channel_id=channel_id
-                ),
-            )
-            return
-
-        assert resolution.buyer is not None
-        buyer_role_id = resolution.buyer.buyer_role_id
-        _task_runner.run(
-            lambda: run_match_and_post(buyer_role_id, user_id, channel_id),
-            name=f"find-match:{buyer_role_id}",
+        assert resolution.candidates is not None
+        await client.views_open(
+            trigger_id=command["trigger_id"],
+            view=build_buyer_selection_modal(
+                resolution.candidates, requested_by=user_id, channel_id=channel_id
+            ),
         )

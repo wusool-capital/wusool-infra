@@ -1,5 +1,8 @@
-"""Buyer disambiguation modal (§4) — shown when `/find-match <name>` matches
-more than one buyer. Block Kit builders only, no logic.
+"""Buyer confirmation modal (§4) — shown for every `/find-match <name>`
+resolution that finds at least one candidate, even a single strong match.
+Confirming before the expensive matching workflow runs is a deliberate
+product choice, not just disambiguation for multiple matches. Block Kit
+builders only, no logic.
 """
 
 import json
@@ -22,22 +25,29 @@ def build_buyer_selection_modal(
             }
         )
 
+    label = (
+        "Confirm this is the right buyer"
+        if len(options) == 1
+        else "Choose the right buyer"
+    )
+
     return {
         "type": "modal",
         "callback_id": "buyer_selection_modal",
         "private_metadata": json.dumps({"requested_by": requested_by, "channel_id": channel_id}),
-        "title": {"type": "plain_text", "text": "Select a buyer"},
+        "title": {"type": "plain_text", "text": "Confirm buyer"},
         "submit": {"type": "plain_text", "text": "Find matches"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "blocks": [
             {
                 "type": "input",
                 "block_id": "buyer_role_id",
-                "label": {"type": "plain_text", "text": "Multiple buyers matched — pick one"},
+                "label": {"type": "plain_text", "text": label},
                 "element": {
                     "type": "static_select",
                     "action_id": "selected_buyer",
                     "options": options,
+                    "initial_option": options[0],
                 },
             }
         ],
