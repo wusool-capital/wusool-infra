@@ -34,8 +34,9 @@ or Attio keys.
 | `003_crm_roles.sql` | Create Buyer Role, Seller Role, and optional investor/lender roles. |
 | `004_machine_layer.sql` | Create activities, stage history, intelligence, matching, documents, graph, scorecards, reconciliation columns, and indexes. |
 | `005_meetings.sql` | Create the `meetings` table (scribe-published buyer/seller meeting summaries) and enable `fk_meetings_org`. Not part of the Attio mirror — scribe is the sole writer. |
+| `006_match_results.sql` | Create the `match_results` table for the matching-engine backend's Phase 3 Slack workflow (run audit, shortlisted candidates, status, approvals). Additive only — no existing table is touched. Not yet applied against `wusool_crm`; see `DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md` for full rationale. |
 
-Files 001-004 use `CREATE ... IF NOT EXISTS` and controlled `ALTER`
+Files 001-004 (and 006) use `CREATE ... IF NOT EXISTS` and controlled `ALTER`
 statements, so normal setup does not recreate tables or delete data.
 **`005_meetings.sql` does not follow this convention** — its `CREATE TYPE`/
 `CREATE TABLE` statements have no `IF NOT EXISTS` guard, so re-running
