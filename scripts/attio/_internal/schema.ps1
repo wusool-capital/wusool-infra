@@ -120,7 +120,9 @@ $fields = @(
   [pscustomobject]@{ Title = "Connection Strength"; Slug = "connection_strength"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "strongest_connection_strength" },
   [pscustomobject]@{ Title = "Owner"; Slug = "owner"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Last Interaction At"; Slug = "last_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
-  [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null }
+  [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null },
+  [pscustomobject]@{ Title = "Funding Raised"; Slug = "funding_raised"; Type = "currency"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; Config = @{ currency = @{ default_currency_code = "USD"; display_type = "symbol" } } },
+  [pscustomobject]@{ Title = "Estimated ARR"; Slug = "estimated_arr"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @('$0-$1M', '$1M-$10M', '$10M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B-$10B', '$10B+') }
 )
 
 $targetAttributes = Get-Attributes -Headers $devHeaders -ObjectSlug "organizations"
@@ -199,7 +201,7 @@ foreach ($field in $fields) {
       is_required = [bool]$field.Required
       is_unique = [bool]$field.Unique
       is_multiselect = [bool]$field.Multi
-      config = @{}
+      config = if ($field.Config) { $field.Config } else { @{} }
     }
   }
   Invoke-AttioRequest -Method Post -Headers $devHeaders `
@@ -231,6 +233,40 @@ foreach ($field in @($fields | Where-Object SourceOption)) {
   }
 
   foreach ($title in $sourceTitles) {
+    $key = $title.Trim().ToLowerInvariant()
+    if ($existing.ContainsKey($key)) { continue }
+    $actions += "create_option:$($field.Slug):$title"
+    if (-not $Apply) {
+      Write-Host "DRY RUN: would create $($field.Slug) option '$title'."
+      continue
+    }
+    Invoke-AttioRequest -Method Post -Headers $devHeaders `
+      -Path "/objects/organizations/attributes/$($field.Slug)/options" `
+      -Body @{ data = @{ title = $title } } | Out-Null
+    $existing[$key] = $true
+    Write-Host "CREATED OPTION: $($field.Slug) -> $title"
+  }
+}
+
+foreach ($field in @($fields | Where-Object FixedOptions)) {
+  if (-not $Apply -and -not $targetAttributes.ContainsKey($field.Slug)) {
+    foreach ($title in $field.FixedOptions) {
+      $actions += "create_option:$($field.Slug):$title"
+      Write-Host "DRY RUN: would create $($field.Slug) option '$title'."
+    }
+    continue
+  }
+
+  $targetTitles = @(
+    Get-OptionTitles -Headers $devHeaders -ObjectSlug "organizations" `
+      -AttributeSlug $field.Slug
+  )
+  $existing = @{}
+  foreach ($title in $targetTitles) {
+    $existing[$title.Trim().ToLowerInvariant()] = $true
+  }
+
+  foreach ($title in $field.FixedOptions) {
     $key = $title.Trim().ToLowerInvariant()
     if ($existing.ContainsKey($key)) { continue }
     $actions += "create_option:$($field.Slug):$title"

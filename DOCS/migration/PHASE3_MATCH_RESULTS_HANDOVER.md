@@ -73,7 +73,11 @@ per run" at the database level, so this invariant can't silently drift.
 
 Purely additive — `CREATE TABLE IF NOT EXISTS`, matching the exact guarded
 style already used in `scripts/db/sql/002-004` (`005` skipped the guard;
-this shouldn't repeat that). Safe to re-run.
+this shouldn't repeat that). Safe to re-run. Applied as
+`scripts/db/sql/006_match_results.sql`. (`organizations.funding_raised`/
+`estimated_arr` were folded directly into `002_core_attio_mirror.sql`'s
+original `CREATE TABLE organizations` instead of getting their own file,
+so this slot was free.)
 
 ```sql
 -- scripts/db/sql/006_match_results.sql

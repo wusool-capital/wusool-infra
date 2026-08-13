@@ -5,7 +5,7 @@ existing n8n EC2 instance with Systems Manager port forwarding.
 
 ## Open Tunnel
 
-Run from `environments/dev`:
+Run from `terraform/environments/dev`:
 
 ```powershell
 $n8nInstanceId = terraform output -raw n8n_instance_id
@@ -25,7 +25,7 @@ Keep this terminal open.
 Run from the repository root:
 
 ```powershell
-$secretArn = terraform -chdir=".\environments\dev" output -raw postgres_master_user_secret_arn
+$secretArn = terraform -chdir=".\terraform\environments\dev" output -raw postgres_master_user_secret_arn
 $secret = aws secretsmanager get-secret-value `
   --secret-id $secretArn `
   --query SecretString `

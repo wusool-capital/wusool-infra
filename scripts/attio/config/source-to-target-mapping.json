@@ -27,7 +27,9 @@
         {"source": "relationship_status", "target": "relationship_status", "transform": "normalize_to_warm_cold_closed_latest_active_from", "status": "confirmed"},
         {"source": "strongest_connection_strength", "target": "strongest_connection_strength", "transform": "attio_system_managed", "status": "confirmed"},
         {"source": "last_interaction", "target": "last_interaction_at", "transform": "interaction_active_from_timestamp", "status": "draft"},
-        {"source": "relationship_owner", "target": "owner", "transform": "defer_blank_until_dev_workspace_member_mapping", "status": "deferred_backfill"}
+        {"source": "relationship_owner", "target": "owner", "transform": "defer_blank_until_dev_workspace_member_mapping", "status": "deferred_backfill"},
+        {"source": null, "target": "funding_raised", "transform": null, "status": "confirmed_manual_entry_only_no_source_mapping"},
+        {"source": null, "target": "estimated_arr", "transform": null, "status": "confirmed_manual_entry_only_no_source_mapping"}
       ]
     },
     "people": {

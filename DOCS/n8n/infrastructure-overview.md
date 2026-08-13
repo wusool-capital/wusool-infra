@@ -11,7 +11,7 @@ Wusool infrastructure is managed as code with Terraform. The repository defines:
 
 - A one-time `bootstrap` stack for Terraform remote state.
 - Environment roots under `environments/`, such as `dev` and `prod`.
-- Reusable modules under `modules/` for networking and the n8n EC2 runtime.
+- Reusable modules under `terraform/modules/` for networking and the n8n EC2 runtime.
 - Operational controls for secure administration, monitoring, alerting, and
   audit services.
 - A Secrets Manager secret per environment for n8n runtime secrets, with
@@ -124,13 +124,14 @@ flowchart LR
 
 ```text
 wusool-infra/
-|-- bootstrap/                 # Creates Terraform backend resources
-|-- environments/
-|   |-- dev/                   # Development root configuration
-|   `-- prod/                  # Production root/template configuration
-|-- modules/
-|   |-- network/               # VPC, subnets, route tables, internet gateway
-|   `-- n8n-ec2/               # EC2, Caddy, n8n, IAM, SSM, logs, alarms
+|-- terraform/                 # All Terraform configuration
+|   |-- bootstrap/             # Creates Terraform backend resources
+|   |-- environments/
+|   |   |-- dev/               # Development root configuration
+|   |   `-- prod/              # Production root/template configuration
+|   `-- modules/
+|       |-- network/           # VPC, subnets, route tables, internet gateway
+|       `-- n8n-ec2/           # EC2, Caddy, n8n, IAM, SSM, logs, alarms
 |-- DOCS/                      # Documentation and diagrams
 |-- scripts/                   # Helper scripts
 `-- .agents/skills/            # Project-local Codex skills
@@ -153,7 +154,7 @@ it loads all `.tf` files in that folder as one configuration.
 Common workflow:
 
 ```powershell
-Set-Location environments/dev   # or environments/prod
+Set-Location terraform/environments/dev   # or terraform/environments/prod
 terraform init
 terraform fmt -check
 terraform validate
@@ -177,8 +178,8 @@ Current code pattern:
 
 | Environment | Purpose | Notes |
 | --- | --- | --- |
-| `environments/dev` | Active non-production root | Includes network, n8n EC2, SNS alerts, CloudTrail, GuardDuty, and Security Hub |
-| `environments/prod` | Production template/root | Uses network and n8n modules; should be reviewed and brought to operational parity before real production apply |
+| `terraform/environments/dev` | Active non-production root | Includes network, n8n EC2, SNS alerts, CloudTrail, GuardDuty, and Security Hub |
+| `terraform/environments/prod` | Production template/root | Uses network and n8n modules; should be reviewed and brought to operational parity before real production apply |
 
 Important rule:
 
@@ -189,7 +190,7 @@ the development backend. Prod must use its own backend state.
 
 ## 7. Bootstrap And Terraform State
 
-`bootstrap/` creates backend resources used by Terraform state:
+`terraform/bootstrap/` creates backend resources used by Terraform state:
 
 - S3 bucket for remote state.
 - S3 versioning.
@@ -198,7 +199,7 @@ the development backend. Prod must use its own backend state.
 - DynamoDB lock table is present in bootstrap code for compatibility/history,
   while the active dev backend uses S3 native lock file.
 
-The normal application infrastructure is not applied from `bootstrap/`.
+The normal application infrastructure is not applied from `terraform/bootstrap/`.
 Bootstrap is for state storage; environments are for actual n8n infrastructure.
 
 Demo line:
@@ -210,7 +211,7 @@ its own state key so dev and prod do not overwrite each other.
 
 ## 8. Network Module
 
-`modules/network` creates the AWS network foundation:
+`terraform/modules/network` creates the AWS network foundation:
 
 - VPC.
 - Public subnet.
@@ -230,7 +231,7 @@ The Internet Gateway and route table allow controlled public web traffic.
 
 ## 9. n8n EC2 Module
 
-`modules/n8n-ec2` creates the application runtime:
+`terraform/modules/n8n-ec2` creates the application runtime:
 
 - Latest Amazon Linux 2023 AMI lookup.
 - EC2 security group.
@@ -247,7 +248,7 @@ The Internet Gateway and route table allow controlled public web traffic.
 Runtime setup is driven by:
 
 ```text
-modules/n8n-ec2/user_data.sh.tpl
+terraform/modules/n8n-ec2/user_data.sh.tpl
 ```
 
 That template installs and starts the runtime pieces, including Docker Compose,
@@ -370,7 +371,7 @@ Applied live via SSM to `wusool-prod-n8n` (`i-0087f9ecb02462b2e`):
 
 `Caddyfile.bak`/`docker-compose.yml.bak` (pre-change copies) were left on
 the box under `/opt/n8n/`. This change is not yet reflected in the
-`modules/n8n-ec2` Terraform template — prod is Terraform-orphaned (see
+`terraform/modules/n8n-ec2` Terraform template — prod is Terraform-orphaned (see
 section 18) so the live box is unaffected either way, but the template
 should adopt the same dual-domain pattern for future deployments/dev.
 
@@ -568,19 +569,19 @@ updates the remote state so future plans know what exists.
 
 ## 18. Known Infrastructure Gaps
 
-- **Prod is not deployed from `environments/prod`.** That folder targets
+- **Prod is not deployed from `terraform/environments/prod`.** That folder targets
   `me-central-1` with a `10.20.0.0/16` VPC, but the actual running
   `wusool-prod-n8n` instance (`i-0087f9ecb02462b2e`) lives in `eu-central-1`,
   alongside dev, and its Secrets Manager secret (`/wusool/prod/n8n`) is also
   in `eu-central-1`. Confirmed 2026-08-08 via `aws ec2 describe-instances`
-  across both regions. `terraform apply` in `environments/prod` would not
+  across both regions. `terraform apply` in `terraform/environments/prod` would not
   affect this real instance at all. Whatever Terraform state (if any)
   actually manages it hasn't been identified yet — treat direct SSM/console
   changes to prod as the working method until this is reconciled, and prefer
   the `wusool-prod-n8n-bootstrap` SSM document (idempotent) over ad hoc
   changes where possible.
 - **The task-runner-launcher config fix (see 9.1) is not yet reconciled
-  through Terraform.** `modules/n8n-ec2/user_data.sh.tpl` has the corrected
+  through Terraform.** `terraform/modules/n8n-ec2/user_data.sh.tpl` has the corrected
   template, but because of the point above there is no known `terraform
   apply` path that would push it to the real prod instance — it was applied
   directly via SSM. If prod's instance is ever replaced/re-bootstrapped from
@@ -604,7 +605,7 @@ updates the remote state so future plans know what exists.
 - **Dev does not have the task-runner-launcher fix applied.** Not known to be
   needed on dev's current n8n version (`2.26.8`), but if dev is ever upgraded
   to a version with the same restrictive default, apply the same fix.
-- **`modules/n8n-ec2/user_data.sh.tpl` only templates a single hostname into
+- **`terraform/modules/n8n-ec2/user_data.sh.tpl` only templates a single hostname into
   `/opt/n8n/Caddyfile`.** Every time the bootstrap document is re-run on
   prod (e.g. to pick up a Secrets Manager change, per section 12.1), it
   regenerates the Caddyfile from scratch and silently drops the §11.1
@@ -630,7 +631,7 @@ updates the remote state so future plans know what exists.
 - Keep dev and prod on separate backend state keys.
 - Review every plan before apply.
 - Stop and investigate any unexpected destroy or EC2/EIP/VPC replacement.
-- Do not run `terraform destroy` in `bootstrap/` unless intentionally removing
+- Do not run `terraform destroy` in `terraform/bootstrap/` unless intentionally removing
   backend infrastructure.
 
 ## 20. Short Demo Talk Track

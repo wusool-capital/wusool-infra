@@ -39,7 +39,9 @@
         {"slug": "relationship_status", "type": "enum", "ownership": "attio", "options": ["Warm", "Cold", "Closed"], "normalization": "latest_active_from_after_mapping"},
         {"slug": "connection_strength", "attio_slug": "strongest_connection_strength", "type": "enum", "ownership": "attio", "system_attribute": true},
         {"slug": "owner", "type": "user-reference", "ownership": "key", "target": "User", "attio_type_status": "needs_design"},
-        {"slug": "last_interaction_at", "type": "timestamp", "ownership": "both"}
+        {"slug": "last_interaction_at", "type": "timestamp", "ownership": "both"},
+        {"slug": "funding_raised", "type": "money", "ownership": "attio", "currency": "USD", "purpose": "Total external funding raised by the company; matches Attio's native companies.funding_raised_usd"},
+        {"slug": "estimated_arr", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["$0-$1M", "$1M-$10M", "$10M-$50M", "$50M-$100M", "$100M-$250M", "$250M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"], "purpose": "Matches Attio's native companies.estimated_arr_usd"}
       ]
     },
     {

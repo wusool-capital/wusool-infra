@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS match_results (
     buyer_attio_id                TEXT NOT NULL REFERENCES organizations(attio_id) ON DELETE CASCADE,
     buyer_role_id                 UUID NOT NULL REFERENCES buyer_roles(id) ON DELETE CASCADE,
 
-    -- NULL on this row  => this is the run/header row (see handover doc).
+    -- NULL on this row  => this is the run/header row (see design note above).
     -- NOT NULL           => this is a shortlisted candidate row (1..STAGE3_TOP_N).
     rank                          INTEGER,
 
