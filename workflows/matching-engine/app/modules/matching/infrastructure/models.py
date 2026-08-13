@@ -4,9 +4,9 @@
 scoring breakdown: one row per scored buyer/seller pair (score/dims/reasoning/
 citations). Phase 3 writes one row here per STAGE3_TOP_N shortlisted
 candidate only — not for every stage-1 survivor (see
-`DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md`).
+`workflows/crm-sync/docs/PHASE3_MATCH_RESULTS_HANDOVER.md`).
 
-`match_results` (Phase 3, `scripts/db/sql/006_match_results.sql`, applied by
+`match_results` (Phase 3, `database/sql/006_match_results.sql`, applied by
 the DB team — see the same handover doc) is the one new, additive table
 covering everything `match_runs`/`matches`/`match_evidence`/`approvals`
 (described but never implemented per PRD.md §3.3-3.4) would have: run audit,

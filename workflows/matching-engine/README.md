@@ -14,9 +14,9 @@ Bolt, boto3 (AWS Bedrock), `uv`, `pytest`, `ruff`.
 ## Database
 
 The application connects to the existing `wusool_crm` PostgreSQL database
-(see `../scripts/db/README.md` at the repo root for schema and sync
-details). This application **never** creates tables, runs migrations, or
-resets schema — that database is owned and evolved outside this codebase.
+(see `../../database/README.md` for schema and sync details). This
+application **never** creates tables, runs migrations, or resets schema —
+that database is owned and evolved outside this codebase.
 
 **Schema gap:** a `PRD.md` at the repo root describes a richer target schema
 (versioned `buyer_requirement_profiles`/`seller_profiles`, `match_runs`,
@@ -119,7 +119,7 @@ docker run -d --name matching-engine-test-db \
   -e POSTGRES_USER=matching -e POSTGRES_PASSWORD=matching -e POSTGRES_DB=wusool_crm \
   -p 55432:5432 postgres:16-alpine
 
-for f in ../scripts/db/sql/*.sql; do
+for f in ../../database/sql/*.sql; do
   docker exec -i matching-engine-test-db psql -U matching -d wusool_crm -v ON_ERROR_STOP=1 < "$f"
 done
 
@@ -151,7 +151,7 @@ Modular monolith: each module in `app/modules/` owns its domain,
 application, and infrastructure layers. FastAPI and Slack are adapters
 around application services — business logic never lives in a route or
 Slack handler directly. See the repository-root Wusool infra
-[README](../README.md) for how this fits into the broader CRM/data
+[README](../../README.md) for how this fits into the broader CRM/data
 platform.
 
 ## Phase 3 scope
@@ -171,7 +171,7 @@ GENERATED`) independent of the database `CHECK` constraint.
 
 One new, additive table was required and added by the DB team:
 `match_results` (run audit + shortlisted candidates + status + approval —
-see `DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md` for the full design
+see `workflows/crm-sync/docs/PHASE3_MATCH_RESULTS_HANDOVER.md` for the full design
 rationale). Evidence and the deterministic scoring breakdown still live on
 the pre-existing `match_scores` table, exactly as Phase 2 scoped it.
 

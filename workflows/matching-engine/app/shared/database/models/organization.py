@@ -1,5 +1,5 @@
 """`organizations` — the parent entity. Buyer/seller roles are memberships on it,
-never independent records (see `scripts/db/sql/002_core_attio_mirror.sql`,
+never independent records (see `database/sql/002_core_attio_mirror.sql`,
 `003_crm_roles.sql`).
 """
 

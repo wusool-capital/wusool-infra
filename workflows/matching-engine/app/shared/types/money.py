@@ -2,7 +2,7 @@
 columns (`ebitda_floor`, `check_size_min/max`, `ev_ceiling`, `est_revenue`,
 `est_ebitda`, `owner_salary`, `valuation_low/mid/high`).
 
-Shape confirmed from `scripts/db/sync-postgres.ps1`'s `money()` helper — not
+Shape confirmed from `database/sync-postgres.ps1`'s `money()` helper — not
 guessed. The column itself may also be `NULL` entirely (no money object at
 all); that's a separate, legitimate state from a `Money` with `amount=None`.
 """
