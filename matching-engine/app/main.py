@@ -9,12 +9,13 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.shared.database.engine import check_database_connectivity
+from app.shared.database import check_database_connectivity, import_all_models
 from app.shared.errors import register_exception_handlers
 from app.shared.logging import configure_logging
 
 settings = get_settings()
 configure_logging(settings.log_level)
+import_all_models()
 
 app = FastAPI(title="Buyer-Seller Matching & Intelligence Platform")
 register_exception_handlers(app)

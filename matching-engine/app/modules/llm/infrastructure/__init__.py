@@ -1,1 +1,1 @@
-"""Anthropic client adapter, built on `app.integrations.anthropic`."""
+"""Bedrock client adapter, built on `app.integrations.bedrock`."""

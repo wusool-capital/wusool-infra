@@ -1,10 +1,15 @@
 """Test fixtures.
 
-No real database connection or secrets are required to run this suite. Dummy
-env vars are set at import time (before any test module imports `app.main`,
-which reads settings at module load) so collection never needs a real .env.
-The async engine is constructed but never connected unless a test explicitly
-hits `/readiness`.
+No real database connection or AWS credentials are required to run this
+suite by default. Dummy env vars are set at import time (before any test
+module imports `app.main`, which reads settings at module load) so
+collection never needs a real .env. The async engine is constructed but
+never connected unless a test explicitly hits `/readiness` or uses the
+`db_session` fixture below.
+
+`DATABASE_URL` points at the real dev SSM-tunnel address on purpose: when a
+tunnel is open, `tests/integration/` runs for real against `wusool_crm`; when
+it isn't, `db_session` skips those tests cleanly rather than failing.
 """
 
 import os
@@ -12,6 +17,67 @@ import os
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:15432/wusool_crm")
 os.environ.setdefault("SLACK_BOT_TOKEN", "xoxb-test-token")
 os.environ.setdefault("SLACK_SIGNING_SECRET", "test-signing-secret")
-os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test-key")
-os.environ.setdefault("LLM_MODEL_EXTRACTION", "claude-haiku-4-5-20251001")
-os.environ.setdefault("LLM_MODEL_REASONING", "claude-sonnet-5")
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.shared.database import get_engine, import_all_models
+from app.shared.database.models import Organization
+
+import_all_models()
+
+
+@pytest.fixture
+async def db_session():
+    """Yields a session bound to a transaction that's rolled back at
+    teardown, so the existing dataset is never mutated. Skips the test
+    outright if the database isn't reachable (e.g. no SSM tunnel open).
+    """
+    engine = get_engine()
+    try:
+        conn = await engine.connect()
+    except Exception as exc:
+        pytest.skip(f"database not reachable: {exc}")
+
+    trans = await conn.begin()
+    session = AsyncSession(bind=conn, join_transaction_mode="create_savepoint")
+    try:
+        yield session
+    finally:
+        await session.close()
+        await trans.rollback()
+        await conn.close()
+
+
+@pytest.fixture
+async def any_organization(db_session: AsyncSession) -> Organization:
+    from sqlalchemy import select
+
+    row = (await db_session.execute(select(Organization).limit(1))).scalar_one_or_none()
+    if row is None:
+        pytest.skip("no organizations found in the database")
+    return row
+
+
+@pytest.fixture
+async def any_buyer_role(db_session: AsyncSession):
+    from sqlalchemy import select
+
+    from app.modules.buyers.infrastructure.models import BuyerRole
+
+    row = (await db_session.execute(select(BuyerRole).limit(1))).scalar_one_or_none()
+    if row is None:
+        pytest.skip("no buyer_roles found in the database")
+    return row
+
+
+@pytest.fixture
+async def any_seller_role(db_session: AsyncSession):
+    from sqlalchemy import select
+
+    from app.modules.sellers.infrastructure.models import SellerRole
+
+    row = (await db_session.execute(select(SellerRole).limit(1))).scalar_one_or_none()
+    if row is None:
+        pytest.skip("no seller_roles found in the database")
+    return row

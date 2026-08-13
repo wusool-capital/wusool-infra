@@ -38,9 +38,16 @@ class Settings(BaseSettings):
     slack_bot_token: str
     slack_signing_secret: str
 
-    anthropic_api_key: str
-    llm_model_extraction: str
-    llm_model_reasoning: str
+    # AWS Bedrock. Region/model IDs match what's already provisioned in
+    # environments/dev (modules/bedrock-access) — not arbitrary placeholders.
+    # Access key/secret are optional: the standard AWS credential provider
+    # chain (IAM role, ECS/EC2 task role, local profile, env) applies when
+    # unset, per the task's instruction not to require long-lived creds.
+    aws_region: str = "eu-central-1"
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_bedrock_model_id_extraction: str = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+    aws_bedrock_model_id_reasoning: str = "eu.anthropic.claude-sonnet-4-6"
 
     stage3_top_n: int = 3
 

@@ -28,13 +28,3 @@ def get_engine() -> AsyncEngine:
 def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     """Return a cached sessionmaker bound to the process-wide engine."""
     return async_sessionmaker(bind=get_engine(), expire_on_commit=False)
-
-
-async def check_database_connectivity() -> bool:
-    """Run `SELECT 1` against the database. Used by the readiness endpoint only."""
-    from sqlalchemy import text
-
-    engine = get_engine()
-    async with engine.connect() as conn:
-        await conn.execute(text("SELECT 1"))
-    return True
