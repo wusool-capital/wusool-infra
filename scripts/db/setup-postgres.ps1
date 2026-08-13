@@ -52,7 +52,8 @@ with psycopg.connect(url,autocommit=True,connect_timeout=10) as conn:
     required_columns={
       "deals":{"stage_changed_at","time_in_stage","contract_signed_date","exclusivity_date","cim_ready","deal_memo_ready"},
       "seller_roles":{"relationship_status","sell_timeline","intake_source","last_attempt_date","last_attempt_channel","last_attempt_outcome"},
-      "buyer_roles":{"acquisition_enrichment","deals_introduced","deals_converted"}
+      "buyer_roles":{"acquisition_enrichment","deals_introduced","deals_converted"},
+      "organizations":{"funding_raised","estimated_arr"}
     }
     for table,expected in required_columns.items():
       c.execute("select column_name from information_schema.columns where table_schema='public' and table_name=%s",(table,))
