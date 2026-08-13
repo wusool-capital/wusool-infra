@@ -2,31 +2,93 @@
 (§11-13). Pure domain logic — no I/O, no Bedrock, no SQL. Both stages share
 one criterion-evaluation function so "would this eliminate a candidate" and
 "what's this candidate's sub-score for this criterion" never disagree.
+
+`CRITERION_REGISTRY` is the single source of truth for which criterion names
+this engine can actually check against real seller data. The extraction
+prompt (`requirements/application/extraction_service.py`) renders its
+allowed-criteria list from this same registry via `describe_criteria`, so the
+LLM is never told about (or free to invent) a criterion name this engine
+can't evaluate — the two can't drift apart because there's only one list.
 """
+
+from dataclasses import dataclass
 
 from app.modules.matching.domain.value_objects import CandidateScore, CriterionScore, DataConfidence
 from app.modules.requirements.domain.value_objects import RequirementProfile, RequirementSource
 from app.modules.sellers.domain.value_objects import SellerCandidate
 
-_REVENUE_KEYS = {"minimum_revenue", "revenue", "min_revenue", "revenue_floor"}
-_EBITDA_KEYS = {"minimum_ebitda", "ebitda", "min_ebitda", "ebitda_floor"}
-_GEOGRAPHY_KEYS = {"geography", "geographic_focus", "region", "location"}
-_SECTOR_KEYS = {"sector", "industry", "sector_focus"}
-_CLIENT_TYPE_KEYS = {"client_type"}
-_OUTREACH_TIER_KEYS = {"outreach_tier"}
-_RELATIONSHIP_STATUS_KEYS = {"relationship_status"}
-_APPETITE_SIGNAL_KEYS = {"appetite_signal"}
 
-_ALL_MAPPED_KEYS = (
-    _REVENUE_KEYS
-    | _EBITDA_KEYS
-    | _GEOGRAPHY_KEYS
-    | _SECTOR_KEYS
-    | _CLIENT_TYPE_KEYS
-    | _OUTREACH_TIER_KEYS
-    | _RELATIONSHIP_STATUS_KEYS
-    | _APPETITE_SIGNAL_KEYS
+@dataclass(frozen=True)
+class _CriterionSpec:
+    synonyms: frozenset[str]
+    description: str
+
+
+CRITERION_REGISTRY: dict[str, _CriterionSpec] = {
+    "revenue": _CriterionSpec(
+        frozenset({"revenue", "minimum_revenue", "min_revenue", "revenue_floor"}),
+        "Minimum seller revenue threshold, checked against the seller's est_revenue.",
+    ),
+    "ebitda": _CriterionSpec(
+        frozenset({"ebitda", "minimum_ebitda", "min_ebitda", "ebitda_floor"}),
+        "Minimum seller EBITDA threshold, checked against the seller's est_ebitda.",
+    ),
+    "geography": _CriterionSpec(
+        frozenset({"geography", "geographic_focus", "region", "location"}),
+        "Required seller geography, checked against the seller's geographic_focus/hq_country.",
+    ),
+    "sector": _CriterionSpec(
+        frozenset({"sector", "industry", "sector_focus"}),
+        "Required seller sector/industry, checked against the seller's sector_focus.",
+    ),
+    "sector_exclusion": _CriterionSpec(
+        frozenset({"sector_exclusion", "excluded_sector", "sector_exclude"}),
+        "A sector the seller must NOT operate in, checked against the seller's "
+        "sector_focus (inverse match).",
+    ),
+    "client_type": _CriterionSpec(
+        frozenset({"client_type"}),
+        "Required seller client type, checked against the seller's client_type.",
+    ),
+    "outreach_tier": _CriterionSpec(
+        frozenset({"outreach_tier"}),
+        "Required seller outreach tier, checked against the seller's outreach_tier.",
+    ),
+    "relationship_status": _CriterionSpec(
+        frozenset({"relationship_status"}),
+        "Required seller relationship status, checked against the seller's "
+        "relationship_status.",
+    ),
+    "appetite_signal": _CriterionSpec(
+        frozenset({"appetite_signal"}),
+        "Required seller appetite signal, checked against the seller's appetite_signal.",
+    ),
+}
+
+_ALL_MAPPED_KEYS: frozenset[str] = frozenset().union(
+    *(spec.synonyms for spec in CRITERION_REGISTRY.values())
 )
+
+
+def describe_criteria() -> str:
+    """Renders the registry as a prompt-ready list of recognized criterion
+    names — the extraction prompt's only source for "what criterion names
+    exist", so it never has to be kept in sync by hand.
+    """
+    return "\n".join(f"- {name}: {spec.description}" for name, spec in CRITERION_REGISTRY.items())
+
+
+# Local aliases onto the registry's synonym sets, purely for readability in
+# `_evaluate_criterion` below — not a second copy of the data.
+_REVENUE_KEYS = CRITERION_REGISTRY["revenue"].synonyms
+_EBITDA_KEYS = CRITERION_REGISTRY["ebitda"].synonyms
+_GEOGRAPHY_KEYS = CRITERION_REGISTRY["geography"].synonyms
+_SECTOR_KEYS = CRITERION_REGISTRY["sector"].synonyms
+_SECTOR_EXCLUSION_KEYS = CRITERION_REGISTRY["sector_exclusion"].synonyms
+_CLIENT_TYPE_KEYS = CRITERION_REGISTRY["client_type"].synonyms
+_OUTREACH_TIER_KEYS = CRITERION_REGISTRY["outreach_tier"].synonyms
+_RELATIONSHIP_STATUS_KEYS = CRITERION_REGISTRY["relationship_status"].synonyms
+_APPETITE_SIGNAL_KEYS = CRITERION_REGISTRY["appetite_signal"].synonyms
 
 
 def _normalize(name: str) -> str:
@@ -104,6 +166,13 @@ def _evaluate_criterion(
         target = value.strip().lower()
         passes = any(target == s.strip().lower() for s in candidate.sector_focus)
         return ("Pass" if passes else "Fail"), "crm_field", (100.0 if passes else 0.0)
+
+    if key in _SECTOR_EXCLUSION_KEYS:
+        if not candidate.sector_focus:
+            return "Unknown", "unavailable", 50.0
+        target = value.strip().lower()
+        excluded = any(target == s.strip().lower() for s in candidate.sector_focus)
+        return ("Fail" if excluded else "Pass"), "crm_field", (0.0 if excluded else 100.0)
 
     if key in _CLIENT_TYPE_KEYS:
         if not candidate.client_type:
@@ -228,6 +297,23 @@ class ScoringEngine:
         # regardless of human_confirmed — §13: unconfirmed ones must still
         # influence scoring, they just can't eliminate at Stage 1.
         for requirement in profile.hard_requirements:
+            if _normalize(requirement.criterion) not in _ALL_MAPPED_KEYS:
+                # An unrecognized criterion name has no seller-side field to
+                # check — recorded for audit (dims/View Full Analysis) but
+                # excluded from weight/weighted_sum/weighted_confidence_sum
+                # entirely, rather than silently contributing a fabricated
+                # neutral 50 that dilutes the real score.
+                criteria.append(
+                    CriterionScore(
+                        criterion=requirement.criterion,
+                        criterion_type="hard",
+                        weight=None,
+                        result="Unrecognized",
+                        data_backing="unavailable",
+                    )
+                )
+                continue
+
             weight = 1.0
             result, data_backing, sub_score = _evaluate_criterion(
                 requirement.criterion, requirement.value, candidate
@@ -246,6 +332,18 @@ class ScoringEngine:
             total_weight += weight
 
         for preference in profile.soft_preferences:
+            if _normalize(preference.criterion) not in _ALL_MAPPED_KEYS:
+                criteria.append(
+                    CriterionScore(
+                        criterion=preference.criterion,
+                        criterion_type="soft",
+                        weight=None,
+                        result="Unrecognized",
+                        data_backing="unavailable",
+                    )
+                )
+                continue
+
             result, data_backing, sub_score = _evaluate_criterion(
                 preference.criterion, preference.value, candidate
             )

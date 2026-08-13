@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from app.modules.buyers.domain.value_objects import BuyerContext
 from app.modules.llm.domain.bedrock_client import BedrockClient, InferenceConfig
+from app.modules.matching.domain.scoring import describe_criteria
 from app.modules.requirements.domain.value_objects import (
     HardRequirement,
     RequirementProfile,
@@ -95,6 +96,15 @@ class BuyerRequirementExtractionService:
             "is absent, omit it or mark it `unavailable`. Return only the JSON "
             "object itself — no markdown code fences, no explanation before or "
             "after it.\n\n"
+            "`criterion` on every hard_requirement and soft_preference must be "
+            "exactly one of these names — they are the only ones actually "
+            "checked against real seller data, anything else is silently "
+            "unscored:\n"
+            f"{describe_criteria()}\n"
+            "If something in the free text below doesn't fit any of these "
+            "names, do not invent a new criterion for it — fold it into "
+            "`strategic_thesis` or `ideal_target_description` instead, both of "
+            "which the reasoning step still reads.\n\n"
             f"Organization: {buyer.org_name}\n"
             f"Known structured buyer fields: {known_fields}\n"
             f"Investment strategy (free text): {buyer.investment_strategy or 'Unknown'}\n"

@@ -187,9 +187,11 @@ def test_data_confidence_formula() -> None:
         confidence="high",
         human_confirmed=True,
     )
+    # A recognized criterion whose seller-side field just isn't populated —
+    # distinct from an unrecognized criterion name (covered separately below).
     soft = SoftPreference(
-        criterion="unmapped_soft_thing",
-        value="x",
+        criterion="outreach_tier",
+        value="tier-1",
         weight=1.0,
         source="llm_inferred",
         confidence="low",
@@ -210,11 +212,56 @@ def test_data_confidence_formula() -> None:
     result = engine.score("buyer-1", "s1", profile, candidate)
 
     # hard: crm_field multiplier 1.0, weight 1.0 -> 1.0
-    # soft: unmapped -> unavailable, multiplier 0.0, weight 1.0 -> 0.0
+    # soft: outreach_tier unpopulated -> unavailable, multiplier 0.0, weight 1.0 -> 0.0
     # (1.0*1.0 + 0.0*1.0) / (1.0 + 1.0) * 100 = 50.0
     assert result.confidence.value == 50.0
     assert result.confidence.applicable_criteria == 1
     assert result.confidence.total_criteria == 2
+
+
+def test_unrecognized_criterion_excluded_from_scoring() -> None:
+    """A criterion name the scoring engine doesn't recognize (never told to
+    the extraction prompt, or invented anyway) must not silently dilute the
+    score/confidence with a fabricated neutral value — it's recorded for
+    audit but contributes no weight at all."""
+    hard = HardRequirement(
+        criterion="minimum_revenue",
+        value="50M",
+        source="crm_field",
+        confidence="high",
+        human_confirmed=True,
+    )
+    soft = SoftPreference(
+        criterion="founder_led",
+        value="True",
+        weight=1.0,
+        source="llm_extracted",
+        confidence="medium",
+    )
+    profile = RequirementProfile(
+        hard_requirements=[hard],
+        soft_preferences=[soft],
+        strategic_thesis=None,
+        ideal_target_description=None,
+        scoring_rubric={},
+        data_confidence=1.0,
+        generated_by_model="test-model",
+        version=1,
+    )
+    candidate = _seller("s1", est_revenue=80_000_000)
+    engine = ScoringEngine(CONFIDENCE_MULTIPLIERS)
+
+    result = engine.score("buyer-1", "s1", profile, candidate)
+
+    unrecognized = next(c for c in result.criteria if c.criterion == "founder_led")
+    assert unrecognized.weight is None
+    assert unrecognized.result == "Unrecognized"
+    assert unrecognized.data_backing == "unavailable"
+    # Only the recognized hard requirement counts toward the score/confidence.
+    assert result.overall_score == 100.0
+    assert result.confidence.value == 100.0
+    assert result.confidence.total_criteria == 2
+    assert result.confidence.applicable_criteria == 1
 
 
 def test_select_top_n_ranks_by_score_only() -> None:
