@@ -67,3 +67,38 @@ output "postgres_master_user_secret_arn" {
   value       = module.postgres.master_user_secret_arn
   sensitive   = true
 }
+
+output "matching_engine_instance_id" {
+  description = "Development matching-engine EC2 instance ID."
+  value       = module.matching_engine.instance_id
+}
+
+output "matching_engine_public_ip" {
+  description = "Elastic IP for the development matching-engine instance."
+  value       = module.matching_engine.public_ip
+}
+
+output "matching_engine_url" {
+  description = "HTTPS URL for the matching-engine app. Slack Request URLs are this plus /slack/events."
+  value       = module.matching_engine.app_url
+}
+
+output "matching_engine_ssm_command" {
+  description = "Start a shell on the matching-engine instance without opening SSH."
+  value       = "aws ssm start-session --target ${module.matching_engine.ssm_instance_id} --region ${var.aws_region}"
+}
+
+output "matching_engine_redeploy_command" {
+  description = "Trigger a redeploy (git pull + rebuild + restart) without replacing the instance."
+  value       = module.matching_engine.redeploy_command
+}
+
+output "matching_engine_secret_name" {
+  description = "Secrets Manager secret name to populate with the matching-engine's runtime secrets."
+  value       = aws_secretsmanager_secret.matching_engine.name
+}
+
+output "matching_engine_secret_arn" {
+  description = "Secrets Manager secret ARN for the matching-engine app."
+  value       = aws_secretsmanager_secret.matching_engine.arn
+}

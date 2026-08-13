@@ -147,3 +147,27 @@ variable "postgres_allocated_storage" {
   type        = number
   default     = 20
 }
+
+variable "matching_engine_instance_type" {
+  description = "EC2 instance type for the matching-engine app. t2.micro is AWS Free Tier eligible."
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "matching_engine_public_url" {
+  description = "Optional public HTTPS URL for the matching-engine app (used as the Slack Request URL host). Empty derives an sslip.io hostname from its Elastic IP."
+  type        = string
+  default     = ""
+}
+
+variable "matching_engine_git_repo_url" {
+  description = "HTTPS clone URL of the repo containing the matching-engine app."
+  type        = string
+  default     = "https://github.com/wusool-capital/wusool-infra.git"
+}
+
+variable "matching_engine_git_ref" {
+  description = "Branch or tag of matching_engine_git_repo_url to deploy."
+  type        = string
+  default     = "main"
+}

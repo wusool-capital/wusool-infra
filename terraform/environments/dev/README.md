@@ -109,3 +109,56 @@ not arrive, check the SMTP secret, rerun the bootstrap association, and inspect
 
 Never commit `.terraform/`, `tfplan`, `terraform.tfvars`, state files, private
 keys, or AWS credentials.
+
+## Matching-engine (Buyer-Seller Matching bot)
+
+A second, separate EC2 instance (`terraform/modules/matching-engine-ec2`)
+runs the Slack-connected matching-engine app from
+`workflows/matching-engine`, on a `t2.micro` (AWS Free Tier eligible). It
+reuses this environment's VPC/public subnet and the existing shared RDS
+Postgres instance (`module.postgres`) — it does not run its own database.
+
+Deploy flow, on `terraform apply`:
+
+1. The instance boots, installs Docker/Docker Compose/CloudWatch Agent.
+2. It reads `/wusool/dev/matching-engine` from Secrets Manager and clones
+   `matching_engine_git_repo_url` at `matching_engine_git_ref` using a
+   short-lived, embedded GitHub token (never persisted to `.git/config`).
+3. It writes the app's `.env.production` from the secret, builds the image
+   from `workflows/matching-engine/Dockerfile`, and starts it behind Caddy
+   (HTTPS, same sslip.io/Elastic-IP pattern as n8n unless
+   `matching_engine_public_url` is set to a real domain).
+
+Populate the secret before (or right after) the first apply:
+
+```json
+{
+  "slack_bot_token": "xoxb-...",
+  "slack_signing_secret": "...",
+  "database_url": "postgresql://<app_db_user>:<password>@<rds-endpoint>:5432/wusool_crm",
+  "github_token": "github_pat_...-with-read-only-access-to-the-repo",
+  "env": {
+    "AWS_BEDROCK_MODEL_ID_EXTRACTION": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "AWS_BEDROCK_MODEL_ID_REASONING": "eu.anthropic.claude-sonnet-4-6"
+  }
+}
+```
+
+`database_url` must point at a Postgres role scoped to `wusool_crm` (not the
+RDS master user) — create that role once via the existing
+`scripts/db/sql/*.sql` tooling, same as any other CRM consumer.
+
+After apply:
+
+- `terraform output matching_engine_url` — set this as the Slack app's
+  Events API / interactivity Request URL, both ending in `/slack/events`.
+- `terraform output matching_engine_ssm_command` — shell access without SSH.
+- `terraform output matching_engine_redeploy_command` — re-run the bootstrap
+  (git pull, rebuild, restart) on the existing instance without replacing it,
+  e.g. after pushing a new commit to `matching_engine_git_ref`.
+- `terraform output matching_engine_secret_name` — the Secrets Manager
+  secret name for the JSON above.
+
+The instance's IAM role is also granted Bedrock `InvokeModel` access via a
+second `bedrock-access` module instance, using the same `bedrock_models`
+variable as n8n.

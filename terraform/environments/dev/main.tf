@@ -39,19 +39,54 @@ module "bedrock" {
   models        = var.bedrock_models
 }
 
+module "matching_engine" {
+  source = "../../modules/matching-engine-ec2"
+
+  project                     = var.project
+  environment                 = var.environment
+  vpc_id                      = module.network.vpc_id
+  subnet_id                   = module.network.public_subnet_id
+  key_name                    = var.key_name
+  instance_type               = var.matching_engine_instance_type
+  ami_architecture            = var.ami_architecture
+  ssh_cidr_blocks             = var.ssh_cidr_blocks
+  web_cidr_blocks             = var.web_cidr_blocks
+  app_public_url              = var.matching_engine_public_url
+  git_repo_url                = var.matching_engine_git_repo_url
+  git_ref                     = var.matching_engine_git_ref
+  root_volume_size            = var.root_volume_size
+  aws_region                  = var.aws_region
+  alarm_topic_arn             = aws_sns_topic.alerts.arn
+  secrets_manager_secret_arns = [aws_secretsmanager_secret.matching_engine.arn]
+  app_secret_id               = aws_secretsmanager_secret.matching_engine.id
+}
+
+module "matching_engine_bedrock" {
+  source = "../../modules/bedrock-access"
+
+  project       = var.project
+  environment   = "${var.environment}-matching-engine"
+  iam_role_name = module.matching_engine.iam_role_name
+  models        = var.bedrock_models
+}
+
 module "postgres" {
   source = "../../modules/postgres-rds"
 
-  project                    = var.project
-  environment                = var.environment
-  vpc_id                     = module.network.vpc_id
-  subnet_ids                 = module.network.database_private_subnet_ids
-  allowed_security_group_ids = [module.n8n.security_group_id, "sg-0684b8cf83abfd065"]
-  db_name                    = var.postgres_db_name
-  master_username            = var.postgres_master_username
-  engine_version             = var.postgres_engine_version
-  instance_class             = var.postgres_instance_class
-  allocated_storage          = var.postgres_allocated_storage
+  project     = var.project
+  environment = var.environment
+  vpc_id      = module.network.vpc_id
+  subnet_ids  = module.network.database_private_subnet_ids
+  allowed_security_group_ids = [
+    module.n8n.security_group_id,
+    module.matching_engine.security_group_id,
+    "sg-0684b8cf83abfd065",
+  ]
+  db_name           = var.postgres_db_name
+  master_username   = var.postgres_master_username
+  engine_version    = var.postgres_engine_version
+  instance_class    = var.postgres_instance_class
+  allocated_storage = var.postgres_allocated_storage
 }
 
 data "aws_caller_identity" "current" {}
@@ -70,6 +105,16 @@ resource "aws_sns_topic_subscription" "email" {
 resource "aws_secretsmanager_secret" "n8n" {
   name                    = "/${var.project}/${var.environment}/n8n"
   description             = "Environment-specific n8n secrets for ${var.project} ${var.environment}"
+  recovery_window_in_days = 30
+}
+
+# Populate the secret value out of band (console, or `aws secretsmanager
+# put-secret-value`) with JSON: {"slack_bot_token": "...",
+# "slack_signing_secret": "...", "database_url": "postgresql://...",
+# "github_token": "..."}. Never put real secrets in a .tf file or state diff.
+resource "aws_secretsmanager_secret" "matching_engine" {
+  name                    = "/${var.project}/${var.environment}/matching-engine"
+  description             = "Environment-specific matching-engine secrets for ${var.project} ${var.environment}"
   recovery_window_in_days = 30
 }
 
