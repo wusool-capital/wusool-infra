@@ -17,10 +17,17 @@ class ScoringSettings(BaseSettings):
 
 
 class ConfidenceSettings(BaseSettings):
-    """Multipliers applied when calculating data confidence for a match."""
+    """Multipliers applied when calculating data confidence for a match (§12).
+
+    `crm_field` (1.0) and `unavailable` (0.0) are the fixed endpoints of the
+    scale, not configurable. `llm_extracted`/`llm_inferred` sit between them
+    and are configurable since they're a product judgment call, not a fact.
+    """
 
     model_config = SettingsConfigDict(env_prefix="CONFIDENCE_", extra="ignore")
 
+    llm_extracted: float = 0.6
+    llm_inferred: float = 0.4
     missing_field_penalty: float = 0.1
     stale_data_penalty: float = 0.15
 
@@ -48,6 +55,11 @@ class Settings(BaseSettings):
     aws_secret_access_key: str | None = None
     aws_bedrock_model_id_extraction: str = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
     aws_bedrock_model_id_reasoning: str = "eu.anthropic.claude-sonnet-4-6"
+
+    # Bedrock inference parameters, not hardcoded into the client.
+    llm_temperature: float = 0.2
+    llm_max_tokens: int = 4096
+    llm_top_p: float = 0.9
 
     stage3_top_n: int = 3
 

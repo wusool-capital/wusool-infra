@@ -1,11 +1,30 @@
-"""`match_scores` — the only match-related table that exists; see `004_machine_layer.sql`.
+"""`match_scores` and `match_results` — the two match-related tables.
 
-There is no `match_runs`/`matches`/`match_evidence` table (PRD.md §3.3-3.4
-describes them, never implemented — see the schema-gap note in the Phase 2
-plan). Run-level audit fields (candidates_considered, filters_skipped,
-execution_duration_ms, vector_queries, etc.) have no column anywhere in the
-real schema and are not persisted here — nothing is stuffed into `dims` to
-compensate, since that would conflate scoring output with run metadata.
+`match_scores` (see `004_machine_layer.sql`) is the pre-existing deterministic
+scoring breakdown: one row per scored buyer/seller pair (score/dims/reasoning/
+citations). Phase 3 writes one row here per STAGE3_TOP_N shortlisted
+candidate only — not for every stage-1 survivor (see
+`DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md`).
+
+`match_results` (Phase 3, `scripts/db/sql/006_match_results.sql`, applied by
+the DB team — see the same handover doc) is the one new, additive table
+covering everything `match_runs`/`matches`/`match_evidence`/`approvals`
+(described but never implemented per PRD.md §3.3-3.4) would have: run audit,
+shortlisted results, status, and approval. Two row kinds distinguished by
+`rank`:
+
+- `rank IS NULL` — the run/header row. Exactly one per `run_id` (enforced by
+  a partial unique index in the DDL). Only run-level columns are meaningful:
+  `requested_by`, `model_version`, `requirement_profile_version`,
+  `requirement_profile`, `candidates_considered`, `candidates_filtered`,
+  `filters_skipped`, `final_candidate_ids`, `vector_queries` (always NULL in
+  Branch 1 — no vector retrieval), `execution_duration_ms`, `errors`,
+  `started_at`, `completed_at`.
+- `rank IS NOT NULL` — a shortlisted candidate row (1..STAGE3_TOP_N per run).
+  Only candidate-level columns are meaningful: `seller_attio_id`,
+  `seller_role_id`, `match_score_id` (FK to the linked `match_scores` row),
+  `match_score`, `data_confidence`, the narrative fields, `status`,
+  `approved_by`, `decision`, `decided_at`, `decision_notes`.
 """
 
 import uuid
@@ -13,13 +32,15 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Numeric, Text, text
+from sqlalchemy import ForeignKey, Integer, Numeric, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.database.base import Base
 
 if TYPE_CHECKING:
+    from app.modules.buyers.infrastructure.models import BuyerRole
+    from app.modules.sellers.infrastructure.models import SellerRole
     from app.shared.database.models.organization import Organization
 
 
@@ -48,3 +69,73 @@ class MatchScore(Base):
 
     buyer_organization: Mapped["Organization"] = relationship(foreign_keys=[buyer_attio_id])
     seller_organization: Mapped["Organization"] = relationship(foreign_keys=[seller_attio_id])
+
+
+class MatchResult(Base):
+    __tablename__ = "match_results"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID, primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(UUID, nullable=False)
+
+    buyer_attio_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False
+    )
+    buyer_role_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("buyer_roles.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # NULL => run/header row. NOT NULL => shortlisted candidate row (1..N).
+    rank: Mapped[int | None] = mapped_column(Integer)
+
+    # Candidate-row-only columns (NULL on the run row):
+    seller_attio_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("organizations.attio_id", ondelete="CASCADE")
+    )
+    seller_role_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID, ForeignKey("seller_roles.id", ondelete="CASCADE")
+    )
+    match_score_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("match_scores.id"))
+    match_score: Mapped[Decimal | None] = mapped_column(Numeric)
+    data_confidence: Mapped[Decimal | None] = mapped_column(Numeric)
+    why_chosen_over_alternatives: Mapped[str | None] = mapped_column(Text)
+    recommended_pitch: Mapped[str | None] = mapped_column(Text)
+    risks_and_gaps: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="GENERATED")
+    approved_by: Mapped[str | None] = mapped_column(Text)
+    decision: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    decision_notes: Mapped[str | None] = mapped_column(Text)
+
+    # Run-row-only columns (NULL on candidate rows):
+    requested_by: Mapped[str | None] = mapped_column(Text)
+    model_version: Mapped[str | None] = mapped_column(Text)
+    requirement_profile_version: Mapped[int | None] = mapped_column(Integer)
+    requirement_profile: Mapped[dict | None] = mapped_column(JSONB)
+    candidates_considered: Mapped[int | None] = mapped_column(Integer)
+    candidates_filtered: Mapped[int | None] = mapped_column(Integer)
+    filters_skipped: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    vector_queries: Mapped[dict | None] = mapped_column(JSONB)
+    final_candidate_ids: Mapped[list | None] = mapped_column(JSONB)
+    execution_duration_ms: Mapped[int | None] = mapped_column(Integer)
+    errors: Mapped[dict | None] = mapped_column(JSONB)
+    started_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+
+    # Unstructured future-proofing column; not read or written by this phase.
+    metadata_: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, server_default="{}")
+
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+    buyer_organization: Mapped["Organization"] = relationship(foreign_keys=[buyer_attio_id])
+    buyer_role: Mapped["BuyerRole"] = relationship(foreign_keys=[buyer_role_id])
+    seller_organization: Mapped["Organization | None"] = relationship(
+        foreign_keys=[seller_attio_id]
+    )
+    seller_role: Mapped["SellerRole | None"] = relationship(foreign_keys=[seller_role_id])
+    match_score_row: Mapped["MatchScore | None"] = relationship(foreign_keys=[match_score_id])
