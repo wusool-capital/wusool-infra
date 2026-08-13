@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.modules.buyers.application.mappers import to_buyer_context
 from app.modules.buyers.infrastructure.models import BuyerRole
+from app.modules.buyers.infrastructure.repositories import BuyerRepository
 from app.modules.llm.domain.bedrock_client import InferenceConfig
 from app.modules.matching.application.reasoning_service import MatchReasoningService
 from app.modules.matching.application.use_cases import RunBuyerSellerMatchUseCase
@@ -27,6 +28,7 @@ from app.modules.requirements.application.extraction_service import (
 )
 from app.modules.sellers.application.mappers import to_seller_candidate
 from app.modules.sellers.infrastructure.models import SellerRole
+from app.modules.sellers.infrastructure.repositories import SellerRepository
 from tests.fakes.bedrock import FakeBedrockClient
 
 EXTRACTION_RESPONSE = {
@@ -64,11 +66,19 @@ async def test_deterministic_match_run_end_to_end(
     any_buyer_role: BuyerRole,
     any_seller_role: SellerRole,
 ) -> None:
+    # `any_buyer_role`/`any_seller_role` are bound to the `db_session` fixture's
+    # own session, not this use case's `db_sessionmaker` — re-fetch fresh
+    # copies in a session from `db_sessionmaker` instead of refreshing
+    # instances across sessions (each session has its own identity map).
     async with db_sessionmaker() as session:
-        await session.refresh(any_buyer_role, attribute_names=["organization"])
-        await session.refresh(any_seller_role, attribute_names=["organization"])
-        buyer = to_buyer_context(any_buyer_role)
-        seller_candidate = to_seller_candidate(any_seller_role)
+        buyer_repo = BuyerRepository(session)
+        seller_repo = SellerRepository(session)
+        buyer_role = await buyer_repo.get_with_organization(str(any_buyer_role.id))
+        seller_role = await seller_repo.get_with_organization(str(any_seller_role.id))
+        assert buyer_role is not None
+        assert seller_role is not None
+        buyer = to_buyer_context(buyer_role)
+        seller_candidate = to_seller_candidate(seller_role)
 
     reasoning_response = {
         "candidates": [

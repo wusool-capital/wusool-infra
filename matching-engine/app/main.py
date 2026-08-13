@@ -1,14 +1,16 @@
-"""Application entrypoint.
-
-Matching, Slack workflow, and LLM business-logic endpoints are not
-implemented in this phase — this wires the app skeleton: health/readiness,
-exception handling, and logging.
+"""Application entrypoint: health/readiness, exception handling, logging,
+and the Slack ASGI mount (§29 — Slack is the only product interface; no
+public REST endpoints for matching/buyer/seller/approval data).
 """
 
-from fastapi import FastAPI
+from functools import lru_cache
+
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
+from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 
 from app.config import get_settings
+from app.modules.slack.bolt_app import get_bolt_app
 from app.shared.database import check_database_connectivity, import_all_models
 from app.shared.errors import register_exception_handlers
 from app.shared.logging import configure_logging
@@ -27,11 +29,34 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/readiness")
-async def readiness() -> JSONResponse:
+async def _readiness() -> JSONResponse:
     """Readiness check. Confirms database connectivity via `SELECT 1`."""
     try:
         await check_database_connectivity()
     except Exception:
         return JSONResponse(status_code=503, content={"status": "unavailable"})
     return JSONResponse(status_code=200, content={"status": "ready"})
+
+
+@app.get("/readiness")
+async def readiness() -> JSONResponse:
+    return await _readiness()
+
+
+@app.get("/ready")
+async def ready() -> JSONResponse:
+    """Alias for `/readiness` (§29's naming)."""
+    return await _readiness()
+
+
+@lru_cache
+def _slack_request_handler() -> AsyncSlackRequestHandler:
+    return AsyncSlackRequestHandler(get_bolt_app())
+
+
+@app.post("/slack/events")
+async def slack_events(req: Request) -> Response:
+    """The Slack callback endpoint. Signature verification happens inside
+    Bolt via `SLACK_SIGNING_SECRET` — never trust a payload without it.
+    """
+    return await _slack_request_handler().handle(req)

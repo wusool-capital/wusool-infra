@@ -46,6 +46,13 @@ class MatchResultRead(BaseModel):
     approved_by: str | None = None
     decision: str | None = None
     decided_at: datetime | None = None
+    # Run-row-only fields (None on candidate rows) — see the row-kind
+    # invariant in `infrastructure/models.py`.
+    requirement_profile: dict | None = None
+    candidates_considered: int | None = None
+    candidates_filtered: int | None = None
+    filters_skipped: list | None = None
+    errors: dict | None = None
 
 
 class ReasoningCandidateResult(BaseModel):

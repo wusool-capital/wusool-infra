@@ -251,7 +251,12 @@ class RunBuyerSellerMatchUseCase:
                             else None,
                             "recommended_pitch": narrative.recommended_pitch if narrative else None,
                             "risks_and_gaps": narrative.risks_and_gaps if narrative else None,
-                            "status": "GENERATED",
+                            # §19/§23: Branch 1 presents Approve/Reject immediately
+                            # alongside the result post, so a candidate enters the
+                            # review state as part of finishing the run, not as a
+                            # separate, later transition (which would mean another
+                            # DB round trip for no product-visible difference).
+                            "status": "PENDING_REVIEW",
                         }
                     )
                 created_candidates = await match_repo.create_candidates(candidate_rows)

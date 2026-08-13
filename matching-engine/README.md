@@ -3,9 +3,8 @@
 Backend for the Buyer-Seller Matching & Intelligence Platform. Slack is the
 only product interface; there is no frontend in this repository.
 
-This is Branch 1. Phase 2 maps the application onto the existing database —
-see [Phase 2 scope](#phase-2-scope) below. It does not yet implement the
-`/find-match` workflow, matching algorithm, or LLM calls.
+This is Branch 1. Phase 3 connects the backend to Slack and implements the
+full `/find-match` product loop — see [Phase 3 scope](#phase-3-scope) below.
 
 ## Stack
 
@@ -46,6 +45,45 @@ uv sync
 cp .env.example .env  # then fill in real values
 ```
 
+### Required environment variables
+
+See `.env.example` for the full list with defaults. At minimum:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | `wusool_crm` connection string (either `postgresql://` or `postgresql+asyncpg://` — normalized automatically) |
+| `SLACK_BOT_TOKEN` | Bot token (`xoxb-...`) from your Slack app |
+| `SLACK_SIGNING_SECRET` | Used to verify every incoming Slack request (§2/§37 — never disable this) |
+| `AWS_REGION` | Defaults to `eu-central-1`, matching the already-provisioned Bedrock access |
+| `AWS_BEDROCK_MODEL_ID_EXTRACTION` / `AWS_BEDROCK_MODEL_ID_REASONING` | Bedrock model/inference-profile IDs; defaults match `terraform/modules/bedrock-access` |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Optional — omit to use the standard AWS credential provider chain (IAM role, ECS/EC2 task role, local profile). Never require long-lived credentials in production |
+| `STAGE3_TOP_N` | How many shortlisted candidates go to Bedrock reasoning (default 3) |
+
+### Configuring the Slack app
+
+1. Create a Slack app (or use an existing one) at api.slack.com/apps.
+2. **Slash Commands** → create `/find-match`, request URL
+   `https://<your-host>/slack/events`.
+3. **Interactivity & Shortcuts** → enable, same request URL
+   `https://<your-host>/slack/events` (handles button clicks and the buyer
+   disambiguation modal's submission).
+4. **OAuth & Permissions** → bot token scopes: `commands`, `chat:write`.
+   Install the app to your workspace; copy the bot token into
+   `SLACK_BOT_TOKEN`.
+5. **Basic Information** → copy the Signing Secret into
+   `SLACK_SIGNING_SECRET`.
+
+### Configuring AWS/Bedrock permissions
+
+The backend calls `bedrock-runtime:Converse` against the two configured
+model IDs. `terraform/modules/bedrock-access` already provisions an
+`InvokeBedrockModels` IAM policy (`bedrock:InvokeModel`,
+`bedrock:InvokeModelWithResponseStream`) scoped to the model/inference-profile
+ARNs — attach it to whatever role/instance runs this backend. Deploy with
+that role attached (IAM role / ECS or EC2 task role) rather than static
+`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` — those two are for local dev
+only, and optional even then if you have a local AWS profile configured.
+
 ## Running
 
 ```bash
@@ -53,8 +91,11 @@ uv run uvicorn app.main:app --reload
 ```
 
 - `GET /health` — liveness, no database dependency.
-- `GET /readiness` — confirms database connectivity (`SELECT 1`); returns
-  503 if unreachable (e.g. no SSM tunnel open in dev).
+- `GET /readiness` (alias: `GET /ready`) — confirms database connectivity
+  (`SELECT 1`); returns 503 if unreachable (e.g. no SSM tunnel open in dev).
+- `POST /slack/events` — the Slack callback endpoint (slash commands,
+  interactive actions, view submissions). Signature-verified by Bolt; never
+  exposed as a public REST API for matching/buyer/seller/approval data (§29).
 
 ## Testing
 
@@ -64,8 +105,45 @@ uv run pytest
 
 The suite runs with dummy configuration and no live database or Slack/AWS
 credentials required — `tests/integration/`'s DB-backed tests skip cleanly
-when the database is unreachable (e.g. no SSM tunnel open) rather than
-failing, and run for real against `wusool_crm` when one is.
+when the database is unreachable rather than failing, and run for real
+against `wusool_crm` when a tunnel is open.
+
+### Running the DB-backed tests locally with Docker
+
+No SSM tunnel needed for local iteration — spin up a throwaway Postgres,
+apply the same schema files the real database uses, and point
+`DATABASE_URL` at it:
+
+```bash
+docker run -d --name matching-engine-test-db \
+  -e POSTGRES_USER=matching -e POSTGRES_PASSWORD=matching -e POSTGRES_DB=wusool_crm \
+  -p 55432:5432 postgres:16-alpine
+
+for f in ../scripts/db/sql/*.sql; do
+  docker exec -i matching-engine-test-db psql -U matching -d wusool_crm -v ON_ERROR_STOP=1 < "$f"
+done
+
+export DATABASE_URL="postgresql://matching:matching@localhost:55432/wusool_crm"
+uv run pytest tests/integration
+```
+
+The container starts empty (no seed data, matching the real database's own
+"never seed" rule) — most DB-backed tests then skip with "no ... found in
+the database" rather than failing. Insert a minimal row or two directly via
+`psql` if you want them to actually exercise their logic instead of
+skipping; never do this against the real `wusool_crm`. `pgvector` isn't
+available in the plain `postgres:16-alpine` image — `001_extensions.sql`
+degrades gracefully (harmless, out of scope for Branch 1 either way).
+
+### Invoking `/find-match`
+
+In Slack: `/find-match <buyer name>` (e.g. `/find-match Acme Capital`).
+- No match → an ephemeral "No buyer found" message.
+- One match → the matching workflow runs in the background and posts a
+  top-3 result message with score/confidence/rationale and
+  Approve/Reject/View Full Analysis buttons.
+- Multiple matches → a selection modal; submitting it runs the same
+  workflow for the chosen buyer.
 
 ## Structure
 
@@ -75,6 +153,40 @@ around application services — business logic never lives in a route or
 Slack handler directly. See the repository-root Wusool infra
 [README](../README.md) for how this fits into the broader CRM/data
 platform.
+
+## Phase 3 scope
+
+The full Branch 1 product loop end-to-end:
+`/find-match` → buyer resolution (0/1/many) → Slack disambiguation modal if
+needed → Bedrock requirement extraction (strict Pydantic validation, one
+bounded repair retry, fail-closed) → Stage 1 structured filtering
+(missing-data pass-through is mandatory — NULL never eliminates a candidate)
+→ Stage 2 deterministic scoring + data confidence (a separate signal from
+score, never combined) → top-N shortlist → Bedrock reasoning (mocked in
+tests) → persistence (one atomic transaction for the shortlist + its linked
+`match_scores` rows + the run's completion) → Slack result message → View
+Full Analysis / Approve / Reject, enforcing an explicit state machine
+(`GENERATED → PENDING_REVIEW → APPROVED/REJECTED`, never `APPROVED →
+GENERATED`) independent of the database `CHECK` constraint.
+
+One new, additive table was required and added by the DB team:
+`match_results` (run audit + shortlisted candidates + status + approval —
+see `DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md` for the full design
+rationale). Evidence and the deterministic scoring breakdown still live on
+the pre-existing `match_scores` table, exactly as Phase 2 scoped it.
+
+Architectural seams built for Branch 2 without implementing it: a
+`CandidateRetriever` Protocol (Stage 1's `StructuredCandidateRetriever` is
+the only implementation; a future `HybridCandidateRetriever` with semantic
+retrieval slots in without changing the orchestrator, scoring, or Slack
+layer), and a `TaskRunner` Protocol (`InProcessTaskRunner` today; a durable
+queue/worker can replace it without touching any use case).
+
+Not implemented (out of scope for Branch 1 by design): pgvector/embeddings/
+semantic retrieval/RAG, document ingestion, Drive polling, website scraping,
+Attio synchronization/write-back, seller enrichment, PDF generation, emails
+or any outreach to buyers/sellers, background worker infrastructure beyond
+the in-process task runner.
 
 ## Phase 2 scope
 
