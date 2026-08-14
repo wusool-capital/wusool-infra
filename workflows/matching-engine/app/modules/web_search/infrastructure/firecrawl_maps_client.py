@@ -9,7 +9,8 @@ run fails; the caller treats an empty list as "no leads found."
 """
 
 import logging
-from urllib.parse import quote
+import re
+from urllib.parse import quote, unquote
 
 from firecrawl import AsyncFirecrawl
 from pydantic import BaseModel
@@ -17,6 +18,27 @@ from pydantic import BaseModel
 from app.modules.web_search.domain.firecrawl_client import WebSourcedLead
 
 logger = logging.getLogger(__name__)
+
+_PLACE_LINK_RE = re.compile(r"/maps/place/([^/]+)/")
+
+
+def _normalize_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", name.lower())
+
+
+def _match_place_link(name: str, links: list[str]) -> str | None:
+    """The search-results page's `json` extraction and its `links` list come
+    from the same scrape but aren't correlated by Firecrawl — matched here by
+    comparing each link's `/maps/place/<slug>/` segment against the
+    business name, so "View Source" opens the specific listing rather than
+    re-running the shared search query.
+    """
+    target = _normalize_name(name)
+    for link in links:
+        match = _PLACE_LINK_RE.search(link)
+        if match and _normalize_name(unquote(match.group(1)).replace("+", " ")) == target:
+            return link
+    return None
 
 
 class _Business(BaseModel):
@@ -50,7 +72,7 @@ class FirecrawlMapsClient:
         try:
             result = await self._client.scrape(
                 url,
-                formats=[{"type": "json", "schema": _MapsExtraction.model_json_schema()}],
+                formats=[{"type": "json", "schema": _MapsExtraction.model_json_schema()}, "links"],
                 timeout=60_000,
             )
         except Exception:
@@ -64,10 +86,11 @@ class FirecrawlMapsClient:
             logger.warning("firecrawl_maps_scrape_unparseable query=%s raw=%s", query, raw)
             return []
 
+        links = getattr(result, "links", None) or []
         return [
             WebSourcedLead(
                 name=b.name,
-                source_url=url,
+                source_url=_match_place_link(b.name, links) or url,
                 address=b.address,
                 category=b.category,
             )
