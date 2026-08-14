@@ -26,7 +26,7 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
 
     app = get_bolt_app()
     placeholder = await app.client.chat_postMessage(
-        channel=channel_id, text="🔍 Finding matches, please wait…"
+        channel=channel_id, text="✦ ݁˖ *_Finding matches, please wait…_*"
     )
 
     buyer = await resolve_buyer_by_id(buyer_role_id)
@@ -48,7 +48,7 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
         await app.client.chat_update(
             channel=channel_id,
             ts=placeholder["ts"],
-            text="🔍 No match found, searching Google Maps for potential sellers…",
+            text="✦ ݁˖ *_No match found, searching Google Maps for potential sellers…_*",
         )
 
         lead_search = build_web_lead_search_service()
