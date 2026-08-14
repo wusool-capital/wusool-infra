@@ -21,6 +21,8 @@ from app.modules.matching.infrastructure.structured_candidate_retriever import (
 from app.modules.requirements.application.extraction_service import (
     BuyerRequirementExtractionService,
 )
+from app.modules.web_search.application.lead_search_service import WebLeadSearchService
+from app.modules.web_search.infrastructure.firecrawl_maps_client import FirecrawlMapsClient
 from app.shared.database import get_sessionmaker
 
 
@@ -73,3 +75,17 @@ def build_match_analysis_use_case() -> GetMatchAnalysisUseCase:
 
 def build_match_run_view_use_case() -> GetMatchRunViewUseCase:
     return GetMatchRunViewUseCase(get_sessionmaker())
+
+
+@lru_cache
+def _firecrawl_client() -> FirecrawlMapsClient | None:
+    api_key = get_settings().firecrawl_api_key
+    return FirecrawlMapsClient(api_key) if api_key else None
+
+
+def build_web_lead_search_service() -> WebLeadSearchService | None:
+    """Returns `None` when no `FIRECRAWL_API_KEY` is configured — the caller
+    must treat that the same as "no leads found" and fall back to the plain
+    no-candidates message, not crash."""
+    client = _firecrawl_client()
+    return WebLeadSearchService(get_sessionmaker(), client) if client else None

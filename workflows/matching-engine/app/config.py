@@ -63,6 +63,13 @@ class Settings(BaseSettings):
 
     stage3_top_n: int = 3
 
+    # Firecrawl web-fallback: shown when no CRM candidate's score clears
+    # this threshold. Optional since local dev without a key just never
+    # triggers the fallback (falls back to the plain "no candidates"
+    # message) rather than requiring a key to boot.
+    firecrawl_api_key: str | None = None
+    web_fallback_min_score: float = 50.0
+
     scoring: ScoringSettings = Field(default_factory=ScoringSettings)
     confidence: ConfidenceSettings = Field(default_factory=ConfidenceSettings)
 

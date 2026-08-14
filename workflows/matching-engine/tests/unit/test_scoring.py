@@ -5,6 +5,7 @@ no database, no Bedrock, no Slack.
 from app.modules.matching.domain.scoring import (
     ScoringEngine,
     apply_structured_filters,
+    needs_web_fallback,
     select_top_n,
 )
 from app.modules.matching.domain.value_objects import CandidateScore, DataConfidence
@@ -294,3 +295,16 @@ def test_select_top_n_returns_fewer_when_not_enough_candidates() -> None:
     top = select_top_n(scores, 3)
 
     assert len(top) == 1
+
+
+def test_needs_web_fallback_on_empty_scores() -> None:
+    assert needs_web_fallback([], min_score=50.0) is True
+
+
+def test_needs_web_fallback_when_all_below_threshold() -> None:
+    """The Falcon Partners case: three CRM candidates present, none good."""
+    assert needs_web_fallback([50.0, 17.0, 17.0], min_score=51.0) is True
+
+
+def test_needs_web_fallback_false_when_one_clears_threshold() -> None:
+    assert needs_web_fallback([91.4, 17.0, 17.0], min_score=50.0) is False
