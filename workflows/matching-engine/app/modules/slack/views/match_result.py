@@ -9,6 +9,7 @@ original message doesn't keep looking actionable once it's been acted on.
 """
 
 from app.modules.matching.application.use_cases import MatchRunResult, MatchRunView
+from app.modules.slack.views.mrkdwn import sanitize_mrkdwn
 
 
 def build_match_result_blocks(result: MatchRunResult) -> list[dict]:
@@ -133,7 +134,7 @@ def _candidate_block(
     approved_by: str | None,
     decision: str | None,
 ) -> list[dict]:
-    rationale = why_it_matches or "No rationale available."
+    rationale = sanitize_mrkdwn(why_it_matches) if why_it_matches else "No rationale available."
     blocks: list[dict] = [
         {
             "type": "section",
