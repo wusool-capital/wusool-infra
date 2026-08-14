@@ -56,8 +56,7 @@ CRITERION_REGISTRY: dict[str, _CriterionSpec] = {
     ),
     "relationship_status": _CriterionSpec(
         frozenset({"relationship_status"}),
-        "Required seller relationship status, checked against the seller's "
-        "relationship_status.",
+        "Required seller relationship status, checked against the seller's relationship_status.",
     ),
     "appetite_signal": _CriterionSpec(
         frozenset({"appetite_signal"}),
@@ -91,7 +90,7 @@ _RELATIONSHIP_STATUS_KEYS = CRITERION_REGISTRY["relationship_status"].synonyms
 _APPETITE_SIGNAL_KEYS = CRITERION_REGISTRY["appetite_signal"].synonyms
 
 
-def _normalize(name: str) -> str:
+def normalize_criterion(name: str) -> str:
     return name.strip().lower().replace(" ", "_").replace("-", "_")
 
 
@@ -131,7 +130,7 @@ def _evaluate_criterion(
     if value is None:
         return "Unknown", "unavailable", 50.0
 
-    key = _normalize(criterion)
+    key = normalize_criterion(criterion)
 
     if key in _REVENUE_KEYS:
         if candidate.est_revenue is None or candidate.est_revenue.amount is None:
@@ -215,7 +214,7 @@ def apply_structured_filters(
     filters_skipped: list[dict] = []
 
     for requirement in profile.hard_requirements:
-        key = _normalize(requirement.criterion)
+        key = normalize_criterion(requirement.criterion)
 
         if key not in _ALL_MAPPED_KEYS:
             filters_skipped.append(
@@ -297,7 +296,7 @@ class ScoringEngine:
         # regardless of human_confirmed — §13: unconfirmed ones must still
         # influence scoring, they just can't eliminate at Stage 1.
         for requirement in profile.hard_requirements:
-            if _normalize(requirement.criterion) not in _ALL_MAPPED_KEYS:
+            if normalize_criterion(requirement.criterion) not in _ALL_MAPPED_KEYS:
                 # An unrecognized criterion name has no seller-side field to
                 # check — recorded for audit (dims/View Full Analysis) but
                 # excluded from weight/weighted_sum/weighted_confidence_sum
@@ -332,7 +331,7 @@ class ScoringEngine:
             total_weight += weight
 
         for preference in profile.soft_preferences:
-            if _normalize(preference.criterion) not in _ALL_MAPPED_KEYS:
+            if normalize_criterion(preference.criterion) not in _ALL_MAPPED_KEYS:
                 criteria.append(
                     CriterionScore(
                         criterion=preference.criterion,
@@ -390,3 +389,15 @@ def select_top_n(scores: list[CandidateScore], n: int) -> list[CandidateScore]:
     """§14: if fewer than `n` candidates are available, return however many
     exist rather than fabricating a third result."""
     return rank_candidates(scores)[:n]
+
+
+def needs_web_fallback(scores: list[float], min_score: float) -> bool:
+    """True when nothing in `scores` clears the qualifying threshold,
+    including the empty-list case — a CRM shortlist can be non-empty but
+    still every candidate a bad match (free-text-extracted hard
+    requirements can't eliminate anyone at Stage 1), so this checks score
+    quality rather than presence. Takes plain scores rather than a
+    `MatchRunResult` to avoid this module importing back from
+    `application/use_cases.py`.
+    """
+    return not scores or max(scores) < min_score

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from app.shared.types import Money
+from app.shared.types import MeetingNote, Money
 
 
 @dataclass(frozen=True)
@@ -25,3 +25,7 @@ class SellerCandidate:
     sector_focus: list[str] = field(default_factory=list)
     hq_country: str | None = None
     client_type: str | None = None
+    # Populated only for shortlisted candidates, only when
+    # settings.enable_seller_meeting_notes is on (§ use_cases.py) — narrative
+    # context for the reasoning prompt only, never scoring/filtering input.
+    meeting_notes: list[MeetingNote] = field(default_factory=list)

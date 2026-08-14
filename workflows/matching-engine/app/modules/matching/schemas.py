@@ -37,6 +37,7 @@ class MatchResultRead(BaseModel):
     run_id: uuid.UUID
     rank: int | None = None
     seller_attio_id: str | None = None
+    seller_org_name: str | None = None
     match_score: Decimal | None = None
     data_confidence: Decimal | None = None
     why_chosen_over_alternatives: str | None = None

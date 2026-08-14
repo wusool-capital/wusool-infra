@@ -3,6 +3,7 @@ infrastructure together. Slack handlers call these factories; they never
 construct services/repositories themselves (§2, §36).
 """
 
+import logging
 from functools import lru_cache
 
 from app.config import get_settings
@@ -21,7 +22,11 @@ from app.modules.matching.infrastructure.structured_candidate_retriever import (
 from app.modules.requirements.application.extraction_service import (
     BuyerRequirementExtractionService,
 )
+from app.modules.web_search.application.lead_search_service import WebLeadSearchService
+from app.modules.web_search.infrastructure.firecrawl_maps_client import FirecrawlMapsClient
 from app.shared.database import get_sessionmaker
+
+logger = logging.getLogger(__name__)
 
 
 def _inference_config() -> InferenceConfig:
@@ -50,6 +55,7 @@ def build_run_match_use_case() -> RunBuyerSellerMatchUseCase:
             bedrock,
             model_id=settings.aws_bedrock_model_id_extraction,
             inference_config=inference_config,
+            meeting_notes_char_budget=settings.meeting_notes_max_total_chars,
         ),
         candidate_retriever=StructuredCandidateRetriever(sessionmaker),
         scoring_engine=ScoringEngine(
@@ -62,8 +68,11 @@ def build_run_match_use_case() -> RunBuyerSellerMatchUseCase:
             bedrock,
             model_id=settings.aws_bedrock_model_id_reasoning,
             inference_config=inference_config,
+            meeting_notes_char_budget=settings.meeting_notes_max_total_chars,
         ),
         top_n=settings.stage3_top_n,
+        enable_seller_meeting_notes=settings.enable_seller_meeting_notes,
+        meeting_notes_max_chars=settings.meeting_notes_max_chars,
     )
 
 
@@ -73,3 +82,25 @@ def build_match_analysis_use_case() -> GetMatchAnalysisUseCase:
 
 def build_match_run_view_use_case() -> GetMatchRunViewUseCase:
     return GetMatchRunViewUseCase(get_sessionmaker())
+
+
+@lru_cache
+def _firecrawl_client() -> FirecrawlMapsClient | None:
+    api_key = get_settings().firecrawl_api_key
+    if not api_key:
+        # `@lru_cache` means this fires once, not per-run — loud enough to
+        # show up in CloudWatch without spamming every no-match request.
+        logger.warning(
+            "firecrawl_api_key_unset — Google-Maps web-fallback is disabled; "
+            "set FIRECRAWL_API_KEY to enable it"
+        )
+        return None
+    return FirecrawlMapsClient(api_key)
+
+
+def build_web_lead_search_service() -> WebLeadSearchService | None:
+    """Returns `None` when no `FIRECRAWL_API_KEY` is configured — the caller
+    must treat that the same as "no leads found" and fall back to the plain
+    no-candidates message, not crash."""
+    client = _firecrawl_client()
+    return WebLeadSearchService(get_sessionmaker(), client) if client else None

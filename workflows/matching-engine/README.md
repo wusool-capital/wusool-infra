@@ -58,6 +58,10 @@ See `.env.example` for the full list with defaults. At minimum:
 | `AWS_BEDROCK_MODEL_ID_EXTRACTION` / `AWS_BEDROCK_MODEL_ID_REASONING` | Bedrock model/inference-profile IDs; defaults match `terraform/modules/bedrock-access` |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Optional — omit to use the standard AWS credential provider chain (IAM role, ECS/EC2 task role, local profile). Never require long-lived credentials in production |
 | `STAGE3_TOP_N` | How many shortlisted candidates go to Bedrock reasoning (default 3) |
+| `FIRECRAWL_API_KEY` | Optional — enables the Google-Maps web-fallback lead search (see below). Omit to disable it entirely; the pipeline then just shows "no qualifying candidates" as before |
+| `WEB_FALLBACK_MIN_SCORE` | Score threshold (default 50.0) below which every CRM candidate is considered non-qualifying and the web fallback triggers |
+| `MEETING_NOTES_MAX_CHARS` / `MEETING_NOTES_MAX_TOTAL_CHARS` | Per-note and total-section character caps for meeting-notes enrichment (defaults 600 / 4000) |
+| `ENABLE_SELLER_MEETING_NOTES` | Opt-in flag (default `false`) to also attach meeting notes to shortlisted seller candidates' reasoning narrative (see below) |
 
 ### Configuring the Slack app
 
@@ -158,9 +162,53 @@ In Slack: `/find-match <buyer name>` (e.g. `/find-match Acme Capital`).
 - No match → an ephemeral "No buyer found" message.
 - One match → the matching workflow runs in the background and posts a
   top-3 result message with score/confidence/rationale and
-  Approve/Reject/View Full Analysis buttons.
+  Approve/Reject/View Full Analysis buttons — or, if every candidate scores
+  below `WEB_FALLBACK_MIN_SCORE`, up to 3 unverified web-sourced leads
+  instead (see "Web fallback (Firecrawl)" below).
 - Multiple matches → a selection modal; submitting it runs the same
   workflow for the chosen buyer.
+
+## Meeting-notes enrichment
+
+Free-text call/meeting notes (`meetings` table — Attio-migrated notes plus
+the in-house Scribe recorder, hard-FK'd to `organizations`) are folded into
+the Bedrock prompts as additional unverified context, on top of the buyer's
+own CRM `investment_strategy`/`notes` fields:
+
+- **Buyer side (always on):** the buyer's org's recent meeting notes are
+  fetched at resolution time (`MeetingRepository.get_recent_by_org`) and
+  appended, clearly labeled ("context only, not verified CRM data — may also
+  describe other organizations"), to both the requirement-extraction and
+  reasoning prompts. The extraction prompt explicitly instructs the LLM to
+  fold anything derived only from a meeting note into `strategic_thesis`/
+  `ideal_target_description` (or, if it must become a structured
+  requirement, mark it `human_confirmed: false`) — never invent a new
+  criterion outside `CRITERION_REGISTRY` from note text.
+- **Seller side (opt-in, `ENABLE_SELLER_MEETING_NOTES=true`):** the same
+  notes, fetched only for the already-shortlisted top-N candidates (never
+  all eligible sellers), are appended to the reasoning prompt's per-candidate
+  context — narrative only, never scoring or Stage 1 filtering input.
+- **Selection, not a fixed top-N:** all of an org's notes are fetched, then
+  a total character budget (`MEETING_NOTES_MAX_TOTAL_CHARS`) is filled
+  greedily from most recent, while always keeping the *oldest* note too (a
+  founding/mandate-defining note shouldn't drop just because more recent,
+  narrower ones exist). Omitted/truncated notes are always stated in the
+  prompt (`(N older meetings omitted)`, `[truncated]`), never silently
+  dropped.
+- No pre-combine LLM pass and no embeddings/vector recall — see
+  `app/shared/types/meeting_note.py` for the budget-selection logic, which
+  is a pure function, no extra Bedrock call.
+
+## Web fallback (Firecrawl)
+
+When every CRM seller candidate's score falls below `WEB_FALLBACK_MIN_SCORE`
+(including the case of zero surviving candidates), the pipeline scrapes
+Google Maps via Firecrawl (`app/modules/web_search/`) for up to 3 potential
+seller leads and shows them in Slack instead of the normal ranked-candidate
+message, clearly labeled "Not yet in CRM, unverified" with a link to each
+listing. These leads are never persisted (no `match_results`/`match_scores`
+rows) — shown once, logged, and gone. Disabled entirely (falls back to the
+plain "no qualifying candidates" message) if `FIRECRAWL_API_KEY` is unset.
 
 ## Structure
 
@@ -199,11 +247,19 @@ retrieval slots in without changing the orchestrator, scoring, or Slack
 layer), and a `TaskRunner` Protocol (`InProcessTaskRunner` today; a durable
 queue/worker can replace it without touching any use case).
 
+Added after initial Phase 3 scoping (see "Meeting-notes enrichment" and "Web
+fallback (Firecrawl)" above): free-text meeting-notes context in both
+Bedrock prompts, and a narrow, Google-Maps-only web-scraping fallback for
+buyers with no qualifying CRM seller. Neither uses pgvector/embeddings —
+still explicitly out of scope, along with everything else below.
+
 Not implemented (out of scope for Branch 1 by design): pgvector/embeddings/
-semantic retrieval/RAG, document ingestion, Drive polling, website scraping,
-Attio synchronization/write-back, seller enrichment, PDF generation, emails
-or any outreach to buyers/sellers, background worker infrastructure beyond
-the in-process task runner.
+semantic retrieval/RAG, document ingestion, Drive polling, general-purpose
+website scraping beyond the one Firecrawl fallback above, Attio
+synchronization/write-back, structured seller financial enrichment (the
+`buyer_intel`/`seller_financials` tables from `004_machine_layer.sql` remain
+unused), PDF generation, emails or any outreach to buyers/sellers, background
+worker infrastructure beyond the in-process task runner.
 
 ## Phase 2 scope
 

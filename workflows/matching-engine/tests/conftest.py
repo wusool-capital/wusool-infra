@@ -106,3 +106,36 @@ async def any_seller_role(db_session: AsyncSession):
     if row is None:
         pytest.skip("no seller_roles found in the database")
     return row
+
+
+@pytest.fixture
+async def org_with_meetings(db_session: AsyncSession):
+    """A throwaway `Organization` plus three `Meeting` rows attached to it,
+    inserted (org first, to satisfy `fk_meetings_org`) into `db_session`'s
+    rolled-back transaction — never persisted beyond the test.
+    """
+    import uuid
+    from datetime import UTC, datetime
+
+    from app.shared.database.models import Meeting, Organization
+
+    org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Meeting Notes Test Org")
+    db_session.add(org)
+    await db_session.flush()
+
+    meetings = [
+        Meeting(
+            id=uuid.uuid4(),
+            org_id=org.attio_id,
+            occurred_at=datetime(2026, 1, day, tzinfo=UTC),
+            title=f"Meeting {day}",
+            summary=f"Summary for meeting on day {day}.",
+            source="manual",
+        )
+        for day in (10, 20, 28)
+    ]
+    for meeting in meetings:
+        db_session.add(meeting)
+    await db_session.flush()
+
+    return org, meetings

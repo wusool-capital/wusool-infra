@@ -3,9 +3,9 @@ these are what other modules (e.g. matching) should depend on instead of the
 buyer module's ORM model.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from app.shared.types import Money
+from app.shared.types import MeetingNote, Money
 
 
 @dataclass(frozen=True)
@@ -25,3 +25,4 @@ class BuyerContext:
     investment_strategy: str | None
     notes: str | None
     contact_person_id: str | None
+    meeting_notes: list[MeetingNote] = field(default_factory=list)
