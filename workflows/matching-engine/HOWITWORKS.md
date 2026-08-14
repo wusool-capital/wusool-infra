@@ -235,12 +235,14 @@ score, cannot re-run the filter, cannot invent facts not given to it.
 The buyer's `meeting_notes` are appended here too (same labeled section as
 Stage 1), so the note about favoring recurring-subscription operators and a
 minority-first structure can shape `recommended_pitch` even though it never
-touched the deterministic score. If `ENABLE_SELLER_MEETING_NOTES=true`,
-notes for the *shortlisted* sellers only (never all ~172 candidates) are
-also fetched and added per-candidate to `candidates_context` — narrative
-only, same "may describe another organization" label, applied per seller
-this time since a seller's note could just as easily mix in a different
-org's details.
+touched the deterministic score. Seller-side notes are on by default too
+(`ENABLE_SELLER_MEETING_NOTES=true`) — notes for the *shortlisted* sellers
+only (never all ~172 candidates) are fetched and added per-candidate to
+`candidates_context` — narrative only, same "may describe another
+organization" label, applied per seller this time since a seller's note
+could just as easily mix in a different org's details. Set
+`ENABLE_SELLER_MEETING_NOTES=false` to restrict enrichment to the buyer
+side only.
 
 **Output for HealthTrack MENA:**
 

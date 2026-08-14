@@ -61,7 +61,7 @@ See `.env.example` for the full list with defaults. At minimum:
 | `FIRECRAWL_API_KEY` | Optional — enables the Google-Maps web-fallback lead search (see below). Omit to disable it entirely; the pipeline then just shows "no qualifying candidates" as before |
 | `WEB_FALLBACK_MIN_SCORE` | Score threshold (default 50.0) below which every CRM candidate is considered non-qualifying and the web fallback triggers |
 | `MEETING_NOTES_MAX_CHARS` / `MEETING_NOTES_MAX_TOTAL_CHARS` | Per-note and total-section character caps for meeting-notes enrichment (defaults 600 / 4000) |
-| `ENABLE_SELLER_MEETING_NOTES` | Opt-in flag (default `false`) to also attach meeting notes to shortlisted seller candidates' reasoning narrative (see below) |
+| `ENABLE_SELLER_MEETING_NOTES` | On by default (`true`) — attaches meeting notes to shortlisted seller candidates' reasoning narrative too, not just the buyer's. Set to `false` to restrict enrichment to the buyer side only (see below) |
 
 ### Configuring the Slack app
 
@@ -184,10 +184,11 @@ own CRM `investment_strategy`/`notes` fields:
   `ideal_target_description` (or, if it must become a structured
   requirement, mark it `human_confirmed: false`) — never invent a new
   criterion outside `CRITERION_REGISTRY` from note text.
-- **Seller side (opt-in, `ENABLE_SELLER_MEETING_NOTES=true`):** the same
-  notes, fetched only for the already-shortlisted top-N candidates (never
-  all eligible sellers), are appended to the reasoning prompt's per-candidate
-  context — narrative only, never scoring or Stage 1 filtering input.
+- **Seller side (on by default, `ENABLE_SELLER_MEETING_NOTES=false` to
+  disable):** the same notes, fetched only for the already-shortlisted
+  top-N candidates (never all eligible sellers), are appended to the
+  reasoning prompt's per-candidate context — narrative only, never scoring
+  or Stage 1 filtering input.
 - **Selection, not a fixed top-N:** all of an org's notes are fetched, then
   a total character budget (`MEETING_NOTES_MAX_TOTAL_CHARS`) is filled
   greedily from most recent, while always keeping the *oldest* note too (a

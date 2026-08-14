@@ -38,7 +38,7 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-      ENABLE_SELLER_MEETING_NOTES: ${ENABLE_SELLER_MEETING_NOTES:-false}
+      ENABLE_SELLER_MEETING_NOTES: ${ENABLE_SELLER_MEETING_NOTES:-true}
     depends_on:
       db:
         condition: service_healthy
