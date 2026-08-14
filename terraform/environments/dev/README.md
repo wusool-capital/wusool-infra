@@ -143,8 +143,7 @@ Populate the secret before (or right after) the first apply:
     "FIRECRAWL_API_KEY": "fc-... (optional — omit to disable the Google-Maps web-fallback feature entirely; the app logs a warning at startup if this is unset)",
     "WEB_FALLBACK_MIN_SCORE": "50.0",
     "MEETING_NOTES_MAX_CHARS": "600",
-    "MEETING_NOTES_MAX_TOTAL_CHARS": "4000",
-    "ENABLE_SELLER_MEETING_NOTES": "false"
+    "MEETING_NOTES_MAX_TOTAL_CHARS": "4000"
   }
 }
 ```
