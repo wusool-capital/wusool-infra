@@ -58,10 +58,15 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
 
 
 def _candidate_blocks(candidate: MatchResultRead, scores_by_id: dict) -> list[dict]:
+    seller_name = candidate.seller_org_name or candidate.seller_attio_id or "Unknown"
+    score_text = f"{candidate.match_score:.0f}" if candidate.match_score is not None else "Unknown"
+    confidence_text = (
+        f"{candidate.data_confidence:.0f}" if candidate.data_confidence is not None else "Unknown"
+    )
     blocks: list[dict] = [
         _section(
-            f"*{candidate.rank}. Seller {candidate.seller_attio_id}* — "
-            f"{candidate.match_score}/100, confidence {candidate.data_confidence}/100\n"
+            f"*{candidate.rank}. {seller_name}* — "
+            f"{score_text}/100, confidence {confidence_text}/100\n"
             f"Status: {candidate.status}"
         )
     ]
