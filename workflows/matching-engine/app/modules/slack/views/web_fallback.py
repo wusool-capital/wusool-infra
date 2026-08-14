@@ -41,6 +41,7 @@ def build_web_fallback_blocks(buyer_org_name: str, leads: list[WebSourcedLead]) 
                 "text": {"type": "mrkdwn", "text": text},
                 "accessory": {
                     "type": "button",
+                    "action_id": "view_web_lead_source",
                     "text": {"type": "plain_text", "text": "View Source"},
                     "url": lead.source_url,
                 },

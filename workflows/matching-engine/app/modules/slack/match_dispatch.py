@@ -45,6 +45,12 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
     if result.status == "GENERATED" and needs_web_fallback(
         scores, get_settings().web_fallback_min_score
     ):
+        await app.client.chat_update(
+            channel=channel_id,
+            ts=placeholder["ts"],
+            text="🔍 No match found, searching Google Maps for potential sellers…",
+        )
+
         lead_search = build_web_lead_search_service()
         leads = await lead_search.search(uuid.UUID(result.run_id)) if lead_search else []
         logger.info(

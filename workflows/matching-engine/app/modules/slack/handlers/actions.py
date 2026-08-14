@@ -90,6 +90,13 @@ def register(app: AsyncApp) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="reject")
 
+    @app.action("view_web_lead_source")
+    async def handle_view_web_lead_source(ack):  # noqa: ANN001
+        # A `url` button still sends an interaction payload Slack requires
+        # this app to acknowledge, even though the browser opens the link
+        # independently — no server-side action needed beyond the ack.
+        await ack()
+
 
 async def _handle_decision(body: dict, client, respond, decision: str) -> None:  # noqa: ANN001
     action = body["actions"][0]
