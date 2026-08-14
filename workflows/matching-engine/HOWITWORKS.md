@@ -17,6 +17,12 @@ everything else on `buyer_roles` (`key_contact_attio_id`,
 `acquisition_enrichment`, `deals_introduced`, `deals_converted`, `raw_attio`)
 is not used by the pipeline today.
 
+`BuyerResolutionService` then also fetches Acme Capital's recent free-text
+meeting/call notes from the shared `meetings` table
+(`MeetingRepository.get_recent_by_org`) and attaches them as
+`meeting_notes` — a real conversation the team had, independent of anything
+typed into the CRM's `notes`/`investment_strategy` fields.
+
 ```python
 BuyerContext(
     buyer_role_id="8f2b...-uuid",
@@ -38,6 +44,19 @@ BuyerContext(
     ),
     notes="Met the principal at a Riyadh conference in March, strong appetite.",
     contact_person_id="ppl_12345",
+    meeting_notes=[
+        MeetingNote(
+            occurred_at=datetime(2026, 8, 10, tzinfo=UTC),
+            title="Follow-up call with Acme Capital",
+            summary=(
+                "Acme confirmed they specifically favor recurring-subscription "
+                "operators over one-off project work, and are open to a "
+                "minority growth-equity check first if the founding team "
+                "stays on for at least 2 years."
+            ),
+            truncated=False,
+        ),
+    ],
 )
 ```
 
@@ -46,8 +65,18 @@ BuyerContext(
 ## Stage 1 — Requirement extraction (Bedrock, one call)
 
 `BuyerRequirementExtractionService` builds a prompt from `BuyerContext`: the
-eight structured fields above go in as trusted "known fields", and
-`investment_strategy` + `notes` go in as free text for the LLM to mine.
+eight structured fields above go in as trusted "known fields",
+`investment_strategy` + `notes` go in as free text for the LLM to mine, and
+— when present — `meeting_notes` are rendered as a clearly labeled section
+(`render_meeting_notes_section`, `app/shared/types/meeting_note.py`) and
+appended after everything else. The label explicitly warns the note may
+describe a *different* organization (a real risk: some meeting notes mix a
+buyer's own thesis with mentions of other orgs' listings), and instructs the
+LLM to fold anything derived only from a note into `strategic_thesis`/
+`ideal_target_description` rather than invent a new structured criterion —
+if it must become a `hard_requirement`/`soft_preference` anyway, it must use
+`human_confirmed: false`. When `meeting_notes` is empty, this whole section
+is omitted — the prompt is byte-identical to the no-notes case.
 
 **Prompt sent to Bedrock (abbreviated):**
 
@@ -64,6 +93,19 @@ Investment strategy (free text): We acquire profitable healthcare services
   for founder-led operators with recurring revenue.
 Notes (free text): Met the principal at a Riyadh conference in March,
   strong appetite.
+Recent meeting notes (context only, not verified CRM data — may also
+describe other organizations mentioned in conversation, not only Acme
+Capital; never treat facts here as confirmed unless they also appear in
+the structured fields above):
+- [2026-08-10] Acme confirmed they specifically favor recurring-subscription
+  operators over one-off project work, and are open to a minority
+  growth-equity check first if the founding team stays on for at least 2
+  years.
+Any hard_requirement or soft_preference derived only from these meeting
+notes must use source llm_extracted/llm_inferred and human_confirmed:
+false — never crm_field/human_confirmed: true. Prefer folding meeting-note
+content into strategic_thesis or ideal_target_description over minting a
+new structured requirement from it at all.
 ```
 
 **Bedrock's validated output → `RequirementProfile` (version 1 for this buyer):**
@@ -190,6 +232,16 @@ candidates' deterministic scores/criteria (never raw documents, never
 un-shortlisted sellers) and asks for narrative only — it cannot change the
 score, cannot re-run the filter, cannot invent facts not given to it.
 
+The buyer's `meeting_notes` are appended here too (same labeled section as
+Stage 1), so the note about favoring recurring-subscription operators and a
+minority-first structure can shape `recommended_pitch` even though it never
+touched the deterministic score. If `ENABLE_SELLER_MEETING_NOTES=true`,
+notes for the *shortlisted* sellers only (never all ~172 candidates) are
+also fetched and added per-candidate to `candidates_context` — narrative
+only, same "may describe another organization" label, applied per seller
+this time since a seller's note could just as easily mix in a different
+org's details.
+
 **Output for HealthTrack MENA:**
 
 ```python
@@ -236,11 +288,25 @@ match_results (rank=3): PaySecure Holdings — score 17.0, confidence  67, PENDI
 
 ---
 
-## Stage 6 — Slack delivery
+## Stage 6 — Slack delivery (and the web-fallback branch)
 
-The background task posts a placeholder ("🔍 Finding matches, please
-wait…"), then edits that same message in place with the real result once
-the run finishes:
+The background task (`match_dispatch.py`) posts a placeholder ("✨ *Finding
+matches, please wait…*"), runs the full pipeline above (Stages 0-5 — this
+always happens, even when every candidate ends up scoring low), then edits
+that same message in place with the real result.
+
+**If every candidate's `overall_score` falls below `WEB_FALLBACK_MIN_SCORE`**
+(`needs_web_fallback`, `app/modules/matching/domain/scoring.py`) — including
+the case of zero surviving candidates — the placeholder is updated again
+("✨ *No match found, searching Google Maps for potential sellers…*"), and
+`WebLeadSearchService` scrapes Google Maps via Firecrawl for up to 3
+potential seller leads instead of showing the (all-low-scoring) ranked
+list. These leads are never persisted — no `match_results`/`match_scores`
+rows — and are clearly labeled "Not yet in CRM, unverified" with a link to
+each listing. If Firecrawl itself returns nothing, the normal (low-scoring)
+ranked-candidate message is shown instead of a dead end.
+
+Otherwise, the normal result:
 
 ```
 Buyer: Acme Capital
@@ -280,4 +346,8 @@ state-machine transition (`PENDING_REVIEW → APPROVED` is legal;
 **View Full Analysis** posts an ephemeral message rendered entirely from the
 already-persisted `MatchAnalysis` (run + candidates + scores) — it never
 re-calls Bedrock, so it's instant and cheap, and always shows exactly what
-was scored and reasoned, not a fresh (possibly different) re-run.
+was scored and reasoned, not a fresh (possibly different) re-run. Each
+candidate header shows the seller's actual org name (`seller_org_name`,
+resolved via the persisted `seller_organization` relationship, not the raw
+`seller_attio_id`) and rounded whole-number scores — e.g. `PaySecure
+Holdings — 53/100`, never a raw floating-point value.
