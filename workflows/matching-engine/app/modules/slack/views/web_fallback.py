@@ -5,6 +5,7 @@ never persisted (§ web_search module docstring), so the message says so
 plainly rather than presenting them as equivalent to a CRM match.
 """
 
+from app.modules.slack.views.mrkdwn import sanitize_mrkdwn
 from app.modules.web_search.domain.firecrawl_client import WebSourcedLead
 
 
@@ -31,9 +32,12 @@ def build_web_fallback_blocks(buyer_org_name: str, leads: list[WebSourcedLead]) 
 
     for rank, lead in enumerate(leads, start=1):
         detail = lead.address or lead.category or lead.snippet or "No further details available."
-        text = f"*{rank}. {lead.name}*\n{detail}"
+        name = sanitize_mrkdwn(lead.name)
+        text = f"*{rank}. {name}*\n{sanitize_mrkdwn(detail)}"
         if lead.category and lead.address:
-            text = f"*{rank}. {lead.name}*\n{lead.category}\n{lead.address}"
+            category = sanitize_mrkdwn(lead.category)
+            address = sanitize_mrkdwn(lead.address)
+            text = f"*{rank}. {name}*\n{category}\n{address}"
 
         blocks.append(
             {

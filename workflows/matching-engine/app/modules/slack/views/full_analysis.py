@@ -10,6 +10,7 @@ whole message.
 """
 
 from app.modules.matching.schemas import MatchAnalysis, MatchResultRead, MatchScoreRead
+from app.modules.slack.views.mrkdwn import sanitize_mrkdwn
 
 _MAX_SECTION_TEXT = 2900
 
@@ -21,7 +22,7 @@ def _truncate(text: str) -> str:
 
 
 def _section(text: str) -> dict:
-    return {"type": "section", "text": {"type": "mrkdwn", "text": _truncate(text)}}
+    return {"type": "section", "text": {"type": "mrkdwn", "text": _truncate(sanitize_mrkdwn(text))}}
 
 
 def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
