@@ -1,5 +1,9 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Trigram similarity — fuzzy/typo-tolerant organization-name search
+-- (matching-engine's BuyerRepository.search_by_organization_name).
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 DO $$
 BEGIN
   CREATE EXTENSION IF NOT EXISTS vector;
