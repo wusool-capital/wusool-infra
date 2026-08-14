@@ -67,7 +67,7 @@ def _candidate_blocks(candidate: MatchResultRead, scores_by_id: dict) -> list[di
     blocks: list[dict] = [
         _section(
             f"*{candidate.rank}. {seller_name}* — "
-            f"{score_text}/100, confidence {confidence_text}/100\n"
+            f"Match score: {score_text}/100, Data confidence: {confidence_text}/100\n"
             f"Status: {candidate.status}"
         )
     ]
