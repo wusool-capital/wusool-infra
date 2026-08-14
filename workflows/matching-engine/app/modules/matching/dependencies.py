@@ -3,6 +3,7 @@ infrastructure together. Slack handlers call these factories; they never
 construct services/repositories themselves (§2, §36).
 """
 
+import logging
 from functools import lru_cache
 
 from app.config import get_settings
@@ -24,6 +25,8 @@ from app.modules.requirements.application.extraction_service import (
 from app.modules.web_search.application.lead_search_service import WebLeadSearchService
 from app.modules.web_search.infrastructure.firecrawl_maps_client import FirecrawlMapsClient
 from app.shared.database import get_sessionmaker
+
+logger = logging.getLogger(__name__)
 
 
 def _inference_config() -> InferenceConfig:
@@ -84,7 +87,15 @@ def build_match_run_view_use_case() -> GetMatchRunViewUseCase:
 @lru_cache
 def _firecrawl_client() -> FirecrawlMapsClient | None:
     api_key = get_settings().firecrawl_api_key
-    return FirecrawlMapsClient(api_key) if api_key else None
+    if not api_key:
+        # `@lru_cache` means this fires once, not per-run — loud enough to
+        # show up in CloudWatch without spamming every no-match request.
+        logger.warning(
+            "firecrawl_api_key_unset — Google-Maps web-fallback is disabled; "
+            "set FIRECRAWL_API_KEY to enable it"
+        )
+        return None
+    return FirecrawlMapsClient(api_key)
 
 
 def build_web_lead_search_service() -> WebLeadSearchService | None:
