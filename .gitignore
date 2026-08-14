@@ -41,6 +41,7 @@ override.tf.json
 # --- Secrets / credentials ---
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *_rsa
