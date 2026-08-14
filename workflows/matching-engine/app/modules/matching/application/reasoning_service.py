@@ -14,6 +14,7 @@ from app.modules.matching.domain.value_objects import CandidateScore
 from app.modules.matching.schemas import ReasoningResult
 from app.modules.requirements.domain.value_objects import RequirementProfile
 from app.modules.sellers.domain.value_objects import SellerCandidate
+from app.shared.types import render_meeting_notes_section
 
 
 class MatchReasoningError(Exception):
@@ -30,10 +31,12 @@ class MatchReasoningService:
         *,
         model_id: str,
         inference_config: InferenceConfig,
+        meeting_notes_char_budget: int = 4000,
     ) -> None:
         self._client = bedrock_client
         self._model_id = model_id
         self._inference_config = inference_config
+        self._meeting_notes_char_budget = meeting_notes_char_budget
 
     async def reason(
         self,
@@ -100,9 +103,21 @@ class MatchReasoningService:
                     }
                     for c in score.criteria
                 ],
+                "meeting_notes": render_meeting_notes_section(
+                    seller.meeting_notes,
+                    total_char_budget=self._meeting_notes_char_budget,
+                    subject_name=seller.org_name,
+                )
+                or None,
             }
             for seller, score in shortlist
         ]
+        meeting_notes_section = render_meeting_notes_section(
+            buyer.meeting_notes,
+            total_char_budget=self._meeting_notes_char_budget,
+            subject_name=buyer.org_name,
+        )
+        buyer_meeting_notes_line = f"\n{meeting_notes_section}" if meeting_notes_section else ""
         return (
             "Explain, per candidate, why each shortlisted seller matches this "
             "buyer, why it ranks where it does relative to the others, a "
@@ -119,7 +134,8 @@ class MatchReasoningService:
             f"Strategic thesis: {profile.strategic_thesis or 'Unknown'}\n"
             f"Ideal target: {profile.ideal_target_description or 'Unknown'}\n"
             f"Investment strategy (free text): {buyer.investment_strategy or 'Unknown'}\n"
-            f"Notes (free text): {buyer.notes or 'Unknown'}\n"
+            f"Notes (free text): {buyer.notes or 'Unknown'}"
+            f"{buyer_meeting_notes_line}\n"
             f"Shortlisted candidates with deterministic scores: {candidates_context}"
         )
 

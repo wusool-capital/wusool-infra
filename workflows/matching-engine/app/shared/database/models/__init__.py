@@ -8,7 +8,8 @@ reverse).
 
 from app.shared.database.models.deal import Deal
 from app.shared.database.models.mandate import Mandate
+from app.shared.database.models.meeting import Meeting
 from app.shared.database.models.organization import Organization
 from app.shared.database.models.person import Person
 
-__all__ = ["Deal", "Mandate", "Organization", "Person"]
+__all__ = ["Deal", "Mandate", "Meeting", "Organization", "Person"]

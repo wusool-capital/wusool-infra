@@ -15,7 +15,7 @@ transaction — never left half-persisted, never reported as success.
 
 import logging
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -25,6 +25,7 @@ from app.modules.matching.application.reasoning_service import MatchReasoningSer
 from app.modules.matching.domain.candidate_retriever import CandidateRetriever
 from app.modules.matching.domain.scoring import ScoringEngine, select_top_n
 from app.modules.matching.domain.value_objects import CandidateScore
+from app.modules.matching.infrastructure.meeting_repository import MeetingRepository
 from app.modules.matching.infrastructure.models import MatchResult
 from app.modules.matching.infrastructure.repositories import (
     MatchResultRepository,
@@ -102,6 +103,8 @@ class RunBuyerSellerMatchUseCase:
         scoring_engine: ScoringEngine,
         reasoning_service: MatchReasoningService,
         top_n: int,
+        enable_seller_meeting_notes: bool = False,
+        meeting_notes_max_chars: int = 600,
     ) -> None:
         self._sessionmaker = sessionmaker
         self._extraction_service = extraction_service
@@ -109,6 +112,8 @@ class RunBuyerSellerMatchUseCase:
         self._scoring_engine = scoring_engine
         self._reasoning_service = reasoning_service
         self._top_n = top_n
+        self._enable_seller_meeting_notes = enable_seller_meeting_notes
+        self._meeting_notes_max_chars = meeting_notes_max_chars
 
     async def execute(self, buyer: BuyerContext, requested_by: str | None) -> MatchRunResult:
         run_id = uuid.uuid4()
@@ -191,6 +196,19 @@ class RunBuyerSellerMatchUseCase:
         ]
 
         async with self._sessionmaker() as session:
+            if self._enable_seller_meeting_notes:
+                meetings = MeetingRepository(session, max_chars=self._meeting_notes_max_chars)
+                shortlist = [
+                    (
+                        replace(
+                            candidate,
+                            meeting_notes=await meetings.get_recent_by_org(candidate.org_attio_id),
+                        ),
+                        score,
+                    )
+                    for candidate, score in shortlist
+                ]
+
             await MatchResultRepository(session).update_run_progress(
                 run_id,
                 candidates_considered=batch.considered,
@@ -317,7 +335,16 @@ class GetMatchAnalysisUseCase:
 
         return MatchAnalysis(
             run=MatchResultRead.model_validate(run),
-            candidates=[MatchResultRead.model_validate(c) for c in candidates],
+            candidates=[
+                MatchResultRead.model_validate(c).model_copy(
+                    update={
+                        "seller_org_name": (
+                            c.seller_organization.name if c.seller_organization else None
+                        )
+                    }
+                )
+                for c in candidates
+            ],
             scores=[MatchScoreRead.model_validate(s) for s in scores],
         )
 

@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     firecrawl_api_key: str | None = None
     web_fallback_min_score: float = 50.0
 
+    # Meeting-notes enrichment: free-text call/meeting notes (`meetings`
+    # table) appended to the buyer/reasoning prompts as unverified context.
+    meeting_notes_max_chars: int = 600
+    meeting_notes_max_total_chars: int = 4000
+    enable_seller_meeting_notes: bool = False
+
     scoring: ScoringSettings = Field(default_factory=ScoringSettings)
     confidence: ConfidenceSettings = Field(default_factory=ConfidenceSettings)
 

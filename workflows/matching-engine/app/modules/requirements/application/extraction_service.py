@@ -14,6 +14,7 @@ from app.modules.requirements.domain.value_objects import (
     SoftPreference,
 )
 from app.modules.requirements.schemas import ExtractedRequirementProfile
+from app.shared.types import render_meeting_notes_section
 
 
 class RequirementExtractionError(Exception):
@@ -30,10 +31,12 @@ class BuyerRequirementExtractionService:
         *,
         model_id: str,
         inference_config: InferenceConfig,
+        meeting_notes_char_budget: int = 4000,
     ) -> None:
         self._client = bedrock_client
         self._model_id = model_id
         self._inference_config = inference_config
+        self._meeting_notes_char_budget = meeting_notes_char_budget
 
     async def extract(self, buyer: BuyerContext, *, next_version: int) -> RequirementProfile:
         output_schema = ExtractedRequirementProfile.model_json_schema()
@@ -81,6 +84,22 @@ class BuyerRequirementExtractionService:
             "earnout_tolerance": buyer.earnout_tolerance,
             "profitable_only": buyer.profitable_only,
         }
+        meeting_notes_section = render_meeting_notes_section(
+            buyer.meeting_notes,
+            total_char_budget=self._meeting_notes_char_budget,
+            subject_name=buyer.org_name,
+        )
+        meeting_notes_block = (
+            f"\n{meeting_notes_section}\n"
+            "Any hard_requirement or soft_preference derived only from these "
+            "meeting notes must use source llm_extracted/llm_inferred and "
+            "human_confirmed: false — never crm_field/human_confirmed: true. "
+            "Prefer folding meeting-note content into strategic_thesis or "
+            "ideal_target_description over minting a new structured "
+            "requirement from it at all."
+            if meeting_notes_section
+            else ""
+        )
         return (
             "Extract structured buyer requirements as strict JSON matching this "
             "shape: {hard_requirements: [{criterion, value, source, confidence, "
@@ -112,6 +131,7 @@ class BuyerRequirementExtractionService:
             f"Known structured buyer fields: {known_fields}\n"
             f"Investment strategy (free text): {buyer.investment_strategy or 'Unknown'}\n"
             f"Notes (free text): {buyer.notes or 'Unknown'}"
+            f"{meeting_notes_block}"
         )
 
     def _build_repair_prompt(

@@ -2,6 +2,9 @@
 repair retry, fail-closed. Mocked Bedrock — never calls AWS.
 """
 
+from dataclasses import replace
+from datetime import UTC, datetime
+
 import pytest
 
 from app.modules.buyers.domain.value_objects import BuyerContext
@@ -10,6 +13,7 @@ from app.modules.requirements.application.extraction_service import (
     BuyerRequirementExtractionService,
     RequirementExtractionError,
 )
+from app.shared.types import MeetingNote
 from tests.fakes.bedrock import FakeBedrockClient
 
 VALID_RESPONSE = {
@@ -94,3 +98,43 @@ async def test_still_malformed_after_repair_fails_closed() -> None:
         await service.extract(_buyer(), next_version=1)
 
     assert len(fake.structured_calls) == 2  # no infinite retries
+
+
+async def test_prompt_unchanged_when_no_meeting_notes() -> None:
+    """Regression guard for the "omit entirely when empty" rule."""
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.extract(_buyer(), next_version=1)
+
+    assert "Recent meeting notes" not in fake.structured_calls[0]
+
+
+async def test_prompt_includes_labeled_meeting_notes_section_when_present() -> None:
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    buyer = replace(
+        _buyer(),
+        meeting_notes=[
+            MeetingNote(
+                occurred_at=datetime(2026, 8, 1, tzinfo=UTC),
+                title="Mandate call",
+                summary="Looking for platform plays in special education centers.",
+                truncated=False,
+            )
+        ],
+    )
+
+    await service.extract(buyer, next_version=1)
+    prompt = fake.structured_calls[0]
+
+    assert "Recent meeting notes" in prompt
+    assert "special education centers" in prompt
+    # The section must appear after the "don't invent a criterion" guardrail.
+    assert prompt.index("fold it into") < prompt.index("Recent meeting notes")
+    assert "human_confirmed: false" in prompt
+    assert "Acme Capital" in prompt.split("Recent meeting notes")[1]

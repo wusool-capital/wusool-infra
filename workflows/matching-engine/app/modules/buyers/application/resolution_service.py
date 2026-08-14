@@ -9,13 +9,14 @@ proceeding straight into the expensive matching workflow. `status` still
 distinguishes single vs. multiple for callers that care.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from app.modules.buyers.application.mappers import to_buyer_context
 from app.modules.buyers.domain.value_objects import BuyerContext
 from app.modules.buyers.infrastructure.repositories import BuyerRepository
 from app.modules.buyers.schemas import BuyerSummary
+from app.modules.matching.infrastructure.meeting_repository import MeetingRepository
 
 ResolutionStatus = Literal["none", "single", "multiple"]
 
@@ -27,8 +28,11 @@ class BuyerResolution:
 
 
 class BuyerResolutionService:
-    def __init__(self, buyer_repository: BuyerRepository) -> None:
+    def __init__(
+        self, buyer_repository: BuyerRepository, meeting_repository: MeetingRepository | None = None
+    ) -> None:
         self._buyers = buyer_repository
+        self._meetings = meeting_repository
 
     async def resolve(self, buyer_name: str) -> BuyerResolution:
         matches = await self._buyers.search_by_organization_name(buyer_name)
@@ -45,4 +49,11 @@ class BuyerResolutionService:
     async def resolve_by_id(self, buyer_role_id: str) -> BuyerContext | None:
         """Used after a Slack buyer-selection modal submission."""
         role = await self._buyers.get_with_organization(buyer_role_id)
-        return to_buyer_context(role) if role is not None else None
+        if role is None:
+            return None
+
+        context = to_buyer_context(role)
+        if self._meetings is not None:
+            notes = await self._meetings.get_recent_by_org(context.org_attio_id)
+            context = replace(context, meeting_notes=notes)
+        return context

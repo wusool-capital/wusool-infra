@@ -2,6 +2,9 @@
 fail-closed. Mocked Bedrock — never calls AWS.
 """
 
+from dataclasses import replace
+from datetime import UTC, datetime
+
 import pytest
 
 from app.modules.buyers.domain.value_objects import BuyerContext
@@ -13,6 +16,7 @@ from app.modules.matching.application.reasoning_service import (
 from app.modules.matching.domain.value_objects import CandidateScore, DataConfidence
 from app.modules.requirements.domain.value_objects import RequirementProfile
 from app.modules.sellers.domain.value_objects import SellerCandidate
+from app.shared.types import MeetingNote
 from tests.fakes.bedrock import FakeBedrockClient
 
 VALID_RESPONSE = {
@@ -129,3 +133,74 @@ async def test_still_malformed_after_repair_fails_closed() -> None:
         await service.reason(_buyer(), _profile(), _shortlist())
 
     assert len(fake.reasoning_calls) == 2
+
+
+async def test_prompt_omits_meeting_notes_section_when_none_present() -> None:
+    fake = FakeBedrockClient(reasoning_responses=[VALID_RESPONSE])
+    service = MatchReasoningService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.reason(_buyer(), _profile(), _shortlist())
+
+    assert "Recent meeting notes" not in fake.reasoning_calls[0]
+
+
+async def test_prompt_includes_labeled_buyer_meeting_notes_when_present() -> None:
+    fake = FakeBedrockClient(reasoning_responses=[VALID_RESPONSE])
+    service = MatchReasoningService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    buyer = replace(
+        _buyer(),
+        meeting_notes=[
+            MeetingNote(
+                occurred_at=datetime(2026, 8, 1, tzinfo=UTC),
+                title="Mandate call",
+                summary="Ticket $20-50M, UAE and GCC platform plays.",
+                truncated=False,
+            )
+        ],
+    )
+
+    await service.reason(buyer, _profile(), _shortlist())
+    prompt = fake.reasoning_calls[0]
+
+    assert "Recent meeting notes" in prompt
+    assert "$20-50M" in prompt
+
+
+async def test_candidates_context_carries_per_candidate_meeting_notes_when_enabled() -> None:
+    fake = FakeBedrockClient(reasoning_responses=[VALID_RESPONSE])
+    service = MatchReasoningService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    seller = replace(
+        _seller(),
+        meeting_notes=[
+            MeetingNote(
+                occurred_at=datetime(2026, 7, 1, tzinfo=UTC),
+                title="Seller call",
+                summary="Considering a majority sale, 70-80% stake.",
+                truncated=False,
+            )
+        ],
+    )
+    score = _shortlist()[0][1]
+
+    await service.reason(_buyer(), _profile(), [(seller, score)])
+    prompt = fake.reasoning_calls[0]
+
+    assert "70-80% stake" in prompt
+
+
+async def test_candidates_context_meeting_notes_key_is_none_when_seller_has_no_notes() -> None:
+    fake = FakeBedrockClient(reasoning_responses=[VALID_RESPONSE])
+    service = MatchReasoningService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.reason(_buyer(), _profile(), _shortlist())
+    prompt = fake.reasoning_calls[0]
+
+    assert "'meeting_notes': None" in prompt

@@ -52,6 +52,7 @@ def build_run_match_use_case() -> RunBuyerSellerMatchUseCase:
             bedrock,
             model_id=settings.aws_bedrock_model_id_extraction,
             inference_config=inference_config,
+            meeting_notes_char_budget=settings.meeting_notes_max_total_chars,
         ),
         candidate_retriever=StructuredCandidateRetriever(sessionmaker),
         scoring_engine=ScoringEngine(
@@ -64,8 +65,11 @@ def build_run_match_use_case() -> RunBuyerSellerMatchUseCase:
             bedrock,
             model_id=settings.aws_bedrock_model_id_reasoning,
             inference_config=inference_config,
+            meeting_notes_char_budget=settings.meeting_notes_max_total_chars,
         ),
         top_n=settings.stage3_top_n,
+        enable_seller_meeting_notes=settings.enable_seller_meeting_notes,
+        meeting_notes_max_chars=settings.meeting_notes_max_chars,
     )
 
 
