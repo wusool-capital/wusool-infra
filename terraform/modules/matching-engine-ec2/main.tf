@@ -123,7 +123,7 @@ locals {
   # Per-app hostname/URL resolution — same sslip.io-fallback logic as before,
   # just per app instead of a single pair of locals.
   apps_resolved = [for a in var.apps : {
-    name          = a.name
+    name = a.name
     # Bash variable names can't contain hyphens (app names can, e.g.
     # "matching-engine") — this is used only for shell variable naming in
     # user_data.sh.tpl, never for docker-compose/Caddy/log identifiers.
