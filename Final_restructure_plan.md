@@ -502,10 +502,10 @@ merge. This works *because* the merge is a normal one — a squash would destroy
 `HEAD^2` and the digest could not be resolved. See Phase F.
 
 **3. `backmerge.yml` becomes a safety net rather than routine.** Since prod is a
-superset of `dev` by construction, the only way they diverge is a hotfix
-committed **directly** to `app`. Keep the workflow for exactly that
-case — it is the known weakness of this branching model — but expect it to fire
-rarely.
+superset of `dev` by construction, the only way they diverge is a **Path B
+hotfix** (branched from `app`, merged into `app`; see Phase F). Keep the workflow
+for exactly that case — it is the known weakness of this branching model — but
+expect it to fire rarely.
 
 *Bonus:* because the merge preserves dev's SHAs, `git merge-base --is-ancestor
 $SHA origin/dev` would work reliably if you ever want the dev-ancestry check
@@ -1146,11 +1146,27 @@ box mid-deploy.
    image** dev ran, because it is literally the same image.
 
    **Free guardrail:** if the ECR lookup returns nothing, the prod deploy fails
-   loudly. That can only happen when a commit reached `app` without passing
-   through `dev` — a soft version of the dev-ancestry check declined in
-   *Accepted risks*, covering app code at no extra cost. Provide a
-   `workflow_dispatch` input to build-on-`app` explicitly for genuine hotfixes,
-   so the override is deliberate and logged.
+   loudly. That can only happen when a commit reached `app` with no image built
+   for it — a soft version of the dev-ancestry check declined in *Accepted
+   risks*, covering app code at no extra cost.
+
+   **Hotfixes still work — three paths, none of which weaken the guardrail.**
+   The check only bites when a commit reaches `app` *without a built image*, so
+   the answer is to make sure hotfix commits get built, not to relax it.
+
+   | Path | When | Flow |
+   |---|---|---|
+   | **A** | `dev` and `app` are in sync (most hotfixes) | `fix → PR → dev` (auto-deploys, so it is genuinely tested) `→ merge dev→app`. Two merges, both automatic. |
+   | **B** | `dev` holds unreleased work you cannot ship | `git checkout -b hotfix/x app` → fix → **PR into `app` as a merge commit**. `build-push.yml` also triggers on `hotfix/**`, so `sha-<hotfix-tip>` is already in ECR; prod resolves `HEAD^2` and finds it. Then back-merge `app → dev` (`backmerge.yml`). |
+   | **C** | Emergency; A and B are both blocked | `workflow_dispatch` on `deploy.yml` with `ref` + `build: true`. Deliberate and logged. |
+
+   So **`build-push.yml` triggers on `dev` and `hotfix/**`** — never on `app`.
+
+   **Constraint for Path B:** the PR into `app` must be a **merge commit, not a
+   squash**, or `HEAD^2` will not exist and the digest cannot be resolved. Same
+   rule as `dev → app`: squash into `dev`, merge-commit into `app`. Keep both
+   merge methods enabled in repo settings and enforce the split with branch
+   rulesets if available.
 
    **Rolling the app is a separate step — do not forget it.** `tofu apply`
    re-registers `aws_ssm_document.bootstrap` with the new digest, but
