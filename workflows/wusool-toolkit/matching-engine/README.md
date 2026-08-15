@@ -168,6 +168,42 @@ In Slack: `/find-match <buyer name>` (e.g. `/find-match Acme Capital`).
 - Multiple matches → a selection modal; submitting it runs the same
   workflow for the chosen buyer.
 
+## Hard vs. soft requirements
+
+Bedrock's extraction step (`app/modules/requirements/`) reads a buyer's
+structured CRM fields plus all free text and sorts what it finds into two
+lists, both scored against `CRITERION_REGISTRY`'s 9 recognized criteria
+(`revenue`, `ebitda`, `geography`, `sector`, `sector_exclusion`,
+`client_type`, `outreach_tier`, `relationship_status`, `appetite_signal`):
+
+- **Hard requirement** — a dealbreaker ("must be UAE-based"). Always
+  weight `1.0` in scoring. Can only *eliminate* a candidate at Stage 1 if
+  `source="crm_field"`/`human_confirmed=True` — i.e. it came from a real
+  structured field, not something the LLM inferred from prose.
+- **Soft preference** — a stated bias, never a dealbreaker ("prefers
+  founder-led operators"). Weight is whatever the LLM assigned in
+  `scoring_rubric`. Never eliminates anyone, regardless of confirmation.
+
+**Elimination rule, precisely** (`apply_structured_filters` in
+`app/modules/matching/domain/scoring.py`): a candidate is dropped **only**
+if a `human_confirmed=True` hard requirement returns a confirmed `Fail`. An
+`llm_extracted`/`llm_inferred` hard requirement's result — pass, fail, or
+unknown — is never evaluated for elimination at all:
+
+| Hard req #1 (`crm_field`) | Hard req #2 (`llm_extracted`) | Stage 1 outcome |
+|---|---|---|
+| Pass | Fail | **Survives** — req #2's result is invisible to Stage 1 |
+| Pass | Pass | Survives |
+| **Fail** | Pass | **Dropped** — because of req #1, not req #2 |
+| **Fail** | Fail | **Dropped** — same reason; req #2 still isn't why |
+
+An unconfirmed hard requirement's `Fail` isn't ignored, though — it's still
+evaluated at Stage 2 scoring with full weight, where it can lower a
+candidate's rank (a `Fail` sub-score of 0 vs. an `Unknown`/unavailable
+neutral 50) but never remove them from the shortlist. This is the same
+"only independently-verifiable facts can disqualify someone" rule applied
+consistently — free text can make a candidate look worse, never disappear.
+
 ## Meeting-notes enrichment
 
 Free-text call/meeting notes (`meetings` table — Attio-migrated notes plus
@@ -202,14 +238,31 @@ own CRM `investment_strategy`/`notes` fields:
 
 ## Web fallback (Firecrawl)
 
-When every CRM seller candidate's score falls below `WEB_FALLBACK_MIN_SCORE`
-(including the case of zero surviving candidates), the pipeline scrapes
-Google Maps via Firecrawl (`app/modules/web_search/`) for up to 3 potential
-seller leads and shows them in Slack instead of the normal ranked-candidate
-message, clearly labeled "Not yet in CRM, unverified" with a link to each
-listing. These leads are never persisted (no `match_results`/`match_scores`
-rows) — shown once, logged, and gone. Disabled entirely (falls back to the
-plain "no qualifying candidates" message) if `FIRECRAWL_API_KEY` is unset.
+Trigger, exactly (`needs_web_fallback` in `app/modules/matching/domain/scoring.py`):
+
+```python
+def needs_web_fallback(scores: list[float], min_score: float) -> bool:
+    return not scores or max(scores) < min_score
+```
+
+The **highest** `overall_score` in the shortlist — not an average — is
+compared against `WEB_FALLBACK_MIN_SCORE` (**default 50.0**). If even the
+best candidate doesn't clear that bar, or the shortlist is empty outright,
+the fallback fires. This checks score *quality*, not just presence: a
+non-empty shortlist doesn't mean a good match — free-text-derived hard
+requirements can't eliminate candidates at Stage 1 (see "Hard vs. soft
+requirements" above), so a shortlist can survive Stage 1 while every
+candidate is still a poor fit.
+
+When it fires, the pipeline scrapes Google Maps via Firecrawl
+(`app/modules/web_search/`) for up to 3 potential seller leads and shows
+them in Slack instead of the normal ranked-candidate message, clearly
+labeled "Not yet in CRM, unverified" with a link to each listing. These
+leads are never persisted (no `match_results`/`match_scores` rows) — shown
+once, logged, and gone. If Firecrawl returns nothing, the normal
+low-scoring ranked list is shown instead of a dead end. Disabled entirely
+(always shows the plain ranked list, never the fallback) if
+`FIRECRAWL_API_KEY` is unset.
 
 ## Structure
 
