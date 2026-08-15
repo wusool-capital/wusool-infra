@@ -4,10 +4,11 @@
 
 # 🔴 STOP — DO THIS FIRST, BEFORE ANY RESTRUCTURING
 
-**Four live production defects, all verified against AWS. Defect 4 is already
+**Five live production defects, all verified against AWS. Defect 4 is already
 resolved. Defects 1 and 2 are fixed by one apply; Defect 3 is a snapshot you
-take before touching anything. No prerequisites — none of this depends on any
-other phase in this document.**
+take before touching anything; Defect 5 is a small EventBridge rule that makes
+the existing security tooling functional. No prerequisites — none of this
+depends on any other phase in this document.**
 
 ## Defect 1 — a command that takes production offline is armed right now
 
@@ -91,6 +92,50 @@ So either add `N8N_ENCRYPTION_KEY` under `env` in `/wusool/<env>/n8n` (**no code
 change at all**), or have `user_data.sh.tpl` read the new dedicated secret. The
 value must be **identical** to what is stored above — a different key silently
 breaks every existing credential.
+
+## Defect 5 — security findings route nowhere
+
+GuardDuty and Security Hub are **already enabled** (`dev/main.tf:180-184`, dev's
+root only) and are producing real signal. Nothing consumes it:
+
+```
+aws events list-rules  ->  []      # zero EventBridge rules
+```
+
+No routing to SNS, email or Slack. Combined with Defect 2 (alert topic has no
+subscribers), the entire detection stack reports into a void.
+
+**Proof it matters:** a severity **8.0** `Impact:IAMUser/AnomalousBehavior`
+finding (421 occurrences) fired on 2026-08-11 and was still `Archived: false`
+four days later. It was benign — `sinan.shamsudheen` calling `ssm:SendCommand`
+from a previously-unseen ISP (BSNL, India), i.e. GuardDuty correctly spotting a
+novel network. **A genuine compromise would have produced identical silence.**
+
+Unreviewed as of 2026-08-15:
+
+| Finding | Detail |
+|---|---|
+| `Policy:IAMUser/RootCredentialUsage` | 31 occurrences, June. Root credentials used — confirm this was account setup |
+| **CRITICAL** — AWS Config not enabled | Compounding: many Security Hub checks *depend* on Config, so **both standards report `INCOMPLETE`** and the compliance picture is partial |
+| 14 × LOW (CIS) | No CloudWatch metric filters/alarms for root usage, IAM policy changes, SG changes, unauthorized API calls, console sign-in without MFA, etc. |
+
+**Fix, in order of value:**
+
+1. **Route findings** — an EventBridge rule on GuardDuty findings (severity ≥ 4)
+   and Security Hub imported findings, targeting the existing
+   `wusool-<env>-infrastructure-alerts` SNS topic. Small, and it converts all
+   existing tooling from decorative to functional. Belongs in `stacks/account`
+   alongside the detectors. **Do this with Defect 2's subscription fix** —
+   neither works without the other.
+2. **Enable AWS Config** — resolves the CRITICAL and unblocks full Security Hub
+   evaluation. Expect *more* findings afterwards; that is the point.
+3. **Then triage the CIS metric-filter set** as a batch, once you can actually
+   see the full list.
+
+**Cost note:** GuardDuty bills per GB analyzed, and S3 data events + EBS malware
+protection are the expensive features — both are ENABLED. Enabling AWS Config
+adds per-configuration-item charges. Worth pulling actual figures from Cost
+Explorer before assuming it is negligible.
 
 ## Step 0 — snapshot, then announce a freeze
 
