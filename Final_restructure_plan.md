@@ -423,6 +423,52 @@ deploy, and "re-run the existing document" must never be the only available
 path. This applies to `matching-engine-ec2` too, which has the identical
 structure.
 
+### Phase C0 — Merge strategy and what it implies
+
+**Agreed model:**
+
+| Transition | Merge type | Effect on history |
+|---|---|---|
+| `feature/*` → `dev` | **squash** | feature commits collapse to one new SHA on `dev` |
+| `dev` → prod branch | **normal merge** (merge commit) | dev's commits are **preserved** in prod's history; prod becomes a **superset** of dev |
+
+Three consequences that shape the rest of this plan:
+
+**1. It confirms "build on `dev` only" (Phase F).** A normal merge still creates a
+**merge commit with a new SHA**, so `github.sha` on the prod branch is *not* the
+SHA that was built and tested on `dev` — even when the resulting tree is
+byte-identical. Rebuilding there would produce a different image tag for
+identical source, and resolve different base-image layers besides. Build once on
+`dev`; the prod branch only ever *deploys* an already-tested digest.
+
+**2. Put the promotion edit on `dev`, not on the prod branch.** Because the
+merge is a normal one, anything merged into `dev` flows into prod wholesale.
+That gives a clean flow with no branch divergence:
+
+```
+feature/*  --squash-->  dev  --(deploys dev, builds image, bot PRs digest
+                              into envs/dev.tfvars)
+PR into dev: copy that digest into envs/prod.tfvars   <-- the promotion decision
+dev  --normal merge-->  prod branch   --> prod deploys that exact digest
+```
+
+Editing `envs/prod.tfvars` *on `dev`* is safe: the dev deploy reads only
+`envs/dev.tfvars`, so the change is inert until the merge. And it keeps the prod
+branch a **pure superset** of `dev` — no divergence, nothing to reconcile.
+
+**3. `backmerge.yml` becomes a safety net rather than routine.** Since prod is a
+superset of `dev` by construction, the only way they diverge is a hotfix
+committed **directly** to the prod branch. Keep the workflow for exactly that
+case — it is the known weakness of this branching model — but expect it to fire
+rarely.
+
+*Bonus:* because the merge preserves dev's SHAs, `git merge-base --is-ancestor
+$SHA origin/dev` would work reliably if you ever want the dev-ancestry check
+that was declined (see *Accepted risks*). Squash-merging `dev` → prod would
+break that property, which is a further reason to keep it a normal merge.
+
+---
+
 ### Phase C — Branch and repo hygiene
 
 No risk, no dependencies. Can run in parallel with A/B.
@@ -997,8 +1043,10 @@ box mid-deploy.
      immutable `sha256:` digest.
    - After the dev deploy is green, a bot opens a PR setting
      `matching_engine_image_digest = "sha256:…"` in **`envs/dev.tfvars`**.
-   - Promotion to prod is a PR copying that same digest into
-     **`envs/prod.tfvars`**.
+   - Promotion is a PR **into `dev`** copying that same digest into
+     **`envs/prod.tfvars`** — inert until the normal merge into the prod
+     branch carries it across (see C0). This keeps the prod branch a pure
+     superset of `dev`.
 
    This makes promotion **literally the diff a reviewer sees** — which matters
    because the prod approval gate was declined, so the plan-on-PR comment is
