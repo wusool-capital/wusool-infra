@@ -22,20 +22,12 @@ chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 mkdir -p /opt/matching-engine/caddy
 REPO_DIR=/opt/matching-engine/src
 
-# `${app_secret_id}` is the Secrets Manager secret ID Terraform granted this
-# instance's role read access to. It must contain: slack_bot_token,
-# slack_signing_secret, database_url (pointing at the existing shared RDS
-# instance), github_token (a fine-grained PAT with read-only access to
-# `${git_repo_url}`), and optionally env: {} for extra overrides.
-SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${app_secret_id}" --region "${aws_region}" --query SecretString --output text)
-GITHUB_TOKEN=$(echo "$SECRET_JSON" | jq -r '.github_token // empty')
-SLACK_BOT_TOKEN=$(echo "$SECRET_JSON" | jq -r '.slack_bot_token // empty')
-SLACK_SIGNING_SECRET=$(echo "$SECRET_JSON" | jq -r '.slack_signing_secret // empty')
-DATABASE_URL=$(echo "$SECRET_JSON" | jq -r '.database_url // empty')
-
-# The token is only ever embedded in the remote URL transiently, for the
-# fetch/clone itself, then immediately swapped back to the plain URL so it
-# never sits in `.git/config` in plaintext.
+# All apps share one clone of this repo. The github_token comes from the
+# first app's secret (a repo-level credential, not an app-specific one) and
+# is only ever embedded in the remote URL transiently, for the fetch/clone
+# itself, then immediately swapped back to the plain URL so it never sits in
+# `.git/config` in plaintext.
+GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id "${github_secret_id}" --region "${aws_region}" --query SecretString --output text | jq -r '.github_token // empty')
 AUTH_REPO_URL=$(echo "${git_repo_url}" | sed "s#https://#https://x-access-token:$${GITHUB_TOKEN}@#")
 
 if [ -d "$REPO_DIR/.git" ]; then
@@ -49,37 +41,48 @@ else
   git -C "$REPO_DIR" remote set-url origin "${git_repo_url}"
 fi
 
-APP_DIR="$REPO_DIR/${app_subdir}"
+# Each app has its own Secrets Manager secret, containing: slack_bot_token,
+# slack_signing_secret, database_url, github_token (used only for the shared
+# clone above), and optionally env: {} for extra overrides.
+%{ for app in apps }
+# --- ${app.name} ---
+SECRET_JSON_${app.slug}=$(aws secretsmanager get-secret-value --secret-id "${app.app_secret_id}" --region "${aws_region}" --query SecretString --output text)
+APP_DIR_${app.slug}="$REPO_DIR/${app.app_subdir}"
 
-cat > "$APP_DIR/.env.production" <<ENVEOF
-DATABASE_URL=$DATABASE_URL
-SLACK_BOT_TOKEN=$SLACK_BOT_TOKEN
-SLACK_SIGNING_SECRET=$SLACK_SIGNING_SECRET
+cat > "$APP_DIR_${app.slug}/.env.production" <<ENVEOF
+DATABASE_URL=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.database_url // empty')
+SLACK_BOT_TOKEN=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.slack_bot_token // empty')
+SLACK_SIGNING_SECRET=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.slack_signing_secret // empty')
 AWS_REGION=${aws_region}
 ENVEOF
-chmod 600 "$APP_DIR/.env.production"
+chmod 600 "$APP_DIR_${app.slug}/.env.production"
 
-echo "$SECRET_JSON" | jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' >> "$APP_DIR/.env.production"
-chmod 600 "$APP_DIR/.env.production"
+echo "$SECRET_JSON_${app.slug}" | jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' >> "$APP_DIR_${app.slug}/.env.production"
+chmod 600 "$APP_DIR_${app.slug}/.env.production"
+%{ endfor }
 
 cat > /opt/matching-engine/caddy/Caddyfile <<CADDYEOF
-${public_hostname} {
-  reverse_proxy app:8000
+%{ for app in apps }
+${app.hostname} {
+  reverse_proxy ${app.name}:8000
   log {
-    output file /data/access.log
+    output file /data/${app.name}-access.log
   }
 }
+%{ endfor }
 CADDYEOF
 
 cat > /opt/matching-engine/docker-compose.yml <<COMPOSEEOF
 services:
-  app:
-    build: $APP_DIR
+%{ for app in apps }
+  ${app.name}:
+    build: $REPO_DIR/${app.app_subdir}
     restart: always
     expose:
       - "8000"
     env_file:
-      - $APP_DIR/.env.production
+      - $REPO_DIR/${app.app_subdir}/.env.production
+%{ endfor }
   caddy:
     image: caddy:2
     restart: always
@@ -97,13 +100,8 @@ volumes:
   caddy_config:
 COMPOSEEOF
 
-cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<CWEOF
-{
-  "logs": {"logs_collected": {"files": {"collect_list": [
-    {"file_path": "/var/log/cloud-init-output.log", "log_group_name": "${log_group_name}", "log_stream_name": "{instance_id}/cloud-init"},
-    {"file_path": "/var/lib/docker/volumes/matching-engine_caddy_data/_data/access.log", "log_group_name": "${log_group_name}", "log_stream_name": "{instance_id}/caddy"}
-  ]}}}
-}
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWEOF'
+${cloudwatch_agent_config}
 CWEOF
 systemctl enable amazon-cloudwatch-agent
 systemctl restart amazon-cloudwatch-agent

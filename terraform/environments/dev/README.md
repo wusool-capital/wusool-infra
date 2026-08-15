@@ -114,9 +114,19 @@ keys, or AWS credentials.
 
 A second, separate EC2 instance (`terraform/modules/matching-engine-ec2`)
 runs the Slack-connected matching-engine app from
-`workflows/matching-engine`, on a `t2.micro` (AWS Free Tier eligible). It
-reuses this environment's VPC/public subnet and the existing shared RDS
+`wusool-toolkit/matching-engine`, on a `t2.micro` (AWS Free Tier eligible).
+It reuses this environment's VPC/public subnet and the existing shared RDS
 Postgres instance (`module.postgres`) — it does not run its own database.
+
+The module is written to host more than one bot on this same instance via
+its `apps` list (each entry gets its own Caddy virtual host/subdomain,
+Docker Compose service, and Secrets Manager secret) — today that list has
+exactly one entry, matching-engine. A future `wusool-toolkit/ddl-commands`
+bot can be added by appending a second entry to `apps` in `main.tf`, no
+module changes required. One consequence of sharing an instance:
+`matching_engine_redeploy_command` redeploys every app on the instance in
+one shot (rebuild + restart all containers), not just matching-engine —
+today, with one app, that's identical to redeploying matching-engine alone.
 
 Deploy flow, on `terraform apply`:
 
@@ -124,10 +134,12 @@ Deploy flow, on `terraform apply`:
 2. It reads `/wusool/dev/matching-engine` from Secrets Manager and clones
    `matching_engine_git_repo_url` at `matching_engine_git_ref` using a
    short-lived, embedded GitHub token (never persisted to `.git/config`).
-3. It writes the app's `.env.production` from the secret, builds the image
-   from `workflows/matching-engine/Dockerfile`, and starts it behind Caddy
-   (HTTPS, same sslip.io/Elastic-IP pattern as n8n unless
-   `matching_engine_public_url` is set to a real domain).
+3. It writes each app's `.env.production` from its own secret, builds each
+   app's image from its own Dockerfile (matching-engine's is at
+   `wusool-toolkit/matching-engine/Dockerfile`), and starts them all behind
+   one shared Caddy instance — one virtual host per app (HTTPS, same
+   sslip.io/Elastic-IP pattern as n8n unless `matching_engine_public_url`
+   is set to a real domain).
 
 Populate the secret before (or right after) the first apply:
 

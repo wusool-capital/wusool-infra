@@ -80,7 +80,7 @@ output "matching_engine_public_ip" {
 
 output "matching_engine_url" {
   description = "HTTPS URL for the matching-engine app. Slack Request URLs are this plus /slack/events."
-  value       = module.matching_engine.app_url
+  value       = module.matching_engine.app_urls["matching-engine"]
 }
 
 output "matching_engine_ssm_command" {

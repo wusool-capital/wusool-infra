@@ -17,15 +17,17 @@ services:
       # /docker-entrypoint-initdb.d/ against an empty data directory) — the
       # exact same schema files the real wusool_crm database uses. This is
       # a local, throwaway copy; never point this at the real database.
-      - ../../database/sql:/docker-entrypoint-initdb.d:ro
+      # :Z relabels the bind mount for SELinux-enforcing rootless-Podman
+      # hosts (a no-op elsewhere, e.g. Docker Desktop / non-SELinux Linux).
+      - ../../database/sql:/docker-entrypoint-initdb.d:ro,Z
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U matching -d wusool_crm"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  app:
-    build: .
+  matching-engine:
+    build: ./matching-engine
     ports:
       - "8000:8000"
     environment:
@@ -42,6 +44,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # A future `ddl-commands` bot goes here as its own service:
+  #   ddl-commands:
+  #     build: ./ddl-commands
+  #     ...
 
 volumes:
   matching-engine-db-data:

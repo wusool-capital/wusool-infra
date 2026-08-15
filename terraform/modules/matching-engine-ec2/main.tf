@@ -117,19 +117,50 @@ resource "aws_eip" "matching_engine" {
 }
 
 locals {
-  generated_hostname = "${replace(aws_eip.matching_engine.public_ip, ".", "-")}.sslip.io"
-  public_hostname    = var.app_public_url != "" ? regex("^https?://([^/]+)", var.app_public_url)[0] : local.generated_hostname
-  public_url         = var.app_public_url != "" ? var.app_public_url : "https://${local.public_hostname}"
+  generated_ip_label = replace(aws_eip.matching_engine.public_ip, ".", "-")
   alarm_actions      = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
 
+  # Per-app hostname/URL resolution — same sslip.io-fallback logic as before,
+  # just per app instead of a single pair of locals.
+  apps_resolved = [for a in var.apps : {
+    name          = a.name
+    # Bash variable names can't contain hyphens (app names can, e.g.
+    # "matching-engine") — this is used only for shell variable naming in
+    # user_data.sh.tpl, never for docker-compose/Caddy/log identifiers.
+    slug          = replace(a.name, "-", "_")
+    app_subdir    = a.app_subdir
+    app_secret_id = a.app_secret_id
+    hostname      = a.public_url != "" ? regex("^https?://([^/]+)", a.public_url)[0] : "${a.name}-${local.generated_ip_label}.sslip.io"
+    url           = a.public_url != "" ? a.public_url : "https://${a.name}-${local.generated_ip_label}.sslip.io"
+  }]
+
+  # Built with Terraform's own jsonencode() over an HCL list, not hand-joined
+  # inside the bash template, so there's no comma-joining bug to introduce.
+  cloudwatch_log_entries = concat(
+    [{
+      file_path       = "/var/log/cloud-init-output.log"
+      log_group_name  = aws_cloudwatch_log_group.matching_engine.name
+      log_stream_name = "{instance_id}/cloud-init"
+    }],
+    [for app in local.apps_resolved : {
+      file_path       = "/var/lib/docker/volumes/matching-engine_caddy_data/_data/${app.name}-access.log"
+      log_group_name  = aws_cloudwatch_log_group.matching_engine.name
+      log_stream_name = "{instance_id}/caddy-${app.name}"
+    }]
+  )
+  cloudwatch_agent_config = jsonencode({
+    logs = { logs_collected = { files = { collect_list = local.cloudwatch_log_entries } } }
+  })
+
   user_data_rendered = replace(templatefile("${path.module}/user_data.sh.tpl", {
-    public_hostname = local.public_hostname
-    git_repo_url    = var.git_repo_url
-    git_ref         = var.git_ref
-    app_subdir      = var.app_subdir
-    app_secret_id   = var.app_secret_id
-    aws_region      = var.aws_region
-    log_group_name  = aws_cloudwatch_log_group.matching_engine.name
+    apps = local.apps_resolved
+    # The repo clone is shared by every app; the github_token used for it
+    # only needs to come from one app's secret, so the first app's is used.
+    github_secret_id        = var.apps[0].app_secret_id
+    git_repo_url            = var.git_repo_url
+    git_ref                 = var.git_ref
+    aws_region              = var.aws_region
+    cloudwatch_agent_config = local.cloudwatch_agent_config
   }), "\r\n", "\n")
 }
 
@@ -179,7 +210,7 @@ resource "aws_ssm_document" "bootstrap" {
 
   content = jsonencode({
     schemaVersion = "2.2"
-    description   = "Deploy/redeploy the matching-engine app: git pull, docker compose build, restart"
+    description   = "Deploy/redeploy the app(s) on this instance: git pull, docker compose build, restart"
     mainSteps = [{
       action = "aws:runShellScript"
       name   = "bootstrap"
