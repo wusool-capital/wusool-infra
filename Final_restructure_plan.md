@@ -318,7 +318,7 @@ Everything here was read from live AWS, not from repo docs.
 
 | Area | Decision |
 |---|---|
-| Branching | `dev` + `main`. Merge to `dev` → dev; merge to `main` → prod. |
+| Branching | `dev` + `app`. Merge to `dev` → dev; merge to `app` → prod. |
 | Deploy scope | One workflow; change detection feeds a per-service matrix. |
 | Env config | One env-agnostic stack per service; `envs/{dev,prod}.tfvars` committed. |
 | State | One state per service per environment. |
@@ -430,7 +430,7 @@ structure.
 | Transition | Merge type | Effect on history |
 |---|---|---|
 | `feature/*` → `dev` | **squash** | feature commits collapse to one new SHA on `dev` |
-| `dev` → prod branch | **normal merge** (merge commit) | dev's commits are **preserved** in prod's history; prod becomes a **superset** of dev |
+| `dev` → `app` | **normal merge** (merge commit) | dev's commits are **preserved** in prod's history; prod becomes a **superset** of dev |
 
 Three consequences that shape the rest of this plan:
 
@@ -458,7 +458,7 @@ branch a **pure superset** of `dev` — no divergence, nothing to reconcile.
 
 **3. `backmerge.yml` becomes a safety net rather than routine.** Since prod is a
 superset of `dev` by construction, the only way they diverge is a hotfix
-committed **directly** to the prod branch. Keep the workflow for exactly that
+committed **directly** to `app`. Keep the workflow for exactly that
 case — it is the known weakness of this branching model — but expect it to fire
 rarely.
 
@@ -466,6 +466,48 @@ rarely.
 $SHA origin/dev` would work reliably if you ever want the dev-ancestry check
 that was declined (see *Accepted risks*). Squash-merging `dev` → prod would
 break that property, which is a further reason to keep it a normal merge.
+
+#### C0a. Creating `app`, and what to do with `main`
+
+**Branch `app` from `dev` — not from `main`.** Verified:
+
+| Branch | Top-level layout |
+|---|---|
+| `dev` | `.agents .claude .github **database** scripts terraform **workflows**` |
+| `main` | `.agents .claude .github **DOCS** scripts terraform` |
+
+`main` is **structurally obsolete** — it predates the `database/` and
+`workflows/` restructure. `dev` is 50 commits ahead; `main` is 2 ahead (a stale
+"sync main with dev" attempt, #12). Merge base is `5441211`, and a `dev → main`
+merge produces **11 conflicts**.
+
+Branching prod off `main` would give the production branch a repo layout that no
+longer exists, and make the first promotion an 11-conflict merge.
+
+**The "50 untested commits become production-bound" objection does not apply
+here**, because **no CD exists yet** — nothing fires on `app`. Production's
+actual definition is its Terraform state plus `terraform/environments/prod`
+(n8n-only), not which branches exist. Creating `app` changes nothing running.
+By the time Phase E wires deploys, prod's stacks are explicit and reviewed.
+
+```bash
+git fetch origin
+git push origin origin/dev:refs/heads/app     # create app at dev's tip
+gh repo edit --default-branch dev             # make dev the default
+```
+
+**Then retire `main`.** Once `app` exists and `dev` is default, `main` is
+orphaned and actively misleading — someone will branch from it. Tag it first so
+nothing is lost:
+
+```bash
+git tag archive/main-pre-restructure origin/main
+git push origin archive/main-pre-restructure
+git push origin --delete main
+```
+
+Its 2 unique commits are stale doc/layout changes that `dev` has since
+superseded; confirm nothing is uniquely needed before deleting.
 
 ---
 
@@ -476,9 +518,10 @@ No risk, no dependencies. Can run in parallel with A/B.
 1. **Make `dev` the GitHub default branch** (currently `main`, per
    `git symbolic-ref refs/remotes/origin/HEAD`). `CONTRIBUTING.md` already
    mandates PRs into `dev`.
-2. **Branch protection on both `dev` and `main`**: require PR, require the
-   plan-on-PR check (Phase E), block direct pushes. The check must be required
-   on **`main` too**, not just `dev` — see Phase E for why that is load-bearing.
+2. **Create the `app` branch from `dev`** (see C0a below), then set branch
+   protection on both `dev` and `app`: require PR, require the plan-on-PR check
+   (Phase E), block direct pushes. The check must be required on **`app` too**,
+   not just `dev` — see Phase E for why that is load-bearing.
 3. Add `.github/CODEOWNERS`. `CONTRIBUTING.md:121-122` already instructs
    enabling "Require review from Code Owners" and the file does not exist.
 4. Fix `CONTRIBUTING.md:17` — names `github.com/Azmora-ai/wusool-infra.git`;
@@ -926,7 +969,7 @@ In `stacks/account`: `aws_iam_openid_connect_provider` for
 |---|---|---|
 | `wusool-gha-plan` | any branch / PR | read-only + state read/write (locking) |
 | `wusool-gha-apply-dev` | `refs/heads/dev` | apply on dev |
-| `wusool-gha-apply-prod` | `refs/heads/main` | apply on prod |
+| `wusool-gha-apply-prod` | `refs/heads/app` | apply on prod |
 
 #### E2. Files
 
@@ -934,7 +977,7 @@ In `stacks/account`: `aws_iam_openid_connect_provider` for
 .github/workflows/
   ci.yml               # fmt, validate, ruff, ty, pytest, PSScriptAnalyzer — path-filtered
   terraform-plan.yml   # on: pull_request -> plan + PR comment (required check)
-  deploy.yml           # on: push to dev|main -> detect changes -> matrix apply
+  deploy.yml           # on: push to dev|app -> detect changes -> matrix apply
   _terraform.yml       # reusable: init/plan/apply for (stack, env)
   backmerge.yml        # after successful prod deploy, open main -> dev PR
 ```
@@ -942,7 +985,7 @@ In `stacks/account`: `aws_iam_openid_connect_provider` for
 #### E3. `terraform-plan.yml` must plan against the PR's **base** branch
 
 Load-bearing, because the prod approval gate was declined: **the plan comment on
-the `dev -> main` PR is the only human review production ever gets.**
+the `dev -> app` PR is the only human review production ever gets.**
 
 Wired as a bare `on: pull_request`, every PR plans against `envs/dev.tfvars` —
 including the promotion PR, whose comment would show a **dev** diff while
@@ -950,7 +993,7 @@ including the promotion PR, whose comment would show a **dev** diff while
 the only PR where it matters.
 
 ```yaml
-env: ${{ github.event.pull_request.base.ref == 'main' && 'prod' || 'dev' }}
+env: ${{ github.event.pull_request.base.ref == 'app' && 'prod' || 'dev' }}
 ```
 
 #### E4. `deploy.yml`
@@ -958,7 +1001,7 @@ env: ${{ github.event.pull_request.base.ref == 'main' && 'prod' || 'dev' }}
 ```yaml
 on:
   push:
-    branches: [dev, main]
+    branches: [dev, app]
   workflow_dispatch:
     inputs:
       stack:       { type: choice, options: [account, base, n8n, postgres, matching-engine] }
@@ -998,8 +1041,8 @@ Three details that are easy to get wrong:
 
 #### E5. `backmerge.yml`
 
-On a successful `deploy.yml` run against `main`, open a `main -> dev` PR if
-`dev` is behind. This is the chosen mitigation for "hotfix merged to `main` gets
+On a successful `deploy.yml` run against `app`, open a `app -> dev` PR if
+`dev` is behind. This is the chosen mitigation for "hotfix merged to `app` gets
 silently reverted on the next promotion" — the known weakness of the dev/main
 model.
 
@@ -1030,9 +1073,9 @@ box mid-deploy.
 
 1. `aws_ecr_repository` per app — immutable tags, scan-on-push, lifecycle policy
    keeping the last N images. (None exist today.)
-2. **`build-push.yml` builds on `dev` ONLY — never on `main`.**
+2. **`build-push.yml` builds on `dev` ONLY — never on `app`.**
 
-   Building on both branches breaks the guarantee: a squash-merge to `main`
+   Building on both branches breaks the guarantee: a squash-merge to `app`
    produces a different commit SHA, and even at the same SHA a rebuild resolves
    a different base-image layer. Prod would then run an artifact that was never
    tested in dev — the exact thing this phase exists to prevent.
@@ -1050,7 +1093,7 @@ box mid-deploy.
 
    This makes promotion **literally the diff a reviewer sees** — which matters
    because the prod approval gate was declined, so the plan-on-PR comment is
-   production's only human review. `main` never builds; it only ever deploys a
+   production's only human review. `app` never builds; it only ever deploys a
    digest that already ran in dev.
 
    Requires ECR `imageTagMutability = IMMUTABLE` so a tag cannot be repointed
@@ -1410,8 +1453,8 @@ instance. Build in CI, push to ECR, deploy by `sha256:` digest, so dev and prod
 run the identical artifact. Instances are in the public subnet with EIPs, so no
 NAT or VPC endpoint is required. Pin every base image.
 
-**10. Branching and CD.** `dev` + `main`. Merge to `dev` deploys dev; merge to
-`main` deploys prod. Plan-on-PR is a required status check on **both** branches,
+**10. Branching and CD.** `dev` + `app`. Merge to `dev` deploys dev; merge to
+`app` deploys prod. Plan-on-PR is a required status check on **both** branches,
 and the plan must select its var-file from the PR's **base** branch — otherwise
 your promotion PR shows a dev diff while prod is what changes. Use GitHub OIDC
 (role ARNs from `stacks/account`); no static AWS keys.
@@ -1451,7 +1494,7 @@ exists.**
 - [ ] Secret renamed to `/wusool/<env>/scribe`; separate secret per env
 - [ ] SSM document re-registered from source on every deploy
 - [ ] Image built in CI, pushed to ECR, deployed by digest; base images pinned
-- [ ] OIDC auth; plan-on-PR required on `dev` and `main`, var-file from base ref
+- [ ] OIDC auth; plan-on-PR required on `dev` and `app`, var-file from base ref
 - [ ] DDL ownership agreed (a/b/c above) and written down
 - [ ] `stacks/postgres` prod exists before scribe prod is applied
 
@@ -1490,9 +1533,9 @@ n8n, postgres, matching-engine, and scribe.
 |---|---|
 | A | `init` + `plan` succeed against real backends for dev and prod with no "state written by a newer version" error |
 | B | Decoded `aws_ssm_document.bootstrap.content` contains `n8n.wusoolcapital.com` and **zero** `n8n-prod.wusoolcapital.com`; live site still serves HTTPS |
-| C | `dev` is default; plan check required on `dev` **and** `main`; no `Azmora-ai` references remain |
+| C | `dev` is default; `app` exists, branched from `dev`; plan check required on `dev` **and** `app`; no `Azmora-ai` references remain |
 | D | `git check-ignore -v terraform/envs/dev.tfvars` returns nothing (D0b). `stacks/account` adopts `wusool-tfstate` **and its three subordinate resources** with a clean plan and `prevent_destroy` set; `terraform/bootstrap/` deleted; lock table removed. EBS snapshots exist and are `completed` before starting. After every `state mv`: the SOURCE state lists **zero** moved resources and the DESTINATION lists them, both verified with `state list`. Every stack × env: `plan` reports `0 to add, 0 to change, 0 to destroy` and zero `forces replacement`. `lifecycle { ignore_changes = [ami] }` present in the new n8n stack. `terraform/environments/` deleted once green. `stacks/base` outputs resolve in service stacks. n8n stays reachable; dev matching-engine `/health` stays green. SecurityHub finding history intact |
-| E | PR touching only `stacks/n8n/**` → matrix contains `n8n` only. PR touching `modules/network/**` → fans out to `base` + downstream. **A `dev -> main` PR comments a plan naming the prod backend key.** Broken Python fails `ci.yml`. Deleting the SSM `deployed_sha` triggers a full deploy |
+| E | PR touching only `stacks/n8n/**` → matrix contains `n8n` only. PR touching `modules/network/**` → fans out to `base` + downstream. **A `dev -> app` PR comments a plan naming the prod backend key.** Broken Python fails `ci.yml`. Deleting the SSM `deployed_sha` triggers a full deploy |
 | F | `docker inspect` on dev and prod report the **same image digest** after promotion. Apply with the previous digest rolls back and serves traffic |
 | H | `ami_id` is an explicit tfvars value; changing it shows a reviewed diff. After H2, all of: workflow count matches pre-cutover, a credential decrypts in the UI, one workflow executes end to end, a webhook fires from outside, `select count(*) from workflow_entity` is non-zero, and terminating/recreating the instance loses no data. A restore from the backup plan has been tested at least once. |
 | G | `alembic upgrade head` on empty Postgres → `schema_check.py` reports zero drift vs live dev. `alembic check` clean. Second `upgrade head` is a no-op |
@@ -1501,7 +1544,7 @@ n8n, postgres, matching-engine, and scribe.
 
 ## Accepted risks (declined guardrails — recorded deliberately)
 
-1. **No approval gate on prod.** A merge to `main` applies to production with no
+1. **No approval gate on prod.** A merge to `app` applies to production with no
    human confirmation between the merge click and AWS changing. The plan
    reviewed on the PR may differ from the plan applied, if anything else merged
    in between.
@@ -1512,7 +1555,7 @@ n8n, postgres, matching-engine, and scribe.
    `allow_destroy: true`. Automated, not a human gate, and it catches the
    specific catastrophic case the approval gate existed to catch.
 
-2. **No dev-ancestry check.** Any commit reaching `main` deploys to prod,
+2. **No dev-ancestry check.** Any commit reaching `app` deploys to prod,
    including a hotfix that never ran in dev. `backmerge.yml` prevents such a fix
    being *lost*, but not from being *untested* when it first reaches production.
 
