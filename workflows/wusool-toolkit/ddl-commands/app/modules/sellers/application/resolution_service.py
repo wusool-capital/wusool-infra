@@ -21,10 +21,10 @@ class SellerResolutionService:
         self._sellers = seller_repository
 
     async def resolve(
-        self, seller_name: str, *, include_archived: bool = False
+        self, seller_name: str, *, include_removed: bool = False
     ) -> SellerResolution:
         matches = await self._sellers.search_by_organization_name(
-            seller_name, include_archived=include_archived
+            seller_name, include_removed=include_removed
         )
         if not matches:
             return SellerResolution(status="none")

@@ -2,7 +2,7 @@
 same "confirm/choose the right seller" shape matching-engine's
 `buyer_selection.py::build_buyer_selection_modal` already uses for
 `/find-match`, extended with an `intent` (edit vs remove) and an
-`(archived)` label on any archived candidate.
+`(removed)` label on any removed candidate.
 """
 
 import json
@@ -23,12 +23,12 @@ def build_seller_selection_modal(
         org = candidate.organization
         detail_bits = [b for b in (org.hq_country, ", ".join(org.sector_focus) or None) if b]
         detail = f" ({', '.join(detail_bits)})" if detail_bits else ""
-        archived_suffix = " (archived)" if candidate.archived_at is not None else ""
+        removed_suffix = " (removed)" if candidate.removed_at is not None else ""
         options.append(
             {
                 "text": {
                     "type": "plain_text",
-                    "text": f"{org.name}{detail}{archived_suffix}"[:75],
+                    "text": f"{org.name}{detail}{removed_suffix}"[:75],
                 },
                 "value": str(candidate.id),
             }

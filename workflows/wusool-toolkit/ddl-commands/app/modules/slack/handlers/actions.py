@@ -1,4 +1,4 @@
-"""Selection-modal submissions, edit-form submissions, and archive/cancel
+"""Selection-modal submissions, edit-form submissions, and remove/cancel
 button actions for sellers and buyers. Thin adapters: parse the Slack
 payload, call the application use case, translate the result back into a
 Slack message. Every write re-validates against the database inside its use
@@ -11,11 +11,11 @@ from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
 
 from app.modules.buyers.application.use_cases import (
-    BuyerAlreadyArchivedError,
+    BuyerAlreadyRemovedError,
     BuyerNotFoundError,
 )
 from app.modules.buyers.dependencies import (
-    build_archive_buyer_use_case,
+    build_remove_buyer_use_case,
     build_update_buyer_use_case,
     resolve_buyer_by_id,
 )
@@ -25,11 +25,11 @@ from app.modules.matching.dependencies import (
     count_match_results_for_seller,
 )
 from app.modules.sellers.application.use_cases import (
-    SellerAlreadyArchivedError,
+    SellerAlreadyRemovedError,
     SellerNotFoundError,
 )
 from app.modules.sellers.dependencies import (
-    build_archive_seller_use_case,
+    build_remove_seller_use_case,
     build_update_seller_use_case,
     resolve_seller_by_id,
 )
@@ -136,7 +136,7 @@ def register(app: AsyncApp) -> None:
         channel_id = metadata.get("channel_id")
         seller_role_id = metadata.get("seller_role_id")
         org_name = metadata.get("org_name", "")
-        archived = bool(metadata.get("archived", False))
+        removed = bool(metadata.get("removed", False))
 
         values = view["state"]["values"]
         raw_fields = _extract_seller_fields(values)
@@ -149,7 +149,7 @@ def register(app: AsyncApp) -> None:
             errors.update(pydantic_errors_to_slack(exc.errors()))
 
         restore_confirmed = get_checkbox_selected(values, "restore_confirmation", "confirm_restore")
-        if archived and not restore_confirmed:
+        if removed and not restore_confirmed:
             errors["restore_confirmation"] = (
                 "You must confirm you intend to restore this profile."
             )
@@ -164,22 +164,22 @@ def register(app: AsyncApp) -> None:
 
         try:
             await build_update_seller_use_case().execute(
-                seller_role_id, fields, requested_by, restore=archived
+                seller_role_id, fields, requested_by, restore=removed
             )
         except SellerNotFoundError:
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="This seller could not be found."
             )
             return
-        except SellerAlreadyArchivedError:
+        except SellerAlreadyRemovedError:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text="This seller is archived — reopen with `/edit-seller` to restore it.",
+                text="This seller is removed — reopen with `/edit-seller` to restore it.",
             )
             return
 
-        verb = "Restored and updated" if archived else "Updated"
+        verb = "Restored and updated" if removed else "Updated"
         await client.chat_postEphemeral(
             channel=channel_id, user=requested_by, text=f"{verb} seller profile for {org_name}."
         )
@@ -191,7 +191,7 @@ def register(app: AsyncApp) -> None:
         channel_id = metadata.get("channel_id")
         buyer_role_id = metadata.get("buyer_role_id")
         org_name = metadata.get("org_name", "")
-        archived = bool(metadata.get("archived", False))
+        removed = bool(metadata.get("removed", False))
 
         values = view["state"]["values"]
         raw_fields = _extract_buyer_fields(values)
@@ -204,7 +204,7 @@ def register(app: AsyncApp) -> None:
             errors.update(pydantic_errors_to_slack(exc.errors()))
 
         restore_confirmed = get_checkbox_selected(values, "restore_confirmation", "confirm_restore")
-        if archived and not restore_confirmed:
+        if removed and not restore_confirmed:
             errors["restore_confirmation"] = (
                 "You must confirm you intend to restore this profile."
             )
@@ -219,37 +219,37 @@ def register(app: AsyncApp) -> None:
 
         try:
             await build_update_buyer_use_case().execute(
-                buyer_role_id, fields, requested_by, restore=archived
+                buyer_role_id, fields, requested_by, restore=removed
             )
         except BuyerNotFoundError:
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="This buyer could not be found."
             )
             return
-        except BuyerAlreadyArchivedError:
+        except BuyerAlreadyRemovedError:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text="This buyer is archived — reopen with `/edit-buyer` to restore it.",
+                text="This buyer is removed — reopen with `/edit-buyer` to restore it.",
             )
             return
 
-        verb = "Restored and updated" if archived else "Updated"
+        verb = "Restored and updated" if removed else "Updated"
         await client.chat_postEphemeral(
             channel=channel_id, user=requested_by, text=f"{verb} buyer profile for {org_name}."
         )
 
-    @app.action("archive_seller")
-    async def handle_archive_seller(ack, body, client, respond):  # noqa: ANN001
+    @app.action("remove_seller")
+    async def handle_remove_seller(ack, body, client, respond):  # noqa: ANN001
         await ack()
-        await _handle_archive_decision(
+        await _handle_remove_decision(
             body,
             client,
             respond,
             kind="seller",
-            use_case=build_archive_seller_use_case(),
+            use_case=build_remove_seller_use_case(),
             not_found_error=SellerNotFoundError,
-            already_archived_error=SellerAlreadyArchivedError,
+            already_removed_error=SellerAlreadyRemovedError,
         )
 
     @app.action("cancel_seller")
@@ -257,17 +257,17 @@ def register(app: AsyncApp) -> None:
         await ack()
         await respond(replace_original=True, text="Cancelled.")
 
-    @app.action("archive_buyer")
-    async def handle_archive_buyer(ack, body, client, respond):  # noqa: ANN001
+    @app.action("remove_buyer")
+    async def handle_remove_buyer(ack, body, client, respond):  # noqa: ANN001
         await ack()
-        await _handle_archive_decision(
+        await _handle_remove_decision(
             body,
             client,
             respond,
             kind="buyer",
-            use_case=build_archive_buyer_use_case(),
+            use_case=build_remove_buyer_use_case(),
             not_found_error=BuyerNotFoundError,
-            already_archived_error=BuyerAlreadyArchivedError,
+            already_removed_error=BuyerAlreadyRemovedError,
         )
 
     @app.action("cancel_buyer")
@@ -276,8 +276,8 @@ def register(app: AsyncApp) -> None:
         await respond(replace_original=True, text="Cancelled.")
 
 
-async def _handle_archive_decision(
-    body: dict, client, respond, *, kind: str, use_case, not_found_error, already_archived_error  # noqa: ANN001
+async def _handle_remove_decision(
+    body: dict, client, respond, *, kind: str, use_case, not_found_error, already_removed_error  # noqa: ANN001
 ) -> None:
     action = body["actions"][0]
     role_id = action.get("value")
@@ -291,16 +291,16 @@ async def _handle_archive_decision(
             channel=channel_id, user=user_id, text=f"This {kind} could not be found."
         )
         return
-    except already_archived_error:
+    except already_removed_error:
         await client.chat_postEphemeral(
-            channel=channel_id, user=user_id, text=f"This {kind} has already been archived."
+            channel=channel_id, user=user_id, text=f"This {kind} has already been removed."
         )
         return
 
     await client.chat_postEphemeral(
-        channel=channel_id, user=user_id, text=f"Archived by <@{user_id}>."
+        channel=channel_id, user=user_id, text=f"Removed by <@{user_id}>."
     )
-    await respond(replace_original=True, text=f"🗑️ Archived by <@{user_id}>.")
+    await respond(replace_original=True, text=f"🗑️ Removed by <@{user_id}>.")
 
 
 def _extract_seller_fields(values: dict) -> dict:

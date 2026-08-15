@@ -19,7 +19,7 @@ class BuyerSummary(BaseModel):
     organization: OrganizationSummary
     model: str | None = None
     mandate_status: str | None = None
-    archived_at: datetime | None = None
+    removed_at: datetime | None = None
 
 
 class MoneyInput(BaseModel):
@@ -31,7 +31,7 @@ class BuyerUpdate(BaseModel):
     """Every user-editable `buyer_roles` field. Excluded on purpose:
     `mandate_id`-equivalent (buyers have none), `key_contact_attio_id` (needs
     a Person's Attio ID, not a natural Slack input), `raw_attio`/timestamps/
-    `archived_at`/`bot_managed_at`/`bot_managed_by` (system-managed — the use
+    `removed_at`/`bot_managed_at`/`bot_managed_by` (system-managed — the use
     case sets these, never the form).
 
     `max_length` caps are conservative UX guesses, not sourced from any

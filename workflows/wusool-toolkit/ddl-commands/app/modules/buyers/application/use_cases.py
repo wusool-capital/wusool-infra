@@ -16,12 +16,12 @@ class BuyerNotFoundError(Exception):
     pass
 
 
-class BuyerAlreadyArchivedError(Exception):
-    """Raised when: (a) an edit is attempted on an archived row without
+class BuyerAlreadyRemovedError(Exception):
+    """Raised when: (a) an edit is attempted on a removed row without
     `restore=True` — shouldn't happen via the normal Slack flow, since the
-    handler always knows the row's archived state before calling this, but
-    stays a hard guard against a caller bug; or (b) archiving an
-    already-archived row (never a valid action).
+    handler always knows the row's removed state before calling this, but
+    stays a hard guard against a caller bug; or (b) removing an
+    already-removed row (never a valid action).
     """
 
 
@@ -38,7 +38,7 @@ class UpdateBuyerUseCase:
         restore: bool = False,
     ) -> BuyerRole:
         """Doubles as the restore path (§5's checkbox-gated edit flow is what
-        makes this safe to call with `restore=True`): clears `archived_at`
+        makes this safe to call with `restore=True`): clears `removed_at`
         and applies the field changes in the same write.
         """
         async with self._sessionmaker() as session:
@@ -47,16 +47,16 @@ class UpdateBuyerUseCase:
                 role = await repo.get_by_id(buyer_role_id)
                 if role is None:
                     raise BuyerNotFoundError(buyer_role_id)
-                if role.archived_at is not None and not restore:
-                    raise BuyerAlreadyArchivedError(buyer_role_id)
+                if role.removed_at is not None and not restore:
+                    raise BuyerAlreadyRemovedError(buyer_role_id)
                 if restore:
-                    fields = {**fields, "archived_at": None}
+                    fields = {**fields, "removed_at": None}
                 updated = await repo.update(buyer_role_id, actor_user_id, **fields)
         assert updated is not None
         return updated
 
 
-class ArchiveBuyerUseCase:
+class RemoveBuyerUseCase:
     def __init__(self, sessionmaker: async_sessionmaker) -> None:
         self._sessionmaker = sessionmaker
 
@@ -67,8 +67,8 @@ class ArchiveBuyerUseCase:
                 role = await repo.get_by_id(buyer_role_id)
                 if role is None:
                     raise BuyerNotFoundError(buyer_role_id)
-                if role.archived_at is not None:
-                    raise BuyerAlreadyArchivedError(buyer_role_id)
-                updated = await repo.archive(buyer_role_id, actor_user_id)
+                if role.removed_at is not None:
+                    raise BuyerAlreadyRemovedError(buyer_role_id)
+                updated = await repo.remove(buyer_role_id, actor_user_id)
         assert updated is not None
         return updated

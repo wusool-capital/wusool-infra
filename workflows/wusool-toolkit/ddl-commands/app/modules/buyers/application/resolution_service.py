@@ -28,10 +28,10 @@ class BuyerResolutionService:
         self._buyers = buyer_repository
 
     async def resolve(
-        self, buyer_name: str, *, include_archived: bool = False
+        self, buyer_name: str, *, include_removed: bool = False
     ) -> BuyerResolution:
         matches = await self._buyers.search_by_organization_name(
-            buyer_name, include_archived=include_archived
+            buyer_name, include_removed=include_removed
         )
         if not matches:
             return BuyerResolution(status="none")

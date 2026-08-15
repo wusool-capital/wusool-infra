@@ -4,9 +4,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.buyers.application.use_cases import (
-    ArchiveBuyerUseCase,
-    BuyerAlreadyArchivedError,
+    BuyerAlreadyRemovedError,
     BuyerNotFoundError,
+    RemoveBuyerUseCase,
     UpdateBuyerUseCase,
 )
 from app.modules.buyers.infrastructure.models import BuyerRole
@@ -26,14 +26,14 @@ async def _seed_buyer(db_sessionmaker: async_sessionmaker[AsyncSession]) -> str:
     return role_id
 
 
-async def test_archive_twice_raises_already_archived(
+async def test_remove_twice_raises_already_removed(
     db_sessionmaker: async_sessionmaker[AsyncSession],
 ) -> None:
     buyer_id = await _seed_buyer(db_sessionmaker)
-    use_case = ArchiveBuyerUseCase(db_sessionmaker)
+    use_case = RemoveBuyerUseCase(db_sessionmaker)
 
     await use_case.execute(buyer_id, "U1")
-    with pytest.raises(BuyerAlreadyArchivedError):
+    with pytest.raises(BuyerAlreadyRemovedError):
         await use_case.execute(buyer_id, "U1")
 
 
@@ -45,26 +45,26 @@ async def test_update_not_found_raises(
         await use_case.execute(str(uuid.uuid4()), {"model": "Roll-up"}, "U1")
 
 
-async def test_update_archived_without_restore_raises(
+async def test_update_removed_without_restore_raises(
     db_sessionmaker: async_sessionmaker[AsyncSession],
 ) -> None:
     buyer_id = await _seed_buyer(db_sessionmaker)
-    await ArchiveBuyerUseCase(db_sessionmaker).execute(buyer_id, "U1")
+    await RemoveBuyerUseCase(db_sessionmaker).execute(buyer_id, "U1")
 
-    with pytest.raises(BuyerAlreadyArchivedError):
+    with pytest.raises(BuyerAlreadyRemovedError):
         await UpdateBuyerUseCase(db_sessionmaker).execute(buyer_id, {"model": "Roll-up"}, "U2")
 
 
-async def test_update_archived_with_restore_clears_archived_at_and_applies_fields(
+async def test_update_removed_with_restore_clears_removed_at_and_applies_fields(
     db_sessionmaker: async_sessionmaker[AsyncSession],
 ) -> None:
     buyer_id = await _seed_buyer(db_sessionmaker)
-    await ArchiveBuyerUseCase(db_sessionmaker).execute(buyer_id, "U1")
+    await RemoveBuyerUseCase(db_sessionmaker).execute(buyer_id, "U1")
 
     updated = await UpdateBuyerUseCase(db_sessionmaker).execute(
         buyer_id, {"model": "Roll-up"}, "U2", restore=True
     )
 
-    assert updated.archived_at is None
+    assert updated.removed_at is None
     assert updated.model == "Roll-up"
     assert updated.bot_managed_by == "U2"

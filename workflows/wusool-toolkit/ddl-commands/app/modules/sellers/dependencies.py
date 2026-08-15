@@ -6,16 +6,16 @@ from app.modules.sellers.application.resolution_service import (
     SellerResolution,
     SellerResolutionService,
 )
-from app.modules.sellers.application.use_cases import ArchiveSellerUseCase, UpdateSellerUseCase
+from app.modules.sellers.application.use_cases import RemoveSellerUseCase, UpdateSellerUseCase
 from app.modules.sellers.infrastructure.models import SellerRole
 from app.modules.sellers.infrastructure.repositories import SellerRepository
 from app.shared.database import get_sessionmaker
 
 
-async def resolve_seller(seller_name: str, *, include_archived: bool = False) -> SellerResolution:
+async def resolve_seller(seller_name: str, *, include_removed: bool = False) -> SellerResolution:
     async with get_sessionmaker()() as session:
         return await SellerResolutionService(SellerRepository(session)).resolve(
-            seller_name, include_archived=include_archived
+            seller_name, include_removed=include_removed
         )
 
 
@@ -30,5 +30,5 @@ def build_update_seller_use_case() -> UpdateSellerUseCase:
     return UpdateSellerUseCase(get_sessionmaker())
 
 
-def build_archive_seller_use_case() -> ArchiveSellerUseCase:
-    return ArchiveSellerUseCase(get_sessionmaker())
+def build_remove_seller_use_case() -> RemoveSellerUseCase:
+    return RemoveSellerUseCase(get_sessionmaker())

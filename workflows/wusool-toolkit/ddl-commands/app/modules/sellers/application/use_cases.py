@@ -13,9 +13,9 @@ class SellerNotFoundError(Exception):
     pass
 
 
-class SellerAlreadyArchivedError(Exception):
-    """Raised when: (a) an edit is attempted on an archived row without
-    `restore=True`; or (b) archiving an already-archived row."""
+class SellerAlreadyRemovedError(Exception):
+    """Raised when: (a) an edit is attempted on a removed row without
+    `restore=True`; or (b) removing an already-removed row."""
 
 
 class UpdateSellerUseCase:
@@ -36,16 +36,16 @@ class UpdateSellerUseCase:
                 role = await repo.get_by_id(seller_role_id)
                 if role is None:
                     raise SellerNotFoundError(seller_role_id)
-                if role.archived_at is not None and not restore:
-                    raise SellerAlreadyArchivedError(seller_role_id)
+                if role.removed_at is not None and not restore:
+                    raise SellerAlreadyRemovedError(seller_role_id)
                 if restore:
-                    fields = {**fields, "archived_at": None}
+                    fields = {**fields, "removed_at": None}
                 updated = await repo.update(seller_role_id, actor_user_id, **fields)
         assert updated is not None
         return updated
 
 
-class ArchiveSellerUseCase:
+class RemoveSellerUseCase:
     def __init__(self, sessionmaker: async_sessionmaker) -> None:
         self._sessionmaker = sessionmaker
 
@@ -56,8 +56,8 @@ class ArchiveSellerUseCase:
                 role = await repo.get_by_id(seller_role_id)
                 if role is None:
                     raise SellerNotFoundError(seller_role_id)
-                if role.archived_at is not None:
-                    raise SellerAlreadyArchivedError(seller_role_id)
-                updated = await repo.archive(seller_role_id, actor_user_id)
+                if role.removed_at is not None:
+                    raise SellerAlreadyRemovedError(seller_role_id)
+                updated = await repo.remove(seller_role_id, actor_user_id)
         assert updated is not None
         return updated

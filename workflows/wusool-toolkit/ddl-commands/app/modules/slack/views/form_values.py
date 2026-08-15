@@ -91,7 +91,7 @@ def money_input_blocks(field: str, label: str, money: dict | None) -> list[dict]
 
 
 def restore_confirmation_block() -> dict:
-    """Only rendered when the edit target is archived — a required checkbox,
+    """Only rendered when the edit target is removed — a required checkbox,
     not just a relabeled submit button, so restoring is a deliberate action
     the operator must actively opt into, not a passive side effect of an
     otherwise-routine edit.
@@ -107,7 +107,7 @@ def restore_confirmation_block() -> dict:
                 {
                     "text": {
                         "type": "plain_text",
-                        "text": "I intend to restore this archived profile",
+                        "text": "I intend to restore this removed profile",
                     },
                     "value": "confirm",
                 }

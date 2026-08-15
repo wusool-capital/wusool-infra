@@ -4,7 +4,7 @@ lookup), then open the disambiguation modal. Mirrors matching-engine's
 `/find-match` handler shape exactly (ack first, idempotency-guard on
 `trigger_id`, usage message on empty text, ephemeral on no match).
 
-`/edit-*` resolves with `include_archived=True` so an archived row can be
+`/edit-*` resolves with `include_removed=True` so a removed row can be
 found and restored; `/remove-*` resolves with the default `False` — removing
 an already-removed row isn't a useful action.
 """
@@ -29,33 +29,33 @@ def register(app: AsyncApp) -> None:
     async def handle_edit_seller(ack, command, client):  # noqa: ANN001
         await ack()
         await _handle_seller_command(
-            command, client, action="edit_seller", include_archived=True, intent="edit"
+            command, client, action="edit_seller", include_removed=True, intent="edit"
         )
 
     @app.command("/remove-seller")
     async def handle_remove_seller(ack, command, client):  # noqa: ANN001
         await ack()
         await _handle_seller_command(
-            command, client, action="remove_seller", include_archived=False, intent="remove"
+            command, client, action="remove_seller", include_removed=False, intent="remove"
         )
 
     @app.command("/edit-buyer")
     async def handle_edit_buyer(ack, command, client):  # noqa: ANN001
         await ack()
         await _handle_buyer_command(
-            command, client, action="edit_buyer", include_archived=True, intent="edit"
+            command, client, action="edit_buyer", include_removed=True, intent="edit"
         )
 
     @app.command("/remove-buyer")
     async def handle_remove_buyer(ack, command, client):  # noqa: ANN001
         await ack()
         await _handle_buyer_command(
-            command, client, action="remove_buyer", include_archived=False, intent="remove"
+            command, client, action="remove_buyer", include_removed=False, intent="remove"
         )
 
 
 async def _handle_seller_command(
-    command: dict, client, *, action: str, include_archived: bool, intent: str  # noqa: ANN001
+    command: dict, client, *, action: str, include_removed: bool, intent: str  # noqa: ANN001
 ) -> None:
     idempotency_key = f"{action}:{command.get('trigger_id')}"
     if _idempotency_store.seen(idempotency_key):
@@ -75,7 +75,7 @@ async def _handle_seller_command(
         )
         return
 
-    resolution = await resolve_seller(seller_name, include_archived=include_archived)
+    resolution = await resolve_seller(seller_name, include_removed=include_removed)
 
     if resolution.status == "none":
         await client.chat_postEphemeral(
@@ -98,7 +98,7 @@ async def _handle_seller_command(
 
 
 async def _handle_buyer_command(
-    command: dict, client, *, action: str, include_archived: bool, intent: str  # noqa: ANN001
+    command: dict, client, *, action: str, include_removed: bool, intent: str  # noqa: ANN001
 ) -> None:
     idempotency_key = f"{action}:{command.get('trigger_id')}"
     if _idempotency_store.seen(idempotency_key):
@@ -118,7 +118,7 @@ async def _handle_buyer_command(
         )
         return
 
-    resolution = await resolve_buyer(buyer_name, include_archived=include_archived)
+    resolution = await resolve_buyer(buyer_name, include_removed=include_removed)
 
     if resolution.status == "none":
         await client.chat_postEphemeral(

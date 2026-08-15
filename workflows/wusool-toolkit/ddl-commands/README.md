@@ -56,16 +56,16 @@ persisted, and this suite never needs to be run against real `wusool_crm`.
 Reads/writes `organizations`, `buyer_roles`, `seller_roles` in the same
 `wusool_crm` database matching-engine uses — see `../../../database/README.md`
 for the schema. This bot never creates tables or runs migrations; the
-`archived_at`/`bot_managed_at`/`bot_managed_by` columns these commands depend
+`removed_at`/`bot_managed_at`/`bot_managed_by` columns these commands depend
 on come from `database/sql/008_bot_managed_columns.sql`, applied the same way
 as every other migration in that folder.
 
 **Soft delete, not hard delete**: `/remove-seller`/`/remove-buyer` set
-`archived_at` rather than issuing a SQL `DELETE` — `match_results.buyer_role_id`/
+`removed_at` rather than issuing a SQL `DELETE` — `match_results.buyer_role_id`/
 `seller_role_id` are `ON DELETE CASCADE`, so a hard delete would silently wipe
-approve/reject match history in matching-engine. Archived rows are excluded
+approve/reject match history in matching-engine. Removed rows are excluded
 from `/edit-*`'s and `/remove-*`'s default fuzzy search, but `/edit-seller`/
-`/edit-buyer` can still find one (labeled `(archived)`) and restore it —
+`/edit-buyer` can still find one (labeled `(removed)`) and restore it —
 gated behind a required confirmation checkbox on the edit form, not a side
 effect of a routine save.
 

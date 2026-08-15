@@ -20,12 +20,12 @@ def build_buyer_selection_modal(
         org = candidate.organization
         detail_bits = [b for b in (org.hq_country, ", ".join(org.sector_focus) or None) if b]
         detail = f" ({', '.join(detail_bits)})" if detail_bits else ""
-        archived_suffix = " (archived)" if candidate.archived_at is not None else ""
+        removed_suffix = " (removed)" if candidate.removed_at is not None else ""
         options.append(
             {
                 "text": {
                     "type": "plain_text",
-                    "text": f"{org.name}{detail}{archived_suffix}"[:75],
+                    "text": f"{org.name}{detail}{removed_suffix}"[:75],
                 },
                 "value": str(candidate.id),
             }

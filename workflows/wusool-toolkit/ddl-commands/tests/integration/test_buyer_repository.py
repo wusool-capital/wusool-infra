@@ -23,22 +23,22 @@ async def test_search_by_organization_name_finds_typo_tolerant_match(
     assert any(r.org_attio_id == throwaway_org.attio_id for r in results)
 
 
-async def test_search_excludes_archived_by_default_but_finds_with_include_archived(
+async def test_search_excludes_removed_by_default_but_finds_with_include_removed(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:
     from datetime import UTC, datetime
 
-    throwaway_org.name = "Archived Buyer Co"
-    await _buyer(db_session, throwaway_org, archived_at=datetime.now(UTC))
+    throwaway_org.name = "Removed Buyer Co"
+    await _buyer(db_session, throwaway_org, removed_at=datetime.now(UTC))
 
     repo = BuyerRepository(db_session)
-    default_results = await repo.search_by_organization_name("Archived Buyer Co")
+    default_results = await repo.search_by_organization_name("Removed Buyer Co")
     assert not any(r.org_attio_id == throwaway_org.attio_id for r in default_results)
 
-    with_archived = await repo.search_by_organization_name(
-        "Archived Buyer Co", include_archived=True
+    with_removed = await repo.search_by_organization_name(
+        "Removed Buyer Co", include_removed=True
     )
-    assert any(r.org_attio_id == throwaway_org.attio_id for r in with_archived)
+    assert any(r.org_attio_id == throwaway_org.attio_id for r in with_removed)
 
 
 async def test_update_sets_bot_managed_fields(
@@ -55,15 +55,15 @@ async def test_update_sets_bot_managed_fields(
     assert updated.bot_managed_by == "U123"
 
 
-async def test_archive_sets_archived_at_and_bot_managed_fields(
+async def test_remove_sets_removed_at_and_bot_managed_fields(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:
     role = await _buyer(db_session, throwaway_org)
 
     repo = BuyerRepository(db_session)
-    archived = await repo.archive(str(role.id), "U123")
+    removed = await repo.remove(str(role.id), "U123")
 
-    assert archived is not None
-    assert archived.archived_at is not None
-    assert archived.bot_managed_at is not None
-    assert archived.bot_managed_by == "U123"
+    assert removed is not None
+    assert removed.removed_at is not None
+    assert removed.bot_managed_at is not None
+    assert removed.bot_managed_by == "U123"

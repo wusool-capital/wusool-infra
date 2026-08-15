@@ -15,10 +15,10 @@ from app.modules.slack.views.form_values import (
 
 
 def build_buyer_edit_form_modal(role: BuyerRole, *, requested_by: str, channel_id: str) -> dict:
-    archived = role.archived_at is not None
+    removed = role.removed_at is not None
 
     blocks: list[dict] = []
-    if archived:
+    if removed:
         blocks.append(
             {
                 "type": "section",
@@ -26,7 +26,7 @@ def build_buyer_edit_form_modal(role: BuyerRole, *, requested_by: str, channel_i
                 "text": {
                     "type": "mrkdwn",
                     "text": (
-                        ":warning: *This profile is archived.* Saving this form "
+                        ":warning: *This profile is removed.* Saving this form "
                         "will restore it and make it matchable again."
                     ),
                 },
@@ -68,7 +68,7 @@ def build_buyer_edit_form_modal(role: BuyerRole, *, requested_by: str, channel_i
         ]
     )
 
-    if archived:
+    if removed:
         blocks.append(restore_confirmation_block())
 
     return {
@@ -80,11 +80,11 @@ def build_buyer_edit_form_modal(role: BuyerRole, *, requested_by: str, channel_i
                 "org_name": role.organization.name,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
-                "archived": archived,
+                "removed": removed,
             }
         ),
         "title": {"type": "plain_text", "text": "Edit buyer"},
-        "submit": {"type": "plain_text", "text": "Restore & Save" if archived else "Save"},
+        "submit": {"type": "plain_text", "text": "Restore & Save" if removed else "Save"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "blocks": blocks,
     }

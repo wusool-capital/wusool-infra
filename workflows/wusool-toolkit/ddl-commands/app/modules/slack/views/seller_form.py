@@ -1,5 +1,5 @@
 """`/edit-seller`'s pre-filled edit form. A single modal handles both a
-normal edit and restoring an archived row — see `restore_confirmation_block`
+normal edit and restoring a removed row — see `restore_confirmation_block`
 and `SellerUpdate`'s docstring for why restoring needs its own explicit,
 required confirmation rather than riding along on a routine edit.
 """
@@ -17,10 +17,10 @@ from app.modules.slack.views.form_values import (
 
 
 def build_seller_edit_form_modal(role: SellerRole, *, requested_by: str, channel_id: str) -> dict:
-    archived = role.archived_at is not None
+    removed = role.removed_at is not None
 
     blocks: list[dict] = []
-    if archived:
+    if removed:
         blocks.append(
             {
                 "type": "section",
@@ -28,7 +28,7 @@ def build_seller_edit_form_modal(role: SellerRole, *, requested_by: str, channel
                 "text": {
                     "type": "mrkdwn",
                     "text": (
-                        ":warning: *This profile is archived.* Saving this form "
+                        ":warning: *This profile is removed.* Saving this form "
                         "will restore it and make it matchable again."
                     ),
                 },
@@ -69,7 +69,7 @@ def build_seller_edit_form_modal(role: SellerRole, *, requested_by: str, channel
         ]
     )
 
-    if archived:
+    if removed:
         blocks.append(restore_confirmation_block())
 
     return {
@@ -81,11 +81,11 @@ def build_seller_edit_form_modal(role: SellerRole, *, requested_by: str, channel
                 "org_name": role.organization.name,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
-                "archived": archived,
+                "removed": removed,
             }
         ),
         "title": {"type": "plain_text", "text": "Edit seller"},
-        "submit": {"type": "plain_text", "text": "Restore & Save" if archived else "Save"},
+        "submit": {"type": "plain_text", "text": "Restore & Save" if removed else "Save"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "blocks": blocks,
     }

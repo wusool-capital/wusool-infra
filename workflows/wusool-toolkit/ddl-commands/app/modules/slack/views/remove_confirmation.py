@@ -1,4 +1,4 @@
-"""Shared "archive or cancel" confirmation blocks for `/remove-seller` and
+"""Shared "remove or cancel" confirmation blocks for `/remove-seller` and
 `/remove-buyer` — an ephemeral message with a live match-count and two
 buttons, not a second chained modal (a deliberate choice, see plan.md).
 Button `value` is always a bare role-id UUID string, matching matching-engine's
@@ -33,9 +33,9 @@ def build_remove_confirmation_blocks(
             "elements": [
                 {
                     "type": "button",
-                    "text": {"type": "plain_text", "text": "Archive"},
+                    "text": {"type": "plain_text", "text": "Remove"},
                     "style": "danger",
-                    "action_id": f"archive_{kind}",
+                    "action_id": f"remove_{kind}",
                     "value": role_id,
                 },
                 {

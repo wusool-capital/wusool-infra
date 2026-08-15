@@ -19,7 +19,7 @@ class SellerSummary(BaseModel):
     organization: OrganizationSummary
     outreach_tier: str | None = None
     relationship_status: str | None = None
-    archived_at: datetime | None = None
+    removed_at: datetime | None = None
 
 
 class MoneyInput(BaseModel):
@@ -30,7 +30,7 @@ class MoneyInput(BaseModel):
 class SellerUpdate(BaseModel):
     """Every user-editable `seller_roles` field. Excluded on purpose:
     `mandate_id` (needs a mandate UUID, not a natural Slack input),
-    `raw_attio`/timestamps/`archived_at`/`bot_managed_at`/`bot_managed_by`
+    `raw_attio`/timestamps/`removed_at`/`bot_managed_at`/`bot_managed_by`
     (system-managed — the use case sets these, never the form).
 
     `max_length` caps and the 0-100 range on the two score fields are

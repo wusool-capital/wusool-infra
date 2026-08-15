@@ -6,16 +6,16 @@ from app.modules.buyers.application.resolution_service import (
     BuyerResolution,
     BuyerResolutionService,
 )
-from app.modules.buyers.application.use_cases import ArchiveBuyerUseCase, UpdateBuyerUseCase
+from app.modules.buyers.application.use_cases import RemoveBuyerUseCase, UpdateBuyerUseCase
 from app.modules.buyers.infrastructure.models import BuyerRole
 from app.modules.buyers.infrastructure.repositories import BuyerRepository
 from app.shared.database import get_sessionmaker
 
 
-async def resolve_buyer(buyer_name: str, *, include_archived: bool = False) -> BuyerResolution:
+async def resolve_buyer(buyer_name: str, *, include_removed: bool = False) -> BuyerResolution:
     async with get_sessionmaker()() as session:
         return await BuyerResolutionService(BuyerRepository(session)).resolve(
-            buyer_name, include_archived=include_archived
+            buyer_name, include_removed=include_removed
         )
 
 
@@ -30,5 +30,5 @@ def build_update_buyer_use_case() -> UpdateBuyerUseCase:
     return UpdateBuyerUseCase(get_sessionmaker())
 
 
-def build_archive_buyer_use_case() -> ArchiveBuyerUseCase:
-    return ArchiveBuyerUseCase(get_sessionmaker())
+def build_remove_buyer_use_case() -> RemoveBuyerUseCase:
+    return RemoveBuyerUseCase(get_sessionmaker())

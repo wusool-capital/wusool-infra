@@ -55,7 +55,7 @@ class BuyerRole(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
     # `008_bot_managed_columns.sql` — soft-delete + sync-collision-guard.
-    archived_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     bot_managed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     bot_managed_by: Mapped[str | None] = mapped_column(Text)
 

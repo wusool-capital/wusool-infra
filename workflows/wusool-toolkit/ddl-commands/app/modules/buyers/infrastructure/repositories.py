@@ -34,7 +34,7 @@ class BuyerRepository:
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def search_by_organization_name(
-        self, term: str, limit: int = 10, *, include_archived: bool = False
+        self, term: str, limit: int = 10, *, include_removed: bool = False
     ) -> list[BuyerRole]:
         """Case-insensitive, typo-tolerant name match.
 
@@ -44,10 +44,10 @@ class BuyerRepository:
         (`OR`), so an exact/partial typed name never regresses to relying on
         a similarity score. Results are ordered most-similar-first.
 
-        `include_archived=False` (default) excludes archived rows — this is
+        `include_removed=False` (default) excludes removed rows — this is
         what keeps a removed buyer out of new matching/lookup. Only
-        `/edit-buyer`'s resolution passes `include_archived=True`, so an
-        archived row can be found and restored.
+        `/edit-buyer`'s resolution passes `include_removed=True`, so a
+        removed row can be found and restored.
         """
         similarity = func.similarity(Organization.name, term)
         conditions = [
@@ -56,8 +56,8 @@ class BuyerRepository:
                 similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
             )
         ]
-        if not include_archived:
-            conditions.append(BuyerRole.archived_at.is_(None))
+        if not include_removed:
+            conditions.append(BuyerRole.removed_at.is_(None))
         stmt = (
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
@@ -82,11 +82,11 @@ class BuyerRepository:
         await self._session.flush()
         return role
 
-    async def archive(self, buyer_role_id: str, actor_user_id: str) -> BuyerRole | None:
+    async def remove(self, buyer_role_id: str, actor_user_id: str) -> BuyerRole | None:
         role = await self.get_by_id(buyer_role_id)
         if role is None:
             return None
-        role.archived_at = role.bot_managed_at = role.updated_at = datetime.now(UTC)
+        role.removed_at = role.bot_managed_at = role.updated_at = datetime.now(UTC)
         role.bot_managed_by = actor_user_id
         await self._session.flush()
         return role
