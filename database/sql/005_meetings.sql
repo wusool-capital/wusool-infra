@@ -17,22 +17,36 @@
 
 -- One row per conversation. source distinguishes producers: scribe always
 -- writes 'in_house'; 'granola' and 'manual' are reserved for other paths.
-CREATE TYPE meeting_source AS ENUM ('in_house', 'granola', 'manual');
+--
+-- CREATE TYPE has no IF NOT EXISTS clause in PostgreSQL, so these three are
+-- guarded via pg_type checks to keep this file safely re-runnable like the
+-- rest of sql/*.sql.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'meeting_source') THEN
+    CREATE TYPE meeting_source AS ENUM ('in_house', 'granola', 'manual');
+  END IF;
 
--- Which side the counterparty sits on. A meeting may be tagged with both a
--- buyer and a seller in scribe; this column holds the primary one (seller
--- wins) and the other side is preserved in metadata->'other_side'.
-CREATE TYPE counterparty_role AS ENUM ('buyer', 'seller');
+  -- Which side the counterparty sits on. A meeting may be tagged with both a
+  -- buyer and a seller in scribe; this column holds the primary one (seller
+  -- wins) and the other side is preserved in metadata->'other_side'.
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'counterparty_role') THEN
+    CREATE TYPE counterparty_role AS ENUM ('buyer', 'seller');
+  END IF;
 
-CREATE TYPE meeting_type AS ENUM (
-    'enrichment',
-    'alignment',
-    'owner_iv',
-    'buyer_intro',
-    'internal'
-);
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'meeting_type') THEN
+    CREATE TYPE meeting_type AS ENUM (
+        'enrichment',
+        'alignment',
+        'owner_iv',
+        'buyer_intro',
+        'internal'
+    );
+  END IF;
+END
+$$;
 
-CREATE TABLE meetings (
+CREATE TABLE IF NOT EXISTS meetings (
     id                 uuid PRIMARY KEY,
 
     -- Attio Organization record id. Hard FK to organizations(attio_id) —
@@ -74,8 +88,8 @@ CREATE TABLE meetings (
     scribe_meeting_id  uuid UNIQUE
 );
 
-CREATE INDEX ix_meetings_org_id      ON meetings (org_id);
-CREATE INDEX ix_meetings_occurred_at ON meetings (occurred_at);
+CREATE INDEX IF NOT EXISTS ix_meetings_org_id      ON meetings (org_id);
+CREATE INDEX IF NOT EXISTS ix_meetings_occurred_at ON meetings (occurred_at);
 
 -- ---------------------------------------------------------------------------
 -- Real referential integrity to Organization. Enabled 2026-08-11: publish
@@ -87,9 +101,15 @@ CREATE INDEX ix_meetings_occurred_at ON meetings (occurred_at);
 --   ALTER TABLE meetings DROP CONSTRAINT fk_meetings_org;
 -- ---------------------------------------------------------------------------
 
-ALTER TABLE meetings
-    ADD CONSTRAINT fk_meetings_org
-    FOREIGN KEY (org_id) REFERENCES organizations (attio_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_meetings_org') THEN
+    ALTER TABLE meetings
+        ADD CONSTRAINT fk_meetings_org
+        FOREIGN KEY (org_id) REFERENCES organizations (attio_id);
+  END IF;
+END
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Least-privilege role for scribe. Scribe needs nothing beyond writing this

@@ -143,6 +143,10 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT(attio_id) DO UPDATE SET name=excluded.name,description=excluded.description,type=excluded.type,client_type=excluded.client_type,sector_focus=excluded.sector_focus,stage_focus=excluded.stage_focus,geographic_focus=excluded.geographic_focus,hq_country=excluded.hq_country,domains=excluded.domains,categories=excluded.categories,relationship_status=excluded.relationship_status,connection_strength=excluded.connection_strength,owner_attio_id=excluded.owner_attio_id,last_interaction_at=excluded.last_interaction_at,funding_raised=excluded.funding_raised,estimated_arr=excluded.estimated_arr,raw_attio=excluded.raw_attio,updated_at=now()""",org_rows)
     org_ids={r[0] for r in org_rows}
+    org_ids_list=list(org_ids)
+    if not org_ids_list: raise RuntimeError("DEV Attio returned zero organizations; refusing to mark all organizations removed.")
+    c.execute("UPDATE organizations SET removed_at=now() WHERE removed_at IS NULL AND NOT (attio_id = ANY(%s))",(org_ids_list,))
+    c.execute("UPDATE organizations SET removed_at=NULL WHERE removed_at IS NOT NULL AND attio_id = ANY(%s)",(org_ids_list,))
 
     person_rows=[]
     for r in people:
@@ -190,7 +194,8 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
       ON CONFLICT(org_attio_id) DO UPDATE SET outreach_tier=excluded.outreach_tier,appetite_signal=excluded.appetite_signal,relationship_status=excluded.relationship_status,est_revenue=excluded.est_revenue,est_ebitda=excluded.est_ebitda,owner_salary=excluded.owner_salary,valuation_low=excluded.valuation_low,valuation_mid=excluded.valuation_mid,valuation_high=excluded.valuation_high,sell_timeline=excluded.sell_timeline,readiness_score=excluded.readiness_score,readiness_band=excluded.readiness_band,intake_source=excluded.intake_source,mandate_id=excluded.mandate_id,last_attempt_date=excluded.last_attempt_date,last_attempt_channel=excluded.last_attempt_channel,last_attempt_outcome=excluded.last_attempt_outcome,lead_quality_score=excluded.lead_quality_score,re_engage_date=excluded.re_engage_date,raw_attio=excluded.raw_attio,updated_at=now()""",seller_rows)
   with conn.cursor() as check:
     for table, expected in counts.items():
-      check.execute(f"SELECT count(*) FROM {table}")
+      query = "SELECT count(*) FROM organizations WHERE removed_at IS NULL" if table == "organizations" else f"SELECT count(*) FROM {table}"
+      check.execute(query)
       actual=check.fetchone()[0]
       print(f"validated {table:16} expected={expected} actual={actual}")
       if actual != expected:

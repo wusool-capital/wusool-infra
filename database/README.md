@@ -30,20 +30,19 @@ or Attio keys.
 | File | Purpose |
 | --- | --- |
 | `001_extensions.sql` | Enable `pgcrypto`, `pg_trgm` (fuzzy organization-name search), and pgvector when available. |
-| `002_core_attio_mirror.sql` | Create Users, Organizations, People, Deals, and Mandates. |
+| `002_core_attio_mirror.sql` | Create Users, Organizations, People, Deals, and Mandates. Organizations includes `removed_at timestamptz` (nullable; NULL means active) — `sync-postgres.ps1 -Apply` sets it when an org drops out of the DEV Attio organizations query and clears it if the org reappears. |
 | `003_crm_roles.sql` | Create Buyer Role, Seller Role, and optional investor/lender roles. |
 | `004_machine_layer.sql` | Create activities, stage history, intelligence, matching, documents, graph, scorecards, reconciliation columns, and indexes. |
 | `005_meetings.sql` | Create the `meetings` table (scribe-published buyer/seller meeting summaries) and enable `fk_meetings_org`. Not part of the Attio mirror — scribe is the sole writer. |
-| `006_match_results.sql` | Create the `match_results` table for the matching-engine backend's Phase 3 Slack workflow (run audit, shortlisted candidates, status, approvals). Additive only — no existing table is touched. Not yet applied against `wusool_crm`; see `DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md` for full rationale. |
+| `006_match_results.sql` | Create the `match_results` table for the matching-engine backend's Phase 3 Slack workflow (run audit, shortlisted candidates, status, approvals). Additive only — no existing table is touched. See `DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md` for full rationale. |
 | `007_org_name_trgm_index.sql` | GIN trigram index on `organizations.name`, backing fuzzy/typo-tolerant buyer-name search. Requires `pg_trgm` from `001_extensions.sql`. |
 
-Files 001-004 (and 006) use `CREATE ... IF NOT EXISTS` and controlled `ALTER`
+All files (001-007) use `CREATE ... IF NOT EXISTS` and controlled `ALTER`
 statements, so normal setup does not recreate tables or delete data.
-**`005_meetings.sql` does not follow this convention** — its `CREATE TYPE`/
-`CREATE TABLE` statements have no `IF NOT EXISTS` guard, so re-running
-`setup-postgres.ps1` after it has been applied once will fail trying to
-recreate the existing types/table. Fine for the one-time apply already done
-against `wusool_crm`, but worth guarding before any future full re-run.
+`005_meetings.sql`'s `CREATE TYPE` statements and its `fk_meetings_org`
+constraint have no native `IF NOT EXISTS` form in PostgreSQL, so they're
+guarded with `DO $$ ... END $$` blocks that check `pg_type`/`pg_constraint`
+before creating.
 
 ## First-time or changed-schema setup
 
