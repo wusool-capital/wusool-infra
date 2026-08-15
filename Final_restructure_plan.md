@@ -98,19 +98,31 @@ breaks every existing credential.
 converts every subsequent mistake from unrecoverable to recoverable.
 
 ```bash
-aws ec2 create-snapshot --profile wusool --region eu-central-1 \
-  --volume-id vol-0943ab2f832103df1 \
-  --description "pre-restructure prod n8n $(date +%F)" \
-  --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=wusool-prod-n8n-pre-restructure}]'
+export AWS_PROFILE=wusool AWS_REGION=eu-central-1
 
-# and the dev instance's root volume (look it up first):
-aws ec2 describe-instances --profile wusool --region eu-central-1 \
-  --instance-ids i-02ed4b390b677518b \
-  --query 'Reservations[].Instances[].BlockDeviceMappings[].Ebs.VolumeId' --output text
+# resolve both root volumes (prod is known; dev must be looked up)
+PROD_VOL=vol-0943ab2f832103df1
+DEV_VOL=$(aws ec2 describe-instances --instance-ids i-02ed4b390b677518b \
+  --query 'Reservations[].Instances[].BlockDeviceMappings[].Ebs.VolumeId' --output text)
+echo "prod=$PROD_VOL dev=$DEV_VOL"
+
+# snapshot BOTH
+PROD_SNAP=$(aws ec2 create-snapshot --volume-id "$PROD_VOL" \
+  --description "pre-restructure prod n8n $(date +%F)" \
+  --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=wusool-prod-n8n-pre-restructure}]' \
+  --query SnapshotId --output text)
+DEV_SNAP=$(aws ec2 create-snapshot --volume-id "$DEV_VOL" \
+  --description "pre-restructure dev n8n $(date +%F)" \
+  --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=wusool-dev-n8n-pre-restructure}]' \
+  --query SnapshotId --output text)
+
+# block until BOTH are usable
+aws ec2 wait snapshot-completed --snapshot-ids "$PROD_SNAP" "$DEV_SNAP"
+echo "RECORD THESE: prod=$PROD_SNAP dev=$DEV_SNAP"
 ```
 
-Wait for `State: completed` (`aws ec2 describe-snapshots --snapshot-ids <id>`)
-before proceeding.
+**Write both snapshot IDs into the change ticket.** A snapshot you cannot find
+later is not a backup. Do not proceed until `wait snapshot-completed` returns.
 
 Then announce the freeze:
 
@@ -213,9 +225,12 @@ aws s3 cp s3://wusool-tfstate/wusool/prod/terraform.tfstate - --profile wusool \
 # 2. the site still serves HTTPS on the live domain
 curl -sSI https://n8n.wusoolcapital.com/ | head -1
 
-# 3. prod alerting now has a subscriber
+# 3. prod alerting has a CONFIRMED subscriber (not merely a listed one)
 aws sns list-subscriptions-by-topic --profile wusool --region eu-central-1 \
-  --topic-arn arn:aws:sns:eu-central-1:030179310793:wusool-prod-infrastructure-alerts
+  --topic-arn arn:aws:sns:eu-central-1:030179310793:wusool-prod-infrastructure-alerts \
+  --query 'Subscriptions[?SubscriptionArn==`PendingConfirmation`]' --output text
+# MUST print nothing. A PendingConfirmation subscription delivers NOTHING —
+# it is exactly dev's current broken state, which listing alone would call a pass.
 ```
 
 **Click the confirmation link** in the SNS email — otherwise the subscription
@@ -474,6 +489,22 @@ versioning is therefore a genuine recovery path for a bad `state push`.
 - **Adopt the bucket into `stacks/account`** via `tofu import`, so it becomes
   managed and drift-detected again. The self-reference (a bucket managing
   itself) is fine — it already exists, so Terraform simply adopts it.
+
+  **Import all four resources, not just the bucket.** `bootstrap/main.tf`
+  declares them separately, and importing only `aws_s3_bucket` leaves the other
+  three unmanaged, so the plan will *not* come back clean:
+
+  ```bash
+  tofu import aws_s3_bucket.tfstate                                wusool-tfstate
+  tofu import aws_s3_bucket_versioning.tfstate                     wusool-tfstate
+  tofu import aws_s3_bucket_server_side_encryption_configuration.tfstate wusool-tfstate
+  tofu import aws_s3_bucket_public_access_block.tfstate            wusool-tfstate
+  ```
+
+  Then confirm `plan` reports `0 to add, 0 to change, 0 to destroy`. Live config
+  was verified to match the code (versioning `Enabled`, `AES256`, all four public
+  -access blocks `True`), so a clean plan is achievable — but only once all four
+  are imported.
 - **Add `lifecycle { prevent_destroy = true }`** to it. Without this, a
   `tofu destroy` on `stacks/account` would try to delete the bucket holding its
   own state, and every other stack's state with it.
@@ -538,6 +569,31 @@ running throughout and never observe the change. That is exactly what the
 
 **Prerequisite:** the EBS snapshots from Step 0 of the top-of-file runbook must
 exist and read `State: completed` before any `state mv` is run.
+
+#### D0b. Prerequisite: `.gitignore` currently blocks the committed tfvars
+
+The whole design depends on `terraform/envs/{dev,prod}.tfvars` being **in git**.
+They currently would not be — `.gitignore:23` ignores `*.tfvars` and only
+`!*.tfvars.example` is re-included. Verified: `git check-ignore -v
+terraform/envs/dev.tfvars` matches `.gitignore:23`. Committing them would fail
+**silently** — `git add` skips them without error, and the first CI run fails on
+a missing var-file.
+
+Add a narrow un-ignore *before* creating the files, keeping the broad rule so a
+stray `terraform.tfvars` in a stack directory stays ignored:
+
+```gitignore
+*.tfvars
+*.auto.tfvars
+*.tfvars.json
+!*.tfvars.example
+!terraform/envs/*.tfvars      # non-secret per-env config, deliberately committed
+```
+
+Verify with `git check-ignore -v terraform/envs/dev.tfvars` returning nothing.
+
+Only non-secret config goes here (region, CIDRs, instance type, domains,
+timezone, image digest). Secrets stay in Secrets Manager — see D2a.
 
 #### D1. Target layout
 
@@ -743,13 +799,53 @@ services. Cross-stack reads are one-directional.
 Per stack, per environment:
 
 ```bash
-tofu -chdir=terraform/environments/dev state pull > /tmp/old.tfstate
+SRC=terraform/environments/dev
+DST=terraform/stacks/n8n
+
+# 0. record the version ID first, so a bad push is recoverable
+aws s3api list-object-versions --bucket wusool-tfstate \
+  --prefix wusool/dev/terraform.tfstate --max-items 1 \
+  --query 'Versions[0].VersionId' --output text
+
+# 1. pull the source state
+tofu -chdir=$SRC state pull > /tmp/old.tfstate
+cp /tmp/old.tfstate /tmp/old.tfstate.bak      # keep an untouched copy
+
+# 2. move the module OUT of the source copy and INTO a new file
 tofu state mv -state=/tmp/old.tfstate -state-out=/tmp/n8n.tfstate \
   module.n8n module.n8n
-# init the new stack against its own key, then:
-tofu -chdir=terraform/stacks/n8n state push /tmp/n8n.tfstate
-tofu -chdir=terraform/stacks/n8n plan -var-file=../../envs/dev.tfvars
+
+# 3. push the RECEIVING state
+tofu -chdir=$DST init -reconfigure -backend-config=...   # see D3
+tofu -chdir=$DST state push /tmp/n8n.tfstate
+
+# 4. *** PUSH THE MODIFIED SOURCE STATE BACK *** — without this the old root
+#     still owns module.n8n and TWO states manage the same live resources
+tofu -chdir=$SRC state push /tmp/old.tfstate
+
+# 5. verify BOTH sides
+tofu -chdir=$SRC  state list | grep -c '^module\.n8n\.'   # MUST be 0
+tofu -chdir=$DST  state list | grep -c '^module\.n8n\.'   # MUST be > 0
+tofu -chdir=$DST  plan -var-file=../../envs/dev.tfvars     # MUST be 0/0/0
+tofu -chdir=$SRC  plan -var-file=terraform.tfvars          # MUST NOT propose
+                                                           # recreating n8n
 ```
+
+**Step 4 is the one that is easy to skip and expensive to miss.**
+`tofu state mv -state=X -state-out=Y` removes the resource from the *local copy*
+X — it does not write X back to the remote backend. Skip the push and the source
+state still owns `module.n8n`, so two states manage the same live resources:
+applies from either root fight each other, and a `destroy` in either one tears
+down resources the other still tracks. Note this is *not* a duplicate-stack
+scenario (the resources remain in the old state, so nothing gets re-created) —
+it is worse, because both roots believe they are the owner.
+
+`state push` acquires the backend lock, so do not run these concurrently with
+anyone else's apply — see the coordination note below.
+
+**Rollback:** if step 5 fails, re-push `/tmp/old.tfstate.bak` to the source
+backend and remove the destination state object. This is why step 0 records the
+version ID.
 
 **Coordinate first — dev is actively being worked on.** Dev state was written
 twice on 2026-08-15 at 14:47 UTC (132KB → 136KB → 138KB, the signature of a real
@@ -888,9 +984,29 @@ box mid-deploy.
 
 1. `aws_ecr_repository` per app — immutable tags, scan-on-push, lifecycle policy
    keeping the last N images. (None exist today.)
-2. `build-push.yml`: on push to `dev`/`main` touching
-   `workflows/wusool-toolkit/matching-engine/**`, build the existing multi-stage
-   `Dockerfile`, push as `sha-<short>`, output the `sha256:` digest.
+2. **`build-push.yml` builds on `dev` ONLY — never on `main`.**
+
+   Building on both branches breaks the guarantee: a squash-merge to `main`
+   produces a different commit SHA, and even at the same SHA a rebuild resolves
+   a different base-image layer. Prod would then run an artifact that was never
+   tested in dev — the exact thing this phase exists to prevent.
+
+   Instead, **build once and promote the digest as a reviewed change**:
+
+   - On push to `dev`: build, push to ECR as `sha-<short>`, capture the
+     immutable `sha256:` digest.
+   - After the dev deploy is green, a bot opens a PR setting
+     `matching_engine_image_digest = "sha256:…"` in **`envs/dev.tfvars`**.
+   - Promotion to prod is a PR copying that same digest into
+     **`envs/prod.tfvars`**.
+
+   This makes promotion **literally the diff a reviewer sees** — which matters
+   because the prod approval gate was declined, so the plan-on-PR comment is
+   production's only human review. `main` never builds; it only ever deploys a
+   digest that already ran in dev.
+
+   Requires ECR `imageTagMutability = IMMUTABLE` so a tag cannot be repointed
+   after approval.
 3. **Rewrite `modules/matching-engine-ec2/user_data.sh.tpl`**: delete the
    `git clone` and `docker compose build`; the generated compose uses
    `image: <acct>.dkr.ecr.<region>.amazonaws.com/<repo>@<digest>`. Drop
@@ -1006,9 +1122,59 @@ Migrate n8n to `DB_TYPE=postgresdb` against the existing RDS instance:
 - No service needs a data volume at all.
 - Opens a path to blue/green deploys later.
 
-**Critical:** the migration must carry the existing `N8N_ENCRYPTION_KEY` across
-(now safely stored — see Defect 4). A different key silently breaks every stored
-credential. Verify by opening a credential in the UI after cutover.
+##### Cutover procedure — `DB_TYPE=postgresdb` alone does NOT move existing data
+
+Setting the env var points n8n at an **empty** database. n8n ships no in-place
+SQLite→Postgres converter; the supported path is export/import via its CLI.
+Rehearse the whole thing on dev first.
+
+**Prerequisites**
+- `stacks/postgres` exists for the target environment (**prod has no database
+  until Phase F** — sequence accordingly).
+- A dedicated database + role for n8n (do **not** reuse matching-engine's).
+- Credentials written to `/wusool/<env>/n8n` under `env` so the bootstrap injects
+  them: `DB_TYPE`, `DB_POSTGRESDB_{HOST,PORT,DATABASE,USER,PASSWORD}`.
+- SG ingress: n8n's SG → Postgres:5432 (via the self-attach pattern in D4a).
+- **`N8N_ENCRYPTION_KEY` set explicitly and identical to the stored value**
+  (Defect 4). A different key makes every imported credential undecryptable.
+
+**Maintenance window** — webhooks are down for the duration. Announce it; n8n
+webhook endpoints are called by external systems.
+
+```bash
+# 1. fresh snapshot immediately before (see Step 0 for the pattern)
+# 2. stop the schedulers/webhooks but keep the container up for the CLI
+docker compose exec n8n n8n export:workflow    --all --output=/home/node/wf.json
+docker compose exec n8n n8n export:credentials --all --output=/home/node/cred.json
+#    ^ credentials stay ENCRYPTED; they are only readable with the same key
+docker compose cp n8n:/home/node/wf.json   ./wf.json
+docker compose cp n8n:/home/node/cred.json ./cred.json
+
+# 3. switch env to postgres, recreate, then import
+docker compose down && docker compose up -d
+docker compose exec n8n n8n import:workflow    --input=/home/node/wf.json
+docker compose exec n8n n8n import:credentials --input=/home/node/cred.json
+```
+
+**Accept this loss up front:** `export:workflow`/`export:credentials` carry
+workflows and credentials **only**. *Execution history is not migrated.* If that
+history matters, archive the SQLite file from the snapshot before cutover.
+
+**Verification — all of these, not just one**
+- Workflow count in the UI matches the pre-cutover count.
+- A credential **opens and decrypts** in the UI (proves the key carried).
+- One workflow **executes successfully end to end**.
+- A webhook URL still resolves and fires from outside.
+- `SELECT count(*) FROM workflow_entity;` in Postgres is non-zero.
+- The SQLite file is no longer being written (`ls -l` mtime stops advancing).
+
+**Rollback** — cheap, because nothing is destroyed: revert the env vars to
+SQLite and `docker compose up -d`. The original SQLite file is untouched on the
+volume throughout. **Do not delete it for at least one full business cycle**
+after cutover.
+
+**Rollback triggers:** credentials fail to decrypt, workflow count mismatch, any
+webhook not firing, or the window expiring — roll back rather than debugging live.
 
 **Sequencing:** prod has no database until Phase F creates `stacks/postgres` for
 prod. Do dev first, prove it, then prod after F.
@@ -1063,7 +1229,7 @@ that per-service state works here.
 ### The contract — what scribe must do to plug in
 
 **1. Toolchain.** Match the version pinned in
-`wusool-infra/terraform/.terraform-version`. Your state is at 1.10.6 while
+`wusool-infra/terraform/.opentofu-version`. Your state is at 1.10.6 while
 wusool-infra's is at 1.15.6. **Do not let anyone apply scribe's state with the
 newer binary before you have decided to upgrade** — it upgrades the state in
 place and your current tooling may stop reading it.
@@ -1228,7 +1394,7 @@ exists.**
 
 ### Checklist to add scribe dev + prod
 
-- [ ] Toolchain version matches `wusool-infra/terraform/.terraform-version`
+- [ ] Toolchain is **OpenTofu**, version matching `wusool-infra/terraform/.opentofu-version`
 - [ ] Single root with partial backend; `envs/dev.tfvars` + `envs/prod.tfvars` committed
 - [ ] Consumes `stacks/base` remote state for VPC/subnets/SNS
 - [ ] Creates no GuardDuty detector and does not enable SecurityHub
@@ -1277,10 +1443,10 @@ n8n, postgres, matching-engine, and scribe.
 | A | `init` + `plan` succeed against real backends for dev and prod with no "state written by a newer version" error |
 | B | Decoded `aws_ssm_document.bootstrap.content` contains `n8n.wusoolcapital.com` and **zero** `n8n-prod.wusoolcapital.com`; live site still serves HTTPS |
 | C | `dev` is default; plan check required on `dev` **and** `main`; no `Azmora-ai` references remain |
-| D | `stacks/account` adopts `wusool-tfstate` with a clean plan and `prevent_destroy` set; `terraform/bootstrap/` deleted; lock table removed. EBS snapshots exist and are `completed` before starting. Every stack × env: `plan` reports `0 to add, 0 to change, 0 to destroy` and zero `forces replacement` after migration. `lifecycle { ignore_changes = [ami] }` present in the new n8n stack. `terraform/environments/` deleted once green. `stacks/base` outputs resolve in service stacks. n8n stays reachable; dev matching-engine `/health` stays green. SecurityHub finding history intact |
+| D | `git check-ignore -v terraform/envs/dev.tfvars` returns nothing (D0b). `stacks/account` adopts `wusool-tfstate` **and its three subordinate resources** with a clean plan and `prevent_destroy` set; `terraform/bootstrap/` deleted; lock table removed. EBS snapshots exist and are `completed` before starting. After every `state mv`: the SOURCE state lists **zero** moved resources and the DESTINATION lists them, both verified with `state list`. Every stack × env: `plan` reports `0 to add, 0 to change, 0 to destroy` and zero `forces replacement`. `lifecycle { ignore_changes = [ami] }` present in the new n8n stack. `terraform/environments/` deleted once green. `stacks/base` outputs resolve in service stacks. n8n stays reachable; dev matching-engine `/health` stays green. SecurityHub finding history intact |
 | E | PR touching only `stacks/n8n/**` → matrix contains `n8n` only. PR touching `modules/network/**` → fans out to `base` + downstream. **A `dev -> main` PR comments a plan naming the prod backend key.** Broken Python fails `ci.yml`. Deleting the SSM `deployed_sha` triggers a full deploy |
 | F | `docker inspect` on dev and prod report the **same image digest** after promotion. Apply with the previous digest rolls back and serves traffic |
-| H | `ami_id` is an explicit tfvars value; changing it shows a reviewed diff. After H2: n8n serves from RDS, a credential opens correctly in the UI (proves the encryption key carried), and terminating/recreating the instance loses no data. A restore from the backup plan has been tested at least once. |
+| H | `ami_id` is an explicit tfvars value; changing it shows a reviewed diff. After H2, all of: workflow count matches pre-cutover, a credential decrypts in the UI, one workflow executes end to end, a webhook fires from outside, `select count(*) from workflow_entity` is non-zero, and terminating/recreating the instance loses no data. A restore from the backup plan has been tested at least once. |
 | G | `alembic upgrade head` on empty Postgres → `schema_check.py` reports zero drift vs live dev. `alembic check` clean. Second `upgrade head` is a no-op |
 
 ---
