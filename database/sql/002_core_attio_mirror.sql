@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS organizations (
   last_interaction_at timestamptz,
   funding_raised jsonb,
   estimated_arr text,
+  removed_at timestamptz,
   raw_attio jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()

@@ -60,7 +60,8 @@ with psycopg.connect(os.environ["WUSOOL_VALIDATE_DATABASE_URL"],connect_timeout=
     print(f"{'Entity':18} {'DEV Attio':>12} {'PostgreSQL':>12} {'Status':>12}")
     print("-"*67)
     for table,expected in dev.items():
-      cursor.execute(f"select count(*) from {table}")
+      query="select count(*) from organizations where removed_at is null" if table=="organizations" else f"select count(*) from {table}"
+      cursor.execute(query)
       actual=cursor.fetchone()[0]
       status="PASS" if actual==expected else "FAIL"
       print(f"{table:18} {expected:12} {actual:12} {status:>12}")
