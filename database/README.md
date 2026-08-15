@@ -36,6 +36,7 @@ or Attio keys.
 | `005_meetings.sql` | Create the `meetings` table (scribe-published buyer/seller meeting summaries) and enable `fk_meetings_org`. Not part of the Attio mirror — scribe is the sole writer. |
 | `006_match_results.sql` | Create the `match_results` table for the matching-engine backend's Phase 3 Slack workflow (run audit, shortlisted candidates, status, approvals). Additive only — no existing table is touched. See `DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md` for full rationale. |
 | `007_org_name_trgm_index.sql` | GIN trigram index on `organizations.name`, backing fuzzy/typo-tolerant buyer-name search. Requires `pg_trgm` from `001_extensions.sql`. |
+| `008_bot_managed_columns.sql` | Add `removed_at`/`bot_managed_at`/`bot_managed_by` to `buyer_roles`/`seller_roles`, for the ddl-commands Slack bot's write commands (soft-delete + sync-collision guard, see `sync-postgres.ps1`). Additive only. |
 
 All files (001-007) use `CREATE ... IF NOT EXISTS` and controlled `ALTER`
 statements, so normal setup does not recreate tables or delete data.
