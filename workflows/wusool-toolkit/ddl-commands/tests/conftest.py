@@ -2,7 +2,7 @@
 
 No real database connection or Slack credentials are required to run this
 suite by default. Dummy env vars are set at import time (before any test
-module imports `app.main`, which reads settings at module load) so
+module imports `ddl_commands.main`, which reads settings at module load) so
 collection never needs a real .env. The async engine is constructed but
 never connected unless a test explicitly hits `/readiness` or uses the
 `db_session` fixture below.
@@ -23,8 +23,8 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.shared.database import get_engine, import_all_models
-from app.shared.database.models import Organization
+from ddl_commands.shared.database import get_engine, import_all_models
+from ddl_commands.shared.database.models import Organization
 
 import_all_models()
 

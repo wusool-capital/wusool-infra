@@ -3,14 +3,14 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.modules.sellers.application.use_cases import (
+from ddl_commands.modules.sellers.application.use_cases import (
     RemoveSellerUseCase,
     SellerAlreadyRemovedError,
     SellerNotFoundError,
     UpdateSellerUseCase,
 )
-from app.modules.sellers.infrastructure.models import SellerRole
-from app.shared.database.models import Organization
+from ddl_commands.modules.sellers.infrastructure.models import SellerRole
+from ddl_commands.shared.database.models import Organization
 
 
 async def _seed_seller(db_sessionmaker: async_sessionmaker[AsyncSession]) -> str:

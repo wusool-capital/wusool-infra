@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.modules.buyers.schemas import BuyerUpdate
+from ddl_commands.modules.buyers.schemas import BuyerUpdate
 
 
 def test_collects_all_field_errors_not_fail_fast() -> None:

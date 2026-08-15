@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.buyers.infrastructure.models import BuyerRole
-from app.modules.buyers.infrastructure.repositories import BuyerRepository
-from app.shared.database.models import Organization
+from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
+from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
+from ddl_commands.shared.database.models import Organization
 
 
 async def _buyer(db_session: AsyncSession, org: Organization, **fields) -> BuyerRole:

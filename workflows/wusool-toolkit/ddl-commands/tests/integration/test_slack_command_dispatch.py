@@ -14,8 +14,8 @@ from urllib.parse import urlencode
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import get_settings
-from app.main import app
+from ddl_commands.config import get_settings
+from ddl_commands.main import app
 
 
 def _sign(body: str, timestamp: str, signing_secret: str) -> str:

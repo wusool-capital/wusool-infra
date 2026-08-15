@@ -1,0 +1,43 @@
+[project]
+name = "wusool-toolkit-bot"
+version = "0.1.0"
+description = "One Slack bot process: /find-match (matching-engine) plus /edit-seller, /remove-seller, /edit-buyer, /remove-buyer (ddl-commands)."
+requires-python = ">=3.12"
+dependencies = [
+    "matching-engine",
+    "ddl-commands",
+]
+
+[tool.uv.sources]
+matching-engine = { workspace = true }
+ddl-commands = { workspace = true }
+
+[tool.uv.workspace]
+members = ["matching-engine", "ddl-commands"]
+
+[tool.uv]
+# This root has no importable code of its own beyond main.py, run directly
+# via `uv run uvicorn main:app` — it only exists to give matching-engine and
+# ddl-commands one shared venv. Not a real distributable package.
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    "ruff>=0.7.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]

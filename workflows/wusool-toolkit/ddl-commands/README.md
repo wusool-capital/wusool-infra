@@ -1,44 +1,34 @@
 # ddl-commands
 
-Slack bot for editing/removing buyer and seller profiles directly against
-`wusool_crm` — `/edit-seller`, `/remove-seller`, `/edit-buyer`,
-`/remove-buyer`. Python FastAPI + Slack Bolt, its own Postgres access, its
-own Slack app (separate `SLACK_BOT_TOKEN`/`SLACK_SIGNING_SECRET` from
-`../matching-engine`, which owns `/find-match` and is unaffected by this bot).
+`/edit-seller`, `/remove-seller`, `/edit-buyer`, `/remove-buyer` — editing
+and soft-deleting buyer/seller profiles directly against `wusool_crm`.
+
+**Not independently deployed.** This is one of two folders that make up a
+single Slack bot — see `../README.md` for how this fits together with
+`../matching-engine/` and how the bot actually runs (`../main.py`, one
+process, one Slack app). This folder's own `ddl_commands/main.py` still
+exists and works (its own test suite uses it), but it is not the deployed
+entrypoint.
 
 `/add-seller` is intentionally not implemented yet — it depends on an
 unresolved decision about whether this bot may create new `organizations`
 rows or must always attach to an org that already exists via Attio.
 
-## Setup
+## Running this folder standalone (for isolated dev/testing only)
 
 ```bash
 cd workflows/wusool-toolkit/ddl-commands
 uv sync
 cp .env.example .env  # then fill in real values
-```
-
-## Running
-
-```bash
-uv run uvicorn app.main:app --reload
+uv run uvicorn ddl_commands.main:app --reload
 ```
 
 - `GET /health` — liveness, no database dependency.
 - `GET /readiness` (alias `GET /ready`) — confirms database connectivity.
-- `POST /slack/events` — the Slack callback endpoint (slash commands,
-  interactive actions, view submissions). Signature-verified by Bolt.
-
-### Configuring the Slack app
-
-1. Create a **separate** Slack app at api.slack.com/apps — do not reuse
-   matching-engine's app/token.
-2. **Slash Commands** → create `/edit-seller`, `/remove-seller`,
-   `/edit-buyer`, `/remove-buyer`, request URL `https://<your-host>/slack/events`.
-3. **Interactivity & Shortcuts** → enable, same request URL.
-4. **OAuth & Permissions** → bot token scopes: `commands`, `chat:write`.
-   Install to the workspace; copy the bot token into `SLACK_BOT_TOKEN`.
-5. **Basic Information** → copy the Signing Secret into `SLACK_SIGNING_SECRET`.
+- `POST /slack/events` — usable for isolated testing of this folder's own
+  commands only; the deployed bot uses `../main.py` instead, which serves
+  all 5 commands (this folder's 4 plus matching-engine's `/find-match`) off
+  one Slack app.
 
 ## Testing
 
@@ -58,7 +48,10 @@ Reads/writes `organizations`, `buyer_roles`, `seller_roles` in the same
 for the schema. This bot never creates tables or runs migrations; the
 `removed_at`/`bot_managed_at`/`bot_managed_by` columns these commands depend
 on come from `database/sql/008_bot_managed_columns.sql`, applied the same way
-as every other migration in that folder.
+as every other migration in that folder. matching-engine's own
+`SellerRole`/`BuyerRole` models also map these same 3 columns (added when
+the two bots were merged into one process) so `/find-match` excludes
+removed rows too — see `../matching-engine/README.md`.
 
 **Soft delete, not hard delete**: `/remove-seller`/`/remove-buyer` set
 `removed_at` rather than issuing a SQL `DELETE` — `match_results.buyer_role_id`/
@@ -76,7 +69,7 @@ bot writes a row (`bot_managed_at` set), that sync script skips overwriting
 it on every future run (`ON CONFLICT ... WHERE bot_managed_at IS NULL`) and
 posts a warning to `SYNC_ALERT_WEBHOOK_URL` if configured — this is
 **permanent** for the life of that row, not a temporary lock. See
-`../../../database/sync-postgres.ps1` and `plan.md` for the full reasoning.
+`../../../database/sync-postgres.ps1` for the full reasoning.
 
 ## Out of scope (for now)
 

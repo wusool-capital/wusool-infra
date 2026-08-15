@@ -40,16 +40,21 @@ class BuyerRepository:
         substring match is always included too (`OR`), so an exact/partial
         typed name never regresses to relying on a similarity score.
         Results are ordered most-similar-first.
+
+        Excludes removed buyers — `removed_at` is set by `/remove-buyer`
+        (ddl-commands); a removed buyer must not be offered as a
+        `/find-match` target.
         """
         similarity = func.similarity(Organization.name, term)
         stmt = (
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
             .where(
+                BuyerRole.removed_at.is_(None),
                 or_(
                     Organization.name.ilike(f"%{term}%"),
                     similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
-                )
+                ),
             )
             .options(selectinload(BuyerRole.organization))
             .order_by(similarity.desc())
