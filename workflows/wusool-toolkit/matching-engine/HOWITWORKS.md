@@ -187,6 +187,26 @@ requirements. In a case where a seller's `sector_focus` were unpopulated,
 that criterion would be exempted (`filters_skipped`) rather than silently
 failing the seller.
 
+**Elimination rule, precisely** (`apply_structured_filters` in
+`scoring.py`): a candidate is dropped **only** if a hard requirement with
+`source="crm_field"`/`human_confirmed=True` returns a confirmed `Fail`. An
+`llm_extracted`/`llm_inferred` hard requirement's result — pass, fail, or
+unknown — is never even evaluated for elimination purposes; it's recorded
+under `filters_skipped` (`reason: "unconfirmed_llm_extraction"`) and simply
+skipped at this stage:
+
+| Hard req #1 (`crm_field`) | Hard req #2 (`llm_extracted`) | Stage 1 outcome |
+|---|---|---|
+| Pass | Fail | **Survives** — req #2's result is invisible to Stage 1 |
+| Pass | Pass | Survives |
+| **Fail** | Pass | **Dropped** — because of req #1, not req #2 |
+| **Fail** | Fail | **Dropped** — same reason; req #2 still isn't why |
+
+Only a real, human-confirmed CRM fact can disqualify a seller. An
+unconfirmed LLM extraction's `Fail` doesn't disappear, though — it resurfaces
+at Stage 3 scoring below, where it can lower a candidate's rank but never
+remove them from the shortlist.
+
 `candidates_considered=172`, `candidates_filtered=<passed count>` are
 recorded on the run row.
 
@@ -297,16 +317,34 @@ matches, please wait…*"), runs the full pipeline above (Stages 0-5 — this
 always happens, even when every candidate ends up scoring low), then edits
 that same message in place with the real result.
 
-**If every candidate's `overall_score` falls below `WEB_FALLBACK_MIN_SCORE`**
-(`needs_web_fallback`, `app/modules/matching/domain/scoring.py`) — including
-the case of zero surviving candidates — the placeholder is updated again
-("✨ *No match found, searching Google Maps for potential sellers…*"), and
-`WebLeadSearchService` scrapes Google Maps via Firecrawl for up to 3
-potential seller leads instead of showing the (all-low-scoring) ranked
-list. These leads are never persisted — no `match_results`/`match_scores`
-rows — and are clearly labeled "Not yet in CRM, unverified" with a link to
-each listing. If Firecrawl itself returns nothing, the normal (low-scoring)
-ranked-candidate message is shown instead of a dead end.
+**The exact fallback trigger** — `needs_web_fallback(scores, min_score)` in
+`scoring.py`:
+
+```python
+def needs_web_fallback(scores: list[float], min_score: float) -> bool:
+    return not scores or max(scores) < min_score
+```
+
+In plain terms: take the **highest** `overall_score` among the shortlist
+(not an average — one strong candidate is enough to avoid the fallback),
+and compare it against `WEB_FALLBACK_MIN_SCORE` (env var, **default 50.0**).
+If the best score is still below that line — or the shortlist is empty
+outright — the fallback fires. This deliberately checks *score quality*,
+not just *presence*: a shortlist can be non-empty (as Stage 2 showed —
+`filters_skipped` means free-text hard requirements rarely eliminate
+anyone) while every candidate is still a bad match, so "any results at
+all" isn't a reliable signal on its own.
+
+When it fires, the placeholder is updated again ("✨ *No match found,
+searching Google Maps for potential sellers…*"), and `WebLeadSearchService`
+scrapes Google Maps via Firecrawl for up to 3 potential seller leads
+instead of showing the (all-low-scoring) ranked list. These leads are
+never persisted — no `match_results`/`match_scores` rows — and are clearly
+labeled "Not yet in CRM, unverified" with a link to each listing. If
+Firecrawl itself returns nothing, the normal (low-scoring) ranked-candidate
+message is shown instead of a dead end. If `FIRECRAWL_API_KEY` isn't
+configured at all, the fallback is disabled outright and the plain
+low-scoring ranked list is always shown.
 
 Otherwise, the normal result:
 
