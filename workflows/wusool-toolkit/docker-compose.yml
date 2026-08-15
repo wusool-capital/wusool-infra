@@ -45,10 +45,21 @@ services:
       db:
         condition: service_healthy
 
-  # A future `ddl-commands` bot goes here as its own service:
-  #   ddl-commands:
-  #     build: ./ddl-commands
-  #     ...
+  ddl-commands:
+    build: ./ddl-commands
+    ports:
+      - "8001:8000"
+    environment:
+      # Always the bundled `db` service — same rationale as matching-engine's.
+      DATABASE_URL: postgresql://matching:matching@db:5432/wusool_crm
+      # A separate Slack app/token from matching-engine's — this bot has its
+      # own slash commands (/edit-seller, /remove-seller, /edit-buyer,
+      # /remove-buyer), not shared with /find-match.
+      SLACK_BOT_TOKEN: ${DDL_COMMANDS_SLACK_BOT_TOKEN:-xoxb-local-dev}
+      SLACK_SIGNING_SECRET: ${DDL_COMMANDS_SLACK_SIGNING_SECRET:-local-dev-secret}
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   matching-engine-db-data:
