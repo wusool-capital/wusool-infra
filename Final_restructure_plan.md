@@ -486,20 +486,20 @@ byte-identical. Rebuilding there would produce a different image tag for
 identical source, and resolve different base-image layers besides. Build once on
 `dev`; the prod branch only ever *deploys* an already-tested digest.
 
-**2. Put the promotion edit on `dev`, not on the prod branch.** Because the
-merge is a normal one, anything merged into `dev` flows into prod wholesale.
-That gives a clean flow with no branch divergence:
+**2. One merge deploys an environment end to end.** Because the merge preserves
+dev's commits, the prod-branch workflow can *resolve* which already-built image
+to deploy rather than rebuilding: the promoted commit is the merge commit's
+second parent (`HEAD^2`), which is dev's tip and is already in ECR.
 
 ```
-feature/*  --squash-->  dev  --(deploys dev, builds image, bot PRs digest
-                              into envs/dev.tfvars)
-PR into dev: copy that digest into envs/prod.tfvars   <-- the promotion decision
-dev  --normal merge-->  prod branch   --> prod deploys that exact digest
+feature/*  --squash-->  dev  --> builds image, tofu apply, rolls app  (1 merge)
+dev  --normal merge-->  app  --> resolves that same digest from ECR,
+                                 tofu apply, rolls app                (1 merge)
 ```
 
-Editing `envs/prod.tfvars` *on `dev`* is safe: the dev deploy reads only
-`envs/dev.tfvars`, so the change is inert until the merge. And it keeps the prod
-branch a **pure superset** of `dev` — no divergence, nothing to reconcile.
+Prod runs the **byte-identical artifact** dev ran, with no bot PR and no second
+merge. This works *because* the merge is a normal one — a squash would destroy
+`HEAD^2` and the digest could not be resolved. See Phase F.
 
 **3. `backmerge.yml` becomes a safety net rather than routine.** Since prod is a
 superset of `dev` by construction, the only way they diverge is a hotfix
@@ -1118,31 +1118,58 @@ box mid-deploy.
 
 1. `aws_ecr_repository` per app — immutable tags, scan-on-push, lifecycle policy
    keeping the last N images. (None exist today.)
-2. **`build-push.yml` builds on `dev` ONLY — never on `app`.**
+2. **One merge = build + apply + roll. Build on `dev`; *resolve* on `app`.**
 
-   Building on both branches breaks the guarantee: a squash-merge to `app`
-   produces a different commit SHA, and even at the same SHA a rebuild resolves
-   a different base-image layer. Prod would then run an artifact that was never
-   tested in dev — the exact thing this phase exists to prevent.
+   The requirement is that a single merge fully deploys that environment — infra
+   *and* application — with no second bot PR. That is achievable without
+   rebuilding on `app`, which would otherwise break the artifact guarantee (a
+   normal merge creates a merge commit with a **new SHA**, and a rebuild resolves
+   different base layers, so prod would run something dev never tested).
 
-   Instead, **build once and promote the digest as a reviewed change**:
+   ```
+   merge to dev:
+     detect changed services
+     for each: build -> push ECR as sha-<dev-tip> -> capture sha256 digest
+               tofu apply -var image_digest=<digest>
+               roll the app (see below)
 
-   - On push to `dev`: build, push to ECR as `sha-<short>`, capture the
-     immutable `sha256:` digest.
-   - After the dev deploy is green, a bot opens a PR setting
-     `matching_engine_image_digest = "sha256:…"` in **`envs/dev.tfvars`**.
-   - Promotion is a PR **into `dev`** copying that same digest into
-     **`envs/prod.tfvars`** — inert until the normal merge into the prod
-     branch carries it across (see C0). This keeps the prod branch a pure
-     superset of `dev`.
+   merge dev -> app:
+     detect changed services
+     SHA = HEAD^2   (second parent of the merge commit = dev's tip)
+           HEAD     (fallback, if the merge fast-forwarded)
+     digest = ECR lookup for tag sha-<SHA>        <-- NO BUILD
+     tofu apply -var image_digest=<digest>
+     roll the app
+   ```
 
-   This makes promotion **literally the diff a reviewer sees** — which matters
-   because the prod approval gate was declined, so the plan-on-PR comment is
-   production's only human review. `app` never builds; it only ever deploys a
-   digest that already ran in dev.
+   Both are one merge and fully automatic, and prod runs the **byte-identical
+   image** dev ran, because it is literally the same image.
 
-   Requires ECR `imageTagMutability = IMMUTABLE` so a tag cannot be repointed
-   after approval.
+   **Free guardrail:** if the ECR lookup returns nothing, the prod deploy fails
+   loudly. That can only happen when a commit reached `app` without passing
+   through `dev` — a soft version of the dev-ancestry check declined in
+   *Accepted risks*, covering app code at no extra cost. Provide a
+   `workflow_dispatch` input to build-on-`app` explicitly for genuine hotfixes,
+   so the override is deliberate and logged.
+
+   **Rolling the app is a separate step — do not forget it.** `tofu apply`
+   re-registers `aws_ssm_document.bootstrap` with the new digest, but
+   `aws_ssm_association` does **not** re-run on its own. The workflow must then
+   call `aws ssm send-command` (or `start-associations-once`) against the
+   instance, or the new image is registered and never actually deployed. This is
+   the same class of trap as Defect 1 — a document that is registered but not
+   applied.
+
+   **Trade-off accepted:** passing digests as `-var` rather than committing them
+   to `envs/*.tfvars` means a reviewer sees no digest diff on the promotion PR.
+   The review becomes the `dev -> app` **code** diff instead — more informative
+   than a hash, but it is a deliberate change from a digest-pinning design.
+   ECR tags and the `/wusool/<env>/<stack>/deployed_sha` SSM parameter remain the
+   record of what is running where.
+
+   Requires ECR `imageTagMutability = IMMUTABLE`, so `sha-<SHA>` cannot be
+   repointed at different content after dev has validated it.
+
 3. **Rewrite `modules/matching-engine-ec2/user_data.sh.tpl`**: delete the
    `git clone` and `docker compose build`; the generated compose uses
    `image: <acct>.dkr.ecr.<region>.amazonaws.com/<repo>@<digest>`. Drop
@@ -1581,7 +1608,7 @@ n8n, postgres, matching-engine, and scribe.
 | C | `dev` is default; `app` exists, branched from `dev`; plan check required on `dev` **and** `app`; no `Azmora-ai` references remain |
 | D | `git check-ignore -v terraform/envs/dev.tfvars` returns nothing (D0b). `stacks/account` adopts `wusool-tfstate` **and its three subordinate resources** with a clean plan and `prevent_destroy` set; `terraform/bootstrap/` deleted; lock table removed. EBS snapshots exist and are `completed` before starting. After every `state mv`: the SOURCE state lists **zero** moved resources and the DESTINATION lists them, both verified with `state list`. Every stack × env: `plan` reports `0 to add, 0 to change, 0 to destroy` and zero `forces replacement`. `lifecycle { ignore_changes = [ami] }` present in the new n8n stack. `terraform/environments/` deleted once green. `stacks/base` outputs resolve in service stacks. n8n stays reachable; dev matching-engine `/health` stays green. SecurityHub finding history intact |
 | E | PR touching only `stacks/n8n/**` → matrix contains `n8n` only. PR touching `modules/network/**` → fans out to `base` + downstream. **A `dev -> app` PR comments a plan naming the prod backend key.** Broken Python fails `ci.yml`. Deleting the SSM `deployed_sha` triggers a full deploy |
-| F | `docker inspect` on dev and prod report the **same image digest** after promotion. Apply with the previous digest rolls back and serves traffic |
+| F | A single merge to `dev` builds, applies **and rolls** the app — verify the running container digest changed, not just the SSM document. `build-push.yml` has **no `app` trigger**. After promotion, `docker inspect` on dev and prod report the **same image digest**. A commit pushed directly to `app` with no matching ECR image **fails the deploy** rather than silently deploying something stale. Rollback: dispatch with the previous digest and the app serves traffic again |
 | H | `ami_id` is an explicit tfvars value; changing it shows a reviewed diff. After H2, all of: workflow count matches pre-cutover, a credential decrypts in the UI, one workflow executes end to end, a webhook fires from outside, `select count(*) from workflow_entity` is non-zero, and terminating/recreating the instance loses no data. A restore from the backup plan has been tested at least once. |
 | G | `alembic upgrade head` on empty Postgres → `schema_check.py` reports zero drift vs live dev. `alembic check` clean. Second `upgrade head` is a no-op |
 
