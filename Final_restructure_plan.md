@@ -4,11 +4,12 @@
 
 # 🔴 STOP — DO THIS FIRST, BEFORE ANY RESTRUCTURING
 
-**Five live production defects, all verified against AWS. Defect 4 is already
-resolved. Defects 1 and 2 are fixed by one apply; Defect 3 is a snapshot you
-take before touching anything; Defect 5 is a small EventBridge rule that makes
-the existing security tooling functional. No prerequisites — none of this
-depends on any other phase in this document.**
+**Six defects, all verified live. Defect 4 is already resolved. Defects 1 and 2
+are fixed by one apply; Defect 3 is a snapshot you take before touching
+anything; Defect 5 is a small EventBridge rule that makes the existing security
+tooling functional; Defect 6 is a GitHub plan limitation that must be resolved
+before this plan's guardrails mean anything. None of the AWS-side items depend
+on any other phase in this document.**
 
 ## Defect 1 — a command that takes production offline is armed right now
 
@@ -136,6 +137,75 @@ Unreviewed as of 2026-08-15:
 protection are the expensive features — both are ENABLED. Enabling AWS Config
 adds per-configuration-item charges. Worth pulling actual figures from Cost
 Explorer before assuming it is negligible.
+
+## Defect 6 — none of this plan's guardrails can currently be enforced
+
+Verified via the GitHub API on 2026-08-15:
+
+| Check | Result |
+|---|---|
+| Org plan | **`free`**, 8 seats, repository **private** |
+| Rulesets API | **`403 — Upgrade to GitHub Pro`** |
+| Branch protection on `dev` / `main` | **none configured** (and unavailable on free + private) |
+| Merge methods allowed | **squash, merge commit, and rebase all enabled** |
+| Current user's repo role | `admin: false`, `push: true` |
+
+Branch protection and rulesets require GitHub **Team** or higher for *private*
+repositories. On the current plan that means:
+
+- **"Plan-on-PR as a required status check" cannot be required.** This was the
+  guardrail kept after the prod approval gate was declined — it is presently
+  advisory only.
+- **Direct pushes to `app` cannot be blocked.** Anyone with write access can
+  commit straight to production's branch.
+- **Merge method cannot be restricted per branch.** Nothing stops a squash-merge
+  into `app`, which breaks `HEAD^2` and therefore digest resolution (Phase F).
+- Required reviewers and GitHub Environments protection rules are likewise
+  unavailable, so the declined prod gate could not be turned on even if wanted.
+- Whoever executes this plan needs **repo admin**, which the current user does
+  not hold.
+
+### What a mistaken squash-merge into `app` actually does
+
+The Phase F ECR guardrail is **partial** — it covers application code, not
+infrastructure:
+
+| Change type | Outcome |
+|---|---|
+| **App code** | No ECR image exists for the new squashed SHA → digest resolution fails → **deploy fails, prod untouched.** Fails safe. |
+| **Infra only** | No digest is needed → **`tofu apply` runs and succeeds.** `app` silently stops being a superset of `dev`; the next `dev → app` merge conflicts or double-applies. |
+
+### Mitigations, in order
+
+1. **Recommended: upgrade to GitHub Team** — ~$4/user/month, ≈$32/month at 8
+   seats. Unlocks branch protection, required status checks, per-branch
+   merge-method restriction via rulesets, and Environments with required
+   reviewers (which would also restore the prod approval gate). For a live
+   financial-services system currently enforcing **nothing**, this is the
+   cheapest risk reduction available in this document. Needs whoever holds repo
+   admin.
+2. **Until then, detect what you cannot block.** Add
+   `.github/workflows/guard-app-history.yml`, which runs fine on the free plan:
+
+   ```yaml
+   on: { push: { branches: [app] } }
+   # ...
+   - run: |
+       git rev-parse HEAD^2 >/dev/null 2>&1 || {
+         echo "::error::Squash or direct commit on app — HEAD^2 missing. app must
+         receive merge commits only (see Phase C0/F)."; exit 1; }
+       git merge-base --is-ancestor origin/dev HEAD || \
+         echo "::warning::app is no longer a superset of dev — back-merge required"
+   ```
+
+   It cannot prevent the merge, but it converts a silent divergence into a
+   failed run. **This is only useful once notifications are wired — see
+   Defect 5.**
+3. **Recovery when it happens.** First establish what Terraform already applied;
+   an infra-only squash will have deployed. Then: if nobody has pulled, reset
+   `app` and redo the merge as a merge commit. If others have pulled,
+   `git revert -m 1` the squash commit and re-merge properly. Either way,
+   back-merge `app → dev` afterwards.
 
 ## Step 0 — snapshot, then announce a freeze
 
@@ -565,8 +635,14 @@ No risk, no dependencies. Can run in parallel with A/B.
    mandates PRs into `dev`.
 2. **Create the `app` branch from `dev`** (see C0a below), then set branch
    protection on both `dev` and `app`: require PR, require the plan-on-PR check
-   (Phase E), block direct pushes. The check must be required on **`app` too**,
-   not just `dev` — see Phase E for why that is load-bearing.
+   (Phase E), block direct pushes, and restrict `app` to merge commits. The
+   check must be required on **`app` too**, not just `dev` — see Phase E for why
+   that is load-bearing.
+
+   **Blocked on Defect 6.** Branch protection and rulesets are unavailable on
+   the current free/private plan, and the intended operator is not repo admin.
+   Until the plan is upgraded, none of this step is enforceable — ship
+   `guard-app-history.yml` as detection and treat the rest as convention.
 3. Add `.github/CODEOWNERS`. `CONTRIBUTING.md:121-122` already instructs
    enabling "Require review from Code Owners" and the file does not exist.
 4. Fix `CONTRIBUTING.md:17` — names `github.com/Azmora-ai/wusool-infra.git`;
@@ -1145,10 +1221,12 @@ box mid-deploy.
    Both are one merge and fully automatic, and prod runs the **byte-identical
    image** dev ran, because it is literally the same image.
 
-   **Free guardrail:** if the ECR lookup returns nothing, the prod deploy fails
-   loudly. That can only happen when a commit reached `app` with no image built
-   for it — a soft version of the dev-ancestry check declined in *Accepted
-   risks*, covering app code at no extra cost.
+   **Partial guardrail — know its limit.** If the ECR lookup returns nothing the
+   prod deploy fails loudly, which can only happen when a commit reached `app`
+   with no image built for it. That is a soft dev-ancestry check for **app code
+   at no extra cost** — but it does **not** cover infrastructure-only changes,
+   which need no digest and will apply successfully even from a squash-merge.
+   `guard-app-history.yml` (Defect 6) covers that gap.
 
    **Hotfixes still work — three paths, none of which weaken the guardrail.**
    The check only bites when a commit reaches `app` *without a built image*, so
@@ -1621,7 +1699,7 @@ n8n, postgres, matching-engine, and scribe.
 |---|---|
 | A | `init` + `plan` succeed against real backends for dev and prod with no "state written by a newer version" error |
 | B | Decoded `aws_ssm_document.bootstrap.content` contains `n8n.wusoolcapital.com` and **zero** `n8n-prod.wusoolcapital.com`; live site still serves HTTPS |
-| C | `dev` is default; `app` exists, branched from `dev`; plan check required on `dev` **and** `app`; no `Azmora-ai` references remain |
+| C | Branch protection is actually settable (i.e. Defect 6 resolved) or the gap is explicitly accepted in writing; `guard-app-history.yml` fails a deliberately squash-merged test commit on `app`; `dev` is default; `app` exists, branched from `dev`; plan check required on `dev` **and** `app`; no `Azmora-ai` references remain |
 | D | `git check-ignore -v terraform/envs/dev.tfvars` returns nothing (D0b). `stacks/account` adopts `wusool-tfstate` **and its three subordinate resources** with a clean plan and `prevent_destroy` set; `terraform/bootstrap/` deleted; lock table removed. EBS snapshots exist and are `completed` before starting. After every `state mv`: the SOURCE state lists **zero** moved resources and the DESTINATION lists them, both verified with `state list`. Every stack × env: `plan` reports `0 to add, 0 to change, 0 to destroy` and zero `forces replacement`. `lifecycle { ignore_changes = [ami] }` present in the new n8n stack. `terraform/environments/` deleted once green. `stacks/base` outputs resolve in service stacks. n8n stays reachable; dev matching-engine `/health` stays green. SecurityHub finding history intact |
 | E | PR touching only `stacks/n8n/**` → matrix contains `n8n` only. PR touching `modules/network/**` → fans out to `base` + downstream. **A `dev -> app` PR comments a plan naming the prod backend key.** Broken Python fails `ci.yml`. Deleting the SSM `deployed_sha` triggers a full deploy |
 | F | A single merge to `dev` builds, applies **and rolls** the app — verify the running container digest changed, not just the SSM document. `build-push.yml` has **no `app` trigger**. After promotion, `docker inspect` on dev and prod report the **same image digest**. A commit pushed directly to `app` with no matching ECR image **fails the deploy** rather than silently deploying something stale. Rollback: dispatch with the previous digest and the app serves traffic again |
@@ -1631,6 +1709,13 @@ n8n, postgres, matching-engine, and scribe.
 ---
 
 ## Accepted risks (declined guardrails — recorded deliberately)
+
+0. **Nothing is currently enforced at all (Defect 6).** On the free/private
+   plan there is no branch protection, no required status check, no restriction
+   on merge method, and no block on direct pushes to `app`. Every guardrail
+   below is convention plus post-hoc detection until the org moves to GitHub
+   Team. **This supersedes the risk framing of items 1 and 2** — they assume a
+   PR review actually gates the merge, which today it does not.
 
 1. **No approval gate on prod.** A merge to `app` applies to production with no
    human confirmation between the merge click and AWS changing. The plan
