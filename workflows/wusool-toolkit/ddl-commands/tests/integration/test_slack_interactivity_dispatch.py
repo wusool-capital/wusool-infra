@@ -7,7 +7,7 @@ database: every payload is hand-built to match Slack's real `view_submission`/
 (exercising Bolt's real signature verification, same as
 `test_slack_command_dispatch.py`), and every DB-touching call
 (`resolve_*_by_id`, `count_match_results_for_*`, the write use cases) is
-monkeypatched at its import site in `app.modules.slack.handlers.actions` so
+monkeypatched at its import site in `ddl_commands.modules.slack.handlers.actions` so
 this file asserts *the right function got called with the right arguments*,
 not the real DB side effect.
 """
@@ -23,9 +23,9 @@ from urllib.parse import urlencode
 import pytest
 from fastapi.testclient import TestClient
 
-import app.modules.slack.handlers.actions as actions_module
-from app.config import get_settings
-from app.main import app
+import ddl_commands.modules.slack.handlers.actions as actions_module
+from ddl_commands.config import get_settings
+from ddl_commands.main import app
 
 
 def _sign(body: str, timestamp: str, signing_secret: str) -> str:
@@ -163,7 +163,7 @@ def _mock_slack_web_client(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# seller_selection_modal submission
+# seller_role_selection_modal submission
 # --------------------------------------------------------------------------
 
 
@@ -181,7 +181,7 @@ def test_seller_selection_edit_intent_opens_prefilled_edit_form(monkeypatch) -> 
         "view": {
             "type": "modal",
             "id": "V1",
-            "callback_id": "seller_selection_modal",
+            "callback_id": "seller_role_selection_modal",
             "private_metadata": json.dumps(
                 {"requested_by": "U_TEST", "channel_id": "C_TEST", "intent": "edit"}
             ),
@@ -224,7 +224,7 @@ def test_seller_selection_remove_intent_posts_confirmation_with_match_count(
         "view": {
             "type": "modal",
             "id": "V1",
-            "callback_id": "seller_selection_modal",
+            "callback_id": "seller_role_selection_modal",
             "private_metadata": json.dumps(
                 {"requested_by": "U_TEST", "channel_id": "C_TEST", "intent": "remove"}
             ),
@@ -408,7 +408,7 @@ def test_remove_seller_button_calls_remove_use_case_and_replaces_message(
 def test_remove_seller_button_already_removed_posts_friendly_error(
     monkeypatch, _mock_slack_web_client
 ) -> None:
-    from app.modules.sellers.application.use_cases import SellerAlreadyRemovedError
+    from ddl_commands.modules.sellers.application.use_cases import SellerAlreadyRemovedError
 
     seller_id = str(uuid.uuid4())
     fake_use_case = _RecordingUseCase(raises=SellerAlreadyRemovedError(seller_id))

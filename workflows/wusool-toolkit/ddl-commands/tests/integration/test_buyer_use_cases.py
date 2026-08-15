@@ -3,14 +3,14 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.modules.buyers.application.use_cases import (
+from ddl_commands.modules.buyers.application.use_cases import (
     BuyerAlreadyRemovedError,
     BuyerNotFoundError,
     RemoveBuyerUseCase,
     UpdateBuyerUseCase,
 )
-from app.modules.buyers.infrastructure.models import BuyerRole
-from app.shared.database.models import Organization
+from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
+from ddl_commands.shared.database.models import Organization
 
 
 async def _seed_buyer(db_sessionmaker: async_sessionmaker[AsyncSession]) -> str:

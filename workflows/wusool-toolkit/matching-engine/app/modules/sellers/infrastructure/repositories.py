@@ -25,12 +25,13 @@ class SellerRepository:
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def get_eligible_sellers(self, limit: int = 50, offset: int = 0) -> list[SellerRole]:
-        """ "Eligible" has no schema-level flag today — returns `seller_roles`
-        joined to `organizations`, unfiltered. Real eligibility filtering is
-        Phase 3 business logic, not a repository concern.
+        """The `/find-match` candidate feed. Excludes removed rows —
+        `removed_at` is set by `/remove-seller` (ddl-commands); a removed
+        seller must never be suggestible as a match candidate.
         """
         stmt = (
             select(SellerRole)
+            .where(SellerRole.removed_at.is_(None))
             .options(selectinload(SellerRole.organization))
             .limit(limit)
             .offset(offset)
