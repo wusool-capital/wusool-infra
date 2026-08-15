@@ -181,8 +181,10 @@ maintainability gain. Instead:
   `validate-postgres.ps1`) is lower priority.
 - matching-engine already has `ruff`/`ty`/`pytest` wired locally — add the
   equivalent as a path-filtered `.github/workflows/matching-engine-ci.yml`
-  (currently nothing runs these in CI at all, only locally, per this
-  session's own verification steps).
+  (path filter targets `workflows/wusool-toolkit/matching-engine/**`, its
+  location as of the `wusool-toolkit/` restructure) (currently nothing runs
+  these in CI at all, only locally, per this session's own verification
+  steps).
 
 **What breaks if skipped**: the dangerous-path scripts (`-Reset`, `-Apply`)
 stay one typo away from real data loss/corruption with no safety net beyond

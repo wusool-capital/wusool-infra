@@ -59,14 +59,8 @@ variable "web_cidr_blocks" {
   default     = ["0.0.0.0/0"]
 }
 
-variable "app_public_url" {
-  description = "Public HTTPS URL for the app (used as the Slack Events/interactivity Request URL host). Empty derives an sslip.io hostname from the Elastic IP."
-  type        = string
-  default     = ""
-}
-
 variable "git_repo_url" {
-  description = "HTTPS clone URL of the repo containing the matching-engine app (without credentials)."
+  description = "HTTPS clone URL of the repo containing the app(s) (without credentials)."
   type        = string
   default     = "https://github.com/wusool-capital/wusool-infra.git"
 }
@@ -77,15 +71,33 @@ variable "git_ref" {
   default     = "main"
 }
 
-variable "app_subdir" {
-  description = "Path within the cloned repo to the matching-engine app (contains the Dockerfile)."
-  type        = string
-  default     = "workflows/matching-engine"
-}
+variable "apps" {
+  description = "One entry per bot service hosted on this instance. Each gets its own Caddy virtual host (subdomain), Docker Compose service, and Secrets Manager secret; all run on the same EC2 instance behind the same Elastic IP."
+  type = list(object({
+    # Short slug used as the docker-compose service name, the Caddy access-log
+    # filename, and the CloudWatch log-stream suffix.
+    name = string
+    # Path within the cloned repo to this app's Dockerfile.
+    app_subdir = string
+    # Secrets Manager secret ID/ARN holding this app's runtime secrets:
+    # slack_bot_token, slack_signing_secret, database_url, github_token (a
+    # fine-grained PAT with read-only access to git_repo_url), and an
+    # optional env map of extra overrides.
+    app_secret_id = string
+    # Public HTTPS URL for this app (used as its Slack Request URL host).
+    # Empty derives an sslip.io hostname from the shared Elastic IP, prefixed
+    # with `name`.
+    public_url = optional(string, "")
+  }))
 
-variable "app_secret_id" {
-  description = "Secrets Manager secret ID/ARN holding the app's runtime secrets: slack_bot_token, slack_signing_secret, database_url, github_token (a fine-grained PAT with read-only access to git_repo_url), and an optional env map of extra overrides."
-  type        = string
+  validation {
+    condition     = length(var.apps) > 0
+    error_message = "At least one app must be configured."
+  }
+  validation {
+    condition     = length(distinct([for a in var.apps : a.name])) == length(var.apps)
+    error_message = "Each app's name must be unique."
+  }
 }
 
 variable "secrets_manager_secret_arns" {

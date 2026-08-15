@@ -51,14 +51,24 @@ module "matching_engine" {
   ami_architecture            = var.ami_architecture
   ssh_cidr_blocks             = var.ssh_cidr_blocks
   web_cidr_blocks             = var.web_cidr_blocks
-  app_public_url              = var.matching_engine_public_url
   git_repo_url                = var.matching_engine_git_repo_url
   git_ref                     = var.matching_engine_git_ref
   root_volume_size            = var.root_volume_size
   aws_region                  = var.aws_region
   alarm_topic_arn             = aws_sns_topic.alerts.arn
   secrets_manager_secret_arns = [aws_secretsmanager_secret.matching_engine.arn]
-  app_secret_id               = aws_secretsmanager_secret.matching_engine.id
+
+  # One entry today (matching-engine); a future ddl-commands bot is added by
+  # appending a second entry here, on the same shared instance — no module
+  # rework needed.
+  apps = [
+    {
+      name          = "matching-engine"
+      app_subdir    = "workflows/wusool-toolkit/matching-engine"
+      app_secret_id = aws_secretsmanager_secret.matching_engine.id
+      public_url    = var.matching_engine_public_url
+    }
+  ]
 }
 
 module "matching_engine_bedrock" {

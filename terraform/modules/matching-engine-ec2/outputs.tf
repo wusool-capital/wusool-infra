@@ -13,9 +13,9 @@ output "security_group_id" {
   value       = aws_security_group.matching_engine.id
 }
 
-output "app_url" {
-  description = "HTTPS URL served by Caddy. Slack Events/interactivity Request URLs are this plus /slack/events."
-  value       = local.public_url
+output "app_urls" {
+  description = "Map of app name to its HTTPS URL served by Caddy. Each app's Slack Events/interactivity Request URL is its value plus /slack/events."
+  value       = { for app in local.apps_resolved : app.name => app.url }
 }
 
 output "ssm_instance_id" {

@@ -42,14 +42,21 @@ wusool-infra/
 |   |   |-- dev/               # Frankfurt development composition
 |   |   `-- prod/              # Production template
 |   `-- modules/
-|       |-- network/           # VPC, subnets, route tables and IGW
-|       `-- n8n-ec2/           # EC2, n8n, Caddy, IAM, SSM and monitoring
+|       |-- network/               # VPC, subnets, route tables and IGW
+|       |-- n8n-ec2/               # EC2, n8n, Caddy, IAM, SSM and monitoring
+|       |-- matching-engine-ec2/   # EC2 host for wusool-toolkit/ bots, Caddy, IAM, SSM and monitoring
+|       |-- bedrock-access/        # IAM policy granting scoped Bedrock model access
+|       `-- postgres-rds/          # Shared RDS PostgreSQL instance
 |-- database/                  # PostgreSQL migrations, sync, and database tools
 |-- workflows/                 # One folder per workflow: scripts + docs together
 |   |-- n8n/                   # n8n scripts and infrastructure/architecture docs
 |   |-- bedrock-ai/            # AWS Bedrock model access scripts
 |   |-- crm-sync/              # Attio <-> PostgreSQL schema, sync scripts, and docs
-|   `-- matching-engine/       # Placeholder; the app itself lives in its own repo
+|   `-- wusool-toolkit/        # Slack bots hosted together on one EC2 instance
+|       |-- docker-compose.yml # Local dev orchestration for all bots + a throwaway Postgres
+|       |-- matching-engine/   # Buyer-Seller Matching Slack bot (FastAPI + Slack Bolt)
+|       |-- ddl-commands/      # Database DDL Slack bot (placeholder, not yet built)
+|       `-- shared/            # Scaffold for cross-bot reusable code (currently empty)
 |-- scripts/
 |   `-- docs/                  # Cross-cutting schema documentation generators
 `-- .agents/skills/            # Project-local Codex skills
