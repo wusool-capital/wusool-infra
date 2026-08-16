@@ -34,10 +34,10 @@ Also established: no ECR repositories, no IAM OIDC provider,
 | # | Defect | Status |
 |---|---|---|
 | 1 | Prod SSM bootstrap document hardcodes the **retired** `n8n-prod.wusoolcapital.com`. Invoking it — the documented recovery procedure — takes production offline. | **OPEN — armed** |
-| 2 | `wusool-prod-infrastructure-alerts` has **zero subscriptions** while two CloudWatch alarms publish to it. Dev's is stuck `PendingConfirmation`. | **OPEN** |
+| 2 | `wusool-prod-infrastructure-alerts` had **zero subscriptions** while two CloudWatch alarms published to it. | **RESOLVED for prod** 2026-08-16; dev still pending confirmation |
 | 3 | No backups of any kind: zero EBS snapshots, zero AWS Backup plans, zero DLM policies. | **PARTIALLY ADDRESSED** — see below |
 | 4 | `N8N_ENCRYPTION_KEY` never set explicitly, so no backup could have restored n8n credentials. | **RESOLVED** |
-| 5 | GuardDuty + Security Hub enabled but **zero EventBridge rules** — findings route nowhere. | **OPEN** |
+| 5 | GuardDuty + Security Hub enabled but **zero EventBridge rules** — findings route nowhere. | **ROUTED** 2026-08-16; delivery pending subscription confirmation |
 | 6 | GitHub org on **free** plan with a private repo → no branch protection, no rulesets, all merge methods enabled, operator is not repo admin. None of the plan's guardrails are enforceable. | **OPEN** |
 
 ### Changes actually made to AWS
@@ -187,14 +187,78 @@ given on that basis.
 Until then prod alarms still notify nobody. Dev's subscription is in the same
 state.
 
+### Defect 2 — prod alerting **CLOSED**
+
+`raoof@azmora.ai` confirmed the prod subscription
+(`…:4bd43d22-cd91-4002-a7a8-a2c0f2bbafd4`). Prod's two alarms now reach a human.
+**Dev's subscription is still `PendingConfirmation`** and covers four alarms
+(n8n + matching-engine) — still needs a click.
+
+### Defect 5 — security findings now routed *(dev root, moves to stacks/account in Phase D)*
+
+GuardDuty and Security Hub are **account-level singletons**, so their findings
+belong to neither environment. They got a dedicated topic rather than borrowing a
+per-env one — which also keeps "a box is unhealthy" separate from "someone may be
+attacking us".
+
+| Resource | Detail |
+|---|---|
+| `aws_sns_topic.security_alerts` | `wusool-security-alerts` |
+| `aws_cloudwatch_event_rule.guardduty_findings` | GuardDuty, **severity ≥ 4** (MEDIUM+); LOW is mostly policy noise |
+| `aws_cloudwatch_event_rule.securityhub_findings` | Security Hub, **HIGH/CRITICAL + Workflow NEW + RecordState ACTIVE** — unfiltered, the 14 LOW CIS findings would have become spam and the routing would be muted within a week |
+| `aws_sns_topic_policy.security_alerts` | Lets `events.amazonaws.com` publish, scoped by `AWS:SourceAccount` |
+| GuardDuty target | Input transformer produces a readable email rather than raw JSON |
+
+**`wusool-security-alerts` subscription is `PendingConfirmation`** — a third
+email needing a click, or security findings still reach nobody.
+
+### Dev apply — the shared-state problem, demonstrated
+
+The first dev plan showed `7 to add, 5 to change, **1 to destroy**`, where only
+the 7 adds were the security routing. Investigation:
+
+- `/wusool/dev/ddl-commands` created 2026-08-15 20:15 IST, **empty**
+  (`VersionIdsToStages: null` — no value ever stored).
+- Merged `origin/dev` (2 commits: #23, #25) and re-planned — **plan unchanged**,
+  which is what settled it: #25 *deliberately* merged matching-engine and
+  ddl-commands into one bot, so the separate secret is a genuine orphan, not
+  someone's live work. The initial reading of it as "in-flight work" was wrong;
+  merging dev was the right way to find that out.
+- Applying also redeployed **#25's merged bot** to dev, because
+  `module.matching_engine`'s `user_data` hash changed. That is a *feature
+  deployment* riding along on an infrastructure change — exactly the coupling
+  the per-service state split (Phase D) exists to remove. Proceeded knowingly;
+  the feature was checkpointed.
+
+```
+Apply complete! Resources: 7 added, 5 changed, 1 destroyed.
+```
+
+State backed up first: `.state-backups/dev-2026-08-16-0747.tfstate`,
+pre-apply S3 version `fVcePHDT_9HTUEFgZ.NtgJal1mEpQUlo`.
+
+**Post-apply verification**
+
+| Check | Result |
+|---|---|
+| EventBridge rules | both `ENABLED`, both targeting `wusool-security-alerts` |
+| dev n8n | `/healthz` 200, **2.26.8 unchanged**, `database.sqlite` 19 MB intact, images digest-pinned |
+| dev matching-engine | `matching-engine-app-1` **Up (healthy)**, `/health` 200, clean startup |
+| `/wusool/dev/ddl-commands` | deleted 2026-08-16 (30-day recovery window) |
+
+Both dev services restarted via the SSM association re-run — expected this time,
+unlike the prod apply.
+
 ### Snapshot status
 
 | Snapshot | State |
 |---|---|
 | `snap-049bd02b9774a8f4e` prod n8n | **completed** (before the apply) |
 | `snap-0077ca44b219f38a7` dev matching-engine | **completed** |
-| `snap-0470a29009ad43a92` dev n8n | in progress at last check |
-| `snap-0f28a587eb9c37f97` scribe | in progress at last check |
+| `snap-0470a29009ad43a92` dev n8n | **completed** |
+| `snap-0f28a587eb9c37f97` scribe | **completed** |
+
+All four completed before the dev apply.
 
 Note: `aws ec2 wait snapshot-completed` exited 0 while `describe-snapshots` still
 reported two as `pending`. Trust `describe-snapshots`, not the waiter.
@@ -206,9 +270,10 @@ reported two as `pending`. Trust `describe-snapshots`, not the waiter.
 1. ~~Defect 1 — the landmine~~ **RESOLVED 2026-08-16.** Document v5 carries the
    live hostname; the freeze can be lifted. Recurrence prevention (re-register
    from source on every deploy) still depends on Phase E.
-1b. **Defect 2 not closed** — the SNS subscription is `PendingConfirmation`.
-   Someone must click the link in the email to `raoof@azmora.ai`, for **both**
-   dev and prod. Until then alarms still reach nobody.
+1b. **Two subscriptions still `PendingConfirmation`** — `wusool-dev-infrastructure-alerts`
+   (4 alarms) and `wusool-security-alerts` (all GuardDuty/Security Hub findings).
+   Both need a click on the email to `raoof@azmora.ai`. Prod infra alerts are
+   **confirmed**.
 2. **Defect 6 — nothing is enforced.** `prod` now exists and will start
    receiving merges, with no branch protection, no required checks, and all
    merge methods enabled. Needs GitHub Team (~$32/mo at 8 seats) and repo admin.
