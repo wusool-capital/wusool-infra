@@ -32,3 +32,8 @@ bedrock_models = [
 # session) — leaving this empty would derive "toolkit-<ip>.sslip.io" and break
 # the existing Slack Request URL. The IP is an Elastic IP; safe to hardcode.
 public_url = "https://63-184-6-136.sslip.io"
+
+# stacks/postgres — dev
+# sg-0684b8cf83abfd065 = wusool-scribe-instance, a real cross-service
+# dependency (scribe writes meetings via scribe_pub) — not junk.
+extra_allowed_security_group_ids = ["sg-0684b8cf83abfd065"]
