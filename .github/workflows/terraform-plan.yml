@@ -32,66 +32,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read OpenTofu version
-        id: tofu
-        run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup-opentofu
 
-      - uses: opentofu/setup-opentofu@v1
+      - uses: ./.github/actions/aws-oidc
         with:
-          tofu_version: ${{ steps.tofu.outputs.version }}
-          tofu_wrapper: false
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-plan
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - id: plan
+        uses: ./.github/actions/tofu-plan-comment
         with:
-          role-to-assume: arn:aws:iam::030179310793:role/wusool-gha-plan
-          aws-region: eu-central-1
-
-      - name: Plan
-        id: plan
-        working-directory: terraform/stacks/${{ matrix.stack }}
-        run: |
-          set -euo pipefail
-          tofu init -reconfigure -input=false \
-            -backend-config=bucket=wusool-tfstate \
-            -backend-config=region=me-central-1 \
-            -backend-config=key=wusool/$ENV/${{ matrix.stack }}/terraform.tfstate \
-            -backend-config=use_lockfile=true -backend-config=encrypt=true
-          tofu plan -input=false -lock=false -no-color -var-file=../../envs/$ENV.tfvars \
-            > /tmp/plan.txt 2>&1 || true
-          tail -c 60000 /tmp/plan.txt > /tmp/plan-short.txt
-
-          # Only comment when the plan actually changes something — a clean
-          # "No changes" on every stack for every PR is noise, not signal.
-          if grep -q '^No changes' /tmp/plan.txt; then
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "has_changes=true" >> "$GITHUB_OUTPUT"
-
-          {
-            echo 'body<<PLANEOF'
-            echo "### \`$ENV\` / \`${{ matrix.stack }}\` plan"
-            grep -E '^Plan:' /tmp/plan.txt | head -1 || true
-            if grep -q 'forces replacement\|will be destroyed' /tmp/plan.txt; then
-              echo ''
-              echo '> **This plan DESTROYS or REPLACES resources — read it carefully.**'
-            fi
-            echo ''
-            echo '<details><summary>full plan</summary>'
-            echo ''
-            echo '```terraform'
-            cat /tmp/plan-short.txt
-            echo '```'
-            echo '</details>'
-            echo PLANEOF
-          } >> "$GITHUB_OUTPUT"
+          working_directory: terraform/stacks/${{ matrix.stack }}
+          backend_key: wusool/${{ env.ENV }}/${{ matrix.stack }}/terraform.tfstate
+          plan_args: -var-file=../../envs/${{ env.ENV }}.tfvars
+          heading: "`${{ env.ENV }}` / `${{ matrix.stack }}` plan"
 
       # The plan body is passed via env, not spliced into the script string:
       # a plan full of Terraform's own `${...}` syntax and backticked code
       # fences breaks a JS template literal it's interpolated into (hit this
       # on 2026-08-16 — every plan job failed at this step with a JS
       # SyntaxError even though the plan itself succeeded).
-      - if: steps.plan.outputs.has_changes == 'true'
+      - if: always() && steps.plan.outputs.has_changes == 'true'
         uses: actions/github-script@v7
         env:
           PLAN_BODY: ${{ steps.plan.outputs.body }}
@@ -109,66 +69,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read OpenTofu version
-        id: tofu
-        run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup-opentofu
 
-      - uses: opentofu/setup-opentofu@v1
+      - uses: ./.github/actions/aws-oidc
         with:
-          tofu_version: ${{ steps.tofu.outputs.version }}
-          tofu_wrapper: false
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::030179310793:role/wusool-gha-plan
-          aws-region: eu-central-1
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-plan
 
       # No -var-file: stacks/account is account-wide, not per-environment.
-      - name: Plan
-        id: plan
-        working-directory: terraform/stacks/account
-        run: |
-          set -euo pipefail
-          tofu init -reconfigure -input=false \
-            -backend-config=bucket=wusool-tfstate \
-            -backend-config=region=me-central-1 \
-            -backend-config=key=wusool/account/terraform.tfstate \
-            -backend-config=use_lockfile=true -backend-config=encrypt=true
-          tofu plan -input=false -lock=false -no-color > /tmp/plan.txt 2>&1 || true
-          tail -c 60000 /tmp/plan.txt > /tmp/plan-short.txt
+      - id: plan
+        uses: ./.github/actions/tofu-plan-comment
+        with:
+          working_directory: terraform/stacks/account
+          backend_key: wusool/account/terraform.tfstate
+          heading: "`account` plan"
 
-          # Only comment when the plan actually changes something — a clean
-          # "No changes" on every stack for every PR is noise, not signal.
-          if grep -q '^No changes' /tmp/plan.txt; then
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "has_changes=true" >> "$GITHUB_OUTPUT"
-
-          {
-            echo 'body<<PLANEOF'
-            echo "### \`account\` plan"
-            grep -E '^Plan:' /tmp/plan.txt | head -1 || true
-            if grep -q 'forces replacement\|will be destroyed' /tmp/plan.txt; then
-              echo ''
-              echo '> **This plan DESTROYS or REPLACES resources — read it carefully.**'
-            fi
-            echo ''
-            echo '<details><summary>full plan</summary>'
-            echo ''
-            echo '```terraform'
-            cat /tmp/plan-short.txt
-            echo '```'
-            echo '</details>'
-            echo PLANEOF
-          } >> "$GITHUB_OUTPUT"
-
-      # The plan body is passed via env, not spliced into the script string:
-      # a plan full of Terraform's own `${...}` syntax and backticked code
-      # fences breaks a JS template literal it's interpolated into (hit this
-      # on 2026-08-16 — every plan job failed at this step with a JS
-      # SyntaxError even though the plan itself succeeded).
-      - if: steps.plan.outputs.has_changes == 'true'
+      - if: always() && steps.plan.outputs.has_changes == 'true'
         uses: actions/github-script@v7
         env:
           PLAN_BODY: ${{ steps.plan.outputs.body }}

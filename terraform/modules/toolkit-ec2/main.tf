@@ -3,8 +3,9 @@
 # `ignore_changes = [ami]` on the instance hid it, meaning AMI upgrades were
 # silently impossible to review and the instance was frozen indefinitely with
 # no visible diff. An explicit pin makes an AMI change a normal, reviewable
-# tfvars edit. `ignore_changes = [ami]` stays on the instance as
-# belt-and-braces until H2 (n8n -> Postgres) makes the instance disposable.
+# tfvars edit — which only works if `ignore_changes = [ami]` is actually
+# removed from the instance (a prior pass fixed the AMI source but left this
+# in place, quietly defeating the fix — caught in code review 2026-08-16).
 
 resource "aws_security_group" "wusool_toolkit" {
   # name_prefix, not name: a security group cannot be destroyed while an ENI
@@ -208,10 +209,6 @@ resource "aws_instance" "wusool_toolkit" {
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
-  }
-
-  lifecycle {
-    ignore_changes = [ami]
   }
 
   tags = {

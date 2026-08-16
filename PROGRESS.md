@@ -11,55 +11,32 @@ Last updated: 2026-08-11
 
 ## Workstreams
 
-### 1. Infrastructure (Terraform / n8n) — dev deployed via Terraform; prod is live but Terraform-orphaned
+### 1. Infrastructure (OpenTofu / n8n / toolkit) — full CD restructure landed; both dev and prod deployed and OIDC-driven
 
-- Development environment (`terraform/environments/dev`) is declared and deployable:
-  VPC, EC2 n8n host behind Caddy/HTTPS, Secrets Manager, CloudWatch alarms,
-  SNS, multi-region CloudTrail, GuardDuty, Security Hub. See
-  [README.md](README.md#architecture) and
-  [workflows/n8n/docs/infrastructure-overview.md](workflows/n8n/docs/infrastructure-overview.md).
-- **Correction (2026-08-08):** production is actually deployed and running
-  (`wusool-prod-n8n`, `i-0087f9ecb02462b2e`) — but in `eu-central-1`
-  alongside dev, not `me-central-1` as `terraform/environments/prod`'s Terraform
-  config declares. That config is not what created the real prod instance;
-  `terraform apply` there would not affect it. See
-  [workflows/n8n/docs/infrastructure-overview.md](workflows/n8n/docs/infrastructure-overview.md)
-  section 18, "Known Infrastructure Gaps," for details and the workaround
-  (direct SSM changes to prod until this is reconciled).
-- Fixed a real n8n default-config bug (2026-08-08): the external Python task
-  runner's launcher config ships with `N8N_RUNNERS_STDLIB_ALLOW` forced blank
-  regardless of environment variables, breaking all stdlib imports (e.g.
-  `datetime`) in Python Code nodes on n8n `2.27.5`. Fixed via a custom
-  launcher config file + `N8N_RUNNERS_CONFIG_PATH`, applied live to prod and
-  added to the `terraform/modules/n8n-ec2` Terraform template for future deployments;
-  not yet applied to dev (not known to be needed there) — see
-  infrastructure-overview.md section 9.1.
-- Documentation is kept in sync with actual Terraform via the
-  `sync-terraform-docs` skill (see `.agents/skills/sync-terraform-docs/`).
-- **Done (2026-08-09):** renamed prod's public n8n domain from
-  `n8n-prod.wusoolcapital.com` to `n8n.wusoolcapital.com` using a dual-domain
-  approach — both domains stay live simultaneously, so existing
-  workflows/webhook URLs never broke. Applied directly on
-  `wusool-prod-n8n` (`i-0087f9ecb02462b2e`) via SSM: (1) added a Cloudflare
-  `A` record for `n8n.wusoolcapital.com` (zone lives under the `Jules@`
-  Cloudflare account, not `Tech@`) pointing at the same IP as `n8n-prod`,
-  DNS-only/grey-cloud to match; (2) `/opt/n8n/Caddyfile` now lists both
-  hostnames in one site block (`n8n-prod.wusoolcapital.com,
-  n8n.wusoolcapital.com { reverse_proxy n8n:5678 ... }`); (3)
-  `/opt/n8n/docker-compose.yml`'s `N8N_HOST`/`WEBHOOK_URL` now point at
-  `n8n.wusoolcapital.com` (only affects newly generated webhook/OAuth URLs
-  going forward — existing ones keep working on both domains since n8n's
-  webhook routing is path-based, not Host-header-validated); (4) `docker
-  compose up -d` recreated the `n8n`/`task-runners` containers (env changed)
-  and `docker compose restart caddy` picked up the new Caddyfile (Compose
-  does not auto-recreate a container just because a bind-mounted file's
-  contents changed). Verified both `https://n8n-prod.wusoolcapital.com` and
-  `https://n8n.wusoolcapital.com` return `HTTP/2 200` with valid Caddy-issued
-  TLS. `Caddyfile.bak`/`docker-compose.yml.bak` left on the box from before
-  the change. **Not yet done:** mirroring this into the
-  `terraform/modules/n8n-ec2` Terraform template (prod is Terraform-orphaned per the
-  gap above, so the live box isn't affected either way, but the template
-  should reflect the same dual-domain pattern for future deployments/dev).
+Superseded by the 2026-08-16 CD restructure (PR #26, `plan-cd-restructure` →
+`dev`) — the prod-orphaned/dual-domain/SMTP narrative below predates it and
+no longer reflects live state. Everything that used to be described inline
+here now lives in three purpose-built docs, so it isn't duplicated a fourth
+time in this index:
+
+- [`CD_RESTRUCTURE_RESULT.md`](CD_RESTRUCTURE_RESULT.md) — **start here.**
+  Concise before/after of what changed and what's now enforced (stacks
+  layout, OIDC auth, ECR digest deploys, AMI pinning, what's explicitly
+  deferred).
+- [`RESTRUCTURE_PROGRESS.md`](RESTRUCTURE_PROGRESS.md) — the detailed,
+  phase-by-phase execution log with verification evidence for every step.
+- [`Final_restructure_plan.md`](Final_restructure_plan.md) — the original
+  design document (historical; read the two docs above for what actually
+  shipped, which differs from this in places).
+
+In short: both dev and prod are real, deployed environments in one account,
+applied via GitHub Actions on merge to `dev`/`main`, authenticated by OIDC
+(no static AWS keys). n8n is pinned to `n8n.wusoolcapital.com` in both
+Terraform and DNS (the dual-domain/Terraform-orphaned prod gap this section
+used to describe is resolved). See
+[workflows/n8n/docs/infrastructure-overview.md](workflows/n8n/docs/infrastructure-overview.md)
+for n8n-specific operational detail (SMTP, the stdlib task-runner config fix,
+etc.) — that document was not part of the restructure and remains current.
 
 ### 2. CRM / data-platform migration (Attio + PostgreSQL) — core objects migrated and re-synced, tail work remains
 

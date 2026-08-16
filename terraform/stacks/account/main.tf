@@ -179,8 +179,12 @@ resource "aws_iam_role_policy_attachment" "gha_plan_readonly" {
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
 
-# Plan needs to write the state lock and read state, which ReadOnlyAccess alone
-# does not permit.
+# Plan reads state. terraform-plan.yml always runs `tofu plan -lock=false`, so
+# this role never takes the S3-native state lock and never needs to write or
+# delete anything in the bucket - GetObject/ListBucket is sufficient.
+# Previously included PutObject/DeleteObject "for the lock", which let a
+# PR-triggered (any-branch, read-only-by-design) workflow run delete another
+# stack's state object with no apply-time review gate.
 resource "aws_iam_role_policy" "gha_plan_state" {
   name = "${var.project}-gha-plan-state"
   role = aws_iam_role.gha_plan.id
@@ -190,7 +194,7 @@ resource "aws_iam_role_policy" "gha_plan_state" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Action   = ["s3:GetObject", "s3:ListBucket"]
         Resource = ["arn:aws:s3:::wusool-tfstate", "arn:aws:s3:::wusool-tfstate/*"]
       }
     ]
@@ -249,6 +253,12 @@ resource "aws_iam_role_policy_attachment" "gha_apply_power" {
   policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
 }
 
+# Scoped to `wusool-<env>-*` roles/instance-profiles only - i.e. the service
+# roles each stack's own modules create (n8n-ec2, toolkit-ec2), never the
+# gha-* roles themselves. Previously Resource "*", which meant the dev apply
+# role could `iam:AttachRolePolicy` AdministratorAccess onto ITSELF, or edit
+# the prod apply role's permissions despite the branch-scoped trust policy -
+# a real self-escalation path caught in code review, not a hypothetical.
 resource "aws_iam_role_policy" "gha_apply_iam" {
   for_each = aws_iam_role.gha_apply
 
@@ -259,6 +269,7 @@ resource "aws_iam_role_policy" "gha_apply_iam" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "ManageServiceRoles"
         Effect = "Allow"
         Action = [
           "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:ListRoles",
@@ -267,9 +278,55 @@ resource "aws_iam_role_policy" "gha_apply_iam" {
           "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies",
           "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile", "iam:GetInstanceProfile",
           "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
-          "iam:PassRole", "iam:CreateServiceLinkedRole"
         ]
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project}-${each.key}-*",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/${var.project}-${each.key}-*",
+        ]
+      },
+      {
+        # PassRole is separately scoped and further restricted to roles being
+        # passed to EC2 specifically - the only thing this pipeline ever
+        # passes a role to.
+        Sid      = "PassServiceRolesToEC2Only"
+        Effect   = "Allow"
+        Action   = ["iam:PassRole"]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project}-${each.key}-*"
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "ec2.amazonaws.com"
+          }
+        }
+      },
+      {
+        Sid      = "ServiceLinkedRoles"
+        Effect   = "Allow"
+        Action   = ["iam:CreateServiceLinkedRole"]
         Resource = "*"
+      },
+      {
+        # Defense in depth: an explicit Deny on the gha-* roles/OIDC provider
+        # themselves, independent of the Resource scoping above, so a future
+        # widening of the Allow scoping above still can't touch these.
+        Sid    = "DenyTouchingOwnRolesOrOidcProvider"
+        Effect = "Deny"
+        Action = [
+          "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateAssumeRolePolicy",
+          "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+          "iam:PassRole",
+        ]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project}-gha-*"
+      },
+      {
+        Sid    = "DenyOidcProviderTampering"
+        Effect = "Deny"
+        Action = [
+          "iam:UpdateOpenIDConnectProviderThumbprint",
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:AddClientIDToOpenIDConnectProvider",
+          "iam:RemoveClientIDFromOpenIDConnectProvider",
+        ]
+        Resource = aws_iam_openid_connect_provider.github.arn
       }
     ]
   })

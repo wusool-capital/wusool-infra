@@ -1,0 +1,25 @@
+name: Set up OpenTofu
+description: >
+  Reads terraform/.opentofu-version and installs that exact OpenTofu version.
+  Caller must check out the repo first. Extracted 2026-08-16 (code review) -
+  this exact three-step sequence was duplicated across terraform-ci.yml (2
+  jobs), terraform-plan.yml (2 jobs), and _deploy.yml (1 job); a version-pin
+  change had to be edited in five places to actually take effect everywhere.
+
+runs:
+  using: composite
+  steps:
+    - name: Read OpenTofu version
+      id: tofu-version
+      shell: bash
+      # Explicit workspace path: a calling job may set its own
+      # `defaults.run.working-directory` (several stack jobs do, to scope
+      # later `tofu` steps to their stack directory), which would otherwise
+      # break this relative path.
+      working-directory: ${{ github.workspace }}
+      run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
+
+    - uses: opentofu/setup-opentofu@v1
+      with:
+        tofu_version: ${{ steps.tofu-version.outputs.version }}
+        tofu_wrapper: false

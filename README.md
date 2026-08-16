@@ -6,7 +6,7 @@ OpenTofu configuration and application code for the Wusool AWS infrastructure.
 > (`030179310793`, `eu-central-1`), applied automatically by GitHub Actions on
 > merge to the `dev` or `main` branch respectively. Neither is a template —
 > see [`terraform/README.md`](terraform/README.md) for the stack layout and
-> [`restrcuture_progress.md`](restrcuture_progress.md) for what has been
+> [`RESTRUCTURE_PROGRESS.md`](RESTRUCTURE_PROGRESS.md) for what has been
 > verified live against AWS.
 
 ## Architecture
@@ -45,7 +45,7 @@ See:
 - [Client schema overview](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) — Attio
   and PostgreSQL overview
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
-- [CD restructure progress log](restrcuture_progress.md)
+- [CD restructure progress log](RESTRUCTURE_PROGRESS.md)
 
 ## Repository structure
 
@@ -283,7 +283,7 @@ deliberately switched on — until then, `stacks/toolkit` for prod only
 provisions the ECR repository and secret.
 
 There is deliberately no human approval gate between a `main` merge and the
-apply — see `restrcuture_progress.md` for the accepted-risk reasoning and
+apply — see `RESTRUCTURE_PROGRESS.md` for the accepted-risk reasoning and
 the mitigation in place (`backmerge.yml`).
 
 ## Project status

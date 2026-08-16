@@ -57,7 +57,16 @@ jobs:
 
           # linux/amd64 explicitly: the EC2 instances are x86_64, and a native
           # arm64 build would produce an image that cannot run there.
+          #
+          # GHA-backed layer cache, shared across dev and prod (same
+          # Dockerfile/dependency lockfile either way, so a dev build's
+          # unchanged base/dependency layers are reused by the next prod
+          # build and vice versa) — without this every merge rebuilt every
+          # layer from scratch, including the uv.lock-driven dependency
+          # install, even when only application code changed.
           docker buildx build --platform linux/amd64 \
+            --cache-from type=gha,scope=wusool-toolkit \
+            --cache-to type=gha,scope=wusool-toolkit,mode=max \
             -t "$IMAGE" --push workflows/wusool-toolkit
 
           DIGEST=$(aws ecr describe-images --repository-name wusool-${{ inputs.environment }}/toolkit \

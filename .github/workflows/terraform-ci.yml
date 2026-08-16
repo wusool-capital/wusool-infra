@@ -25,16 +25,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Read OpenTofu version
-        id: tofu-version
-        shell: bash
-        run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
-
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: ${{ steps.tofu-version.outputs.version }}
-          tofu_wrapper: false
+      - uses: ./.github/actions/setup-opentofu
 
       - name: Check OpenTofu formatting
         run: tofu fmt -check -recursive -diff
@@ -62,17 +53,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Read OpenTofu version
-        id: tofu-version
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
-
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: ${{ steps.tofu-version.outputs.version }}
-          tofu_wrapper: false
+      - uses: ./.github/actions/setup-opentofu
 
       - name: Initialize without remote backend
         run: tofu init -backend=false -input=false

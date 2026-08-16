@@ -3,7 +3,7 @@
 What this branch (`plan-cd-restructure` → `dev`, PR #26) actually changed and
 enforces, as verified against live AWS (`030179310793`, `eu-central-1`), not
 as originally planned. See [`Final_restructure_plan.md`](Final_restructure_plan.md)
-for the original design and [`restrcuture_progress.md`](restrcuture_progress.md)
+for the original design and [`RESTRUCTURE_PROGRESS.md`](RESTRUCTURE_PROGRESS.md)
 for the full phase-by-phase log with verification evidence for every step.
 
 ## Before → after
@@ -74,7 +74,7 @@ migration (`instance_type` → `toolkit_instance_type`, `ami_id` →
 | `_deploy.yml` | called by the two above | The actual per-stack `init`/`apply` sequence + bootstrap poll + health check + records `deployed_sha` to SSM on success only |
 | `terraform-plan.yml` | any PR touching `terraform/**` | Comments a plan per stack per environment (5 jobs: `base`/`n8n`/`toolkit`/`postgres` × the PR's **base branch** environment, plus `account`). Read-only OIDC role (`wusool-gha-plan`) |
 | `terraform-ci.yml` | any PR touching `terraform/**` | `tofu fmt -check` + `tofu validate` per stack |
-| `ci.yml` | PR touching the app/scripts | `ruff check`, `ty check` (matching-engine), `pytest` (7 tests, dummy env vars matching `conftest.py`'s own), PSScriptAnalyzer (`Severity=Error` only) |
+| `ci.yml` | PR touching the app/scripts | `ruff check`, `ty check` (matching-engine), `pytest` run separately for the toolkit root, `matching-engine`, and `ddl-commands` (each has its own `testpaths`, so one invocation from the root silently missed the other two — fixed in code review 2026-08-16), PSScriptAnalyzer (`Severity=Error` only) |
 | `backmerge.yml` | after a successful `Deploy prod` run | Opens an automatic `main → dev` PR if `dev` doesn't already have everything from `main` |
 
 **No static AWS credentials anywhere.** All auth is GitHub OIDC
@@ -177,10 +177,47 @@ Per explicit scope decision, not started in this branch:
   production with no confirmation click between merge and AWS changing. This
   is an accepted risk, not an oversight — `backmerge.yml` is the chosen,
   no-extra-click mitigation for the specific failure mode of a hotfix being
-  silently lost on the next promotion. See `restrcuture_progress.md` for the
+  silently lost on the next promotion. See `RESTRUCTURE_PROGRESS.md` for the
   full accepted-risks reasoning.
 - **No per-stack change detection.** Every stack is applied on every deploy,
   unconditionally (each apply is a no-op if nothing changed) — path-filtered
   "only deploy what changed" was the plan's original design but is a
   follow-up, documented directly in `_deploy.yml`'s header comment, not an
   accidental gap.
+
+## Code review fixes (2026-08-16)
+
+A `/code-review high` pass over this branch's diff against `dev` found and
+fixed seven issues before merge:
+
+1. **IAM self-escalation** — `stacks/account`'s `gha_apply_iam` policy
+   granted `iam:CreateRole`/`AttachRolePolicy`/etc. on `Resource: "*"`,
+   meaning the dev deploy role could grant itself admin, or edit the prod
+   role's permissions, despite the branch-scoped trust policy. Scoped to
+   `wusool-<env>-*` roles/instance-profiles only, `PassRole` further
+   restricted to `iam:PassedToService = ec2.amazonaws.com`, plus an explicit
+   `Deny` on touching the `gha-*` roles or the OIDC provider as defense in
+   depth.
+2. **`ignore_changes = [ami]` survived the H1 AMI-pinning fix** in both
+   `n8n-ec2` and `toolkit-ec2` — meaning bumping `ami_id` in `envs/*.tfvars`
+   still produced zero plan diff, exactly the problem H1 was supposed to
+   fix. Removed from both modules.
+3. **Most of the app's test suite silently never ran in CI** — `ci.yml` ran
+   `pytest` once from the toolkit root, which only picks up that
+   directory's own `testpaths`; `matching-engine`'s and `ddl-commands`' 117
+   combined tests never executed. Now run separately per package.
+4. **`gha_plan`'s state policy had `s3:DeleteObject`/`PutObject`** it never
+   needed — `terraform-plan.yml` always runs with `-lock=false` and never
+   writes. Scoped to `GetObject`/`ListBucket`.
+5. **Duplicated init/setup boilerplate** across `terraform-ci.yml`,
+   `terraform-plan.yml`, and `_deploy.yml` — extracted into composite
+   actions (`.github/actions/setup-opentofu`, `aws-oidc`, `tofu-apply-stack`,
+   `tofu-plan-comment`) so a future fix lands once, not three or four times.
+6. **No Docker layer cache** in `_build.yml` — every merge rebuilt every
+   layer from scratch. Added a GHA-backed buildx cache shared across dev and
+   prod builds.
+7. **Four overlapping root docs**, one with a misspelled filename —
+   `restrcuture_progress.md` renamed to `RESTRUCTURE_PROGRESS.md`;
+   `PROGRESS.md`'s infra section (stale since 2026-08-11, predating this
+   whole restructure) replaced with a pointer to this file and
+   `RESTRUCTURE_PROGRESS.md` instead of a fourth competing narrative.

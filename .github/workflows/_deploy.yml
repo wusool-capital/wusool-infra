@@ -50,70 +50,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read OpenTofu version
-        id: tofu
-        run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup-opentofu
 
-      - uses: opentofu/setup-opentofu@v1
+      - uses: ./.github/actions/aws-oidc
         with:
-          tofu_version: ${{ steps.tofu.outputs.version }}
-          tofu_wrapper: false
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ inputs.role_arn }}
-          aws-region: eu-central-1
+          role_arn: ${{ inputs.role_arn }}
 
       # stacks/account is intentionally NOT applied here — it is account-wide,
       # not per-environment, and is applied out of band (no -var-file, no
       # environment concurrency group of its own).
 
       - name: Apply stacks/base
-        working-directory: terraform/stacks/base
-        run: |
-          set -euo pipefail
-          tofu init -reconfigure -input=false \
-            -backend-config=bucket=wusool-tfstate \
-            -backend-config=region=me-central-1 \
-            -backend-config=key=wusool/$ENV/base/terraform.tfstate \
-            -backend-config=use_lockfile=true -backend-config=encrypt=true
-          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars
+        uses: ./.github/actions/tofu-apply-stack
+        with:
+          stack: base
+          environment: ${{ env.ENV }}
 
       - name: Apply stacks/n8n
-        working-directory: terraform/stacks/n8n
-        run: |
-          set -euo pipefail
-          tofu init -reconfigure -input=false \
-            -backend-config=bucket=wusool-tfstate \
-            -backend-config=region=me-central-1 \
-            -backend-config=key=wusool/$ENV/n8n/terraform.tfstate \
-            -backend-config=use_lockfile=true -backend-config=encrypt=true
-          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars
+        uses: ./.github/actions/tofu-apply-stack
+        with:
+          stack: n8n
+          environment: ${{ env.ENV }}
 
       - name: Apply stacks/toolkit
-        working-directory: terraform/stacks/toolkit
-        env:
-          IMAGE_DIGEST: ${{ inputs.image_digest }}
-        run: |
-          set -euo pipefail
-          tofu init -reconfigure -input=false \
-            -backend-config=bucket=wusool-tfstate \
-            -backend-config=region=me-central-1 \
-            -backend-config=key=wusool/$ENV/toolkit/terraform.tfstate \
-            -backend-config=use_lockfile=true -backend-config=encrypt=true
-          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars \
-            -var="image_digest=$IMAGE_DIGEST"
+        uses: ./.github/actions/tofu-apply-stack
+        with:
+          stack: toolkit
+          environment: ${{ env.ENV }}
+          extra_args: -var=image_digest=${{ inputs.image_digest }}
 
       - name: Apply stacks/postgres
-        working-directory: terraform/stacks/postgres
-        run: |
-          set -euo pipefail
-          tofu init -reconfigure -input=false \
-            -backend-config=bucket=wusool-tfstate \
-            -backend-config=region=me-central-1 \
-            -backend-config=key=wusool/$ENV/postgres/terraform.tfstate \
-            -backend-config=use_lockfile=true -backend-config=encrypt=true
-          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars
+        uses: ./.github/actions/tofu-apply-stack
+        with:
+          stack: postgres
+          environment: ${{ env.ENV }}
 
       # -----------------------------------------------------------------
       # Everything below exists because `tofu apply` returning success proves
