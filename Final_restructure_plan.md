@@ -156,16 +156,16 @@ repositories. On the current plan that means:
 - **"Plan-on-PR as a required status check" cannot be required.** This was the
   guardrail kept after the prod approval gate was declined — it is presently
   advisory only.
-- **Direct pushes to `app` cannot be blocked.** Anyone with write access can
+- **Direct pushes to `prod` cannot be blocked.** Anyone with write access can
   commit straight to production's branch.
 - **Merge method cannot be restricted per branch.** Nothing stops a squash-merge
-  into `app`, which breaks `HEAD^2` and therefore digest resolution (Phase F).
+  into `prod`, which breaks `HEAD^2` and therefore digest resolution (Phase F).
 - Required reviewers and GitHub Environments protection rules are likewise
   unavailable, so the declined prod gate could not be turned on even if wanted.
 - Whoever executes this plan needs **repo admin**, which the current user does
   not hold.
 
-### What a mistaken squash-merge into `app` actually does
+### What a mistaken squash-merge into `prod` actually does
 
 The Phase F ECR guardrail is **partial** — it covers application code, not
 infrastructure:
@@ -173,7 +173,7 @@ infrastructure:
 | Change type | Outcome |
 |---|---|
 | **App code** | No ECR image exists for the new squashed SHA → digest resolution fails → **deploy fails, prod untouched.** Fails safe. |
-| **Infra only** | No digest is needed → **`tofu apply` runs and succeeds.** `app` silently stops being a superset of `dev`; the next `dev → app` merge conflicts or double-applies. |
+| **Infra only** | No digest is needed → **`tofu apply` runs and succeeds.** `prod` silently stops being a superset of `dev`; the next `dev → prod` merge conflicts or double-applies. |
 
 ### Mitigations, in order
 
@@ -185,17 +185,17 @@ infrastructure:
    cheapest risk reduction available in this document. Needs whoever holds repo
    admin.
 2. **Until then, detect what you cannot block.** Add
-   `.github/workflows/guard-app-history.yml`, which runs fine on the free plan:
+   `.github/workflows/guard-prod-history.yml`, which runs fine on the free plan:
 
    ```yaml
-   on: { push: { branches: [app] } }
+   on: { push: { branches: [prod] } }
    # ...
    - run: |
        git rev-parse HEAD^2 >/dev/null 2>&1 || {
-         echo "::error::Squash or direct commit on app — HEAD^2 missing. app must
+         echo "::error::Squash or direct commit on prod — HEAD^2 missing. prod must
          receive merge commits only (see Phase C0/F)."; exit 1; }
        git merge-base --is-ancestor origin/dev HEAD || \
-         echo "::warning::app is no longer a superset of dev — back-merge required"
+         echo "::warning::prod is no longer a superset of dev — back-merge required"
    ```
 
    It cannot prevent the merge, but it converts a silent divergence into a
@@ -203,9 +203,9 @@ infrastructure:
    Defect 5.**
 3. **Recovery when it happens.** First establish what Terraform already applied;
    an infra-only squash will have deployed. Then: if nobody has pulled, reset
-   `app` and redo the merge as a merge commit. If others have pulled,
+   `prod` and redo the merge as a merge commit. If others have pulled,
    `git revert -m 1` the squash commit and re-merge properly. Either way,
-   back-merge `app → dev` afterwards.
+   back-merge `prod → dev` afterwards.
 
 ## Step 0 — snapshot, then announce a freeze
 
@@ -433,7 +433,7 @@ Everything here was read from live AWS, not from repo docs.
 
 | Area | Decision |
 |---|---|
-| Branching | `dev` + `app`. Merge to `dev` → dev; merge to `app` → prod. |
+| Branching | `dev` + `prod`. Merge to `dev` → dev; merge to `prod` → prod. |
 | Deploy scope | One workflow; change detection feeds a per-service matrix. |
 | Env config | One env-agnostic stack per service; `envs/{dev,prod}.tfvars` committed. |
 | State | One state per service per environment. |
@@ -545,7 +545,7 @@ structure.
 | Transition | Merge type | Effect on history |
 |---|---|---|
 | `feature/*` → `dev` | **squash** | feature commits collapse to one new SHA on `dev` |
-| `dev` → `app` | **normal merge** (merge commit) | dev's commits are **preserved** in prod's history; prod becomes a **superset** of dev |
+| `dev` → `prod` | **normal merge** (merge commit) | dev's commits are **preserved** in prod's history; prod becomes a **superset** of dev |
 
 Three consequences that shape the rest of this plan:
 
@@ -563,7 +563,7 @@ second parent (`HEAD^2`), which is dev's tip and is already in ECR.
 
 ```
 feature/*  --squash-->  dev  --> builds image, tofu apply, rolls app  (1 merge)
-dev  --normal merge-->  app  --> resolves that same digest from ECR,
+dev  --normal merge--> prod  --> resolves that same digest from ECR,
                                  tofu apply, rolls app                (1 merge)
 ```
 
@@ -573,7 +573,7 @@ merge. This works *because* the merge is a normal one — a squash would destroy
 
 **3. `backmerge.yml` becomes a safety net rather than routine.** Since prod is a
 superset of `dev` by construction, the only way they diverge is a **Path B
-hotfix** (branched from `app`, merged into `app`; see Phase F). Keep the workflow
+hotfix** (branched from `prod`, merged into `prod`; see Phase F). Keep the workflow
 for exactly that case — it is the known weakness of this branching model — but
 expect it to fire rarely.
 
@@ -582,9 +582,9 @@ $SHA origin/dev` would work reliably if you ever want the dev-ancestry check
 that was declined (see *Accepted risks*). Squash-merging `dev` → prod would
 break that property, which is a further reason to keep it a normal merge.
 
-#### C0a. Creating `app`, and what to do with `main`
+#### C0a. Creating `prod`, and what to do with `main`
 
-**Branch `app` from `dev` — not from `main`.** Verified:
+**Branch `prod` from `dev` — not from `main`.** Verified:
 
 | Branch | Top-level layout |
 |---|---|
@@ -600,18 +600,18 @@ Branching prod off `main` would give the production branch a repo layout that no
 longer exists, and make the first promotion an 11-conflict merge.
 
 **The "50 untested commits become production-bound" objection does not apply
-here**, because **no CD exists yet** — nothing fires on `app`. Production's
+here**, because **no CD exists yet** — nothing fires on `prod`. Production's
 actual definition is its Terraform state plus `terraform/environments/prod`
-(n8n-only), not which branches exist. Creating `app` changes nothing running.
+(n8n-only), not which branches exist. Creating `prod` changes nothing running.
 By the time Phase E wires deploys, prod's stacks are explicit and reviewed.
 
 ```bash
 git fetch origin
-git push origin origin/dev:refs/heads/app     # create app at dev's tip
+git push origin origin/dev:refs/heads/prod     # create prod at dev's tip
 gh repo edit --default-branch dev             # make dev the default
 ```
 
-**Then retire `main`.** Once `app` exists and `dev` is default, `main` is
+**Then retire `main`.** Once `prod` exists and `dev` is default, `main` is
 orphaned and actively misleading — someone will branch from it. Tag it first so
 nothing is lost:
 
@@ -633,16 +633,16 @@ No risk, no dependencies. Can run in parallel with A/B.
 1. **Make `dev` the GitHub default branch** (currently `main`, per
    `git symbolic-ref refs/remotes/origin/HEAD`). `CONTRIBUTING.md` already
    mandates PRs into `dev`.
-2. **Create the `app` branch from `dev`** (see C0a below), then set branch
-   protection on both `dev` and `app`: require PR, require the plan-on-PR check
-   (Phase E), block direct pushes, and restrict `app` to merge commits. The
-   check must be required on **`app` too**, not just `dev` — see Phase E for why
+2. **Create the `prod` branch from `dev`** (see C0a below), then set branch
+   protection on both `dev` and `prod`: require PR, require the plan-on-PR check
+   (Phase E), block direct pushes, and restrict `prod` to merge commits. The
+   check must be required on **`prod` too**, not just `dev` — see Phase E for why
    that is load-bearing.
 
    **Blocked on Defect 6.** Branch protection and rulesets are unavailable on
    the current free/private plan, and the intended operator is not repo admin.
    Until the plan is upgraded, none of this step is enforceable — ship
-   `guard-app-history.yml` as detection and treat the rest as convention.
+   `guard-prod-history.yml` as detection and treat the rest as convention.
 3. Add `.github/CODEOWNERS`. `CONTRIBUTING.md:121-122` already instructs
    enabling "Require review from Code Owners" and the file does not exist.
 4. Fix `CONTRIBUTING.md:17` — names `github.com/Azmora-ai/wusool-infra.git`;
@@ -1090,7 +1090,7 @@ In `stacks/account`: `aws_iam_openid_connect_provider` for
 |---|---|---|
 | `wusool-gha-plan` | any branch / PR | read-only + state read/write (locking) |
 | `wusool-gha-apply-dev` | `refs/heads/dev` | apply on dev |
-| `wusool-gha-apply-prod` | `refs/heads/app` | apply on prod |
+| `wusool-gha-apply-prod` | `refs/heads/prod` | apply on prod |
 
 #### E2. Files
 
@@ -1098,15 +1098,15 @@ In `stacks/account`: `aws_iam_openid_connect_provider` for
 .github/workflows/
   ci.yml               # fmt, validate, ruff, ty, pytest, PSScriptAnalyzer — path-filtered
   terraform-plan.yml   # on: pull_request -> plan + PR comment (required check)
-  deploy.yml           # on: push to dev|app -> detect changes -> matrix apply
+  deploy.yml           # on: push to dev|prod -> detect changes -> matrix apply
   _terraform.yml       # reusable: init/plan/apply for (stack, env)
-  backmerge.yml        # after successful prod deploy, open main -> dev PR
+  backmerge.yml        # after successful prod deploy, open prod -> dev PR
 ```
 
 #### E3. `terraform-plan.yml` must plan against the PR's **base** branch
 
 Load-bearing, because the prod approval gate was declined: **the plan comment on
-the `dev -> app` PR is the only human review production ever gets.**
+the `dev -> prod` PR is the only human review production ever gets.**
 
 Wired as a bare `on: pull_request`, every PR plans against `envs/dev.tfvars` —
 including the promotion PR, whose comment would show a **dev** diff while
@@ -1114,7 +1114,7 @@ including the promotion PR, whose comment would show a **dev** diff while
 the only PR where it matters.
 
 ```yaml
-env: ${{ github.event.pull_request.base.ref == 'app' && 'prod' || 'dev' }}
+env: ${{ github.event.pull_request.base.ref == 'prod' && 'prod' || 'dev' }}
 ```
 
 #### E4. `deploy.yml`
@@ -1122,7 +1122,7 @@ env: ${{ github.event.pull_request.base.ref == 'app' && 'prod' || 'dev' }}
 ```yaml
 on:
   push:
-    branches: [dev, app]
+    branches: [dev, prod]
   workflow_dispatch:
     inputs:
       stack:       { type: choice, options: [account, base, n8n, postgres, matching-engine] }
@@ -1162,8 +1162,8 @@ Three details that are easy to get wrong:
 
 #### E5. `backmerge.yml`
 
-On a successful `deploy.yml` run against `app`, open a `app -> dev` PR if
-`dev` is behind. This is the chosen mitigation for "hotfix merged to `app` gets
+On a successful `deploy.yml` run against `prod`, open a `prod -> dev` PR if
+`dev` is behind. This is the chosen mitigation for "hotfix merged to `prod` gets
 silently reverted on the next promotion" — the known weakness of the dev/main
 model.
 
@@ -1194,11 +1194,11 @@ box mid-deploy.
 
 1. `aws_ecr_repository` per app — immutable tags, scan-on-push, lifecycle policy
    keeping the last N images. (None exist today.)
-2. **One merge = build + apply + roll. Build on `dev`; *resolve* on `app`.**
+2. **One merge = build + apply + roll. Build on `dev`; *resolve* on `prod`.**
 
    The requirement is that a single merge fully deploys that environment — infra
    *and* application — with no second bot PR. That is achievable without
-   rebuilding on `app`, which would otherwise break the artifact guarantee (a
+   rebuilding on `prod`, which would otherwise break the artifact guarantee (a
    normal merge creates a merge commit with a **new SHA**, and a rebuild resolves
    different base layers, so prod would run something dev never tested).
 
@@ -1209,7 +1209,7 @@ box mid-deploy.
                tofu apply -var image_digest=<digest>
                roll the app (see below)
 
-   merge dev -> app:
+   merge dev -> prod:
      detect changed services
      SHA = HEAD^2   (second parent of the merge commit = dev's tip)
            HEAD     (fallback, if the merge fast-forwarded)
@@ -1222,27 +1222,27 @@ box mid-deploy.
    image** dev ran, because it is literally the same image.
 
    **Partial guardrail — know its limit.** If the ECR lookup returns nothing the
-   prod deploy fails loudly, which can only happen when a commit reached `app`
+   prod deploy fails loudly, which can only happen when a commit reached `prod`
    with no image built for it. That is a soft dev-ancestry check for **app code
    at no extra cost** — but it does **not** cover infrastructure-only changes,
    which need no digest and will apply successfully even from a squash-merge.
-   `guard-app-history.yml` (Defect 6) covers that gap.
+   `guard-prod-history.yml` (Defect 6) covers that gap.
 
    **Hotfixes still work — three paths, none of which weaken the guardrail.**
-   The check only bites when a commit reaches `app` *without a built image*, so
+   The check only bites when a commit reaches `prod` *without a built image*, so
    the answer is to make sure hotfix commits get built, not to relax it.
 
    | Path | When | Flow |
    |---|---|---|
-   | **A** | `dev` and `app` are in sync (most hotfixes) | `fix → PR → dev` (auto-deploys, so it is genuinely tested) `→ merge dev→app`. Two merges, both automatic. |
-   | **B** | `dev` holds unreleased work you cannot ship | `git checkout -b hotfix/x app` → fix → **PR into `app` as a merge commit**. `build-push.yml` also triggers on `hotfix/**`, so `sha-<hotfix-tip>` is already in ECR; prod resolves `HEAD^2` and finds it. Then back-merge `app → dev` (`backmerge.yml`). |
+   | **A** | `dev` and `prod` are in sync (most hotfixes) | `fix → PR → dev` (auto-deploys, so it is genuinely tested) `→ merge dev→prod`. Two merges, both automatic. |
+   | **B** | `dev` holds unreleased work you cannot ship | `git checkout -b hotfix/x prod` → fix → **PR into `prod` as a merge commit**. `build-push.yml` also triggers on `hotfix/**`, so `sha-<hotfix-tip>` is already in ECR; prod resolves `HEAD^2` and finds it. Then back-merge `prod → dev` (`backmerge.yml`). |
    | **C** | Emergency; A and B are both blocked | `workflow_dispatch` on `deploy.yml` with `ref` + `build: true`. Deliberate and logged. |
 
-   So **`build-push.yml` triggers on `dev` and `hotfix/**`** — never on `app`.
+   So **`build-push.yml` triggers on `dev` and `hotfix/**`** — never on `prod`.
 
-   **Constraint for Path B:** the PR into `app` must be a **merge commit, not a
+   **Constraint for Path B:** the PR into `prod` must be a **merge commit, not a
    squash**, or `HEAD^2` will not exist and the digest cannot be resolved. Same
-   rule as `dev → app`: squash into `dev`, merge-commit into `app`. Keep both
+   rule as `dev → prod`: squash into `dev`, merge-commit into `prod`. Keep both
    merge methods enabled in repo settings and enforce the split with branch
    rulesets if available.
 
@@ -1256,7 +1256,7 @@ box mid-deploy.
 
    **Trade-off accepted:** passing digests as `-var` rather than committing them
    to `envs/*.tfvars` means a reviewer sees no digest diff on the promotion PR.
-   The review becomes the `dev -> app` **code** diff instead — more informative
+   The review becomes the `dev -> prod` **code** diff instead — more informative
    than a hash, but it is a deliberate change from a digest-pinning design.
    ECR tags and the `/wusool/<env>/<stack>/deployed_sha` SSM parameter remain the
    record of what is running where.
@@ -1619,8 +1619,8 @@ instance. Build in CI, push to ECR, deploy by `sha256:` digest, so dev and prod
 run the identical artifact. Instances are in the public subnet with EIPs, so no
 NAT or VPC endpoint is required. Pin every base image.
 
-**10. Branching and CD.** `dev` + `app`. Merge to `dev` deploys dev; merge to
-`app` deploys prod. Plan-on-PR is a required status check on **both** branches,
+**10. Branching and CD.** `dev` + `prod`. Merge to `dev` deploys dev; merge to
+`prod` deploys prod. Plan-on-PR is a required status check on **both** branches,
 and the plan must select its var-file from the PR's **base** branch — otherwise
 your promotion PR shows a dev diff while prod is what changes. Use GitHub OIDC
 (role ARNs from `stacks/account`); no static AWS keys.
@@ -1660,7 +1660,7 @@ exists.**
 - [ ] Secret renamed to `/wusool/<env>/scribe`; separate secret per env
 - [ ] SSM document re-registered from source on every deploy
 - [ ] Image built in CI, pushed to ECR, deployed by digest; base images pinned
-- [ ] OIDC auth; plan-on-PR required on `dev` and `app`, var-file from base ref
+- [ ] OIDC auth; plan-on-PR required on `dev` and `prod`, var-file from base ref
 - [ ] DDL ownership agreed (a/b/c above) and written down
 - [ ] `stacks/postgres` prod exists before scribe prod is applied
 
@@ -1699,10 +1699,10 @@ n8n, postgres, matching-engine, and scribe.
 |---|---|
 | A | `init` + `plan` succeed against real backends for dev and prod with no "state written by a newer version" error |
 | B | Decoded `aws_ssm_document.bootstrap.content` contains `n8n.wusoolcapital.com` and **zero** `n8n-prod.wusoolcapital.com`; live site still serves HTTPS |
-| C | Branch protection is actually settable (i.e. Defect 6 resolved) or the gap is explicitly accepted in writing; `guard-app-history.yml` fails a deliberately squash-merged test commit on `app`; `dev` is default; `app` exists, branched from `dev`; plan check required on `dev` **and** `app`; no `Azmora-ai` references remain |
+| C | Branch protection is actually settable (i.e. Defect 6 resolved) or the gap is explicitly accepted in writing; `guard-prod-history.yml` fails a deliberately squash-merged test commit on `prod`; `dev` is default; `prod` exists, branched from `dev`; plan check required on `dev` **and** `prod`; no `Azmora-ai` references remain |
 | D | `git check-ignore -v terraform/envs/dev.tfvars` returns nothing (D0b). `stacks/account` adopts `wusool-tfstate` **and its three subordinate resources** with a clean plan and `prevent_destroy` set; `terraform/bootstrap/` deleted; lock table removed. EBS snapshots exist and are `completed` before starting. After every `state mv`: the SOURCE state lists **zero** moved resources and the DESTINATION lists them, both verified with `state list`. Every stack × env: `plan` reports `0 to add, 0 to change, 0 to destroy` and zero `forces replacement`. `lifecycle { ignore_changes = [ami] }` present in the new n8n stack. `terraform/environments/` deleted once green. `stacks/base` outputs resolve in service stacks. n8n stays reachable; dev matching-engine `/health` stays green. SecurityHub finding history intact |
-| E | PR touching only `stacks/n8n/**` → matrix contains `n8n` only. PR touching `modules/network/**` → fans out to `base` + downstream. **A `dev -> app` PR comments a plan naming the prod backend key.** Broken Python fails `ci.yml`. Deleting the SSM `deployed_sha` triggers a full deploy |
-| F | A single merge to `dev` builds, applies **and rolls** the app — verify the running container digest changed, not just the SSM document. `build-push.yml` has **no `app` trigger**. After promotion, `docker inspect` on dev and prod report the **same image digest**. A commit pushed directly to `app` with no matching ECR image **fails the deploy** rather than silently deploying something stale. Rollback: dispatch with the previous digest and the app serves traffic again |
+| E | PR touching only `stacks/n8n/**` → matrix contains `n8n` only. PR touching `modules/network/**` → fans out to `base` + downstream. **A `dev -> prod` PR comments a plan naming the prod backend key.** Broken Python fails `ci.yml`. Deleting the SSM `deployed_sha` triggers a full deploy |
+| F | A single merge to `dev` builds, applies **and rolls** the app — verify the running container digest changed, not just the SSM document. `build-push.yml` has **no `prod` trigger**. After promotion, `docker inspect` on dev and prod report the **same image digest**. A commit pushed directly to `prod` with no matching ECR image **fails the deploy** rather than silently deploying something stale. Rollback: dispatch with the previous digest and the app serves traffic again |
 | H | `ami_id` is an explicit tfvars value; changing it shows a reviewed diff. After H2, all of: workflow count matches pre-cutover, a credential decrypts in the UI, one workflow executes end to end, a webhook fires from outside, `select count(*) from workflow_entity` is non-zero, and terminating/recreating the instance loses no data. A restore from the backup plan has been tested at least once. |
 | G | `alembic upgrade head` on empty Postgres → `schema_check.py` reports zero drift vs live dev. `alembic check` clean. Second `upgrade head` is a no-op |
 
@@ -1712,12 +1712,12 @@ n8n, postgres, matching-engine, and scribe.
 
 0. **Nothing is currently enforced at all (Defect 6).** On the free/private
    plan there is no branch protection, no required status check, no restriction
-   on merge method, and no block on direct pushes to `app`. Every guardrail
+   on merge method, and no block on direct pushes to `prod`. Every guardrail
    below is convention plus post-hoc detection until the org moves to GitHub
    Team. **This supersedes the risk framing of items 1 and 2** — they assume a
    PR review actually gates the merge, which today it does not.
 
-1. **No approval gate on prod.** A merge to `app` applies to production with no
+1. **No approval gate on prod.** A merge to `prod` applies to production with no
    human confirmation between the merge click and AWS changing. The plan
    reviewed on the PR may differ from the plan applied, if anything else merged
    in between.
@@ -1728,7 +1728,7 @@ n8n, postgres, matching-engine, and scribe.
    `allow_destroy: true`. Automated, not a human gate, and it catches the
    specific catastrophic case the approval gate existed to catch.
 
-2. **No dev-ancestry check.** Any commit reaching `app` deploys to prod,
+2. **No dev-ancestry check.** Any commit reaching `prod` deploys to prod,
    including a hotfix that never ran in dev. `backmerge.yml` prevents such a fix
    being *lost*, but not from being *untested* when it first reaches production.
 
