@@ -1,5 +1,5 @@
 """`buyer_roles` — real columns; see `database/sql/003_crm_roles.sql`, amended
-in `004_machine_layer.sql` and `008_bot_managed_columns.sql`.
+in `004_machine_layer.sql`.
 
 One row per organization (`UNIQUE(org_attio_id)`), no version column: this is
 flat, unversioned data, not a version history.
@@ -54,9 +54,5 @@ class BuyerRole(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
-    # `008_bot_managed_columns.sql` — soft-delete + sync-collision-guard.
-    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    bot_managed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    bot_managed_by: Mapped[str | None] = mapped_column(Text)
 
     organization: Mapped["Organization"] = relationship(back_populates="buyer_role")

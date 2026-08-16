@@ -1,15 +1,13 @@
 """End-to-end Slack *interactivity* dispatch — closes the gap between "the
-repository/use-case logic is correct" (proven against a real Postgres in
-`test_seller_use_cases.py`/`test_buyer_use_cases.py`) and "the wiring from a
-real Slack payload to that logic is correct." No live Slack workspace, no
-database: every payload is hand-built to match Slack's real `view_submission`/
-`block_actions` shape, signed with the same HMAC scheme Slack really uses
-(exercising Bolt's real signature verification, same as
-`test_slack_command_dispatch.py`), and every DB-touching call
-(`resolve_*_by_id`, `count_match_results_for_*`, the write use cases) is
-monkeypatched at its import site in `ddl_commands.modules.slack.handlers.actions` so
-this file asserts *the right function got called with the right arguments*,
-not the real DB side effect.
+repository/use-case logic is correct" and "the wiring from a real Slack
+payload to that logic is correct," across the full 3-step edit flow
+(selection -> field-picker -> dynamic form). No live Slack workspace, no
+database, no live Attio: every payload is hand-built to match Slack's real
+`view_submission` shape, signed with the same HMAC scheme Slack really uses,
+and every DB/Attio-touching call is monkeypatched at its import site in
+`ddl_commands.modules.slack.handlers.actions` so this file asserts *the
+right function got called with the right arguments, in the right order* —
+Attio before Postgres, and never Postgres at all if Attio fails.
 """
 
 import hashlib
@@ -26,6 +24,8 @@ from fastapi.testclient import TestClient
 import ddl_commands.modules.slack.handlers.actions as actions_module
 from ddl_commands.config import get_settings
 from ddl_commands.main import app
+from ddl_commands.modules.slack.views.organization_selection import NEW_ORGANIZATION_VALUE
+from ddl_commands.shared.attio.client import AttioError
 
 
 def _sign(body: str, timestamp: str, signing_secret: str) -> str:
@@ -52,86 +52,78 @@ def _post_interactivity(payload: dict) -> "TestClient.__class__":
 
 
 def _async_returning(value):
-    """`resolve_*_by_id`/`count_match_results_for_*` are `await`ed at their
-    call site — a plain lambda returning a value isn't awaitable, so every
-    monkeypatch of one of those needs an actual coroutine function.
-    """
-
     async def _fn(*_args, **_kwargs):
         return value
 
     return _fn
 
 
-def _fake_org(name: str = "Acme Capital"):
-    return SimpleNamespace(name=name)
+def _fake_org(
+    attio_id: str = "org-attio-1",
+    name: str = "Acme Capital",
+    removed_at=None,
+    seller_role=None,
+    buyer_role=None,
+):
+    return SimpleNamespace(
+        attio_id=attio_id,
+        name=name,
+        removed_at=removed_at,
+        description=None,
+        hq_country=None,
+        sector_focus=None,
+        client_type=None,
+        relationship_status=None,
+        estimated_arr=None,
+        funding_raised=None,
+        seller_role=seller_role,
+        buyer_role=buyer_role,
+    )
 
 
-def _fake_seller_role(role_id: str, *, removed: bool = False, org_name: str = "Acme Capital"):
+def _fake_seller_role(role_id: str, *, org=None):
     return SimpleNamespace(
         id=role_id,
-        organization=_fake_org(org_name),
-        removed_at="2026-01-01T00:00:00Z" if removed else None,
+        organization=org or _fake_org(),
         outreach_tier=None,
         appetite_signal=None,
         relationship_status=None,
+        sell_timeline=None,
+        last_attempt_date=None,
+        last_attempt_channel=None,
+        last_attempt_outcome=None,
+        re_engage_date=None,
         est_revenue=None,
         est_ebitda=None,
         owner_salary=None,
         valuation_low=None,
         valuation_mid=None,
         valuation_high=None,
-        sell_timeline=None,
-        readiness_score=None,
-        readiness_band=None,
         intake_source=None,
-        last_attempt_date=None,
-        last_attempt_channel=None,
-        last_attempt_outcome=None,
-        lead_quality_score=None,
-        re_engage_date=None,
     )
 
 
-def _fake_buyer_role(role_id: str, *, removed: bool = False, org_name: str = "Blue Horizon"):
+def _fake_buyer_role(role_id: str, *, org=None):
     return SimpleNamespace(
         id=role_id,
-        organization=_fake_org(org_name),
-        removed_at="2026-01-01T00:00:00Z" if removed else None,
+        organization=org or _fake_org(name="Blue Horizon"),
         model=None,
         mandate_status=None,
-        ebitda_floor=None,
-        check_size_min=None,
-        check_size_max=None,
-        ev_ceiling=None,
         deal_structure_tolerance=None,
         earnout_tolerance=None,
         profitable_only=None,
         investment_strategy=None,
         notes=None,
-        acquisition_enrichment=None,
-        deals_introduced=None,
-        deals_converted=None,
+        ebitda_floor=None,
+        check_size_min=None,
+        check_size_max=None,
+        ev_ceiling=None,
     )
-
-
-class _RecordingUseCase:
-    def __init__(self, result=None, raises=None):
-        self.calls: list[tuple[tuple, dict]] = []
-        self._result = result
-        self._raises = raises
-
-    async def execute(self, *args, **kwargs):
-        self.calls.append((args, kwargs))
-        if self._raises is not None:
-            raise self._raises
-        return self._result
 
 
 @pytest.fixture(autouse=True)
 def _mock_slack_web_client(monkeypatch):
     posted: list[dict] = []
-    responded: list[dict] = []
 
     async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
         posted.append(kwargs)
@@ -143,36 +135,24 @@ def _mock_slack_web_client(monkeypatch):
     async def fake_auth_test(self, **kwargs):  # noqa: ANN001
         return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
 
-    async def fake_send_dict(self, message, **kwargs):  # noqa: ANN001
-        responded.append(message)
-
-        class _FakeWebhookResponse:
-            status_code = 200
-            body = "ok"
-
-        return _FakeWebhookResponse()
-
     monkeypatch.setattr(
         "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral", fake_chat_post_ephemeral
     )
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
-    monkeypatch.setattr(
-        "slack_sdk.webhook.async_client.AsyncWebhookClient.send_dict", fake_send_dict
-    )
-    return SimpleNamespace(posted=posted, responded=responded)
+    return SimpleNamespace(posted=posted)
 
 
 # --------------------------------------------------------------------------
-# seller_role_selection_modal submission
+# Step 1: seller_role_selection_modal / buyer_role_selection_modal -> field-picker
 # --------------------------------------------------------------------------
 
 
-def test_seller_selection_edit_intent_opens_prefilled_edit_form(monkeypatch) -> None:
+def test_seller_selection_opens_field_picker(monkeypatch) -> None:
     seller_id = str(uuid.uuid4())
     monkeypatch.setattr(
         actions_module,
         "resolve_seller_by_id",
-        _async_returning(_fake_seller_role(seller_id, org_name="Typo Target Co")),
+        _async_returning(_fake_seller_role(seller_id, org=_fake_org(name="Typo Target Co"))),
     )
 
     payload = {
@@ -182,9 +162,7 @@ def test_seller_selection_edit_intent_opens_prefilled_edit_form(monkeypatch) -> 
             "type": "modal",
             "id": "V1",
             "callback_id": "seller_role_selection_modal",
-            "private_metadata": json.dumps(
-                {"requested_by": "U_TEST", "channel_id": "C_TEST", "intent": "edit"}
-            ),
+            "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
             "state": {
                 "values": {
                     "seller_role_id": {
@@ -200,22 +178,18 @@ def test_seller_selection_edit_intent_opens_prefilled_edit_form(monkeypatch) -> 
     assert response.status_code == 200
     body = response.json()
     assert body["response_action"] == "update"
-    assert body["view"]["callback_id"] == "seller_edit_form_modal"
+    assert body["view"]["callback_id"] == "seller_field_picker_modal"
     metadata = json.loads(body["view"]["private_metadata"])
     assert metadata["seller_role_id"] == seller_id
     assert metadata["org_name"] == "Typo Target Co"
-    assert metadata["removed"] is False
 
 
-def test_seller_selection_remove_intent_posts_confirmation_with_match_count(
-    monkeypatch, _mock_slack_web_client
-) -> None:
-    seller_id = str(uuid.uuid4())
+def test_buyer_selection_opens_field_picker(monkeypatch) -> None:
+    buyer_id = str(uuid.uuid4())
     monkeypatch.setattr(
-        actions_module, "resolve_seller_by_id", _async_returning(_fake_seller_role(seller_id))
-    )
-    monkeypatch.setattr(
-        actions_module, "count_match_results_for_seller", _async_returning(3)
+        actions_module,
+        "resolve_buyer_by_id",
+        _async_returning(_fake_buyer_role(buyer_id, org=_fake_org(name="Blue Horizon Buyers"))),
     )
 
     payload = {
@@ -224,14 +198,343 @@ def test_seller_selection_remove_intent_posts_confirmation_with_match_count(
         "view": {
             "type": "modal",
             "id": "V1",
-            "callback_id": "seller_role_selection_modal",
+            "callback_id": "buyer_role_selection_modal",
+            "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
+            "state": {
+                "values": {
+                    "buyer_role_id": {"selected_buyer": {"selected_option": {"value": buyer_id}}}
+                }
+            },
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "buyer_field_picker_modal"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["buyer_role_id"] == buyer_id
+    assert metadata["org_name"] == "Blue Horizon Buyers"
+
+
+# --------------------------------------------------------------------------
+# Step 2: field-picker -> dynamic edit form
+# --------------------------------------------------------------------------
+
+
+def test_seller_field_picker_opens_dynamic_form_with_only_selected_fields(monkeypatch) -> None:
+    seller_id = str(uuid.uuid4())
+    monkeypatch.setattr(
+        actions_module, "resolve_seller_by_id", _async_returning(_fake_seller_role(seller_id))
+    )
+
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V2",
+            "callback_id": "seller_field_picker_modal",
             "private_metadata": json.dumps(
-                {"requested_by": "U_TEST", "channel_id": "C_TEST", "intent": "remove"}
+                {
+                    "seller_role_id": seller_id,
+                    "org_name": "Acme Capital",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                }
             ),
             "state": {
                 "values": {
-                    "seller_role_id": {
-                        "selected_seller": {"selected_option": {"value": seller_id}}
+                    "org_fields": {
+                        "selected_org_fields": {"selected_options": [{"value": "description"}]}
+                    },
+                    "role_fields": {
+                        "selected_role_fields": {"selected_options": [{"value": "outreach_tier"}]}
+                    },
+                }
+            },
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "seller_edit_form_modal"
+    block_ids = {b["block_id"] for b in body["view"]["blocks"]}
+    assert block_ids == {"org_description", "outreach_tier"}
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["selected_org_fields"] == ["description"]
+    assert metadata["selected_role_fields"] == ["outreach_tier"]
+
+
+def test_field_picker_with_nothing_selected_shows_usage_error(monkeypatch) -> None:
+    seller_id = str(uuid.uuid4())
+    monkeypatch.setattr(
+        actions_module, "resolve_seller_by_id", _async_returning(_fake_seller_role(seller_id))
+    )
+
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V2",
+            "callback_id": "seller_field_picker_modal",
+            "private_metadata": json.dumps(
+                {
+                    "seller_role_id": seller_id,
+                    "org_name": "Acme Capital",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                }
+            ),
+            "state": {"values": {}},
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert response.text == ""
+
+
+# --------------------------------------------------------------------------
+# Step 3: dynamic edit form submission -> Attio, then Postgres
+# --------------------------------------------------------------------------
+
+
+def _seller_edit_form_payload(
+    seller_id: str, org_attio_id: str, org_fields: list, role_fields: list, values: dict
+) -> dict:
+    return {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V3",
+            "callback_id": "seller_edit_form_modal",
+            "private_metadata": json.dumps(
+                {
+                    "seller_role_id": seller_id,
+                    "org_attio_id": org_attio_id,
+                    "org_name": "Acme Capital",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "selected_org_fields": org_fields,
+                    "selected_role_fields": role_fields,
+                }
+            ),
+            "state": {"values": values},
+        },
+    }
+
+
+def test_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_client) -> None:
+    seller_id = str(uuid.uuid4())
+    org = _fake_org(attio_id="org-attio-1")
+    monkeypatch.setattr(
+        actions_module,
+        "resolve_seller_by_id",
+        _async_returning(_fake_seller_role(seller_id, org=org)),
+    )
+
+    call_order: list[str] = []
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        call_order.append("build_attio_values")
+        return {"outreach_tier": "opt-tier-1"}
+
+    async def fake_resolve_role_entry_id(*_args, **_kwargs):
+        call_order.append("resolve_role_entry_id")
+        return "entry-1"
+
+    async def fake_patch_role_entry(*_args, **_kwargs):
+        call_order.append("patch_role_entry")
+
+    postgres_use_case = SimpleNamespace(calls=[])
+
+    async def fake_execute(*args, **kwargs):
+        call_order.append("postgres_write")
+        postgres_use_case.calls.append((args, kwargs))
+        return None
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
+    monkeypatch.setattr(actions_module, "patch_role_entry", fake_patch_role_entry)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(
+        actions_module,
+        "build_update_seller_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
+    )
+
+    values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
+    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["outreach_tier"], values)
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert response.text == ""
+    assert call_order == [
+        "build_attio_values",
+        "resolve_role_entry_id",
+        "patch_role_entry",
+        "postgres_write",
+    ]
+    args, kwargs = postgres_use_case.calls[0]
+    assert args[0] == seller_id
+    assert kwargs["org_attio_id"] == "org-attio-1"
+    assert "Updated seller profile for Acme Capital" in _mock_slack_web_client.posted[0]["text"]
+
+
+def test_edit_form_attio_failure_prevents_postgres_write(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    seller_id = str(uuid.uuid4())
+    org = _fake_org(attio_id="org-attio-1")
+    monkeypatch.setattr(
+        actions_module,
+        "resolve_seller_by_id",
+        _async_returning(_fake_seller_role(seller_id, org=org)),
+    )
+
+    from ddl_commands.shared.attio.options import OptionNotFoundError
+
+    async def failing_build_attio_values(*_args, **_kwargs):
+        raise OptionNotFoundError("outreach_tier", "lists", "Tier 1")
+
+    postgres_calls: list = []
+
+    async def fake_execute(*args, **kwargs):
+        postgres_calls.append((args, kwargs))
+        return None
+
+    monkeypatch.setattr(actions_module, "build_attio_values", failing_build_attio_values)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(
+        actions_module,
+        "build_update_seller_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
+    )
+
+    values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
+    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["outreach_tier"], values)
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert postgres_calls == []
+    assert "Couldn't write to Attio, nothing was saved" in _mock_slack_web_client.posted[0]["text"]
+
+
+def test_edit_form_removed_org_is_rejected_before_any_write(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    from datetime import UTC, datetime
+
+    seller_id = str(uuid.uuid4())
+    org = _fake_org(attio_id="org-attio-1", removed_at=datetime.now(UTC))
+    monkeypatch.setattr(
+        actions_module,
+        "resolve_seller_by_id",
+        _async_returning(_fake_seller_role(seller_id, org=org)),
+    )
+
+    attio_calls: list = []
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        attio_calls.append("called")
+        return {}
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+
+    values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
+    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["outreach_tier"], values)
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert attio_calls == []
+    assert "gone or was merged" in _mock_slack_web_client.posted[0]["text"]
+
+
+def test_gated_field_without_confirmation_requires_checkbox() -> None:
+    seller_id = str(uuid.uuid4())
+    values = {"intake_source": {"intake_source": {"selected_option": {"value": "Direct"}}}}
+    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["intake_source"], values)
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response_action"] == "errors"
+    assert "gated_field_confirmation" in body["errors"]
+
+
+# --------------------------------------------------------------------------
+# buyer symmetry smoke test
+# --------------------------------------------------------------------------
+
+
+def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_client) -> None:
+    buyer_id = str(uuid.uuid4())
+    org = _fake_org(attio_id="org-attio-2", name="Blue Horizon")
+    monkeypatch.setattr(
+        actions_module, "resolve_buyer_by_id", _async_returning(_fake_buyer_role(buyer_id, org=org))
+    )
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        return {"model": "opt-model-1"}
+
+    async def fake_resolve_role_entry_id(*_args, **_kwargs):
+        return "entry-2"
+
+    async def fake_patch_role_entry(*_args, **_kwargs):
+        return None
+
+    postgres_use_case = SimpleNamespace(calls=[])
+
+    async def fake_execute(*args, **kwargs):
+        postgres_use_case.calls.append((args, kwargs))
+        return None
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
+    monkeypatch.setattr(actions_module, "patch_role_entry", fake_patch_role_entry)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(
+        actions_module,
+        "build_update_buyer_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
+    )
+
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V4",
+            "callback_id": "buyer_edit_form_modal",
+            "private_metadata": json.dumps(
+                {
+                    "buyer_role_id": buyer_id,
+                    "org_attio_id": "org-attio-2",
+                    "org_name": "Blue Horizon",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "selected_org_fields": [],
+                    "selected_role_fields": ["model"],
+                }
+            ),
+            "state": {
+                "values": {
+                    "model": {
+                        "model": {"selected_option": {"value": "Model 1 (Network)"}}
                     }
                 }
             },
@@ -241,250 +544,283 @@ def test_seller_selection_remove_intent_posts_confirmation_with_match_count(
     response = _post_interactivity(payload)
 
     assert response.status_code == 200
-    assert len(_mock_slack_web_client.posted) == 1
-    posted = _mock_slack_web_client.posted[0]
-    assert "3 match record" in json.dumps(posted["blocks"])
-    action_blocks = [b for b in posted["blocks"] if b["type"] == "actions"]
-    elements = [el for block in action_blocks for el in block["elements"]]
-    assert {el["action_id"] for el in elements} == {"remove_seller", "cancel_seller"}
-    assert {el["value"] for el in elements} == {seller_id}
+    assert len(postgres_use_case.calls) == 1
+    assert "Updated buyer profile for Blue Horizon" in _mock_slack_web_client.posted[0]["text"]
 
 
 # --------------------------------------------------------------------------
-# seller_edit_form_modal submission
+# /add-seller, /add-buyer: organization_selection_modal -> add-form
 # --------------------------------------------------------------------------
 
 
-def _edit_form_payload(
-    seller_id: str, *, removed: bool, values: dict, checkbox_checked: bool = False
-) -> dict:
-    state_values = dict(values)
-    if removed:
-        state_values["restore_confirmation"] = {
-            "confirm_restore": {
-                "selected_options": (
-                    [{"value": "confirm"}] if checkbox_checked else []
-                )
-            }
-        }
+def _organization_selection_payload(kind: str, search_term: str, selected_value: str) -> dict:
     return {
         "type": "view_submission",
         "user": {"id": "U_TEST"},
         "view": {
             "type": "modal",
-            "id": "V2",
-            "callback_id": "seller_edit_form_modal",
+            "id": "V5",
+            "callback_id": "organization_selection_modal",
             "private_metadata": json.dumps(
                 {
-                    "seller_role_id": seller_id,
-                    "org_name": "Acme Capital",
+                    "kind": kind,
+                    "search_term": search_term,
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
-                    "removed": removed,
                 }
             ),
-            "state": {"values": state_values},
+            "state": {
+                "values": {
+                    "organization_id": {
+                        "selected_organization": {"selected_option": {"value": selected_value}}
+                    }
+                }
+            },
         },
     }
 
 
-def test_edit_form_invalid_currency_returns_field_error() -> None:
-    seller_id = str(uuid.uuid4())
-    values = {
-        "outreach_tier": {"outreach_tier": {"value": None}},
-        "appetite_signal": {"appetite_signal": {"value": None}},
-        "relationship_status": {"relationship_status": {"value": None}},
-        "est_revenue_amount": {"est_revenue_amount": {"value": "100"}},
-        "est_revenue_currency": {"est_revenue_currency": {"value": "usd"}},  # lowercase, invalid
-    }
-    payload = _edit_form_payload(seller_id, removed=False, values=values)
+def test_organization_selection_new_option_opens_add_form() -> None:
+    payload = _organization_selection_payload("seller", "Acme", NEW_ORGANIZATION_VALUE)
 
     response = _post_interactivity(payload)
 
     assert response.status_code == 200
     body = response.json()
-    assert body["response_action"] == "errors"
-    assert "est_revenue_currency" in body["errors"]
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "seller_add_form_modal"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["is_new_org"] is True
+    assert metadata["org_attio_id"] is None
+    name_block = next(b for b in body["view"]["blocks"] if b["block_id"] == "name")
+    assert name_block["element"]["initial_value"] == "Acme"
 
 
-def test_edit_form_valid_input_calls_update_use_case_with_extracted_fields(
-    monkeypatch, _mock_slack_web_client
-) -> None:
-    seller_id = str(uuid.uuid4())
-    fake_use_case = _RecordingUseCase()
-    monkeypatch.setattr(
-        actions_module, "build_update_seller_use_case", lambda: fake_use_case
-    )
+def test_organization_selection_existing_org_opens_add_form(monkeypatch) -> None:
+    org = _fake_org(attio_id="org-attio-9", name="Found Co")
+    monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
 
-    values = {
-        "outreach_tier": {"outreach_tier": {"value": "warm"}},
-        "appetite_signal": {"appetite_signal": {"value": None}},
-        "relationship_status": {"relationship_status": {"value": None}},
-    }
-    payload = _edit_form_payload(seller_id, removed=False, values=values)
+    payload = _organization_selection_payload("buyer", "Found", "org-attio-9")
 
     response = _post_interactivity(payload)
 
     assert response.status_code == 200
-    assert response.text == ""  # plain ack(), no response_action
-    assert len(fake_use_case.calls) == 1
-    args, kwargs = fake_use_case.calls[0]
-    assert args[0] == seller_id
-    assert args[1]["outreach_tier"] == "warm"
-    assert args[2] == "U_TEST"
-    assert kwargs["restore"] is False
-    assert "Updated seller profile for Acme Capital" in _mock_slack_web_client.posted[0]["text"]
-
-
-def test_edit_form_removed_target_without_checkbox_requires_confirmation() -> None:
-    seller_id = str(uuid.uuid4())
-    values = {"outreach_tier": {"outreach_tier": {"value": "warm"}}}
-    payload = _edit_form_payload(seller_id, removed=True, values=values, checkbox_checked=False)
-
-    response = _post_interactivity(payload)
-
     body = response.json()
-    assert body["response_action"] == "errors"
-    assert "restore_confirmation" in body["errors"]
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "buyer_add_form_modal"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["is_new_org"] is False
+    assert metadata["org_attio_id"] == "org-attio-9"
+    assert metadata["org_name"] == "Found Co"
 
 
-def test_edit_form_removed_target_with_checkbox_calls_update_with_restore_true(
+def test_organization_selection_existing_org_with_role_is_rejected(
     monkeypatch, _mock_slack_web_client
 ) -> None:
-    seller_id = str(uuid.uuid4())
-    fake_use_case = _RecordingUseCase()
-    monkeypatch.setattr(
-        actions_module, "build_update_seller_use_case", lambda: fake_use_case
-    )
+    org = _fake_org(attio_id="org-attio-9", name="Found Co", seller_role=SimpleNamespace())
+    monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
 
-    values = {"outreach_tier": {"outreach_tier": {"value": "warm"}}}
-    payload = _edit_form_payload(seller_id, removed=True, values=values, checkbox_checked=True)
+    payload = _organization_selection_payload("seller", "Found", "org-attio-9")
 
     response = _post_interactivity(payload)
 
     assert response.status_code == 200
-    assert len(fake_use_case.calls) == 1
-    _, kwargs = fake_use_case.calls[0]
-    assert kwargs["restore"] is True
-    assert "Restored and updated" in _mock_slack_web_client.posted[0]["text"]
+    assert response.text == ""
+    assert "already has a seller role" in _mock_slack_web_client.posted[0]["text"]
+
+
+def test_organization_selection_missing_org_shows_ephemeral(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(None))
+
+    payload = _organization_selection_payload("seller", "Ghost", "org-attio-ghost")
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert "could not be found" in _mock_slack_web_client.posted[0]["text"]
 
 
 # --------------------------------------------------------------------------
-# archive/cancel button actions
+# /add-seller, /add-buyer: add-form submission -> Attio, then Postgres
 # --------------------------------------------------------------------------
 
 
-def _block_action_payload(action_id: str, value: str) -> dict:
+def _seller_add_form_payload(
+    is_new_org: bool, org_attio_id: str | None, org_name: str | None, values: dict
+) -> dict:
     return {
-        "type": "block_actions",
+        "type": "view_submission",
         "user": {"id": "U_TEST"},
-        "channel": {"id": "C_TEST"},
-        "response_url": "https://hooks.slack.com/actions/T_TEST/123/fake",
-        "actions": [{"action_id": action_id, "value": value, "type": "button"}],
+        "view": {
+            "type": "modal",
+            "id": "V6",
+            "callback_id": "seller_add_form_modal",
+            "private_metadata": json.dumps(
+                {
+                    "is_new_org": is_new_org,
+                    "org_attio_id": org_attio_id,
+                    "org_name": org_name,
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                }
+            ),
+            "state": {"values": values},
+        },
     }
 
 
-def test_remove_seller_button_calls_remove_use_case_and_replaces_message(
+def test_seller_add_form_new_org_writes_attio_before_postgres(
     monkeypatch, _mock_slack_web_client
 ) -> None:
-    seller_id = str(uuid.uuid4())
-    fake_use_case = _RecordingUseCase()
+    call_order: list[str] = []
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        return {}
+
+    async def fake_create_organization(*_args, **_kwargs):
+        call_order.append("create_organization")
+        return "org-new-1"
+
+    async def fake_create_role_entry(*_args, **_kwargs):
+        call_order.append("create_role_entry")
+        return "entry-new-1"
+
+    postgres_use_case = SimpleNamespace(calls=[])
+
+    async def fake_execute(**kwargs):
+        call_order.append("postgres_write")
+        postgres_use_case.calls.append(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
+    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
-        actions_module, "build_remove_seller_use_case", lambda: fake_use_case
+        actions_module,
+        "build_create_seller_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
     )
 
-    response = _post_interactivity(_block_action_payload("remove_seller", seller_id))
+    values = {"name": {"name": {"value": "New Seller Co"}}}
+    payload = _seller_add_form_payload(True, None, None, values)
+
+    response = _post_interactivity(payload)
 
     assert response.status_code == 200
-    assert len(fake_use_case.calls) == 1
-    args, _ = fake_use_case.calls[0]
-    assert args == (seller_id, "U_TEST")
-    assert "Removed by" in _mock_slack_web_client.posted[0]["text"]
-    assert len(_mock_slack_web_client.responded) == 1
-    assert "Removed by" in _mock_slack_web_client.responded[0]["text"]
-    assert _mock_slack_web_client.responded[0]["replace_original"] is True
+    assert response.text == ""
+    assert call_order == ["create_organization", "create_role_entry", "postgres_write"]
+    assert postgres_use_case.calls[0]["org_attio_id"] == "org-new-1"
+    assert postgres_use_case.calls[0]["is_new_org"] is True
+    assert postgres_use_case.calls[0]["org_name"] == "New Seller Co"
+    assert "Added seller profile for New Seller Co" in _mock_slack_web_client.posted[0]["text"]
 
 
-def test_remove_seller_button_already_removed_posts_friendly_error(
+def test_seller_add_form_new_org_without_name_shows_error() -> None:
+    payload = _seller_add_form_payload(True, None, None, {})
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response_action"] == "errors"
+    assert "name" in body["errors"]
+
+
+def test_seller_add_form_attio_failure_prevents_postgres_write(
     monkeypatch, _mock_slack_web_client
 ) -> None:
-    from ddl_commands.modules.sellers.application.use_cases import SellerAlreadyRemovedError
+    async def fake_build_attio_values(*_args, **_kwargs):
+        return {}
 
-    seller_id = str(uuid.uuid4())
-    fake_use_case = _RecordingUseCase(raises=SellerAlreadyRemovedError(seller_id))
+    async def failing_create_organization(*_args, **_kwargs):
+        raise AttioError(400, "bad request")
+
+    postgres_calls: list = []
+
+    async def fake_execute(**kwargs):
+        postgres_calls.append(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "create_organization", failing_create_organization)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
-        actions_module, "build_remove_seller_use_case", lambda: fake_use_case
+        actions_module,
+        "build_create_seller_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
     )
 
-    response = _post_interactivity(_block_action_payload("remove_seller", seller_id))
+    values = {"name": {"name": {"value": "New Seller Co"}}}
+    payload = _seller_add_form_payload(True, None, None, values)
+
+    response = _post_interactivity(payload)
 
     assert response.status_code == 200
-    assert "already been removed" in _mock_slack_web_client.posted[0]["text"]
-    assert len(_mock_slack_web_client.responded) == 0
+    assert postgres_calls == []
+    assert "Couldn't write to Attio, nothing was saved" in _mock_slack_web_client.posted[0]["text"]
 
 
-def test_cancel_seller_button_replaces_message_with_cancelled(
+def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     monkeypatch, _mock_slack_web_client
 ) -> None:
-    seller_id = str(uuid.uuid4())
+    call_order: list[str] = []
 
-    response = _post_interactivity(_block_action_payload("cancel_seller", seller_id))
+    async def fake_build_attio_values(*_args, **kwargs):
+        # Org fields are all unset in this test's payload — distinguish by
+        # table so the org branch doesn't accidentally return a truthy
+        # value and trigger an unmocked `patch_organization` call.
+        if kwargs.get("table") == "organizations":
+            return {}
+        return {"model": "opt-model-1"}
 
-    assert response.status_code == 200
-    assert len(_mock_slack_web_client.responded) == 1
-    assert _mock_slack_web_client.responded[0]["text"] == "Cancelled."
+    async def fake_create_role_entry(*_args, **_kwargs):
+        call_order.append("create_role_entry")
+        return "entry-new-2"
 
+    postgres_use_case = SimpleNamespace(calls=[])
 
-# --------------------------------------------------------------------------
-# buyer symmetry smoke tests — same wiring, prove it isn't seller-only
-# --------------------------------------------------------------------------
+    async def fake_execute(**kwargs):
+        call_order.append("postgres_write")
+        postgres_use_case.calls.append(kwargs)
+        return SimpleNamespace()
 
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(
+        actions_module,
+        "build_create_buyer_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
+    )
 
-def test_buyer_edit_form_valid_input_calls_update_use_case(
-    monkeypatch, _mock_slack_web_client
-) -> None:
-    buyer_id = str(uuid.uuid4())
-    fake_use_case = _RecordingUseCase()
-    monkeypatch.setattr(actions_module, "build_update_buyer_use_case", lambda: fake_use_case)
-
+    values = {"model": {"model": {"selected_option": {"value": "Model 1 (Network)"}}}}
     payload = {
         "type": "view_submission",
         "user": {"id": "U_TEST"},
         "view": {
             "type": "modal",
-            "id": "V3",
-            "callback_id": "buyer_edit_form_modal",
+            "id": "V7",
+            "callback_id": "buyer_add_form_modal",
             "private_metadata": json.dumps(
                 {
-                    "buyer_role_id": buyer_id,
-                    "org_name": "Blue Horizon",
+                    "is_new_org": False,
+                    "org_attio_id": "org-attio-existing",
+                    "org_name": "Existing Buyer Co",
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
-                    "removed": False,
                 }
             ),
-            "state": {"values": {"model": {"model": {"value": "Roll-up"}}}},
+            "state": {"values": values},
         },
     }
 
     response = _post_interactivity(payload)
 
     assert response.status_code == 200
-    assert len(fake_use_case.calls) == 1
-    args, kwargs = fake_use_case.calls[0]
-    assert args[0] == buyer_id
-    assert args[1]["model"] == "Roll-up"
-    assert kwargs["restore"] is False
-    assert "Updated buyer profile for Blue Horizon" in _mock_slack_web_client.posted[0]["text"]
-
-
-def test_remove_buyer_button_calls_remove_use_case(monkeypatch, _mock_slack_web_client) -> None:
-    buyer_id = str(uuid.uuid4())
-    fake_use_case = _RecordingUseCase()
-    monkeypatch.setattr(actions_module, "build_remove_buyer_use_case", lambda: fake_use_case)
-
-    response = _post_interactivity(_block_action_payload("remove_buyer", buyer_id))
-
-    assert response.status_code == 200
-    assert len(fake_use_case.calls) == 1
-    assert fake_use_case.calls[0][0] == (buyer_id, "U_TEST")
+    assert call_order == ["create_role_entry", "postgres_write"]
+    assert postgres_use_case.calls[0]["org_attio_id"] == "org-attio-existing"
+    assert postgres_use_case.calls[0]["is_new_org"] is False
+    assert "Added buyer profile for Existing Buyer Co" in _mock_slack_web_client.posted[0]["text"]

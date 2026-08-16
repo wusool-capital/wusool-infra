@@ -25,8 +25,7 @@ def _sign(body: str, timestamp: str, signing_secret: str) -> str:
 
 
 @pytest.mark.parametrize(
-    "command",
-    ["/edit-seller", "/remove-seller", "/edit-buyer", "/remove-buyer"],
+    "command", ["/edit-seller", "/edit-buyer", "/add-seller", "/add-buyer"]
 )
 def test_command_with_no_text_posts_usage_without_touching_db(
     command: str, monkeypatch

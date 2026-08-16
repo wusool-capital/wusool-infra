@@ -28,7 +28,7 @@ services:
 
   bot:
     # One process, one Slack app: /find-match (matching-engine) and
-    # /edit-seller, /remove-seller, /edit-buyer, /remove-buyer (ddl-commands)
+    # /edit-seller, /edit-buyer, /add-seller, /add-buyer (ddl-commands)
     # all served by the root main.py — see workflows/wusool-toolkit/README.md.
     build: .
     ports:

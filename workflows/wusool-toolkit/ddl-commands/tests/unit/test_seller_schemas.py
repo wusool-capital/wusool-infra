@@ -12,33 +12,25 @@ def test_collects_all_field_errors_not_fail_fast() -> None:
     with pytest.raises(ValidationError) as exc_info:
         SellerUpdate.model_validate(
             {
-                "readiness_score": 150,  # over the 0-100 ceiling
-                "lead_quality_score": -5,  # under the 0 floor
-                "est_revenue": {"amount": 100, "currency": "usd"},  # lowercase, invalid
+                "outreach_tier": "x" * 101,  # over max_length=100
+                "last_attempt_outcome": "y" * 501,  # over max_length=500
             }
         )
 
     locs = {tuple(e["loc"]) for e in exc_info.value.errors()}
-    assert ("readiness_score",) in locs
-    assert ("lead_quality_score",) in locs
-    assert ("est_revenue", "currency") in locs
+    assert ("outreach_tier",) in locs
+    assert ("last_attempt_outcome",) in locs
 
 
 def test_valid_input_round_trips() -> None:
     validated = SellerUpdate.model_validate(
-        {
-            "outreach_tier": "warm",
-            "readiness_score": 75,
-            "est_revenue": {"amount": 1_000_000, "currency": "AED"},
-        }
+        {"outreach_tier": "Tier 1", "est_revenue": 1_000_000.0}
     )
-    assert validated.outreach_tier == "warm"
-    assert validated.readiness_score == 75
-    assert validated.est_revenue is not None
-    assert validated.est_revenue.currency == "AED"
+    assert validated.outreach_tier == "Tier 1"
+    assert validated.est_revenue == 1_000_000.0
 
 
 def test_everything_optional() -> None:
     validated = SellerUpdate.model_validate({})
     assert validated.outreach_tier is None
-    assert validated.readiness_score is None
+    assert validated.est_revenue is None

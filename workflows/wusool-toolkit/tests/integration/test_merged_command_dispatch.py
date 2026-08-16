@@ -1,7 +1,7 @@
 """End-to-end Slack command dispatch through the **merged** app (`main.py`)
 — proves the actual thing this merge exists to fix: one process, one
-`AsyncApp`, all 9 commands (matching-engine's `/find-match` plus
-ddl-commands' `/edit-seller`/`/remove-seller`/`/edit-buyer`/`/remove-buyer`)
+`AsyncApp`, all 5 commands (matching-engine's `/find-match` plus
+ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`)
 correctly registered and dispatching, with no cross-package collision.
 
 Each package's own test suite (`matching-engine/tests/`, `ddl-commands/tests/`)
@@ -104,8 +104,7 @@ def _post_view_submission_raw(view: dict) -> "TestClient.__class__":
 
 
 @pytest.mark.parametrize(
-    "command",
-    ["/find-match", "/edit-seller", "/remove-seller", "/edit-buyer", "/remove-buyer"],
+    "command", ["/find-match", "/edit-seller", "/edit-buyer", "/add-seller", "/add-buyer"]
 )
 def test_every_command_dispatches_off_the_one_shared_app(
     command: str, _mock_slack_web_client
@@ -190,9 +189,7 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
         "type": "modal",
         "id": "V1",
         "callback_id": "buyer_role_selection_modal",
-        "private_metadata": json.dumps(
-            {"requested_by": "U_TEST", "channel_id": "C_TEST", "intent": "edit"}
-        ),
+        "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
         "state": {"values": _view_state_with_selected_buyer("buyer-role-123")},
     }
     response = _post_view_submission_raw(view)

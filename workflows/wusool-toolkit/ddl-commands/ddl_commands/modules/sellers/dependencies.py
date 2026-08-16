@@ -7,7 +7,7 @@ from ddl_commands.modules.sellers.application.resolution_service import (
     SellerResolutionService,
 )
 from ddl_commands.modules.sellers.application.use_cases import (
-    RemoveSellerUseCase,
+    CreateSellerUseCase,
     UpdateSellerUseCase,
 )
 from ddl_commands.modules.sellers.infrastructure.models import SellerRole
@@ -15,11 +15,9 @@ from ddl_commands.modules.sellers.infrastructure.repositories import SellerRepos
 from ddl_commands.shared.database import get_sessionmaker
 
 
-async def resolve_seller(seller_name: str, *, include_removed: bool = False) -> SellerResolution:
+async def resolve_seller(seller_name: str) -> SellerResolution:
     async with get_sessionmaker()() as session:
-        return await SellerResolutionService(SellerRepository(session)).resolve(
-            seller_name, include_removed=include_removed
-        )
+        return await SellerResolutionService(SellerRepository(session)).resolve(seller_name)
 
 
 async def resolve_seller_by_id(seller_role_id: str) -> SellerRole | None:
@@ -33,5 +31,5 @@ def build_update_seller_use_case() -> UpdateSellerUseCase:
     return UpdateSellerUseCase(get_sessionmaker())
 
 
-def build_remove_seller_use_case() -> RemoveSellerUseCase:
-    return RemoveSellerUseCase(get_sessionmaker())
+def build_create_seller_use_case() -> CreateSellerUseCase:
+    return CreateSellerUseCase(get_sessionmaker())

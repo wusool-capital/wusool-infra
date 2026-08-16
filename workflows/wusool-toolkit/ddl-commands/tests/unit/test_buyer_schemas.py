@@ -8,28 +8,23 @@ def test_collects_all_field_errors_not_fail_fast() -> None:
     with pytest.raises(ValidationError) as exc_info:
         BuyerUpdate.model_validate(
             {
-                "deals_introduced": -1,  # under the 0 floor
-                "ebitda_floor": {"amount": 100, "currency": "usd"},  # lowercase, invalid
+                "model": "x" * 101,  # over max_length=100
+                "notes": "y" * 4001,  # over max_length=4000
             }
         )
 
     locs = {tuple(e["loc"]) for e in exc_info.value.errors()}
-    assert ("deals_introduced",) in locs
-    assert ("ebitda_floor", "currency") in locs
+    assert ("model",) in locs
+    assert ("notes",) in locs
 
 
 def test_valid_input_round_trips() -> None:
     validated = BuyerUpdate.model_validate(
-        {
-            "model": "Buy-and-build",
-            "profitable_only": True,
-            "ebitda_floor": {"amount": 5_000_000, "currency": "AED"},
-        }
+        {"model": "Model 1 (Network)", "profitable_only": True, "ebitda_floor": 5_000_000.0}
     )
-    assert validated.model == "Buy-and-build"
+    assert validated.model == "Model 1 (Network)"
     assert validated.profitable_only is True
-    assert validated.ebitda_floor is not None
-    assert validated.ebitda_floor.currency == "AED"
+    assert validated.ebitda_floor == 5_000_000.0
 
 
 def test_everything_optional() -> None:
