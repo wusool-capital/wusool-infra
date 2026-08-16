@@ -11,6 +11,7 @@ resource "aws_secretsmanager_secret" "wusool_toolkit" {
 }
 
 module "wusool_toolkit" {
+  count  = var.create_instance ? 1 : 0
   source = "../../modules/toolkit-ec2"
 
   project                     = var.project
@@ -46,12 +47,12 @@ module "wusool_toolkit" {
 }
 
 module "bedrock" {
-  count  = var.enable_bedrock ? 1 : 0
+  count  = var.enable_bedrock && var.create_instance ? 1 : 0
   source = "../../modules/bedrock-access"
 
   project       = var.project
   environment   = "${var.environment}-toolkit"
-  iam_role_name = module.wusool_toolkit.iam_role_name
+  iam_role_name = module.wusool_toolkit[0].iam_role_name
   models        = var.bedrock_models
 }
 

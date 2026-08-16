@@ -65,5 +65,5 @@ output "postgres_master_user_secret_arn" {
 
 output "toolkit_ecr_repository_url" {
   description = "Production's own ECR repository. Prod builds and stores its own images."
-  value       = aws_ecr_repository.wusool_toolkit.repository_url
+  value       = data.terraform_remote_state.toolkit.outputs.ecr_repository_url
 }

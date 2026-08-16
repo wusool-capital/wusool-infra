@@ -18,7 +18,14 @@ variable "owner" {
 }
 
 variable "key_name" {
-  type = string
+  type    = string
+  default = ""
+}
+
+variable "create_instance" {
+  description = "Whether to create the EC2 instance for this environment. false lets ECR + the secret exist (e.g. prepared ahead of time) without a running, billable instance — used for prod until the instance is deliberately created."
+  type        = bool
+  default     = true
 }
 
 # NOT named "instance_type" — stacks/n8n also declares a same-named variable,
