@@ -10,38 +10,13 @@ data "terraform_remote_state" "base" {
   }
 }
 
-module "n8n" {
-  source = "../../modules/n8n-ec2"
-
-  project                     = var.project
-  environment                 = var.environment
-  vpc_id                      = data.terraform_remote_state.base.outputs.vpc_id
-  subnet_id                   = data.terraform_remote_state.base.outputs.public_subnet_id
-  key_name                    = var.key_name
-  instance_type               = var.instance_type
-  ami_architecture            = var.ami_architecture
-  ssh_cidr_blocks             = var.ssh_cidr_blocks
-  web_cidr_blocks             = var.web_cidr_blocks
-  expose_n8n_port             = var.expose_n8n_port
-  n8n_webhook_url             = var.n8n_webhook_url
-  n8n_timezone                = var.n8n_timezone
-  root_volume_size            = var.root_volume_size
-  alarm_topic_arn             = data.terraform_remote_state.base.outputs.alarm_topic_arn
-  secrets_manager_secret_arns = [aws_secretsmanager_secret.n8n.arn]
-  n8n_secret_id               = aws_secretsmanager_secret.n8n.id
-  additional_hostnames        = var.n8n_additional_hostnames
-  n8n_image                   = var.n8n_image
-  runners_image               = var.runners_image
-  caddy_image                 = var.caddy_image
-}
-
-module "bedrock" {
-  source = "../../modules/bedrock-access"
-
-  project       = var.project
-  environment   = var.environment
-  iam_role_name = module.n8n.iam_role_name
-  models        = var.bedrock_models
+data "terraform_remote_state" "n8n" {
+  backend = "s3"
+  config = {
+    bucket = "wusool-tfstate"
+    key    = "wusool/dev/n8n/terraform.tfstate"
+    region = "me-central-1"
+  }
 }
 
 module "wusool_toolkit" {
@@ -96,7 +71,7 @@ module "postgres" {
   vpc_id      = data.terraform_remote_state.base.outputs.vpc_id
   subnet_ids  = data.terraform_remote_state.base.outputs.database_private_subnet_ids
   allowed_security_group_ids = [
-    module.n8n.security_group_id,
+    data.terraform_remote_state.n8n.outputs.security_group_id,
     module.wusool_toolkit.security_group_id,
     "sg-0684b8cf83abfd065",
   ]
@@ -121,12 +96,6 @@ module "postgres" {
 # (python:3.12-slim-bookworm), which moves. To make the builds genuinely
 # reproducible, pin those by digest in the Dockerfile.
 # ---------------------------------------------------------------------------
-
-resource "aws_secretsmanager_secret" "n8n" {
-  name                    = "/${var.project}/${var.environment}/n8n"
-  description             = "Environment-specific n8n secrets for ${var.project} ${var.environment}"
-  recovery_window_in_days = 30
-}
 
 # Populate the secret value out of band (console, or `aws secretsmanager
 # put-secret-value`) with JSON: {"slack_bot_token": "...",
