@@ -103,12 +103,7 @@ output "wusool_toolkit_secret_arn" {
   value       = aws_secretsmanager_secret.wusool_toolkit.arn
 }
 
-output "security_alert_topic_arn" {
-  description = "Account-level SNS topic carrying GuardDuty and Security Hub findings."
-  value       = aws_sns_topic.security_alerts.arn
-}
-
 output "wusool_toolkit_ecr_repository_url" {
-  description = "Shared ECR repository. Both environments pull the same digests from here."
+  description = "This environment's own ECR repository."
   value       = aws_ecr_repository.wusool_toolkit.repository_url
 }

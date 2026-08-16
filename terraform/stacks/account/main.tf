@@ -1,17 +1,8 @@
-# ---------------------------------------------------------------------------
-# Account-level resources — applied ONCE, not per environment.
+# Account-level resources — applied ONCE, no per-environment split.
 #
-# GuardDuty is one-detector-per-account-per-region and Security Hub is
-# per-account, so these CANNOT live in a per-environment stack: applying such a
-# stack for a second environment fails on both resources.
-#
-# Security findings are account-wide, so they route to their own topic rather
-# than borrowing a per-environment infrastructure topic.
-#
-# Migrated from terraform/environments/dev by `state mv` — never destroyed and
-# recreated. Re-creating aws_securityhub_account discards finding history and
-# per-control configuration accumulated since 2026-06-21.
-# ---------------------------------------------------------------------------
+# Migrated from terraform/environments/dev via `state mv` (Phase D). GuardDuty
+# and Security Hub are account+region singletons; the GitHub OIDC provider and
+# its roles are trusted by the whole repo, not one environment.
 
 data "aws_caller_identity" "current" {}
 
@@ -131,4 +122,164 @@ resource "aws_cloudwatch_event_target" "securityhub_to_sns" {
   rule      = aws_cloudwatch_event_rule.securityhub_findings.name
   target_id = "security-alerts"
   arn       = aws_sns_topic.security_alerts.arn
+}
+
+# ---------------------------------------------------------------------------
+# GitHub Actions OIDC (Phase E)
+#
+# Account-level: one provider, one set of roles, trusted by this repo only.
+# Short-lived tokens - no static AWS keys ever stored in GitHub.
+# Moves to stacks/account by `state mv` in Phase D.
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+}
+
+locals {
+  github_repo = "wusool-capital/wusool-infra"
+}
+
+# Read-only + state access. Used by plan-on-PR from ANY branch, so it must never
+# be able to mutate infrastructure.
+data "aws_iam_policy_document" "gha_plan_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${local.github_repo}:*"]
+    }
+  }
+}
+
+resource "aws_iam_role" "gha_plan" {
+  name               = "${var.project}-gha-plan"
+  description        = "GitHub Actions: terraform plan and read-only inspection."
+  assume_role_policy = data.aws_iam_policy_document.gha_plan_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "gha_plan_readonly" {
+  role       = aws_iam_role.gha_plan.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+# Plan needs to write the state lock and read state, which ReadOnlyAccess alone
+# does not permit.
+resource "aws_iam_role_policy" "gha_plan_state" {
+  name = "${var.project}-gha-plan-state"
+  role = aws_iam_role.gha_plan.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = ["arn:aws:s3:::wusool-tfstate", "arn:aws:s3:::wusool-tfstate/*"]
+      }
+    ]
+  })
+}
+
+# Apply roles, scoped by BRANCH via the OIDC `sub` claim. A workflow running on
+# `dev` cannot assume the prod role and vice versa - the branch restriction is
+# enforced by AWS at AssumeRole time, not by workflow logic that could be edited.
+data "aws_iam_policy_document" "gha_apply_trust" {
+  for_each = toset(["dev", "prod"])
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    # Exact branch match, plus the matching GitHub Environment. workflow_dispatch
+    # on the same branch is covered by the first value.
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = [
+        "repo:${local.github_repo}:ref:refs/heads/${each.key}",
+        "repo:${local.github_repo}:environment:${each.key}",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "gha_apply" {
+  for_each = toset(["dev", "prod"])
+
+  name               = "${var.project}-gha-apply-${each.key}"
+  description        = "GitHub Actions: terraform apply for the ${each.key} environment."
+  assume_role_policy = data.aws_iam_policy_document.gha_apply_trust[each.key].json
+}
+
+# PowerUserAccess + targeted IAM. Deliberately not AdministratorAccess: the
+# deploy needs to manage service resources and their roles, not reshape the
+# account's own security posture.
+resource "aws_iam_role_policy_attachment" "gha_apply_power" {
+  for_each = aws_iam_role.gha_apply
+
+  role       = each.value.name
+  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
+resource "aws_iam_role_policy" "gha_apply_iam" {
+  for_each = aws_iam_role.gha_apply
+
+  name = "${var.project}-gha-apply-iam"
+  role = each.value.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:ListRoles",
+          "iam:TagRole", "iam:UntagRole", "iam:UpdateRole",
+          "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy", "iam:ListRolePolicies",
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies",
+          "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile", "iam:GetInstanceProfile",
+          "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
+          "iam:PassRole", "iam:CreateServiceLinkedRole"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+output "gha_role_arns" {
+  description = "Role ARNs for GitHub Actions OIDC. Not secret - safe to reference directly in workflow YAML."
+  value = {
+    plan       = aws_iam_role.gha_plan.arn
+    apply_dev  = aws_iam_role.gha_apply["dev"].arn
+    apply_prod = aws_iam_role.gha_apply["prod"].arn
+  }
 }
