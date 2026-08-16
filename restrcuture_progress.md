@@ -267,6 +267,58 @@ pre-apply S3 version `fVcePHDT_9HTUEFgZ.NtgJal1mEpQUlo`.
 Both dev services restarted via the SSM association re-run — expected this time,
 unlike the prod apply.
 
+### Prod PostgreSQL created *(2026-08-16)*
+
+**Decisions:** dedicated prod instance (never shared with dev), cheapest viable
+sizing, **private subnet**, seeded from a dev snapshot so schema *and* data carry
+over.
+
+| Setting | Value |
+|---|---|
+| Instance | `wusool-prod-postgres`, `db.t4g.micro`, 20 GiB gp3 (autoscales to 100) |
+| Network | new subnet `10.20.3.0/24` (`subnet-0b8b5c89d6aeaaa67`), **`publicly_accessible = false`** |
+| Seed | restored from `wusool-dev-postgres-seed-20260816-0803` |
+| Credentials | `manage_master_user_password = true` — RDS-managed and rotated |
+| Protection | `deletion_protection = true`, final snapshot on delete, 7-day backups |
+| Ingress | prod n8n SG (for the SSM tunnel runbook); matching-engine prod joins later |
+
+Prod's network previously had **no database subnet** — `prod/main.tf` omitted
+`database_private_subnet_cidr`, and the DB subnet group needs ≥2 subnets. Added
+`10.20.3.0/24` to mirror dev's `10.10.3.0/24`.
+
+Module change: `postgres-rds` gained `snapshot_identifier`. When set, `db_name`
+and `username` are **omitted** (RDS rejects them — they come from the snapshot),
+and `lifecycle { ignore_changes = [snapshot_identifier] }` prevents a later edit
+from replacing the instance and destroying its data. Verified backward
+compatible — dev planned **"No changes"** afterwards.
+
+**Verified beforehand — prod n8n was NOT writing to the dev database.** The
+concern was reasonable but the isolation holds: dev RDS ingress lists only three
+SGs, all in the dev VPC; dev RDS is `publicly_accessible = false`; there is **no
+VPC peering and no transit gateway**; and prod n8n's SQLite contains zero
+credential types, zero references to `cpuwqesq4v8p`, and no RDS hostname at all.
+
+#### Incident: interrupted apply left state and reality diverged
+
+The `tofu apply` was killed by a **2-minute command timeout** while RDS creation
+was still running (RDS takes 5–15 minutes). Consequences:
+
+- AWS **did** create the subnet, route-table association, DB subnet group,
+  security group and RDS instance — those API calls had already succeeded.
+- Terraform recorded **none of them**: state stayed at serial 15.
+- A `.tflock` object was left behind (lock ID `84c5ba08-…`).
+
+A naive re-apply would have failed on duplicate identifiers (CIDR already in
+use, DB identifier already exists). Recovery was `force-unlock` followed by
+`tofu import` of each orphaned resource. Note the route-table association takes
+`subnet_id/route_table_id`, **not** the `rtbassoc-…` ID.
+
+**Lesson:** long-running creates (RDS, and anything else measured in minutes)
+must be run so they cannot be interrupted — background the apply rather than
+letting a foreground timeout kill it mid-flight. This is a real argument for the
+CD workflows in Phase E, where `cancel-in-progress: false` exists precisely to
+stop this.
+
 ### Snapshot status
 
 | Snapshot | State |

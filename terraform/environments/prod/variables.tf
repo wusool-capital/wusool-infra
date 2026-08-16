@@ -40,6 +40,42 @@ variable "private_subnet_cidr" {
   default     = "10.20.2.0/24"
 }
 
+variable "database_private_subnet_cidr" {
+  description = "Production database subnet CIDR. Mirrors dev's 10.10.3.0/24. Required before RDS can be created: the DB subnet group needs at least two subnets, and module.network returns compact([private, database_private])."
+  type        = string
+  default     = "10.20.3.0/24"
+}
+
+variable "postgres_db_name" {
+  description = "Initial database name."
+  type        = string
+  default     = "wusool_crm"
+}
+
+variable "postgres_master_username" {
+  description = "RDS master username. The password is RDS-managed (manage_master_user_password) and rotated automatically - never hand-write it."
+  type        = string
+  default     = "wusool_admin"
+}
+
+variable "postgres_engine_version" {
+  description = "PostgreSQL engine version."
+  type        = string
+  default     = "16"
+}
+
+variable "postgres_instance_class" {
+  description = "RDS instance class. db.t4g.micro is the cheapest Graviton burstable and matches dev."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "postgres_allocated_storage" {
+  description = "Allocated storage in GiB. Autoscales to 100 via the module's max_allocated_storage."
+  type        = number
+  default     = 20
+}
+
 variable "key_name" {
   description = "Existing EC2 key pair name for SSH access."
   type        = string
@@ -122,4 +158,10 @@ variable "runners_image" {
 variable "caddy_image" {
   description = "Caddy image pinned by digest."
   type        = string
+}
+
+variable "postgres_snapshot_identifier" {
+  description = "Dev snapshot to seed prod from. Set once at creation; changing it later would replace the instance and destroy its data (the module ignores subsequent changes)."
+  type        = string
+  default     = null
 }

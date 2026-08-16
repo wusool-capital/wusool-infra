@@ -42,3 +42,23 @@ output "n8n_secret_arn" {
   description = "Secrets Manager secret ARN for production n8n."
   value       = aws_secretsmanager_secret.n8n.arn
 }
+
+output "postgres_endpoint" {
+  description = "Production PostgreSQL endpoint. Verify any database_url in /wusool/prod/* points HERE and not at dev."
+  value       = module.postgres.endpoint
+}
+
+output "postgres_database_name" {
+  value = module.postgres.database_name
+}
+
+output "postgres_security_group_id" {
+  description = "Consumers attach their own ingress rule referencing this SG."
+  value       = module.postgres.security_group_id
+}
+
+output "postgres_master_user_secret_arn" {
+  description = "RDS-managed master credential secret."
+  value       = module.postgres.master_user_secret_arn
+  sensitive   = true
+}

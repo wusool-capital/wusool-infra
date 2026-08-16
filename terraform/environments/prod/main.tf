@@ -1,11 +1,12 @@
 module "network" {
   source = "../../modules/network"
 
-  project             = var.project
-  environment         = var.environment
-  vpc_cidr            = var.vpc_cidr
-  public_subnet_cidr  = var.public_subnet_cidr
-  private_subnet_cidr = var.private_subnet_cidr
+  project                      = var.project
+  environment                  = var.environment
+  vpc_cidr                     = var.vpc_cidr
+  public_subnet_cidr           = var.public_subnet_cidr
+  private_subnet_cidr          = var.private_subnet_cidr
+  database_private_subnet_cidr = var.database_private_subnet_cidr
 }
 
 module "n8n" {
@@ -119,4 +120,44 @@ resource "aws_cloudtrail" "this" {
   is_multi_region_trail         = true
   enable_log_file_validation    = true
   depends_on                    = [aws_s3_bucket_policy.cloudtrail]
+}
+
+# ---------------------------------------------------------------------------
+# Production PostgreSQL
+#
+# A dedicated prod instance — prod must never share a database with dev. Sized
+# to the cheapest viable option (db.t4g.micro, 20 GiB gp3, single-AZ), matching
+# dev, with storage autoscaling to 100 GiB.
+#
+# Access is granted per consuming service's security group. n8n is included so
+# the documented SSM port-forwarding runbook works against prod the same way it
+# does in dev; n8n itself stores nothing here (it uses SQLite on its own volume).
+# matching-engine prod joins this list when its stack is created.
+#
+# The master password is RDS-managed and rotated; read it from the secret ARN in
+# the postgres_master_user_secret_arn output, never from configuration.
+# ---------------------------------------------------------------------------
+module "postgres" {
+  source = "../../modules/postgres-rds"
+
+  project     = var.project
+  environment = var.environment
+  vpc_id      = module.network.vpc_id
+  subnet_ids  = module.network.database_private_subnet_ids
+
+  allowed_security_group_ids = [
+    module.n8n.security_group_id,
+  ]
+
+  db_name           = var.postgres_db_name
+  master_username   = var.postgres_master_username
+  engine_version    = var.postgres_engine_version
+  instance_class    = var.postgres_instance_class
+  allocated_storage = var.postgres_allocated_storage
+
+  # Seeded from a dev snapshot so prod starts with the same schema AND data.
+  # Note this carries dev's rows - including any test/experimental records -
+  # into a production database. db_name and master_username above are ignored
+  # while this is set; both come from the snapshot.
+  snapshot_identifier = var.postgres_snapshot_identifier
 }
