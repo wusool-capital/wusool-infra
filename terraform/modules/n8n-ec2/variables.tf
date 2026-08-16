@@ -93,3 +93,44 @@ variable "n8n_secret_id" {
   type        = string
   default     = ""
 }
+
+variable "additional_hostnames" {
+  description = <<-DESC
+    Extra hostnames Caddy should serve alongside the primary hostname derived
+    from n8n_webhook_url. Use during a domain cutover so the retired hostname
+    keeps resolving until DNS has drained. Dropping a hostname here is what
+    caused a prior production incident, so change with care.
+  DESC
+  type        = list(string)
+  default     = []
+}
+
+variable "n8n_image" {
+  description = "Fully-qualified n8n image, pinned by digest. Set per environment; no default, so an apply can never silently change the running version."
+  type        = string
+
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.n8n_image))
+    error_message = "n8n_image must be pinned by digest (…@sha256:<64 hex>), not a mutable tag."
+  }
+}
+
+variable "runners_image" {
+  description = "Task-runner image, pinned by digest. n8nio/runners publishes no stable version tags — only 'latest' and nightlies, including a v3 line — so a tag pin could pull a v3 runner against a 2.x n8n."
+  type        = string
+
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.runners_image))
+    error_message = "runners_image must be pinned by digest (…@sha256:<64 hex>), not a mutable tag."
+  }
+}
+
+variable "caddy_image" {
+  description = "Caddy image, pinned by digest."
+  type        = string
+
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.caddy_image))
+    error_message = "caddy_image must be pinned by digest (…@sha256:<64 hex>), not a mutable tag."
+  }
+}

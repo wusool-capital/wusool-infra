@@ -120,12 +120,95 @@ Branch `plan-cd-restructure`:
 
 ---
 
+## Session 2 — 2026-08-16
+
+### Phase A — toolchain standardized on OpenTofu *(commit `f419dc1`)*
+
+- `terraform/.terraform-version` → **`terraform/.opentofu-version`**, pinned **1.12.5**.
+- `required_version` → `>= 1.12.0` in all three roots.
+- CI swapped `hashicorp/setup-terraform` → **`opentofu/setup-opentofu`**.
+  **Job names changed** (`Terraform Format` → `OpenTofu Format`), so the
+  required-status-check names in `CONTRIBUTING.md` changed with them.
+- All three `.terraform.lock.hcl` regenerated → provider source is now
+  `registry.opentofu.org/hashicorp/aws`, same version `5.100.0`.
+- `CONTRIBUTING.md`: new Toolchain section, `tofu` in all examples, corrected
+  the `Azmora-ai` → `wusool-capital` remote URL.
+- Verified: `tofu fmt -check` clean, all three roots validate.
+
+### n8n module hardening *(uncommitted at time of writing)*
+
+Running images were captured from the live boxes first, because **dev and prod
+run different versions** (dev n8n **2.26.8**, prod **2.27.5**) — a shared default
+would have silently changed dev.
+
+| Change | Why |
+|---|---|
+| `additional_hostnames` (list) + `local.caddy_hostnames` | Caddyfile was single-hostname — root cause of a prior prod incident. Renders identically when the list is empty. |
+| `local.user_data_rendered` | `templatefile()` was called **twice** with identical inputs — two places to drift. Now one render reused by both `aws_instance` and `aws_ssm_document`. |
+| `n8n_image` / `runners_image` / `caddy_image` — **required, digest-validated** | `n8nio/runners` publishes **no stable version tags**, only `latest` and nightlies **including a v3 line**, so a restart could have pulled a v3 runner against 2.x n8n. |
+| `docker-compose-linux-$(uname -m)` | `ami_architecture` accepted `arm64` while the URL hardcoded x86_64. |
+| **`N8N_RUNNERS_AUTH_TOKEN` preserved across re-runs** | Bug found while verifying: `cat > n8n.env` **truncates the file**, so the `grep -q` idempotency guard always missed and a **new token was minted on every bootstrap run**. Now captured before truncation and restored. |
+
+### Defects 1 + 2 — prod corrective apply **DONE**
+
+State backed up to `.state-backups/prod-2026-08-16-0734.tfstate`; pre-apply S3
+version `AuUozBZeZhas_7gpMr1XSsYIt9GvwL2t`.
+
+```
+Plan: 1 to add, 2 to change, 0 to destroy   (forces replacement: 0)
+Apply complete! Resources: 1 added, 2 changed, 0 destroyed.
+```
+
+**Verified after apply:**
+
+| Check | Result |
+|---|---|
+| SSM document version | 4 → **5** |
+| Retired `n8n-prod.wusoolcapital.com` in registered doc | **0 occurrences** (was 3) — **Defect 1 disarmed** |
+| Live `n8n.wusoolcapital.com` | 2 occurrences (`N8N_HOST`, `WEBHOOK_URL`) + Caddyfile site block |
+| `https://n8n.wusoolcapital.com` | `/healthz` 200, `/` 200, `/signin` 200 |
+| n8n version | **2.27.5 — unchanged** |
+| Workflows | **"Tally Buyer to Attio" and "Tally Seller to Attio" both reactivated** — credentials decrypted, proving the encryption key survived |
+| Task runners | `launcher-javascript` + `launcher-python` registered |
+| `database.sqlite` | 6.9 MB, intact; `config` (encryption key) present |
+| On-box images | all three digest-pinned as intended |
+
+**Correction to what was predicted:** the apply was described as runtime-inert
+("`user_data` only executes at boot"). **That was wrong.** The
+`aws_ssm_association` attached to the document **re-ran it automatically** when
+the document updated, executing the bootstrap and recreating all three
+containers. Prod took a brief outage (~80s instance modification plus container
+start) that had been explicitly ruled out beforehand. Outcome was clean and the
+fix is live on the box, but the prediction was incorrect and the approval was
+given on that basis.
+
+**Defect 2 is NOT closed.** The SNS subscription was created but sits at
+`PendingConfirmation` — `raoof@azmora.ai` must click the confirmation link.
+Until then prod alarms still notify nobody. Dev's subscription is in the same
+state.
+
+### Snapshot status
+
+| Snapshot | State |
+|---|---|
+| `snap-049bd02b9774a8f4e` prod n8n | **completed** (before the apply) |
+| `snap-0077ca44b219f38a7` dev matching-engine | **completed** |
+| `snap-0470a29009ad43a92` dev n8n | in progress at last check |
+| `snap-0f28a587eb9c37f97` scribe | in progress at last check |
+
+Note: `aws ec2 wait snapshot-completed` exited 0 while `describe-snapshots` still
+reported two as `pending`. Trust `describe-snapshots`, not the waiter.
+
+---
+
 ## Open items, in priority order
 
-1. **Defect 1 — the landmine is still armed.** Until the corrective
-   `-target` apply runs, invoking the prod bootstrap document takes production
-   down, and that invocation is the documented recovery procedure.
-   **Freeze notice has not been announced.**
+1. ~~Defect 1 — the landmine~~ **RESOLVED 2026-08-16.** Document v5 carries the
+   live hostname; the freeze can be lifted. Recurrence prevention (re-register
+   from source on every deploy) still depends on Phase E.
+1b. **Defect 2 not closed** — the SNS subscription is `PendingConfirmation`.
+   Someone must click the link in the email to `raoof@azmora.ai`, for **both**
+   dev and prod. Until then alarms still reach nobody.
 2. **Defect 6 — nothing is enforced.** `prod` now exists and will start
    receiving merges, with no branch protection, no required checks, and all
    merge methods enabled. Needs GitHub Team (~$32/mo at 8 seats) and repo admin.

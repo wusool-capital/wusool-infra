@@ -27,6 +27,10 @@ module "n8n" {
   alarm_topic_arn             = aws_sns_topic.alerts.arn
   secrets_manager_secret_arns = [aws_secretsmanager_secret.n8n.arn]
   n8n_secret_id               = aws_secretsmanager_secret.n8n.id
+  additional_hostnames        = var.n8n_additional_hostnames
+  n8n_image                   = var.n8n_image
+  runners_image               = var.runners_image
+  caddy_image                 = var.caddy_image
 }
 
 data "aws_caller_identity" "current" {}

@@ -132,6 +132,27 @@ locals {
   public_hostname    = var.n8n_webhook_url != "" ? regex("^https?://([^/]+)", var.n8n_webhook_url)[0] : local.generated_hostname
   webhook_url        = var.n8n_webhook_url != "" ? var.n8n_webhook_url : "https://${local.public_hostname}/"
   alarm_actions      = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
+
+  # Caddy serves the primary hostname plus any additional ones. Rendering all of
+  # them is what keeps a domain cutover from dropping the old host.
+  all_hostnames   = distinct(concat([local.public_hostname], var.additional_hostnames))
+  caddy_hostnames = join(", ", local.all_hostnames)
+
+  # Rendered ONCE and reused by both aws_instance.user_data and
+  # aws_ssm_document.bootstrap. Previously templatefile() was called twice with
+  # the same inputs — two places to drift, which is how the registered document
+  # went stale against the template.
+  user_data_rendered = replace(templatefile("${path.module}/user_data.sh.tpl", {
+    n8n_webhook_url = local.webhook_url
+    n8n_timezone    = var.n8n_timezone
+    public_hostname = local.public_hostname
+    caddy_hostnames = local.caddy_hostnames
+    log_group_name  = aws_cloudwatch_log_group.n8n.name
+    n8n_secret_id   = var.n8n_secret_id
+    n8n_image       = var.n8n_image
+    runners_image   = var.runners_image
+    caddy_image     = var.caddy_image
+  }), "\r\n", "\n")
 }
 
 resource "aws_instance" "n8n" {
@@ -148,13 +169,7 @@ resource "aws_instance" "n8n" {
     encrypted   = true
   }
 
-  user_data = replace(templatefile("${path.module}/user_data.sh.tpl", {
-    n8n_webhook_url = local.webhook_url
-    n8n_timezone    = var.n8n_timezone
-    public_hostname = local.public_hostname
-    log_group_name  = aws_cloudwatch_log_group.n8n.name
-    n8n_secret_id   = var.n8n_secret_id
-  }), "\r\n", "\n")
+  user_data = local.user_data_rendered
 
   metadata_options {
     http_endpoint = "enabled"
@@ -192,13 +207,7 @@ resource "aws_ssm_document" "bootstrap" {
       inputs = {
         timeoutSeconds = "1800"
         runCommand = [
-          "echo '${base64encode(replace(templatefile("${path.module}/user_data.sh.tpl", {
-            n8n_webhook_url = local.webhook_url
-            n8n_timezone    = var.n8n_timezone
-            public_hostname = local.public_hostname
-            log_group_name  = aws_cloudwatch_log_group.n8n.name
-            n8n_secret_id   = var.n8n_secret_id
-          }), "\r\n", "\n"))}' | base64 -d > /tmp/${var.project}-n8n-bootstrap.sh",
+          "echo '${base64encode(local.user_data_rendered)}' | base64 -d > /tmp/${var.project}-n8n-bootstrap.sh",
           "chmod 700 /tmp/${var.project}-n8n-bootstrap.sh",
           "sudo bash /tmp/${var.project}-n8n-bootstrap.sh"
         ]

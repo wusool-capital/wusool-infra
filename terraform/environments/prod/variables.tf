@@ -102,3 +102,24 @@ variable "alert_email" {
   type        = string
   default     = ""
 }
+
+variable "n8n_additional_hostnames" {
+  description = "Extra hostnames Caddy should serve alongside the primary one. Used during a domain cutover."
+  type        = list(string)
+  default     = []
+}
+
+variable "n8n_image" {
+  description = "n8n image pinned by digest. Set in terraform.tfvars from the digest currently running."
+  type        = string
+}
+
+variable "runners_image" {
+  description = "n8n task-runner image pinned by digest."
+  type        = string
+}
+
+variable "caddy_image" {
+  description = "Caddy image pinned by digest."
+  type        = string
+}
