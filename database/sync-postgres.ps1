@@ -1,6 +1,7 @@
 param(
   [string]$DevApiKey = $env:DEV_ATTIO_API_KEY,
   [string]$DatabaseUrl = $env:DATABASE_URL,
+  [string]$AlertWebhookUrl = $env:SYNC_ALERT_WEBHOOK_URL,
   [switch]$Apply
 )
 
@@ -12,6 +13,7 @@ if (-not (Get-Command py -ErrorAction SilentlyContinue)) { throw "Python launche
 $env:WUSOOL_DEV_ATTIO_API_KEY = $DevApiKey.Trim()
 $env:WUSOOL_DATABASE_URL = $DatabaseUrl
 $env:WUSOOL_SYNC_APPLY = if ($Apply) { "1" } else { "0" }
+$env:WUSOOL_SYNC_ALERT_WEBHOOK_URL = $AlertWebhookUrl
 
 try {
 @'
@@ -120,6 +122,37 @@ import psycopg
 from psycopg.types.json import Jsonb
 def J(value): return None if value is None else Jsonb(value)
 
+WEBHOOK_URL = os.environ.get("WUSOOL_SYNC_ALERT_WEBHOOK_URL", "")
+
+def _alert_ops(message):
+    if not WEBHOOK_URL:
+        return
+    try:
+        req = urllib.request.Request(
+            WEBHOOK_URL,
+            data=json.dumps({"text": message}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except Exception as exc:
+        # Bare except, deliberately: a dead webhook must never become a
+        # reason the sync run itself fails. This is best-effort alerting,
+        # not part of the sync's correctness.
+        print(f"WARNING: failed to post sync-skip alert to Slack webhook: {exc}")
+
+def _report_skipped(cursor, table, incoming_org_ids):
+    cursor.execute(
+        f"SELECT org_attio_id FROM {table} WHERE bot_managed_at IS NOT NULL AND org_attio_id = ANY(%s)",
+        (list(incoming_org_ids),),
+    )
+    skipped = sorted(r[0] for r in cursor.fetchall())
+    if skipped:
+        msg = f"sync-postgres: skipped {len(skipped)} bot-managed {table} row(s) (Postgres values kept): {skipped}"
+        print(f"WARNING: {msg}")
+        _alert_ops(msg)
+
 with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as conn:
   with conn.cursor() as c:
     c.execute("SELECT current_database()")
@@ -181,7 +214,9 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
       buyer_rows.append((org,first(v,"model"),first(v,"mandate_status"),J(money(v,"ebitda_floor")),J(money(v,"check_size_min")),J(money(v,"check_size_max")),J(money(v,"ev_ceiling")),first(v,"deal_structure_tolerance"),boolean(v,"earnout_tolerance"),boolean(v,"profitable_only"),first(v,"investment_strategy"),first(v,"notes"),contact if contact in person_ids else None,first(v,"acquisition_enrichment"),integer(v,"deals_introduced"),integer(v,"deals_converted"),J(e)))
     c.executemany("""INSERT INTO buyer_roles(org_attio_id,model,mandate_status,ebitda_floor,check_size_min,check_size_max,ev_ceiling,deal_structure_tolerance,earnout_tolerance,profitable_only,investment_strategy,notes,key_contact_attio_id,acquisition_enrichment,deals_introduced,deals_converted,raw_attio)
       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-      ON CONFLICT(org_attio_id) DO UPDATE SET model=excluded.model,mandate_status=excluded.mandate_status,ebitda_floor=excluded.ebitda_floor,check_size_min=excluded.check_size_min,check_size_max=excluded.check_size_max,ev_ceiling=excluded.ev_ceiling,deal_structure_tolerance=excluded.deal_structure_tolerance,earnout_tolerance=excluded.earnout_tolerance,profitable_only=excluded.profitable_only,investment_strategy=excluded.investment_strategy,notes=excluded.notes,key_contact_attio_id=excluded.key_contact_attio_id,acquisition_enrichment=excluded.acquisition_enrichment,deals_introduced=excluded.deals_introduced,deals_converted=excluded.deals_converted,raw_attio=excluded.raw_attio,updated_at=now()""",buyer_rows)
+      ON CONFLICT(org_attio_id) DO UPDATE SET model=excluded.model,mandate_status=excluded.mandate_status,ebitda_floor=excluded.ebitda_floor,check_size_min=excluded.check_size_min,check_size_max=excluded.check_size_max,ev_ceiling=excluded.ev_ceiling,deal_structure_tolerance=excluded.deal_structure_tolerance,earnout_tolerance=excluded.earnout_tolerance,profitable_only=excluded.profitable_only,investment_strategy=excluded.investment_strategy,notes=excluded.notes,key_contact_attio_id=excluded.key_contact_attio_id,acquisition_enrichment=excluded.acquisition_enrichment,deals_introduced=excluded.deals_introduced,deals_converted=excluded.deals_converted,raw_attio=excluded.raw_attio,updated_at=now()
+      WHERE buyer_roles.bot_managed_at IS NULL""",buyer_rows)
+    _report_skipped(c, "buyer_roles", [r[0] for r in buyer_rows])
 
     c.execute("SELECT attio_id,id FROM mandates WHERE attio_id IS NOT NULL")
     mandate_uuid=dict(c.fetchall())
@@ -191,7 +226,9 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
       seller_rows.append((org,first(v,"outreach_tier"),first(v,"appetite_signal"),first(v,"relationship_status"),J(money(v,"est_revenue")),J(money(v,"est_ebitda")),J(money(v,"owner_salary")),J(money(v,"valuation_low")),J(money(v,"valuation_mid")),J(money(v,"valuation_high")),first(v,"sell_timeline"),number(v,"readiness_score"),first(v,"readiness_band"),first(v,"intake_source"),mandate_uuid.get(mandate),first(v,"last_attempt_date"),first(v,"last_attempt_channel"),first(v,"last_attempt_outcome"),number(v,"lead_quality_score"),first(v,"re_engage_date"),J(e)))
     c.executemany("""INSERT INTO seller_roles(org_attio_id,outreach_tier,appetite_signal,relationship_status,est_revenue,est_ebitda,owner_salary,valuation_low,valuation_mid,valuation_high,sell_timeline,readiness_score,readiness_band,intake_source,mandate_id,last_attempt_date,last_attempt_channel,last_attempt_outcome,lead_quality_score,re_engage_date,raw_attio)
       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-      ON CONFLICT(org_attio_id) DO UPDATE SET outreach_tier=excluded.outreach_tier,appetite_signal=excluded.appetite_signal,relationship_status=excluded.relationship_status,est_revenue=excluded.est_revenue,est_ebitda=excluded.est_ebitda,owner_salary=excluded.owner_salary,valuation_low=excluded.valuation_low,valuation_mid=excluded.valuation_mid,valuation_high=excluded.valuation_high,sell_timeline=excluded.sell_timeline,readiness_score=excluded.readiness_score,readiness_band=excluded.readiness_band,intake_source=excluded.intake_source,mandate_id=excluded.mandate_id,last_attempt_date=excluded.last_attempt_date,last_attempt_channel=excluded.last_attempt_channel,last_attempt_outcome=excluded.last_attempt_outcome,lead_quality_score=excluded.lead_quality_score,re_engage_date=excluded.re_engage_date,raw_attio=excluded.raw_attio,updated_at=now()""",seller_rows)
+      ON CONFLICT(org_attio_id) DO UPDATE SET outreach_tier=excluded.outreach_tier,appetite_signal=excluded.appetite_signal,relationship_status=excluded.relationship_status,est_revenue=excluded.est_revenue,est_ebitda=excluded.est_ebitda,owner_salary=excluded.owner_salary,valuation_low=excluded.valuation_low,valuation_mid=excluded.valuation_mid,valuation_high=excluded.valuation_high,sell_timeline=excluded.sell_timeline,readiness_score=excluded.readiness_score,readiness_band=excluded.readiness_band,intake_source=excluded.intake_source,mandate_id=excluded.mandate_id,last_attempt_date=excluded.last_attempt_date,last_attempt_channel=excluded.last_attempt_channel,last_attempt_outcome=excluded.last_attempt_outcome,lead_quality_score=excluded.lead_quality_score,re_engage_date=excluded.re_engage_date,raw_attio=excluded.raw_attio,updated_at=now()
+      WHERE seller_roles.bot_managed_at IS NULL""",seller_rows)
+    _report_skipped(c, "seller_roles", [r[0] for r in seller_rows])
   with conn.cursor() as check:
     for table, expected in counts.items():
       query = "SELECT count(*) FROM organizations WHERE removed_at IS NULL" if table == "organizations" else f"SELECT count(*) FROM {table}"
@@ -208,4 +245,5 @@ if ($LASTEXITCODE -ne 0) { throw "DEV Attio to PostgreSQL sync failed with exit 
   Remove-Item Env:\WUSOOL_DEV_ATTIO_API_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:\WUSOOL_DATABASE_URL -ErrorAction SilentlyContinue
   Remove-Item Env:\WUSOOL_SYNC_APPLY -ErrorAction SilentlyContinue
+  Remove-Item Env:\WUSOOL_SYNC_ALERT_WEBHOOK_URL -ErrorAction SilentlyContinue
 }

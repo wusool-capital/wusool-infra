@@ -55,6 +55,14 @@ class BuyerRole(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
+    # Soft-delete + sync-collision-guard columns — see
+    # `database/sql/008_bot_managed_columns.sql` and `ddl-commands/`, which
+    # owns writing these via `/edit-buyer`/`/remove-buyer`. A non-null
+    # `removed_at` must be excluded from `/find-match`'s buyer resolution —
+    # see `BuyerRepository.search_by_organization_name`.
+    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    bot_managed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    bot_managed_by: Mapped[str | None] = mapped_column(Text)
 
     organization: Mapped["Organization"] = relationship(back_populates="buyer_role")
     key_contact: Mapped["Person | None"] = relationship(foreign_keys=[key_contact_attio_id])

@@ -65,17 +65,12 @@ See `.env.example` for the full list with defaults. At minimum:
 
 ### Configuring the Slack app
 
-1. Create a Slack app (or use an existing one) at api.slack.com/apps.
-2. **Slash Commands** → create `/find-match`, request URL
-   `https://<your-host>/slack/events`.
-3. **Interactivity & Shortcuts** → enable, same request URL
-   `https://<your-host>/slack/events` (handles button clicks and the buyer
-   disambiguation modal's submission).
-4. **OAuth & Permissions** → bot token scopes: `commands`, `chat:write`.
-   Install the app to your workspace; copy the bot token into
-   `SLACK_BOT_TOKEN`.
-5. **Basic Information** → copy the Signing Secret into
-   `SLACK_SIGNING_SECRET`.
+This app is not deployed standalone — it's one of two folders behind a
+single Slack bot together with `../ddl-commands/` (see `../README.md`). One
+Slack app serves `/find-match` (this folder) plus `/edit-seller`,
+`/remove-seller`, `/edit-buyer`, `/remove-buyer` (ddl-commands); see
+`../../../SLACK_APP_SETUP.md` at the repo root for the full setup checklist
+covering all 5 commands under that one app.
 
 ### Configuring AWS/Bedrock permissions
 
@@ -90,6 +85,9 @@ only, and optional even then if you have a local AWS profile configured.
 
 ## Running
 
+Running just this folder in isolation (for dev/testing only — see
+`../README.md` for how the deployed bot actually runs, off `../main.py`):
+
 ```bash
 uv run uvicorn app.main:app --reload
 ```
@@ -101,22 +99,23 @@ uv run uvicorn app.main:app --reload
   interactive actions, view submissions). Signature-verified by Bolt; never
   exposed as a public REST API for matching/buyer/seller/approval data (§29).
 
-### Running with Docker Compose
+### Running the actual bot (both folders, one process)
 
 ```bash
+cd ..  # workflows/wusool-toolkit
 docker compose up --build
 ```
 
-Builds the app from the `Dockerfile` and starts it alongside a throwaway
-Postgres (`pgvector/pgvector:pg16` — plain `postgres:16-alpine` lacks the
-extension, which is fatal to Postgres's own init-script runner, unlike the
-manual `docker exec` loop below) that auto-applies `database/sql/*.sql` on
-first start. The app's `DATABASE_URL` always points at that bundled `db`
-service, not whatever's in your `.env` — real Slack/AWS credentials still
-come from your environment or a `.env` file (`SLACK_BOT_TOKEN`,
-`SLACK_SIGNING_SECRET`, `AWS_*`) if you want to exercise real integrations;
-otherwise it starts with harmless local-dev defaults. `docker compose down
--v` tears down both containers and the DB volume.
+Builds the merged image from the root `Dockerfile` (both this folder and
+`../ddl-commands/`) and starts it alongside a throwaway Postgres
+(`pgvector/pgvector:pg16` — plain `postgres:16-alpine` lacks the extension,
+which is fatal to Postgres's own init-script runner) that auto-applies
+`database/sql/*.sql` on first start. `DATABASE_URL` always points at that
+bundled `db` service, not whatever's in your `.env` — real Slack/AWS
+credentials still come from your environment or a root `.env` file
+(`SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `AWS_*`) if you want to exercise
+real integrations; otherwise it starts with harmless local-dev defaults.
+`docker compose down -v` tears down both containers and the DB volume.
 
 ## Testing
 

@@ -26,8 +26,11 @@ services:
       timeout: 5s
       retries: 10
 
-  matching-engine:
-    build: ./matching-engine
+  bot:
+    # One process, one Slack app: /find-match (matching-engine) and
+    # /edit-seller, /remove-seller, /edit-buyer, /remove-buyer (ddl-commands)
+    # all served by the root main.py — see workflows/wusool-toolkit/README.md.
+    build: .
     ports:
       - "8000:8000"
     environment:
@@ -41,14 +44,10 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       ENABLE_SELLER_MEETING_NOTES: ${ENABLE_SELLER_MEETING_NOTES:-true}
+      SYNC_ALERT_WEBHOOK_URL: ${SYNC_ALERT_WEBHOOK_URL:-}
     depends_on:
       db:
         condition: service_healthy
-
-  # A future `ddl-commands` bot goes here as its own service:
-  #   ddl-commands:
-  #     build: ./ddl-commands
-  #     ...
 
 volumes:
   matching-engine-db-data:

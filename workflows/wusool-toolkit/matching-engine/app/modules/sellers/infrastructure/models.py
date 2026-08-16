@@ -57,5 +57,13 @@ class SellerRole(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
+    # Soft-delete + sync-collision-guard columns — see
+    # `database/sql/008_bot_managed_columns.sql` and `ddl-commands/`, which
+    # owns writing these via `/edit-seller`/`/remove-seller`. A non-null
+    # `removed_at` must be excluded from `/find-match`'s candidate pool —
+    # see `SellerRepository.get_eligible_sellers`.
+    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    bot_managed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    bot_managed_by: Mapped[str | None] = mapped_column(Text)
 
     organization: Mapped["Organization"] = relationship(back_populates="seller_role")

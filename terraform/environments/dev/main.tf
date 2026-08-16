@@ -62,13 +62,16 @@ module "matching_engine" {
   alarm_topic_arn             = aws_sns_topic.alerts.arn
   secrets_manager_secret_arns = [aws_secretsmanager_secret.matching_engine.arn]
 
-  # One entry today (matching-engine); a future ddl-commands bot is added by
-  # appending a second entry here, on the same shared instance — no module
-  # rework needed.
+  # Single entry, single process: matching-engine and ddl-commands are one
+  # Slack bot (one token, one interactivity URL — see
+  # workflows/wusool-toolkit/README.md), built from the toolkit root's
+  # Dockerfile, not matching-engine's own subdirectory. This module's `apps`
+  # list still supports multiple entries for a future, genuinely separate
+  # bot on this same instance — this just isn't one.
   apps = [
     {
       name          = "matching-engine"
-      app_subdir    = "workflows/wusool-toolkit/matching-engine"
+      app_subdir    = "workflows/wusool-toolkit"
       app_secret_id = aws_secretsmanager_secret.matching_engine.id
       public_url    = var.matching_engine_public_url
     }
