@@ -1,0 +1,82 @@
+# First real CI coverage for the application code and operator scripts.
+# Path-filtered: each job only runs when its own tree changes.
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - 'workflows/wusool-toolkit/**'
+      - 'database/*.ps1'
+      - 'workflows/**/scripts/**'
+      - '.github/workflows/ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  toolkit-python:
+    name: wusool-toolkit (ruff, ty, pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workflows/wusool-toolkit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+
+      - name: Install
+        run: uv sync --all-packages --dev
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      # `ruff format --check` is deliberately NOT run yet: as of 2026-08-16 it
+      # fails on 17 pre-existing files that were never run through the
+      # formatter. Reformatting them is a real, separate cleanup — doing it as
+      # a side effect of adding CI would bury that diff inside an infra
+      # change. Add this check once that cleanup lands.
+
+      # ty is a matching-engine-only dev dependency (workspace member), not
+      # declared at the toolkit root — run it scoped to that package.
+      - name: ty (matching-engine)
+        run: uv run --package matching-engine ty check matching-engine
+
+      # Same dummy values matching-engine/tests/conftest.py already uses for
+      # its own suite — needed here too because the workspace-root
+      # tests/integration/ imports main.py directly (see conftest.py at the
+      # toolkit root), which reads Settings at import time before any
+      # sub-package conftest has run.
+      - name: pytest
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:15432/wusool_crm
+          SLACK_BOT_TOKEN: xoxb-test-token
+          SLACK_SIGNING_SECRET: test-signing-secret
+        run: uv run pytest
+
+  # NOT dry-run locally (no pwsh on this machine) — unlike toolkit-python
+  # above, which was verified end to end. Only fails on Severity=Error (not
+  # Warning), since Error-level rules flag genuinely broken code rather than
+  # style, making a false-positive break of working production scripts less
+  # likely on this first run. If this job fails unexpectedly on existing
+  # scripts, that is new information, not a known issue being ignored.
+  powershell-lint:
+    name: PSScriptAnalyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          $files = Get-ChildItem -Recurse -Include *.ps1 -Path database, workflows |
+            Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' }
+          $results = $files | ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Severity Warning,Error }
+          $results | Format-Table -AutoSize
+          if ($results | Where-Object Severity -eq 'Error') {
+            Write-Error "PSScriptAnalyzer found errors."
+            exit 1
+          }
