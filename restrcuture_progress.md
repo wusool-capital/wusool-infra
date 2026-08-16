@@ -34,10 +34,10 @@ Also established: no ECR repositories, no IAM OIDC provider,
 | # | Defect | Status |
 |---|---|---|
 | 1 | Prod SSM bootstrap document hardcodes the **retired** `n8n-prod.wusoolcapital.com`. Invoking it — the documented recovery procedure — takes production offline. | **OPEN — armed** |
-| 2 | `wusool-prod-infrastructure-alerts` had **zero subscriptions** while two CloudWatch alarms published to it. | **RESOLVED for prod** 2026-08-16; dev still pending confirmation |
+| 2 | `wusool-prod-infrastructure-alerts` had **zero subscriptions** while two CloudWatch alarms published to it. | **RESOLVED** 2026-08-16 — all three topics confirmed |
 | 3 | No backups of any kind: zero EBS snapshots, zero AWS Backup plans, zero DLM policies. | **PARTIALLY ADDRESSED** — see below |
 | 4 | `N8N_ENCRYPTION_KEY` never set explicitly, so no backup could have restored n8n credentials. | **RESOLVED** |
-| 5 | GuardDuty + Security Hub enabled but **zero EventBridge rules** — findings route nowhere. | **ROUTED** 2026-08-16; delivery pending subscription confirmation |
+| 5 | GuardDuty + Security Hub enabled but **zero EventBridge rules** — findings route nowhere. | **RESOLVED** 2026-08-16 — routed and subscribed |
 | 6 | GitHub org on **free** plan with a private repo → no branch protection, no rulesets, all merge methods enabled, operator is not repo admin. None of the plan's guardrails are enforceable. | **OPEN** |
 
 ### Changes actually made to AWS
@@ -209,8 +209,26 @@ attacking us".
 | `aws_sns_topic_policy.security_alerts` | Lets `events.amazonaws.com` publish, scoped by `AWS:SourceAccount` |
 | GuardDuty target | Input transformer produces a readable email rather than raw JSON |
 
-**`wusool-security-alerts` subscription is `PendingConfirmation`** — a third
-email needing a click, or security findings still reach nobody.
+**All three subscriptions CONFIRMED 2026-08-16.** For the first time in this
+account, every alarm and every security finding terminates at a real inbox:
+
+| Topic | Covers |
+|---|---|
+| `wusool-prod-infrastructure-alerts` | 2 prod alarms |
+| `wusool-dev-infrastructure-alerts` | 4 dev alarms (n8n + matching-engine) |
+| `wusool-security-alerts` | GuardDuty MEDIUM+, Security Hub HIGH/CRITICAL |
+
+**Defects 2 and 5 fully closed.**
+
+*Caveat:* Terraform state still records `pending_confirmation = true` for the two
+that were confirmed after the apply. That attribute is only refreshed on the next
+plan/apply and has no effect on delivery — SNS is the source of truth, and it
+reports all three confirmed.
+
+*Not yet delivered-tested:* the rules match and the topic has confirmed
+subscribers, but no finding has actually arrived by email yet. GuardDuty
+publishes on a `SIX_HOURS` cadence, so the first real end-to-end proof will come
+with the next finding.
 
 ### Dev apply — the shared-state problem, demonstrated
 
@@ -270,10 +288,8 @@ reported two as `pending`. Trust `describe-snapshots`, not the waiter.
 1. ~~Defect 1 — the landmine~~ **RESOLVED 2026-08-16.** Document v5 carries the
    live hostname; the freeze can be lifted. Recurrence prevention (re-register
    from source on every deploy) still depends on Phase E.
-1b. **Two subscriptions still `PendingConfirmation`** — `wusool-dev-infrastructure-alerts`
-   (4 alarms) and `wusool-security-alerts` (all GuardDuty/Security Hub findings).
-   Both need a click on the email to `raoof@azmora.ai`. Prod infra alerts are
-   **confirmed**.
+1b. ~~SNS subscriptions pending~~ **RESOLVED 2026-08-16** — all three topics
+   confirmed. Alerting and security findings now reach a real inbox.
 2. **Defect 6 — nothing is enforced.** `prod` now exists and will start
    receiving merges, with no branch protection, no required checks, and all
    merge methods enabled. Needs GitHub Team (~$32/mo at 8 seats) and repo admin.
