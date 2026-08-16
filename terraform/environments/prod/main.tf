@@ -1,12 +1,13 @@
-module "network" {
-  source = "../../modules/network"
-
-  project                      = var.project
-  environment                  = var.environment
-  vpc_cidr                     = var.vpc_cidr
-  public_subnet_cidr           = var.public_subnet_cidr
-  private_subnet_cidr          = var.private_subnet_cidr
-  database_private_subnet_cidr = var.database_private_subnet_cidr
+# Reads stacks/base — network, CloudTrail, the alerts SNS topic — which was
+# migrated out of this root via `state mv` (Phase D). This root now owns only
+# the compute/data services; the shared layer lives in stacks/base/envs/prod.tfvars.
+data "terraform_remote_state" "base" {
+  backend = "s3"
+  config = {
+    bucket = "wusool-tfstate"
+    key    = "wusool/prod/base/terraform.tfstate"
+    region = "me-central-1"
+  }
 }
 
 module "n8n" {
@@ -14,8 +15,8 @@ module "n8n" {
 
   project                     = var.project
   environment                 = var.environment
-  vpc_id                      = module.network.vpc_id
-  subnet_id                   = module.network.public_subnet_id
+  vpc_id                      = data.terraform_remote_state.base.outputs.vpc_id
+  subnet_id                   = data.terraform_remote_state.base.outputs.public_subnet_id
   key_name                    = var.key_name
   instance_type               = var.instance_type
   ami_architecture            = var.ami_architecture
@@ -25,7 +26,7 @@ module "n8n" {
   n8n_webhook_url             = var.n8n_webhook_url
   n8n_timezone                = var.n8n_timezone
   root_volume_size            = var.root_volume_size
-  alarm_topic_arn             = aws_sns_topic.alerts.arn
+  alarm_topic_arn             = data.terraform_remote_state.base.outputs.alarm_topic_arn
   secrets_manager_secret_arns = [aws_secretsmanager_secret.n8n.arn]
   n8n_secret_id               = aws_secretsmanager_secret.n8n.id
   additional_hostnames        = var.n8n_additional_hostnames
@@ -34,93 +35,6 @@ module "n8n" {
   caddy_image                 = var.caddy_image
 }
 
-data "aws_caller_identity" "current" {}
-
-resource "aws_sns_topic" "alerts" {
-  name = "${var.project}-${var.environment}-infrastructure-alerts"
-}
-
-resource "aws_sns_topic_subscription" "email" {
-  count     = var.alert_email != "" ? 1 : 0
-  topic_arn = aws_sns_topic.alerts.arn
-  protocol  = "email"
-  endpoint  = var.alert_email
-}
-
-resource "aws_secretsmanager_secret" "n8n" {
-  name                    = "/${var.project}/${var.environment}/n8n"
-  description             = "Environment-specific n8n secrets for ${var.project} ${var.environment}"
-  recovery_window_in_days = 30
-}
-
-resource "aws_s3_bucket" "cloudtrail" {
-  bucket        = "${var.project}-${var.environment}-cloudtrail-${data.aws_caller_identity.current.account_id}"
-  force_destroy = false
-}
-
-resource "aws_s3_bucket_public_access_block" "cloudtrail" {
-  bucket                  = aws_s3_bucket.cloudtrail.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail" {
-  bucket = aws_s3_bucket.cloudtrail.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_versioning" "cloudtrail" {
-  bucket = aws_s3_bucket.cloudtrail.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_policy" "cloudtrail" {
-  bucket = aws_s3_bucket.cloudtrail.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "CloudTrailAclCheck"
-        Effect    = "Allow"
-        Principal = { Service = "cloudtrail.amazonaws.com" }
-        Action    = "s3:GetBucketAcl"
-        Resource  = aws_s3_bucket.cloudtrail.arn
-      },
-      {
-        Sid       = "CloudTrailWrite"
-        Effect    = "Allow"
-        Principal = { Service = "cloudtrail.amazonaws.com" }
-        Action    = "s3:PutObject"
-        Resource  = "${aws_s3_bucket.cloudtrail.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
-        Condition = {
-          StringEquals = {
-            "s3:x-amz-acl" = "bucket-owner-full-control"
-          }
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_cloudtrail" "this" {
-  name                          = "${var.project}-${var.environment}"
-  s3_bucket_name                = aws_s3_bucket.cloudtrail.id
-  include_global_service_events = true
-  is_multi_region_trail         = true
-  enable_log_file_validation    = true
-  depends_on                    = [aws_s3_bucket_policy.cloudtrail]
-}
 
 # ---------------------------------------------------------------------------
 # Production PostgreSQL
@@ -137,13 +51,19 @@ resource "aws_cloudtrail" "this" {
 # The master password is RDS-managed and rotated; read it from the secret ARN in
 # the postgres_master_user_secret_arn output, never from configuration.
 # ---------------------------------------------------------------------------
+resource "aws_secretsmanager_secret" "n8n" {
+  name                    = "/${var.project}/${var.environment}/n8n"
+  description             = "Environment-specific n8n secrets for ${var.project} ${var.environment}"
+  recovery_window_in_days = 30
+}
+
 module "postgres" {
   source = "../../modules/postgres-rds"
 
   project     = var.project
   environment = var.environment
-  vpc_id      = module.network.vpc_id
-  subnet_ids  = module.network.database_private_subnet_ids
+  vpc_id      = data.terraform_remote_state.base.outputs.vpc_id
+  subnet_ids  = data.terraform_remote_state.base.outputs.database_private_subnet_ids
 
   allowed_security_group_ids = [
     module.n8n.security_group_id,
