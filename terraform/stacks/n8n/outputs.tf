@@ -30,3 +30,7 @@ output "bedrock_model_arns" {
   description = "Bedrock foundation model ARNs this instance's role can invoke, when enable_bedrock is true."
   value       = var.enable_bedrock ? module.bedrock[0].model_arns : []
 }
+
+output "bootstrap_document_name" {
+  value = module.n8n.bootstrap_document_name
+}
