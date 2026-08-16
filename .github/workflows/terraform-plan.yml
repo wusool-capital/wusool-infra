@@ -59,10 +59,19 @@ jobs:
           tofu plan -input=false -lock=false -no-color -var-file=../../envs/$ENV.tfvars \
             > /tmp/plan.txt 2>&1 || true
           tail -c 60000 /tmp/plan.txt > /tmp/plan-short.txt
+
+          # Only comment when the plan actually changes something — a clean
+          # "No changes" on every stack for every PR is noise, not signal.
+          if grep -q '^No changes' /tmp/plan.txt; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
           {
             echo 'body<<PLANEOF'
             echo "### \`$ENV\` / \`${{ matrix.stack }}\` plan"
-            grep -E '^(Plan:|No changes)' /tmp/plan.txt | head -1 || true
+            grep -E '^Plan:' /tmp/plan.txt | head -1 || true
             if grep -q 'forces replacement\|will be destroyed' /tmp/plan.txt; then
               echo ''
               echo '> **This plan DESTROYS or REPLACES resources — read it carefully.**'
@@ -82,7 +91,8 @@ jobs:
       # fences breaks a JS template literal it's interpolated into (hit this
       # on 2026-08-16 — every plan job failed at this step with a JS
       # SyntaxError even though the plan itself succeeded).
-      - uses: actions/github-script@v7
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
         env:
           PLAN_BODY: ${{ steps.plan.outputs.body }}
         with:
@@ -126,10 +136,19 @@ jobs:
             -backend-config=use_lockfile=true -backend-config=encrypt=true
           tofu plan -input=false -lock=false -no-color > /tmp/plan.txt 2>&1 || true
           tail -c 60000 /tmp/plan.txt > /tmp/plan-short.txt
+
+          # Only comment when the plan actually changes something — a clean
+          # "No changes" on every stack for every PR is noise, not signal.
+          if grep -q '^No changes' /tmp/plan.txt; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
           {
             echo 'body<<PLANEOF'
             echo "### \`account\` plan"
-            grep -E '^(Plan:|No changes)' /tmp/plan.txt | head -1 || true
+            grep -E '^Plan:' /tmp/plan.txt | head -1 || true
             if grep -q 'forces replacement\|will be destroyed' /tmp/plan.txt; then
               echo ''
               echo '> **This plan DESTROYS or REPLACES resources — read it carefully.**'
@@ -149,7 +168,8 @@ jobs:
       # fences breaks a JS template literal it's interpolated into (hit this
       # on 2026-08-16 — every plan job failed at this step with a JS
       # SyntaxError even though the plan itself succeeded).
-      - uses: actions/github-script@v7
+      - if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
         env:
           PLAN_BODY: ${{ steps.plan.outputs.body }}
         with:
