@@ -542,6 +542,53 @@ handshake timeouts pushing to ECR, and a DNS failure on
 this affects GitHub Actions**, which is a further reason builds and applies
 belong there rather than on a laptop.
 
+### Phase D begins: `stacks/account` populated and live *(2026-08-16)*
+
+First real `state mv` of the restructure, done and verified.
+
+**Decision (ECR placement):** ECR now per-environment, so it moves with its
+service into `stacks/toolkit` later, NOT into `stacks/account`. Account stack
+holds only genuinely account-wide singletons: GuardDuty, Security Hub, the
+security-alerts SNS+EventBridge routing, and GitHub OIDC (provider + 3 roles).
+
+**Procedure:** `state pull` → `state mv` each of 23 addresses into a local
+staging file (data sources included, for completeness) → `state push` the
+staging file to `stacks/account`'s new backend → `state push` the
+now-smaller state back to dev. Backup taken first:
+`.state-backups/dev-pre-account-split-2026-08-16-0929.tfstate`.
+
+**Verification — both stacks plan clean:**
+```
+dev:             No changes. Your infrastructure matches the configuration.
+stacks/account:  No changes. Your infrastructure matches the configuration.
+dev state:     61 resources (was 84)
+account state: 24 resources
+```
+
+One deliberate, non-zero diff surfaced before the final apply: tags. Moved
+resources dropped their stale `Environment=dev` tag and gained `Scope=account`;
+`Owner` changed from `wusool-infra` to `platform` (the account stack's own
+default). Zero destroys, zero replacements — reviewed and applied.
+
+**`environments/dev/main.tf`**: 512 → 236 lines. GuardDuty/SecurityHub/
+security-alerts and the entire OIDC block removed; `aws_ecr_repository` stays
+(per the ECR decision above).
+
+### What's still in `environments/` — the honest remainder of Phase D
+
+`environments/` and `bootstrap/` are **not yet safe to delete.** Still owned by
+`environments/dev` and `environments/prod` directly (not yet in any `stacks/`):
+
+- `module.network`, `module.n8n`, `module.wusool_toolkit`,
+  `module.wusool_toolkit_bedrock`, `module.bedrock`, `module.postgres`
+- CloudTrail, the per-env SNS alerts topic, the n8n/toolkit secrets, ECR
+
+Each needs the same treatment as today's account move: a `stacks/<name>`
+scaffold, `state mv`, verify clean. `bootstrap/`'s code cannot be deleted until
+the live `wusool-tfstate` bucket is imported into `stacks/account` (§D0a — not
+yet done, since the bucket already exists and works, this is lower urgency than
+it looks).
+
 ### Snapshot status
 
 | Snapshot | State |
