@@ -300,6 +300,19 @@ reported two as `pending`. Trust `describe-snapshots`, not the waiter.
    claims Terraform 1.9.8; CI still installs the wrong tool.
 6. **`main` not yet retired.**
 
+## Decisions made 2026-08-16
+
+- **Separate Slack app for prod** — not shared with dev. Requires a second Slack
+  app registration (bot token, signing secret, slash commands, request URL)
+  before the prod matching-engine stack is applied.
+- **Separate RDS instance for prod**, with matching-engine attached. Blocked on
+  `stacks/base` prod gaining a **database subnet** — prod's network omits
+  `database_private_subnet_cidr` today, and the DB subnet group needs ≥2 subnets.
+  Suggested `10.20.3.0/24` to mirror dev's `10.10.3.0/24`.
+- **Secret naming stays path-based** (`/wusool/<env>/<service>`) with identical
+  key names across environments — no `DEV_`/`PROD_` variable prefixes, so app
+  code is environment-agnostic and prod credentials never sit on a dev box.
+
 ## Decisions still outstanding
 
 - Phase H3: AWS Backup plan vs DLM policy vs defer.
