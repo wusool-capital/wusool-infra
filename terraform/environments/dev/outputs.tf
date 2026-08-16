@@ -44,17 +44,17 @@ output "n8n_secret_arn" {
 
 output "postgres_endpoint" {
   description = "Private RDS PostgreSQL endpoint for the CRM machine layer."
-  value       = module.postgres.endpoint
+  value       = data.terraform_remote_state.postgres.outputs.endpoint
 }
 
 output "postgres_database_name" {
   description = "Initial PostgreSQL database name."
-  value       = module.postgres.database_name
+  value       = data.terraform_remote_state.postgres.outputs.database_name
 }
 
 output "postgres_security_group_id" {
   description = "Security group attached to the private PostgreSQL instance."
-  value       = module.postgres.security_group_id
+  value       = data.terraform_remote_state.postgres.outputs.security_group_id
 }
 
 output "bedrock_model_arns" {
@@ -64,7 +64,7 @@ output "bedrock_model_arns" {
 
 output "postgres_master_user_secret_arn" {
   description = "Secrets Manager ARN containing the RDS managed master user password."
-  value       = module.postgres.master_user_secret_arn
+  value       = data.terraform_remote_state.postgres.outputs.master_user_secret_arn
   sensitive   = true
 }
 
