@@ -700,6 +700,74 @@ plan's original E4 design) before `environments/` can safely be deleted.
 Surfaced by direct user question, not caught proactively — should have been
 anticipated when the stacks split began.
 
+### 🏁 Phase D complete: `environments/` and `bootstrap/` deleted *(2026-08-16)*
+
+`terraform/` now contains only `envs/`, `modules/`, `stacks/`. Every resource
+that ever lived in the two monolithic env roots is now in a per-service stack,
+verified `0/0/0` at every step.
+
+**CD workflows retargeted first** — this was the real blocker, not the
+deletion itself. `deploy-dev.yml`/`deploy-prod.yml`/`_deploy.yml` previously
+applied `terraform/environments/${{ inputs.environment }}`; deleting that
+directory first would have left CI with nothing to apply. Rewrote `_deploy.yml`
+to apply all four per-env stacks in dependency order (base → n8n → toolkit →
+postgres) each run — **not** path-filtered change detection yet; every stack
+applies unconditionally and no-ops if unchanged. That optimization is an
+explicit, documented follow-up, not an oversight. `terraform-ci.yml`'s validate
+matrix and `terraform-plan.yml`'s PR-comment matrix both retargeted at
+`stacks/*` (10 combinations: 5 stacks × dev/prod, except `account` which has
+none). `CONTRIBUTING.md`'s required-check list updated to match.
+
+**Honest gap recorded in the workflow itself, not hidden**: the toolkit-ec2
+module still does `git clone` + `docker compose build` on the instance — the
+ECR-pull-by-digest pivot (repos + build workflow) is scaffolded but was never
+wired into the module. `_build.yml` keeps pushing real images to
+`wusool-{dev,prod}/toolkit` so the registry isn't empty when that pivot lands,
+but nothing consumes those images yet. App rollout today is a bootstrap
+re-run (git pull + rebuild), which is real, current, working behavior — not a
+placeholder — just not what the earlier draft's `image_digest` plumbing implied.
+
+**`bootstrap/` deleted after importing its one real asset.** The live
+`wusool-tfstate` S3 bucket (all 4 resources: bucket, versioning, encryption,
+public-access-block) was `tofu import`ed into `stacks/account` with
+`prevent_destroy = true`. One wrinkle: the bucket lives in `me-central-1`
+while `stacks/account`'s default provider is `eu-central-1` — import failed
+with `IllegalLocationConstraintException` until a provider alias scoped to
+just those four resources was added. The DynamoDB lock-table *code* was
+dropped entirely (the live table itself was already deleted earlier this
+session — verified unused, zero state references).
+
+**`errored.tfstate` found in `environments/dev/`** — a local snapshot from an
+earlier interrupted apply (same lineage as dev's real state, serial 54).
+Confirmed superseded by the real backend (which had long since progressed past
+serial 54 and been verified clean) before discarding.
+
+### Full final verification — 10/10 stack×environment combinations clean
+
+```
+account:        No changes.
+base    (dev):  No changes.   base    (prod): No changes.
+n8n     (dev):  No changes.   n8n     (prod): No changes.
+toolkit (dev):  No changes.   toolkit (prod): No changes.
+postgres(dev):  No changes.   postgres(prod): No changes.
+```
+
+### Still open — explicitly, not silently
+
+- **ECR-pull-by-digest not wired into the toolkit-ec2 module.** Registries and
+  CI build steps exist; the module still builds on-box. This is the natural
+  next phase, not a bug.
+- **No path-filtered change detection in `_deploy.yml`.** Every stack applies
+  on every push to `dev`/`prod`, relying on each apply being a safe no-op.
+  Correct today given the stack count; revisit if apply time becomes a problem.
+- **Stale doc references to `terraform/environments/`** remain in `README.md`,
+  `PROGRESS.md`, `database/rds-tunnel-runbook.md`,
+  `workflows/n8n/docs/infrastructure-overview.md`, and the
+  `sync-project-docs` skill. None are executable — flagged, not fixed, to avoid
+  scope creep on a session already this large.
+- **Defect 3** (recurring backups) and **Defect 6** (GitHub Team / branch
+  protection) — unchanged, still open from earlier in this session.
+
 ### Snapshot status
 
 | Snapshot | State |
