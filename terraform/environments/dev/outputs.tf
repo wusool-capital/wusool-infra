@@ -102,3 +102,8 @@ output "matching_engine_secret_arn" {
   description = "Secrets Manager secret ARN for the matching-engine app."
   value       = aws_secretsmanager_secret.matching_engine.arn
 }
+
+output "security_alert_topic_arn" {
+  description = "Account-level SNS topic carrying GuardDuty and Security Hub findings."
+  value       = aws_sns_topic.security_alerts.arn
+}
