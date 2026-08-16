@@ -319,6 +319,40 @@ letting a foreground timeout kill it mid-flight. This is a real argument for the
 CD workflows in Phase E, where `cancel-in-progress: false` exists precisely to
 stop this.
 
+#### Finding: snapshot restore silently defeats `manage_master_user_password`
+
+Surfaced only because the RDS import failed on an output referencing
+`master_user_secret[0]`, which was an empty list.
+
+**A snapshot-restored instance inherits the snapshot's master credentials.**
+`manage_master_user_password = true` is ignored at creation time, so the new prod
+database came up with **`MasterUserSecret: null` and dev's master password**.
+For a period, anyone with dev database credentials could log into prod.
+
+This is not obvious from the Terraform config — the argument is present and
+appears to be honoured. The only signal was `describe-db-instances` reporting a
+null managed secret where dev had `active`.
+
+**Fixed** by a follow-up `apply`, which issued a modify enabling
+`manage_master_user_password`. RDS then generated a **distinct** managed secret:
+
+| Env | Master secret |
+|---|---|
+| dev | `rds!db-e8bdd9d8-8f57-49c5-825a-6dc1f1416108` |
+| prod | `rds!db-111ff9a9-d787-465d-8581-c71edb69ae3f` |
+
+The same apply also set `max_allocated_storage = 100` (autoscaling) and
+`skip_final_snapshot = false` with a final-snapshot identifier — neither of which
+the restore had applied either.
+
+**Generalise this:** any future snapshot-restored database needs an explicit
+credential-rotation step. Restoring a database restores its *secrets*, not just
+its data. Worth checking on the `matching-engine` prod database work too.
+
+**Module output hardened:** `master_user_secret_arn` now uses `try(...)`, since
+the attribute is legitimately empty on a freshly restored instance and the raw
+index made `import` and `plan` fail outright.
+
 ### Snapshot status
 
 | Snapshot | State |

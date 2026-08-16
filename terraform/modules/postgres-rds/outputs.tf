@@ -25,5 +25,9 @@ output "security_group_id" {
 
 output "master_user_secret_arn" {
   description = "Secrets Manager ARN for the RDS managed master user password."
-  value       = aws_db_instance.this.master_user_secret[0].secret_arn
+  # Empty until RDS finishes provisioning a managed secret. A snapshot-restored
+  # instance has NO managed secret at creation - it inherits the snapshot's
+  # master password - so this is null until manage_master_user_password is
+  # applied by a subsequent modify.
+  value = try(aws_db_instance.this.master_user_secret[0].secret_arn, null)
 }
