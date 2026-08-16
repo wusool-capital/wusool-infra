@@ -20,8 +20,8 @@ module "wusool_toolkit" {
   subnet_id                   = data.terraform_remote_state.base.outputs.public_subnet_id
   key_name                    = var.key_name
   instance_type               = var.toolkit_instance_type
-  ami_architecture            = var.ami_architecture
   ssh_cidr_blocks             = var.ssh_cidr_blocks
+  ami_id                      = var.toolkit_ami_id
   web_cidr_blocks             = var.web_cidr_blocks
   git_repo_url                = var.git_repo_url
   git_ref                     = var.git_ref

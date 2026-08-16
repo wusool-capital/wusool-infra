@@ -1,22 +1,10 @@
-data "aws_ami" "amazon_linux_2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-${var.ami_architecture}"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = [var.ami_architecture]
-  }
-}
+# AMI is pinned via var.ami_id (H1) — deliberately NOT a `most_recent = true`
+# lookup. That pattern resolved a new value on every plan while
+# `ignore_changes = [ami]` on the instance hid it, meaning AMI upgrades were
+# silently impossible to review and the instance was frozen indefinitely with
+# no visible diff. An explicit pin makes an AMI change a normal, reviewable
+# tfvars edit. `ignore_changes = [ami]` stays on the instance as
+# belt-and-braces until H2 (n8n -> Postgres) makes the instance disposable.
 
 resource "aws_security_group" "n8n" {
   name        = "${var.project}-${var.environment}-n8n"
@@ -156,7 +144,7 @@ locals {
 }
 
 resource "aws_instance" "n8n" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
+  ami                    = var.ami_id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.n8n.id]

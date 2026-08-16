@@ -30,17 +30,6 @@ variable "instance_type" {
   default     = "t2.micro"
 }
 
-variable "ami_architecture" {
-  description = "CPU architecture of the Amazon Linux AMI (x86_64 or arm64)."
-  type        = string
-  default     = "x86_64"
-
-  validation {
-    condition     = contains(["x86_64", "arm64"], var.ami_architecture)
-    error_message = "ami_architecture must be x86_64 or arm64."
-  }
-}
-
 variable "root_volume_size" {
   description = "Root EBS volume size in GiB. 30 GiB gp2/gp3 is covered by the AWS Free Tier."
   type        = number
@@ -116,4 +105,9 @@ variable "aws_region" {
   description = "AWS region the app calls Bedrock in (passed through as AWS_REGION)."
   type        = string
   default     = "eu-central-1"
+}
+
+variable "ami_id" {
+  description = "AMI to launch. Pinned explicitly (H1) — see main.tf's comment above the removed data source for why. Set this to the AMI currently running before changing anything else, then treat any change to it as a deliberate, reviewed upgrade."
+  type        = string
 }

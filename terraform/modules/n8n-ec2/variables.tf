@@ -30,17 +30,6 @@ variable "instance_type" {
   default     = "t3.small"
 }
 
-variable "ami_architecture" {
-  description = "CPU architecture of the Amazon Linux AMI (x86_64 or arm64)."
-  type        = string
-  default     = "x86_64"
-
-  validation {
-    condition     = contains(["x86_64", "arm64"], var.ami_architecture)
-    error_message = "ami_architecture must be x86_64 or arm64."
-  }
-}
-
 variable "root_volume_size" {
   description = "Root EBS volume size in GiB."
   type        = number
@@ -133,4 +122,9 @@ variable "caddy_image" {
     condition     = can(regex("@sha256:[0-9a-f]{64}$", var.caddy_image))
     error_message = "caddy_image must be pinned by digest (…@sha256:<64 hex>), not a mutable tag."
   }
+}
+
+variable "ami_id" {
+  description = "AMI to launch. Pinned explicitly (H1) — see main.tf's comment above the removed data source for why. Set this to the AMI currently running before changing anything else, then treat any change to it as a deliberate, reviewed upgrade."
+  type        = string
 }

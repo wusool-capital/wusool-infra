@@ -38,11 +38,6 @@ variable "toolkit_instance_type" {
   default     = "t2.micro"
 }
 
-variable "ami_architecture" {
-  type    = string
-  default = "x86_64"
-}
-
 variable "root_volume_size" {
   type    = number
   default = 30
@@ -92,4 +87,13 @@ variable "bedrock_models" {
 variable "alert_email" {
   type    = string
   default = ""
+}
+
+# NOT named "ami_id" — stacks/n8n also declares that name, and both stacks
+# read the same shared envs/<env>.tfvars file. Learned this the hard way once
+# already with instance_type (see toolkit_instance_type's comment) — applying
+# the same fix pre-emptively rather than waiting to hit it again.
+variable "toolkit_ami_id" {
+  description = "AMI to launch. Pinned explicitly (H1) — set to whatever AMI is currently running before changing anything else."
+  type        = string
 }

@@ -16,8 +16,8 @@ module "n8n" {
   subnet_id                   = data.terraform_remote_state.base.outputs.public_subnet_id
   key_name                    = var.key_name
   instance_type               = var.instance_type
-  ami_architecture            = var.ami_architecture
   ssh_cidr_blocks             = var.ssh_cidr_blocks
+  ami_id                      = var.ami_id
   web_cidr_blocks             = var.web_cidr_blocks
   expose_n8n_port             = var.expose_n8n_port
   n8n_webhook_url             = var.n8n_webhook_url

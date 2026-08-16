@@ -27,11 +27,6 @@ variable "instance_type" {
   default = "t3.small"
 }
 
-variable "ami_architecture" {
-  type    = string
-  default = "x86_64"
-}
-
 variable "root_volume_size" {
   type    = number
   default = 30
@@ -101,4 +96,9 @@ variable "bedrock_models" {
 variable "alert_email" {
   type    = string
   default = ""
+}
+
+variable "ami_id" {
+  description = "AMI to launch. Pinned explicitly (H1) — set to whatever AMI is currently running before changing anything else."
+  type        = string
 }

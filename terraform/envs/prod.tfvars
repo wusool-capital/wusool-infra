@@ -11,9 +11,13 @@ database_private_subnet_cidr = "10.20.3.0/24"
 alert_email = "raoof@azmora.ai"
 
 # stacks/n8n — prod
-key_name         = ""
-instance_type    = "t3.small"
-ami_architecture = "x86_64"
+key_name      = ""
+instance_type = "t3.small"
+ami_id        = "ami-0011111f781020765" # currently running on wusool-prod-n8n (H1)
+# No prod toolkit instance exists yet (create_instance = false). This value is
+# inert until that flips to true — review and set it deliberately at that point
+# rather than trusting this placeholder.
+toolkit_ami_id   = "ami-0ae7d073c75a47c24"
 ssh_cidr_blocks  = []
 web_cidr_blocks  = ["0.0.0.0/0"]
 expose_n8n_port  = false
