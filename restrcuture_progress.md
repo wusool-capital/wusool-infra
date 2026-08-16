@@ -647,6 +647,59 @@ redeploys. One standing, already-documented, not-new risk: `_deploy.yml` runs
 `apply -auto-approve` with no plan-review gate — the accepted risk from
 declining the prod approval gate (*Accepted risks* item 0).
 
+### `stacks/n8n` and `stacks/toolkit` populated (dev); `stacks/n8n` for prod *(2026-08-16)*
+
+Same `state mv` discipline throughout — backup, extract, verify `0/0/0`,
+push both sides, populate outputs, re-plan. All clean.
+
+| Stack | dev | prod |
+|---|---|---|
+| `stacks/n8n` | ✅ 18 resources | ✅ 16 resources |
+| `stacks/toolkit` | ✅ 20 resources (incl. ECR) | not yet created — prod has no toolkit instance yet |
+
+`module.bedrock`/`module.wusool_toolkit_bedrock` became `module.bedrock[0]` in
+both new stacks (`count = var.enable_bedrock ? 1 : 0`), so a toggle exists per
+environment instead of the bedrock module being unconditionally created.
+
+#### 🔴 Real bug caught by verification: cross-stack variable name collision
+
+`stacks/n8n` and `stacks/toolkit` both declared a generic `instance_type`
+variable. Since both read the **same shared** `envs/dev.tfvars`, n8n's
+`t3.small` silently leaked into toolkit's plan — the post-migration plan
+proposed resizing the toolkit box (t2.micro → t3.small) with **nobody having
+asked for that**. This is exactly why the original monolithic root prefixed
+toolkit-specific variables (`wusool_toolkit_instance_type`) — a convention
+dropped when scaffolding the new stacks.
+
+**Fixed properly, not patched**: renamed to `toolkit_instance_type` with a
+comment explaining why, and audited every other shared variable name between
+the two stacks for the same risk. Confirmed safe by checking live values:
+`root_volume_size` (both real instances are 30 GiB — shared default is
+correct), `ami_architecture`/`ssh_cidr_blocks`/`web_cidr_blocks`/`key_name`
+(genuinely identical intent in the original design).
+
+**General lesson recorded**: any stack sharing a flat `envs/*.tfvars` file with
+another stack must give its non-globally-shared variables a distinct name.
+OpenTofu does not error on unrecognized `-var-file` keys (verified — only a
+suppressible warning), so a collision fails **silently** into a wrong value,
+not a loud error. This must be checked by hand for `stacks/postgres` next.
+
+**Also recovered**: `wusool_toolkit_public_url` (pinned to the bare-IP
+hostname per an explicit earlier request) had never been copied into
+`envs/dev.tfvars` — caught by the same diff-before-apply discipline before
+it could silently rewrite the live Caddy vhost and break the Slack Request URL.
+
+### 🔴 Flagged, not yet fixed: CD workflows still target the directory being deleted
+
+`deploy-dev.yml`/`deploy-prod.yml` (written earlier, before the stacks split)
+apply `terraform/environments/${{ inputs.environment }}`. That directory is
+being dismantled by this exact phase and is the explicit deletion target once
+migration finishes. **Once it's gone, those workflows have nothing to apply.**
+Must be rewritten to target `terraform/stacks/*` (a matrix per stack, per the
+plan's original E4 design) before `environments/` can safely be deleted.
+Surfaced by direct user question, not caught proactively — should have been
+anticipated when the stacks split began.
+
 ### Snapshot status
 
 | Snapshot | State |
