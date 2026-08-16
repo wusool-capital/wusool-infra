@@ -283,3 +283,63 @@ output "gha_role_arns" {
     apply_prod = aws_iam_role.gha_apply["prod"].arn
   }
 }
+
+# ---------------------------------------------------------------------------
+# Terraform/OpenTofu state bucket — the backend every stack (including this
+# one) reads from. Adopted from terraform/bootstrap/ via `tofu import`
+# (Phase D, §D0a) rather than recreated: the bucket already existed and holds
+# every stack's live state.
+#
+# prevent_destroy is not optional here: a `tofu destroy` on this stack must
+# never be able to delete the bucket holding its own state and every other
+# stack's state.
+#
+# The DynamoDB lock table that used to live in terraform/bootstrap/ is
+# deliberately NOT here. Both backends use `use_lockfile = true`
+# (S3-native locking), so the table was unused — verified zero references in
+# every stack's state before deletion — and was removed from AWS directly on
+# 2026-08-15. Recreating it here would just resurrect dead weight.
+# ---------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "tfstate" {
+  provider = aws.tfstate_bucket
+
+  bucket = "wusool-tfstate"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_s3_bucket_versioning" "tfstate" {
+  provider = aws.tfstate_bucket
+
+  bucket = aws_s3_bucket.tfstate.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
+  provider = aws.tfstate_bucket
+
+  bucket = aws_s3_bucket.tfstate.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "tfstate" {
+  provider = aws.tfstate_bucket
+
+  bucket = aws_s3_bucket.tfstate.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}

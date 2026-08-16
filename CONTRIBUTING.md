@@ -56,7 +56,7 @@ Set-Location terraform
 tofu fmt -check -recursive
 Set-Location ..
 
-Set-Location terraform/environments/dev
+Set-Location terraform/stacks/base   # repeat per changed stack: n8n, toolkit, postgres, account
 tofu init -backend=false
 tofu validate
 Set-Location ../../..
@@ -139,7 +139,6 @@ for `dev` in GitHub:
 7. Enable **Require status checks to pass**.
 8. Select these required checks:
    - `OpenTofu Format`
-   - `OpenTofu Validate (terraform/bootstrap)`
    - `OpenTofu Validate (terraform/stacks/account)`
    - `OpenTofu Validate (terraform/stacks/base)`
    - `OpenTofu Validate (terraform/stacks/n8n)`

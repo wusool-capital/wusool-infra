@@ -48,7 +48,6 @@ jobs:
       fail-fast: false
       matrix:
         root:
-          - terraform/bootstrap
           - terraform/stacks/account
           - terraform/stacks/base
           - terraform/stacks/n8n
