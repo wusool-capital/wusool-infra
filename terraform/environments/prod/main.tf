@@ -132,7 +132,7 @@ resource "aws_cloudtrail" "this" {
 # Access is granted per consuming service's security group. n8n is included so
 # the documented SSM port-forwarding runbook works against prod the same way it
 # does in dev; n8n itself stores nothing here (it uses SQLite on its own volume).
-# matching-engine prod joins this list when its stack is created.
+# wusool-toolkit prod joins this list when its stack is created.
 #
 # The master password is RDS-managed and rotated; read it from the secret ARN in
 # the postgres_master_user_secret_arn output, never from configuration.

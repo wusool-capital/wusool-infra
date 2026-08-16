@@ -30,3 +30,16 @@ postgres_allocated_storage   = 20
 n8n_image     = "docker.n8n.io/n8nio/n8n@sha256:0afb71a39e51637b4d5b4010d90e68bc502d3ca1d2a4d953eb5fcd7d86330ccd"
 runners_image = "n8nio/runners@sha256:dd8531c425cd2c60481cafcb145a8c810f628f176bcb8d41f4c75d79272f7d2a"
 caddy_image   = "caddy@sha256:cfeb0b281bc44a5a51fecde39e9e577c60d863c0b6196e6bbdf58fd00960887f"
+
+# Pin the public hostname to the bare Elastic IP label, preserving the URL that
+# was already in use before the matching-engine -> toolkit rename. Leaving this
+# empty would derive "toolkit-63-184-6-136.sslip.io" from the app name and break
+# the existing Slack Request URL.
+#
+# Safe to hardcode because 63.184.6.136 is an Elastic IP and does not change on
+# instance stop/start. If the EIP is ever released, update this too.
+wusool_toolkit_public_url = "https://63-184-6-136.sslip.io"
+
+# dev deploys from the dev integration branch. `main` is stale and lacks
+# workflows/wusool-toolkit/, which breaks the bootstrap.
+wusool_toolkit_git_ref = "dev"

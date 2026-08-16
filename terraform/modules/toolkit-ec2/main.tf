@@ -18,10 +18,19 @@ data "aws_ami" "amazon_linux_2023" {
   }
 }
 
-resource "aws_security_group" "matching_engine" {
-  name        = "${var.project}-${var.environment}-matching-engine"
-  description = "Security group for the matching-engine EC2 instance"
+resource "aws_security_group" "wusool_toolkit" {
+  # name_prefix, not name: a security group cannot be destroyed while an ENI
+  # still uses it or another SG's rules reference it. With a fixed name and
+  # default destroy-then-create ordering, renaming this SG deadlocks - the old
+  # one cannot be deleted until the instance moves off it, and the instance
+  # cannot move until the new one exists.
+  name_prefix = "${var.project}-${var.environment}-toolkit-"
+  description = "Security group for the wusool-toolkit EC2 instance"
   vpc_id      = var.vpc_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   dynamic "ingress" {
     for_each = length(var.ssh_cidr_blocks) > 0 ? [1] : []
@@ -59,12 +68,12 @@ resource "aws_security_group" "matching_engine" {
   }
 
   tags = {
-    Name = "${var.project}-${var.environment}-matching-engine-sg"
+    Name = "${var.project}-${var.environment}-toolkit-sg"
   }
 }
 
-resource "aws_iam_role" "matching_engine" {
-  name = "${var.project}-${var.environment}-matching-engine-ec2"
+resource "aws_iam_role" "wusool_toolkit" {
+  name = "${var.project}-${var.environment}-toolkit-ec2"
   assume_role_policy = jsonencode({
     Version   = "2012-10-17"
     Statement = [{ Effect = "Allow", Principal = { Service = "ec2.amazonaws.com" }, Action = "sts:AssumeRole" }]
@@ -72,20 +81,20 @@ resource "aws_iam_role" "matching_engine" {
 }
 
 resource "aws_iam_role_policy_attachment" "ssm" {
-  role       = aws_iam_role.matching_engine.name
+  role       = aws_iam_role.wusool_toolkit.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_role_policy_attachment" "cloudwatch" {
-  role       = aws_iam_role.matching_engine.name
+  role       = aws_iam_role.wusool_toolkit.name
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
 resource "aws_iam_role_policy" "secrets_manager" {
   count = length(var.secrets_manager_secret_arns) > 0 ? 1 : 0
 
-  name = "${var.project}-${var.environment}-matching-engine-secrets-manager"
-  role = aws_iam_role.matching_engine.id
+  name = "${var.project}-${var.environment}-toolkit-secrets-manager"
+  role = aws_iam_role.wusool_toolkit.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -100,24 +109,24 @@ resource "aws_iam_role_policy" "secrets_manager" {
   })
 }
 
-resource "aws_iam_instance_profile" "matching_engine" {
-  name = "${var.project}-${var.environment}-matching-engine"
-  role = aws_iam_role.matching_engine.name
+resource "aws_iam_instance_profile" "wusool_toolkit" {
+  name = "${var.project}-${var.environment}-toolkit"
+  role = aws_iam_role.wusool_toolkit.name
 }
 
-resource "aws_cloudwatch_log_group" "matching_engine" {
-  name              = "/${var.project}/${var.environment}/matching-engine"
+resource "aws_cloudwatch_log_group" "wusool_toolkit" {
+  name              = "/${var.project}/${var.environment}/toolkit"
   retention_in_days = 30
 }
 
-resource "aws_eip" "matching_engine" {
+resource "aws_eip" "wusool_toolkit" {
   domain = "vpc"
 
-  tags = { Name = "${var.project}-${var.environment}-matching-engine-eip" }
+  tags = { Name = "${var.project}-${var.environment}-toolkit-eip" }
 }
 
 locals {
-  generated_ip_label = replace(aws_eip.matching_engine.public_ip, ".", "-")
+  generated_ip_label = replace(aws_eip.wusool_toolkit.public_ip, ".", "-")
   alarm_actions      = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
 
   # Per-app hostname/URL resolution — same sslip.io-fallback logic as before,
@@ -125,7 +134,7 @@ locals {
   apps_resolved = [for a in var.apps : {
     name = a.name
     # Bash variable names can't contain hyphens (app names can, e.g.
-    # "matching-engine") — this is used only for shell variable naming in
+    # "toolkit") — this is used only for shell variable naming in
     # user_data.sh.tpl, never for docker-compose/Caddy/log identifiers.
     slug          = replace(a.name, "-", "_")
     app_subdir    = a.app_subdir
@@ -139,12 +148,12 @@ locals {
   cloudwatch_log_entries = concat(
     [{
       file_path       = "/var/log/cloud-init-output.log"
-      log_group_name  = aws_cloudwatch_log_group.matching_engine.name
+      log_group_name  = aws_cloudwatch_log_group.wusool_toolkit.name
       log_stream_name = "{instance_id}/cloud-init"
     }],
     [for app in local.apps_resolved : {
-      file_path       = "/var/lib/docker/volumes/matching-engine_caddy_data/_data/${app.name}-access.log"
-      log_group_name  = aws_cloudwatch_log_group.matching_engine.name
+      file_path       = "/var/lib/docker/volumes/toolkit_caddy_data/_data/${app.name}-access.log"
+      log_group_name  = aws_cloudwatch_log_group.wusool_toolkit.name
       log_stream_name = "{instance_id}/caddy-${app.name}"
     }]
   )
@@ -164,13 +173,13 @@ locals {
   }), "\r\n", "\n")
 }
 
-resource "aws_instance" "matching_engine" {
+resource "aws_instance" "wusool_toolkit" {
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
-  vpc_security_group_ids = [aws_security_group.matching_engine.id]
+  vpc_security_group_ids = [aws_security_group.wusool_toolkit.id]
   key_name               = var.key_name != "" ? var.key_name : null
-  iam_instance_profile   = aws_iam_instance_profile.matching_engine.name
+  iam_instance_profile   = aws_iam_instance_profile.wusool_toolkit.name
 
   root_block_device {
     volume_size = var.root_volume_size
@@ -190,13 +199,13 @@ resource "aws_instance" "matching_engine" {
   }
 
   tags = {
-    Name = "${var.project}-${var.environment}-matching-engine"
+    Name = "${var.project}-${var.environment}-toolkit"
   }
 }
 
-resource "aws_eip_association" "matching_engine" {
-  instance_id   = aws_instance.matching_engine.id
-  allocation_id = aws_eip.matching_engine.id
+resource "aws_eip_association" "wusool_toolkit" {
+  instance_id   = aws_instance.wusool_toolkit.id
+  allocation_id = aws_eip.wusool_toolkit.id
 }
 
 # Existing instances do not rerun EC2 user data when it changes. This SSM
@@ -204,7 +213,7 @@ resource "aws_eip_association" "matching_engine" {
 # restart) without replacing the instance, so a redeploy is `terraform apply`
 # followed by this association re-running — no manual SSH step required.
 resource "aws_ssm_document" "bootstrap" {
-  name            = "${var.project}-${var.environment}-matching-engine-bootstrap"
+  name            = "${var.project}-${var.environment}-toolkit-bootstrap"
   document_type   = "Command"
   document_format = "JSON"
 
@@ -217,9 +226,9 @@ resource "aws_ssm_document" "bootstrap" {
       inputs = {
         timeoutSeconds = "1800"
         runCommand = [
-          "echo '${base64encode(local.user_data_rendered)}' | base64 -d > /tmp/${var.project}-matching-engine-bootstrap.sh",
-          "chmod 700 /tmp/${var.project}-matching-engine-bootstrap.sh",
-          "sudo bash /tmp/${var.project}-matching-engine-bootstrap.sh"
+          "echo '${base64encode(local.user_data_rendered)}' | base64 -d > /tmp/${var.project}-toolkit-bootstrap.sh",
+          "chmod 700 /tmp/${var.project}-toolkit-bootstrap.sh",
+          "sudo bash /tmp/${var.project}-toolkit-bootstrap.sh"
         ]
       }
     }]
@@ -228,22 +237,22 @@ resource "aws_ssm_document" "bootstrap" {
 
 resource "aws_ssm_association" "bootstrap" {
   name             = aws_ssm_document.bootstrap.name
-  association_name = "${var.project}-${var.environment}-matching-engine-bootstrap"
+  association_name = "${var.project}-${var.environment}-toolkit-bootstrap"
 
   targets {
     key    = "InstanceIds"
-    values = [aws_instance.matching_engine.id]
+    values = [aws_instance.wusool_toolkit.id]
   }
 
   depends_on = [
     aws_iam_role_policy_attachment.ssm,
     aws_iam_role_policy_attachment.cloudwatch,
-    aws_eip_association.matching_engine
+    aws_eip_association.wusool_toolkit
   ]
 }
 
 resource "aws_cloudwatch_metric_alarm" "status" {
-  alarm_name          = "${var.project}-${var.environment}-matching-engine-status-check"
+  alarm_name          = "${var.project}-${var.environment}-toolkit-status-check"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
   metric_name         = "StatusCheckFailed"
@@ -253,11 +262,11 @@ resource "aws_cloudwatch_metric_alarm" "status" {
   threshold           = 1
   alarm_actions       = local.alarm_actions
   ok_actions          = local.alarm_actions
-  dimensions          = { InstanceId = aws_instance.matching_engine.id }
+  dimensions          = { InstanceId = aws_instance.wusool_toolkit.id }
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu" {
-  alarm_name          = "${var.project}-${var.environment}-matching-engine-high-cpu"
+  alarm_name          = "${var.project}-${var.environment}-toolkit-high-cpu"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   metric_name         = "CPUUtilization"
@@ -267,5 +276,5 @@ resource "aws_cloudwatch_metric_alarm" "cpu" {
   threshold           = 85
   alarm_actions       = local.alarm_actions
   ok_actions          = local.alarm_actions
-  dimensions          = { InstanceId = aws_instance.matching_engine.id }
+  dimensions          = { InstanceId = aws_instance.wusool_toolkit.id }
 }

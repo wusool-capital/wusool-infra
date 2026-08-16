@@ -68,42 +68,47 @@ output "postgres_master_user_secret_arn" {
   sensitive   = true
 }
 
-output "matching_engine_instance_id" {
-  description = "Development matching-engine EC2 instance ID."
-  value       = module.matching_engine.instance_id
+output "wusool_toolkit_instance_id" {
+  description = "Development wusool-toolkit EC2 instance ID."
+  value       = module.wusool_toolkit.instance_id
 }
 
-output "matching_engine_public_ip" {
-  description = "Elastic IP for the development matching-engine instance."
-  value       = module.matching_engine.public_ip
+output "wusool_toolkit_public_ip" {
+  description = "Elastic IP for the development wusool-toolkit instance."
+  value       = module.wusool_toolkit.public_ip
 }
 
-output "matching_engine_url" {
-  description = "HTTPS URL for the matching-engine app. Slack Request URLs are this plus /slack/events."
-  value       = module.matching_engine.app_urls["matching-engine"]
+output "wusool_toolkit_url" {
+  description = "HTTPS URL for the wusool-toolkit app. Slack Request URLs are this plus /slack/events."
+  value       = module.wusool_toolkit.app_urls["toolkit"]
 }
 
-output "matching_engine_ssm_command" {
-  description = "Start a shell on the matching-engine instance without opening SSH."
-  value       = "aws ssm start-session --target ${module.matching_engine.ssm_instance_id} --region ${var.aws_region}"
+output "wusool_toolkit_ssm_command" {
+  description = "Start a shell on the wusool-toolkit instance without opening SSH."
+  value       = "aws ssm start-session --target ${module.wusool_toolkit.ssm_instance_id} --region ${var.aws_region}"
 }
 
-output "matching_engine_redeploy_command" {
+output "wusool_toolkit_redeploy_command" {
   description = "Trigger a redeploy (git pull + rebuild + restart) without replacing the instance."
-  value       = module.matching_engine.redeploy_command
+  value       = module.wusool_toolkit.redeploy_command
 }
 
-output "matching_engine_secret_name" {
-  description = "Secrets Manager secret name to populate with the matching-engine's runtime secrets."
-  value       = aws_secretsmanager_secret.matching_engine.name
+output "wusool_toolkit_secret_name" {
+  description = "Secrets Manager secret name to populate with the wusool-toolkit runtime secrets."
+  value       = aws_secretsmanager_secret.wusool_toolkit.name
 }
 
-output "matching_engine_secret_arn" {
-  description = "Secrets Manager secret ARN for the matching-engine app."
-  value       = aws_secretsmanager_secret.matching_engine.arn
+output "wusool_toolkit_secret_arn" {
+  description = "Secrets Manager secret ARN for the wusool-toolkit app."
+  value       = aws_secretsmanager_secret.wusool_toolkit.arn
 }
 
 output "security_alert_topic_arn" {
   description = "Account-level SNS topic carrying GuardDuty and Security Hub findings."
   value       = aws_sns_topic.security_alerts.arn
+}
+
+output "wusool_toolkit_ecr_repository_url" {
+  description = "Shared ECR repository. Both environments pull the same digests from here."
+  value       = aws_ecr_repository.wusool_toolkit.repository_url
 }

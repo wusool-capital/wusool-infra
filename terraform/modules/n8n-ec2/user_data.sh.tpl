@@ -32,6 +32,11 @@ chmod 600 /opt/n8n/n8n.env
 # The write above truncates n8n.env, which used to defeat the
 # N8N_RUNNERS_AUTH_TOKEN guard further down and mint a new token on every
 # bootstrap run. Capture any existing token first so re-running is idempotent.
+# set +x from here: this script runs under `set -x`, so without this the SMTP
+# credentials and every entry of the secret's env map would be echoed into SSM
+# command history (retained ~30 days) and CloudWatch.
+set +x
+
 if [ -n "${n8n_secret_id}" ]; then
   if N8N_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${n8n_secret_id}" --query SecretString --output text 2>/dev/null); then
     SMTP_HOST=$(echo "$N8N_SECRET_JSON" | jq -r '.smtp_host // empty')

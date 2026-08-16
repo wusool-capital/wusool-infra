@@ -43,24 +43,24 @@ module "bedrock" {
   models        = var.bedrock_models
 }
 
-module "matching_engine" {
-  source = "../../modules/matching-engine-ec2"
+module "wusool_toolkit" {
+  source = "../../modules/toolkit-ec2"
 
   project                     = var.project
   environment                 = var.environment
   vpc_id                      = module.network.vpc_id
   subnet_id                   = module.network.public_subnet_id
   key_name                    = var.key_name
-  instance_type               = var.matching_engine_instance_type
+  instance_type               = var.wusool_toolkit_instance_type
   ami_architecture            = var.ami_architecture
   ssh_cidr_blocks             = var.ssh_cidr_blocks
   web_cidr_blocks             = var.web_cidr_blocks
-  git_repo_url                = var.matching_engine_git_repo_url
-  git_ref                     = var.matching_engine_git_ref
+  git_repo_url                = var.wusool_toolkit_git_repo_url
+  git_ref                     = var.wusool_toolkit_git_ref
   root_volume_size            = var.root_volume_size
   aws_region                  = var.aws_region
   alarm_topic_arn             = aws_sns_topic.alerts.arn
-  secrets_manager_secret_arns = [aws_secretsmanager_secret.matching_engine.arn]
+  secrets_manager_secret_arns = [aws_secretsmanager_secret.wusool_toolkit.arn]
 
   # Single entry, single process: matching-engine and ddl-commands are one
   # Slack bot (one token, one interactivity URL — see
@@ -70,20 +70,20 @@ module "matching_engine" {
   # bot on this same instance — this just isn't one.
   apps = [
     {
-      name          = "matching-engine"
+      name          = "toolkit"
       app_subdir    = "workflows/wusool-toolkit"
-      app_secret_id = aws_secretsmanager_secret.matching_engine.id
-      public_url    = var.matching_engine_public_url
+      app_secret_id = aws_secretsmanager_secret.wusool_toolkit.id
+      public_url    = var.wusool_toolkit_public_url
     }
   ]
 }
 
-module "matching_engine_bedrock" {
+module "wusool_toolkit_bedrock" {
   source = "../../modules/bedrock-access"
 
   project       = var.project
-  environment   = "${var.environment}-matching-engine"
-  iam_role_name = module.matching_engine.iam_role_name
+  environment   = "${var.environment}-toolkit"
+  iam_role_name = module.wusool_toolkit.iam_role_name
   models        = var.bedrock_models
 }
 
@@ -96,7 +96,7 @@ module "postgres" {
   subnet_ids  = module.network.database_private_subnet_ids
   allowed_security_group_ids = [
     module.n8n.security_group_id,
-    module.matching_engine.security_group_id,
+    module.wusool_toolkit.security_group_id,
     "sg-0684b8cf83abfd065",
   ]
   db_name           = var.postgres_db_name
@@ -129,9 +129,9 @@ resource "aws_secretsmanager_secret" "n8n" {
 # put-secret-value`) with JSON: {"slack_bot_token": "...",
 # "slack_signing_secret": "...", "database_url": "postgresql://...",
 # "github_token": "..."}. Never put real secrets in a .tf file or state diff.
-resource "aws_secretsmanager_secret" "matching_engine" {
-  name                    = "/${var.project}/${var.environment}/matching-engine"
-  description             = "Environment-specific matching-engine secrets for ${var.project} ${var.environment}"
+resource "aws_secretsmanager_secret" "wusool_toolkit" {
+  name                    = "/${var.project}/${var.environment}/toolkit"
+  description             = "Environment-specific wusool-toolkit secrets for ${var.project} ${var.environment}"
   recovery_window_in_days = 30
 }
 
@@ -300,4 +300,51 @@ resource "aws_cloudwatch_event_target" "securityhub_to_sns" {
   rule      = aws_cloudwatch_event_rule.securityhub_findings.name
   target_id = "security-alerts"
   arn       = aws_sns_topic.security_alerts.arn
+}
+
+# ---------------------------------------------------------------------------
+# Container registry (Phase F)
+#
+# ONE repository shared by dev and prod. That is the whole point of
+# build-once/deploy-by-digest: prod runs the byte-identical image dev tested,
+# so a per-environment repository would defeat it.
+#
+# Account-scoped like GuardDuty above, and lives here only because that is where
+# the account-level resources currently sit. Moves to stacks/account by
+# `state mv` in Phase D.
+# ---------------------------------------------------------------------------
+
+resource "aws_ecr_repository" "wusool_toolkit" {
+  name = "${var.project}/toolkit"
+
+  # IMMUTABLE means a tag can never be repointed at different content after an
+  # environment has validated it. Required for digest promotion to mean anything.
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "wusool_toolkit" {
+  repository = aws_ecr_repository.wusool_toolkit.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep the last 30 images; untagged layers expire quickly."
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 30
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
 }

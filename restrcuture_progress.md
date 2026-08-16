@@ -390,6 +390,71 @@ without testing.
   matching dev. A least-privilege application role would be better for prod;
   raised, not actioned.
 
+### 🔴 DEFERRED: rotate leaked dev credentials
+
+A failed bootstrap ran under `set -x` and echoed **every dev secret in plaintext**
+into SSM command history (retained ~30 days) and CloudWatch:
+
+| Credential | Urgency |
+|---|---|
+| GitHub PAT `github_pat_11AGL35SQ0…` | **highest — repo write access** |
+| Slack bot token (dev) `xoxb-11354073143281-…` | high |
+| Slack signing secret (dev) `33660bc1ac51…` | high — allows forging requests |
+| Dev RDS master password (inside `database_url`) | high |
+| Firecrawl API key `fc-4fd7ae0588a0…` | medium |
+
+**Cause fixed** in both `toolkit-ec2` and `n8n-ec2` templates: `set +x` before
+any secret is read, verified live (trace now stops at `+ set +x`). **The
+already-leaked values still need rotating** — user has deferred this.
+
+Note the prod Slack credentials were separately pasted into a chat transcript
+and also warrant rotation.
+
+### Rename: matching-engine → toolkit *(2026-08-16)*
+
+Everything renamed: module dir `terraform/modules/toolkit-ec2`, Terraform
+addresses (`module.wusool_toolkit`), AWS resource names (`wusool-dev-toolkit-*`),
+secrets (`/wusool/{dev,prod}/toolkit`), ECR (`wusool/toolkit`), on-box path
+`/opt/toolkit`.
+
+**URL deliberately unchanged.** `wusool_toolkit_public_url` is pinned to
+`https://63-184-6-136.sslip.io` in dev tfvars. Left empty it would derive
+`toolkit-63-184-6-136.sslip.io` from the app name and break the existing Slack
+Request URL. Safe to hardcode because the IP is an Elastic IP.
+
+**Three latent bugs found and fixed** — none caused by the rename; it merely
+exercised code paths nobody had run before:
+
+1. **SG rename deadlock.** A security group cannot be deleted while an ENI uses
+   it or another SG references it. With a fixed `name` and default
+   destroy-then-create ordering, renaming deadlocked: the old SG could not be
+   deleted until the instance moved off it, and the instance could not move
+   until the new one existed. Fixed with `name_prefix` +
+   `create_before_destroy`. (SG names now carry a numeric suffix — expected.)
+2. **`set -x` leaked every secret** — see above.
+3. **`git checkout <branch>` fails on a shallow single-branch clone.** The
+   initial clone is `--depth 1 --branch <ref>`, so its refspec tracks only that
+   branch; `git checkout <other>` errors with "pathspec did not match" and
+   `origin/<other>` never exists. **Changing `git_ref` on an existing instance
+   was therefore impossible.** Fixed with `git checkout --detach FETCH_HEAD`.
+
+**`git_ref` corrected `main` → `dev`.** Cloning the stale `main` branch (which
+has no `workflows/wusool-toolkit/`) is what broke the bootstrap. Note this is a
+**per-environment tfvars value — it does not switch automatically by
+environment.** It should not reach prod at all: Phase F (ECR) removes `git clone`
+entirely, so prod deploys a pinned image digest with no git ref and no
+`github_token`.
+
+### Prod RDS + secrets recap
+
+- `wusool-prod-postgres` — private subnet `10.20.3.0/24`, seeded from dev
+  snapshot, own RDS-managed credential (see the snapshot-restore finding above).
+- `/wusool/prod/toolkit` — `database_url` (verified pointing at prod),
+  `slack_bot_token`, `slack_signing_secret` populated. `github_token` empty and
+  should stay that way if ECR lands first.
+- **Prod does not yet instantiate the toolkit module** — prod has only `network`,
+  `n8n` and `postgres`.
+
 ### Snapshot status
 
 | Snapshot | State |

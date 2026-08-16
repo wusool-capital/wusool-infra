@@ -19,22 +19,32 @@ curl -SL "https://github.com/docker/compose/releases/download/v2.32.4/docker-com
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-mkdir -p /opt/matching-engine/caddy
-REPO_DIR=/opt/matching-engine/src
+mkdir -p /opt/toolkit/caddy
+REPO_DIR=/opt/toolkit/src
 
 # All apps share one clone of this repo. The github_token comes from the
 # first app's secret (a repo-level credential, not an app-specific one) and
 # is only ever embedded in the remote URL transiently, for the fetch/clone
 # itself, then immediately swapped back to the plain URL so it never sits in
 # `.git/config` in plaintext.
+# set +x for the remainder: this script runs under `set -x`, and without this
+# every secret below would be echoed verbatim into SSM command history (retained
+# ~30 days) and CloudWatch. Re-enabling tracing after secret handling is not
+# worth the leak risk, so tracing stays off from here.
+set +x
+
 GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id "${github_secret_id}" --region "${aws_region}" --query SecretString --output text | jq -r '.github_token // empty')
 AUTH_REPO_URL=$(echo "${git_repo_url}" | sed "s#https://#https://x-access-token:$${GITHUB_TOKEN}@#")
 
 if [ -d "$REPO_DIR/.git" ]; then
   git -C "$REPO_DIR" remote set-url origin "$AUTH_REPO_URL"
   git -C "$REPO_DIR" fetch --depth 1 origin "${git_ref}"
-  git -C "$REPO_DIR" checkout "${git_ref}"
-  git -C "$REPO_DIR" reset --hard "origin/${git_ref}"
+  # Check out FETCH_HEAD rather than the branch name. The initial clone is
+  # shallow and single-branch, so its refspec tracks only the branch it was
+  # created from - `git checkout <other-branch>` fails with "pathspec did not
+  # match" and `origin/<other-branch>` never exists. FETCH_HEAD always points
+  # at what was just fetched, so changing git_ref works on an existing box.
+  git -C "$REPO_DIR" checkout --detach FETCH_HEAD
   git -C "$REPO_DIR" remote set-url origin "${git_repo_url}"
 else
   git clone --depth 1 --branch "${git_ref}" "$AUTH_REPO_URL" "$REPO_DIR"
@@ -61,7 +71,7 @@ echo "$SECRET_JSON_${app.slug}" | jq -r '.env // {} | to_entries[] | "\(.key)=\(
 chmod 600 "$APP_DIR_${app.slug}/.env.production"
 %{ endfor }
 
-cat > /opt/matching-engine/caddy/Caddyfile <<CADDYEOF
+cat > /opt/toolkit/caddy/Caddyfile <<CADDYEOF
 %{ for app in apps }
 ${app.hostname} {
   reverse_proxy ${app.name}:8000
@@ -72,7 +82,7 @@ ${app.hostname} {
 %{ endfor }
 CADDYEOF
 
-cat > /opt/matching-engine/docker-compose.yml <<COMPOSEEOF
+cat > /opt/toolkit/docker-compose.yml <<COMPOSEEOF
 services:
 %{ for app in apps }
   ${app.name}:
@@ -91,7 +101,7 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - /opt/matching-engine/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/toolkit/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
 
@@ -106,6 +116,6 @@ CWEOF
 systemctl enable amazon-cloudwatch-agent
 systemctl restart amazon-cloudwatch-agent
 
-cd /opt/matching-engine
+cd /opt/toolkit
 docker compose build
 docker compose up -d
