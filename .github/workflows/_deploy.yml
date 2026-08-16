@@ -1,16 +1,20 @@
-# Reusable deploy: apply every stack (base -> n8n -> toolkit -> postgres),
-# then roll the n8n and toolkit apps and ACTUALLY VERIFY they're running.
+# Reusable deploy: detect which stacks actually need it, apply only those
+# (base -> n8n -> toolkit -> postgres, in dependency order), then roll and
+# ACTUALLY VERIFY the n8n and toolkit apps that were applied.
 #
 # Called by deploy-dev.yml and deploy-prod.yml. Never triggered directly, so
 # the environment is always explicit at the call site rather than inferred
 # from a branch name.
 #
-# Simplification, stated plainly: every stack is applied on every deploy,
-# unconditionally. Each apply is a no-op if nothing in that stack changed, so
-# this is safe, just not maximally efficient — path-filtered change detection
-# (the plan's original design) is a follow-up, not yet built. Do not read the
-# absence of change-detection as accidental; it is the documented fallback
-# ("deploy everything") made permanent until it's worth the added complexity.
+# Per-stack change detection (2026-08-16): previously every stack was applied
+# unconditionally on every deploy - safe (each apply is a no-op if nothing in
+# that stack changed) but not free: a toolkit-only change still re-ran n8n's
+# SSM bootstrap and its /healthz poll every single time, for no reason. Each
+# stack now tracks its own `/wusool/<env>/<stack>/deployed_sha` in SSM and
+# only redeploys when a path relevant to it changed since that SHA. Baseline
+# missing (first deploy for that stack/env) or unreadable (rewritten history)
+# always falls back to "deploy it" - never silently skip a stack we can't
+# actually prove is unaffected.
 name: _deploy
 
 on:
@@ -48,7 +52,12 @@ jobs:
       ENV: ${{ inputs.environment }}
 
     steps:
+      # fetch-depth: 0 - the detect step below diffs against an arbitrary
+      # past commit (each stack's last deployed SHA), which a shallow clone
+      # would not have.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: ./.github/actions/setup-opentofu
 
@@ -56,17 +65,91 @@ jobs:
         with:
           role_arn: ${{ inputs.role_arn }}
 
+      - name: Detect which stacks changed
+        id: detect
+        run: |
+          set -euo pipefail
+
+          get_deployed_sha() {
+            aws ssm get-parameter --name "/wusool/$ENV/$1/deployed_sha" \
+              --query Parameter.Value --output text 2>/dev/null || echo ""
+          }
+
+          # __ALL__ is the "we can't prove this stack is unaffected" sentinel:
+          # no recorded baseline (first deploy for this stack/env) or the
+          # baseline commit isn't in our history (force-push/rebase) both
+          # collapse to it, and `matches` below always deploys on __ALL__.
+          changed_since() {
+            local sha="$1"
+            if [ -z "$sha" ]; then echo "__ALL__"; return; fi
+            git diff --name-only "$sha" HEAD 2>/dev/null || echo "__ALL__"
+          }
+
+          matches() {
+            local changed="$1" pattern="$2"
+            [ "$changed" = "__ALL__" ] && return 0
+            echo "$changed" | grep -qE "$pattern"
+          }
+
+          CHANGED_BASE=$(changed_since "$(get_deployed_sha base)")
+          CHANGED_N8N=$(changed_since "$(get_deployed_sha n8n)")
+          CHANGED_TOOLKIT=$(changed_since "$(get_deployed_sha toolkit)")
+          CHANGED_POSTGRES=$(changed_since "$(get_deployed_sha postgres)")
+
+          # Workflow/composite-action changes and shared envs/*.tfvars changes
+          # force EVERY stack - workflow logic itself changed (want every
+          # apply path exercised), and we can't cheaply attribute a shared
+          # tfvars edit to one stack (this repo has already hit a real
+          # shared-tfvars variable collision once - see terraform/README.md).
+          FORCE_ALL='^(\.github/workflows/|\.github/actions/|terraform/envs/)'
+
+          deploy_base=false
+          matches "$CHANGED_BASE" "$FORCE_ALL|^terraform/stacks/base/|^terraform/modules/network/" && deploy_base=true
+
+          deploy_n8n=false
+          matches "$CHANGED_N8N" "$FORCE_ALL|^terraform/stacks/n8n/|^terraform/modules/n8n-ec2/|^terraform/modules/bedrock-access/" && deploy_n8n=true
+
+          deploy_toolkit=false
+          matches "$CHANGED_TOOLKIT" "$FORCE_ALL|^terraform/stacks/toolkit/|^terraform/modules/toolkit-ec2/|^terraform/modules/bedrock-access/|^workflows/wusool-toolkit/" && deploy_toolkit=true
+
+          deploy_postgres=false
+          matches "$CHANGED_POSTGRES" "$FORCE_ALL|^terraform/stacks/postgres/|^terraform/modules/postgres-rds/" && deploy_postgres=true
+
+          # base owns the VPC/subnets/SNS topic every other stack reads via
+          # terraform_remote_state. If base's outputs changed, n8n/toolkit/
+          # postgres must re-apply too, or they keep acting on a stale base
+          # output until something unrelated happens to redeploy them.
+          if [ "$deploy_base" = "true" ]; then
+            deploy_n8n=true
+            deploy_toolkit=true
+            deploy_postgres=true
+          fi
+
+          echo "deploy_base=$deploy_base" >> "$GITHUB_OUTPUT"
+          echo "deploy_n8n=$deploy_n8n" >> "$GITHUB_OUTPUT"
+          echo "deploy_toolkit=$deploy_toolkit" >> "$GITHUB_OUTPUT"
+          echo "deploy_postgres=$deploy_postgres" >> "$GITHUB_OUTPUT"
+          echo "::notice::deploy plan for $ENV — base=$deploy_base n8n=$deploy_n8n toolkit=$deploy_toolkit postgres=$deploy_postgres"
+
       # stacks/account is intentionally NOT applied here — it is account-wide,
       # not per-environment, and is applied out of band (no -var-file, no
       # environment concurrency group of its own).
 
       - name: Apply stacks/base
+        if: steps.detect.outputs.deploy_base == 'true'
         uses: ./.github/actions/tofu-apply-stack
         with:
           stack: base
           environment: ${{ env.ENV }}
 
+      - name: Record base deployed SHA
+        if: steps.detect.outputs.deploy_base == 'true'
+        run: |
+          aws ssm put-parameter --name "/wusool/$ENV/base/deployed_sha" \
+            --value "${{ github.sha }}" --type String --overwrite
+
       - name: Apply stacks/n8n
+        if: steps.detect.outputs.deploy_n8n == 'true'
         uses: ./.github/actions/tofu-apply-stack
         with:
           stack: n8n
@@ -85,6 +168,7 @@ jobs:
       # -----------------------------------------------------------------
 
       - name: Roll the n8n app and wait for it
+        if: steps.detect.outputs.deploy_n8n == 'true'
         id: n8n_bootstrap
         working-directory: terraform/stacks/n8n
         run: |
@@ -119,6 +203,7 @@ jobs:
           echo "::error::Bootstrap did not finish within 15 minutes"; exit 1
 
       - name: Verify n8n actually serves
+        if: steps.detect.outputs.deploy_n8n == 'true'
         working-directory: terraform/stacks/n8n
         run: |
           set -euo pipefail
@@ -134,22 +219,18 @@ jobs:
           echo "::error::$URL/healthz never returned 200 — deploy is NOT healthy"; exit 1
 
       - name: Record n8n deployed SHA
+        if: steps.detect.outputs.deploy_n8n == 'true'
         run: |
           aws ssm put-parameter --name "/wusool/$ENV/n8n/deployed_sha" \
             --value "${{ github.sha }}" --type String --overwrite
 
       - name: Apply stacks/toolkit
+        if: steps.detect.outputs.deploy_toolkit == 'true'
         uses: ./.github/actions/tofu-apply-stack
         with:
           stack: toolkit
           environment: ${{ env.ENV }}
           extra_args: -var=image_digest=${{ inputs.image_digest }}
-
-      - name: Apply stacks/postgres
-        uses: ./.github/actions/tofu-apply-stack
-        with:
-          stack: postgres
-          environment: ${{ env.ENV }}
 
       # -----------------------------------------------------------------
       # Everything below exists because `tofu apply` returning success proves
@@ -165,6 +246,7 @@ jobs:
       # -----------------------------------------------------------------
 
       - name: Roll the toolkit app and wait for it
+        if: steps.detect.outputs.deploy_toolkit == 'true'
         id: bootstrap
         working-directory: terraform/stacks/toolkit
         run: |
@@ -199,7 +281,7 @@ jobs:
           echo "::error::Bootstrap did not finish within 15 minutes"; exit 1
 
       - name: Verify the app actually serves
-        if: steps.bootstrap.outputs.skipped != 'true'
+        if: steps.detect.outputs.deploy_toolkit == 'true' && steps.bootstrap.outputs.skipped != 'true'
         working-directory: terraform/stacks/toolkit
         run: |
           set -euo pipefail
@@ -218,9 +300,22 @@ jobs:
           echo "::error::$URL/health never returned 200 — deploy is NOT healthy"; exit 1
 
       # Written last, and only on success: recording it earlier would make a
-      # failed deploy look deployed to the next run's change detection, once
-      # change detection actually exists.
-      - name: Record deployed SHA
+      # failed deploy look deployed to the next run's change detection.
+      - name: Record toolkit deployed SHA
+        if: steps.detect.outputs.deploy_toolkit == 'true'
         run: |
           aws ssm put-parameter --name "/wusool/$ENV/toolkit/deployed_sha" \
+            --value "${{ github.sha }}" --type String --overwrite
+
+      - name: Apply stacks/postgres
+        if: steps.detect.outputs.deploy_postgres == 'true'
+        uses: ./.github/actions/tofu-apply-stack
+        with:
+          stack: postgres
+          environment: ${{ env.ENV }}
+
+      - name: Record postgres deployed SHA
+        if: steps.detect.outputs.deploy_postgres == 'true'
+        run: |
+          aws ssm put-parameter --name "/wusool/$ENV/postgres/deployed_sha" \
             --value "${{ github.sha }}" --type String --overwrite

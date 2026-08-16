@@ -30,7 +30,7 @@ time in this index:
   shipped, which differs from this in places).
 
 In short: both dev and prod are real, deployed environments in one account,
-applied via GitHub Actions on merge to `dev`/`main`, authenticated by OIDC
+applied via GitHub Actions on merge to `dev`/`prod`, authenticated by OIDC
 (no static AWS keys). n8n is pinned to `n8n.wusoolcapital.com` in both
 Terraform and DNS (the dual-domain/Terraform-orphaned prod gap this section
 used to describe is resolved). See

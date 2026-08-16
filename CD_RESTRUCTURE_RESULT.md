@@ -12,12 +12,12 @@ for the full phase-by-phase log with verification evidence for every step.
 |---|---|---|
 | Terraform layout | Two hand-maintained env directories (`terraform/environments/{dev,prod}`), already drifted from each other | One `terraform/stacks/{account,base,n8n,toolkit,postgres}` per service, parameterized by `terraform/envs/{dev,prod}.tfvars` |
 | Tool | Ambiguous — lockfiles referenced Terraform, only OpenTofu was installed | Standardized on **OpenTofu**, version-pinned via `terraform/.opentofu-version` |
-| CD | **None.** Only `terraform-ci.yml` existed (`fmt` + `validate -backend=false`); nothing ever deployed | `deploy-dev.yml` / `deploy-prod.yml` apply on every merge to `dev` / `main`, fully verified (SSM bootstrap polled to `Success`, `/health` checked for `200`) |
+| CD | **None.** Only `terraform-ci.yml` existed (`fmt` + `validate -backend=false`); nothing ever deployed | `deploy-dev.yml` / `deploy-prod.yml` apply on every merge to `dev` / `prod`, fully verified (SSM bootstrap polled to `Success`, `/health` checked for `200`) |
 | Auth | N/A (no CD) | GitHub OIDC role assumption — **no static AWS keys anywhere** |
 | App deploy | `git clone` + `docker compose build` on the live EC2 instance | Build once in CI, push to ECR, deploy by immutable `sha256:` digest — dev and prod run bit-identical artifacts |
 | AMI | `data "aws_ami" { most_recent = true }` + `ignore_changes = [ami]` — silently froze instances with no reviewable diff | Explicit `ami_id` variable, pinned to each instance's currently-running AMI |
 | Prod database | Did not exist | RDS provisioned, seeded from a dev snapshot, credentials rotated off the inherited snapshot secret |
-| Branches | `main` (default) + `dev`, app/data drifted between them | `dev` is the only active branch; `main` retired (tagged `archive/main-pre-restructure`, deleted) |
+| Branches | `main` (default) + `dev`, app/data drifted between them | `main` retired (tagged `archive/main-pre-restructure`, deleted); `dev` and a new `prod` branch are the two active branches — merge to `dev` deploys dev, merge to `prod` deploys prod |
 | Repo review | No `CODEOWNERS` | `.github/CODEOWNERS` — infra changes require review from `@sinanshamsudheen` + `@raoofnaushad` |
 | Orphan AWS resources | Two empty `me-central-1` VPCs (`n8n-dev-vpc`, `n8n-prod-vpc`), never used, in no state file | Deleted |
 | App test coverage | Nothing ran in CI | `ci.yml`: `ruff`/`ty`/`pytest` for the Python app, PSScriptAnalyzer for the PowerShell scripts |
@@ -69,13 +69,13 @@ migration (`instance_type` → `toolkit_instance_type`, `ami_id` →
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `deploy-dev.yml` | push to `dev` (path-filtered: `terraform/**`, `workflows/wusool-toolkit/**`) | Builds + pushes toolkit image to `wusool-dev/toolkit`, applies `base → n8n → toolkit → postgres`, rolls the toolkit app via SSM, verifies `/health` returns 200 |
-| `deploy-prod.yml` | push to `main`, same path filter | Identical, against `wusool-prod/toolkit` and `envs/prod.tfvars` |
+| `deploy-prod.yml` | push to `prod`, same path filter | Identical, against `wusool-prod/toolkit` and `envs/prod.tfvars` |
 | `_build.yml` | called by the two above | Builds the Dockerfile, pushes to that environment's own ECR repo, reuses the existing image if the commit was already built (repos are immutable-tag) |
 | `_deploy.yml` | called by the two above | The actual per-stack `init`/`apply` sequence + bootstrap poll + health check + records `deployed_sha` to SSM on success only |
 | `terraform-plan.yml` | any PR touching `terraform/**` | Comments a plan per stack per environment (5 jobs: `base`/`n8n`/`toolkit`/`postgres` × the PR's **base branch** environment, plus `account`). Read-only OIDC role (`wusool-gha-plan`) |
 | `terraform-ci.yml` | any PR touching `terraform/**` | `tofu fmt -check` + `tofu validate` per stack |
 | `ci.yml` | PR touching the app/scripts | `ruff check`, `ty check` (matching-engine), `pytest` run separately for the toolkit root, `matching-engine`, and `ddl-commands` (each has its own `testpaths`, so one invocation from the root silently missed the other two — fixed in code review 2026-08-16), PSScriptAnalyzer (`Severity=Error` only) |
-| `backmerge.yml` | after a successful `Deploy prod` run | Opens an automatic `main → dev` PR if `dev` doesn't already have everything from `main` |
+| `backmerge.yml` | after a successful `Deploy prod` run | Opens an automatic `prod → dev` PR if `dev` doesn't already have everything from `prod` |
 
 **No static AWS credentials anywhere.** All auth is GitHub OIDC
 (`token.actions.githubusercontent.com`) assuming one of three branch-scoped
@@ -83,7 +83,7 @@ IAM roles:
 
 - `wusool-gha-plan` — read-only, any branch/PR
 - `wusool-gha-apply-dev` — trust-policy scoped to `refs/heads/dev`
-- `wusool-gha-apply-prod` — trust-policy scoped to `refs/heads/main`
+- `wusool-gha-apply-prod` — trust-policy scoped to `refs/heads/prod`
 
 ## Deploy verification — what "done" means now
 
@@ -173,17 +173,53 @@ Per explicit scope decision, not started in this branch:
   separate Terraform/state/deploy path, entirely outside this stacks/CD
   model — see [`SCRIBE_INFRA_CONTRACT.md`](SCRIBE_INFRA_CONTRACT.md) for the
   handover contract it would need to follow to plug in.
-- **No human approval gate on prod.** A merge to `main` applies to
+- **No human approval gate on prod.** A merge to `prod` applies to
   production with no confirmation click between merge and AWS changing. This
   is an accepted risk, not an oversight — `backmerge.yml` is the chosen,
   no-extra-click mitigation for the specific failure mode of a hotfix being
   silently lost on the next promotion. See `RESTRUCTURE_PROGRESS.md` for the
   full accepted-risks reasoning.
-- **No per-stack change detection.** Every stack is applied on every deploy,
-  unconditionally (each apply is a no-op if nothing changed) — path-filtered
-  "only deploy what changed" was the plan's original design but is a
-  follow-up, documented directly in `_deploy.yml`'s header comment, not an
-  accidental gap.
+## Per-stack change detection (2026-08-16, later same day)
+
+Originally deferred (every stack applied unconditionally on every deploy —
+safe since each apply is a no-op if nothing changed, but not free: a
+toolkit-only change was still re-running n8n's SSM bootstrap and `/healthz`
+poll every time for no reason). Built same-day once that cost became
+concrete: each stack now tracks `/wusool/<env>/<stack>/deployed_sha` in SSM,
+and `_deploy.yml`'s new `detect` step only applies/rolls a stack when a path
+relevant to it changed since that stack's own last deployed SHA:
+
+| Stack | Redeploys when these paths change |
+|---|---|
+| `base` | `terraform/stacks/base/`, `terraform/modules/network/` |
+| `n8n` | `terraform/stacks/n8n/`, `terraform/modules/n8n-ec2/`, `terraform/modules/bedrock-access/` |
+| `toolkit` | `terraform/stacks/toolkit/`, `terraform/modules/toolkit-ec2/`, `terraform/modules/bedrock-access/`, `workflows/wusool-toolkit/` |
+| `postgres` | `terraform/stacks/postgres/`, `terraform/modules/postgres-rds/` |
+
+Three deliberate fallbacks, always erring toward "deploy it" over silently
+skipping a stack that might actually need it:
+
+- **No recorded baseline** (first deploy for that stack/env) → deploy.
+- **Baseline commit not in history** (force-push, rebase) → deploy.
+- **`.github/workflows/**`, `.github/actions/**`, or `terraform/envs/*.tfvars` changed** → deploy *every* stack, since a workflow-logic change should be exercised end to end and a shared tfvars edit can't be cheaply attributed to one stack (this repo has already hit a real cross-stack tfvars variable collision once).
+
+`base` changing also forces `n8n`/`toolkit`/`postgres` to redeploy regardless
+of their own paths — they read `base`'s VPC/subnet/SNS outputs via
+`terraform_remote_state`, so a `base` change must propagate immediately, not
+wait for those stacks to redeploy for an unrelated reason.
+
+The image build step (`_build.yml`) still always runs on every deploy — its
+own per-commit ECR-tag reuse check already makes a redundant build cheap
+(and the new GHA layer cache makes even a genuine rebuild fast), so gating it
+on the same detection wasn't worth the added complexity of threading a
+"reuse the last digest" fallback through `deploy-dev.yml`/`deploy-prod.yml`.
+
+Verified via a standalone unit test of the matching logic against six
+scenarios (toolkit-only change → only toolkit deploys; a `network` module
+change → cascades to all four; an unrelated doc-only change → nothing
+deploys; a shared `envs/dev.tfvars` change → all four; no baseline; an
+unreadable baseline SHA) before landing, plus `tofu fmt`/`validate` on the
+touched stacks.
 
 ## Code review fixes (2026-08-16)
 

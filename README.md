@@ -4,7 +4,7 @@ OpenTofu configuration and application code for the Wusool AWS infrastructure.
 
 > Both `dev` and `prod` are real, deployed environments in one AWS account
 > (`030179310793`, `eu-central-1`), applied automatically by GitHub Actions on
-> merge to the `dev` or `main` branch respectively. Neither is a template —
+> merge to the `dev` or `prod` branch respectively. Neither is a template —
 > see [`terraform/README.md`](terraform/README.md) for the stack layout and
 > [`RESTRUCTURE_PROGRESS.md`](RESTRUCTURE_PROGRESS.md) for what has been
 > verified live against AWS.
@@ -204,10 +204,11 @@ tofu apply tfplan
 ```
 
 Always review the plan before applying manually. In normal operation you
-don't apply by hand at all — merging to `dev` or `main` triggers the matching
-GitHub Actions workflow, which applies every stack in dependency order
-(`base` → `n8n`/`toolkit` → `postgres`) and health-checks the toolkit app
-before declaring success. See **Continuous deployment** below.
+don't apply by hand at all — merging to `dev` or `prod` triggers the matching
+GitHub Actions workflow, which applies whichever stacks actually changed in
+dependency order (`base` → `n8n`/`toolkit` → `postgres`) and health-checks
+the n8n and toolkit apps before declaring success. See **Continuous
+deployment** below.
 
 After deployment:
 
@@ -227,21 +228,41 @@ record pointed at each environment's EC2 Elastic IP.
 ## Continuous deployment
 
 `.github/workflows/deploy-dev.yml` and `deploy-prod.yml` trigger on push to
-`dev` and `main` respectively (path-filtered to `terraform/**` and
-`workflows/wusool-toolkit/**`). Each builds the toolkit Docker image, pushes
-it to that environment's own ECR repository by immutable digest, applies
-every stack for that environment, then re-invokes the toolkit's SSM bootstrap
-document and polls until the app is confirmed serving `/health` with a `200`
-— a successful `tofu apply` only proves the bootstrap document was
-*registered*, not that the app actually deployed, so this repo never trusts
-apply's exit code alone. Authentication is GitHub OIDC role assumption
-(`wusool-gha-apply-dev` / `wusool-gha-apply-prod`, scoped by branch in their
-trust policy) — no static AWS keys. `terraform-plan.yml` comments a plan on
-every pull request; `terraform-ci.yml` runs `fmt`/`validate`; `ci.yml` runs
-`ruff`/`ty`/`pytest` for the toolkit app and PSScriptAnalyzer for the
-PowerShell scripts; `backmerge.yml` opens an automatic `main → dev` PR after
-a successful prod deploy so a hotfix merged straight to `main` isn't lost on
-the next promotion.
+`dev` and `prod` respectively (path-filtered to `terraform/**` and
+`workflows/wusool-toolkit/**`). Each builds the toolkit Docker image and
+pushes it to that environment's own ECR repository by immutable digest, then
+`_deploy.yml` decides **per stack** whether it actually needs to redeploy:
+each of `base`/`n8n`/`toolkit`/`postgres` tracks its own last-deployed commit
+in SSM, and only applies (and, for `n8n`/`toolkit`, rolls and health-checks
+the app) when a path relevant to that stack changed since then — a
+toolkit-only change no longer touches n8n at all. A `base` change, a
+workflow/composite-action change, or an `envs/*.tfvars` edit forces every
+stack to redeploy regardless, since those can affect (or can't be cheaply
+attributed to) more than one stack. See `terraform/README.md` and
+`CD_RESTRUCTURE_RESULT.md` for the exact path-to-stack mapping.
+
+A successful `tofu apply` only proves the bootstrap document was
+*registered*, not that the app actually deployed, so neither n8n's nor
+toolkit's rollout trusts apply's exit code alone — each re-invokes its SSM
+bootstrap document and polls until the app is confirmed serving `/healthz`
+(n8n) or `/health` (toolkit) with a `200`. Authentication is GitHub OIDC role
+assumption (`wusool-gha-apply-dev` / `wusool-gha-apply-prod`, scoped by
+branch in their trust policy) — no static AWS keys. `terraform-plan.yml`
+comments a plan on every pull request; `terraform-ci.yml` runs
+`fmt`/`validate`; `ci.yml` runs `ruff`/`ty`/`pytest` for the toolkit app (run
+separately per package — matching-engine and ddl-commands each have their
+own test config) and PSScriptAnalyzer for the PowerShell scripts;
+`backmerge.yml` opens an automatic `prod → dev` PR after a successful prod
+deploy so a hotfix merged straight to `prod` isn't lost on the next
+promotion.
+
+`database/**` changes are **not** wired into either deploy workflow's path
+filter — the flat SQL migrations there are applied manually via
+`database/setup-postgres.ps1`/`sync-postgres.ps1` (see
+`database/rds-tunnel-runbook.md`), not through this CI/CD pipeline. A
+`database/`-only change triggers `ci.yml`'s PowerShell lint job but no
+deploy of anything. This is deliberate for now — wiring database migrations
+into CD is Phase G (Alembic), explicitly deferred.
 
 ## n8n SMTP email
 
@@ -276,13 +297,13 @@ Prod is a real, deployed environment — a `10.20.0.0/16` VPC in
 its own RDS instance seeded from a dev snapshot (credentials rotated off the
 snapshot's inherited secret afterward — restoring from a snapshot silently
 keeps the source's master credentials otherwise). It is applied exactly the
-same way as dev: merge to `main` deploys it, via `terraform/envs/prod.tfvars`
+same way as dev: merge to `prod` deploys it, via `terraform/envs/prod.tfvars`
 and the same stacks. The prod toolkit EC2 instance is optional
 (`create_instance = false` in `envs/prod.tfvars`) until a real rollout is
 deliberately switched on — until then, `stacks/toolkit` for prod only
 provisions the ECR repository and secret.
 
-There is deliberately no human approval gate between a `main` merge and the
+There is deliberately no human approval gate between a `prod` merge and the
 apply — see `RESTRUCTURE_PROGRESS.md` for the accepted-risk reasoning and
 the mitigation in place (`backmerge.yml`).
 
