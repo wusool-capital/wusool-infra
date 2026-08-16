@@ -353,6 +353,34 @@ its data. Worth checking on the `matching-engine` prod database work too.
 the attribute is legitimately empty on a freshly restored instance and the raw
 index made `import` and `plan` fail outright.
 
+### `/wusool/prod/matching-engine` created *(2026-08-16)*
+
+`arn:…:secret:/wusool/prod/matching-engine-tIAhLJ`. Same key names as dev —
+separation is by secret path, not variable prefix.
+
+| Key | State |
+|---|---|
+| `database_url` | **populated**, verified pointing at `wusool-prod-postgres` and matching the current RDS-managed password |
+| `env`, `github_token`, `slack_bot_token`, `slack_signing_secret` | **empty placeholders** |
+
+Built by piping the RDS-managed secret straight into the new secret — the
+password was never echoed to a terminal or a transcript.
+
+**Deliberately matched dev's URL shape, including the absence of
+`?sslmode=require`.** The app rewrites `postgresql://` to
+`postgresql+asyncpg://`, and **asyncpg does not understand libpq's `sslmode`
+parameter** — adding it would likely break startup. Do not "improve" this
+without testing.
+
+**Still blocking a prod matching-engine deploy:**
+- `slack_bot_token` / `slack_signing_secret` — need the **separate prod Slack
+  app** (decided, not yet registered).
+- `github_token` — needed only while the bootstrap still does `git clone`;
+  Phase F's ECR work removes it.
+- The app currently connects as the RDS **master** user (`wusool_admin`),
+  matching dev. A least-privilege application role would be better for prod;
+  raised, not actioned.
+
 ### Snapshot status
 
 | Snapshot | State |
