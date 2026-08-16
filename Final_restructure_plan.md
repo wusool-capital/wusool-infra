@@ -1454,8 +1454,9 @@ durable sits on its root volume; if not, scribe needs H1 only.
 
 ## Part 2 — Handover document for the `scribe` repo
 
-> Copy this section into the scribe repo as `INFRA_CONTRACT.md`. It is written
-> to be read by someone who does not have this repo open.
+> **Extracted to `SCRIBE_INFRA_CONTRACT.md` in this repo** — hand that file to
+> the scribe repo owner. This section remains the source of truth; if you edit
+> it, regenerate the extract rather than editing both.
 
 ### What changed and why you're reading this
 
