@@ -372,11 +372,20 @@ password was never echoed to a terminal or a transcript.
 parameter** — adding it would likely break startup. Do not "improve" this
 without testing.
 
+**Slack credentials added 2026-08-16** — `slack_bot_token` (59 chars) and
+`slack_signing_secret` (32 chars) are populated from the separate prod Slack app.
+`database_url` re-verified as pointing at prod afterwards.
+
+> ⚠️ **Rotate these.** Both were pasted in plaintext into a chat transcript,
+> which persists. The signing secret is what proves a request genuinely came
+> from Slack, so anyone holding it can forge requests. They are not yet wired to
+> anything, so rotating now is cheap: regenerate both in the Slack app config and
+> update the secret via CLI/console rather than through chat.
+
 **Still blocking a prod matching-engine deploy:**
-- `slack_bot_token` / `slack_signing_secret` — need the **separate prod Slack
-  app** (decided, not yet registered).
-- `github_token` — needed only while the bootstrap still does `git clone`;
-  Phase F's ECR work removes it.
+- `github_token` — needed only while the bootstrap still does `git clone`.
+  **Phase F's ECR work removes the need entirely**, so ECR should land before
+  prod matching-engine rather than filling in a token that is then deleted.
 - The app currently connects as the RDS **master** user (`wusool_admin`),
   matching dev. A least-privilege application role would be better for prod;
   raised, not actioned.
