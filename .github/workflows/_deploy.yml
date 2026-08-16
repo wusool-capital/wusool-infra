@@ -24,6 +24,10 @@ on:
         description: OIDC role to assume. Branch-scoped in its trust policy.
         required: true
         type: string
+      image_digest:
+        description: 'Digest to deploy, e.g. "sha256:abc...". Required — comes from _build.yml.'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -88,6 +92,8 @@ jobs:
 
       - name: Apply stacks/toolkit
         working-directory: terraform/stacks/toolkit
+        env:
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
         run: |
           set -euo pipefail
           tofu init -reconfigure -input=false \
@@ -95,7 +101,8 @@ jobs:
             -backend-config=region=me-central-1 \
             -backend-config=key=wusool/$ENV/toolkit/terraform.tfstate \
             -backend-config=use_lockfile=true -backend-config=encrypt=true
-          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars
+          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars \
+            -var="image_digest=$IMAGE_DIGEST"
 
       - name: Apply stacks/postgres
         working-directory: terraform/stacks/postgres
@@ -115,13 +122,10 @@ jobs:
       # "Apply complete!" while the bootstrap actually failed. A deploy is not
       # done until the app is confirmed serving traffic.
       #
-      # NOTE ON HOW THIS ROLLS THE APP TODAY: the toolkit-ec2 module still
-      # does `git clone` + `docker compose build` on the instance itself (the
-      # ECR-pull-by-digest pivot is scaffolded — repos + build workflow exist
-      # — but not yet wired into the module). Re-running the bootstrap
-      # document is therefore what picks up new app code, by pulling
-      # whichever branch stacks/toolkit's git_ref points at. This is real,
-      # working, current behavior — not a placeholder.
+      # The `tofu apply` above already registered a bootstrap document
+      # pointing at the new digest (via -var=image_digest=...). Re-running it
+      # is what actually pulls that image and restarts the container — apply
+      # alone only updates the registered document, it doesn't invoke it.
       # -----------------------------------------------------------------
 
       - name: Roll the toolkit app and wait for it

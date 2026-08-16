@@ -25,8 +25,9 @@ permissions:
 
 jobs:
   # Prod builds its OWN image into wusool-prod/toolkit — never promotes dev's.
-  # See stacks/toolkit's module comment for the accepted trade-off (base image
-  # tags, not digests, so the two builds are not guaranteed byte-identical).
+  # deploy below pins this build's exact digest. See stacks/toolkit's module
+  # comment for the accepted trade-off (base image tags, not digests, so the
+  # two builds are not guaranteed byte-identical).
   build:
     uses: ./.github/workflows/_build.yml
     with:
@@ -34,7 +35,9 @@ jobs:
       role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
 
   deploy:
+    needs: build
     uses: ./.github/workflows/_deploy.yml
     with:
+      image_digest: ${{ needs.build.outputs.digest }}
       environment: prod
       role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod

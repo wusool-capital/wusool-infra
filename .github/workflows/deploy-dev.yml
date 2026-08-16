@@ -21,11 +21,8 @@ permissions:
   id-token: write
 
 jobs:
-  # Builds and pushes an image to wusool-dev/toolkit. Not yet consumed by the
-  # deploy below — the toolkit-ec2 module still builds on-box from git_ref
-  # (see _deploy.yml's note). Kept running so real images land in ECR ahead of
-  # the module being wired to pull them, rather than starting that pivot with
-  # an empty registry.
+  # Builds and pushes to wusool-dev/toolkit. deploy below pins this exact
+  # digest — prod never sees it, since prod builds its own image separately.
   build:
     uses: ./.github/workflows/_build.yml
     with:
@@ -33,7 +30,9 @@ jobs:
       role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-dev
 
   deploy:
+    needs: build
     uses: ./.github/workflows/_deploy.yml
     with:
+      image_digest: ${{ needs.build.outputs.digest }}
       environment: dev
       role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-dev
