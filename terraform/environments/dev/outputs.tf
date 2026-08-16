@@ -1,6 +1,6 @@
 output "vpc_id" {
   description = "Development VPC ID."
-  value       = module.network.vpc_id
+  value       = data.terraform_remote_state.base.outputs.vpc_id
 }
 
 output "n8n_instance_id" {
@@ -29,7 +29,7 @@ output "ssm_command" {
 }
 
 output "alert_topic_arn" {
-  value = aws_sns_topic.alerts.arn
+  value = data.terraform_remote_state.base.outputs.alarm_topic_arn
 }
 
 output "n8n_secret_name" {
