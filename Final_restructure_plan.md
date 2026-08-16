@@ -1246,6 +1246,40 @@ box mid-deploy.
    merge methods enabled in repo settings and enforce the split with branch
    rulesets if available.
 
+   #### 🔴 The deploy MUST poll the bootstrap and fail on error
+
+   **Demonstrated live on 2026-08-16, three times.** `tofu apply` reports
+   `Apply complete!` as soon as it has *registered* the SSM document. It does
+   **not** wait for the bootstrap to run, so:
+
+   ```
+   tofu apply       -> "Apply complete! 8 added, 3 changed"   PASS
+   SSM association  -> Failed                                  (nobody notices)
+   ```
+
+   Three genuine failures that day (stale `main` branch with no app directory;
+   `git checkout` on a shallow single-branch clone; a port conflict leaving the
+   new Caddy stuck in `Created`) **all reported a successful apply.** In a CD
+   pipeline every one of those ships a green checkmark over a broken deploy.
+
+   Every deploy job must therefore, after `apply`:
+
+   1. `aws ssm send-command` the bootstrap document (or
+      `start-associations-once`) and capture the **command id**.
+   2. **Poll to completion** — `aws ssm wait command-executed`, or a loop on
+      `get-command-invocation` until the status leaves `Pending`/`InProgress`.
+   3. **Fail the job** on any status other than `Success`, and print
+      `StandardErrorContent` into the run log so the cause is visible without
+      SSH.
+   4. **Verify the app actually serves** — poll the health endpoint until it
+      returns 200, with a timeout. A container can start and still be broken.
+   5. Only then write `/wusool/<env>/<stack>/deployed_sha`. Recording it before
+      verification would make a failed deploy look deployed to the next run's
+      change detection.
+
+   Without this the pipeline is not a deploy pipeline — it is a config-push
+   pipeline that hopes for the best.
+
    **Rolling the app is a separate step — do not forget it.** `tofu apply`
    re-registers `aws_ssm_document.bootstrap` with the new digest, but
    `aws_ssm_association` does **not** re-run on its own. The workflow must then
@@ -1263,6 +1297,15 @@ box mid-deploy.
 
    Requires ECR `imageTagMutability = IMMUTABLE`, so `sha-<SHA>` cannot be
    repointed at different content after dev has validated it.
+
+   **This removes `git_ref` and `github_token` from the instance entirely.**
+   Today the box clones a branch, so `git_ref` is a per-environment tfvars value
+   (`dev` for dev, `prod` for prod) — necessary, but transitional. Under ECR the
+   instance never clones: CI checks out whichever branch triggered it
+   (`github.ref`) and the instance pulls a pinned digest. Hotfixes work the same
+   way — CI builds from `hotfix/**` and the instance deploys that digest — so no
+   branch name ever reaches the instance, and the GitHub PAT that leaked on
+   2026-08-16 stops being needed at all.
 
 3. **Rewrite `modules/matching-engine-ec2/user_data.sh.tpl`**: delete the
    `git clone` and `docker compose build`; the generated compose uses
