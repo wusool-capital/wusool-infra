@@ -589,6 +589,64 @@ the live `wusool-tfstate` bucket is imported into `stacks/account` (§D0a — no
 yet done, since the bucket already exists and works, this is lower urgency than
 it looks).
 
+### `stacks/base` populated for dev AND prod *(2026-08-16)*
+
+Same procedure as `stacks/account`: rewired both env roots to
+`data.terraform_remote_state.base`, then `state mv` per-address, verified
+`0/0/0`, pushed both sides.
+
+| | dev | prod |
+|---|---|---|
+| Moved | 20 resources (network×11, SNS×2, CloudTrail×6, caller_identity) | 20 resources, identical shape |
+| Backend key | `wusool/dev/base/terraform.tfstate` | `wusool/prod/base/terraform.tfstate` |
+| Backup | `.state-backups/dev-pre-base-split-2026-08-16-0938.tfstate` | `.state-backups/prod-pre-base-split-2026-08-16-0947.tfstate` |
+
+**Two indexing mistakes made and caught during this move** — both by validation
+before anything touched real state: line-range deletion accidentally caught
+`aws_secretsmanager_secret.n8n`/`.wusool_toolkit`'s **declarations** (not the
+resources — those stayed correctly in AWS/state throughout, confirmed via
+`tofu state list` each time) — recovered verbatim from `git show HEAD:...`.
+**Lesson: recompute line ranges against the file's current state at edit time,
+never reuse indices from an earlier grep in the conversation.**
+
+**Also caught: `state push` does not compute outputs.** After pushing a stack's
+state for the first time, its `outputs` block is empty until a `plan`/`apply`
+actually runs — remote_state reads from a freshly-pushed stack fail with
+"Unsupported attribute" until that happens. Each stack got a no-op
+`0 added, 0 changed` apply specifically to populate outputs before the
+consuming root was re-planned.
+
+**Prod's post-migration plan surfaced two unrelated pending items**, bundled
+into one reviewed apply after explicit confirmation (restarts prod n8n):
+- `aws_ecr_repository`/`aws_ecr_lifecycle_policy` for `wusool-prod/toolkit` —
+  pure addition, added to prod earlier this session, never applied.
+- The `set +x` secret-leak fix (same class as the toolkit leak found earlier)
+  — reaches prod's n8n bootstrap for the first time.
+
+```
+Apply complete! Resources: 2 added, 2 changed, 0 destroyed.
+```
+
+**Verified after:** `https://n8n.wusoolcapital.com/healthz` → 200 (3rd attempt,
+~30s after restart); both workflows ("Tally Buyer to Attio",
+"Tally Seller to Attio") reactivated; all 5 stacks (`environments/dev`,
+`environments/prod`, `stacks/base`×2, `stacks/account`) plan **`No changes`**.
+
+### Mid-flight data-safety audit *(user-requested, 2026-08-16)*
+
+Full sweep before continuing: zero destructive commands (`docker compose
+down -v`, `volume rm/prune`, `rm -rf` on data paths, `tofu destroy`,
+`-replace`, `taint`) across every module, both env roots, all stacks, all
+workflow files. RDS defaults confirmed safe
+(`deletion_protection=true`, `skip_final_snapshot=false`,
+`ignore_changes=[snapshot_identifier]` correctly placed on the `aws_db_instance`
+resource — re-verified after catching my own earlier misplacement of this exact
+block on the wrong resource). Both EC2 modules retain
+`ignore_changes=[ami]`. Docker volume names are fixed literals, unaffected by
+redeploys. One standing, already-documented, not-new risk: `_deploy.yml` runs
+`apply -auto-approve` with no plan-review gate — the accepted risk from
+declining the prod approval gate (*Accepted risks* item 0).
+
 ### Snapshot status
 
 | Snapshot | State |
