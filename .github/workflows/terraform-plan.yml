@@ -77,14 +77,21 @@ jobs:
             echo PLANEOF
           } >> "$GITHUB_OUTPUT"
 
+      # The plan body is passed via env, not spliced into the script string:
+      # a plan full of Terraform's own `${...}` syntax and backticked code
+      # fences breaks a JS template literal it's interpolated into (hit this
+      # on 2026-08-16 — every plan job failed at this step with a JS
+      # SyntaxError even though the plan itself succeeded).
       - uses: actions/github-script@v7
+        env:
+          PLAN_BODY: ${{ steps.plan.outputs.body }}
         with:
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `${{ steps.plan.outputs.body }}`
+              body: process.env.PLAN_BODY
             })
 
   plan-account:
@@ -137,12 +144,19 @@ jobs:
             echo PLANEOF
           } >> "$GITHUB_OUTPUT"
 
+      # The plan body is passed via env, not spliced into the script string:
+      # a plan full of Terraform's own `${...}` syntax and backticked code
+      # fences breaks a JS template literal it's interpolated into (hit this
+      # on 2026-08-16 — every plan job failed at this step with a JS
+      # SyntaxError even though the plan itself succeeded).
       - uses: actions/github-script@v7
+        env:
+          PLAN_BODY: ${{ steps.plan.outputs.body }}
         with:
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `${{ steps.plan.outputs.body }}`
+              body: process.env.PLAN_BODY
             })
