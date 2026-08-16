@@ -1,79 +1,90 @@
 # Wusool Infrastructure
 
-Terraform configuration for the Wusool AWS infrastructure.
+OpenTofu configuration and application code for the Wusool AWS infrastructure.
 
-> The development configuration declares an n8n environment in Frankfurt
-> (`eu-central-1`). Production exists as a separate template and should not be
-> treated as deployed or validated from repository contents alone.
+> Both `dev` and `prod` are real, deployed environments in one AWS account
+> (`030179310793`, `eu-central-1`), applied automatically by GitHub Actions on
+> merge to the `dev` or `main` branch respectively. Neither is a template —
+> see [`terraform/README.md`](terraform/README.md) for the stack layout and
+> [`restrcuture_progress.md`](restrcuture_progress.md) for what has been
+> verified live against AWS.
 
 ## Architecture
 
-The development environment contains:
+Each service that owns a deployable app or a long-lived EC2 instance gets one
+dev instance and one prod instance, built from the same OpenTofu code and
+parameterized by environment — not two hand-maintained copies. Today that's:
 
-- VPC `10.10.0.0/16`
-- Public subnet `10.10.1.0/24` with an Internet Gateway route
-- Reserved private subnet `10.10.2.0/24` with no internet route
-- Amazon Linux 2023 EC2 `t3.small` instance with encrypted 30 GiB gp3 storage
-- Elastic IP with `n8n-dev.wusoolcapital.com` DNS
-- Docker Compose running Caddy and n8n
-- HTTPS termination in Caddy, proxying internally to n8n on port `5678`
-- AWS Systems Manager for administration and bootstrap
-- AWS Secrets Manager secret for environment-specific n8n secrets, including optional SMTP settings
-- CloudWatch logs and EC2 status/CPU alarms
-- SNS email notifications
-- Multi-region CloudTrail with encrypted, versioned S3 log storage
-- GuardDuty and Security Hub
+- **n8n** — Amazon Linux EC2, Docker Compose running Caddy + n8n, HTTPS
+  termination in Caddy proxying to n8n on port `5678`, pinned n8n/runners/Caddy
+  image digests, an explicitly pinned AMI (no more `most_recent` drift).
+- **wusool-toolkit** — one EC2 instance running the Slack bot (see
+  `workflows/wusool-toolkit/`) as a Docker container, deployed by immutable
+  ECR digest (built once in CI, never `git clone`+build on the instance).
+  Prod's instance is optional (`create_instance` flag) until a real prod
+  rollout is deliberately switched on.
+- **postgres** — RDS PostgreSQL, dev live, prod provisioned (seeded from a dev
+  snapshot, credentials rotated afterward) but not yet the system of record
+  for n8n's data plane.
+
+All three sit behind Systems Manager for administration (no SSH by default),
+Secrets Manager for environment-specific secrets, CloudWatch logs and alarms,
+SNS email notifications, multi-region CloudTrail, and account-wide GuardDuty +
+Security Hub.
+
+`scribe` (meeting transcription) and `crm-sync`/`bedrock-ai` (operator
+PowerShell scripts with no deployable app of their own) are **not** part of
+this per-service dev/prod model yet — see
+[`SCRIBE_INFRA_CONTRACT.md`](SCRIBE_INFRA_CONTRACT.md) for scribe's handover
+plan.
 
 See:
 
+- [Terraform stacks/modules/envs layout](terraform/README.md)
 - [Infrastructure overview](workflows/n8n/docs/infrastructure-overview.md)
 - [Client schema overview](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) — Attio
   and PostgreSQL overview
-- [Development operating guide](terraform/environments/dev/README.md)
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
+- [CD restructure progress log](restrcuture_progress.md)
 
 ## Repository structure
 
 ```text
 wusool-infra/
-|-- terraform/                 # All Terraform configuration
-|   |-- bootstrap/             # Parameterized backend bootstrap
-|   |-- environments/
-|   |   |-- dev/               # Frankfurt development composition
-|   |   `-- prod/              # Production template
-|   `-- modules/
-|       |-- network/               # VPC, subnets, route tables and IGW
-|       |-- n8n-ec2/               # EC2, n8n, Caddy, IAM, SSM and monitoring
-|       |-- matching-engine-ec2/   # EC2 host for wusool-toolkit/ bots, Caddy, IAM, SSM and monitoring
-|       |-- bedrock-access/        # IAM policy granting scoped Bedrock model access
-|       `-- postgres-rds/          # Shared RDS PostgreSQL instance
-|-- database/                  # PostgreSQL migrations, sync, and database tools
+|-- terraform/
+|   |-- .opentofu-version      # pinned OpenTofu version — this repo uses OpenTofu, not Terraform
+|   |-- modules/               # HOW each resource is built (reusable, environment-agnostic)
+|   |   |-- network/               # VPC, subnets, route tables and IGW
+|   |   |-- n8n-ec2/               # n8n EC2, Caddy, IAM, SSM and monitoring
+|   |   |-- toolkit-ec2/           # wusool-toolkit EC2 host, Caddy, IAM, SSM and monitoring
+|   |   |-- bedrock-access/        # IAM policy granting scoped Bedrock model access
+|   |   `-- postgres-rds/          # RDS PostgreSQL instance
+|   |-- stacks/                # WHAT to build per service — the roots actually applied
+|   |   |-- account/               # Account-wide singletons: GuardDuty, Security Hub, OIDC, state bucket
+|   |   |-- base/                  # Per-env VPC, CloudTrail, alerts SNS topic
+|   |   |-- n8n/                   # Per-env n8n stack
+|   |   |-- toolkit/                # Per-env wusool-toolkit stack + its ECR repo
+|   |   `-- postgres/               # Per-env RDS stack
+|   `-- envs/                   # dev.tfvars / prod.tfvars — committed, non-secret per-env config
+|-- database/                  # PostgreSQL migrations (flat SQL, pre-Alembic), sync, and DB tools
 |-- workflows/                 # One folder per workflow: scripts + docs together
 |   |-- n8n/                   # n8n scripts and infrastructure/architecture docs
-|   |-- bedrock-ai/            # AWS Bedrock model access scripts
-|   |-- crm-sync/              # Attio <-> PostgreSQL schema, sync scripts, and docs
-|   `-- wusool-toolkit/        # Slack bots hosted together on one EC2 instance
-|       |-- docker-compose.yml # Local dev orchestration for all bots + a throwaway Postgres
-|       |-- matching-engine/   # Buyer-Seller Matching Slack bot (FastAPI + Slack Bolt)
-|       |-- ddl-commands/      # Database DDL Slack bot (placeholder, not yet built)
-|       `-- shared/            # Scaffold for cross-bot reusable code (currently empty)
+|   |-- bedrock-ai/            # AWS Bedrock model access scripts (operator PowerShell, no deploy)
+|   |-- crm-sync/              # Attio <-> PostgreSQL schema, sync scripts, and docs (operator PowerShell, no deploy)
+|   `-- wusool-toolkit/        # The one deployed Slack bot process
+|       |-- Dockerfile         # Built once in CI, pushed to ECR, deployed by digest
+|       |-- main.py            # The real entrypoint — mounts both bots' handlers on one Slack app
+|       |-- matching-engine/   # Buyer-Seller Matching functionality (FastAPI + Slack Bolt)
+|       `-- ddl-commands/      # Buyer/seller profile edit + soft-delete commands
 |-- scripts/
 |   `-- docs/                  # Cross-cutting schema documentation generators
-`-- .agents/skills/            # Project-local Codex skills
+`-- .github/workflows/         # CI (lint/type/test) and CD (OIDC-authenticated deploy) — see below
 ```
 
-The environment directories compose reusable modules. Each environment has
-its own provider, backend, variables and outputs.
-
-Project, environment, and region are Terraform variables. They can be supplied
-through `.tfvars` files or `TF_VAR_` environment variables, while each
-environment must keep its own backend state key.
-
-```powershell
-$env:TF_VAR_project = "wusool"
-$env:TF_VAR_environment = "dev"
-$env:TF_VAR_aws_region = "eu-central-1"
-```
+Each stack reads `project`, `environment`, and region-scoped values from
+`terraform/envs/<env>.tfvars` — see [`terraform/README.md`](terraform/README.md)
+for the full backend-key and `-var-file` convention, and the collision risk
+of two stacks sharing one tfvars file.
 
 ## CRM and data-platform schema
 
@@ -134,7 +145,7 @@ The current documentation covers:
 | --- | --- |
 | Attio target model | `workflows/crm-sync/scripts/config/target-schema.json` |
 | Attio migration mapping | `workflows/crm-sync/scripts/config/source-to-target-mapping.json` |
-| PostgreSQL schema | `database/sql/001_extensions.sql` through `004_machine_layer.sql` |
+| PostgreSQL schema | `database/sql/001_extensions.sql` through `008_bot_managed_columns.sql` |
 
 The generated documents describe the schema declared in this repository. They
 do not prove the current state of a live Attio workspace or PostgreSQL database.
@@ -154,72 +165,89 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 Do not manually edit the generated Markdown file; update the schema sources or
 generator script and regenerate it instead.
 
-## Development state backend
+## State backend
 
-The current development backend is declared in
-`terraform/environments/dev/backend.tf`.
-
-| Setting | Development value |
-| --- | --- |
-| Backend | Amazon S3 |
-| Region | `eu-central-1` |
-| State key | `wusool/dev/terraform.tfstate` |
-| Encryption | Enabled |
-| Locking | S3 native lock file (`use_lockfile = true`) |
-| Bucket protection | Versioning, encryption and public-access blocking |
-
-`terraform/bootstrap/` is the one-time backend setup. It is parameterized by region and
-bucket name; `terraform/bootstrap/terraform.tfvars.example` shows the Frankfurt bucket
-used by development. The configuration also declares a DynamoDB lock table for
-older backend styles, but the current development backend uses S3 native lock
-files instead.
+Every stack uses a partial S3 backend (`bucket = wusool-tfstate`, region
+`me-central-1` — deliberately different from the `eu-central-1` resources —
+S3 native lock file, encrypted, versioned) keyed as
+`wusool/<env>/<stack>/terraform.tfstate`. `stacks/account` is the one
+exception: it has no `-var-file` and its own single state key, since it owns
+account-wide singletons. See [`terraform/README.md`](terraform/README.md) for
+the exact `init -backend-config=...` invocation each stack expects.
 
 ## Prerequisites
 
-- Terraform version from `terraform/.terraform-version`
+- OpenTofu version from `terraform/.opentofu-version` — this repo uses
+  **OpenTofu**, not HashiCorp Terraform; do not run `terraform` against it.
 - AWS CLI v2
 - Valid AWS credentials or an active AWS SSO session
 - An EC2 key pair matching the environment configuration
 
 Verify AWS authentication before planning:
 
-```powershell
+```bash
 aws sts get-caller-identity
 ```
 
 ## Development workflow
 
-```powershell
-Set-Location terraform/environments/dev
-terraform init
-terraform fmt -check
-terraform validate
-terraform plan -out=tfplan
-terraform apply tfplan
+```bash
+cd terraform/stacks/n8n   # or toolkit / postgres / base
+tofu init -backend-config="bucket=wusool-tfstate" \
+  -backend-config="region=me-central-1" \
+  -backend-config="key=wusool/dev/n8n/terraform.tfstate" \
+  -backend-config="use_lockfile=true" -backend-config="encrypt=true"
+tofu fmt -check
+tofu validate
+tofu plan -var-file=../../envs/dev.tfvars -out=tfplan
+tofu apply tfplan
 ```
 
-Always review the plan before applying. GitHub Actions checks formatting and
-validation for pull requests targeting `dev`; it does not apply infrastructure.
+Always review the plan before applying manually. In normal operation you
+don't apply by hand at all — merging to `dev` or `main` triggers the matching
+GitHub Actions workflow, which applies every stack in dependency order
+(`base` → `n8n`/`toolkit` → `postgres`) and health-checks the toolkit app
+before declaring success. See **Continuous deployment** below.
 
 After deployment:
 
-```powershell
-terraform output n8n_url
-terraform output ssm_command
+```bash
+tofu output n8n_url
+tofu output ssm_command
 ```
 
-The configured development security group allows HTTP and HTTPS. Port `5678`
-is closed when `expose_n8n_port = false`, and SSH ingress is omitted when
+The configured security group allows HTTP and HTTPS. Port `5678` is closed
+when `expose_n8n_port = false`, and SSH ingress is omitted when
 `ssh_cidr_blocks` is empty. Prefer Systems Manager for shell access.
 
-Development n8n is configured for `https://n8n-dev.wusoolcapital.com/`.
-Cloudflare should keep the `n8n-dev` record pointed at the EC2 Elastic IP.
+Dev n8n serves `https://n8n-dev.wusoolcapital.com/`; prod serves
+`https://n8n.wusoolcapital.com/`. Cloudflare should keep the matching DNS
+record pointed at each environment's EC2 Elastic IP.
+
+## Continuous deployment
+
+`.github/workflows/deploy-dev.yml` and `deploy-prod.yml` trigger on push to
+`dev` and `main` respectively (path-filtered to `terraform/**` and
+`workflows/wusool-toolkit/**`). Each builds the toolkit Docker image, pushes
+it to that environment's own ECR repository by immutable digest, applies
+every stack for that environment, then re-invokes the toolkit's SSM bootstrap
+document and polls until the app is confirmed serving `/health` with a `200`
+— a successful `tofu apply` only proves the bootstrap document was
+*registered*, not that the app actually deployed, so this repo never trusts
+apply's exit code alone. Authentication is GitHub OIDC role assumption
+(`wusool-gha-apply-dev` / `wusool-gha-apply-prod`, scoped by branch in their
+trust policy) — no static AWS keys. `terraform-plan.yml` comments a plan on
+every pull request; `terraform-ci.yml` runs `fmt`/`validate`; `ci.yml` runs
+`ruff`/`ty`/`pytest` for the toolkit app and PSScriptAnalyzer for the
+PowerShell scripts; `backmerge.yml` opens an automatic `main → dev` PR after
+a successful prod deploy so a hotfix merged straight to `main` isn't lost on
+the next promotion.
 
 ## n8n SMTP email
 
 Each environment creates a Secrets Manager secret at
 `/${project}/${environment}/n8n`. Add SMTP keys and other sensitive runtime
-environment variables to that secret after `terraform apply`; do not put API
+environment variables to that secret after `tofu apply`; do not put API
 keys, webhooks, or SMTP passwords in `terraform.tfvars`.
 
 ```powershell
@@ -234,18 +262,8 @@ the `env` object.
 
 ## n8n users
 
-Use the helper script to invite users to development or production:
-
-```powershell
-$env:N8N_AUTH_COOKIE = "n8n-auth=..."
-.\scripts\invite-n8n-users.ps1 -Environment dev -Email person@example.com
-.\scripts\invite-n8n-users.ps1 -Environment prod -EmailFile .\scripts\n8n-users.example.txt
-```
-
-Run with `-DryRun` first to confirm the target URL and email list. The script
-uses the n8n invite endpoint and accepts either `N8N_AUTH_COOKIE` or
-`N8N_API_KEY`; if the API key cannot invite users in the deployed n8n version,
-use a browser session cookie from an owner/admin session.
+Invite users from n8n's own admin UI (Settings → Users). No repo script does
+this today.
 
 Forgot-password works when n8n can send email. Configure the SMTP secret for
 the environment, let the SSM bootstrap association rerun, and confirm the n8n
@@ -253,14 +271,20 @@ container has `N8N_EMAIL_MODE=smtp` plus the `N8N_SMTP_*` variables.
 
 ## Production
 
-`terraform/environments/prod` is a template using `me-central-1`, a `10.20.0.0/16` VPC,
-and larger defaults. Review and reconcile its backend and module inputs before
-initialization or deployment. In particular, production still uses the older
-DynamoDB backend-locking configuration.
+Prod is a real, deployed environment — a `10.20.0.0/16` VPC in
+`eu-central-1`, its own n8n instance at `https://n8n.wusoolcapital.com/`, and
+its own RDS instance seeded from a dev snapshot (credentials rotated off the
+snapshot's inherited secret afterward — restoring from a snapshot silently
+keeps the source's master credentials otherwise). It is applied exactly the
+same way as dev: merge to `main` deploys it, via `terraform/envs/prod.tfvars`
+and the same stacks. The prod toolkit EC2 instance is optional
+(`create_instance = false` in `envs/prod.tfvars`) until a real rollout is
+deliberately switched on — until then, `stacks/toolkit` for prod only
+provisions the ECR repository and secret.
 
-Do not deploy production by changing `TF_VAR_environment` while using the dev
-backend. Production must use its own state key, such as
-`wusool/prod/terraform.tfstate`.
+There is deliberately no human approval gate between a `main` merge and the
+apply — see `restrcuture_progress.md` for the accepted-risk reasoning and
+the mitigation in place (`backmerge.yml`).
 
 ## Project status
 
