@@ -455,6 +455,93 @@ entirely, so prod deploys a pinned image digest with no git ref and no
 - **Prod does not yet instantiate the toolkit module** — prod has only `network`,
   `n8n` and `postgres`.
 
+### Phase E — CI/CD workflows created *(2026-08-16)*
+
+**GitHub OIDC live** — no static AWS keys anywhere.
+
+| Resource | Purpose |
+|---|---|
+| `token.actions.githubusercontent.com` provider | trusts `repo:wusool-capital/wusool-infra:*` |
+| `wusool-gha-plan` | ReadOnlyAccess + state read/write. Any branch — used by plan-on-PR |
+| `wusool-gha-apply-dev` | PowerUser + scoped IAM. **Trust restricted to `refs/heads/dev`** |
+| `wusool-gha-apply-prod` | PowerUser + scoped IAM. **Trust restricted to `refs/heads/prod`** |
+
+Branch restriction is enforced by **AWS at AssumeRole time** via the OIDC `sub`
+claim, not by workflow logic that could be edited in a PR. A workflow running on
+`dev` cannot assume the prod role.
+
+#### Workflow files
+
+Separate dev and prod files by explicit request — the environment is *stated*,
+never derived from `github.ref`, so a branch-detection mistake cannot point a
+dev deploy at prod.
+
+| File | Trigger | Behaviour |
+|---|---|---|
+| `deploy-dev.yml` | push to `dev` | build → deploy |
+| `deploy-prod.yml` | push to `prod` | build → deploy |
+| `_build.yml` | called by both | buildx `linux/amd64` → that env's ECR |
+| `_deploy.yml` | called by both | apply → **poll bootstrap** → **verify health** |
+| `terraform-plan.yml` | any PR | plan for the PR's **base** branch, posted as a comment |
+
+#### 🔴 The deploy now verifies, rather than assuming
+
+The single most valuable change in this phase. `tofu apply` returns success as
+soon as the SSM document is **registered** — it does not wait for the bootstrap
+to run. **Three separate broken deploys on 2026-08-16 reported
+`Apply complete!`** (stale `main` branch; `git checkout` on a shallow clone; a
+port conflict leaving Caddy in `Created`). In a pipeline each would have been a
+green tick over a broken deploy.
+
+`_deploy.yml` therefore does, after apply:
+
+1. `ssm send-command` and capture the command id
+2. poll until the status leaves `Pending`/`InProgress`
+3. **fail the job** on anything but `Success`, printing `StandardErrorContent`
+4. **poll `/health` until 200** — a successful bootstrap still leaves a
+   container able to sit in `Created`
+5. write `deployed_sha` **only after both pass** — recording it earlier would
+   make a failed deploy look deployed to the next run's change detection
+
+#### ECR: one repository per environment, both environments build
+
+Superseding the earlier build-once/promote-the-digest design, by decision:
+
+- `wusool-dev/toolkit` and `wusool-prod/toolkit` — **separate registries**, no
+  cross-environment coupling.
+- **Prod builds its own image**, exactly as dev does. This also removes the
+  `HEAD^2` digest-resolution fragility of the promotion model — a squash merge
+  into `prod` would have broken it outright.
+- Both repos: `IMMUTABLE` tags, scan-on-push, keep last 30 images. `_build.yml`
+  reuses an existing image when the tag is already present, since re-running a
+  workflow on an unchanged commit would otherwise fail the push.
+
+**Open trade-off:** with independent builds, prod's artifact is not guaranteed
+byte-identical to what dev tested. `uv.lock` pins every Python dependency, but
+the Dockerfile pins base images by **tag** — `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`
+and `python:3.12-slim-bookworm` — and those move. **Pinning both by digest would
+close the gap** while keeping full isolation. Not yet done.
+
+#### Not yet working
+
+- **No image in either ECR repository.** Two local `docker buildx --push`
+  attempts failed on TLS handshake timeouts from this machine (see below); the
+  first CI run will populate it.
+- `_deploy.yml` references outputs that do not exist yet —
+  `toolkit_bootstrap_document`, `toolkit_instance_id`, `toolkit_url` — and a
+  `wusool_toolkit_image_digest` variable. These arrive with the module change
+  that swaps `git clone` + `docker compose build` for an ECR pull by digest.
+- Prod does not instantiate the toolkit module at all yet.
+
+#### Local network unreliability — an argument for CI
+
+Four separate AWS failures from this workstation today: a DNS lookup failure on
+the state bucket mid-apply (which left state and reality diverged), two TLS
+handshake timeouts pushing to ECR, and a DNS failure on
+`monitoring.eu-central-1.amazonaws.com` that killed an apply outright. **None of
+this affects GitHub Actions**, which is a further reason builds and applies
+belong there rather than on a laptop.
+
 ### Snapshot status
 
 | Snapshot | State |
@@ -484,8 +571,8 @@ reported two as `pending`. Trust `describe-snapshots`, not the waiter.
 3. **Defect 2 + 5 — alerting and security findings reach nobody.** One
    EventBridge rule plus a confirmed SNS subscription fixes both.
 4. **Defect 3 — no recurring backups.** Phase H3 decision outstanding.
-5. **Toolchain not yet standardized** (Phase A) — `.terraform-version` still
-   claims Terraform 1.9.8; CI still installs the wrong tool.
+5. ~~Toolchain not standardized~~ **DONE** — OpenTofu 1.12.5 pinned, CI swapped
+   to `opentofu/setup-opentofu`, lockfiles regenerated.
 6. **`main` not yet retired.**
 
 ## Decisions made 2026-08-16
