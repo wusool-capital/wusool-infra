@@ -32,3 +32,8 @@ output "redeploy_command" {
   description = "AWS CLI command to trigger a redeploy (git pull + rebuild + restart) without replacing the instance."
   value       = "aws ssm send-command --document-name ${aws_ssm_document.bootstrap.name} --instance-ids ${aws_instance.wusool_toolkit.id}"
 }
+
+output "bootstrap_document_name" {
+  description = "SSM document name to trigger a redeploy via send-command."
+  value       = aws_ssm_document.bootstrap.name
+}

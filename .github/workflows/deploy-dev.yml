@@ -1,4 +1,4 @@
-# DEV deploys. Merging to `dev` builds the image and rolls it out.
+# DEV deploys. Merging to `dev` applies every stack and rolls the toolkit app.
 #
 # Deliberately a separate file from deploy-prod.yml rather than one workflow
 # branching on ${{ github.ref }}: the environment is then stated, not derived,
@@ -21,8 +21,11 @@ permissions:
   id-token: write
 
 jobs:
-  # Dev is the ONLY place images are built. Prod resolves the digest that dev
-  # already validated - see deploy-prod.yml.
+  # Builds and pushes an image to wusool-dev/toolkit. Not yet consumed by the
+  # deploy below — the toolkit-ec2 module still builds on-box from git_ref
+  # (see _deploy.yml's note). Kept running so real images land in ECR ahead of
+  # the module being wired to pull them, rather than starting that pivot with
+  # an empty registry.
   build:
     uses: ./.github/workflows/_build.yml
     with:
@@ -30,9 +33,7 @@ jobs:
       role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-dev
 
   deploy:
-    needs: build
     uses: ./.github/workflows/_deploy.yml
     with:
       environment: dev
       role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-dev
-      image_digest: ${{ needs.build.outputs.digest }}

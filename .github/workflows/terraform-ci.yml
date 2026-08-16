@@ -49,8 +49,11 @@ jobs:
       matrix:
         root:
           - terraform/bootstrap
-          - terraform/environments/dev
-          - terraform/environments/prod
+          - terraform/stacks/account
+          - terraform/stacks/base
+          - terraform/stacks/n8n
+          - terraform/stacks/toolkit
+          - terraform/stacks/postgres
 
     defaults:
       run:

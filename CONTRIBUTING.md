@@ -140,8 +140,11 @@ for `dev` in GitHub:
 8. Select these required checks:
    - `OpenTofu Format`
    - `OpenTofu Validate (terraform/bootstrap)`
-   - `OpenTofu Validate (terraform/environments/dev)`
-   - `OpenTofu Validate (terraform/environments/prod)`
+   - `OpenTofu Validate (terraform/stacks/account)`
+   - `OpenTofu Validate (terraform/stacks/base)`
+   - `OpenTofu Validate (terraform/stacks/n8n)`
+   - `OpenTofu Validate (terraform/stacks/toolkit)`
+   - `OpenTofu Validate (terraform/stacks/postgres)`
 9. Enable **Require branches to be up to date before merging**.
 10. Enable **Require conversation resolution before merging**.
 11. Enable **Block force pushes** and **Block deletions**.

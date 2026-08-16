@@ -1,13 +1,11 @@
-# PROD deploys. Merging to `prod` builds prod's own image and rolls it out.
+# PROD deploys. Merging to `prod` applies every stack and rolls the toolkit
+# app — same shape as deploy-dev.yml, symmetric by design.
 #
-# Deliberately a separate file from deploy-dev.yml, and prod builds its own
-# artifact into its own ECR repository rather than promoting dev's. The two
-# environments share no registry and no build output.
-#
-# Consequence to be aware of: prod's image is built from prod's source at prod's
-# build time, so it is not guaranteed byte-identical to what dev tested.
-# `uv.lock` pins the Python dependencies; pin the Dockerfile's base images by
-# digest to close the remaining gap.
+# stacks/toolkit's create_instance defaults per envs/prod.tfvars (currently
+# false — no prod toolkit instance exists yet). Until that is deliberately
+# flipped to true, this deploy applies prod's other stacks (base, n8n,
+# postgres, and toolkit's ECR + secret) and skips the app-rollout/health-check
+# steps, which detect "no instance" and exit cleanly rather than failing.
 name: Deploy prod
 
 on:
@@ -26,6 +24,9 @@ permissions:
   id-token: write
 
 jobs:
+  # Prod builds its OWN image into wusool-prod/toolkit — never promotes dev's.
+  # See stacks/toolkit's module comment for the accepted trade-off (base image
+  # tags, not digests, so the two builds are not guaranteed byte-identical).
   build:
     uses: ./.github/workflows/_build.yml
     with:
@@ -33,9 +34,7 @@ jobs:
       role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
 
   deploy:
-    needs: build
     uses: ./.github/workflows/_deploy.yml
     with:
       environment: prod
       role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
-      image_digest: ${{ needs.build.outputs.digest }}

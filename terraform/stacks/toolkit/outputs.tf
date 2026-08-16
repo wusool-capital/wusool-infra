@@ -43,3 +43,7 @@ output "secret_arn" {
 output "ecr_repository_url" {
   value = aws_ecr_repository.wusool_toolkit.repository_url
 }
+
+output "bootstrap_document_name" {
+  value = try(module.wusool_toolkit[0].bootstrap_document_name, "")
+}

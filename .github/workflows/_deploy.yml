@@ -1,8 +1,16 @@
-# Reusable deploy: terraform apply, then ACTUALLY VERIFY the app is running.
+# Reusable deploy: apply every stack (base -> n8n -> toolkit -> postgres),
+# then roll the toolkit app and ACTUALLY VERIFY it's running.
 #
-# Called by deploy-dev.yml and deploy-prod.yml. Never triggered directly, so the
-# environment is always explicit at the call site rather than inferred from a
-# branch name.
+# Called by deploy-dev.yml and deploy-prod.yml. Never triggered directly, so
+# the environment is always explicit at the call site rather than inferred
+# from a branch name.
+#
+# Simplification, stated plainly: every stack is applied on every deploy,
+# unconditionally. Each apply is a no-op if nothing in that stack changed, so
+# this is safe, just not maximally efficient — path-filtered change detection
+# (the plan's original design) is a follow-up, not yet built. Do not read the
+# absence of change-detection as accidental; it is the documented fallback
+# ("deploy everything") made permanent until it's worth the added complexity.
 name: _deploy
 
 on:
@@ -16,11 +24,6 @@ on:
         description: OIDC role to assume. Branch-scoped in its trust policy.
         required: true
         type: string
-      image_digest:
-        description: 'Image to deploy, e.g. sha256:abc… . Empty keeps whatever the tfvars pins.'
-        required: false
-        type: string
-        default: ''
 
 permissions:
   contents: read
@@ -31,11 +34,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
 
-    # Never cancel a running apply: a half-applied terraform run leaves state and
-    # reality diverged and can orphan the state lock.
+    # Never cancel a running apply: a half-applied terraform run leaves state
+    # and reality diverged and can orphan the state lock.
     concurrency:
       group: deploy-${{ inputs.environment }}
       cancel-in-progress: false
+
+    env:
+      ENV: ${{ inputs.environment }}
 
     steps:
       - uses: actions/checkout@v4
@@ -54,33 +60,79 @@ jobs:
           role-to-assume: ${{ inputs.role_arn }}
           aws-region: eu-central-1
 
-      - name: Terraform apply
-        working-directory: terraform/environments/${{ inputs.environment }}
+      # stacks/account is intentionally NOT applied here — it is account-wide,
+      # not per-environment, and is applied out of band (no -var-file, no
+      # environment concurrency group of its own).
+
+      - name: Apply stacks/base
+        working-directory: terraform/stacks/base
         run: |
           set -euo pipefail
-          tofu init -reconfigure -input=false
-          EXTRA=""
-          if [ -n "${{ inputs.image_digest }}" ]; then
-            EXTRA="-var=wusool_toolkit_image_digest=${{ inputs.image_digest }}"
-          fi
-          tofu apply -input=false -auto-approve -var-file=terraform.tfvars $EXTRA
+          tofu init -reconfigure -input=false \
+            -backend-config=bucket=wusool-tfstate \
+            -backend-config=region=me-central-1 \
+            -backend-config=key=wusool/$ENV/base/terraform.tfstate \
+            -backend-config=use_lockfile=true -backend-config=encrypt=true
+          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars
 
-      # ---------------------------------------------------------------------
+      - name: Apply stacks/n8n
+        working-directory: terraform/stacks/n8n
+        run: |
+          set -euo pipefail
+          tofu init -reconfigure -input=false \
+            -backend-config=bucket=wusool-tfstate \
+            -backend-config=region=me-central-1 \
+            -backend-config=key=wusool/$ENV/n8n/terraform.tfstate \
+            -backend-config=use_lockfile=true -backend-config=encrypt=true
+          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars
+
+      - name: Apply stacks/toolkit
+        working-directory: terraform/stacks/toolkit
+        run: |
+          set -euo pipefail
+          tofu init -reconfigure -input=false \
+            -backend-config=bucket=wusool-tfstate \
+            -backend-config=region=me-central-1 \
+            -backend-config=key=wusool/$ENV/toolkit/terraform.tfstate \
+            -backend-config=use_lockfile=true -backend-config=encrypt=true
+          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars
+
+      - name: Apply stacks/postgres
+        working-directory: terraform/stacks/postgres
+        run: |
+          set -euo pipefail
+          tofu init -reconfigure -input=false \
+            -backend-config=bucket=wusool-tfstate \
+            -backend-config=region=me-central-1 \
+            -backend-config=key=wusool/$ENV/postgres/terraform.tfstate \
+            -backend-config=use_lockfile=true -backend-config=encrypt=true
+          tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars
+
+      # -----------------------------------------------------------------
       # Everything below exists because `tofu apply` returning success proves
-      # only that the SSM document was REGISTERED. On 2026-08-16 three separate
-      # broken deploys reported "Apply complete!" while the bootstrap failed.
-      # A deploy is not done until the app actually serves traffic.
-      # ---------------------------------------------------------------------
+      # only that the SSM document was REGISTERED, not that the app deployed.
+      # On 2026-08-16, three separate broken toolkit deploys reported
+      # "Apply complete!" while the bootstrap actually failed. A deploy is not
+      # done until the app is confirmed serving traffic.
+      #
+      # NOTE ON HOW THIS ROLLS THE APP TODAY: the toolkit-ec2 module still
+      # does `git clone` + `docker compose build` on the instance itself (the
+      # ECR-pull-by-digest pivot is scaffolded — repos + build workflow exist
+      # — but not yet wired into the module). Re-running the bootstrap
+      # document is therefore what picks up new app code, by pulling
+      # whichever branch stacks/toolkit's git_ref points at. This is real,
+      # working, current behavior — not a placeholder.
+      # -----------------------------------------------------------------
 
-      - name: Run the bootstrap and wait for it
+      - name: Roll the toolkit app and wait for it
         id: bootstrap
-        working-directory: terraform/environments/${{ inputs.environment }}
+        working-directory: terraform/stacks/toolkit
         run: |
           set -euo pipefail
-          DOC=$(tofu output -raw toolkit_bootstrap_document 2>/dev/null || echo "")
-          IID=$(tofu output -raw toolkit_instance_id 2>/dev/null || echo "")
+          DOC=$(tofu output -raw bootstrap_document_name 2>/dev/null || echo "")
+          IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
           if [ -z "$DOC" ] || [ -z "$IID" ]; then
-            echo "::notice::No toolkit stack in ${{ inputs.environment }} — skipping app rollout."
+            echo "::notice::No toolkit instance in $ENV (create_instance=false) — skipping app rollout."
             echo "skipped=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
 
@@ -108,15 +160,15 @@ jobs:
 
       - name: Verify the app actually serves
         if: steps.bootstrap.outputs.skipped != 'true'
-        working-directory: terraform/environments/${{ inputs.environment }}
+        working-directory: terraform/stacks/toolkit
         run: |
           set -euo pipefail
-          URL=$(tofu output -raw toolkit_url 2>/dev/null || echo "")
-          [ -n "$URL" ] || { echo "::notice::No URL output — skipping health check."; exit 0; }
+          URL=$(tofu output -json app_urls 2>/dev/null | jq -r '.toolkit // empty')
+          [ -n "$URL" ] || { echo "::notice::No app URL output — skipping health check."; exit 0; }
 
-          # A successful bootstrap still leaves failure modes open: a container can
-          # sit in `Created` when a port is already bound, which is exactly what
-          # happened during the 2026-08-16 rename.
+          # A successful bootstrap still leaves failure modes open: a container
+          # can sit in `Created` when a port is already bound, which is exactly
+          # what happened during the 2026-08-16 toolkit rename.
           for i in $(seq 1 20); do
             C=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$URL/health" || echo 000)
             echo "attempt $i: HTTP $C"
@@ -126,8 +178,9 @@ jobs:
           echo "::error::$URL/health never returned 200 — deploy is NOT healthy"; exit 1
 
       # Written last, and only on success: recording it earlier would make a
-      # failed deploy look deployed to the next run's change detection.
+      # failed deploy look deployed to the next run's change detection, once
+      # change detection actually exists.
       - name: Record deployed SHA
         run: |
-          aws ssm put-parameter --name "/wusool/${{ inputs.environment }}/toolkit/deployed_sha" \
+          aws ssm put-parameter --name "/wusool/$ENV/toolkit/deployed_sha" \
             --value "${{ github.sha }}" --type String --overwrite
