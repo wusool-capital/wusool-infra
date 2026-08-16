@@ -1,8 +1,7 @@
-# Reusable image build. Called ONLY from deploy-dev.yml.
+# Reusable image build. Called by BOTH deploy-dev.yml and deploy-prod.yml.
 #
-# Building on prod as well would defeat the point: a merge commit has a
-# different SHA, and a rebuild resolves different base-image layers, so prod
-# would run an artifact dev never tested. Prod resolves dev's digest instead.
+# Each environment builds into its OWN ECR repository (wusool-<env>/toolkit), so
+# dev and prod share no registry and no build output.
 name: _build
 
 on:
@@ -44,11 +43,11 @@ jobs:
         run: |
           set -euo pipefail
           SHA=$(git rev-parse --short HEAD)
-          IMAGE="$REGISTRY/wusool/toolkit:sha-$SHA"
+          IMAGE="$REGISTRY/wusool-${{ inputs.environment }}/toolkit:sha-$SHA"
 
           # The repository is IMMUTABLE, so re-running a workflow on an unchanged
           # commit would fail on push. Reuse the existing image instead.
-          if EXISTING=$(aws ecr describe-images --repository-name wusool/toolkit \
+          if EXISTING=$(aws ecr describe-images --repository-name wusool-${{ inputs.environment }}/toolkit \
                 --image-ids imageTag="sha-$SHA" \
                 --query 'imageDetails[0].imageDigest' --output text 2>/dev/null) \
              && [ -n "$EXISTING" ] && [ "$EXISTING" != "None" ]; then
@@ -61,7 +60,7 @@ jobs:
           docker buildx build --platform linux/amd64 \
             -t "$IMAGE" --push workflows/wusool-toolkit
 
-          DIGEST=$(aws ecr describe-images --repository-name wusool/toolkit \
+          DIGEST=$(aws ecr describe-images --repository-name wusool-${{ inputs.environment }}/toolkit \
             --image-ids imageTag="sha-$SHA" \
             --query 'imageDetails[0].imageDigest' --output text)
           echo "pushed: $DIGEST"

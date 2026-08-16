@@ -62,3 +62,8 @@ output "postgres_master_user_secret_arn" {
   value       = module.postgres.master_user_secret_arn
   sensitive   = true
 }
+
+output "toolkit_ecr_repository_url" {
+  description = "Production's own ECR repository. Prod builds and stores its own images."
+  value       = aws_ecr_repository.wusool_toolkit.repository_url
+}

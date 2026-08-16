@@ -303,19 +303,21 @@ resource "aws_cloudwatch_event_target" "securityhub_to_sns" {
 }
 
 # ---------------------------------------------------------------------------
-# Container registry (Phase F)
+# Container registry - ONE REPOSITORY PER ENVIRONMENT.
 #
-# ONE repository shared by dev and prod. That is the whole point of
-# build-once/deploy-by-digest: prod runs the byte-identical image dev tested,
-# so a per-environment repository would defeat it.
+# Each environment builds and stores its own images: dev images never appear in
+# prod's registry and vice versa, so there is no cross-environment coupling and
+# no shared blast radius on the registry.
 #
-# Account-scoped like GuardDuty above, and lives here only because that is where
-# the account-level resources currently sit. Moves to stacks/account by
-# `state mv` in Phase D.
+# Trade-off accepted: prod builds its own artifact rather than promoting the one
+# dev validated, so the two are not guaranteed byte-identical. `uv.lock` pins
+# every Python dependency, but the Dockerfile's base images are pinned by TAG
+# (python:3.12-slim-bookworm), which moves. To make the builds genuinely
+# reproducible, pin those by digest in the Dockerfile.
 # ---------------------------------------------------------------------------
 
 resource "aws_ecr_repository" "wusool_toolkit" {
-  name = "${var.project}/toolkit"
+  name = "${var.project}-${var.environment}/toolkit"
 
   # IMMUTABLE means a tag can never be repointed at different content after an
   # environment has validated it. Required for digest promotion to mean anything.

@@ -161,3 +161,52 @@ module "postgres" {
   # while this is set; both come from the snapshot.
   snapshot_identifier = var.postgres_snapshot_identifier
 }
+
+# ---------------------------------------------------------------------------
+# Container registry - ONE REPOSITORY PER ENVIRONMENT.
+#
+# Each environment builds and stores its own images: dev images never appear in
+# prod's registry and vice versa, so there is no cross-environment coupling and
+# no shared blast radius on the registry.
+#
+# Trade-off accepted: prod builds its own artifact rather than promoting the one
+# dev validated, so the two are not guaranteed byte-identical. `uv.lock` pins
+# every Python dependency, but the Dockerfile's base images are pinned by TAG
+# (python:3.12-slim-bookworm), which moves. To make the builds genuinely
+# reproducible, pin those by digest in the Dockerfile.
+# ---------------------------------------------------------------------------
+
+resource "aws_ecr_repository" "wusool_toolkit" {
+  name = "${var.project}-${var.environment}/toolkit"
+
+  # IMMUTABLE means a tag can never be repointed at different content after an
+  # environment has validated it. Required for digest promotion to mean anything.
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "wusool_toolkit" {
+  repository = aws_ecr_repository.wusool_toolkit.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep the last 30 images; untagged layers expire quickly."
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 30
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+}
