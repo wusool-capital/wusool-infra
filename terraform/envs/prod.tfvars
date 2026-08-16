@@ -38,3 +38,8 @@ enable_bedrock   = false
 # intended value, so not repeated here (a duplicate key is a parse error).
 create_instance = false
 public_url      = ""
+
+# stacks/toolkit — inert while create_instance = false above; no prod image
+# has been built yet. Must be set to a real digest before flipping
+# create_instance to true, or the instance boots with nothing to pull.
+image_digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"

@@ -23,23 +23,21 @@ module "wusool_toolkit" {
   ssh_cidr_blocks             = var.ssh_cidr_blocks
   ami_id                      = var.toolkit_ami_id
   web_cidr_blocks             = var.web_cidr_blocks
-  git_repo_url                = var.git_repo_url
-  git_ref                     = var.git_ref
   root_volume_size            = var.root_volume_size
   aws_region                  = var.aws_region
   alarm_topic_arn             = data.terraform_remote_state.base.outputs.alarm_topic_arn
   secrets_manager_secret_arns = [aws_secretsmanager_secret.wusool_toolkit.arn]
+  ecr_repository_arn          = aws_ecr_repository.wusool_toolkit.arn
 
   # Single entry, single process: matching-engine and ddl-commands are one
   # Slack bot (one token, one interactivity URL — see
   # workflows/wusool-toolkit/README.md), built from the toolkit root's
-  # Dockerfile, not matching-engine's own subdirectory. This module's `apps`
-  # list still supports multiple entries for a future, genuinely separate
-  # bot on this same instance — this just isn't one.
+  # Dockerfile. This module's `apps` list still supports multiple entries for
+  # a future, genuinely separate bot on this same instance — this just isn't one.
   apps = [
     {
       name          = "toolkit"
-      app_subdir    = "workflows/wusool-toolkit"
+      image         = "${aws_ecr_repository.wusool_toolkit.repository_url}@${var.image_digest}"
       app_secret_id = aws_secretsmanager_secret.wusool_toolkit.id
       public_url    = var.public_url
     }

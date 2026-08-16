@@ -48,30 +48,23 @@ variable "web_cidr_blocks" {
   default     = ["0.0.0.0/0"]
 }
 
-variable "git_repo_url" {
-  description = "HTTPS clone URL of the repo containing the app(s) (without credentials)."
-  type        = string
-  default     = "https://github.com/wusool-capital/wusool-infra.git"
-}
-
-variable "git_ref" {
-  description = "Branch or tag to check out on deploy."
-  type        = string
-  default     = "main"
-}
-
 variable "apps" {
   description = "One entry per bot service hosted on this instance. Each gets its own Caddy virtual host (subdomain), Docker Compose service, and Secrets Manager secret; all run on the same EC2 instance behind the same Elastic IP."
   type = list(object({
     # Short slug used as the docker-compose service name, the Caddy access-log
     # filename, and the CloudWatch log-stream suffix.
     name = string
-    # Path within the cloned repo to this app's Dockerfile.
-    app_subdir = string
+    # Full ECR image reference INCLUDING the digest, e.g.
+    # "<account>.dkr.ecr.<region>.amazonaws.com/wusool-<env>/toolkit@sha256:...".
+    # Pinned by digest, never a mutable tag - the whole point of this module
+    # is that "what's deployed" is an explicit, reviewable value, not whatever
+    # a branch happened to resolve to at boot time (the previous git-clone
+    # design's failure mode).
+    image = string
     # Secrets Manager secret ID/ARN holding this app's runtime secrets:
-    # slack_bot_token, slack_signing_secret, database_url, github_token (a
-    # fine-grained PAT with read-only access to git_repo_url), and an
-    # optional env map of extra overrides.
+    # slack_bot_token, slack_signing_secret, database_url, and an optional
+    # env map of extra overrides. github_token is no longer read - nothing on
+    # this instance clones a repository anymore.
     app_secret_id = string
     # Public HTTPS URL for this app (used as its Slack Request URL host).
     # Empty derives an sslip.io hostname from the shared Elastic IP, prefixed
@@ -109,5 +102,10 @@ variable "aws_region" {
 
 variable "ami_id" {
   description = "AMI to launch. Pinned explicitly (H1) — see main.tf's comment above the removed data source for why. Set this to the AMI currently running before changing anything else, then treat any change to it as a deliberate, reviewed upgrade."
+  type        = string
+}
+
+variable "ecr_repository_arn" {
+  description = "ARN of the ECR repository apps' images are pulled from. Scopes this instance's pull permission to just that repo."
   type        = string
 }

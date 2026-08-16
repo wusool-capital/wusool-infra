@@ -97,6 +97,34 @@ resource "aws_iam_role_policy" "secrets_manager" {
   })
 }
 
+# GetAuthorizationToken is account-level (no resource scoping possible in IAM);
+# the pull actions are scoped to just this environment's own ECR repo, not
+# every repo in the account.
+resource "aws_iam_role_policy" "ecr_pull" {
+  name = "${var.project}-${var.environment}-toolkit-ecr-pull"
+  role = aws_iam_role.wusool_toolkit.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+        Resource = var.ecr_repository_arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "wusool_toolkit" {
   name = "${var.project}-${var.environment}-toolkit"
   role = aws_iam_role.wusool_toolkit.name
@@ -125,11 +153,15 @@ locals {
     # "toolkit") — this is used only for shell variable naming in
     # user_data.sh.tpl, never for docker-compose/Caddy/log identifiers.
     slug          = replace(a.name, "-", "_")
-    app_subdir    = a.app_subdir
+    image         = a.image
     app_secret_id = a.app_secret_id
     hostname      = a.public_url != "" ? regex("^https?://([^/]+)", a.public_url)[0] : "${a.name}-${local.generated_ip_label}.sslip.io"
     url           = a.public_url != "" ? a.public_url : "https://${a.name}-${local.generated_ip_label}.sslip.io"
   }]
+
+  # ECR registry host, derived from any app's image reference (everything
+  # before the first "/"). Used to scope the docker login on the instance.
+  ecr_registry = split("/", var.apps[0].image)[0]
 
   # Built with Terraform's own jsonencode() over an HCL list, not hand-joined
   # inside the bash template, so there's no comma-joining bug to introduce.
@@ -150,12 +182,8 @@ locals {
   })
 
   user_data_rendered = replace(templatefile("${path.module}/user_data.sh.tpl", {
-    apps = local.apps_resolved
-    # The repo clone is shared by every app; the github_token used for it
-    # only needs to come from one app's secret, so the first app's is used.
-    github_secret_id        = var.apps[0].app_secret_id
-    git_repo_url            = var.git_repo_url
-    git_ref                 = var.git_ref
+    apps                    = local.apps_resolved
+    ecr_registry            = local.ecr_registry
     aws_region              = var.aws_region
     cloudwatch_agent_config = local.cloudwatch_agent_config
   }), "\r\n", "\n")
@@ -197,9 +225,10 @@ resource "aws_eip_association" "wusool_toolkit" {
 }
 
 # Existing instances do not rerun EC2 user data when it changes. This SSM
-# association applies the same idempotent bootstrap (git pull, rebuild,
-# restart) without replacing the instance, so a redeploy is `terraform apply`
-# followed by this association re-running — no manual SSH step required.
+# association applies the same idempotent bootstrap (docker login, pull the
+# pinned digest, restart) without replacing the instance, so a redeploy is
+# `terraform apply` followed by this association re-running — no manual SSH
+# step required.
 resource "aws_ssm_document" "bootstrap" {
   name            = "${var.project}-${var.environment}-toolkit-bootstrap"
   document_type   = "Command"
@@ -207,7 +236,7 @@ resource "aws_ssm_document" "bootstrap" {
 
   content = jsonencode({
     schemaVersion = "2.2"
-    description   = "Deploy/redeploy the app(s) on this instance: git pull, docker compose build, restart"
+    description   = "Deploy/redeploy the app(s) on this instance: docker login to ECR, pull the pinned digest, restart"
     mainSteps = [{
       action = "aws:runShellScript"
       name   = "bootstrap"

@@ -38,3 +38,7 @@ public_url = "https://63-184-6-136.sslip.io"
 # sg-0684b8cf83abfd065 = wusool-scribe-instance, a real cross-service
 # dependency (scribe writes meetings via scribe_pub) — not junk.
 extra_allowed_security_group_ids = ["sg-0684b8cf83abfd065"]
+
+# stacks/toolkit — image pinned by digest (Phase F). Built and pushed by
+# _build.yml; verified against ECR before pinning here.
+image_digest = "sha256:ad9e212f7c868cda1dabd4bc1c41da068b6448b32c13219d4bf6198dc2f42da2"

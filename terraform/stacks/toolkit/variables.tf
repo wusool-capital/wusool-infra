@@ -53,15 +53,14 @@ variable "web_cidr_blocks" {
   default = ["0.0.0.0/0"]
 }
 
-variable "git_repo_url" {
-  type    = string
-  default = "https://github.com/wusool-capital/wusool-infra.git"
-}
-
-variable "git_ref" {
-  description = "Branch to deploy. MUST contain workflows/wusool-toolkit/ — the stale `main` branch does not."
+variable "image_digest" {
+  description = "Digest of the image to deploy, e.g. \"sha256:abc...\" (no repository prefix — that comes from this stack's own aws_ecr_repository). Set by CI after a build; a human can also set it directly for a manual rollback to a known-good digest."
   type        = string
-  default     = "dev"
+
+  validation {
+    condition     = can(regex("^sha256:[0-9a-f]{64}$", var.image_digest))
+    error_message = "image_digest must be \"sha256:\" followed by 64 hex characters, e.g. what `docker inspect --format '{{.RepoDigests}}'` or `aws ecr describe-images` reports — not a tag."
+  }
 }
 
 variable "public_url" {

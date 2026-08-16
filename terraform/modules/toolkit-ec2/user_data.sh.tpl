@@ -7,7 +7,6 @@ dnf install -y docker
 dnf install -y amazon-cloudwatch-agent
 dnf install -y awscli
 dnf install -y jq
-dnf install -y git
 systemctl enable amazon-ssm-agent
 systemctl restart amazon-ssm-agent
 systemctl enable docker
@@ -15,60 +14,42 @@ systemctl start docker
 usermod -aG docker ec2-user
 
 mkdir -p /usr/local/lib/docker/cli-plugins
-curl -SL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-x86_64" \
+curl -SL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-$(uname -m)" \
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 mkdir -p /opt/toolkit/caddy
-REPO_DIR=/opt/toolkit/src
 
-# All apps share one clone of this repo. The github_token comes from the
-# first app's secret (a repo-level credential, not an app-specific one) and
-# is only ever embedded in the remote URL transiently, for the fetch/clone
-# itself, then immediately swapped back to the plain URL so it never sits in
-# `.git/config` in plaintext.
 # set +x for the remainder: this script runs under `set -x`, and without this
 # every secret below would be echoed verbatim into SSM command history (retained
 # ~30 days) and CloudWatch. Re-enabling tracing after secret handling is not
 # worth the leak risk, so tracing stays off from here.
 set +x
 
-GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id "${github_secret_id}" --region "${aws_region}" --query SecretString --output text | jq -r '.github_token // empty')
-AUTH_REPO_URL=$(echo "${git_repo_url}" | sed "s#https://#https://x-access-token:$${GITHUB_TOKEN}@#")
-
-if [ -d "$REPO_DIR/.git" ]; then
-  git -C "$REPO_DIR" remote set-url origin "$AUTH_REPO_URL"
-  git -C "$REPO_DIR" fetch --depth 1 origin "${git_ref}"
-  # Check out FETCH_HEAD rather than the branch name. The initial clone is
-  # shallow and single-branch, so its refspec tracks only the branch it was
-  # created from - `git checkout <other-branch>` fails with "pathspec did not
-  # match" and `origin/<other-branch>` never exists. FETCH_HEAD always points
-  # at what was just fetched, so changing git_ref works on an existing box.
-  git -C "$REPO_DIR" checkout --detach FETCH_HEAD
-  git -C "$REPO_DIR" remote set-url origin "${git_repo_url}"
-else
-  git clone --depth 1 --branch "${git_ref}" "$AUTH_REPO_URL" "$REPO_DIR"
-  git -C "$REPO_DIR" remote set-url origin "${git_repo_url}"
-fi
+# Login once, shared by every app - all apps pull from the same environment's
+# ECR registry.
+aws ecr get-login-password --region "${aws_region}" \
+  | docker login --username AWS --password-stdin "${ecr_registry}"
 
 # Each app has its own Secrets Manager secret, containing: slack_bot_token,
-# slack_signing_secret, database_url, github_token (used only for the shared
-# clone above), and optionally env: {} for extra overrides.
+# slack_signing_secret, database_url, and optionally env: {} for extra
+# overrides. github_token is no longer read here - nothing on this instance
+# clones a repository.
 %{ for app in apps }
 # --- ${app.name} ---
+mkdir -p /opt/toolkit/${app.name}
 SECRET_JSON_${app.slug}=$(aws secretsmanager get-secret-value --secret-id "${app.app_secret_id}" --region "${aws_region}" --query SecretString --output text)
-APP_DIR_${app.slug}="$REPO_DIR/${app.app_subdir}"
 
-cat > "$APP_DIR_${app.slug}/.env.production" <<ENVEOF
+cat > "/opt/toolkit/${app.name}/.env.production" <<ENVEOF
 DATABASE_URL=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.database_url // empty')
 SLACK_BOT_TOKEN=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.slack_bot_token // empty')
 SLACK_SIGNING_SECRET=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.slack_signing_secret // empty')
 AWS_REGION=${aws_region}
 ENVEOF
-chmod 600 "$APP_DIR_${app.slug}/.env.production"
+chmod 600 "/opt/toolkit/${app.name}/.env.production"
 
-echo "$SECRET_JSON_${app.slug}" | jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' >> "$APP_DIR_${app.slug}/.env.production"
-chmod 600 "$APP_DIR_${app.slug}/.env.production"
+echo "$SECRET_JSON_${app.slug}" | jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' >> "/opt/toolkit/${app.name}/.env.production"
+chmod 600 "/opt/toolkit/${app.name}/.env.production"
 %{ endfor }
 
 cat > /opt/toolkit/caddy/Caddyfile <<CADDYEOF
@@ -86,12 +67,12 @@ cat > /opt/toolkit/docker-compose.yml <<COMPOSEEOF
 services:
 %{ for app in apps }
   ${app.name}:
-    build: $REPO_DIR/${app.app_subdir}
+    image: ${app.image}
     restart: always
     expose:
       - "8000"
     env_file:
-      - $REPO_DIR/${app.app_subdir}/.env.production
+      - /opt/toolkit/${app.name}/.env.production
 %{ endfor }
   caddy:
     image: caddy:2
@@ -117,5 +98,5 @@ systemctl enable amazon-cloudwatch-agent
 systemctl restart amazon-cloudwatch-agent
 
 cd /opt/toolkit
-docker compose build
+docker compose pull
 docker compose up -d

@@ -29,7 +29,7 @@ output "iam_role_name" {
 }
 
 output "redeploy_command" {
-  description = "AWS CLI command to trigger a redeploy (git pull + rebuild + restart) without replacing the instance."
+  description = "AWS CLI command to trigger a redeploy (docker pull the pinned digest + restart) without replacing the instance."
   value       = "aws ssm send-command --document-name ${aws_ssm_document.bootstrap.name} --instance-ids ${aws_instance.wusool_toolkit.id}"
 }
 
