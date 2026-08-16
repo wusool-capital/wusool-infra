@@ -1,0 +1,77 @@
+# Plan on every PR, posted as a comment. Read-only credentials.
+#
+# The var-file follows the PR's BASE branch, not a fixed default: a dev -> prod
+# promotion PR must show the PROD diff. Since prod has no approval gate, this
+# comment is the only human review production receives - showing a dev plan
+# there would make the guardrail silently useless.
+name: Terraform plan
+
+on:
+  pull_request:
+    paths: ['terraform/**']
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, prod]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read OpenTofu version
+        id: tofu
+        run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ steps.tofu.outputs.version }}
+          tofu_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::030179310793:role/wusool-gha-plan
+          aws-region: eu-central-1
+
+      - name: Plan
+        id: plan
+        working-directory: terraform/environments/${{ matrix.env }}
+        run: |
+          set -euo pipefail
+          tofu init -reconfigure -input=false
+          tofu plan -input=false -lock=false -no-color -var-file=terraform.tfvars \
+            > /tmp/plan-${{ matrix.env }}.txt 2>&1 || true
+          tail -c 60000 /tmp/plan-${{ matrix.env }}.txt > /tmp/plan-short.txt
+          {
+            echo 'body<<PLANEOF'
+            echo "### \`${{ matrix.env }}\` plan"
+            grep -E '^(Plan:|No changes)' /tmp/plan-${{ matrix.env }}.txt | head -1 || true
+            if grep -q 'forces replacement\|will be destroyed' /tmp/plan-${{ matrix.env }}.txt; then
+              echo ''
+              echo '> **This plan DESTROYS or REPLACES resources — read it carefully.**'
+            fi
+            echo ''
+            echo '<details><summary>full plan</summary>'
+            echo ''
+            echo '```terraform'
+            cat /tmp/plan-short.txt
+            echo '```'
+            echo '</details>'
+            echo PLANEOF
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${{ steps.plan.outputs.body }}`
+            })

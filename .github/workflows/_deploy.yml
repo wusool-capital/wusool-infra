@@ -1,0 +1,133 @@
+# Reusable deploy: terraform apply, then ACTUALLY VERIFY the app is running.
+#
+# Called by deploy-dev.yml and deploy-prod.yml. Never triggered directly, so the
+# environment is always explicit at the call site rather than inferred from a
+# branch name.
+name: _deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: dev or prod
+        required: true
+        type: string
+      role_arn:
+        description: OIDC role to assume. Branch-scoped in its trust policy.
+        required: true
+        type: string
+      image_digest:
+        description: 'Image to deploy, e.g. sha256:abc… . Empty keeps whatever the tfvars pins.'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    # Never cancel a running apply: a half-applied terraform run leaves state and
+    # reality diverged and can orphan the state lock.
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read OpenTofu version
+        id: tofu
+        run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ steps.tofu.outputs.version }}
+          tofu_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.role_arn }}
+          aws-region: eu-central-1
+
+      - name: Terraform apply
+        working-directory: terraform/environments/${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          tofu init -reconfigure -input=false
+          EXTRA=""
+          if [ -n "${{ inputs.image_digest }}" ]; then
+            EXTRA="-var=wusool_toolkit_image_digest=${{ inputs.image_digest }}"
+          fi
+          tofu apply -input=false -auto-approve -var-file=terraform.tfvars $EXTRA
+
+      # ---------------------------------------------------------------------
+      # Everything below exists because `tofu apply` returning success proves
+      # only that the SSM document was REGISTERED. On 2026-08-16 three separate
+      # broken deploys reported "Apply complete!" while the bootstrap failed.
+      # A deploy is not done until the app actually serves traffic.
+      # ---------------------------------------------------------------------
+
+      - name: Run the bootstrap and wait for it
+        id: bootstrap
+        working-directory: terraform/environments/${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          DOC=$(tofu output -raw toolkit_bootstrap_document 2>/dev/null || echo "")
+          IID=$(tofu output -raw toolkit_instance_id 2>/dev/null || echo "")
+          if [ -z "$DOC" ] || [ -z "$IID" ]; then
+            echo "::notice::No toolkit stack in ${{ inputs.environment }} — skipping app rollout."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          CMD=$(aws ssm send-command \
+            --document-name "$DOC" --instance-ids "$IID" \
+            --comment "deploy ${{ github.sha }}" \
+            --query Command.CommandId --output text)
+          echo "command: $CMD"
+
+          # `ssm wait` gives up early on a long bootstrap, so poll explicitly.
+          for _ in $(seq 1 60); do
+            S=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+                  --query Status --output text 2>/dev/null || echo Pending)
+            case "$S" in
+              Success) echo "bootstrap succeeded"; exit 0 ;;
+              Failed|Cancelled|TimedOut)
+                echo "::error::Bootstrap $S"
+                aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+                  --query StandardErrorContent --output text | tail -40
+                exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Bootstrap did not finish within 15 minutes"; exit 1
+
+      - name: Verify the app actually serves
+        if: steps.bootstrap.outputs.skipped != 'true'
+        working-directory: terraform/environments/${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          URL=$(tofu output -raw toolkit_url 2>/dev/null || echo "")
+          [ -n "$URL" ] || { echo "::notice::No URL output — skipping health check."; exit 0; }
+
+          # A successful bootstrap still leaves failure modes open: a container can
+          # sit in `Created` when a port is already bound, which is exactly what
+          # happened during the 2026-08-16 rename.
+          for i in $(seq 1 20); do
+            C=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$URL/health" || echo 000)
+            echo "attempt $i: HTTP $C"
+            [ "$C" = "200" ] && { echo "healthy"; exit 0; }
+            sleep 15
+          done
+          echo "::error::$URL/health never returned 200 — deploy is NOT healthy"; exit 1
+
+      # Written last, and only on success: recording it earlier would make a
+      # failed deploy look deployed to the next run's change detection.
+      - name: Record deployed SHA
+        run: |
+          aws ssm put-parameter --name "/wusool/${{ inputs.environment }}/toolkit/deployed_sha" \
+            --value "${{ github.sha }}" --type String --overwrite

@@ -1,0 +1,68 @@
+# Reusable image build. Called ONLY from deploy-dev.yml.
+#
+# Building on prod as well would defeat the point: a merge commit has a
+# different SHA, and a rebuild resolves different base-image layers, so prod
+# would run an artifact dev never tested. Prod resolves dev's digest instead.
+name: _build
+
+on:
+  workflow_call:
+    inputs:
+      environment: { required: true, type: string }
+      role_arn:    { required: true, type: string }
+    outputs:
+      digest:
+        description: Immutable sha256 digest of the pushed image.
+        value: ${{ jobs.build.outputs.digest }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.role_arn }}
+          aws-region: eu-central-1
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        id: push
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse --short HEAD)
+          IMAGE="$REGISTRY/wusool/toolkit:sha-$SHA"
+
+          # The repository is IMMUTABLE, so re-running a workflow on an unchanged
+          # commit would fail on push. Reuse the existing image instead.
+          if EXISTING=$(aws ecr describe-images --repository-name wusool/toolkit \
+                --image-ids imageTag="sha-$SHA" \
+                --query 'imageDetails[0].imageDigest' --output text 2>/dev/null) \
+             && [ -n "$EXISTING" ] && [ "$EXISTING" != "None" ]; then
+            echo "::notice::sha-$SHA already in ECR — reusing $EXISTING"
+            echo "digest=$EXISTING" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          # linux/amd64 explicitly: the EC2 instances are x86_64, and a native
+          # arm64 build would produce an image that cannot run there.
+          docker buildx build --platform linux/amd64 \
+            -t "$IMAGE" --push workflows/wusool-toolkit
+
+          DIGEST=$(aws ecr describe-images --repository-name wusool/toolkit \
+            --image-ids imageTag="sha-$SHA" \
+            --query 'imageDetails[0].imageDigest' --output text)
+          echo "pushed: $DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"

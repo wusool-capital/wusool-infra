@@ -348,3 +348,163 @@ resource "aws_ecr_lifecycle_policy" "wusool_toolkit" {
     ]
   })
 }
+
+# ---------------------------------------------------------------------------
+# GitHub Actions OIDC (Phase E)
+#
+# Account-level: one provider, one set of roles, trusted by this repo only.
+# Short-lived tokens - no static AWS keys ever stored in GitHub.
+# Moves to stacks/account by `state mv` in Phase D.
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+}
+
+locals {
+  github_repo = "wusool-capital/wusool-infra"
+}
+
+# Read-only + state access. Used by plan-on-PR from ANY branch, so it must never
+# be able to mutate infrastructure.
+data "aws_iam_policy_document" "gha_plan_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${local.github_repo}:*"]
+    }
+  }
+}
+
+resource "aws_iam_role" "gha_plan" {
+  name               = "${var.project}-gha-plan"
+  description        = "GitHub Actions: terraform plan and read-only inspection."
+  assume_role_policy = data.aws_iam_policy_document.gha_plan_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "gha_plan_readonly" {
+  role       = aws_iam_role.gha_plan.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+# Plan needs to write the state lock and read state, which ReadOnlyAccess alone
+# does not permit.
+resource "aws_iam_role_policy" "gha_plan_state" {
+  name = "${var.project}-gha-plan-state"
+  role = aws_iam_role.gha_plan.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = ["arn:aws:s3:::wusool-tfstate", "arn:aws:s3:::wusool-tfstate/*"]
+      }
+    ]
+  })
+}
+
+# Apply roles, scoped by BRANCH via the OIDC `sub` claim. A workflow running on
+# `dev` cannot assume the prod role and vice versa - the branch restriction is
+# enforced by AWS at AssumeRole time, not by workflow logic that could be edited.
+data "aws_iam_policy_document" "gha_apply_trust" {
+  for_each = toset(["dev", "prod"])
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    # Exact branch match, plus the matching GitHub Environment. workflow_dispatch
+    # on the same branch is covered by the first value.
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = [
+        "repo:${local.github_repo}:ref:refs/heads/${each.key}",
+        "repo:${local.github_repo}:environment:${each.key}",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "gha_apply" {
+  for_each = toset(["dev", "prod"])
+
+  name               = "${var.project}-gha-apply-${each.key}"
+  description        = "GitHub Actions: terraform apply for the ${each.key} environment."
+  assume_role_policy = data.aws_iam_policy_document.gha_apply_trust[each.key].json
+}
+
+# PowerUserAccess + targeted IAM. Deliberately not AdministratorAccess: the
+# deploy needs to manage service resources and their roles, not reshape the
+# account's own security posture.
+resource "aws_iam_role_policy_attachment" "gha_apply_power" {
+  for_each = aws_iam_role.gha_apply
+
+  role       = each.value.name
+  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
+resource "aws_iam_role_policy" "gha_apply_iam" {
+  for_each = aws_iam_role.gha_apply
+
+  name = "${var.project}-gha-apply-iam"
+  role = each.value.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:ListRoles",
+          "iam:TagRole", "iam:UntagRole", "iam:UpdateRole",
+          "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy", "iam:ListRolePolicies",
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies",
+          "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile", "iam:GetInstanceProfile",
+          "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
+          "iam:PassRole", "iam:CreateServiceLinkedRole"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+output "gha_role_arns" {
+  description = "Role ARNs for GitHub Actions OIDC. Not secret - safe to reference directly in workflow YAML."
+  value = {
+    plan       = aws_iam_role.gha_plan.arn
+    apply_dev  = aws_iam_role.gha_apply["dev"].arn
+    apply_prod = aws_iam_role.gha_apply["prod"].arn
+  }
+}
