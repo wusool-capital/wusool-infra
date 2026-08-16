@@ -768,6 +768,118 @@ postgres(dev):  No changes.   postgres(prod): No changes.
 - **Defect 3** (recurring backups) and **Defect 6** (GitHub Team / branch
   protection) — unchanged, still open from earlier in this session.
 
+### Phases C, E, F completed; H1 done; H2/H3/G deferred by request *(2026-08-16)*
+
+User's explicit scope for this round: "complete phase C, E, F ... alembic can
+be done later, do H1 ignore h2, h3."
+
+#### Phase C — branch/repo hygiene, now fully done
+
+- `.github/CODEOWNERS` created (`@sinanshamsudheen`, later `@raoofnaushad`
+  added on request).
+- `main` branch **retired**: tagged `archive/main-pre-restructure` (pushed)
+  before deletion, then `git push origin --delete main`. `dev` was already
+  default.
+- **Two orphaned `me-central-1` VPCs deleted** (`n8n-dev-vpc`,
+  `n8n-prod-vpc`) — re-verified empty (zero instances/NAT/EIPs/ENIs)
+  immediately before deletion, not just trusted from the earlier-session
+  finding. Deletion order matters: subnets and route tables before the VPC
+  itself; got the route-table/subnet ordering backwards on the first pass
+  (route tables can't be deleted while still associated with a subnet) and
+  corrected it. `me-central-1` now has zero VPCs.
+
+#### H1 — AMI pinned explicitly
+
+Replaced `data "aws_ami" { most_recent = true }` + `ignore_changes = [ami]`
+in both `n8n-ec2` and `toolkit-ec2` with an explicit `ami_id` variable,
+pinned to whatever AMI each instance is **currently, verifiably** running
+(read via `describe-instances`, not assumed). `ignore_changes = [ami]` kept
+as belt-and-braces per the plan. `ami_architecture` became fully unused once
+its only consumer (the data source) was removed, so it was deleted end to
+end — module, both stacks, both `envs/*.tfvars` — rather than left as dead
+weight.
+
+**Caught the collision class again before it landed**: almost named the new
+toolkit-stack variable `ami_id`, which would have collided with
+`stacks/n8n`'s `ami_id` the same way `instance_type` did earlier. Renamed to
+`toolkit_ami_id` pre-emptively.
+
+Verified zero-diff: all four `n8n`/`toolkit` × `dev`/`prod` combinations plan
+`0 to add / 0 to change / 0 to destroy` after the change.
+
+#### Phase E — the rest of it
+
+- **`ci.yml`** — first real coverage for the Python app and PowerShell
+  scripts. Tested locally, not just written: `ruff check` passes, `ty check`
+  passes, `pytest` **fails at collection** without dummy env vars (the
+  workspace-root `conftest.py` is deliberately empty; `main.py`'s import
+  needs `Settings`, which has no defaults for `database_url`/
+  `slack_bot_token`/`slack_signing_secret`) — fixed by supplying the same
+  dummy values `matching-engine/tests/conftest.py` already uses, as CI-level
+  env vars rather than touching test code. `ruff format --check` **deliberately
+  excluded**: it fails on 17 pre-existing unformatted files; shipping it now
+  would break day-one CI on unrelated code. Recorded as a named follow-up in
+  the workflow file itself. PSScriptAnalyzer job **not** dry-run locally (no
+  `pwsh` on this machine) — said so explicitly in the workflow comment rather
+  than implying it was verified like the Python job was.
+- **`backmerge.yml`** — opens a `prod -> dev` PR after `Deploy prod` succeeds,
+  only if `dev` doesn't already have everything in `prod`.
+
+#### Phase F — ECR pull-by-digest actually wired in and verified live
+
+This was the honest gap flagged when Phase D's workflows were retargeted:
+registries and `_build.yml` existed, but the `toolkit-ec2` module still did
+`git clone` + `docker compose build` on the instance, and nothing consumed
+the pushed images. Closed properly, not just documented as future work:
+
+- **`apps[].app_subdir` → `apps[].image`** (full ECR reference including
+  digest) in the module's `apps` variable. `git_repo_url`/`git_ref` removed
+  entirely — nothing clones anymore.
+- **`user_data.sh.tpl` rewritten**: no git anywhere; `docker login` to the
+  app's own ECR registry, `docker compose pull`, `docker compose up -d`.
+  `github_token` no longer read from the app secret.
+- **New `aws_iam_role_policy.ecr_pull`** — `GetAuthorizationToken` (account-
+  level, can't be scoped further) + `BatchCheckLayerAvailability`/
+  `GetDownloadUrlForLayer`/`BatchGetImage` scoped to just that environment's
+  own repo ARN.
+- **`stacks/toolkit`**: new `image_digest` variable, validated as
+  `^sha256:[0-9a-f]{64}$` (rejects a tag by construction). `apps[].image`
+  built from the stack's own `aws_ecr_repository` + this digest.
+
+**A real image was built and pushed before any of this was applied** — not a
+placeholder digest. `docker buildx build --platform linux/amd64 --push` to
+`wusool-dev/toolkit`, confirmed present via `aws ecr describe-images` first:
+`sha256:ad9e212f7c868cda1dabd4bc1c41da068b6448b32c13219d4bf6198dc2f42da2`.
+Pinned that in `envs/dev.tfvars`. Prod gets an inert placeholder digest
+(`sha256:0000...0000`) — meaningless while `create_instance = false`, but
+must be set to something real before that ever flips to `true`.
+
+**Applied to dev and verified end to end**, matching the same discipline
+Phase E's `_deploy.yml` now enforces in CI:
+
+```
+tofu plan:              1 to add, 2 to change, 0 to destroy
+tofu apply:              Apply complete! Resources: 1 added, 2 changed, 0 destroyed
+SSM bootstrap association: Success
+https://.../health:      HTTP 200
+running container digest (docker image inspect --format '{{json .RepoDigests}}'):
+  sha256:ad9e212f... — matches the pinned value exactly
+```
+
+**`_deploy.yml`/`deploy-dev.yml`/`deploy-prod.yml` updated to match** — the
+earlier decoupling of build from deploy (deliberate, at the time, since
+nothing consumed the digest) is now re-coupled: `deploy` jobs take
+`needs: build` and pass `${{ needs.build.outputs.digest }}` through as
+`image_digest`, which `_deploy.yml` applies as `-var="image_digest=..."`,
+overriding the tfvars placeholder.
+
+### Explicitly deferred, at user's request
+
+- **Phase G (Alembic)** — flat SQL files unchanged.
+- **H2** (n8n → Postgres, makes the n8n instance disposable) — not started.
+- **H3** (recurring AWS Backup / DLM policy) — not started; still just the
+  one-time snapshots from earlier in this session.
+
 ### Snapshot status
 
 | Snapshot | State |
