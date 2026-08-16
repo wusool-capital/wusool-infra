@@ -27,3 +27,8 @@ bedrock_models = [
   { model_id = "anthropic.claude-haiku-4-5-20251001-v1:0", region = "eu-central-1", inference_profile_id = "eu.anthropic.claude-haiku-4-5-20251001-v1:0" },
   { model_id = "qwen.qwen3-235b-a22b-2507-v1:0", region = "eu-central-1" },
 ]
+
+# Pinned to the bare-IP hostname already in use (see the toolkit rename
+# session) — leaving this empty would derive "toolkit-<ip>.sslip.io" and break
+# the existing Slack Request URL. The IP is an Elastic IP; safe to hardcode.
+public_url = "https://63-184-6-136.sslip.io"
