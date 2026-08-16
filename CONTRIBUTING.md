@@ -14,7 +14,7 @@ git fetch origin --prune
 The repository remote should be:
 
 ```text
-https://github.com/Azmora-ai/wusool-infra.git
+https://github.com/wusool-capital/wusool-infra.git
 ```
 
 ## Start a change
@@ -31,18 +31,34 @@ git switch -c feature/short-description
 Use `fix/short-description` for bug fixes and
 `docs/short-description` for documentation-only changes.
 
+## Toolchain
+
+This repository is managed with **OpenTofu**, not HashiCorp Terraform. The
+version is pinned in `terraform/.opentofu-version` and CI installs exactly that
+version — keep your local install matching it.
+
+```bash
+brew install opentofu     # macOS; see opentofu.org/docs/intro/install for others
+tofu version              # must match terraform/.opentofu-version
+```
+
+Do not run `terraform` against this repository. The two tools write different
+provider registries into `.terraform.lock.hcl` and stamp different versions into
+state, so mixing them causes avoidable churn and, in the worst case, a state
+another contributor's tooling cannot read.
+
 ## Review and validate locally
 
 ```powershell
 git status
 git diff
 Set-Location terraform
-terraform fmt -check -recursive
+tofu fmt -check -recursive
 Set-Location ..
 
 Set-Location terraform/environments/dev
-terraform init -backend=false
-terraform validate
+tofu init -backend=false
+tofu validate
 Set-Location ../../..
 ```
 
@@ -122,10 +138,10 @@ for `dev` in GitHub:
    `.github/CODEOWNERS`.
 7. Enable **Require status checks to pass**.
 8. Select these required checks:
-   - `Terraform Format`
-   - `Terraform Validate (terraform/bootstrap)`
-   - `Terraform Validate (terraform/environments/dev)`
-   - `Terraform Validate (terraform/environments/prod)`
+   - `OpenTofu Format`
+   - `OpenTofu Validate (terraform/bootstrap)`
+   - `OpenTofu Validate (terraform/environments/dev)`
+   - `OpenTofu Validate (terraform/environments/prod)`
 9. Enable **Require branches to be up to date before merging**.
 10. Enable **Require conversation resolution before merging**.
 11. Enable **Block force pushes** and **Block deletions**.
