@@ -1,75 +1,47 @@
-"""`/edit-buyer`'s pre-filled edit form — mirrors `seller_form.py` exactly,
+"""`/edit-buyer`'s dynamic edit form — mirrors `seller_form.py` exactly,
 buyer-typed.
 """
 
 import json
 
-from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
-from ddl_commands.modules.slack.views.form_values import (
-    bool_select_block,
-    money_input_blocks,
-    number_input_block,
-    restore_confirmation_block,
-    text_input_block,
+from ddl_commands.modules.buyers.field_spec import (
+    BUYER_ROLE_FIELDS_BY_NAME,
+    GATED_BUYER_ROLE_FIELDS,
 )
+from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
+from ddl_commands.modules.slack.views.dynamic_fields import render_field_block
+from ddl_commands.modules.slack.views.form_values import confirmation_checkbox_block
+from ddl_commands.shared.database.models.organization import Organization
+from ddl_commands.shared.organization_field_spec import ORGANIZATION_FIELDS_BY_NAME
 
 
-def build_buyer_edit_form_modal(role: BuyerRole, *, requested_by: str, channel_id: str) -> dict:
-    removed = role.removed_at is not None
-
+def build_buyer_edit_form_modal(
+    role: BuyerRole,
+    org: Organization,
+    *,
+    selected_org_fields: list[str],
+    selected_role_fields: list[str],
+    requested_by: str,
+    channel_id: str,
+) -> dict:
     blocks: list[dict] = []
-    if removed:
+    for name in selected_org_fields:
+        spec = ORGANIZATION_FIELDS_BY_NAME[name]
+        blocks.append(render_field_block(spec, getattr(org, name), block_id_prefix="org_"))
+    for name in selected_role_fields:
+        spec = BUYER_ROLE_FIELDS_BY_NAME[name]
+        blocks.append(render_field_block(spec, getattr(role, name)))
+
+    gated_selected = GATED_BUYER_ROLE_FIELDS & set(selected_role_fields)
+    if gated_selected:
         blocks.append(
-            {
-                "type": "section",
-                "block_id": "restore_banner",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": (
-                        ":warning: *This profile is removed.* Saving this form "
-                        "will restore it and make it matchable again."
-                    ),
-                },
-            }
+            confirmation_checkbox_block(
+                "gated_field_confirmation",
+                "confirm_correction",
+                "Confirm correction",
+                "This is a correction to an existing value, not a routine edit",
+            )
         )
-
-    blocks.extend(
-        [
-            text_input_block("model", "Model", role.model),
-            text_input_block("mandate_status", "Mandate status", role.mandate_status),
-            *money_input_blocks("ebitda_floor", "EBITDA floor", role.ebitda_floor),
-            *money_input_blocks("check_size_min", "Check size (min)", role.check_size_min),
-            *money_input_blocks("check_size_max", "Check size (max)", role.check_size_max),
-            *money_input_blocks("ev_ceiling", "EV ceiling", role.ev_ceiling),
-            text_input_block(
-                "deal_structure_tolerance",
-                "Deal structure tolerance",
-                role.deal_structure_tolerance,
-            ),
-            text_input_block(
-                "earnout_tolerance", "Earnout tolerance", role.earnout_tolerance
-            ),
-            bool_select_block("profitable_only", "Profitable only", role.profitable_only),
-            text_input_block(
-                "investment_strategy",
-                "Investment strategy",
-                role.investment_strategy,
-                multiline=True,
-            ),
-            text_input_block("notes", "Notes", role.notes, multiline=True),
-            text_input_block(
-                "acquisition_enrichment",
-                "Acquisition enrichment",
-                role.acquisition_enrichment,
-                multiline=True,
-            ),
-            number_input_block("deals_introduced", "Deals introduced", role.deals_introduced),
-            number_input_block("deals_converted", "Deals converted", role.deals_converted),
-        ]
-    )
-
-    if removed:
-        blocks.append(restore_confirmation_block())
 
     return {
         "type": "modal",
@@ -77,14 +49,16 @@ def build_buyer_edit_form_modal(role: BuyerRole, *, requested_by: str, channel_i
         "private_metadata": json.dumps(
             {
                 "buyer_role_id": str(role.id),
-                "org_name": role.organization.name,
+                "org_attio_id": org.attio_id,
+                "org_name": org.name,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
-                "removed": removed,
+                "selected_org_fields": selected_org_fields,
+                "selected_role_fields": selected_role_fields,
             }
         ),
         "title": {"type": "plain_text", "text": "Edit buyer"},
-        "submit": {"type": "plain_text", "text": "Restore & Save" if removed else "Save"},
+        "submit": {"type": "plain_text", "text": "Save"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "blocks": blocks,
     }

@@ -6,17 +6,18 @@ from ddl_commands.modules.buyers.application.resolution_service import (
     BuyerResolution,
     BuyerResolutionService,
 )
-from ddl_commands.modules.buyers.application.use_cases import RemoveBuyerUseCase, UpdateBuyerUseCase
+from ddl_commands.modules.buyers.application.use_cases import (
+    CreateBuyerUseCase,
+    UpdateBuyerUseCase,
+)
 from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
 from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
 from ddl_commands.shared.database import get_sessionmaker
 
 
-async def resolve_buyer(buyer_name: str, *, include_removed: bool = False) -> BuyerResolution:
+async def resolve_buyer(buyer_name: str) -> BuyerResolution:
     async with get_sessionmaker()() as session:
-        return await BuyerResolutionService(BuyerRepository(session)).resolve(
-            buyer_name, include_removed=include_removed
-        )
+        return await BuyerResolutionService(BuyerRepository(session)).resolve(buyer_name)
 
 
 async def resolve_buyer_by_id(buyer_role_id: str) -> BuyerRole | None:
@@ -30,5 +31,5 @@ def build_update_buyer_use_case() -> UpdateBuyerUseCase:
     return UpdateBuyerUseCase(get_sessionmaker())
 
 
-def build_remove_buyer_use_case() -> RemoveBuyerUseCase:
-    return RemoveBuyerUseCase(get_sessionmaker())
+def build_create_buyer_use_case() -> CreateBuyerUseCase:
+    return CreateBuyerUseCase(get_sessionmaker())

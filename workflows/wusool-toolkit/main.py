@@ -1,6 +1,6 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
 all 5 commands: `/find-match` (matching-engine) and `/edit-seller`,
-`/remove-seller`, `/edit-buyer`, `/remove-buyer` (ddl-commands).
+`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl-commands).
 
 Neither package's own `app/main.py` / `ddl_commands/main.py` is used here —
 each still exists (and still works standalone, e.g. for running one

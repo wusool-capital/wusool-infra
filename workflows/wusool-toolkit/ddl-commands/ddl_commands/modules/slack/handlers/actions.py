@@ -1,8 +1,10 @@
-"""Selection-modal submissions, edit-form submissions, and remove/cancel
-button actions for sellers and buyers. Thin adapters: parse the Slack
-payload, call the application use case, translate the result back into a
-Slack message. Every write re-validates against the database inside its use
-case — Slack payload state is never trusted on its own.
+"""Selection-modal, field-picker, edit-form, and add-form submissions for
+sellers and buyers. Every write goes to DEV Attio *first*, then Postgres, in
+the same submission — if the Attio write fails, nothing is written to
+Postgres at all (see `_write_seller_edit`/`_write_buyer_edit` and
+`_write_seller_add`/`_write_buyer_add`). Slack payload state is never
+trusted on its own; the write targets (org record ID, role entry ID) are
+always re-resolved from the currently-loaded row, not from the payload.
 """
 
 import json
@@ -11,41 +13,67 @@ from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
 
 from ddl_commands.modules.buyers.application.use_cases import (
-    BuyerAlreadyRemovedError,
+    BuyerAlreadyExistsError,
     BuyerNotFoundError,
 )
 from ddl_commands.modules.buyers.dependencies import (
-    build_remove_buyer_use_case,
+    build_create_buyer_use_case,
     build_update_buyer_use_case,
     resolve_buyer_by_id,
 )
-from ddl_commands.modules.buyers.schemas import BuyerUpdate
-from ddl_commands.modules.matching.dependencies import (
-    count_match_results_for_buyer,
-    count_match_results_for_seller,
+from ddl_commands.modules.buyers.field_spec import (
+    BUYER_ROLE_FIELDS,
+    BUYER_ROLE_FIELDS_BY_NAME,
+    GATED_BUYER_ROLE_FIELDS,
 )
+from ddl_commands.modules.buyers.schemas import BuyerUpdate
 from ddl_commands.modules.sellers.application.use_cases import (
-    SellerAlreadyRemovedError,
+    SellerAlreadyExistsError,
     SellerNotFoundError,
 )
 from ddl_commands.modules.sellers.dependencies import (
-    build_remove_seller_use_case,
+    build_create_seller_use_case,
     build_update_seller_use_case,
     resolve_seller_by_id,
 )
+from ddl_commands.modules.sellers.field_spec import (
+    GATED_SELLER_ROLE_FIELDS,
+    SELLER_ROLE_FIELDS,
+    SELLER_ROLE_FIELDS_BY_NAME,
+)
 from ddl_commands.modules.sellers.schemas import SellerUpdate
+from ddl_commands.modules.slack.views.buyer_add_form import build_buyer_add_form_modal
 from ddl_commands.modules.slack.views.buyer_form import build_buyer_edit_form_modal
+from ddl_commands.modules.slack.views.dynamic_fields import extract_field_value
+from ddl_commands.modules.slack.views.field_picker import (
+    build_field_picker_modal,
+    extract_selected_fields,
+)
 from ddl_commands.modules.slack.views.form_values import (
-    extract_money,
-    get_bool_select,
     get_checkbox_selected,
-    get_date,
-    get_number,
     get_text,
     pydantic_errors_to_slack,
 )
-from ddl_commands.modules.slack.views.remove_confirmation import build_remove_confirmation_blocks
+from ddl_commands.modules.slack.views.organization_selection import NEW_ORGANIZATION_VALUE
+from ddl_commands.modules.slack.views.seller_add_form import build_seller_add_form_modal
 from ddl_commands.modules.slack.views.seller_form import build_seller_edit_form_modal
+from ddl_commands.shared.attio.client import AttioError, get_attio_client
+from ddl_commands.shared.attio.entries import (
+    RoleEntryNotFoundError,
+    create_organization,
+    create_role_entry,
+    patch_organization,
+    patch_role_entry,
+    resolve_role_entry_id,
+)
+from ddl_commands.shared.attio.options import OptionNotFoundError
+from ddl_commands.shared.attio.write_payload import build_attio_values, build_postgres_values
+from ddl_commands.shared.database.organization_dependencies import resolve_organization
+from ddl_commands.shared.organization_field_spec import (
+    ORGANIZATION_FIELDS,
+    ORGANIZATION_FIELDS_BY_NAME,
+)
+from ddl_commands.shared.organization_schemas import OrganizationUpdate
 
 
 def register(app: AsyncApp) -> None:
@@ -54,39 +82,30 @@ def register(app: AsyncApp) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata.get("channel_id")
-        intent = metadata.get("intent")
-        if not channel_id or not intent:
+        if not channel_id:
             await ack()
             return
 
         selected = view["state"]["values"]["seller_role_id"]["selected_seller"]["selected_option"]
         seller_role_id = selected["value"]
 
-        if intent == "edit":
-            role = await resolve_seller_by_id(seller_role_id)
-            if role is None:
-                await ack()
-                await client.chat_postEphemeral(
-                    channel=channel_id, user=requested_by, text="This seller could not be found."
-                )
-                return
-            await ack(
-                response_action="update",
-                view=build_seller_edit_form_modal(
-                    role, requested_by=requested_by, channel_id=channel_id
-                ),
+        role = await resolve_seller_by_id(seller_role_id)
+        if role is None:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text="This seller could not be found."
             )
             return
-
-        await ack()
-        role = await resolve_seller_by_id(seller_role_id)
-        org_name = role.organization.name if role else seller_role_id
-        count = await count_match_results_for_seller(seller_role_id)
-        await client.chat_postEphemeral(
-            channel=channel_id,
-            user=requested_by,
-            text=f"Remove seller profile for {org_name}?",
-            blocks=build_remove_confirmation_blocks(seller_role_id, org_name, count, kind="seller"),
+        await ack(
+            response_action="update",
+            view=build_field_picker_modal(
+                kind="seller",
+                role_id=seller_role_id,
+                org_name=role.organization.name,
+                requested_by=requested_by,
+                channel_id=channel_id,
+                role_fields=SELLER_ROLE_FIELDS,
+            ),
         )
 
     @app.view("buyer_role_selection_modal")
@@ -94,64 +113,140 @@ def register(app: AsyncApp) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata.get("channel_id")
-        intent = metadata.get("intent")
-        if not channel_id or not intent:
+        if not channel_id:
             await ack()
             return
 
         selected = view["state"]["values"]["buyer_role_id"]["selected_buyer"]["selected_option"]
         buyer_role_id = selected["value"]
 
-        if intent == "edit":
-            role = await resolve_buyer_by_id(buyer_role_id)
-            if role is None:
-                await ack()
-                await client.chat_postEphemeral(
-                    channel=channel_id, user=requested_by, text="This buyer could not be found."
-                )
-                return
-            await ack(
-                response_action="update",
-                view=build_buyer_edit_form_modal(
-                    role, requested_by=requested_by, channel_id=channel_id
-                ),
+        role = await resolve_buyer_by_id(buyer_role_id)
+        if role is None:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text="This buyer could not be found."
+            )
+            return
+        await ack(
+            response_action="update",
+            view=build_field_picker_modal(
+                kind="buyer",
+                role_id=buyer_role_id,
+                org_name=role.organization.name,
+                requested_by=requested_by,
+                channel_id=channel_id,
+                role_fields=BUYER_ROLE_FIELDS,
+            ),
+        )
+
+    @app.view("seller_field_picker_modal")
+    async def handle_seller_field_picker_submission(ack, body, view, client):  # noqa: ANN001
+        metadata = json.loads(view.get("private_metadata") or "{}")
+        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        channel_id = metadata["channel_id"]
+        seller_role_id = metadata["seller_role_id"]
+
+        org_fields, role_fields = extract_selected_fields(view["state"]["values"])
+        if not org_fields and not role_fields:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text="Pick at least one field to edit."
             )
             return
 
-        await ack()
+        role = await resolve_seller_by_id(seller_role_id)
+        if role is None:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text="This seller could not be found."
+            )
+            return
+        await ack(
+            response_action="update",
+            view=build_seller_edit_form_modal(
+                role,
+                role.organization,
+                selected_org_fields=org_fields,
+                selected_role_fields=role_fields,
+                requested_by=requested_by,
+                channel_id=channel_id,
+            ),
+        )
+
+    @app.view("buyer_field_picker_modal")
+    async def handle_buyer_field_picker_submission(ack, body, view, client):  # noqa: ANN001
+        metadata = json.loads(view.get("private_metadata") or "{}")
+        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        channel_id = metadata["channel_id"]
+        buyer_role_id = metadata["buyer_role_id"]
+
+        org_fields, role_fields = extract_selected_fields(view["state"]["values"])
+        if not org_fields and not role_fields:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text="Pick at least one field to edit."
+            )
+            return
+
         role = await resolve_buyer_by_id(buyer_role_id)
-        org_name = role.organization.name if role else buyer_role_id
-        count = await count_match_results_for_buyer(buyer_role_id)
-        await client.chat_postEphemeral(
-            channel=channel_id,
-            user=requested_by,
-            text=f"Remove buyer profile for {org_name}?",
-            blocks=build_remove_confirmation_blocks(buyer_role_id, org_name, count, kind="buyer"),
+        if role is None:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text="This buyer could not be found."
+            )
+            return
+        await ack(
+            response_action="update",
+            view=build_buyer_edit_form_modal(
+                role,
+                role.organization,
+                selected_org_fields=org_fields,
+                selected_role_fields=role_fields,
+                requested_by=requested_by,
+                channel_id=channel_id,
+            ),
         )
 
     @app.view("seller_edit_form_modal")
     async def handle_seller_edit_form_submission(ack, body, view, client):  # noqa: ANN001
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
-        channel_id = metadata.get("channel_id")
-        seller_role_id = metadata.get("seller_role_id")
-        org_name = metadata.get("org_name", "")
-        removed = bool(metadata.get("removed", False))
+        channel_id = metadata["channel_id"]
+        seller_role_id = metadata["seller_role_id"]
+        org_attio_id = metadata["org_attio_id"]
+        org_name = metadata["org_name"]
+        selected_org_fields: list[str] = metadata["selected_org_fields"]
+        selected_role_fields: list[str] = metadata["selected_role_fields"]
 
         values = view["state"]["values"]
-        raw_fields = _extract_seller_fields(values)
+        org_extracted = {
+            name: extract_field_value(
+                ORGANIZATION_FIELDS_BY_NAME[name], values, block_id_prefix="org_"
+            )
+            for name in selected_org_fields
+        }
+        role_extracted = {
+            name: extract_field_value(SELLER_ROLE_FIELDS_BY_NAME[name], values)
+            for name in selected_role_fields
+        }
 
         errors: dict[str, str] = {}
-        validated: SellerUpdate | None = None
         try:
-            validated = SellerUpdate.model_validate(raw_fields)
+            OrganizationUpdate.model_validate(org_extracted)
+        except ValidationError as exc:
+            for block_id, msg in pydantic_errors_to_slack(exc.errors()).items():
+                errors[f"org_{block_id}"] = msg
+        try:
+            SellerUpdate.model_validate(role_extracted)
         except ValidationError as exc:
             errors.update(pydantic_errors_to_slack(exc.errors()))
 
-        restore_confirmed = get_checkbox_selected(values, "restore_confirmation", "confirm_restore")
-        if removed and not restore_confirmed:
-            errors["restore_confirmation"] = (
-                "You must confirm you intend to restore this profile."
+        gated_selected = GATED_SELLER_ROLE_FIELDS & set(selected_role_fields)
+        if gated_selected and not get_checkbox_selected(
+            values, "gated_field_confirmation", "confirm_correction"
+        ):
+            errors["gated_field_confirmation"] = (
+                "You must confirm this is a correction, not a routine edit."
             )
 
         if errors:
@@ -159,54 +254,75 @@ def register(app: AsyncApp) -> None:
             return
 
         await ack()
-        assert validated is not None
-        fields = validated.model_dump()
-
         try:
-            await build_update_seller_use_case().execute(
-                seller_role_id, fields, requested_by, restore=removed
+            await _write_seller_edit(
+                seller_role_id=seller_role_id,
+                org_attio_id=org_attio_id,
+                org_extracted=org_extracted,
+                role_extracted=role_extracted,
             )
         except SellerNotFoundError:
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="This seller could not be found."
             )
             return
-        except SellerAlreadyRemovedError:
+        except _OrgRemovedError:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text="This seller is removed — reopen with `/edit-seller` to restore it.",
+                text=f"{org_name}'s Attio record is gone or was merged — can't write to it.",
+            )
+            return
+        except PartialWriteError as exc:
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
             )
             return
 
-        verb = "Restored and updated" if removed else "Updated"
         await client.chat_postEphemeral(
-            channel=channel_id, user=requested_by, text=f"{verb} seller profile for {org_name}."
+            channel=channel_id, user=requested_by, text=f"Updated seller profile for {org_name}."
         )
 
     @app.view("buyer_edit_form_modal")
     async def handle_buyer_edit_form_submission(ack, body, view, client):  # noqa: ANN001
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
-        channel_id = metadata.get("channel_id")
-        buyer_role_id = metadata.get("buyer_role_id")
-        org_name = metadata.get("org_name", "")
-        removed = bool(metadata.get("removed", False))
+        channel_id = metadata["channel_id"]
+        buyer_role_id = metadata["buyer_role_id"]
+        org_attio_id = metadata["org_attio_id"]
+        org_name = metadata["org_name"]
+        selected_org_fields: list[str] = metadata["selected_org_fields"]
+        selected_role_fields: list[str] = metadata["selected_role_fields"]
 
         values = view["state"]["values"]
-        raw_fields = _extract_buyer_fields(values)
+        org_extracted = {
+            name: extract_field_value(
+                ORGANIZATION_FIELDS_BY_NAME[name], values, block_id_prefix="org_"
+            )
+            for name in selected_org_fields
+        }
+        role_extracted = {
+            name: extract_field_value(BUYER_ROLE_FIELDS_BY_NAME[name], values)
+            for name in selected_role_fields
+        }
 
         errors: dict[str, str] = {}
-        validated: BuyerUpdate | None = None
         try:
-            validated = BuyerUpdate.model_validate(raw_fields)
+            OrganizationUpdate.model_validate(org_extracted)
+        except ValidationError as exc:
+            for block_id, msg in pydantic_errors_to_slack(exc.errors()).items():
+                errors[f"org_{block_id}"] = msg
+        try:
+            BuyerUpdate.model_validate(role_extracted)
         except ValidationError as exc:
             errors.update(pydantic_errors_to_slack(exc.errors()))
 
-        restore_confirmed = get_checkbox_selected(values, "restore_confirmation", "confirm_restore")
-        if removed and not restore_confirmed:
-            errors["restore_confirmation"] = (
-                "You must confirm you intend to restore this profile."
+        gated_selected = GATED_BUYER_ROLE_FIELDS & set(selected_role_fields)
+        if gated_selected and not get_checkbox_selected(
+            values, "gated_field_confirmation", "confirm_correction"
+        ):
+            errors["gated_field_confirmation"] = (
+                "You must confirm this is a correction, not a routine edit."
             )
 
         if errors:
@@ -214,140 +330,528 @@ def register(app: AsyncApp) -> None:
             return
 
         await ack()
-        assert validated is not None
-        fields = validated.model_dump()
-
         try:
-            await build_update_buyer_use_case().execute(
-                buyer_role_id, fields, requested_by, restore=removed
+            await _write_buyer_edit(
+                buyer_role_id=buyer_role_id,
+                org_attio_id=org_attio_id,
+                org_extracted=org_extracted,
+                role_extracted=role_extracted,
             )
         except BuyerNotFoundError:
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="This buyer could not be found."
             )
             return
-        except BuyerAlreadyRemovedError:
+        except _OrgRemovedError:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text="This buyer is removed — reopen with `/edit-buyer` to restore it.",
+                text=f"{org_name}'s Attio record is gone or was merged — can't write to it.",
+            )
+            return
+        except PartialWriteError as exc:
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
             )
             return
 
-        verb = "Restored and updated" if removed else "Updated"
         await client.chat_postEphemeral(
-            channel=channel_id, user=requested_by, text=f"{verb} buyer profile for {org_name}."
+            channel=channel_id, user=requested_by, text=f"Updated buyer profile for {org_name}."
         )
 
-    @app.action("remove_seller")
-    async def handle_remove_seller(ack, body, client, respond):  # noqa: ANN001
-        await ack()
-        await _handle_remove_decision(
-            body,
-            client,
-            respond,
-            kind="seller",
-            use_case=build_remove_seller_use_case(),
-            not_found_error=SellerNotFoundError,
-            already_removed_error=SellerAlreadyRemovedError,
+    @app.view("organization_selection_modal")
+    async def handle_organization_selection_submission(ack, body, view, client):  # noqa: ANN001
+        metadata = json.loads(view.get("private_metadata") or "{}")
+        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        channel_id = metadata["channel_id"]
+        kind = metadata["kind"]
+        search_term = metadata["search_term"]
+        build_form = build_seller_add_form_modal if kind == "seller" else build_buyer_add_form_modal
+
+        selected = view["state"]["values"]["organization_id"]["selected_organization"][
+            "selected_option"
+        ]
+        selected_value = selected["value"]
+
+        if selected_value == NEW_ORGANIZATION_VALUE:
+            await ack(
+                response_action="update",
+                view=build_form(
+                    org=None,
+                    requested_by=requested_by,
+                    channel_id=channel_id,
+                    prefill_name=search_term,
+                    duplicate_candidates=metadata.get("candidate_names") or [],
+                ),
+            )
+            return
+
+        org = await resolve_organization(selected_value)
+        if org is None:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text="This organization could not be found."
+            )
+            return
+
+        has_role = (org.seller_role if kind == "seller" else org.buyer_role) is not None
+        if has_role:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=requested_by,
+                text=(
+                    f"{org.name} already has a {kind} role — use `/edit-{kind} {org.name}` "
+                    "instead."
+                ),
+            )
+            return
+
+        await ack(
+            response_action="update",
+            view=build_form(org=org, requested_by=requested_by, channel_id=channel_id),
         )
 
-    @app.action("cancel_seller")
-    async def handle_cancel_seller(ack, respond):  # noqa: ANN001
-        await ack()
-        await respond(replace_original=True, text="Cancelled.")
+    @app.view("seller_add_form_modal")
+    async def handle_seller_add_form_submission(ack, body, view, client):  # noqa: ANN001
+        metadata = json.loads(view.get("private_metadata") or "{}")
+        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        channel_id = metadata["channel_id"]
+        is_new_org: bool = metadata["is_new_org"]
+        org_attio_id: str | None = metadata["org_attio_id"]
+        existing_org_name: str | None = metadata["org_name"]
 
-    @app.action("remove_buyer")
-    async def handle_remove_buyer(ack, body, client, respond):  # noqa: ANN001
+        values = view["state"]["values"]
+        org_extracted = {
+            spec.name: extract_field_value(spec, values, block_id_prefix="org_")
+            for spec in ORGANIZATION_FIELDS
+        }
+        role_extracted = {
+            spec.name: extract_field_value(spec, values) for spec in SELLER_ROLE_FIELDS
+        }
+
+        errors: dict[str, str] = {}
+        org_name = get_text(values, "name", "name") if is_new_org else existing_org_name
+        if is_new_org and not org_name:
+            errors["name"] = "Organization name is required."
+        try:
+            OrganizationUpdate.model_validate(org_extracted)
+        except ValidationError as exc:
+            for block_id, msg in pydantic_errors_to_slack(exc.errors()).items():
+                errors[f"org_{block_id}"] = msg
+        try:
+            SellerUpdate.model_validate(role_extracted)
+        except ValidationError as exc:
+            errors.update(pydantic_errors_to_slack(exc.errors()))
+
+        if errors:
+            await ack(response_action="errors", errors=errors)
+            return
+
         await ack()
-        await _handle_remove_decision(
-            body,
-            client,
-            respond,
-            kind="buyer",
-            use_case=build_remove_buyer_use_case(),
-            not_found_error=BuyerNotFoundError,
-            already_removed_error=BuyerAlreadyRemovedError,
+        try:
+            await _write_seller_add(
+                is_new_org=is_new_org,
+                org_attio_id=org_attio_id,
+                org_name=org_name,
+                org_extracted=org_extracted,
+                role_extracted=role_extracted,
+            )
+        except SellerAlreadyExistsError:
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=requested_by,
+                text="A seller role already exists for this organization — use `/edit-seller`"
+                " instead.",
+            )
+            return
+        except PartialWriteError as exc:
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+            )
+            return
+
+        await client.chat_postEphemeral(
+            channel=channel_id, user=requested_by, text=f"Added seller profile for {org_name}."
         )
 
-    @app.action("cancel_buyer")
-    async def handle_cancel_buyer(ack, respond):  # noqa: ANN001
+    @app.view("buyer_add_form_modal")
+    async def handle_buyer_add_form_submission(ack, body, view, client):  # noqa: ANN001
+        metadata = json.loads(view.get("private_metadata") or "{}")
+        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        channel_id = metadata["channel_id"]
+        is_new_org: bool = metadata["is_new_org"]
+        org_attio_id: str | None = metadata["org_attio_id"]
+        existing_org_name: str | None = metadata["org_name"]
+
+        values = view["state"]["values"]
+        org_extracted = {
+            spec.name: extract_field_value(spec, values, block_id_prefix="org_")
+            for spec in ORGANIZATION_FIELDS
+        }
+        role_extracted = {
+            spec.name: extract_field_value(spec, values) for spec in BUYER_ROLE_FIELDS
+        }
+
+        errors: dict[str, str] = {}
+        org_name = get_text(values, "name", "name") if is_new_org else existing_org_name
+        if is_new_org and not org_name:
+            errors["name"] = "Organization name is required."
+        try:
+            OrganizationUpdate.model_validate(org_extracted)
+        except ValidationError as exc:
+            for block_id, msg in pydantic_errors_to_slack(exc.errors()).items():
+                errors[f"org_{block_id}"] = msg
+        try:
+            BuyerUpdate.model_validate(role_extracted)
+        except ValidationError as exc:
+            errors.update(pydantic_errors_to_slack(exc.errors()))
+
+        if errors:
+            await ack(response_action="errors", errors=errors)
+            return
+
         await ack()
-        await respond(replace_original=True, text="Cancelled.")
+        try:
+            await _write_buyer_add(
+                is_new_org=is_new_org,
+                org_attio_id=org_attio_id,
+                org_name=org_name,
+                org_extracted=org_extracted,
+                role_extracted=role_extracted,
+            )
+        except BuyerAlreadyExistsError:
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=requested_by,
+                text="A buyer role already exists for this organization — use `/edit-buyer`"
+                " instead.",
+            )
+            return
+        except PartialWriteError as exc:
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+            )
+            return
+
+        await client.chat_postEphemeral(
+            channel=channel_id, user=requested_by, text=f"Added buyer profile for {org_name}."
+        )
 
 
-async def _handle_remove_decision(
-    body: dict, client, respond, *, kind: str, use_case, not_found_error, already_removed_error  # noqa: ANN001
+class _OrgRemovedError(Exception):
+    pass
+
+
+class PartialWriteError(Exception):
+    """Raised when a write fails after one or more earlier steps already
+    landed — an org PATCH that succeeded before a role PATCH then failed, an
+    org create that succeeded before the role-entry create failed, or an
+    Attio write that succeeded before the Postgres write then failed (a
+    plain DB error, not the expected `*AlreadyExistsError`). Carries exactly
+    what already landed so the Slack message can tell the truth instead of
+    assuming nothing was saved.
+    """
+
+    def __init__(self, landed: list[str], cause: Exception) -> None:
+        self.landed = landed
+        self.cause = cause
+        super().__init__(str(cause))
+
+
+def _partial_write_message(exc: PartialWriteError) -> str:
+    if not exc.landed:
+        return f"Couldn't write to Attio, nothing was saved: {exc.cause}"
+    landed_text = "; ".join(exc.landed)
+    return f"Write failed partway through. Already saved: {landed_text}. Error: {exc.cause}"
+
+
+async def _write_seller_edit(
+    *, seller_role_id: str, org_attio_id: str, org_extracted: dict, role_extracted: dict
 ) -> None:
-    action = body["actions"][0]
-    role_id = action.get("value")
-    channel_id = body["channel"]["id"]
-    user_id = body["user"]["id"]
+    """Attio first, then Postgres — see module docstring. Re-resolves the
+    seller (and its organization) fresh rather than trusting anything from
+    the Slack payload beyond which fields were selected.
+    """
+    role = await resolve_seller_by_id(seller_role_id)
+    if role is None:
+        raise SellerNotFoundError(seller_role_id)
+    if role.organization.removed_at is not None:
+        raise _OrgRemovedError(org_attio_id)
+
+    landed: list[str] = []
+    attio_client = get_attio_client()
+    try:
+        if org_extracted:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            if org_attio_values:
+                await patch_organization(attio_client, org_attio_id, org_attio_values)
+                landed.append("organization fields (Attio)")
+        if role_extracted:
+            role_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="lists",
+                target_slug="seller_role",
+                table="seller_role",
+                fields=SELLER_ROLE_FIELDS_BY_NAME,
+                extracted=role_extracted,
+            )
+            if role_attio_values:
+                entry_id = await resolve_role_entry_id(attio_client, "seller_role", org_attio_id)
+                await patch_role_entry(attio_client, "seller_role", entry_id, role_attio_values)
+                landed.append("seller profile fields (Attio)")
+    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError) as exc:
+        raise PartialWriteError(landed, exc) from exc
+
+    org_postgres_fields = (
+        build_postgres_values(
+            table="organizations", fields=ORGANIZATION_FIELDS_BY_NAME, extracted=org_extracted
+        )
+        if org_extracted
+        else None
+    )
+    role_postgres_fields = (
+        build_postgres_values(
+            table="seller_role", fields=SELLER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
+        )
+        if role_extracted
+        else {}
+    )
+    try:
+        await build_update_seller_use_case().execute(
+            seller_role_id,
+            role_postgres_fields,
+            org_attio_id=org_attio_id,
+            org_fields=org_postgres_fields,
+        )
+    except Exception as exc:
+        raise PartialWriteError(landed, exc) from exc
+
+
+async def _write_buyer_edit(
+    *, buyer_role_id: str, org_attio_id: str, org_extracted: dict, role_extracted: dict
+) -> None:
+    role = await resolve_buyer_by_id(buyer_role_id)
+    if role is None:
+        raise BuyerNotFoundError(buyer_role_id)
+    if role.organization.removed_at is not None:
+        raise _OrgRemovedError(org_attio_id)
+
+    landed: list[str] = []
+    attio_client = get_attio_client()
+    try:
+        if org_extracted:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            if org_attio_values:
+                await patch_organization(attio_client, org_attio_id, org_attio_values)
+                landed.append("organization fields (Attio)")
+        if role_extracted:
+            role_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="lists",
+                target_slug="buyer_role",
+                table="buyer_role",
+                fields=BUYER_ROLE_FIELDS_BY_NAME,
+                extracted=role_extracted,
+            )
+            if role_attio_values:
+                entry_id = await resolve_role_entry_id(attio_client, "buyer_role", org_attio_id)
+                await patch_role_entry(attio_client, "buyer_role", entry_id, role_attio_values)
+                landed.append("buyer profile fields (Attio)")
+    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError) as exc:
+        raise PartialWriteError(landed, exc) from exc
+
+    org_postgres_fields = (
+        build_postgres_values(
+            table="organizations", fields=ORGANIZATION_FIELDS_BY_NAME, extracted=org_extracted
+        )
+        if org_extracted
+        else None
+    )
+    role_postgres_fields = (
+        build_postgres_values(
+            table="buyer_role", fields=BUYER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
+        )
+        if role_extracted
+        else {}
+    )
+    try:
+        await build_update_buyer_use_case().execute(
+            buyer_role_id,
+            role_postgres_fields,
+            org_attio_id=org_attio_id,
+            org_fields=org_postgres_fields,
+        )
+    except Exception as exc:
+        raise PartialWriteError(landed, exc) from exc
+
+
+async def _write_seller_add(
+    *,
+    is_new_org: bool,
+    org_attio_id: str | None,
+    org_name: str | None,
+    org_extracted: dict,
+    role_extracted: dict,
+) -> None:
+    """Attio first, then Postgres — same principle as `_write_seller_edit`,
+    extended to creates: when `is_new_org`, the organization itself is
+    created in Attio before anything else, and its server-generated
+    `record_id` becomes `org_attio_id` for the rest of the write (see
+    `ddl-commands/README.md`, "Why Attio-first").
+    """
+    landed: list[str] = []
+    attio_client = get_attio_client()
 
     try:
-        await use_case.execute(role_id, user_id)
-    except not_found_error:
-        await client.chat_postEphemeral(
-            channel=channel_id, user=user_id, text=f"This {kind} could not be found."
-        )
-        return
-    except already_removed_error:
-        await client.chat_postEphemeral(
-            channel=channel_id, user=user_id, text=f"This {kind} has already been removed."
-        )
-        return
+        if is_new_org:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            org_attio_values["name"] = org_name
+            org_attio_id = await create_organization(attio_client, org_attio_values)
+            landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
+        elif org_extracted:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            if org_attio_values:
+                await patch_organization(attio_client, org_attio_id, org_attio_values)
+                landed.append("organization fields (Attio)")
 
-    await client.chat_postEphemeral(
-        channel=channel_id, user=user_id, text=f"Removed by <@{user_id}>."
+        assert org_attio_id is not None
+        role_attio_values = await build_attio_values(
+            attio_client,
+            target_kind="lists",
+            target_slug="seller_role",
+            table="seller_role",
+            fields=SELLER_ROLE_FIELDS_BY_NAME,
+            extracted=role_extracted,
+        )
+        await create_role_entry(attio_client, "seller_role", org_attio_id, role_attio_values)
+        landed.append("seller role entry (Attio)")
+    except (AttioError, OptionNotFoundError) as exc:
+        raise PartialWriteError(landed, exc) from exc
+
+    org_postgres_fields = (
+        build_postgres_values(
+            table="organizations", fields=ORGANIZATION_FIELDS_BY_NAME, extracted=org_extracted
+        )
+        if org_extracted
+        else None
     )
-    await respond(replace_original=True, text=f"🗑️ Removed by <@{user_id}>.")
+    role_postgres_fields = build_postgres_values(
+        table="seller_role", fields=SELLER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
+    )
+    try:
+        await build_create_seller_use_case().execute(
+            org_attio_id=org_attio_id,
+            is_new_org=is_new_org,
+            org_name=org_name if is_new_org else None,
+            org_fields=org_postgres_fields,
+            role_fields=role_postgres_fields,
+        )
+    except SellerAlreadyExistsError:
+        raise
+    except Exception as exc:
+        raise PartialWriteError(landed, exc) from exc
 
 
-def _extract_seller_fields(values: dict) -> dict:
-    return {
-        "outreach_tier": get_text(values, "outreach_tier", "outreach_tier"),
-        "appetite_signal": get_text(values, "appetite_signal", "appetite_signal"),
-        "relationship_status": get_text(values, "relationship_status", "relationship_status"),
-        "est_revenue": extract_money(values, "est_revenue"),
-        "est_ebitda": extract_money(values, "est_ebitda"),
-        "owner_salary": extract_money(values, "owner_salary"),
-        "valuation_low": extract_money(values, "valuation_low"),
-        "valuation_mid": extract_money(values, "valuation_mid"),
-        "valuation_high": extract_money(values, "valuation_high"),
-        "sell_timeline": get_text(values, "sell_timeline", "sell_timeline"),
-        "readiness_score": get_number(values, "readiness_score", "readiness_score"),
-        "readiness_band": get_text(values, "readiness_band", "readiness_band"),
-        "intake_source": get_text(values, "intake_source", "intake_source"),
-        "last_attempt_date": get_date(values, "last_attempt_date", "last_attempt_date"),
-        "last_attempt_channel": get_text(
-            values, "last_attempt_channel", "last_attempt_channel"
-        ),
-        "last_attempt_outcome": get_text(
-            values, "last_attempt_outcome", "last_attempt_outcome"
-        ),
-        "lead_quality_score": get_number(values, "lead_quality_score", "lead_quality_score"),
-        "re_engage_date": get_date(values, "re_engage_date", "re_engage_date"),
-    }
+async def _write_buyer_add(
+    *,
+    is_new_org: bool,
+    org_attio_id: str | None,
+    org_name: str | None,
+    org_extracted: dict,
+    role_extracted: dict,
+) -> None:
+    """Mirrors `_write_seller_add` exactly, buyer-typed."""
+    landed: list[str] = []
+    attio_client = get_attio_client()
 
+    try:
+        if is_new_org:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            org_attio_values["name"] = org_name
+            org_attio_id = await create_organization(attio_client, org_attio_values)
+            landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
+        elif org_extracted:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            if org_attio_values:
+                await patch_organization(attio_client, org_attio_id, org_attio_values)
+                landed.append("organization fields (Attio)")
 
-def _extract_buyer_fields(values: dict) -> dict:
-    return {
-        "model": get_text(values, "model", "model"),
-        "mandate_status": get_text(values, "mandate_status", "mandate_status"),
-        "ebitda_floor": extract_money(values, "ebitda_floor"),
-        "check_size_min": extract_money(values, "check_size_min"),
-        "check_size_max": extract_money(values, "check_size_max"),
-        "ev_ceiling": extract_money(values, "ev_ceiling"),
-        "deal_structure_tolerance": get_text(
-            values, "deal_structure_tolerance", "deal_structure_tolerance"
-        ),
-        "earnout_tolerance": get_text(values, "earnout_tolerance", "earnout_tolerance"),
-        "profitable_only": get_bool_select(values, "profitable_only", "profitable_only"),
-        "investment_strategy": get_text(values, "investment_strategy", "investment_strategy"),
-        "notes": get_text(values, "notes", "notes"),
-        "acquisition_enrichment": get_text(
-            values, "acquisition_enrichment", "acquisition_enrichment"
-        ),
-        "deals_introduced": get_number(values, "deals_introduced", "deals_introduced"),
-        "deals_converted": get_number(values, "deals_converted", "deals_converted"),
-    }
+        assert org_attio_id is not None
+        role_attio_values = await build_attio_values(
+            attio_client,
+            target_kind="lists",
+            target_slug="buyer_role",
+            table="buyer_role",
+            fields=BUYER_ROLE_FIELDS_BY_NAME,
+            extracted=role_extracted,
+        )
+        await create_role_entry(attio_client, "buyer_role", org_attio_id, role_attio_values)
+        landed.append("buyer role entry (Attio)")
+    except (AttioError, OptionNotFoundError) as exc:
+        raise PartialWriteError(landed, exc) from exc
+
+    org_postgres_fields = (
+        build_postgres_values(
+            table="organizations", fields=ORGANIZATION_FIELDS_BY_NAME, extracted=org_extracted
+        )
+        if org_extracted
+        else None
+    )
+    role_postgres_fields = build_postgres_values(
+        table="buyer_role", fields=BUYER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
+    )
+    try:
+        await build_create_buyer_use_case().execute(
+            org_attio_id=org_attio_id,
+            is_new_org=is_new_org,
+            org_name=org_name if is_new_org else None,
+            org_fields=org_postgres_fields,
+            role_fields=role_postgres_fields,
+        )
+    except BuyerAlreadyExistsError:
+        raise
+    except Exception as exc:
+        raise PartialWriteError(landed, exc) from exc

@@ -27,12 +27,8 @@ class BuyerResolutionService:
     def __init__(self, buyer_repository: BuyerRepository) -> None:
         self._buyers = buyer_repository
 
-    async def resolve(
-        self, buyer_name: str, *, include_removed: bool = False
-    ) -> BuyerResolution:
-        matches = await self._buyers.search_by_organization_name(
-            buyer_name, include_removed=include_removed
-        )
+    async def resolve(self, buyer_name: str) -> BuyerResolution:
+        matches = await self._buyers.search_by_organization_name(buyer_name)
         if not matches:
             return BuyerResolution(status="none")
 

@@ -33,9 +33,22 @@ class BuyerRepository:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def search_by_organization_name(
-        self, term: str, limit: int = 10, *, include_removed: bool = False
-    ) -> list[BuyerRole]:
+    async def get_by_org_attio_id(self, org_attio_id: str) -> BuyerRole | None:
+        """Used by `/add-buyer`'s create path to re-check, inside the write
+        transaction, that no buyer role was created on this organization
+        between the search step and the submission — `UNIQUE(org_attio_id)`
+        is the final backstop either way.
+        """
+        stmt = select(BuyerRole).where(BuyerRole.org_attio_id == org_attio_id)
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def create(self, org_attio_id: str, **fields) -> BuyerRole:
+        role = BuyerRole(org_attio_id=org_attio_id, **fields)
+        self._session.add(role)
+        await self._session.flush()
+        return role
+
+    async def search_by_organization_name(self, term: str, limit: int = 10) -> list[BuyerRole]:
         """Case-insensitive, typo-tolerant name match.
 
         `pg_trgm` (001_extensions.sql, GIN index in 007_org_name_trgm_index.sql)
@@ -43,50 +56,30 @@ class BuyerRepository:
         match — but the plain `ILIKE` substring match is always included too
         (`OR`), so an exact/partial typed name never regresses to relying on
         a similarity score. Results are ordered most-similar-first.
-
-        `include_removed=False` (default) excludes removed rows — this is
-        what keeps a removed buyer out of new matching/lookup. Only
-        `/edit-buyer`'s resolution passes `include_removed=True`, so a
-        removed row can be found and restored.
         """
         similarity = func.similarity(Organization.name, term)
-        conditions = [
-            or_(
-                Organization.name.ilike(f"%{term}%"),
-                similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
-            )
-        ]
-        if not include_removed:
-            conditions.append(BuyerRole.removed_at.is_(None))
         stmt = (
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
-            .where(*conditions)
+            .where(
+                or_(
+                    Organization.name.ilike(f"%{term}%"),
+                    similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
+                )
+            )
             .options(selectinload(BuyerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def update(
-        self, buyer_role_id: str, actor_user_id: str, **fields
-    ) -> BuyerRole | None:
+    async def update(self, buyer_role_id: str, **fields) -> BuyerRole | None:
         role = await self.get_by_id(buyer_role_id)
         if role is None:
             return None
         for key, value in fields.items():
             setattr(role, key, value)
         # No ORM `onupdate=` on `updated_at` — set explicitly.
-        role.bot_managed_at = role.updated_at = datetime.now(UTC)
-        role.bot_managed_by = actor_user_id
-        await self._session.flush()
-        return role
-
-    async def remove(self, buyer_role_id: str, actor_user_id: str) -> BuyerRole | None:
-        role = await self.get_by_id(buyer_role_id)
-        if role is None:
-            return None
-        role.removed_at = role.bot_managed_at = role.updated_at = datetime.now(UTC)
-        role.bot_managed_by = actor_user_id
+        role.updated_at = datetime.now(UTC)
         await self._session.flush()
         return role

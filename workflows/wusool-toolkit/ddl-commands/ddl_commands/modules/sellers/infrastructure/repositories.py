@@ -30,70 +30,50 @@ class SellerRepository:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def get_eligible_sellers(self, limit: int = 50, offset: int = 0) -> list[SellerRole]:
-        """Excludes removed rows — this bot has no matching pipeline of its
-        own, but keeping the same filter here means this method's meaning
-        stays consistent if it's ever reused.
+    async def get_by_org_attio_id(self, org_attio_id: str) -> SellerRole | None:
+        """Used by `/add-seller`'s create path to re-check, inside the write
+        transaction, that no seller role was created on this organization
+        between the search step and the submission — `UNIQUE(org_attio_id)`
+        is the final backstop either way.
         """
-        stmt = (
-            select(SellerRole)
-            .where(SellerRole.removed_at.is_(None))
-            .options(selectinload(SellerRole.organization))
-            .limit(limit)
-            .offset(offset)
-        )
-        return list((await self._session.execute(stmt)).scalars().all())
+        stmt = select(SellerRole).where(SellerRole.org_attio_id == org_attio_id)
+        return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def search_by_organization_name(
-        self, term: str, limit: int = 10, *, include_removed: bool = False
-    ) -> list[SellerRole]:
+    async def create(self, org_attio_id: str, **fields) -> SellerRole:
+        role = SellerRole(org_attio_id=org_attio_id, **fields)
+        self._session.add(role)
+        await self._session.flush()
+        return role
+
+    async def search_by_organization_name(self, term: str, limit: int = 10) -> list[SellerRole]:
         """Case-insensitive, typo-tolerant name match — same pg_trgm pattern
         as `BuyerRepository.search_by_organization_name`, reusing the same
         `ix_organizations_name_trgm` GIN index (it's on `organizations.name`,
         not buyer/seller-scoped).
-
-        `include_removed=False` (default) excludes removed rows. Only
-        `/edit-seller`'s resolution passes `include_removed=True`, so a
-        removed row can be found and restored.
         """
         similarity = func.similarity(Organization.name, term)
-        conditions = [
-            or_(
-                Organization.name.ilike(f"%{term}%"),
-                similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
-            )
-        ]
-        if not include_removed:
-            conditions.append(SellerRole.removed_at.is_(None))
         stmt = (
             select(SellerRole)
             .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
-            .where(*conditions)
+            .where(
+                or_(
+                    Organization.name.ilike(f"%{term}%"),
+                    similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
+                )
+            )
             .options(selectinload(SellerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def update(
-        self, seller_role_id: str, actor_user_id: str, **fields
-    ) -> SellerRole | None:
+    async def update(self, seller_role_id: str, **fields) -> SellerRole | None:
         role = await self.get_by_id(seller_role_id)
         if role is None:
             return None
         for key, value in fields.items():
             setattr(role, key, value)
         # No ORM `onupdate=` on `updated_at` — set explicitly.
-        role.bot_managed_at = role.updated_at = datetime.now(UTC)
-        role.bot_managed_by = actor_user_id
-        await self._session.flush()
-        return role
-
-    async def remove(self, seller_role_id: str, actor_user_id: str) -> SellerRole | None:
-        role = await self.get_by_id(seller_role_id)
-        if role is None:
-            return None
-        role.removed_at = role.bot_managed_at = role.updated_at = datetime.now(UTC)
-        role.bot_managed_by = actor_user_id
+        role.updated_at = datetime.now(UTC)
         await self._session.flush()
         return role

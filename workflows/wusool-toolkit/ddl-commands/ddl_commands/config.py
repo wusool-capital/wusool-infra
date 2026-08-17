@@ -19,10 +19,11 @@ class Settings(BaseSettings):
     slack_bot_token: str
     slack_signing_secret: str
 
-    # Best-effort visibility only (app/modules/sync_guard equivalent lives in
-    # database/sync-postgres.ps1, not this app) — not read by this app itself
-    # today, kept here only so .env.example documents it in one place.
-    sync_alert_webhook_url: str | None = None
+    # DEV Attio workspace write access — same value crm-sync's PowerShell
+    # scripts already use (DEV_ATTIO_API_KEY), confirmed write-capable.
+    # `/edit-seller`/`/edit-buyer` write to Attio first, then Postgres, in
+    # the same request — see `ddl_commands/shared/attio/`.
+    attio_api_key: str
 
     @field_validator("database_url")
     @classmethod
