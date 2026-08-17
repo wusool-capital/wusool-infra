@@ -269,23 +269,23 @@ name = "wusool-db"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "alembic" },
+    { name = "asyncpg" },
     { name = "pgvector" },
     { name = "sqlalchemy" },
 ]
 
 [package.optional-dependencies]
-migrate = [
-    { name = "alembic" },
-    { name = "asyncpg" },
+dev = [
     { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "alembic", marker = "extra == 'migrate'", specifier = ">=1.13" },
-    { name = "asyncpg", marker = "extra == 'migrate'", specifier = ">=0.29" },
+    { name = "alembic", specifier = ">=1.13" },
+    { name = "asyncpg", specifier = ">=0.29" },
     { name = "pgvector", specifier = ">=0.3.6" },
-    { name = "ruff", marker = "extra == 'migrate'", specifier = ">=0.6" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "sqlalchemy", specifier = ">=2.0.35" },
 ]
-provides-extras = ["migrate"]
+provides-extras = ["dev"]

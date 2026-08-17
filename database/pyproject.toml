@@ -46,3 +46,11 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic's own `--autogenerate` renderer emits one long line per column/
+# index/constraint (many kwargs each) — that's upstream's style, not ours,
+# and manually re-wrapping it would fight every future `--autogenerate` diff
+# instead of matching it. Line length is the only thing ignored here; F/I/UP/B
+# still apply.
+"alembic/versions/*.py" = ["E501"]
