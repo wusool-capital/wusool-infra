@@ -80,6 +80,60 @@ jobs:
         working-directory: workflows/wusool-toolkit/ddl-commands
         run: uv run pytest
 
+  # Catches a broken migration or a model change that forgot one, on every
+  # PR, against a real (throwaway) Postgres — distinct from and complementary
+  # to _deploy.yml's "Run pending database migrations" step, which applies
+  # migrations for real against dev/prod's actual RDS instance via SSM after
+  # merge. This job never touches anything AWS-related; the service
+  # container below is created and destroyed by the runner itself.
+  alembic-check:
+    name: Alembic drift check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Same image as the local dev docker-compose db — needs pgvector for
+        # buyer_intel.brief_embedding/vertical_kb.embedding's vector columns.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: matching
+          POSTGRES_PASSWORD: matching
+          POSTGRES_DB: wusool_crm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U matching -d wusool_crm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: database
+    env:
+      DATABASE_URL: postgresql://matching:matching@localhost:5432/wusool_crm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+
+      - name: Install
+        run: uv sync
+
+      # Runs against a genuinely empty database, same as production's first
+      # bootstrap would — if this fails, `alembic upgrade head` would also
+      # fail for real during a deploy, just later and against something
+      # that matters.
+      - name: alembic upgrade head
+        run: uv run alembic upgrade head
+
+      # Catches the class of bug Stage 1's models were drafted against
+      # (static SQL analysis, not a live reflection): a model changed without
+      # a matching migration, or a migration that doesn't actually produce
+      # what the models declare.
+      - name: alembic check (no undeclared drift between models and migrations)
+        run: uv run alembic check
+
   # NOT dry-run locally (no pwsh on this machine) — unlike toolkit-python
   # above, which was verified end to end. Only fails on Severity=Error (not
   # Warning), since Error-level rules flag genuinely broken code rather than
