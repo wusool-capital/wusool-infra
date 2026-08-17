@@ -1,13 +1,19 @@
 import pytest
 
-from ddl_commands.shared.attio.money import UnknownMoneyFieldError, serialize_money
+from ddl_commands.shared.attio.money import (
+    UnknownMoneyFieldError,
+    default_currency_code,
+    serialize_money,
+)
 
 
 def test_organizations_funding_raised_is_usd() -> None:
+    # currency_code is deliberately absent from the Attio write shape — see
+    # money.py's module docstring (Attio rejects it as an unrecognized key).
     assert serialize_money("organizations", "funding_raised", 100.0) == {
         "currency_value": 100.0,
-        "currency_code": "USD",
     }
+    assert default_currency_code("organizations", "funding_raised") == "USD"
 
 
 @pytest.mark.parametrize(
@@ -20,10 +26,8 @@ def test_organizations_funding_raised_is_usd() -> None:
     ],
 )
 def test_role_money_fields_are_aed(table: str, field: str) -> None:
-    assert serialize_money(table, field, 500.0) == {
-        "currency_value": 500.0,
-        "currency_code": "AED",
-    }
+    assert serialize_money(table, field, 500.0) == {"currency_value": 500.0}
+    assert default_currency_code(table, field) == "AED"
 
 
 def test_unknown_field_raises() -> None:

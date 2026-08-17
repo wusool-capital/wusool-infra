@@ -1,10 +1,12 @@
-"""Attio `currency` attribute write shape — confirmed live by the data
-engineer, matching what `database/sync-postgres.ps1` already reads:
-`{"currency_value": <number>, "currency_code": "<CODE>"}`.
-
-`currency_code` is fixed per field, not user input — confirmed live against
-each attribute's `config.currency.default_currency_code`, not uniform AED
-as the historical migration config assumed.
+"""Attio `currency` attribute write shape — `{"currency_value": <number>}`
+only. `currency_code` is fixed per attribute in Attio's own workspace
+config (`config.currency.default_currency_code`), not settable per-write —
+confirmed live 2026-08-17 the hard way: including it raises `Attio API
+error 400: ... "Unrecognized key(s) in object: 'currency_code'"`. The
+per-(table, field) mapping below still exists and is still load-bearing —
+it's what tells the *Postgres* write which currency the number is actually
+in (`to_postgres_money`), since Postgres has no server-side default the way
+Attio's attribute config does.
 """
 
 # organizations.funding_raised -> USD; every buyer_role/seller_role money
@@ -41,7 +43,14 @@ def default_currency_code(table: str, field: str) -> str:
 
 
 def serialize_money(table: str, field: str, amount: float) -> dict:
-    return {"currency_value": amount, "currency_code": default_currency_code(table, field)}
+    """`default_currency_code` is still called here (not just to validate
+    `(table, field)` is a known money field) — the same guard against a
+    field slipping through unconfigured that every other caller of this
+    module relies on, even though the returned code isn't part of the
+    payload itself.
+    """
+    default_currency_code(table, field)
+    return {"currency_value": amount}
 
 
 def to_postgres_money(table: str, field: str, amount: float) -> dict:
