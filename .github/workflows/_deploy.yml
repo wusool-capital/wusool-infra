@@ -172,7 +172,7 @@ jobs:
         id: n8n_bootstrap
         working-directory: terraform/stacks/n8n
         run: |
-          set -euo pipefail
+          set -uo pipefail
           DOC=$(tofu output -raw bootstrap_document_name 2>/dev/null || echo "")
           IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
           if [ -z "$DOC" ] || [ -z "$IID" ]; then
@@ -180,27 +180,44 @@ jobs:
             exit 1
           fi
 
-          CMD=$(aws ssm send-command \
-            --document-name "$DOC" --instance-ids "$IID" \
-            --comment "deploy ${{ github.sha }}" \
-            --query Command.CommandId --output text)
-          echo "command: $CMD"
+          # Retried at this outer level, not just inside the bootstrap
+          # script's own docker-compose retry: a brand-new instance's
+          # automatic first-boot user_data execution can race with this
+          # pipeline's explicit SSM re-invocation of the same script
+          # (observed 2026-08-17 standing up the first prod toolkit
+          # instance — a dnf package-cache collision, exit code from the
+          # OS package layer entirely, before docker/app deployment even
+          # starts). Retrying the whole send+poll cycle covers that and any
+          # other transient bootstrap failure, not just docker compose's.
+          for attempt in 1 2; do
+            CMD=$(aws ssm send-command \
+              --document-name "$DOC" --instance-ids "$IID" \
+              --comment "deploy ${{ github.sha }} (attempt $attempt)" \
+              --query Command.CommandId --output text)
+            echo "command: $CMD (attempt $attempt/2)"
 
-          # `ssm wait` gives up early on a long bootstrap, so poll explicitly.
-          for _ in $(seq 1 60); do
-            S=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-                  --query Status --output text 2>/dev/null || echo Pending)
-            case "$S" in
-              Success) echo "bootstrap succeeded"; exit 0 ;;
-              Failed|Cancelled|TimedOut)
-                echo "::error::Bootstrap $S"
-                aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-                  --query StandardErrorContent --output text | tail -40
-                exit 1 ;;
+            STATUS=""
+            for _ in $(seq 1 60); do
+              STATUS=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+                    --query Status --output text 2>/dev/null || echo Pending)
+              case "$STATUS" in
+                Success) echo "bootstrap succeeded"; exit 0 ;;
+                Failed|Cancelled|TimedOut) break ;;
+              esac
+              sleep 15
+            done
+
+            case "$STATUS" in
+              Failed|Cancelled|TimedOut) ;;
+              *) echo "::error::Bootstrap did not finish within 15 minutes"; exit 1 ;;
             esac
-            sleep 15
+
+            echo "::warning::Bootstrap $STATUS on attempt $attempt/2"
+            aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+              --query StandardErrorContent --output text | tail -40
+            [ "$attempt" -eq 2 ] && { echo "::error::Bootstrap failed after 2 attempts"; exit 1; }
+            sleep 20
           done
-          echo "::error::Bootstrap did not finish within 15 minutes"; exit 1
 
       - name: Verify n8n actually serves
         if: steps.detect.outputs.deploy_n8n == 'true'
@@ -250,7 +267,7 @@ jobs:
         id: bootstrap
         working-directory: terraform/stacks/toolkit
         run: |
-          set -euo pipefail
+          set -uo pipefail
           DOC=$(tofu output -raw bootstrap_document_name 2>/dev/null || echo "")
           IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
           if [ -z "$DOC" ] || [ -z "$IID" ]; then
@@ -258,27 +275,44 @@ jobs:
             echo "skipped=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
 
-          CMD=$(aws ssm send-command \
-            --document-name "$DOC" --instance-ids "$IID" \
-            --comment "deploy ${{ github.sha }}" \
-            --query Command.CommandId --output text)
-          echo "command: $CMD"
+          # Retried at this outer level, not just inside the bootstrap
+          # script's own docker-compose retry: a brand-new instance's
+          # automatic first-boot user_data execution can race with this
+          # pipeline's explicit SSM re-invocation of the same script
+          # (observed 2026-08-17 standing up the first prod toolkit
+          # instance — a dnf package-cache collision, exit code from the
+          # OS package layer entirely, before docker/app deployment even
+          # starts). Retrying the whole send+poll cycle covers that and any
+          # other transient bootstrap failure, not just docker compose's.
+          for attempt in 1 2; do
+            CMD=$(aws ssm send-command \
+              --document-name "$DOC" --instance-ids "$IID" \
+              --comment "deploy ${{ github.sha }} (attempt $attempt)" \
+              --query Command.CommandId --output text)
+            echo "command: $CMD (attempt $attempt/2)"
 
-          # `ssm wait` gives up early on a long bootstrap, so poll explicitly.
-          for _ in $(seq 1 60); do
-            S=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-                  --query Status --output text 2>/dev/null || echo Pending)
-            case "$S" in
-              Success) echo "bootstrap succeeded"; exit 0 ;;
-              Failed|Cancelled|TimedOut)
-                echo "::error::Bootstrap $S"
-                aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-                  --query StandardErrorContent --output text | tail -40
-                exit 1 ;;
+            STATUS=""
+            for _ in $(seq 1 60); do
+              STATUS=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+                    --query Status --output text 2>/dev/null || echo Pending)
+              case "$STATUS" in
+                Success) echo "bootstrap succeeded"; exit 0 ;;
+                Failed|Cancelled|TimedOut) break ;;
+              esac
+              sleep 15
+            done
+
+            case "$STATUS" in
+              Failed|Cancelled|TimedOut) ;;
+              *) echo "::error::Bootstrap did not finish within 15 minutes"; exit 1 ;;
             esac
-            sleep 15
+
+            echo "::warning::Bootstrap $STATUS on attempt $attempt/2"
+            aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+              --query StandardErrorContent --output text | tail -40
+            [ "$attempt" -eq 2 ] && { echo "::error::Bootstrap failed after 2 attempts"; exit 1; }
+            sleep 20
           done
-          echo "::error::Bootstrap did not finish within 15 minutes"; exit 1
 
       - name: Verify the app actually serves
         if: steps.detect.outputs.deploy_toolkit == 'true' && steps.bootstrap.outputs.skipped != 'true'

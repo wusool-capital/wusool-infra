@@ -278,6 +278,18 @@ resource "aws_iam_role_policy" "gha_apply_iam" {
           "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies",
           "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile", "iam:GetInstanceProfile",
           "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
+          # Missing since this policy was first written (Phase E) - never
+          # caught because stacks/account is applied out of band, not
+          # through the CD pipeline, so this role's actual policy had never
+          # been re-applied to AWS until now, and no earlier apply (all done
+          # with a personal IAM user's broader permissions) ever exercised
+          # this specific role for a real IAM resource create. Confirmed
+          # live 2026-08-17: prod's first real CI-driven instance-profile
+          # create (enabling the prod toolkit instance) failed with
+          # AccessDenied on iam:TagInstanceProfile - the provider's
+          # default_tags block auto-tags every taggable resource including
+          # instance profiles, so CreateInstanceProfile alone isn't enough.
+          "iam:TagInstanceProfile", "iam:UntagInstanceProfile",
         ]
         Resource = [
           "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project}-${each.key}-*",
