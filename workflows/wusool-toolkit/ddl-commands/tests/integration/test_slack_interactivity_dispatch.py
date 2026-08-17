@@ -431,6 +431,63 @@ def test_edit_form_attio_failure_prevents_postgres_write(
     assert "Couldn't write to Attio, nothing was saved" in _mock_slack_web_client.posted[0]["text"]
 
 
+def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    """Org fields PATCH to Attio successfully, then the role fields PATCH
+    fails — Attio now holds a partial edit. The message must say the org
+    fields landed, not claim "nothing was saved".
+    """
+    seller_id = str(uuid.uuid4())
+    org = _fake_org(attio_id="org-attio-1")
+    monkeypatch.setattr(
+        actions_module,
+        "resolve_seller_by_id",
+        _async_returning(_fake_seller_role(seller_id, org=org)),
+    )
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        return {"some": "value"}
+
+    async def fake_patch_organization(*_args, **_kwargs):
+        return None
+
+    async def failing_resolve_role_entry_id(*_args, **_kwargs):
+        raise AttioError(500, "entry lookup failed")
+
+    postgres_calls: list = []
+
+    async def fake_execute(*args, **kwargs):
+        postgres_calls.append((args, kwargs))
+        return None
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "patch_organization", fake_patch_organization)
+    monkeypatch.setattr(actions_module, "resolve_role_entry_id", failing_resolve_role_entry_id)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(
+        actions_module,
+        "build_update_seller_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
+    )
+
+    values = {
+        "org_hq_country": {"org_hq_country": {"value": "AE"}},
+        "outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}},
+    }
+    payload = _seller_edit_form_payload(
+        seller_id, "org-attio-1", ["hq_country"], ["outreach_tier"], values
+    )
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert postgres_calls == []
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "organization fields" in text
+
+
 def test_edit_form_removed_org_is_rejected_before_any_write(
     monkeypatch, _mock_slack_web_client
 ) -> None:
@@ -779,6 +836,98 @@ def test_seller_add_form_attio_failure_prevents_postgres_write(
     assert response.status_code == 200
     assert postgres_calls == []
     assert "Couldn't write to Attio, nothing was saved" in _mock_slack_web_client.posted[0]["text"]
+
+
+def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    """Org create succeeds in Attio, then the role-entry create fails — the
+    org is not rolled back (see `ddl-commands/README.md`, "the add flow"),
+    and the user must be told the org now exists in Attio rather than being
+    told "nothing was saved", which would be false.
+    """
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        return {}
+
+    async def fake_create_organization(*_args, **_kwargs):
+        return "org-new-1"
+
+    async def failing_create_role_entry(*_args, **_kwargs):
+        raise AttioError(400, "bad request")
+
+    postgres_calls: list = []
+
+    async def fake_execute(**kwargs):
+        postgres_calls.append(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
+    monkeypatch.setattr(actions_module, "create_role_entry", failing_create_role_entry)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(
+        actions_module,
+        "build_create_seller_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
+    )
+
+    values = {"name": {"name": {"value": "New Seller Co"}}}
+    payload = _seller_add_form_payload(True, None, None, values)
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert postgres_calls == []
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "New Seller Co" in text
+    assert "org-new-1" in text
+
+
+def test_seller_add_form_postgres_failure_after_attio_success_reports_what_landed(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    """Both Attio writes succeed; the Postgres write then fails with a plain
+    (non-`SellerAlreadyExistsError`) exception — previously this propagated
+    uncaught out of the view handler with no message reaching the user at
+    all. Must now surface a message naming exactly what already landed in
+    Attio.
+    """
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        return {}
+
+    async def fake_create_organization(*_args, **_kwargs):
+        return "org-new-1"
+
+    async def fake_create_role_entry(*_args, **_kwargs):
+        return "entry-new-1"
+
+    async def failing_execute(**_kwargs):
+        raise RuntimeError("connection reset")
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
+    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(
+        actions_module,
+        "build_create_seller_use_case",
+        lambda: SimpleNamespace(execute=failing_execute),
+    )
+
+    values = {"name": {"name": {"value": "New Seller Co"}}}
+    payload = _seller_add_form_payload(True, None, None, values)
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "org-new-1" in text
+    assert "seller role entry" in text
+    assert "connection reset" in text
 
 
 def test_buyer_add_form_existing_org_writes_attio_before_postgres(

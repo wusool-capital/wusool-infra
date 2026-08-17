@@ -31,8 +31,13 @@ removed, see "History" below.
 3. **Edit form** — only the fields picked in step 2, pre-filled with current
    values.
 4. **Submit** — writes to **DEV Attio first**, then Postgres, in the same
-   request. If the Attio write fails, nothing is written to Postgres at
-   all. See "Why Attio-first" below.
+   request. If the Attio write fails before anything landed, nothing is
+   written to Postgres at all. If org fields already landed in Attio before
+   the role fields' write then failed (or Postgres itself fails after both
+   Attio writes succeeded), the ephemeral message names exactly what already
+   landed instead of claiming nothing was saved — see `PartialWriteError`/
+   `_partial_write_message` in `ddl_commands/modules/slack/handlers/actions.py`.
+   See "Why Attio-first" below.
 
 ## The add flow
 
@@ -53,11 +58,14 @@ removed, see "History" below.
    heads-up, not a block; they can still submit and create the duplicate.
 4. **Submit** — writes to **DEV Attio first**: create the organization
    record (only if new), then create the seller/buyer list entry FK'd to
-   it; only then Postgres, in one transaction. If any Attio write fails,
-   nothing is written to Postgres. If the org-create succeeds but the
-   role-entry-create then fails, the org is *not* rolled back — it's simply
-   there for the next `/add-*` attempt to find via search and attach to,
-   which is why search-first matters (see "Why Attio-first" below).
+   it; only then Postgres, in one transaction. If any Attio write fails
+   before anything landed, nothing is written to Postgres. If the org-create
+   succeeds but the role-entry-create then fails (or Postgres itself fails
+   after both Attio writes succeeded), the org is *not* rolled back — it's
+   simply there for the next `/add-*` attempt to find via search and attach
+   to, which is why search-first matters (see "Why Attio-first" below) — and
+   the ephemeral message names exactly what already landed (e.g. the new
+   org's Attio `record_id`) instead of claiming nothing was saved.
 
 ## Why Attio-first, not a Postgres-only write
 
@@ -93,8 +101,14 @@ flow and the add flow's form, since both read from the same
 - **`seller_roles.intake_source`** — included, but gated behind a required
   "this is a correction" checkbox on the edit form, matching its documented
   `write_once_except_correction` mutability.
-- **`buyer_roles.key_contact`**, **`organizations.owner`** — reference types
-  (a Person/Actor), not plain fields; deferred.
+- **`buyer_roles.key_contact`**, **`organizations.owner`** — both confirmed
+  as genuine business-owned fields (`ownership: "key"` in `crm-sync`'s
+  `target-schema.json`, same category as any other editable field, not
+  system-managed like `connection_strength` above). Excluded purely because
+  both are reference types (Person / User) and this bot has no
+  search-and-select-a-person/user UI built — the same kind of modal
+  `organization_selection.py` already does for orgs, just not built for
+  `people`/`users` yet. Not a policy question, just unbuilt.
 - Multi-select org fields other than `sector_focus` (`type`, `stage_focus`,
   `geographic_focus`, `domains`, `categories`) and `last_interaction_at` —
   deferred, not built this pass.
@@ -155,6 +169,39 @@ is gone, matching-engine's own read-path filters that depended on it are
 gone too, and `/remove-*` no longer exists. The sync-collision problem the
 guard columns existed to solve is now handled by writing to Attio first
 instead (see above) — a design that needs no schema changes at all.
+
+## Known limitation: concurrent writes to the same organization
+
+Two `/add-seller`/`/add-buyer` submissions for the same organization landing
+close together can still both succeed and create a duplicate — nothing here
+holds a lock across the Attio round-trip. What currently reduces the risk,
+without closing it:
+
+- Search-before-create and its duplicate-creation warning are advisory
+  (human judgment), not a hard block — by design, since legitimately
+  different organizations can share a similar name.
+- `CreateSellerUseCase`/`CreateBuyerUseCase` re-check for an existing role
+  on `org_attio_id` immediately before the Postgres insert, backed by
+  `UNIQUE(org_attio_id)` on `seller_roles`/`buyer_roles`
+  (`database/sql/003_crm_roles.sql`) as the final Postgres-side stop — *if*
+  that constraint is actually live on the real `wusool_crm` table. It's
+  declared inside `CREATE TABLE IF NOT EXISTS`, which no-ops silently
+  against an already-existing table — if the live table predates this
+  migration file (e.g. from the earlier n8n-based workflow), the constraint
+  may never have actually been applied. Worth confirming directly
+  (`SELECT conname FROM pg_constraint WHERE conrelid =
+  'seller_roles'::regclass AND contype = 'u';`) before relying on it as a
+  backstop — this is also the leading hypothesis for pre-existing duplicate
+  `org_attio_id` rows found in production, predating this bot entirely.
+
+Neither layer closes the true race — two submissions landing inside the
+same sub-second window, both passing the pre-insert check before either
+commits. A Postgres advisory lock (`pg_advisory_lock`/`pg_advisory_unlock`,
+keyed per org identity, held across the Attio calls, no schema change
+needed) would close it properly; discussed but not yet built. Separately,
+`PartialWriteError` (see "The edit flow"/"The add flow" above) makes
+partial-failure messages honest about what landed — it does not prevent
+the race, only makes its outcome visible instead of silent.
 
 ## Out of scope (for now)
 

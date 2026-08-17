@@ -273,11 +273,9 @@ def register(app: AsyncApp) -> None:
                 text=f"{org_name}'s Attio record is gone or was merged — can't write to it.",
             )
             return
-        except (AttioError, OptionNotFoundError, RoleEntryNotFoundError) as exc:
+        except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id,
-                user=requested_by,
-                text=f"Couldn't write to Attio, nothing was saved: {exc}",
+                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
             )
             return
 
@@ -351,11 +349,9 @@ def register(app: AsyncApp) -> None:
                 text=f"{org_name}'s Attio record is gone or was merged — can't write to it.",
             )
             return
-        except (AttioError, OptionNotFoundError, RoleEntryNotFoundError) as exc:
+        except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id,
-                user=requested_by,
-                text=f"Couldn't write to Attio, nothing was saved: {exc}",
+                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
             )
             return
 
@@ -469,11 +465,9 @@ def register(app: AsyncApp) -> None:
                 " instead.",
             )
             return
-        except (AttioError, OptionNotFoundError) as exc:
+        except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id,
-                user=requested_by,
-                text=f"Couldn't write to Attio, nothing was saved: {exc}",
+                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
             )
             return
 
@@ -534,11 +528,9 @@ def register(app: AsyncApp) -> None:
                 " instead.",
             )
             return
-        except (AttioError, OptionNotFoundError) as exc:
+        except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id,
-                user=requested_by,
-                text=f"Couldn't write to Attio, nothing was saved: {exc}",
+                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
             )
             return
 
@@ -549,6 +541,29 @@ def register(app: AsyncApp) -> None:
 
 class _OrgRemovedError(Exception):
     pass
+
+
+class PartialWriteError(Exception):
+    """Raised when a write fails after one or more earlier steps already
+    landed — an org PATCH that succeeded before a role PATCH then failed, an
+    org create that succeeded before the role-entry create failed, or an
+    Attio write that succeeded before the Postgres write then failed (a
+    plain DB error, not the expected `*AlreadyExistsError`). Carries exactly
+    what already landed so the Slack message can tell the truth instead of
+    assuming nothing was saved.
+    """
+
+    def __init__(self, landed: list[str], cause: Exception) -> None:
+        self.landed = landed
+        self.cause = cause
+        super().__init__(str(cause))
+
+
+def _partial_write_message(exc: PartialWriteError) -> str:
+    if not exc.landed:
+        return f"Couldn't write to Attio, nothing was saved: {exc.cause}"
+    landed_text = "; ".join(exc.landed)
+    return f"Write failed partway through. Already saved: {landed_text}. Error: {exc.cause}"
 
 
 async def _write_seller_edit(
@@ -564,30 +579,36 @@ async def _write_seller_edit(
     if role.organization.removed_at is not None:
         raise _OrgRemovedError(org_attio_id)
 
+    landed: list[str] = []
     attio_client = get_attio_client()
-    if org_extracted:
-        org_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="objects",
-            target_slug="organizations",
-            table="organizations",
-            fields=ORGANIZATION_FIELDS_BY_NAME,
-            extracted=org_extracted,
-        )
-        if org_attio_values:
-            await patch_organization(attio_client, org_attio_id, org_attio_values)
-    if role_extracted:
-        role_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="lists",
-            target_slug="seller_role",
-            table="seller_role",
-            fields=SELLER_ROLE_FIELDS_BY_NAME,
-            extracted=role_extracted,
-        )
-        if role_attio_values:
-            entry_id = await resolve_role_entry_id(attio_client, "seller_role", org_attio_id)
-            await patch_role_entry(attio_client, "seller_role", entry_id, role_attio_values)
+    try:
+        if org_extracted:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            if org_attio_values:
+                await patch_organization(attio_client, org_attio_id, org_attio_values)
+                landed.append("organization fields (Attio)")
+        if role_extracted:
+            role_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="lists",
+                target_slug="seller_role",
+                table="seller_role",
+                fields=SELLER_ROLE_FIELDS_BY_NAME,
+                extracted=role_extracted,
+            )
+            if role_attio_values:
+                entry_id = await resolve_role_entry_id(attio_client, "seller_role", org_attio_id)
+                await patch_role_entry(attio_client, "seller_role", entry_id, role_attio_values)
+                landed.append("seller profile fields (Attio)")
+    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError) as exc:
+        raise PartialWriteError(landed, exc) from exc
 
     org_postgres_fields = (
         build_postgres_values(
@@ -603,12 +624,15 @@ async def _write_seller_edit(
         if role_extracted
         else {}
     )
-    await build_update_seller_use_case().execute(
-        seller_role_id,
-        role_postgres_fields,
-        org_attio_id=org_attio_id,
-        org_fields=org_postgres_fields,
-    )
+    try:
+        await build_update_seller_use_case().execute(
+            seller_role_id,
+            role_postgres_fields,
+            org_attio_id=org_attio_id,
+            org_fields=org_postgres_fields,
+        )
+    except Exception as exc:
+        raise PartialWriteError(landed, exc) from exc
 
 
 async def _write_buyer_edit(
@@ -620,30 +644,36 @@ async def _write_buyer_edit(
     if role.organization.removed_at is not None:
         raise _OrgRemovedError(org_attio_id)
 
+    landed: list[str] = []
     attio_client = get_attio_client()
-    if org_extracted:
-        org_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="objects",
-            target_slug="organizations",
-            table="organizations",
-            fields=ORGANIZATION_FIELDS_BY_NAME,
-            extracted=org_extracted,
-        )
-        if org_attio_values:
-            await patch_organization(attio_client, org_attio_id, org_attio_values)
-    if role_extracted:
-        role_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="lists",
-            target_slug="buyer_role",
-            table="buyer_role",
-            fields=BUYER_ROLE_FIELDS_BY_NAME,
-            extracted=role_extracted,
-        )
-        if role_attio_values:
-            entry_id = await resolve_role_entry_id(attio_client, "buyer_role", org_attio_id)
-            await patch_role_entry(attio_client, "buyer_role", entry_id, role_attio_values)
+    try:
+        if org_extracted:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            if org_attio_values:
+                await patch_organization(attio_client, org_attio_id, org_attio_values)
+                landed.append("organization fields (Attio)")
+        if role_extracted:
+            role_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="lists",
+                target_slug="buyer_role",
+                table="buyer_role",
+                fields=BUYER_ROLE_FIELDS_BY_NAME,
+                extracted=role_extracted,
+            )
+            if role_attio_values:
+                entry_id = await resolve_role_entry_id(attio_client, "buyer_role", org_attio_id)
+                await patch_role_entry(attio_client, "buyer_role", entry_id, role_attio_values)
+                landed.append("buyer profile fields (Attio)")
+    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError) as exc:
+        raise PartialWriteError(landed, exc) from exc
 
     org_postgres_fields = (
         build_postgres_values(
@@ -659,12 +689,15 @@ async def _write_buyer_edit(
         if role_extracted
         else {}
     )
-    await build_update_buyer_use_case().execute(
-        buyer_role_id,
-        role_postgres_fields,
-        org_attio_id=org_attio_id,
-        org_fields=org_postgres_fields,
-    )
+    try:
+        await build_update_buyer_use_case().execute(
+            buyer_role_id,
+            role_postgres_fields,
+            org_attio_id=org_attio_id,
+            org_fields=org_postgres_fields,
+        )
+    except Exception as exc:
+        raise PartialWriteError(landed, exc) from exc
 
 
 async def _write_seller_add(
@@ -681,41 +714,48 @@ async def _write_seller_add(
     `record_id` becomes `org_attio_id` for the rest of the write (see
     `ddl-commands/README.md`, "Why Attio-first").
     """
+    landed: list[str] = []
     attio_client = get_attio_client()
 
-    if is_new_org:
-        org_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="objects",
-            target_slug="organizations",
-            table="organizations",
-            fields=ORGANIZATION_FIELDS_BY_NAME,
-            extracted=org_extracted,
-        )
-        org_attio_values["name"] = org_name
-        org_attio_id = await create_organization(attio_client, org_attio_values)
-    elif org_extracted:
-        org_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="objects",
-            target_slug="organizations",
-            table="organizations",
-            fields=ORGANIZATION_FIELDS_BY_NAME,
-            extracted=org_extracted,
-        )
-        if org_attio_values:
-            await patch_organization(attio_client, org_attio_id, org_attio_values)
+    try:
+        if is_new_org:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            org_attio_values["name"] = org_name
+            org_attio_id = await create_organization(attio_client, org_attio_values)
+            landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
+        elif org_extracted:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            if org_attio_values:
+                await patch_organization(attio_client, org_attio_id, org_attio_values)
+                landed.append("organization fields (Attio)")
 
-    assert org_attio_id is not None
-    role_attio_values = await build_attio_values(
-        attio_client,
-        target_kind="lists",
-        target_slug="seller_role",
-        table="seller_role",
-        fields=SELLER_ROLE_FIELDS_BY_NAME,
-        extracted=role_extracted,
-    )
-    await create_role_entry(attio_client, "seller_role", org_attio_id, role_attio_values)
+        assert org_attio_id is not None
+        role_attio_values = await build_attio_values(
+            attio_client,
+            target_kind="lists",
+            target_slug="seller_role",
+            table="seller_role",
+            fields=SELLER_ROLE_FIELDS_BY_NAME,
+            extracted=role_extracted,
+        )
+        await create_role_entry(attio_client, "seller_role", org_attio_id, role_attio_values)
+        landed.append("seller role entry (Attio)")
+    except (AttioError, OptionNotFoundError) as exc:
+        raise PartialWriteError(landed, exc) from exc
 
     org_postgres_fields = (
         build_postgres_values(
@@ -727,13 +767,18 @@ async def _write_seller_add(
     role_postgres_fields = build_postgres_values(
         table="seller_role", fields=SELLER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
     )
-    await build_create_seller_use_case().execute(
-        org_attio_id=org_attio_id,
-        is_new_org=is_new_org,
-        org_name=org_name if is_new_org else None,
-        org_fields=org_postgres_fields,
-        role_fields=role_postgres_fields,
-    )
+    try:
+        await build_create_seller_use_case().execute(
+            org_attio_id=org_attio_id,
+            is_new_org=is_new_org,
+            org_name=org_name if is_new_org else None,
+            org_fields=org_postgres_fields,
+            role_fields=role_postgres_fields,
+        )
+    except SellerAlreadyExistsError:
+        raise
+    except Exception as exc:
+        raise PartialWriteError(landed, exc) from exc
 
 
 async def _write_buyer_add(
@@ -745,41 +790,48 @@ async def _write_buyer_add(
     role_extracted: dict,
 ) -> None:
     """Mirrors `_write_seller_add` exactly, buyer-typed."""
+    landed: list[str] = []
     attio_client = get_attio_client()
 
-    if is_new_org:
-        org_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="objects",
-            target_slug="organizations",
-            table="organizations",
-            fields=ORGANIZATION_FIELDS_BY_NAME,
-            extracted=org_extracted,
-        )
-        org_attio_values["name"] = org_name
-        org_attio_id = await create_organization(attio_client, org_attio_values)
-    elif org_extracted:
-        org_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="objects",
-            target_slug="organizations",
-            table="organizations",
-            fields=ORGANIZATION_FIELDS_BY_NAME,
-            extracted=org_extracted,
-        )
-        if org_attio_values:
-            await patch_organization(attio_client, org_attio_id, org_attio_values)
+    try:
+        if is_new_org:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            org_attio_values["name"] = org_name
+            org_attio_id = await create_organization(attio_client, org_attio_values)
+            landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
+        elif org_extracted:
+            org_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="organizations",
+                table="organizations",
+                fields=ORGANIZATION_FIELDS_BY_NAME,
+                extracted=org_extracted,
+            )
+            if org_attio_values:
+                await patch_organization(attio_client, org_attio_id, org_attio_values)
+                landed.append("organization fields (Attio)")
 
-    assert org_attio_id is not None
-    role_attio_values = await build_attio_values(
-        attio_client,
-        target_kind="lists",
-        target_slug="buyer_role",
-        table="buyer_role",
-        fields=BUYER_ROLE_FIELDS_BY_NAME,
-        extracted=role_extracted,
-    )
-    await create_role_entry(attio_client, "buyer_role", org_attio_id, role_attio_values)
+        assert org_attio_id is not None
+        role_attio_values = await build_attio_values(
+            attio_client,
+            target_kind="lists",
+            target_slug="buyer_role",
+            table="buyer_role",
+            fields=BUYER_ROLE_FIELDS_BY_NAME,
+            extracted=role_extracted,
+        )
+        await create_role_entry(attio_client, "buyer_role", org_attio_id, role_attio_values)
+        landed.append("buyer role entry (Attio)")
+    except (AttioError, OptionNotFoundError) as exc:
+        raise PartialWriteError(landed, exc) from exc
 
     org_postgres_fields = (
         build_postgres_values(
@@ -791,10 +843,15 @@ async def _write_buyer_add(
     role_postgres_fields = build_postgres_values(
         table="buyer_role", fields=BUYER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
     )
-    await build_create_buyer_use_case().execute(
-        org_attio_id=org_attio_id,
-        is_new_org=is_new_org,
-        org_name=org_name if is_new_org else None,
-        org_fields=org_postgres_fields,
-        role_fields=role_postgres_fields,
-    )
+    try:
+        await build_create_buyer_use_case().execute(
+            org_attio_id=org_attio_id,
+            is_new_org=is_new_org,
+            org_name=org_name if is_new_org else None,
+            org_fields=org_postgres_fields,
+            role_fields=role_postgres_fields,
+        )
+    except BuyerAlreadyExistsError:
+        raise
+    except Exception as exc:
+        raise PartialWriteError(landed, exc) from exc

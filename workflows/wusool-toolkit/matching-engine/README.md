@@ -68,8 +68,9 @@ See `.env.example` for the full list with defaults. At minimum:
 This app is not deployed standalone — it's one of two folders behind a
 single Slack bot together with `../ddl-commands/` (see `../README.md`). One
 Slack app serves `/find-match` (this folder) plus `/edit-seller`,
-`/edit-buyer` (ddl-commands); see `../../../SLACK_APP_SETUP.md` at the repo
-root for the full setup checklist covering all 3 commands under that one app.
+`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl-commands); see
+`../../../SLACK_APP_SETUP.md` at the repo root for the full setup checklist
+covering all 5 commands under that one app.
 
 ### Configuring AWS/Bedrock permissions
 
