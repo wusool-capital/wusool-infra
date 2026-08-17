@@ -399,7 +399,7 @@ Everything here was read from live AWS, not from repo docs.
 | `wusool-scribe` | `i-01bf509a92ed1dcba` | **c6a.xlarge — largest in account, runs in the DEV VPC, untagged for Environment** |
 | `wusool-dev-vpc` | `vpc-0ed8db2cc2b5f2cdc` | `10.10.0.0/16` |
 | `wusool-prod-vpc` | `vpc-00fd39371dfaae3bf` | `10.20.0.0/16` |
-| `wusool-dev-postgres` | — | pg 16.13, db.t4g.micro. **Prod has no database.** |
+| `wusool-dev-postgres` | — | pg 16.13, db.t4g.micro. **Prod had no database at survey time — superseded 2026-08-17: `wusool-prod-postgres` now exists.** |
 
 ### State (`s3://wusool-tfstate`, bucket region `me-central-1` — intentional)
 
@@ -1369,8 +1369,9 @@ Per the decision to model all ~22 tables.
 8. `database/setup-postgres.ps1` becomes a thin wrapper around
    `alembic upgrade head`, keeping its `current_database() == 'wusool_crm'` guard.
 
-**Note:** prod has no database today. `stacks/postgres` for prod (Phase F step 5)
-must exist before prod migrations mean anything.
+**Note:** prod's database now exists (`stacks/postgres` for prod, Phase F step 5,
+applied 2026-08-17) — this prerequisite for prod migrations is satisfied. Phase
+G's Alembic execution itself has not run yet; see `ALEMBIC_MIGRATION_HANDOVER.md`.
 
 ---
 
@@ -1429,8 +1430,8 @@ SQLite→Postgres converter; the supported path is export/import via its CLI.
 Rehearse the whole thing on dev first.
 
 **Prerequisites**
-- `stacks/postgres` exists for the target environment (**prod has no database
-  until Phase F** — sequence accordingly).
+- `stacks/postgres` exists for the target environment (**now true for both dev
+  and prod** — Phase F created prod's, 2026-08-17).
 - A dedicated database + role for n8n (do **not** reuse matching-engine's).
 - Credentials written to `/wusool/<env>/n8n` under `env` so the bootstrap injects
   them: `DB_TYPE`, `DB_POSTGRESDB_{HOST,PORT,DATABASE,USER,PASSWORD}`.
@@ -1476,8 +1477,9 @@ after cutover.
 **Rollback triggers:** credentials fail to decrypt, workflow count mismatch, any
 webhook not firing, or the window expiring — roll back rather than debugging live.
 
-**Sequencing:** prod has no database until Phase F creates `stacks/postgres` for
-prod. Do dev first, prove it, then prod after F.
+**Sequencing:** Phase F created `stacks/postgres` for prod (2026-08-17), so this
+is no longer blocked on F. Still do dev first and prove it before prod — H2
+itself has not been executed yet.
 
 #### H3. Scheduled backups — there are none today
 
@@ -1689,9 +1691,12 @@ migrations**. Keep it that way:
   assert the columns it depends on still exist) so a wusool-infra migration that
   breaks scribe fails loudly in scribe's CI rather than at runtime.
 
-**Sequencing: prod has no database yet.** `wusool-infra`'s `stacks/postgres` for
-prod is created in its Phase F. **Scribe prod cannot be deployed until that
-exists.**
+**Sequencing: prod's database now exists.** `wusool-infra`'s `stacks/postgres`
+for prod was created during Phase F (verified live 2026-08-17:
+`wusool-prod-postgres` RDS instance is `available`,
+`wusool/prod/postgres/terraform.tfstate` exists). **Scribe prod can now be
+deployed** — the one remaining prerequisite this section used to block on is
+satisfied.
 
 ### Checklist to add scribe dev + prod
 
@@ -1706,7 +1711,7 @@ exists.**
 - [ ] Image built in CI, pushed to ECR, deployed by digest; base images pinned
 - [ ] OIDC auth; plan-on-PR required on `dev` and `prod`, var-file from base ref
 - [ ] DDL ownership agreed (a/b/c above) and written down
-- [ ] `stacks/postgres` prod exists before scribe prod is applied
+- [x] `stacks/postgres` prod exists before scribe prod is applied — confirmed live 2026-08-17
 
 ---
 
