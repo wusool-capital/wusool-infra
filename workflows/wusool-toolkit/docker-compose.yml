@@ -30,7 +30,12 @@ services:
     # One process, one Slack app: /find-match (matching-engine) and
     # /edit-seller, /edit-buyer, /add-seller, /add-buyer (ddl-commands)
     # all served by the root main.py — see workflows/wusool-toolkit/README.md.
-    build: .
+    # Context is the repo root, not this directory — the Dockerfile now
+    # needs database/ alongside workflows/wusool-toolkit/ (see Dockerfile's
+    # own comment for why). Matches how CI's _build.yml invokes it.
+    build:
+      context: ../..
+      dockerfile: workflows/wusool-toolkit/Dockerfile
     ports:
       - "8000:8000"
     environment:

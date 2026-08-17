@@ -6,7 +6,7 @@ on:
   pull_request:
     paths:
       - 'workflows/wusool-toolkit/**'
-      - 'database/*.ps1'
+      - 'database/**'
       - 'workflows/**/scripts/**'
       - '.github/workflows/ci.yml'
 
@@ -32,6 +32,13 @@ jobs:
 
       - name: Ruff check
         run: uv run ruff check .
+
+      # database/ is a separate package (a uv path dependency, not a
+      # workspace member of workflows/wusool-toolkit), so `ruff check .`
+      # above never reaches it. Reuse the ruff already installed into this
+      # job's venv rather than standing up a second one just to lint it.
+      - name: Ruff check (database)
+        run: uv run ruff check ../../database
 
       # `ruff format --check` is deliberately NOT run yet: as of 2026-08-16 it
       # fails on 17 pre-existing files that were never run through the

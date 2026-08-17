@@ -110,7 +110,10 @@ jobs:
           matches "$CHANGED_N8N" "$FORCE_ALL|^terraform/stacks/n8n/|^terraform/modules/n8n-ec2/|^terraform/modules/bedrock-access/" && deploy_n8n=true
 
           deploy_toolkit=false
-          matches "$CHANGED_TOOLKIT" "$FORCE_ALL|^terraform/stacks/toolkit/|^terraform/modules/toolkit-ec2/|^terraform/modules/bedrock-access/|^workflows/wusool-toolkit/" && deploy_toolkit=true
+          # database/ included: the toolkit image now depends on it as a real
+          # uv path dependency (wusool-db), so a schema/model-only change must
+          # trigger a toolkit rebuild+redeploy just like an app-code change.
+          matches "$CHANGED_TOOLKIT" "$FORCE_ALL|^terraform/stacks/toolkit/|^terraform/modules/toolkit-ec2/|^terraform/modules/bedrock-access/|^workflows/wusool-toolkit/|^database/" && deploy_toolkit=true
 
           deploy_postgres=false
           matches "$CHANGED_POSTGRES" "$FORCE_ALL|^terraform/stacks/postgres/|^terraform/modules/postgres-rds/" && deploy_postgres=true
