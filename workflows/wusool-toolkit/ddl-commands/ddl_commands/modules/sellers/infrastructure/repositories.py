@@ -8,8 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ddl_commands.modules.sellers.infrastructure.models import SellerRole
-from ddl_commands.shared.database.models import Organization
+from wusool_db.models import Organization, SellerRole
 
 # Same rationale as BuyerRepository's constant — see that file's comment.
 _TRIGRAM_SIMILARITY_THRESHOLD = 0.3

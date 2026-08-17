@@ -8,9 +8,9 @@ the transaction — never trusts a Slack payload's claimed state.
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
 from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
+from wusool_db.models import BuyerRole
 
 
 class BuyerNotFoundError(Exception):

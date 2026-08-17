@@ -10,9 +10,9 @@ from ddl_commands.modules.sellers.application.use_cases import (
     CreateSellerUseCase,
     UpdateSellerUseCase,
 )
-from ddl_commands.modules.sellers.infrastructure.models import SellerRole
 from ddl_commands.modules.sellers.infrastructure.repositories import SellerRepository
 from ddl_commands.shared.database import get_sessionmaker
+from wusool_db.models import SellerRole
 
 
 async def resolve_seller(seller_name: str) -> SellerResolution:

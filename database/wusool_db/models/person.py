@@ -7,10 +7,10 @@ from sqlalchemy import ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.shared.database.base import Base
+from wusool_db.base import Base
 
 if TYPE_CHECKING:
-    from app.shared.database.models.organization import Organization
+    from wusool_db.models.organization import Organization
 
 
 class Person(Base):

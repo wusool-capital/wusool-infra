@@ -12,11 +12,11 @@ from sqlalchemy import ForeignKey, Integer, Interval, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.shared.database.base import Base
+from wusool_db.base import Base
 
 if TYPE_CHECKING:
-    from app.shared.database.models.organization import Organization
-    from app.shared.database.models.person import Person
+    from wusool_db.models.organization import Organization
+    from wusool_db.models.person import Person
 
 
 class Deal(Base):

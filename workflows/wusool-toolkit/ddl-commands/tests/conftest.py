@@ -25,7 +25,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ddl_commands.shared.database import get_engine, import_all_models
-from ddl_commands.shared.database.models import Organization
+from wusool_db.models import Organization
 
 import_all_models()
 

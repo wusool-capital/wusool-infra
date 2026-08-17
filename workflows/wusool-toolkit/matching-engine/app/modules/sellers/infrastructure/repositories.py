@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.modules.sellers.infrastructure.models import SellerRole
+from wusool_db.models import SellerRole
 
 
 class SellerRepository:

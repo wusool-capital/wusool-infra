@@ -1,0 +1,28 @@
+[project]
+name = "wusool-db"
+version = "0.1.0"
+description = "Single source of truth for every SQLAlchemy model mapping onto the wusool_crm database. Consumed as a path dependency by matching-engine and ddl-commands; also the future home of the Alembic migration chain (Stage 3+)."
+requires-python = ">=3.12"
+dependencies = [
+    "sqlalchemy>=2.0.35",
+    # For `buyer_intel.brief_embedding`/`vertical_kb.embedding` (both
+    # conditional `vector(1536)` columns — see those models' docstrings).
+    # Not used anywhere else in this repo before this dependency was added;
+    # 0.3.6 is a recent-as-of-writing floor, matching this file's existing
+    # `>=`-floor style rather than a hard pin.
+    "pgvector>=0.3.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["wusool_db"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

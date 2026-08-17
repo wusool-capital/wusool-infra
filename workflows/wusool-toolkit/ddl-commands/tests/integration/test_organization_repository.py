@@ -2,8 +2,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ddl_commands.shared.database.models import Organization
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
+from wusool_db.models import Organization
 
 
 async def test_get_by_id_returns_the_row(

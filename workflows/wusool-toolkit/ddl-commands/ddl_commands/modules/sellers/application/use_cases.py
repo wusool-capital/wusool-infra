@@ -2,9 +2,9 @@
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from ddl_commands.modules.sellers.infrastructure.models import SellerRole
 from ddl_commands.modules.sellers.infrastructure.repositories import SellerRepository
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
+from wusool_db.models import SellerRole
 
 
 class SellerNotFoundError(Exception):

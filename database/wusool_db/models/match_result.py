@@ -1,17 +1,8 @@
-"""`match_scores` and `match_results` — the two match-related tables.
-
-`match_scores` (see `004_machine_layer.sql`) is the pre-existing deterministic
-scoring breakdown: one row per scored buyer/seller pair (score/dims/reasoning/
-citations). Phase 3 writes one row here per STAGE3_TOP_N shortlisted
-candidate only — not for every stage-1 survivor (see
-`workflows/crm-sync/docs/PHASE3_MATCH_RESULTS_HANDOVER.md`).
-
-`match_results` (Phase 3, `database/sql/006_match_results.sql`, applied by
-the DB team — see the same handover doc) is the one new, additive table
-covering everything `match_runs`/`matches`/`match_evidence`/`approvals`
-(described but never implemented per PRD.md §3.3-3.4) would have: run audit,
-shortlisted results, status, and approval. Two row kinds distinguished by
-`rank`:
+"""`match_results` (Phase 3, `database/sql/006_match_results.sql`, applied by
+the DB team) — the one new, additive table covering everything
+`match_runs`/`matches`/`match_evidence`/`approvals` (described but never
+implemented per PRD.md §3.3-3.4) would have: run audit, shortlisted results,
+status, and approval. Two row kinds distinguished by `rank`:
 
 - `rank IS NULL` — the run/header row. Exactly one per `run_id` (enforced by
   a partial unique index in the DDL). Only run-level columns are meaningful:
@@ -36,39 +27,13 @@ from sqlalchemy import ForeignKey, Integer, Numeric, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.shared.database.base import Base
+from wusool_db.base import Base
 
 if TYPE_CHECKING:
-    from app.modules.buyers.infrastructure.models import BuyerRole
-    from app.modules.sellers.infrastructure.models import SellerRole
-    from app.shared.database.models.organization import Organization
-
-
-class MatchScore(Base):
-    __tablename__ = "match_scores"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID, primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    buyer_attio_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False
-    )
-    seller_attio_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False
-    )
-    score: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
-    dims: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    reasoning: Mapped[str | None] = mapped_column(Text)
-    citations: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
-    generated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
-    )
-
-    buyer_organization: Mapped["Organization"] = relationship(foreign_keys=[buyer_attio_id])
-    seller_organization: Mapped["Organization"] = relationship(foreign_keys=[seller_attio_id])
+    from wusool_db.models.buyer_role import BuyerRole
+    from wusool_db.models.match_score import MatchScore
+    from wusool_db.models.organization import Organization
+    from wusool_db.models.seller_role import SellerRole
 
 
 class MatchResult(Base):

@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.buyers.infrastructure.models import BuyerRole
 from app.modules.buyers.infrastructure.repositories import BuyerRepository
+from wusool_db.models import BuyerRole
 
 
 async def test_get_requirement_profile_returns_role_row(

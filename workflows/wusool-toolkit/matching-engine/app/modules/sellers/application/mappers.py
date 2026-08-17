@@ -1,7 +1,7 @@
 """Converts seller ORM rows into infra-independent domain objects."""
 
 from app.modules.sellers.domain.value_objects import SellerCandidate
-from app.modules.sellers.infrastructure.models import SellerRole
+from wusool_db.models import SellerRole
 from app.shared.types import Money
 
 

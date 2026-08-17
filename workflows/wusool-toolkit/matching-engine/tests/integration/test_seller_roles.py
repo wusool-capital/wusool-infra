@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.modules.sellers.infrastructure.models import SellerRole
+from wusool_db.models import SellerRole
 
 
 async def test_retrieve_seller_role(any_seller_role: SellerRole) -> None:

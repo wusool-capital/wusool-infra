@@ -15,8 +15,8 @@ import json
 from ddl_commands.modules.sellers.field_spec import SELLER_ROLE_FIELDS
 from ddl_commands.modules.slack.views.dynamic_fields import render_field_block
 from ddl_commands.modules.slack.views.form_values import text_input_block
-from ddl_commands.shared.database.models.organization import Organization
 from ddl_commands.shared.organization_field_spec import ORGANIZATION_FIELDS
+from wusool_db.models import Organization
 
 
 def build_seller_add_form_modal(

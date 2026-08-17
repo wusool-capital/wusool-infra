@@ -4,6 +4,14 @@ This table IS the seller's structured profile: there is no separate
 `seller_profiles` table (PRD.md §3.3 describes a versioned one, but it was
 never implemented — see the schema-gap note in the Phase 2 plan). One row
 per organization (`UNIQUE(org_attio_id)`), no version column.
+
+matching-engine and ddl-commands each had their own copy of this class before
+Stage 1 of the Alembic migration (see `ALEMBIC_MIGRATION_HANDOVER.md`); they
+differed only in `mandate_id` — matching-engine declared a real
+`ForeignKey("mandates.id")` (matching-engine also maps `mandates`),
+ddl-commands declared a plain column (it never mapped `mandates`). This is
+matching-engine's version; ddl-commands never traverses a `mandate`
+relationship here, so the FK object is a no-op for it.
 """
 
 import uuid
@@ -14,10 +22,10 @@ from sqlalchemy import ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.shared.database.base import Base
+from wusool_db.base import Base
 
 if TYPE_CHECKING:
-    from app.shared.database.models.organization import Organization
+    from wusool_db.models.organization import Organization
 
 
 class SellerRole(Base):

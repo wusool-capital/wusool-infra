@@ -10,9 +10,9 @@ from ddl_commands.modules.buyers.application.use_cases import (
     CreateBuyerUseCase,
     UpdateBuyerUseCase,
 )
-from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
 from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
 from ddl_commands.shared.database import get_sessionmaker
+from wusool_db.models import BuyerRole
 
 
 async def resolve_buyer(buyer_name: str) -> BuyerResolution:

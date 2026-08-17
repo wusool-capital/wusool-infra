@@ -2,7 +2,7 @@
 real NULLs on sparse buyer_roles money columns without raising.
 """
 
-from app.modules.buyers.infrastructure.models import BuyerRole
+from wusool_db.models import BuyerRole
 
 
 async def test_buyer_role_money_fields_may_be_none(any_buyer_role: BuyerRole) -> None:

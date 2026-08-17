@@ -9,6 +9,4 @@ import time. Pure imports, no I/O.
 
 
 def import_all_models() -> None:
-    import ddl_commands.modules.buyers.infrastructure.models  # noqa: F401
-    import ddl_commands.modules.sellers.infrastructure.models  # noqa: F401
-    import ddl_commands.shared.database.models  # noqa: F401
+    import wusool_db.models  # noqa: F401

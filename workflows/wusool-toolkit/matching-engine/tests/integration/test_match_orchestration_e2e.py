@@ -15,7 +15,6 @@ import uuid
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.modules.buyers.application.mappers import to_buyer_context
-from app.modules.buyers.infrastructure.models import BuyerRole
 from app.modules.buyers.infrastructure.repositories import BuyerRepository
 from app.modules.llm.domain.bedrock_client import InferenceConfig
 from app.modules.matching.application.reasoning_service import MatchReasoningService
@@ -27,9 +26,9 @@ from app.modules.requirements.application.extraction_service import (
     BuyerRequirementExtractionService,
 )
 from app.modules.sellers.application.mappers import to_seller_candidate
-from app.modules.sellers.infrastructure.models import SellerRole
 from app.modules.sellers.infrastructure.repositories import SellerRepository
 from tests.fakes.bedrock import FakeBedrockClient
+from wusool_db.models import BuyerRole, SellerRole
 
 EXTRACTION_RESPONSE = {
     "hard_requirements": [],
