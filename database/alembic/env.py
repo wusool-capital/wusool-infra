@@ -75,7 +75,14 @@ def _database_url() -> str:
     return url
 
 
-config.set_main_option("sqlalchemy.url", _database_url())
+# `set_main_option` stores into a ConfigParser-backed section, which treats
+# `%` as interpolation syntax (e.g. alembic.ini's own `%(here)s`) — a real
+# RDS-generated password containing a literal `%` (common; verified against
+# dev's actual master credential) raises `ValueError: invalid interpolation
+# syntax` here otherwise. `%%` is ConfigParser's own escape for a literal
+# `%`, and `get_main_option`/`get_section` (used below) unescape it back
+# automatically — this round-trips correctly, it does not corrupt the URL.
+config.set_main_option("sqlalchemy.url", _database_url().replace("%", "%%"))
 
 
 # ---------------------------------------------------------------------------
