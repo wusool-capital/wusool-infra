@@ -1,0 +1,97 @@
+# Plan on every PR, posted as a comment. Read-only credentials.
+#
+# One matrix cell per (environment, stack) — 8 today (2 envs x 4 per-env
+# stacks) plus stacks/account (env-agnostic, no -var-file). Each stack has its
+# own backend key, so each needs its own init + plan; there is no single
+# monolithic root left to plan since Phase D's stacks split.
+#
+# Env selection follows the PR's BASE branch, not a fixed default: a
+# dev -> prod promotion PR must show the PROD diff. Since prod has no
+# approval gate, this comment is the only human review production receives -
+# showing a dev plan there would make the guardrail silently useless.
+name: Terraform plan
+
+on:
+  pull_request:
+    paths: ['terraform/**']
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [base, n8n, toolkit, postgres]
+    env:
+      ENV: ${{ github.event.pull_request.base.ref == 'prod' && 'prod' || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-opentofu
+
+      - uses: ./.github/actions/aws-oidc
+        with:
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-plan
+
+      - id: plan
+        uses: ./.github/actions/tofu-plan-comment
+        with:
+          working_directory: terraform/stacks/${{ matrix.stack }}
+          backend_key: wusool/${{ env.ENV }}/${{ matrix.stack }}/terraform.tfstate
+          plan_args: -var-file=../../envs/${{ env.ENV }}.tfvars
+          heading: "`${{ env.ENV }}` / `${{ matrix.stack }}` plan"
+
+      # The plan body is passed via env, not spliced into the script string:
+      # a plan full of Terraform's own `${...}` syntax and backticked code
+      # fences breaks a JS template literal it's interpolated into (hit this
+      # on 2026-08-16 — every plan job failed at this step with a JS
+      # SyntaxError even though the plan itself succeeded).
+      - if: always() && steps.plan.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        env:
+          PLAN_BODY: ${{ steps.plan.outputs.body }}
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: process.env.PLAN_BODY
+            })
+
+  plan-account:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-opentofu
+
+      - uses: ./.github/actions/aws-oidc
+        with:
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-plan
+
+      # No -var-file: stacks/account is account-wide, not per-environment.
+      - id: plan
+        uses: ./.github/actions/tofu-plan-comment
+        with:
+          working_directory: terraform/stacks/account
+          backend_key: wusool/account/terraform.tfstate
+          heading: "`account` plan"
+
+      - if: always() && steps.plan.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        env:
+          PLAN_BODY: ${{ steps.plan.outputs.body }}
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: process.env.PLAN_BODY
+            })

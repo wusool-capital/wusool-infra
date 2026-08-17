@@ -48,8 +48,11 @@ resource "aws_db_instance" "this" {
   storage_type          = "gp3"
   storage_encrypted     = true
 
-  db_name  = var.db_name
-  username = var.master_username
+  # When restoring from a snapshot the database name and master username come
+  # from the snapshot itself; passing them is rejected by RDS.
+  snapshot_identifier = var.snapshot_identifier
+  db_name             = var.snapshot_identifier == null ? var.db_name : null
+  username            = var.snapshot_identifier == null ? var.master_username : null
 
   manage_master_user_password = true
 
@@ -66,5 +69,11 @@ resource "aws_db_instance" "this" {
 
   tags = {
     Name = "${var.project}-${var.environment}-postgres"
+  }
+
+  lifecycle {
+    # A later change to snapshot_identifier would REPLACE the instance and
+    # destroy its data. The seed only matters at creation time.
+    ignore_changes = [snapshot_identifier]
   }
 }

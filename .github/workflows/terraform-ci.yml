@@ -18,39 +18,32 @@ concurrency:
 
 jobs:
   format:
-    name: Terraform Format
+    name: OpenTofu Format
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Read Terraform version
-        id: terraform-version
-        shell: bash
-        run: echo "version=$(tr -d '[:space:]' < terraform/.terraform-version)" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup-opentofu
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ steps.terraform-version.outputs.version }}
-          terraform_wrapper: false
-
-      - name: Check Terraform formatting
-        run: terraform fmt -check -recursive -diff
+      - name: Check OpenTofu formatting
+        run: tofu fmt -check -recursive -diff
         working-directory: terraform
 
   validate:
-    name: Terraform Validate (${{ matrix.root }})
+    name: OpenTofu Validate (${{ matrix.root }})
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
         root:
-          - terraform/bootstrap
-          - terraform/environments/dev
-          - terraform/environments/prod
+          - terraform/stacks/account
+          - terraform/stacks/base
+          - terraform/stacks/n8n
+          - terraform/stacks/toolkit
+          - terraform/stacks/postgres
 
     defaults:
       run:
@@ -60,20 +53,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Read Terraform version
-        id: terraform-version
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: echo "version=$(tr -d '[:space:]' < terraform/.terraform-version)" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ steps.terraform-version.outputs.version }}
-          terraform_wrapper: false
+      - uses: ./.github/actions/setup-opentofu
 
       - name: Initialize without remote backend
-        run: terraform init -backend=false -input=false
+        run: tofu init -backend=false -input=false
 
       - name: Validate Terraform
-        run: terraform validate -no-color
+        run: tofu validate -no-color

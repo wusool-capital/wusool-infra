@@ -1,22 +1,11 @@
-data "aws_ami" "amazon_linux_2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-${var.ami_architecture}"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = [var.ami_architecture]
-  }
-}
+# AMI is pinned via var.ami_id (H1) — deliberately NOT a `most_recent = true`
+# lookup. That pattern resolved a new value on every plan while
+# `ignore_changes = [ami]` on the instance hid it, meaning AMI upgrades were
+# silently impossible to review and the instance was frozen indefinitely with
+# no visible diff. An explicit pin makes an AMI change a normal, reviewable
+# tfvars edit — which only works if `ignore_changes = [ami]` is actually
+# removed from the instance (a prior pass fixed the AMI source but left this
+# in place, quietly defeating the fix — caught in code review 2026-08-16).
 
 resource "aws_security_group" "n8n" {
   name        = "${var.project}-${var.environment}-n8n"
@@ -132,10 +121,31 @@ locals {
   public_hostname    = var.n8n_webhook_url != "" ? regex("^https?://([^/]+)", var.n8n_webhook_url)[0] : local.generated_hostname
   webhook_url        = var.n8n_webhook_url != "" ? var.n8n_webhook_url : "https://${local.public_hostname}/"
   alarm_actions      = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
+
+  # Caddy serves the primary hostname plus any additional ones. Rendering all of
+  # them is what keeps a domain cutover from dropping the old host.
+  all_hostnames   = distinct(concat([local.public_hostname], var.additional_hostnames))
+  caddy_hostnames = join(", ", local.all_hostnames)
+
+  # Rendered ONCE and reused by both aws_instance.user_data and
+  # aws_ssm_document.bootstrap. Previously templatefile() was called twice with
+  # the same inputs — two places to drift, which is how the registered document
+  # went stale against the template.
+  user_data_rendered = replace(templatefile("${path.module}/user_data.sh.tpl", {
+    n8n_webhook_url = local.webhook_url
+    n8n_timezone    = var.n8n_timezone
+    public_hostname = local.public_hostname
+    caddy_hostnames = local.caddy_hostnames
+    log_group_name  = aws_cloudwatch_log_group.n8n.name
+    n8n_secret_id   = var.n8n_secret_id
+    n8n_image       = var.n8n_image
+    runners_image   = var.runners_image
+    caddy_image     = var.caddy_image
+  }), "\r\n", "\n")
 }
 
 resource "aws_instance" "n8n" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
+  ami                    = var.ami_id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.n8n.id]
@@ -148,21 +158,11 @@ resource "aws_instance" "n8n" {
     encrypted   = true
   }
 
-  user_data = replace(templatefile("${path.module}/user_data.sh.tpl", {
-    n8n_webhook_url = local.webhook_url
-    n8n_timezone    = var.n8n_timezone
-    public_hostname = local.public_hostname
-    log_group_name  = aws_cloudwatch_log_group.n8n.name
-    n8n_secret_id   = var.n8n_secret_id
-  }), "\r\n", "\n")
+  user_data = local.user_data_rendered
 
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
-  }
-
-  lifecycle {
-    ignore_changes = [ami]
   }
 
   tags = {
@@ -192,13 +192,7 @@ resource "aws_ssm_document" "bootstrap" {
       inputs = {
         timeoutSeconds = "1800"
         runCommand = [
-          "echo '${base64encode(replace(templatefile("${path.module}/user_data.sh.tpl", {
-            n8n_webhook_url = local.webhook_url
-            n8n_timezone    = var.n8n_timezone
-            public_hostname = local.public_hostname
-            log_group_name  = aws_cloudwatch_log_group.n8n.name
-            n8n_secret_id   = var.n8n_secret_id
-          }), "\r\n", "\n"))}' | base64 -d > /tmp/${var.project}-n8n-bootstrap.sh",
+          "echo '${base64encode(local.user_data_rendered)}' | base64 -d > /tmp/${var.project}-n8n-bootstrap.sh",
           "chmod 700 /tmp/${var.project}-n8n-bootstrap.sh",
           "sudo bash /tmp/${var.project}-n8n-bootstrap.sh"
         ]

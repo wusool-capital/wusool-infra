@@ -15,14 +15,27 @@ systemctl start docker
 usermod -aG docker ec2-user
 
 mkdir -p /usr/local/lib/docker/cli-plugins
-curl -SL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-x86_64" \
+curl -SL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-$(uname -m)" \
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 mkdir -p /opt/n8n
+PRESERVED_RUNNERS_TOKEN=""
+if [ -f /opt/n8n/n8n.env ]; then
+  PRESERVED_RUNNERS_TOKEN=$(grep '^N8N_RUNNERS_AUTH_TOKEN=' /opt/n8n/n8n.env | head -1 | cut -d= -f2-)
+fi
+
 cat > /opt/n8n/n8n.env <<EOF
 EOF
 chmod 600 /opt/n8n/n8n.env
+
+# The write above truncates n8n.env, which used to defeat the
+# N8N_RUNNERS_AUTH_TOKEN guard further down and mint a new token on every
+# bootstrap run. Capture any existing token first so re-running is idempotent.
+# set +x from here: this script runs under `set -x`, so without this the SMTP
+# credentials and every entry of the secret's env map would be echoed into SSM
+# command history (retained ~30 days) and CloudWatch.
+set +x
 
 if [ -n "${n8n_secret_id}" ]; then
   if N8N_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${n8n_secret_id}" --query SecretString --output text 2>/dev/null); then
@@ -46,7 +59,10 @@ if [ -n "${n8n_secret_id}" ]; then
 fi
 
 if ! grep -q '^N8N_RUNNERS_AUTH_TOKEN=' /opt/n8n/n8n.env; then
-  echo "N8N_RUNNERS_AUTH_TOKEN=$(openssl rand -hex 32)" >> /opt/n8n/n8n.env
+  if [ -z "$PRESERVED_RUNNERS_TOKEN" ]; then
+    PRESERVED_RUNNERS_TOKEN=$(openssl rand -hex 32)
+  fi
+  echo "N8N_RUNNERS_AUTH_TOKEN=$PRESERVED_RUNNERS_TOKEN" >> /opt/n8n/n8n.env
   chmod 600 /opt/n8n/n8n.env
 fi
 
@@ -112,7 +128,7 @@ EOF
 cat > /opt/n8n/docker-compose.yml <<EOF
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n
+    image: ${n8n_image}
     restart: always
     expose:
       - "5678"
@@ -132,7 +148,7 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
   task-runners:
-    image: n8nio/runners:latest
+    image: ${runners_image}
     restart: always
     environment:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
@@ -145,7 +161,7 @@ services:
     depends_on:
       - n8n
   caddy:
-    image: caddy:2
+    image: ${caddy_image}
     restart: always
     ports:
       - "80:80"
@@ -163,7 +179,7 @@ volumes:
 EOF
 
 cat > /opt/n8n/Caddyfile <<EOF
-${public_hostname} {
+${caddy_hostnames} {
   reverse_proxy n8n:5678
   log {
     output file /data/access.log

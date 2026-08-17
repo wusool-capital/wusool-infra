@@ -1,0 +1,110 @@
+name: Plan a stack and build a PR-comment body
+description: >
+  init + plan a single stack, then build a PR-comment body that's only
+  populated when the plan actually changes something. Extracted 2026-08-16
+  (code review) - this exact init/plan/comment-body-building sequence was
+  duplicated between terraform-plan.yml's `plan` and `plan-account` jobs; the
+  2026-08-16 no-op-suppression fix and the JS-interpolation fix both had to
+  land in both copies.
+
+inputs:
+  working_directory:
+    description: 'Stack directory, e.g. terraform/stacks/base'
+    required: true
+  backend_key:
+    description: 'S3 state key, e.g. wusool/dev/base/terraform.tfstate or wusool/account/terraform.tfstate'
+    required: true
+  plan_args:
+    description: 'Extra arguments for `tofu plan`, e.g. -var-file=../../envs/dev.tfvars. Empty for stacks/account.'
+    required: false
+    default: ''
+  heading:
+    description: 'Markdown heading for the comment body, e.g. "`dev` / `base` plan" or "`account` plan"'
+    required: true
+
+outputs:
+  has_changes:
+    description: 'true if the plan is not a no-op'
+    value: ${{ steps.plan.outputs.has_changes }}
+  body:
+    description: 'Comment body. Only meaningful when has_changes is true.'
+    value: ${{ steps.plan.outputs.body }}
+
+runs:
+  using: composite
+  steps:
+    - id: plan
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        BACKEND_KEY: ${{ inputs.backend_key }}
+        PLAN_ARGS: ${{ inputs.plan_args }}
+        HEADING: ${{ inputs.heading }}
+      run: |
+        set -euo pipefail
+        tofu init -reconfigure -input=false \
+          -backend-config=bucket=wusool-tfstate \
+          -backend-config=region=me-central-1 \
+          -backend-config=key="$BACKEND_KEY" \
+          -backend-config=use_lockfile=true -backend-config=encrypt=true
+
+        # `|| true` here used to swallow tofu plan's exit code entirely - a
+        # real error (bad credentials, a provider crash, a config problem
+        # `tofu validate` doesn't catch) would still fall through, get
+        # treated as "not a no-op", and post a plan comment while the job
+        # itself reported green. That defeats the entire point of this
+        # check: a failed plan looked identical to a passing one with
+        # changes. Caught in code review 2026-08-16 (second pass). Capture
+        # the real exit code and fail the job on anything but success.
+        set +e
+        tofu plan -input=false -lock=false -no-color $PLAN_ARGS > /tmp/plan.txt 2>&1
+        PLAN_EXIT=$?
+        set -e
+        cat /tmp/plan.txt
+        tail -c 60000 /tmp/plan.txt > /tmp/plan-short.txt
+
+        if [ "$PLAN_EXIT" -ne 0 ]; then
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          {
+            echo 'body<<PLANEOF'
+            echo "### $HEADING"
+            echo ''
+            echo "> **\`tofu plan\` FAILED (exit $PLAN_EXIT) — this is an error, not a diff. See the log below.**"
+            echo ''
+            echo '<details><summary>full output</summary>'
+            echo ''
+            echo '```terraform'
+            cat /tmp/plan-short.txt
+            echo '```'
+            echo '</details>'
+            echo PLANEOF
+          } >> "$GITHUB_OUTPUT"
+          echo "::error::tofu plan failed (exit $PLAN_EXIT) for $HEADING"
+          exit 1
+        fi
+
+        # Only comment when the plan actually changes something - a clean
+        # "No changes" on every stack for every PR is noise, not signal.
+        if grep -q '^No changes' /tmp/plan.txt; then
+          echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+        {
+          echo 'body<<PLANEOF'
+          echo "### $HEADING"
+          grep -E '^Plan:' /tmp/plan.txt | head -1 || true
+          if grep -q 'forces replacement\|will be destroyed' /tmp/plan.txt; then
+            echo ''
+            echo '> **This plan DESTROYS or REPLACES resources — read it carefully.**'
+          fi
+          echo ''
+          echo '<details><summary>full plan</summary>'
+          echo ''
+          echo '```terraform'
+          cat /tmp/plan-short.txt
+          echo '```'
+          echo '</details>'
+          echo PLANEOF
+        } >> "$GITHUB_OUTPUT"

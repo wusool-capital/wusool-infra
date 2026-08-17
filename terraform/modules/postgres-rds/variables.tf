@@ -75,3 +75,16 @@ variable "skip_final_snapshot" {
   type        = bool
   default     = false
 }
+
+variable "snapshot_identifier" {
+  description = <<-DESC
+    Restore the instance from this DB snapshot instead of creating it empty.
+    When set, db_name and username come FROM the snapshot and must not be sent —
+    RDS rejects them, so the module omits both.
+
+    Changing this on an existing instance forces replacement, which for a
+    database means data loss. Set it once at creation and leave it alone.
+  DESC
+  type        = string
+  default     = null
+}
