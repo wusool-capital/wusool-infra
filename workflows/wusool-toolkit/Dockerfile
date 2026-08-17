@@ -64,6 +64,16 @@ COPY --from=builder --chown=app:app /app/workflows/wusool-toolkit/.venv ./.venv
 COPY --from=builder --chown=app:app /app/workflows/wusool-toolkit/main.py ./main.py
 COPY --chown=app:app workflows/wusool-toolkit/run.py ./run.py
 
+# alembic.ini + alembic/ are plain config/data files, not part of the
+# installed wusool-db package (venv install above only copies Python
+# package contents) — copied explicitly so `docker run <this image> python
+# -m alembic -c database/alembic.ini upgrade head` works standalone. See
+# .github/workflows/_deploy.yml's "Run pending database migrations" step,
+# which runs exactly that, via SSM, against the toolkit EC2 instance (the
+# only thing with a network path to the private RDS instance).
+COPY --chown=app:app database/alembic.ini ./database/alembic.ini
+COPY --chown=app:app database/alembic ./database/alembic
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
