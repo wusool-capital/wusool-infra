@@ -13,7 +13,11 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "slack-bolt>=1.21.0",
     "aiohttp>=3.10.0",
+    "toolkit-shared",
 ]
+
+[tool.uv.sources]
+toolkit-shared = { workspace = true }
 
 [dependency-groups]
 dev = [

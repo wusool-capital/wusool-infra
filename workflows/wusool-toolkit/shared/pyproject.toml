@@ -1,0 +1,20 @@
+[project]
+name = "toolkit-shared"
+version = "0.1.0"
+description = "Utilities shared between matching-engine and ddl-commands. Currently: process-wide logging setup."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["toolkit_shared"]

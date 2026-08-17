@@ -187,6 +187,7 @@ locals {
     ecr_registry            = local.ecr_registry
     aws_region              = var.aws_region
     cloudwatch_agent_config = local.cloudwatch_agent_config
+    cloudwatch_log_group    = aws_cloudwatch_log_group.wusool_toolkit.name
   }), "\r\n", "\n")
 }
 

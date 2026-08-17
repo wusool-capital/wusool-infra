@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 members = [
     "ddl-commands",
     "matching-engine",
+    "toolkit-shared",
     "wusool-toolkit-bot",
 ]
 
@@ -413,6 +414,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "slack-bolt" },
     { name = "sqlalchemy" },
+    { name = "toolkit-shared" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -434,6 +436,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "slack-bolt", specifier = ">=1.21.0" },
     { name = "sqlalchemy", specifier = ">=2.0.35" },
+    { name = "toolkit-shared", editable = "shared" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
 ]
 
@@ -750,6 +753,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "slack-bolt" },
     { name = "sqlalchemy" },
+    { name = "toolkit-shared" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -774,6 +778,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "slack-bolt", specifier = ">=1.21.0" },
     { name = "sqlalchemy", specifier = ">=2.0.35" },
+    { name = "toolkit-shared", editable = "shared" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
 ]
 
@@ -1346,6 +1351,11 @@ wheels = [
 ]
 
 [[package]]
+name = "toolkit-shared"
+version = "0.1.0"
+source = { editable = "shared" }
+
+[[package]]
 name = "ty"
 version = "0.0.72"
 source = { registry = "https://pypi.org/simple" }
@@ -1637,6 +1647,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "ddl-commands" },
     { name = "matching-engine" },
+    { name = "toolkit-shared" },
 ]
 
 [package.dev-dependencies]
@@ -1651,6 +1662,7 @@ dev = [
 requires-dist = [
     { name = "ddl-commands", editable = "ddl-commands" },
     { name = "matching-engine", editable = "matching-engine" },
+    { name = "toolkit-shared", editable = "shared" },
 ]
 
 [package.metadata.requires-dev]

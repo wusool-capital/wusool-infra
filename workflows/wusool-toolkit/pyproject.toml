@@ -6,14 +6,16 @@ requires-python = ">=3.12"
 dependencies = [
     "matching-engine",
     "ddl-commands",
+    "toolkit-shared",
 ]
 
 [tool.uv.sources]
 matching-engine = { workspace = true }
 ddl-commands = { workspace = true }
+toolkit-shared = { workspace = true }
 
 [tool.uv.workspace]
-members = ["matching-engine", "ddl-commands"]
+members = ["matching-engine", "ddl-commands", "shared"]
 
 [tool.uv]
 # This root has no importable code of its own beyond main.py, run directly
