@@ -24,6 +24,9 @@ tfplan[0-9]*
 *.auto.tfvars
 *.tfvars.json
 !*.tfvars.example
+# Per-environment NON-SECRET config, deliberately committed so that changing it
+# is reviewable in a PR plan. Secrets stay in Secrets Manager.
+!terraform/envs/*.tfvars
 
 # Terraform CLI config & override files
 .terraformrc

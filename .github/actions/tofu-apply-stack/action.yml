@@ -1,0 +1,39 @@
+name: Apply a stack
+description: >
+  init (partial S3 backend, keyed wusool/<environment>/<stack>/terraform.tfstate)
+  then apply -var-file=envs/<environment>.tfvars, with optional extra -var
+  args (e.g. toolkit's image_digest). Assumes OpenTofu is already set up and
+  AWS credentials already configured by the caller. Extracted 2026-08-16
+  (code review) - this exact init+apply shape was duplicated four times in
+  _deploy.yml (once per stack), each copy needing the same edit if the
+  backend or apply invocation ever changes.
+
+inputs:
+  stack:
+    description: 'Stack directory name under terraform/stacks/, e.g. base, n8n, toolkit, postgres'
+    required: true
+  environment:
+    description: 'dev or prod'
+    required: true
+  extra_args:
+    description: 'Extra arguments appended to `tofu apply`, e.g. -var=image_digest=sha256:...'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: terraform/stacks/${{ inputs.stack }}
+      env:
+        STACK: ${{ inputs.stack }}
+        ENV: ${{ inputs.environment }}
+        EXTRA_ARGS: ${{ inputs.extra_args }}
+      run: |
+        set -euo pipefail
+        tofu init -reconfigure -input=false \
+          -backend-config=bucket=wusool-tfstate \
+          -backend-config=region=me-central-1 \
+          -backend-config=key=wusool/$ENV/$STACK/terraform.tfstate \
+          -backend-config=use_lockfile=true -backend-config=encrypt=true
+        tofu apply -input=false -auto-approve -var-file=../../envs/$ENV.tfvars $EXTRA_ARGS

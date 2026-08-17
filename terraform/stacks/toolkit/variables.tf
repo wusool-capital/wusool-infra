@@ -1,0 +1,98 @@
+variable "project" {
+  type    = string
+  default = "wusool"
+}
+
+variable "environment" {
+  type = string
+}
+
+variable "aws_region" {
+  type    = string
+  default = "eu-central-1"
+}
+
+variable "owner" {
+  type    = string
+  default = "wusool-infra"
+}
+
+variable "key_name" {
+  type    = string
+  default = ""
+}
+
+variable "create_instance" {
+  description = "Whether to create the EC2 instance for this environment. false lets ECR + the secret exist (e.g. prepared ahead of time) without a running, billable instance — used for prod until the instance is deliberately created."
+  type        = bool
+  default     = true
+}
+
+# NOT named "instance_type" — stacks/n8n also declares a same-named variable,
+# and both stacks read the same shared envs/<env>.tfvars file. A generic name
+# here would silently pick up n8n's value (discovered live: n8n's t3.small
+# leaked into toolkit's plan during the Phase D migration).
+variable "toolkit_instance_type" {
+  description = "EC2 instance type for the wusool-toolkit app."
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "root_volume_size" {
+  type    = number
+  default = 30
+}
+
+variable "ssh_cidr_blocks" {
+  type    = list(string)
+  default = []
+}
+
+variable "web_cidr_blocks" {
+  type    = list(string)
+  default = ["0.0.0.0/0"]
+}
+
+variable "image_digest" {
+  description = "Digest of the image to deploy, e.g. \"sha256:abc...\" (no repository prefix — that comes from this stack's own aws_ecr_repository). Set by CI after a build; a human can also set it directly for a manual rollback to a known-good digest."
+  type        = string
+
+  validation {
+    condition     = can(regex("^sha256:[0-9a-f]{64}$", var.image_digest))
+    error_message = "image_digest must be \"sha256:\" followed by 64 hex characters, e.g. what `docker inspect --format '{{.RepoDigests}}'` or `aws ecr describe-images` reports — not a tag."
+  }
+}
+
+variable "public_url" {
+  description = "Public HTTPS URL for the app. Empty derives an sslip.io hostname from its Elastic IP."
+  type        = string
+  default     = ""
+}
+
+variable "enable_bedrock" {
+  type    = bool
+  default = false
+}
+
+variable "bedrock_models" {
+  type = list(object({
+    model_id             = string
+    region               = string
+    inference_profile_id = optional(string)
+  }))
+  default = []
+}
+
+variable "alert_email" {
+  type    = string
+  default = ""
+}
+
+# NOT named "ami_id" — stacks/n8n also declares that name, and both stacks
+# read the same shared envs/<env>.tfvars file. Learned this the hard way once
+# already with instance_type (see toolkit_instance_type's comment) — applying
+# the same fix pre-emptively rather than waiting to hit it again.
+variable "toolkit_ami_id" {
+  description = "AMI to launch. Pinned explicitly (H1) — set to whatever AMI is currently running before changing anything else."
+  type        = string
+}

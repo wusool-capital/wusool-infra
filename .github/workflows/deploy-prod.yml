@@ -1,0 +1,43 @@
+# PROD deploys. Merging to `prod` applies every stack and rolls the toolkit
+# app — same shape as deploy-dev.yml, symmetric by design.
+#
+# stacks/toolkit's create_instance defaults per envs/prod.tfvars (currently
+# false — no prod toolkit instance exists yet). Until that is deliberately
+# flipped to true, this deploy applies prod's other stacks (base, n8n,
+# postgres, and toolkit's ECR + secret) and skips the app-rollout/health-check
+# steps, which detect "no instance" and exit cleanly rather than failing.
+name: Deploy prod
+
+on:
+  push:
+    branches: [prod]
+    paths:
+      - 'terraform/**'
+      - 'workflows/wusool-toolkit/**'
+      - '.github/workflows/deploy-prod.yml'
+      - '.github/workflows/_deploy.yml'
+      - '.github/workflows/_build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # Prod builds its OWN image into wusool-prod/toolkit — never promotes dev's.
+  # deploy below pins this build's exact digest. See stacks/toolkit's module
+  # comment for the accepted trade-off (base image tags, not digests, so the
+  # two builds are not guaranteed byte-identical).
+  build:
+    uses: ./.github/workflows/_build.yml
+    with:
+      environment: prod
+      role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      image_digest: ${{ needs.build.outputs.digest }}
+      environment: prod
+      role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod

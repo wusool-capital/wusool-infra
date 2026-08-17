@@ -1,0 +1,6 @@
+# Default owner for everything not covered below.
+* @sinanshamsudheen @raoofnaushad
+
+# Infrastructure changes need infra review specifically.
+/terraform/            @sinanshamsudheen @raoofnaushad
+/.github/workflows/    @sinanshamsudheen @raoofnaushad

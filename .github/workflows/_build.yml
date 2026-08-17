@@ -1,0 +1,76 @@
+# Reusable image build. Called by BOTH deploy-dev.yml and deploy-prod.yml.
+#
+# Each environment builds into its OWN ECR repository (wusool-<env>/toolkit), so
+# dev and prod share no registry and no build output.
+name: _build
+
+on:
+  workflow_call:
+    inputs:
+      environment: { required: true, type: string }
+      role_arn:    { required: true, type: string }
+    outputs:
+      digest:
+        description: Immutable sha256 digest of the pushed image.
+        value: ${{ jobs.build.outputs.digest }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.role_arn }}
+          aws-region: eu-central-1
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        id: push
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse --short HEAD)
+          IMAGE="$REGISTRY/wusool-${{ inputs.environment }}/toolkit:sha-$SHA"
+
+          # The repository is IMMUTABLE, so re-running a workflow on an unchanged
+          # commit would fail on push. Reuse the existing image instead.
+          if EXISTING=$(aws ecr describe-images --repository-name wusool-${{ inputs.environment }}/toolkit \
+                --image-ids imageTag="sha-$SHA" \
+                --query 'imageDetails[0].imageDigest' --output text 2>/dev/null) \
+             && [ -n "$EXISTING" ] && [ "$EXISTING" != "None" ]; then
+            echo "::notice::sha-$SHA already in ECR — reusing $EXISTING"
+            echo "digest=$EXISTING" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          # linux/amd64 explicitly: the EC2 instances are x86_64, and a native
+          # arm64 build would produce an image that cannot run there.
+          #
+          # GHA-backed layer cache, shared across dev and prod (same
+          # Dockerfile/dependency lockfile either way, so a dev build's
+          # unchanged base/dependency layers are reused by the next prod
+          # build and vice versa) — without this every merge rebuilt every
+          # layer from scratch, including the uv.lock-driven dependency
+          # install, even when only application code changed.
+          docker buildx build --platform linux/amd64 \
+            --cache-from type=gha,scope=wusool-toolkit \
+            --cache-to type=gha,scope=wusool-toolkit,mode=max \
+            -t "$IMAGE" --push workflows/wusool-toolkit
+
+          DIGEST=$(aws ecr describe-images --repository-name wusool-${{ inputs.environment }}/toolkit \
+            --image-ids imageTag="sha-$SHA" \
+            --query 'imageDetails[0].imageDigest' --output text)
+          echo "pushed: $DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"

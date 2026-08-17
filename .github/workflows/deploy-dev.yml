@@ -1,0 +1,38 @@
+# DEV deploys. Merging to `dev` applies every stack and rolls the toolkit app.
+#
+# Deliberately a separate file from deploy-prod.yml rather than one workflow
+# branching on ${{ github.ref }}: the environment is then stated, not derived,
+# and a mistake in branch-detection logic cannot send a dev deploy at prod.
+name: Deploy dev
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'terraform/**'
+      - 'workflows/wusool-toolkit/**'
+      - '.github/workflows/deploy-dev.yml'
+      - '.github/workflows/_deploy.yml'
+      - '.github/workflows/_build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # Builds and pushes to wusool-dev/toolkit. deploy below pins this exact
+  # digest — prod never sees it, since prod builds its own image separately.
+  build:
+    uses: ./.github/workflows/_build.yml
+    with:
+      environment: dev
+      role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-dev
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      image_digest: ${{ needs.build.outputs.digest }}
+      environment: dev
+      role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-dev

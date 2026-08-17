@@ -27,3 +27,13 @@ output "iam_role_name" {
   description = "Name of the IAM role attached to the n8n EC2 instance profile."
   value       = aws_iam_role.n8n.name
 }
+
+output "redeploy_command" {
+  description = "AWS CLI command to trigger a redeploy (re-run the bootstrap) without replacing the instance."
+  value       = "aws ssm send-command --document-name ${aws_ssm_document.bootstrap.name} --instance-ids ${aws_instance.n8n.id}"
+}
+
+output "bootstrap_document_name" {
+  description = "SSM document name to trigger a redeploy via send-command."
+  value       = aws_ssm_document.bootstrap.name
+}
