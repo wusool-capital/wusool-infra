@@ -53,6 +53,7 @@ def build_organization_selection_modal(
                 "search_term": search_term,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
+                "candidate_names": [org.name for org in candidates],
             }
         ),
         "title": {"type": "plain_text", "text": f"Add {kind}: organization"},

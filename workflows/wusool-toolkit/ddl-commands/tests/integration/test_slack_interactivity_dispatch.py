@@ -553,7 +553,9 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
 # --------------------------------------------------------------------------
 
 
-def _organization_selection_payload(kind: str, search_term: str, selected_value: str) -> dict:
+def _organization_selection_payload(
+    kind: str, search_term: str, selected_value: str, candidate_names: list[str] | None = None
+) -> dict:
     return {
         "type": "view_submission",
         "user": {"id": "U_TEST"},
@@ -567,6 +569,7 @@ def _organization_selection_payload(kind: str, search_term: str, selected_value:
                     "search_term": search_term,
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
+                    "candidate_names": candidate_names or [],
                 }
             ),
             "state": {
@@ -594,6 +597,21 @@ def test_organization_selection_new_option_opens_add_form() -> None:
     assert metadata["org_attio_id"] is None
     name_block = next(b for b in body["view"]["blocks"] if b["block_id"] == "name")
     assert name_block["element"]["initial_value"] == "Acme"
+
+
+def test_organization_selection_new_option_with_candidates_shows_duplicate_warning() -> None:
+    payload = _organization_selection_payload(
+        "seller", "Acme", NEW_ORGANIZATION_VALUE, candidate_names=["Acme Corp", "Acme Corporation"]
+    )
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    blocks = response.json()["view"]["blocks"]
+    warning_text = blocks[0]["text"]["text"]
+    assert "Acme Corp" in warning_text
+    assert "Acme Corporation" in warning_text
+    assert "separate organization" in warning_text
 
 
 def test_organization_selection_existing_org_opens_add_form(monkeypatch) -> None:

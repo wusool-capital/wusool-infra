@@ -47,7 +47,10 @@ removed, see "History" below.
 3. **Add form** — *every* eligible field at once (not a field-picker like
    edit's step 2 — a creation moment is "fill in what I know now", not "pick
    one thing to change"), all optional except the organization's `name`
-   (only shown, and required, when creating a new organization).
+   (only shown, and required, when creating a new organization). If the
+   search found candidates and the user picked "create new" anyway, the
+   form opens with a warning naming the similar org(s) already found — a
+   heads-up, not a block; they can still submit and create the duplicate.
 4. **Submit** — writes to **DEV Attio first**: create the organization
    record (only if new), then create the seller/buyer list entry FK'd to
    it; only then Postgres, in one transaction. If any Attio write fails,

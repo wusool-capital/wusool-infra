@@ -15,10 +15,26 @@ def build_buyer_add_form_modal(
     requested_by: str,
     channel_id: str,
     prefill_name: str = "",
+    duplicate_candidates: list[str] | None = None,
 ) -> dict:
     is_new_org = org is None
     blocks: list[dict] = []
     if is_new_org:
+        if duplicate_candidates:
+            names = ", ".join(f"*{name}*" for name in duplicate_candidates)
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (
+                            f":warning: {len(duplicate_candidates)} similar organization(s) "
+                            f"already exist: {names}. Continuing will create a new, separate "
+                            "organization in Attio."
+                        ),
+                    },
+                }
+            )
         name_block = text_input_block("name", "Organization name", prefill_name or None)
         name_block["optional"] = False
         blocks.append(name_block)

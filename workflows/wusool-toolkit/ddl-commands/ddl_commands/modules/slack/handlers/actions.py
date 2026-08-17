@@ -385,6 +385,7 @@ def register(app: AsyncApp) -> None:
                     requested_by=requested_by,
                     channel_id=channel_id,
                     prefill_name=search_term,
+                    duplicate_candidates=metadata.get("candidate_names") or [],
                 ),
             )
             return
