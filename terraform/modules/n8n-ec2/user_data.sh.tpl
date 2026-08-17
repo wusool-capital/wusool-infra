@@ -199,4 +199,19 @@ systemctl enable amazon-cloudwatch-agent
 systemctl restart amazon-cloudwatch-agent
 
 cd /opt/n8n
-docker compose up -d
+
+# `docker compose up -d`'s container-recreate sequence (stop old -> rename
+# old to a temp name -> create new -> remove old) can transiently collide on
+# the container name mid-recreate and exit non-zero even though the end
+# state converges correctly a moment later (observed on toolkit's identical
+# bootstrap 2026-08-17 - the same class of flakiness applies here). Retry
+# once before treating it as a real failure - a false "Failed" here fails
+# the whole CI deploy despite a successful rollout.
+for attempt in 1 2 3; do
+  if docker compose up -d; then
+    break
+  fi
+  echo "docker compose up -d failed (attempt $attempt/3), retrying..." >&2
+  sleep 5
+  [ "$attempt" -eq 3 ] && exit 1
+done
