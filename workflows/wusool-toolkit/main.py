@@ -26,7 +26,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from slack_bolt.async_app import AsyncApp
-from toolkit_shared.logging import configure_logging
+from toolkit_shared.logging import configure_logging, log_context
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -52,6 +52,17 @@ app = FastAPI(title="Wusool Toolkit Bot")
 register_exception_handlers(app)
 
 
+@app.exception_handler(Exception)
+async def _log_unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
+    """Catches anything that isn't an `AppError` — without this, a route
+    exception escapes to Starlette's default handler and bypasses our
+    formatter/logger entirely."""
+    _slack_dispatch_logger.error(
+        "Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc
+    )
+    return JSONResponse(status_code=500, content={"detail": "internal server error"})
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     """Liveness check. Does not touch the database."""
@@ -68,6 +79,7 @@ async def _readiness() -> JSONResponse:
     try:
         await check_database_connectivity()
     except Exception:
+        _slack_dispatch_logger.error("Readiness check failed", exc_info=True)
         return JSONResponse(status_code=503, content={"status": "unavailable"})
     return JSONResponse(status_code=200, content={"status": "ready"})
 
@@ -105,6 +117,25 @@ def _bolt_app() -> AsyncApp:
     )
     register_matching_engine_handlers(bolt_app)
     register_ddl_commands_handlers(bolt_app)
+
+    @bolt_app.middleware
+    async def _set_log_context(body: dict, next) -> None:
+        """Tags every log line emitted while handling this request with
+        which command/action triggered it and who sent it — set once here
+        rather than threading it through every handler."""
+        trigger = _extract_trigger(body)
+        token = log_context.set(
+            {
+                "trigger": trigger,
+                "slack_service": _SERVICE_BY_TRIGGER.get(trigger, _UNKNOWN_TRIGGER),
+                "user_id": body.get("user_id") or (body.get("user") or {}).get("id"),
+                "channel_id": body.get("channel_id") or (body.get("channel") or {}).get("id"),
+            }
+        )
+        try:
+            await next()
+        finally:
+            log_context.reset(token)
 
     @bolt_app.error
     async def _log_uncaught_listener_error(error: Exception, body: dict) -> None:
