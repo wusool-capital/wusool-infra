@@ -23,7 +23,7 @@ module "wusool_toolkit" {
   ssh_cidr_blocks             = var.ssh_cidr_blocks
   ami_id                      = var.toolkit_ami_id
   web_cidr_blocks             = var.web_cidr_blocks
-  root_volume_size            = var.root_volume_size
+  root_volume_size            = var.toolkit_root_volume_size
   aws_region                  = var.aws_region
   alarm_topic_arn             = data.terraform_remote_state.base.outputs.alarm_topic_arn
   secrets_manager_secret_arns = [aws_secretsmanager_secret.wusool_toolkit.arn]

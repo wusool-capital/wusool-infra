@@ -30,16 +30,15 @@ caddy_image      = "caddy@sha256:af5fdcd76f2db5e4e974ee92f96ee8c0fc3edb55bd4ba50
 enable_bedrock   = false
 
 # stacks/toolkit — prod
-# The instance does not exist yet. This creates only ECR + the secret
-# container (already populated with real values — see prod matching-engine
-# secret work), so the code is ready but a live prod compute instance is a
-# deliberate, separate decision, not a side effect of this migration.
-# key_name and enable_bedrock are shared with stacks/n8n above — same
-# intended value, so not repeated here (a duplicate key is a parse error).
-create_instance = false
+# The prod compute instance is now live (2026-08-17) — deliberately switched
+# on, not a side effect of this migration. key_name and enable_bedrock are
+# shared with stacks/n8n above — same intended value, so not repeated here
+# (a duplicate key is a parse error).
+create_instance = true
 public_url      = ""
 
-# stacks/toolkit — inert while create_instance = false above; no prod image
-# has been built yet. Must be set to a real digest before flipping
-# create_instance to true, or the instance boots with nothing to pull.
+# image_digest here is a placeholder, not a live value: deploy-prod.yml
+# always overrides it with the freshly-built image's real digest via
+# `-var=image_digest=...` (see _deploy.yml). This value only matters for a
+# manual `tofu apply` without CI, which nobody does against prod.
 image_digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"

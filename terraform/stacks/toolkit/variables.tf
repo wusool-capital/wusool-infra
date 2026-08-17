@@ -38,7 +38,13 @@ variable "toolkit_instance_type" {
   default     = "t2.micro"
 }
 
-variable "root_volume_size" {
+# NOT named "root_volume_size" - same shared-tfvars collision risk as
+# toolkit_instance_type above. Caught before it ever applied live: prod's
+# envs/prod.tfvars sets root_volume_size = 50 for n8n's disk, which would
+# have silently given the prod toolkit instance a 50GB root volume instead
+# of its own intended 30GB default the moment create_instance flipped to
+# true (2026-08-17).
+variable "toolkit_root_volume_size" {
   type    = number
   default = 30
 }
