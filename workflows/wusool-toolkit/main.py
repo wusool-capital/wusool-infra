@@ -10,6 +10,7 @@ it, so Slack's one-interactivity-URL-per-app requirement is satisfied by
 construction, not by convention.
 """
 
+import logging
 from functools import lru_cache
 
 from app.config import get_settings
@@ -17,7 +18,6 @@ from app.modules.slack.handlers import register_handlers as register_matching_en
 from app.shared.database import check_database_connectivity
 from app.shared.database import import_all_models as import_matching_engine_models
 from app.shared.errors import register_exception_handlers
-from app.shared.logging import configure_logging
 from ddl_commands.modules.slack.handlers import (
     register_handlers as register_ddl_commands_handlers,
 )
@@ -26,11 +26,27 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from slack_bolt.async_app import AsyncApp
+from toolkit_shared.logging import configure_logging
 
 settings = get_settings()
 configure_logging(settings.log_level)
 import_matching_engine_models()
 import_ddl_commands_models()
+
+# Which service owns each command/interaction trigger Slack can send. Bolt's
+# own global error handler always logs a caught exception under its own
+# `slack_bolt.AsyncApp` logger, with no indication of which command or
+# action actually failed short of reading the full traceback — this map lets
+# the handler below say so explicitly.
+_SERVICE_BY_TRIGGER: dict[str, str] = {
+    "/find-match": "matching-engine",
+    "/edit-seller": "ddl-commands",
+    "/edit-buyer": "ddl-commands",
+    "/add-seller": "ddl-commands",
+    "/add-buyer": "ddl-commands",
+}
+_UNKNOWN_TRIGGER = "unknown"
+_slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
 
 app = FastAPI(title="Wusool Toolkit Bot")
 register_exception_handlers(app)
@@ -67,6 +83,21 @@ async def ready() -> JSONResponse:
     return await _readiness()
 
 
+def _extract_trigger(body: dict) -> str:
+    """Best-effort: which slash command, block action, or view submission
+    this payload came from. Slack's payload shape differs by interaction
+    type, so check each in turn rather than assuming one key exists.
+    """
+    if command := body.get("command"):
+        return command
+    if actions := body.get("actions"):
+        if action_id := actions[0].get("action_id"):
+            return action_id
+    if callback_id := body.get("view", {}).get("callback_id"):
+        return callback_id
+    return _UNKNOWN_TRIGGER
+
+
 @lru_cache
 def _bolt_app() -> AsyncApp:
     bolt_app = AsyncApp(
@@ -74,6 +105,15 @@ def _bolt_app() -> AsyncApp:
     )
     register_matching_engine_handlers(bolt_app)
     register_ddl_commands_handlers(bolt_app)
+
+    @bolt_app.error
+    async def _log_uncaught_listener_error(error: Exception, body: dict) -> None:
+        trigger = _extract_trigger(body)
+        service = _SERVICE_BY_TRIGGER.get(trigger, _UNKNOWN_TRIGGER)
+        _slack_dispatch_logger.error(
+            "[%s] Slack listener failed for %s", service, trigger, exc_info=error
+        )
+
     return bolt_app
 
 

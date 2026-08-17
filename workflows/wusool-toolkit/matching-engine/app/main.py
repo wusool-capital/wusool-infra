@@ -8,12 +8,12 @@ from functools import lru_cache
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
+from toolkit_shared.logging import configure_logging
 
 from app.config import get_settings
 from app.modules.slack.bolt_app import get_bolt_app
 from app.shared.database import check_database_connectivity, import_all_models
 from app.shared.errors import register_exception_handlers
-from app.shared.logging import configure_logging
 
 settings = get_settings()
 configure_logging(settings.log_level)
