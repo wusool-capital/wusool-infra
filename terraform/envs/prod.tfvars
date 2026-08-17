@@ -42,3 +42,9 @@ public_url      = ""
 # `-var=image_digest=...` (see _deploy.yml). This value only matters for a
 # manual `tofu apply` without CI, which nobody does against prod.
 image_digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+# stacks/postgres — prod
+# sg-0684b8cf83abfd065 = wusool-scribe-instance. Cross-VPC (dev -> prod),
+# reachable only via the wusool-dev-to-prod peering connection + its routes
+# (stacks/peering) — see wusool-scribe's WUSOOL_INFRA_PROD_DB_ACCESS.md.
+extra_allowed_security_group_ids = ["sg-0684b8cf83abfd065"]

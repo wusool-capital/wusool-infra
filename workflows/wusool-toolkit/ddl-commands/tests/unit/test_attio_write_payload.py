@@ -74,7 +74,10 @@ async def test_build_attio_values_resolves_multi_select_to_option_ids() -> None:
     assert result == {"sector_focus": [{"option": "opt-tech"}, {"option": "opt-health"}]}
 
 
-async def test_build_attio_values_serializes_currency_with_fixed_code() -> None:
+async def test_build_attio_values_serializes_currency_without_code() -> None:
+    # currency_code must NOT be in the Attio write payload — Attio rejects it
+    # as an unrecognized key (the currency is fixed per-attribute in Attio's
+    # own workspace config, confirmed live 2026-08-17).
     client = _FakeClient({})
     result = await build_attio_values(
         client,
@@ -84,7 +87,7 @@ async def test_build_attio_values_serializes_currency_with_fixed_code() -> None:
         fields={"est_revenue": _CURRENCY},
         extracted={"est_revenue": 500000.0},
     )
-    assert result == {"est_revenue": {"currency_value": 500000.0, "currency_code": "AED"}}
+    assert result == {"est_revenue": {"currency_value": 500000.0}}
 
 
 async def test_build_attio_values_serializes_plain_date() -> None:
