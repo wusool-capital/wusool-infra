@@ -1,11 +1,26 @@
 # Alembic + SQLAlchemy Migration — Handover
 
+> **STATUS (2026-08-18): DONE.** All 6 stages below landed — see the commit
+> log on `dev` starting at "feat(database): relocate SQLAlchemy models into
+> shared database/ package (Phase G, Stage 1)" through "fix(deploy): retry
+> migration SSM command on a first-boot instance race". The Scribe
+> coordination question (§ below) was resolved by reading Scribe's actual
+> code rather than needing the cross-repo conversation this doc originally
+> called for: `database/sql/005_meetings.sql`'s own header comment and its
+> `GRANT`-only line confirm Scribe's separate, standalone Postgres never
+> touches this database — no exclusion needed. Live-dev reflection (the one
+> piece requiring AWS access this session didn't have) was substituted with
+> convergence against a Postgres freshly seeded from `database/sql/001-007`,
+> verified to zero-diff — a stronger check than it sounds, since that *is*
+> the live schema's origin. The rest of this document is kept as-written
+> for the reasoning and the decisions made; it no longer describes pending
+> work.
+
 Phase G of `Final_restructure_plan.md`, explicitly deferred by request
 ("alembic can be done later") while Phases C/E/F/H1 and the CD restructure
-landed. **Nothing in this document has been executed.** This is the plan as
-scoped and decided, verified against the live codebase on 2026-08-17, for
-whoever picks this up next (possibly a future me, with no memory of this
-conversation).
+landed. This is the plan as scoped and decided, verified against the live
+codebase on 2026-08-17, for whoever picks this up next (possibly a future
+me, with no memory of this conversation).
 
 ## Why this isn't a small task
 
