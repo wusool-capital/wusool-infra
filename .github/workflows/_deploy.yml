@@ -133,7 +133,19 @@ jobs:
 
       # stacks/account is intentionally NOT applied here — it is account-wide,
       # not per-environment, and is applied out of band (no -var-file, no
-      # environment concurrency group of its own).
+      # environment concurrency group of its own). stacks/peering is the same
+      # shape (spans both dev and prod VPCs) and is applied out of band too.
+      #
+      # ONE-TIME MIGRATION GATE (2026-08-17, dev-prod peering): the PR that
+      # moved the public route table's default route from an inline `route`
+      # block to a standalone `aws_route.internet` (modules/network/main.tf)
+      # will make THIS apply fail with "RouteAlreadyExists" for dev and/or
+      # prod unless the existing route has already been imported into that
+      # new address first, per that file's MIGRATION NOTE:
+      #   tofu import 'aws_route.internet' <public-route-table-id>_0.0.0.0/0
+      # Run the import for whichever environment this job targets before
+      # merging/re-running — this note can be deleted once both envs have
+      # applied cleanly at least once past this change.
 
       - name: Apply stacks/base
         if: steps.detect.outputs.deploy_base == 'true'
