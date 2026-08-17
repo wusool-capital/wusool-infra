@@ -44,6 +44,7 @@ jobs:
           - terraform/stacks/n8n
           - terraform/stacks/toolkit
           - terraform/stacks/postgres
+          - terraform/stacks/peering
 
     defaults:
       run:

@@ -17,6 +17,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:15432/wusool_crm")
 os.environ.setdefault("SLACK_BOT_TOKEN", "xoxb-test-token")
 os.environ.setdefault("SLACK_SIGNING_SECRET", "test-signing-secret")
+os.environ.setdefault("ATTIO_API_KEY", "test-attio-key")
 
 import uuid
 

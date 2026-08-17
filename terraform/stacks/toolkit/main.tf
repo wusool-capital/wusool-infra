@@ -3,7 +3,14 @@
 
 # Populate the secret value out of band with JSON: {"slack_bot_token": "...",
 # "slack_signing_secret": "...", "database_url": "postgresql://...",
-# "github_token": "..."}. Never put real secrets in a .tf file or state diff.
+# "github_token": "...", "env": {"ATTIO_API_KEY": "..."}}. ddl-commands'
+# Settings requires ATTIO_API_KEY unconditionally (see
+# ddl-commands/ddl_commands/config.py) — omitting it fails Settings()
+# construction on the very first request that touches the database, for
+# every command, not just the Attio-writing ones (user_data.sh.tpl's
+# `env: {}` passthrough is the generic mechanism for this, already handles
+# any extra key without further templating). Never put real secrets in a
+# .tf file or state diff.
 resource "aws_secretsmanager_secret" "wusool_toolkit" {
   name                    = "/${var.project}/${var.environment}/toolkit"
   description             = "Environment-specific wusool-toolkit secrets for ${var.project} ${var.environment}"

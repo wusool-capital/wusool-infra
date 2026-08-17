@@ -4,9 +4,15 @@ One Slack bot, one process, one token — five commands:
 
 - `/find-match <buyer name>` — the buyer-seller matching workflow
   (`matching-engine/`).
-- `/edit-seller <name>`, `/remove-seller <name>`, `/edit-buyer <name>`,
-  `/remove-buyer <name>` — CRM profile edits/soft-deletes against the same
-  `wusool_crm` database (`ddl-commands/`).
+- `/edit-seller <name>`, `/edit-buyer <name>` — edit buyer/seller (and their
+  organization's) profile fields. Writes to DEV Attio first, then Postgres —
+  see `ddl-commands/README.md` for the full flow and why. `/remove-seller`/
+  `/remove-buyer` don't exist (see ddl-commands' README, "History").
+- `/add-seller <org name>`, `/add-buyer <org name>` — create a new
+  seller/buyer role, searching for an existing organization first (attach
+  to it) and creating a brand new one only if nothing matched. Same
+  Attio-first principle as the edit commands, extended to creates — see
+  ddl-commands' README, "The add flow".
 
 `matching-engine/` and `ddl-commands/` are separate folders for functional
 modularity only — they are **not** separately deployed. The root `main.py`
@@ -16,10 +22,6 @@ both folders' command/action/view handlers against it, and serves one
 `ddl_commands/main.py` is used to run this bot — those still exist (each
 folder's own test suite imports its own standalone app), but the root
 `main.py` is what's actually deployed.
-
-`/add-seller` doesn't exist yet — it's blocked on an unresolved decision
-about whether this bot may create new `organizations` rows or must always
-attach to an org that already exists via Attio.
 
 ## Why two folders, one process
 
@@ -78,7 +80,8 @@ docker compose up --build
 
 One Slack app for all 5 commands — see `SLACK_APP_SETUP.md` at the repo root
 for the full checklist (Slash Commands table, Interactivity URL, OAuth
-scopes, signing secret).
+scopes, signing secret). `ddl-commands` also needs `ATTIO_API_KEY` (DEV
+Attio write access) alongside the shared Slack credentials.
 
 ## Testing
 
@@ -102,7 +105,7 @@ workflows/wusool-toolkit/
 ├── docker-compose.yml     # local dev: this bot + a throwaway Postgres
 ├── tests/                 # merged-app dispatch tests only
 ├── matching-engine/       # /find-match — see matching-engine/README.md
-└── ddl-commands/          # /edit-*, /remove-* — see ddl-commands/README.md
+└── ddl-commands/          # /edit-seller, /edit-buyer, /add-seller, /add-buyer — see ddl-commands/README.md
 ```
 
 See `database/README.md` (repo root) for the shared schema, and each

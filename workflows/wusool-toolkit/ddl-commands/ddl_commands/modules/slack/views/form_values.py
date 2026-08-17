@@ -90,28 +90,54 @@ def money_input_blocks(field: str, label: str, money: dict | None) -> list[dict]
     ]
 
 
-def restore_confirmation_block() -> dict:
-    """Only rendered when the edit target is removed — a required checkbox,
-    not just a relabeled submit button, so restoring is a deliberate action
-    the operator must actively opt into, not a passive side effect of an
-    otherwise-routine edit.
+def select_block(field: str, label: str, value: str | None, options: tuple[str, ...]) -> dict:
+    """A plain single-select — unlike `bool_select_block`, options come from
+    the caller's own fixed vocabulary (`FieldSpec.options`), not a hardcoded
+    tri-state. `optional=True` so leaving it unset doesn't block the form —
+    Slack requires an `initial_option` be one of `options`, so only set one
+    when the current value actually matches; otherwise the picker opens
+    blank rather than silently defaulting to the first option.
+    """
+    slack_options = [{"text": {"type": "plain_text", "text": o}, "value": o} for o in options]
+    element: dict = {"type": "static_select", "action_id": field, "options": slack_options}
+    if value in options:
+        element["initial_option"] = next(o for o in slack_options if o["value"] == value)
+    return {
+        "type": "input",
+        "block_id": field,
+        "optional": True,
+        "label": {"type": "plain_text", "text": label},
+        "element": element,
+    }
+
+
+def multi_select_text_block(field: str, label: str, values: list[str] | None) -> dict:
+    """Free-text, comma-separated stand-in for a true Slack multi-select —
+    each typed title is resolved against Attio's live option list on
+    submit (same principle as `select_block`'s single-select options: never
+    hardcode a picker that can silently drift from Attio's real option set,
+    and Slack's own `multi_static_select` still requires the full option
+    list to be known ahead of render time, same constraint this avoids).
+    """
+    initial = ", ".join(values) if values else None
+    return text_input_block(field, label, initial)
+
+
+def confirmation_checkbox_block(
+    block_id: str, action_id: str, label: str, option_text: str
+) -> dict:
+    """A required checkbox, not just a relabeled submit button, so the
+    gated action is something the operator must actively opt into. Used
+    today for `intake_source`'s `write_once_except_correction` gate.
     """
     return {
         "type": "input",
-        "block_id": "restore_confirmation",
-        "label": {"type": "plain_text", "text": "Confirm restore"},
+        "block_id": block_id,
+        "label": {"type": "plain_text", "text": label},
         "element": {
             "type": "checkboxes",
-            "action_id": "confirm_restore",
-            "options": [
-                {
-                    "text": {
-                        "type": "plain_text",
-                        "text": "I intend to restore this removed profile",
-                    },
-                    "value": "confirm",
-                }
-            ],
+            "action_id": action_id,
+            "options": [{"text": {"type": "plain_text", "text": option_text}, "value": "confirm"}],
         },
     }
 

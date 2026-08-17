@@ -3,17 +3,18 @@ and the Slack ASGI mount. Slack is the only product interface — no public
 REST endpoints for buyer/seller data.
 """
 
+import logging
 from functools import lru_cache
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
+from toolkit_shared.logging import configure_logging
 
 from ddl_commands.config import get_settings
 from ddl_commands.modules.slack.bolt_app import get_bolt_app
 from ddl_commands.shared.database import check_database_connectivity, import_all_models
 from ddl_commands.shared.errors import register_exception_handlers
-from ddl_commands.shared.logging import configure_logging
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -21,6 +22,7 @@ import_all_models()
 
 app = FastAPI(title="DDL Commands — Buyer/Seller Profile Editor")
 register_exception_handlers(app)
+_logger = logging.getLogger("ddl_commands.main")
 
 
 @app.get("/health")
@@ -34,6 +36,7 @@ async def _readiness() -> JSONResponse:
     try:
         await check_database_connectivity()
     except Exception:
+        _logger.error("Readiness check failed", exc_info=True)
         return JSONResponse(status_code=503, content={"status": "unavailable"})
     return JSONResponse(status_code=200, content={"status": "ready"})
 

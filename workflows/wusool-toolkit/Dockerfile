@@ -16,12 +16,14 @@ ENV UV_COMPILE_BYTECODE=1 \
 COPY pyproject.toml uv.lock ./
 COPY matching-engine/pyproject.toml matching-engine/pyproject.toml
 COPY ddl-commands/pyproject.toml ddl-commands/pyproject.toml
+COPY shared/pyproject.toml shared/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-dev
 
 COPY main.py ./main.py
 COPY matching-engine/app matching-engine/app
 COPY ddl-commands/ddl_commands ddl-commands/ddl_commands
+COPY shared/toolkit_shared shared/toolkit_shared
 # --no-editable: workspace members are installed as real copies into the
 # venv's site-packages, not path-referencing shims back to /app/matching-engine
 # and /app/ddl-commands — the runtime stage below never copies those source
@@ -39,6 +41,7 @@ WORKDIR /app
 
 COPY --from=builder --chown=app:app /app/.venv ./.venv
 COPY --from=builder --chown=app:app /app/main.py ./main.py
+COPY --chown=app:app run.py ./run.py
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
@@ -55,4 +58,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)" || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "run.py"]

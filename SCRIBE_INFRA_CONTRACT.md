@@ -201,9 +201,12 @@ migrations**. Keep it that way:
   assert the columns it depends on still exist) so a wusool-infra migration that
   breaks scribe fails loudly in scribe's CI rather than at runtime.
 
-**Sequencing: prod has no database yet.** `wusool-infra`'s `stacks/postgres` for
-prod is created in wusool-infra's Phase F. **Scribe prod cannot be deployed until that
-exists.**
+**Sequencing: prod's database now exists.** `wusool-infra`'s `stacks/postgres`
+for prod was created during Phase F (verified live 2026-08-17:
+`wusool-prod-postgres` RDS instance is `available`,
+`wusool/prod/postgres/terraform.tfstate` exists). **Scribe prod can now be
+deployed** — the one remaining prerequisite this section used to block on is
+satisfied.
 
 ## Checklist to add scribe dev + prod
 
@@ -218,6 +221,6 @@ exists.**
 - [ ] Image built in CI, pushed to ECR, deployed by digest; base images pinned
 - [ ] OIDC auth; plan-on-PR required on `dev` and `prod`, var-file from base ref
 - [ ] DDL ownership agreed (a/b/c above) and written down
-- [ ] `stacks/postgres` prod exists before scribe prod is applied
+- [x] `stacks/postgres` prod exists before scribe prod is applied — confirmed live 2026-08-17
 
 ---

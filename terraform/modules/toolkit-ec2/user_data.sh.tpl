@@ -20,6 +20,16 @@ chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 mkdir -p /opt/toolkit/caddy
 
+# Needed for the awslogs docker logging driver below - it has no equivalent
+# of the CloudWatch agent's `{instance_id}` stream-name macro, so the real
+# ID has to be baked into docker-compose.yml at generation time. IMDSv2
+# token required: the instance's metadata_options enforce http_tokens =
+# "required".
+IMDS_TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+  http://169.254.169.254/latest/meta-data/instance-id)
+
 # set +x for the remainder: this script runs under `set -x`, and without this
 # every secret below would be echoed verbatim into SSM command history (retained
 # ~30 days) and CloudWatch. Re-enabling tracing after secret handling is not
@@ -73,6 +83,13 @@ services:
       - "8000"
     env_file:
       - /opt/toolkit/${app.name}/.env.production
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${cloudwatch_log_group}
+        awslogs-stream: $INSTANCE_ID/${app.name}
+        awslogs-create-group: "true"
 %{ endfor }
   caddy:
     image: caddy:2

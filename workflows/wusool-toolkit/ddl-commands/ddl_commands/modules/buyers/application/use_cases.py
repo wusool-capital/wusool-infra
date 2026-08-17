@@ -10,19 +10,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
 from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
+from ddl_commands.shared.database.organization_repository import OrganizationRepository
 
 
 class BuyerNotFoundError(Exception):
     pass
 
 
-class BuyerAlreadyRemovedError(Exception):
-    """Raised when: (a) an edit is attempted on a removed row without
-    `restore=True` — shouldn't happen via the normal Slack flow, since the
-    handler always knows the row's removed state before calling this, but
-    stays a hard guard against a caller bug; or (b) removing an
-    already-removed row (never a valid action).
-    """
+class BuyerAlreadyExistsError(Exception):
+    pass
 
 
 class UpdateBuyerUseCase:
@@ -33,13 +29,16 @@ class UpdateBuyerUseCase:
         self,
         buyer_role_id: str,
         fields: dict,
-        actor_user_id: str,
         *,
-        restore: bool = False,
+        org_attio_id: str | None = None,
+        org_fields: dict | None = None,
     ) -> BuyerRole:
-        """Doubles as the restore path (§5's checkbox-gated edit flow is what
-        makes this safe to call with `restore=True`): clears `removed_at`
-        and applies the field changes in the same write.
+        """Writes the role's own fields and, if `org_fields` is given, the
+        parent `organizations` row's fields, in one transaction — an
+        `/edit-buyer` submission can touch both. Called only after the
+        corresponding Attio write(s) already succeeded (see
+        `ddl_commands/modules/slack/handlers/actions.py`) — this never talks
+        to Attio itself.
         """
         async with self._sessionmaker() as session:
             async with session.begin():
@@ -47,28 +46,40 @@ class UpdateBuyerUseCase:
                 role = await repo.get_by_id(buyer_role_id)
                 if role is None:
                     raise BuyerNotFoundError(buyer_role_id)
-                if role.removed_at is not None and not restore:
-                    raise BuyerAlreadyRemovedError(buyer_role_id)
-                if restore:
-                    fields = {**fields, "removed_at": None}
-                updated = await repo.update(buyer_role_id, actor_user_id, **fields)
+                updated = await repo.update(buyer_role_id, **fields) if fields else role
+                if org_fields and org_attio_id:
+                    await OrganizationRepository(session).update(org_attio_id, **org_fields)
         assert updated is not None
         return updated
 
 
-class RemoveBuyerUseCase:
+class CreateBuyerUseCase:
     def __init__(self, sessionmaker: async_sessionmaker) -> None:
         self._sessionmaker = sessionmaker
 
-    async def execute(self, buyer_role_id: str, actor_user_id: str) -> BuyerRole:
+    async def execute(
+        self,
+        *,
+        org_attio_id: str,
+        is_new_org: bool,
+        org_name: str | None = None,
+        org_fields: dict | None = None,
+        role_fields: dict,
+    ) -> BuyerRole:
+        """Mirrors `CreateSellerUseCase.execute` exactly, buyer-typed — see
+        that docstring for the re-check rationale.
+        """
         async with self._sessionmaker() as session:
             async with session.begin():
-                repo = BuyerRepository(session)
-                role = await repo.get_by_id(buyer_role_id)
-                if role is None:
-                    raise BuyerNotFoundError(buyer_role_id)
-                if role.removed_at is not None:
-                    raise BuyerAlreadyRemovedError(buyer_role_id)
-                updated = await repo.remove(buyer_role_id, actor_user_id)
-        assert updated is not None
-        return updated
+                org_repo = OrganizationRepository(session)
+                if is_new_org:
+                    assert org_name is not None
+                    await org_repo.create(org_attio_id, org_name, **(org_fields or {}))
+                elif org_fields:
+                    await org_repo.update(org_attio_id, **org_fields)
+
+                buyer_repo = BuyerRepository(session)
+                if await buyer_repo.get_by_org_attio_id(org_attio_id) is not None:
+                    raise BuyerAlreadyExistsError(org_attio_id)
+                role = await buyer_repo.create(org_attio_id, **role_fields)
+        return role

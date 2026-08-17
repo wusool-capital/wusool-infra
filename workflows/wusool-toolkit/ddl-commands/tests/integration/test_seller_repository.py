@@ -23,60 +23,43 @@ async def test_search_by_organization_name_finds_typo_tolerant_match(
     assert any(r.org_attio_id == throwaway_org.attio_id for r in results)
 
 
-async def test_search_excludes_removed_by_default_but_finds_with_include_removed(
-    db_session: AsyncSession, throwaway_org: Organization
-) -> None:
-    from datetime import UTC, datetime
-
-    throwaway_org.name = "Removed Target Co"
-    await _seller(db_session, throwaway_org, removed_at=datetime.now(UTC))
-
-    repo = SellerRepository(db_session)
-    default_results = await repo.search_by_organization_name("Removed Target Co")
-    assert not any(r.org_attio_id == throwaway_org.attio_id for r in default_results)
-
-    with_removed = await repo.search_by_organization_name(
-        "Removed Target Co", include_removed=True
-    )
-    assert any(r.org_attio_id == throwaway_org.attio_id for r in with_removed)
-
-
-async def test_get_eligible_sellers_excludes_removed(
-    db_session: AsyncSession, throwaway_org: Organization
-) -> None:
-    from datetime import UTC, datetime
-
-    throwaway_org.name = "Eligible Filter Test Co"
-    await _seller(db_session, throwaway_org, removed_at=datetime.now(UTC))
-
-    repo = SellerRepository(db_session)
-    eligible = await repo.get_eligible_sellers(limit=1000)
-    assert not any(r.org_attio_id == throwaway_org.attio_id for r in eligible)
-
-
-async def test_update_sets_bot_managed_fields(
+async def test_update_applies_fields(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:
     role = await _seller(db_session, throwaway_org, outreach_tier="cold")
 
     repo = SellerRepository(db_session)
-    updated = await repo.update(str(role.id), "U123", outreach_tier="warm")
+    updated = await repo.update(str(role.id), outreach_tier="warm")
 
     assert updated is not None
     assert updated.outreach_tier == "warm"
-    assert updated.bot_managed_at is not None
-    assert updated.bot_managed_by == "U123"
 
 
-async def test_remove_sets_removed_at_and_bot_managed_fields(
+async def test_get_by_org_attio_id_finds_existing_role(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:
-    role = await _seller(db_session, throwaway_org)
+    role = await _seller(db_session, throwaway_org, outreach_tier="cold")
 
     repo = SellerRepository(db_session)
-    removed = await repo.remove(str(role.id), "U123")
+    found = await repo.get_by_org_attio_id(throwaway_org.attio_id)
 
-    assert removed is not None
-    assert removed.removed_at is not None
-    assert removed.bot_managed_at is not None
-    assert removed.bot_managed_by == "U123"
+    assert found is not None
+    assert found.id == role.id
+
+
+async def test_get_by_org_attio_id_returns_none_when_no_role(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    repo = SellerRepository(db_session)
+    found = await repo.get_by_org_attio_id(throwaway_org.attio_id)
+    assert found is None
+
+
+async def test_create_inserts_a_new_role(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    repo = SellerRepository(db_session)
+    created = await repo.create(throwaway_org.attio_id, outreach_tier="Tier 1")
+
+    assert created.org_attio_id == throwaway_org.attio_id
+    assert created.outreach_tier == "Tier 1"

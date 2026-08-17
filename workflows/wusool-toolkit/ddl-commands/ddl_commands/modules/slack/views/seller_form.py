@@ -1,76 +1,48 @@
-"""`/edit-seller`'s pre-filled edit form. A single modal handles both a
-normal edit and restoring a removed row — see `restore_confirmation_block`
-and `SellerUpdate`'s docstring for why restoring needs its own explicit,
-required confirmation rather than riding along on a routine edit.
+"""`/edit-seller`'s dynamic edit form — step 3 of the flow: only the fields
+the operator picked in the field-picker modal are shown, pre-filled from
+the current row (organization fields from `org`, seller fields from `role`).
 """
 
 import json
 
-from ddl_commands.modules.sellers.infrastructure.models import SellerRole
-from ddl_commands.modules.slack.views.form_values import (
-    date_input_block,
-    money_input_blocks,
-    number_input_block,
-    restore_confirmation_block,
-    text_input_block,
+from ddl_commands.modules.sellers.field_spec import (
+    GATED_SELLER_ROLE_FIELDS,
+    SELLER_ROLE_FIELDS_BY_NAME,
 )
+from ddl_commands.modules.sellers.infrastructure.models import SellerRole
+from ddl_commands.modules.slack.views.dynamic_fields import render_field_block
+from ddl_commands.modules.slack.views.form_values import confirmation_checkbox_block
+from ddl_commands.shared.database.models.organization import Organization
+from ddl_commands.shared.organization_field_spec import ORGANIZATION_FIELDS_BY_NAME
 
 
-def build_seller_edit_form_modal(role: SellerRole, *, requested_by: str, channel_id: str) -> dict:
-    removed = role.removed_at is not None
-
+def build_seller_edit_form_modal(
+    role: SellerRole,
+    org: Organization,
+    *,
+    selected_org_fields: list[str],
+    selected_role_fields: list[str],
+    requested_by: str,
+    channel_id: str,
+) -> dict:
     blocks: list[dict] = []
-    if removed:
+    for name in selected_org_fields:
+        spec = ORGANIZATION_FIELDS_BY_NAME[name]
+        blocks.append(render_field_block(spec, getattr(org, name), block_id_prefix="org_"))
+    for name in selected_role_fields:
+        spec = SELLER_ROLE_FIELDS_BY_NAME[name]
+        blocks.append(render_field_block(spec, getattr(role, name)))
+
+    gated_selected = GATED_SELLER_ROLE_FIELDS & set(selected_role_fields)
+    if gated_selected:
         blocks.append(
-            {
-                "type": "section",
-                "block_id": "restore_banner",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": (
-                        ":warning: *This profile is removed.* Saving this form "
-                        "will restore it and make it matchable again."
-                    ),
-                },
-            }
+            confirmation_checkbox_block(
+                "gated_field_confirmation",
+                "confirm_correction",
+                "Confirm correction",
+                "This is a correction to an existing value, not a routine edit",
+            )
         )
-
-    blocks.extend(
-        [
-            text_input_block("outreach_tier", "Outreach tier", role.outreach_tier),
-            text_input_block("appetite_signal", "Appetite signal", role.appetite_signal),
-            text_input_block(
-                "relationship_status", "Relationship status", role.relationship_status
-            ),
-            *money_input_blocks("est_revenue", "Est. revenue", role.est_revenue),
-            *money_input_blocks("est_ebitda", "Est. EBITDA", role.est_ebitda),
-            *money_input_blocks("owner_salary", "Owner salary", role.owner_salary),
-            *money_input_blocks("valuation_low", "Valuation (low)", role.valuation_low),
-            *money_input_blocks("valuation_mid", "Valuation (mid)", role.valuation_mid),
-            *money_input_blocks("valuation_high", "Valuation (high)", role.valuation_high),
-            text_input_block("sell_timeline", "Sell timeline", role.sell_timeline),
-            number_input_block("readiness_score", "Readiness score (0-100)", role.readiness_score),
-            text_input_block("readiness_band", "Readiness band", role.readiness_band),
-            text_input_block("intake_source", "Intake source", role.intake_source),
-            date_input_block("last_attempt_date", "Last attempt date", role.last_attempt_date),
-            text_input_block(
-                "last_attempt_channel", "Last attempt channel", role.last_attempt_channel
-            ),
-            text_input_block(
-                "last_attempt_outcome",
-                "Last attempt outcome",
-                role.last_attempt_outcome,
-                multiline=True,
-            ),
-            number_input_block(
-                "lead_quality_score", "Lead quality score (0-100)", role.lead_quality_score
-            ),
-            date_input_block("re_engage_date", "Re-engage date", role.re_engage_date),
-        ]
-    )
-
-    if removed:
-        blocks.append(restore_confirmation_block())
 
     return {
         "type": "modal",
@@ -78,14 +50,16 @@ def build_seller_edit_form_modal(role: SellerRole, *, requested_by: str, channel
         "private_metadata": json.dumps(
             {
                 "seller_role_id": str(role.id),
-                "org_name": role.organization.name,
+                "org_attio_id": org.attio_id,
+                "org_name": org.name,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
-                "removed": removed,
+                "selected_org_fields": selected_org_fields,
+                "selected_role_fields": selected_role_fields,
             }
         ),
         "title": {"type": "plain_text", "text": "Edit seller"},
-        "submit": {"type": "plain_text", "text": "Restore & Save" if removed else "Save"},
+        "submit": {"type": "plain_text", "text": "Save"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "blocks": blocks,
     }

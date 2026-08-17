@@ -42,12 +42,6 @@ class Settings(BaseSettings):
 
     database_url: str
 
-    # Slack incoming webhook the Attio sync guard posts to when it skips a
-    # bot-managed row (database/sync-postgres.ps1). Not read by this app
-    # directly — kept here only so one shared .env documents it in one place,
-    # matching ddl-commands' own Settings.
-    sync_alert_webhook_url: str | None = None
-
     slack_bot_token: str
     slack_signing_secret: str
 
