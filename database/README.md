@@ -44,6 +44,46 @@ constraint have no native `IF NOT EXISTS` form in PostgreSQL, so they're
 guarded with `DO $$ ... END $$` blocks that check `pg_type`/`pg_constraint`
 before creating.
 
+## Schema changes now go through Alembic, not new numbered SQL files
+
+As of Phase G of `Final_restructure_plan.md` (see `ALEMBIC_MIGRATION_HANDOVER.md`
+for the full history), this folder is also a Python package (`wusool_db/`,
+`pyproject.toml`) holding the SQLAlchemy model for every table above, plus an
+Alembic migration chain (`alembic.ini`, `alembic/`) that is now the source of
+truth for **future** schema changes:
+
+| Path | What it is |
+| --- | --- |
+| `wusool_db/models/` | One SQLAlchemy model per table, all registered on the one shared `Base` in `wusool_db/base.py`. Both `matching-engine` and `ddl-commands` import models from here — this is the *only* place any table is defined in Python. |
+| `alembic/env.py` | Reads `DATABASE_URL` from the environment (the same secret the toolkit app itself already reads — never a new credential), imports every model so `--autogenerate` can see the full schema. |
+| `alembic/versions/` | The actual migration files. `d982478fc6e3` → `87320bb9dc8d` → `eec9dde1cfbb` recreate everything `001`-`007` below produce, as the current baseline. |
+
+**To make a schema change:** edit the relevant model(s) in `wusool_db/models/`,
+then from this directory run `uv sync --extra dev && uv run alembic revision
+--autogenerate -m "describe the change"`, review the generated file (autogenerate
+gets close but not everything — see the baseline revisions' own docstrings for
+concrete examples of what it missed: extensions, enum types with
+`create_type=False`, role grants, and one foreign-key constraint name), commit
+it, and open a PR.
+
+**What happens automatically after that:**
+- Any PR touching `database/**` runs `ci.yml`'s `alembic-check` job — applies
+  every migration to a fresh throwaway Postgres and runs `alembic check` to
+  catch drift between the models and the migrations, before merge.
+- Merging to `dev`/`prod` runs `_deploy.yml`'s "Run pending database
+  migrations" step, which applies `alembic upgrade head` for real against that
+  environment's actual RDS instance — via SSM against the toolkit EC2 instance,
+  since RDS is `publicly_accessible = false` and GitHub Actions has no direct
+  network path to it. This runs *before* the toolkit app itself is rolled to
+  the new image, so a failed migration blocks the deploy rather than leaving
+  new app code running against a schema it doesn't have yet.
+
+**The flat SQL files below are not deleted or superseded retroactively** — they
+remain the historical record of how the schema reached its current state, and
+`sync-postgres.ps1`/`validate-postgres.ps1` (Attio data sync, a separate concern
+from schema) are unaffected by any of this. Per the handover doc, deleting them
+is an explicit, separate future decision, not automatic.
+
 ## First-time or changed-schema setup
 
 ```powershell
