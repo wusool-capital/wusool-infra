@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from wusool_db.models import Organization, SellerRole
 
 from ddl_commands.modules.sellers.infrastructure.repositories import SellerRepository
-from wusool_db.models import Organization, SellerRole
 
 
 async def _seller(db_session: AsyncSession, org: Organization, **fields) -> SellerRole:

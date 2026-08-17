@@ -4,6 +4,8 @@ buyer-typed.
 
 import json
 
+from wusool_db.models import BuyerRole, Organization
+
 from ddl_commands.modules.buyers.field_spec import (
     BUYER_ROLE_FIELDS_BY_NAME,
     GATED_BUYER_ROLE_FIELDS,
@@ -11,7 +13,6 @@ from ddl_commands.modules.buyers.field_spec import (
 from ddl_commands.modules.slack.views.dynamic_fields import render_field_block
 from ddl_commands.modules.slack.views.form_values import confirmation_checkbox_block
 from ddl_commands.shared.organization_field_spec import ORGANIZATION_FIELDS_BY_NAME
-from wusool_db.models import BuyerRole, Organization
 
 
 def build_buyer_edit_form_modal(

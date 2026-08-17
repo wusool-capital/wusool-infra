@@ -3,9 +3,10 @@
 `ddl_commands/modules/sellers/dependencies.py`'s shape.
 """
 
+from wusool_db.models import Organization
+
 from ddl_commands.shared.database import get_sessionmaker
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
-from wusool_db.models import Organization
 
 
 async def search_organizations(term: str) -> list[Organization]:

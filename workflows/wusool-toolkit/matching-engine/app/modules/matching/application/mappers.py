@@ -1,7 +1,8 @@
 """Converts match-score ORM rows into infra-independent domain objects."""
 
-from app.modules.matching.domain.value_objects import MatchScoreResult
 from wusool_db.models import MatchScore
+
+from app.modules.matching.domain.value_objects import MatchScoreResult
 
 
 def to_match_score_result(row: MatchScore) -> MatchScoreResult:

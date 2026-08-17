@@ -40,8 +40,12 @@ class InvestorLenderRole(Base):
         Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False, unique=True
     )
     investor_type: Mapped[str | None] = mapped_column(Text)
-    stage_focus: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
-    sector_focus: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
+    stage_focus: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{}"
+    )
+    sector_focus: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{}"
+    )
     interests: Mapped[str | None] = mapped_column(Text)
     facility_type: Mapped[str | None] = mapped_column(Text)
     activity_level: Mapped[str | None] = mapped_column(Text)

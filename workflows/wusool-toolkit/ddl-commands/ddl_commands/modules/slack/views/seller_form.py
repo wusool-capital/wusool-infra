@@ -5,6 +5,8 @@ the current row (organization fields from `org`, seller fields from `role`).
 
 import json
 
+from wusool_db.models import Organization, SellerRole
+
 from ddl_commands.modules.sellers.field_spec import (
     GATED_SELLER_ROLE_FIELDS,
     SELLER_ROLE_FIELDS_BY_NAME,
@@ -12,7 +14,6 @@ from ddl_commands.modules.sellers.field_spec import (
 from ddl_commands.modules.slack.views.dynamic_fields import render_field_block
 from ddl_commands.modules.slack.views.form_values import confirmation_checkbox_block
 from ddl_commands.shared.organization_field_spec import ORGANIZATION_FIELDS_BY_NAME
-from wusool_db.models import Organization, SellerRole
 
 
 def build_seller_edit_form_modal(

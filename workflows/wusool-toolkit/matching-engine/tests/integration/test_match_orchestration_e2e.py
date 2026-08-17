@@ -13,6 +13,7 @@ so persistence's FK to `seller_roles.id` is still genuine. The real
 import uuid
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
+from wusool_db.models import BuyerRole, SellerRole
 
 from app.modules.buyers.application.mappers import to_buyer_context
 from app.modules.buyers.infrastructure.repositories import BuyerRepository
@@ -28,7 +29,6 @@ from app.modules.requirements.application.extraction_service import (
 from app.modules.sellers.application.mappers import to_seller_candidate
 from app.modules.sellers.infrastructure.repositories import SellerRepository
 from tests.fakes.bedrock import FakeBedrockClient
-from wusool_db.models import BuyerRole, SellerRole
 
 EXTRACTION_RESPONSE = {
     "hard_requirements": [],

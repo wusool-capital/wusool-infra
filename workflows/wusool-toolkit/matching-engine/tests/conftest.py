@@ -20,9 +20,9 @@ os.environ.setdefault("SLACK_SIGNING_SECRET", "test-signing-secret")
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from wusool_db.models import Organization
 
 from app.shared.database import get_engine, import_all_models
-from wusool_db.models import Organization
 
 import_all_models()
 
@@ -87,7 +87,6 @@ async def any_organization(db_session: AsyncSession) -> Organization:
 @pytest.fixture
 async def any_buyer_role(db_session: AsyncSession):
     from sqlalchemy import select
-
     from wusool_db.models import BuyerRole
 
     row = (await db_session.execute(select(BuyerRole).limit(1))).scalar_one_or_none()
@@ -99,7 +98,6 @@ async def any_buyer_role(db_session: AsyncSession):
 @pytest.fixture
 async def any_seller_role(db_session: AsyncSession):
     from sqlalchemy import select
-
     from wusool_db.models import SellerRole
 
     row = (await db_session.execute(select(SellerRole).limit(1))).scalar_one_or_none()

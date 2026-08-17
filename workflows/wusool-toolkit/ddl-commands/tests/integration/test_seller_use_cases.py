@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from wusool_db.models import Organization, SellerRole
 
 from ddl_commands.modules.sellers.application.use_cases import (
     CreateSellerUseCase,
@@ -10,7 +11,6 @@ from ddl_commands.modules.sellers.application.use_cases import (
     UpdateSellerUseCase,
 )
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
-from wusool_db.models import Organization, SellerRole
 
 
 async def _seed_seller(db_sessionmaker: async_sessionmaker[AsyncSession]) -> str:

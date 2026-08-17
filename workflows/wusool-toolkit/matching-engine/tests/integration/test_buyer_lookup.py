@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from wusool_db.models import BuyerRole
 
 from app.modules.buyers.infrastructure.repositories import BuyerRepository
-from wusool_db.models import BuyerRole
 
 
 async def test_search_by_organization_name_case_insensitive_partial(

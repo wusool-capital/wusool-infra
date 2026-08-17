@@ -5,7 +5,6 @@
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
 from wusool_db.models import BuyerRole, Organization
 
 # pg_trgm's own `%` similarity operator depends on a session-level GUC

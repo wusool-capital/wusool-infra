@@ -26,10 +26,11 @@ import asyncio
 import os
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from alembic import context
 
 # ---------------------------------------------------------------------------
 # Config
@@ -46,8 +47,8 @@ if config.config_file_name is not None:
 # imported here is invisible to it and --autogenerate proposes dropping its
 # table (see ALEMBIC_MIGRATION_HANDOVER.md point 2).
 # ---------------------------------------------------------------------------
-from wusool_db.base import Base  # noqa: E402
 import wusool_db.models  # noqa: F401, E402
+from wusool_db.base import Base  # noqa: E402
 
 target_metadata = Base.metadata
 

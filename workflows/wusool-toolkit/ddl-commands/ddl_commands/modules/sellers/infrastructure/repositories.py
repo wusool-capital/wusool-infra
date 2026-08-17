@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
 from wusool_db.models import Organization, SellerRole
 
 # Same rationale as BuyerRepository's constant — see that file's comment.

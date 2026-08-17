@@ -10,7 +10,6 @@ transaction boundary.
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
 from wusool_db.models import Organization
 
 # Same rationale as SellerRepository's/BuyerRepository's constant.

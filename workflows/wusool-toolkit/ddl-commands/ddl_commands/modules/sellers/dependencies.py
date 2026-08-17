@@ -2,6 +2,8 @@
 handlers never construct a repository/session themselves.
 """
 
+from wusool_db.models import SellerRole
+
 from ddl_commands.modules.sellers.application.resolution_service import (
     SellerResolution,
     SellerResolutionService,
@@ -12,7 +14,6 @@ from ddl_commands.modules.sellers.application.use_cases import (
 )
 from ddl_commands.modules.sellers.infrastructure.repositories import SellerRepository
 from ddl_commands.shared.database import get_sessionmaker
-from wusool_db.models import SellerRole
 
 
 async def resolve_seller(seller_name: str) -> SellerResolution:

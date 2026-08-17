@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from wusool_db.models import SellerRole
 
 from app.modules.sellers.infrastructure.repositories import SellerRepository
-from wusool_db.models import SellerRole
 
 
 async def test_get_structured_fields_returns_role_row(

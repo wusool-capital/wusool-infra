@@ -5,8 +5,8 @@ caller owns the transaction boundary.
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from wusool_db.models import Meeting
+
 from app.shared.types import MeetingNote
 
 

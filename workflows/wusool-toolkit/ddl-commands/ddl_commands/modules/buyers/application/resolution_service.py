@@ -10,9 +10,10 @@ for one strong match, mirroring matching-engine's `/find-match` convention.
 from dataclasses import dataclass
 from typing import Literal
 
+from wusool_db.models import BuyerRole
+
 from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
 from ddl_commands.modules.buyers.schemas import BuyerSummary
-from wusool_db.models import BuyerRole
 
 ResolutionStatus = Literal["none", "single", "multiple"]
 
