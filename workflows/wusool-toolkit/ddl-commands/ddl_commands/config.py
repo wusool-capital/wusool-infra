@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     # the same request — see `ddl_commands/shared/attio/`.
     attio_api_key: str
 
+    # Signs inbound Attio webhook deliveries (`POST /webhooks/attio`) —
+    # returned once by Attio in the response to `POST /v2/webhooks`, never
+    # retrievable again after that. See `ddl_commands/shared/attio/signature.py`.
+    attio_webhook_secret: str
+
     @field_validator("database_url")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:
