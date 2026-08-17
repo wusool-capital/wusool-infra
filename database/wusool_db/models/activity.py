@@ -20,7 +20,7 @@ import uuid as uuid_
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Text, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Text, literal_column, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +37,8 @@ class Activity(Base):
             "subject_attio_id IS NOT NULL OR subject_uuid IS NOT NULL",
             name="activities_subject_present",
         ),
+        Index("idx_activities_subject", "subject_type", "subject_attio_id"),
+        Index("idx_activities_ts", literal_column("ts DESC")),
     )
 
     id: Mapped[uuid_.UUID] = mapped_column(

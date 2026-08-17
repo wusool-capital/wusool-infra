@@ -13,7 +13,7 @@ Clean, no ambiguity.
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Text, text
+from sqlalchemy import ForeignKey, Index, Text, literal_column, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 
 class Scorecard(Base):
     __tablename__ = "scorecards"
+    __table_args__ = (
+        Index("idx_scorecards_week_start", literal_column("week_start DESC")),
+    )
 
     attio_id: Mapped[str] = mapped_column(Text, primary_key=True)
     week_start: Mapped[date | None] = mapped_column()

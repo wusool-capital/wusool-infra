@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Text, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +32,7 @@ class GraphEdge(Base):
         CheckConstraint(
             "person_a_attio_id <> person_b_attio_id", name="graph_edges_not_self"
         ),
+        Index("idx_graph_edges_people", "person_a_attio_id", "person_b_attio_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

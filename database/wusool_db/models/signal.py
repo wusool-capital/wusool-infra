@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, Text, text
+from sqlalchemy import ForeignKey, Index, Integer, Text, literal_column, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 
 class Signal(Base):
     __tablename__ = "signals"
+    __table_args__ = (
+        Index("idx_signals_buyer_ts", "buyer_attio_id", literal_column("ts DESC")),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")

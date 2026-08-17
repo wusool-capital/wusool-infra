@@ -10,7 +10,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Numeric, Text, text
+from sqlalchemy import ForeignKey, Index, Numeric, Text, literal_column, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,6 +22,14 @@ if TYPE_CHECKING:
 
 class MatchScore(Base):
     __tablename__ = "match_scores"
+    __table_args__ = (
+        Index(
+            "idx_match_scores_pair_generated",
+            "buyer_attio_id",
+            "seller_attio_id",
+            literal_column("generated_at DESC"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")

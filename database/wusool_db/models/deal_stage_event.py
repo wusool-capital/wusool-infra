@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Text, text
+from sqlalchemy import ForeignKey, Index, Text, literal_column, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,6 +29,9 @@ if TYPE_CHECKING:
 
 class DealStageEvent(Base):
     __tablename__ = "deal_stage_events"
+    __table_args__ = (
+        Index("idx_deal_stage_events_deal_ts", "deal_attio_id", literal_column("ts DESC")),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")

@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Text, text
+from sqlalchemy import Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +27,7 @@ from wusool_db.base import Base
 
 class VerticalKb(Base):
     __tablename__ = "vertical_kb"
+    __table_args__ = (Index("idx_vertical_kb_sector", "sector"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")

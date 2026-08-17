@@ -6,7 +6,7 @@ one-time Attio notes migration. DDL lives in `database/sql/005_meetings.sql`.
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Integer, Text, text
+from sqlalchemy import ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ENUM, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,6 +32,10 @@ _MeetingType = ENUM(
 
 class Meeting(Base):
     __tablename__ = "meetings"
+    __table_args__ = (
+        Index("ix_meetings_org_id", "org_id"),
+        Index("ix_meetings_occurred_at", "occurred_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[str | None] = mapped_column(Text, ForeignKey("organizations.attio_id"))

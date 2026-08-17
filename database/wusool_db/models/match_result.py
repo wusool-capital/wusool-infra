@@ -23,7 +23,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, Numeric, Text, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Numeric, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,6 +38,27 @@ if TYPE_CHECKING:
 
 class MatchResult(Base):
     __tablename__ = "match_results"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('GENERATED', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'FAILED')",
+            name="match_results_status_check",
+        ),
+        CheckConstraint(
+            "decision IN ('APPROVED', 'REJECTED')",
+            name="match_results_decision_check",
+        ),
+        Index("idx_match_results_run_id", "run_id"),
+        Index("idx_match_results_buyer_role", "buyer_role_id"),
+        Index("idx_match_results_status", "status"),
+        # Enforces "exactly one run/header row per run_id" — see
+        # `database/sql/006_match_results.sql`.
+        Index(
+            "uq_match_results_run_header",
+            "run_id",
+            unique=True,
+            postgresql_where=text("rank IS NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")

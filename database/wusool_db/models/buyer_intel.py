@@ -30,7 +30,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Numeric, Text, text
+from sqlalchemy import ForeignKey, Index, Numeric, Text, literal_column, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,6 +42,13 @@ if TYPE_CHECKING:
 
 class BuyerIntel(Base):
     __tablename__ = "buyer_intel"
+    __table_args__ = (
+        Index(
+            "idx_buyer_intel_buyer_generated",
+            "buyer_attio_id",
+            literal_column("generated_at DESC"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")

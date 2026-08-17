@@ -19,7 +19,7 @@ superset of the other. This is the union of both — not a re-narrowing.
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Text, text
+from sqlalchemy import ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,6 +35,16 @@ if TYPE_CHECKING:
 
 class Organization(Base):
     __tablename__ = "organizations"
+    __table_args__ = (
+        Index("idx_organizations_domains", "domains", postgresql_using="gin"),
+        Index("idx_organizations_type", "type", postgresql_using="gin"),
+        Index(
+            "ix_organizations_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+    )
 
     attio_id: Mapped[str] = mapped_column(Text, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -53,10 +63,9 @@ class Organization(Base):
     categories: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     relationship_status: Mapped[str | None] = mapped_column(Text)
     connection_strength: Mapped[str | None] = mapped_column(Text)
-    # Plain column, no FK object: `users` is not mapped in this phase since
-    # nothing needs to traverse to it. The real DB FK constraint still exists
-    # and is enforced by Postgres regardless of what the ORM declares.
-    owner_attio_id: Mapped[str | None] = mapped_column(Text)
+    owner_attio_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("users.attio_id", name="organizations_owner_attio_id_fkey")
+    )
     last_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     # ddl-commands-originated columns (see module docstring) — Attio-mirrored,
     # editable via `/edit-seller`/`/edit-buyer`'s organization-level fields.

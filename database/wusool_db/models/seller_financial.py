@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Numeric, Text, text
+from sqlalchemy import ForeignKey, Index, Numeric, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 class SellerFinancial(Base):
     __tablename__ = "seller_financials"
+    __table_args__ = (Index("idx_seller_financials_seller", "seller_attio_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")
