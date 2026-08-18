@@ -18,6 +18,7 @@ from app.modules.slack.handlers import register_handlers as register_matching_en
 from app.shared.database import check_database_connectivity
 from app.shared.database import import_all_models as import_matching_engine_models
 from app.shared.errors import register_exception_handlers
+from ddl_commands.modules.attio_sync.router import router as attio_sync_router
 from ddl_commands.modules.slack.handlers import (
     register_handlers as register_ddl_commands_handlers,
 )
@@ -50,6 +51,7 @@ _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
 
 app = FastAPI(title="Wusool Toolkit Bot")
 register_exception_handlers(app)
+app.include_router(attio_sync_router)
 
 
 @app.exception_handler(Exception)

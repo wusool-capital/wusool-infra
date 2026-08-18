@@ -306,6 +306,43 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   Until that's done, scribe cannot publish prod meetings even though the
   network path and the table-level grants both exist.
 
+### 7. Real-time Attio → PostgreSQL sync via webhook — code complete and tested, PR #47 open against `dev`
+
+**What it is:** `POST /webhooks/attio` on the toolkit (`workflows/wusool-toolkit`) —
+Attio calls it the instant a record or list entry changes in DEV Attio, for
+any reason (human edit, `/add-seller`, any other integration), and it upserts
+that change into `wusool_crm` Postgres within about a second. Complements
+`sync-postgres.ps1`'s existing manual full resync with a nightly automated
+one (`full_resync.py` + `.github/workflows/nightly-attio-sync.yml`), and adds
+automatic Attio-webhook pause/resume around `sync-all.ps1 -Apply` runs so a
+bulk migration doesn't generate wasted webhook churn.
+
+**Current state (2026-08-18):**
+- **PR #47** (`feature/attio-postgres-realtime-sync` → `dev`) open, rebased
+  onto `dev` after PR #45 (this workstream depends on `database/wusool_db`,
+  which #45 introduced), CI green. Reviewed by Sinan — asked for pydantic
+  validation at the webhook boundary, added (`modules/attio_sync/schemas.py`,
+  matching the existing `modules/buyers/schemas.py` convention).
+- Already done against real infrastructure: Attio webhook registered and
+  active (5 event types: `record.created`, `record.updated`,
+  `record.deleted`, `list-entry.created`, `list-entry.updated`);
+  `ATTIO_WEBHOOK_SECRET` added to the toolkit's Secrets Manager secret
+  (`/wusool/dev/toolkit`); a live bounded `sync-all.ps1 -Apply -Limit 1` run
+  against `buyer_role` proved the full pause → migrate → resume cycle
+  end-to-end.
+- 87 unit + live-DB integration tests passing.
+
+**Not yet done:**
+- Merge PR #47, then the live smoke test (one real DEV Attio change, confirm
+  it lands in Postgres via the deployed route) — the toolkit doesn't have
+  this route live until that deploy completes.
+- A more detailed technical write-up is sitting on the desktop
+  (`ATTIO_POSTGRES_REALTIME_SYNC.md`), not yet committed into the repo.
+- The stale `database/rds-tunnel-runbook.md` (references
+  `terraform/environments/dev`, which no longer exists post-restructure;
+  real paths are `terraform/stacks/n8n` and `terraform/stacks/postgres`) —
+  noticed while testing this workstream, not yet fixed.
+
 ## Keeping this file current
 
 Run the `sync-project-docs` skill after finishing a unit of work (a Terraform
