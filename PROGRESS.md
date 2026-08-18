@@ -7,9 +7,72 @@ in its own document (linked below) — this file stays a short, high-level
 index and is kept current by the `sync-project-docs` skill (or manually,
 see [Keeping this file current](#keeping-this-file-current)).
 
-Last updated: 2026-08-11
+Last updated: 2026-08-18
 
 ## Workstreams
+
+### 6. Real-time Attio → PostgreSQL sync via webhook — code complete and tested, blocked on PR #45 merging to `dev` before it can be pushed
+
+**Read this before touching any of the branches/stashes mentioned below —
+the sequencing here matters and getting it backwards risks losing work.**
+
+**What it is:** `POST /webhooks/attio` on the toolkit (`workflows/wusool-toolkit`) —
+Attio calls it the instant a record or list entry changes in DEV Attio, for
+any reason (human edit, `/add-seller`, any other integration), and it upserts
+that change into `wusool_crm` Postgres within about a second. Complements
+`sync-postgres.ps1`'s existing manual full resync with a nightly automated
+one (`full_resync.py` + `.github/workflows/nightly-attio-sync.yml`), and adds
+automatic Attio-webhook pause/resume around `sync-all.ps1 -Apply` runs so a
+bulk migration doesn't generate wasted webhook churn. Full technical
+write-up: `ATTIO_POSTGRES_REALTIME_SYNC.md` (currently on the desktop, not
+yet committed to the repo — see "Not yet done" below).
+
+**Current state (as of 2026-08-18, do not skip this):**
+- Code is fully written, and committed as **one local-only commit**
+  (`a10ea46`, "feat(attio-sync): real-time DEV Attio -> Postgres sync via
+  webhook") on branch **`feature/attio-postgres-realtime-sync`**.
+- That branch is based on **`feature/alembic-migrations`, not `dev`** — the
+  code has a real dependency on `database/wusool_db` (the SQLAlchemy models
+  package), which only exists on `feature/alembic-migrations` (PR #45,
+  awaiting Sinan's review) and not yet on `dev`.
+- **Nothing has been pushed to GitHub.** `feature/attio-postgres-realtime-sync`
+  exists only locally (confirmed via `git ls-remote --heads origin
+  feature/attio-postgres-realtime-sync` returning empty). PR #45 and
+  `feature/alembic-migrations` on GitHub are untouched by any of this.
+- `feature/alembic-migrations` itself has a **separate, pre-existing,
+  uncommitted refactor** (`lists.ps1`/`schema.ps1`/`validate-attio.ps1` —
+  the `is_active`/`legacy_entry_id` duplicate-handling change, not part of
+  this workstream) — left exactly as it was, not touched or bundled into
+  the commit above.
+- Already done against real infrastructure (does not need repeating):
+  Attio webhook registered and active (5 event types: `record.created`,
+  `record.updated`, `record.deleted`, `list-entry.created`,
+  `list-entry.updated`); `ATTIO_WEBHOOK_SECRET` added to the toolkit's
+  Secrets Manager secret (`/wusool/dev/toolkit`); a live bounded
+  `sync-all.ps1 -Apply -Limit 1` run against `buyer_role` proved the full
+  pause → migrate → resume cycle end-to-end.
+- 86 unit + live-DB integration tests passing.
+
+**Exact next steps, once Sinan reviews and merges PR #45 into `dev`:**
+```
+git checkout feature/attio-postgres-realtime-sync
+git fetch origin dev
+git rebase origin/dev
+git push -u origin feature/attio-postgres-realtime-sync
+```
+Then open a PR from `feature/attio-postgres-realtime-sync` into `dev`, verify
+CI, merge, then do the live smoke test (one real DEV Attio change, confirm it
+lands in Postgres via the deployed route) — the toolkit doesn't have this
+route live until that deploy completes.
+
+**Not yet done:**
+- `ATTIO_POSTGRES_REALTIME_SYNC.md` (the detailed write-up) is sitting on the
+  desktop, not committed into the repo — worth adding under
+  `workflows/wusool-toolkit/` or the repo root once the branch is pushed.
+- The stale `database/rds-tunnel-runbook.md` (references
+  `terraform/environments/dev`, which no longer exists post-restructure;
+  real paths are `terraform/stacks/n8n` and `terraform/stacks/postgres`) —
+  noticed while testing this workstream, not yet fixed.
 
 ### 1. Infrastructure (OpenTofu / n8n / toolkit) — full CD restructure landed; both dev and prod deployed and OIDC-driven
 
