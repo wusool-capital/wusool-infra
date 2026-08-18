@@ -119,3 +119,43 @@ def test_valid_json_missing_required_field_is_rejected(monkeypatch) -> None:
 
     assert response.status_code == 400
     assert calls == []
+
+
+def test_list_wrapped_event_is_accepted(monkeypatch) -> None:
+    """Some webhook providers wrap even a single event in a top-level array
+    -- if Attio does the same, the first element should still be processed
+    rather than rejected as a schema mismatch."""
+    calls = []
+
+    async def fake_dispatch(client, event):
+        calls.append(event)
+
+    monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
+    body = b'[{"event_type": "record.created", "id": {"object_id": "o1", "record_id": "r1"}}]'
+
+    response = _make_client().post(
+        "/webhooks/attio", content=body, headers={"Attio-Signature": _signed(body)}
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        AttioWebhookEvent(
+            event_type="record.created",
+            id=AttioWebhookEventId(object_id="o1", record_id="r1"),
+        )
+    ]
+
+
+def test_validation_failure_logs_the_raw_body(monkeypatch, caplog) -> None:
+    """The raw body must be logged on a validation failure -- otherwise a
+    real schema mismatch (Attio's actual shape differing from ours) is
+    undiagnosable without a code change to add logging after the fact."""
+    body = b'{"totally": "not the expected shape"}'
+
+    with caplog.at_level("ERROR", logger="ddl_commands.attio_sync"):
+        response = _make_client().post(
+            "/webhooks/attio", content=body, headers={"Attio-Signature": _signed(body)}
+        )
+
+    assert response.status_code == 400
+    assert any("not the expected shape" in record.message for record in caplog.records)
