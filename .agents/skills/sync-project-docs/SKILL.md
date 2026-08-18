@@ -1,6 +1,6 @@
 ---
 name: sync-project-docs
-description: Keep every README in the repository and the top-level PROGRESS.md status file synchronized with the actual state of the code, scripts, and Terraform. Use after finishing a unit of work (Terraform change, migration milestone, new script, new workstream), whenever asked to refresh/update/sync documentation or progress, and before ending a session that changed tracked files.
+description: Keep every README in the repository and the docs/PROGRESS.md status file synchronized with the actual state of the code, scripts, and Terraform. Use after finishing a unit of work (Terraform change, migration milestone, new script, new workstream), whenever asked to refresh/update/sync documentation or progress, and before ending a session that changed tracked files.
 ---
 
 # Sync Project Docs
@@ -9,9 +9,9 @@ This is the repo-wide sibling of `sync-terraform-docs`: that skill owns
 Terraform-specific documentation (architecture READMEs, network diagrams).
 This skill owns two additional things:
 
-1. **`PROGRESS.md`** at the repository root — the single file a new session
-   should read to know "what has been done so far" without reconstructing it
-   from git log or chat history.
+1. **`docs/PROGRESS.md`** — the single file a new session should read to
+   know "what has been done so far" without reconstructing it from git log
+   or chat history.
 2. **Every other README** in the repo that isn't already covered by
    `sync-terraform-docs` (e.g. `workflows/crm-sync/scripts/README.md`,
    `database/README.md`, `terraform/environments/dev/README.md`, root
@@ -33,7 +33,7 @@ This skill owns two additional things:
    the files/scripts it describes (file names, flags, commands, prerequisites,
    directory trees). Correct anything stale. Do not invent capability that
    doesn't exist in the code.
-4. Update `PROGRESS.md`:
+4. Update `docs/PROGRESS.md`:
    - Update the "Last updated" date.
    - Update the relevant workstream section(s) only — move completed
      "Not started" items into "Done", add newly-scoped workstreams, and keep
@@ -58,8 +58,8 @@ This skill owns two additional things:
   memory of a previous session, and not chat history.
 - For the Attio/PostgreSQL migration workstream specifically, defer to the
   detailed decision log referenced in `AGENTS.md` for field-level claims;
-  `PROGRESS.md` only carries the coarse, already-confirmed summary.
+  `docs/PROGRESS.md` only carries the coarse, already-confirmed summary.
 - Never copy secrets, credentials, personal emails, or IP addresses into
-  `PROGRESS.md` or any README.
+  `docs/PROGRESS.md` or any README.
 - If unsure whether something is actually done vs. in progress, mark it as
   in progress and say why in the report — do not guess.
