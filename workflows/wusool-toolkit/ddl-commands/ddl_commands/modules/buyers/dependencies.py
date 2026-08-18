@@ -2,6 +2,8 @@
 handlers never construct a repository/session themselves.
 """
 
+from wusool_db.models import BuyerRole
+
 from ddl_commands.modules.buyers.application.resolution_service import (
     BuyerResolution,
     BuyerResolutionService,
@@ -10,7 +12,6 @@ from ddl_commands.modules.buyers.application.use_cases import (
     CreateBuyerUseCase,
     UpdateBuyerUseCase,
 )
-from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
 from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
 from ddl_commands.shared.database import get_sessionmaker
 

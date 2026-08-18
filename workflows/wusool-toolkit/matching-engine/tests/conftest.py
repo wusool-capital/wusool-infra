@@ -20,9 +20,9 @@ os.environ.setdefault("SLACK_SIGNING_SECRET", "test-signing-secret")
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from wusool_db.models import Organization
 
 from app.shared.database import get_engine, import_all_models
-from app.shared.database.models import Organization
 
 import_all_models()
 
@@ -87,8 +87,7 @@ async def any_organization(db_session: AsyncSession) -> Organization:
 @pytest.fixture
 async def any_buyer_role(db_session: AsyncSession):
     from sqlalchemy import select
-
-    from app.modules.buyers.infrastructure.models import BuyerRole
+    from wusool_db.models import BuyerRole
 
     row = (await db_session.execute(select(BuyerRole).limit(1))).scalar_one_or_none()
     if row is None:
@@ -99,8 +98,7 @@ async def any_buyer_role(db_session: AsyncSession):
 @pytest.fixture
 async def any_seller_role(db_session: AsyncSession):
     from sqlalchemy import select
-
-    from app.modules.sellers.infrastructure.models import SellerRole
+    from wusool_db.models import SellerRole
 
     row = (await db_session.execute(select(SellerRole).limit(1))).scalar_one_or_none()
     if row is None:
@@ -117,7 +115,7 @@ async def org_with_meetings(db_session: AsyncSession):
     import uuid
     from datetime import UTC, datetime
 
-    from app.shared.database.models import Meeting, Organization
+    from wusool_db.models import Meeting, Organization
 
     org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Meeting Notes Test Org")
     db_session.add(org)

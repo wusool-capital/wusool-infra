@@ -14,7 +14,7 @@ than silently overwriting.
 
 import json
 
-from ddl_commands.shared.database.models.organization import Organization
+from wusool_db.models import Organization
 
 NEW_ORGANIZATION_VALUE = "__new__"
 

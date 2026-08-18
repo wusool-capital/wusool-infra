@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from wusool_db.models import BuyerRole
 
-from app.modules.buyers.infrastructure.models import BuyerRole
 from app.modules.buyers.infrastructure.repositories import BuyerRepository
 
 

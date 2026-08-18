@@ -4,8 +4,9 @@ This is where the "matching domain must not import SQLAlchemy" boundary is
 actually enforced: matching consumes `BuyerContext`, never `BuyerRole`.
 """
 
+from wusool_db.models import BuyerRole
+
 from app.modules.buyers.domain.value_objects import BuyerContext
-from app.modules.buyers.infrastructure.models import BuyerRole
 from app.shared.types import Money
 
 

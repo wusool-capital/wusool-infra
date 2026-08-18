@@ -1,8 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from wusool_db.models import BuyerRole, SellerRole
 
-from app.modules.buyers.infrastructure.models import BuyerRole
 from app.modules.matching.infrastructure.repositories import MatchScoreRepository
-from app.modules.sellers.infrastructure.models import SellerRole
 
 
 async def test_create_and_retrieve_match_score(

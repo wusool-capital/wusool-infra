@@ -9,7 +9,4 @@ time. Pure imports, no I/O.
 
 
 def import_all_models() -> None:
-    import app.modules.buyers.infrastructure.models  # noqa: F401
-    import app.modules.matching.infrastructure.models  # noqa: F401
-    import app.modules.sellers.infrastructure.models  # noqa: F401
-    import app.shared.database.models  # noqa: F401
+    import wusool_db.models  # noqa: F401

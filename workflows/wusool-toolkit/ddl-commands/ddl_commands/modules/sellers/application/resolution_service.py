@@ -3,7 +3,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from ddl_commands.modules.sellers.infrastructure.models import SellerRole
+from wusool_db.models import SellerRole
+
 from ddl_commands.modules.sellers.infrastructure.repositories import SellerRepository
 from ddl_commands.modules.sellers.schemas import SellerSummary
 

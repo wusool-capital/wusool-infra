@@ -1,4 +1,4 @@
-from app.shared.database.models import Organization
+from wusool_db.models import Organization
 
 
 async def test_retrieve_organization(any_organization: Organization) -> None:

@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from wusool_db.models import BuyerRole, Organization
 
 from ddl_commands.modules.buyers.application.use_cases import (
     BuyerAlreadyExistsError,
@@ -9,8 +10,6 @@ from ddl_commands.modules.buyers.application.use_cases import (
     CreateBuyerUseCase,
     UpdateBuyerUseCase,
 )
-from ddl_commands.modules.buyers.infrastructure.models import BuyerRole
-from ddl_commands.shared.database.models import Organization
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
 
 

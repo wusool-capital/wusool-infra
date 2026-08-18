@@ -8,19 +8,38 @@ it yet; add it later against the same pattern once something reads it.
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, Interval, Text, text
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    Interval,
+    Text,
+    literal_column,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.shared.database.base import Base
+from wusool_db.base import Base
 
 if TYPE_CHECKING:
-    from app.shared.database.models.organization import Organization
-    from app.shared.database.models.person import Person
+    from wusool_db.models.organization import Organization
+    from wusool_db.models.person import Person
 
 
 class Deal(Base):
     __tablename__ = "deals"
+    __table_args__ = (
+        CheckConstraint(
+            "buyer_organization_attio_id IS NULL OR buyer_person_attio_id IS NULL",
+            name="deals_one_buyer",
+        ),
+        Index("idx_deals_buyer_org", "buyer_organization_attio_id"),
+        Index("idx_deals_seller_org", "seller_organization_attio_id"),
+        Index("idx_deals_stage", "stage"),
+        Index("idx_deals_stage_changed_at", literal_column("stage_changed_at DESC")),
+    )
 
     attio_id: Mapped[str] = mapped_column(Text, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -33,7 +52,9 @@ class Deal(Base):
     seller_organization_attio_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("organizations.attio_id")
     )
-    owner_attio_id: Mapped[str | None] = mapped_column(Text)
+    owner_attio_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("users.attio_id", name="deals_owner_attio_id_fkey")
+    )
     value: Mapped[dict | None] = mapped_column(JSONB)
     teaser_status: Mapped[str | None] = mapped_column(Text)
     nda_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")

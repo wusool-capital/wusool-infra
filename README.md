@@ -66,7 +66,7 @@ wusool-infra/
 |   |   |-- toolkit/                # Per-env wusool-toolkit stack + its ECR repo
 |   |   `-- postgres/               # Per-env RDS stack
 |   `-- envs/                   # dev.tfvars / prod.tfvars — committed, non-secret per-env config
-|-- database/                  # PostgreSQL migrations (flat SQL, pre-Alembic), sync, and DB tools
+|-- database/                  # SQLAlchemy models + Alembic migrations (schema source of truth), Attio sync, and DB tools
 |-- workflows/                 # One folder per workflow: scripts + docs together
 |   |-- n8n/                   # n8n scripts and infrastructure/architecture docs
 |   |-- bedrock-ai/            # AWS Bedrock model access scripts (operator PowerShell, no deploy)
@@ -145,7 +145,7 @@ The current documentation covers:
 | --- | --- |
 | Attio target model | `workflows/crm-sync/scripts/config/target-schema.json` |
 | Attio migration mapping | `workflows/crm-sync/scripts/config/source-to-target-mapping.json` |
-| PostgreSQL schema | `database/sql/001_extensions.sql` through `008_bot_managed_columns.sql` |
+| PostgreSQL schema | `database/wusool_db/models/` + `database/alembic/versions/` (Alembic migrations, current baseline). Historical flat SQL: `database/sql/001_extensions.sql` through `007_org_name_trgm_index.sql` — `008_bot_managed_columns.sql` was added and reverted before this table was last accurate, and never actually shipped. |
 
 The generated documents describe the schema declared in this repository. They
 do not prove the current state of a live Attio workspace or PostgreSQL database.
@@ -228,8 +228,8 @@ record pointed at each environment's EC2 Elastic IP.
 ## Continuous deployment
 
 `.github/workflows/deploy-dev.yml` and `deploy-prod.yml` trigger on push to
-`dev` and `prod` respectively (path-filtered to `terraform/**` and
-`workflows/wusool-toolkit/**`). Each builds the toolkit Docker image and
+`dev` and `prod` respectively (path-filtered to `terraform/**`,
+`workflows/wusool-toolkit/**`, and `database/**`). Each builds the toolkit Docker image and
 pushes it to that environment's own ECR repository by immutable digest, then
 `_deploy.yml` decides **per stack** whether it actually needs to redeploy:
 each of `base`/`n8n`/`toolkit`/`postgres` tracks its own last-deployed commit
@@ -256,13 +256,25 @@ own test config) and PSScriptAnalyzer for the PowerShell scripts;
 deploy so a hotfix merged straight to `prod` isn't lost on the next
 promotion.
 
-`database/**` changes are **not** wired into either deploy workflow's path
-filter — the flat SQL migrations there are applied manually via
-`database/setup-postgres.ps1`/`sync-postgres.ps1` (see
-`database/rds-tunnel-runbook.md`), not through this CI/CD pipeline. A
-`database/`-only change triggers `ci.yml`'s PowerShell lint job but no
-deploy of anything. This is deliberate for now — wiring database migrations
-into CD is Phase G (Alembic), explicitly deferred.
+**Phase G (Alembic) has landed** — schema changes now go through
+`database/wusool_db/models/` + `database/alembic/`, not new numbered flat SQL
+files (see `database/README.md` for the full workflow). `database/**` is wired
+into both deploy workflows' path filters above, and `_deploy.yml`'s "Run
+pending database migrations" step applies `alembic upgrade head` for real
+against that environment's actual RDS instance on every `toolkit` redeploy —
+via SSM against the toolkit EC2 instance, since RDS is `publicly_accessible =
+false` and GitHub Actions has no direct network path to it. This runs
+*before* the toolkit app is rolled to its new image, so a failed migration
+blocks the deploy rather than leaving new code running against a schema it
+doesn't have. `ci.yml`'s `alembic-check` job separately catches drift between
+models and migrations on every PR touching `database/**`, against a
+throwaway Postgres, before any of that.
+
+The historical flat SQL files (`database/sql/001` through `007`) are not
+deleted or superseded retroactively — `database/setup-postgres.ps1`/
+`sync-postgres.ps1` (Attio data sync, a separate concern from schema) are
+unaffected, and deleting the flat files is an explicit, separate future
+decision per `ALEMBIC_MIGRATION_HANDOVER.md`, not automatic.
 
 ## n8n SMTP email
 

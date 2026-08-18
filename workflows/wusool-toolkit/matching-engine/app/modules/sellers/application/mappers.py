@@ -1,12 +1,21 @@
 """Converts seller ORM rows into infra-independent domain objects."""
 
+from wusool_db.models import SellerRole
+
 from app.modules.sellers.domain.value_objects import SellerCandidate
-from app.modules.sellers.infrastructure.models import SellerRole
 from app.shared.types import Money
 
 
 def _money(value: dict | None) -> Money | None:
     return Money(**value) if value else None
+
+
+def _float(value) -> float | None:
+    """seller_roles.readiness_score is NUMERIC in Postgres, which SQLAlchemy
+    maps to Decimal — the domain/API layer wants plain float (see
+    SellerCandidate/schemas.py), so convert at this ORM-to-domain boundary
+    rather than changing either side to match the other."""
+    return float(value) if value is not None else None
 
 
 def to_seller_candidate(role: SellerRole) -> SellerCandidate:
@@ -17,7 +26,7 @@ def to_seller_candidate(role: SellerRole) -> SellerCandidate:
         outreach_tier=role.outreach_tier,
         relationship_status=role.relationship_status,
         appetite_signal=role.appetite_signal,
-        readiness_score=role.readiness_score,
+        readiness_score=_float(role.readiness_score),
         est_revenue=_money(role.est_revenue),
         est_ebitda=_money(role.est_ebitda),
         valuation_low=_money(role.valuation_low),
