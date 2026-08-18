@@ -18,7 +18,6 @@ public and shares a process with the Slack bot (`/slack/events`):
    competes with Slack's 3-second ack window.
 """
 
-import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Request, Response
@@ -26,7 +25,7 @@ from pydantic import ValidationError
 
 from ddl_commands.config import get_settings
 from ddl_commands.modules.attio_sync.dispatch import dispatch_event
-from ddl_commands.modules.attio_sync.schemas import AttioWebhookEvent
+from ddl_commands.modules.attio_sync.schemas import AttioWebhookEnvelope, AttioWebhookEvent
 from ddl_commands.shared.attio.client import get_attio_client
 from ddl_commands.shared.attio.signature import verify_attio_signature
 
@@ -41,16 +40,6 @@ async def _process(event: AttioWebhookEvent) -> None:
         _logger.error("attio webhook sync failed for event %r", event, exc_info=True)
 
 
-def _parse_event(raw_body: bytes) -> AttioWebhookEvent:
-    """Attio's own docs and examples only ever show a single event object
-    per delivery, but this defends against the one likely shape mismatch
-    some webhook providers use even for a single event -- a top-level array
-    (`[{...}]`) instead of a bare object. Takes the first element if so."""
-    parsed = json.loads(raw_body)
-    payload = parsed[0] if isinstance(parsed, list) and parsed else parsed
-    return AttioWebhookEvent.model_validate(payload)
-
-
 @router.post("/webhooks/attio")
 async def attio_webhook(request: Request, background_tasks: BackgroundTasks) -> Response:
     raw_body = await request.body()
@@ -59,16 +48,18 @@ async def attio_webhook(request: Request, background_tasks: BackgroundTasks) -> 
         return Response(status_code=401)
 
     try:
-        event = _parse_event(raw_body)
-    except (ValueError, ValidationError):
+        envelope = AttioWebhookEnvelope.model_validate_json(raw_body)
+    except ValidationError:
         # Logged in full -- this route sees at most a handful of requests a
         # minute even in a burst, so volume isn't a concern, and seeing
         # exactly what Attio sent is the only way to fix a schema mismatch
         # once, permanently, instead of guessing and redeploying repeatedly.
+        # This is exactly how the envelope shape itself was confirmed.
         _logger.error(
             "attio webhook payload failed validation: %s", raw_body.decode(errors="replace")
         )
         return Response(status_code=400)
 
-    background_tasks.add_task(_process, event)
+    for event in envelope.events:
+        background_tasks.add_task(_process, event)
     return Response(status_code=200)

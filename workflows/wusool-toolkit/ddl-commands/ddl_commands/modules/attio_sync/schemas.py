@@ -25,9 +25,21 @@ class AttioWebhookEventId(BaseModel):
 
 
 class AttioWebhookEvent(BaseModel):
-    """The full inbound `POST /webhooks/attio` payload. `event_type` is the
+    """One event within a delivery's `events` array. `event_type` is the
     only field guaranteed present across every Attio webhook event category —
     see `dispatch.py` for which ones this sync actually acts on."""
 
     event_type: str
     id: AttioWebhookEventId = Field(default_factory=AttioWebhookEventId)
+
+
+class AttioWebhookEnvelope(BaseModel):
+    """The actual top-level shape of every `POST /webhooks/attio` delivery —
+    confirmed against a real rejected payload logged 2026-08-18, not just
+    Attio's isolated single-event doc examples: `{"webhook_id": ...,
+    "events": [...]}`. `events` is a genuine array; one delivery can carry
+    more than one event, so every event in it needs dispatching, not just
+    the first."""
+
+    webhook_id: str | None = None
+    events: list[AttioWebhookEvent] = Field(default_factory=list)
