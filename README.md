@@ -6,7 +6,7 @@ OpenTofu configuration and application code for the Wusool AWS infrastructure.
 > (`030179310793`, `eu-central-1`), applied automatically by GitHub Actions on
 > merge to the `dev` or `prod` branch respectively. Neither is a template —
 > see [`terraform/README.md`](terraform/README.md) for the stack layout and
-> [`RESTRUCTURE_PROGRESS.md`](RESTRUCTURE_PROGRESS.md) for what has been
+> [`RESTRUCTURE_PROGRESS.md`](docs/RESTRUCTURE_PROGRESS.md) for what has been
 > verified live against AWS.
 
 ## Architecture
@@ -35,17 +35,23 @@ Security Hub.
 `scribe` (meeting transcription) and `crm-sync`/`bedrock-ai` (operator
 PowerShell scripts with no deployable app of their own) are **not** part of
 this per-service dev/prod model yet — see
-[`SCRIBE_INFRA_CONTRACT.md`](SCRIBE_INFRA_CONTRACT.md) for scribe's handover
+[`SCRIBE_INFRA_CONTRACT.md`](docs/SCRIBE_INFRA_CONTRACT.md) for scribe's handover
 plan.
 
 See:
 
+- [Project status / progress index](docs/PROGRESS.md)
 - [Terraform stacks/modules/envs layout](terraform/README.md)
 - [Infrastructure overview](workflows/n8n/docs/infrastructure-overview.md)
 - [Client schema overview](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) — Attio
   and PostgreSQL overview
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
-- [CD restructure progress log](RESTRUCTURE_PROGRESS.md)
+- [CD restructure progress log](docs/RESTRUCTURE_PROGRESS.md)
+- [CD restructure result (current state)](docs/CD_RESTRUCTURE_RESULT.md)
+- [Original CD restructure design plan](docs/Final_restructure_plan.md)
+- [Scribe infra contract](docs/SCRIBE_INFRA_CONTRACT.md)
+- [Scribe prod DB access runbook](docs/infra_access.md)
+- [Slack app setup](docs/SLACK_APP_SETUP.md)
 
 ## Repository structure
 
@@ -67,6 +73,7 @@ wusool-infra/
 |   |   `-- postgres/               # Per-env RDS stack
 |   `-- envs/                   # dev.tfvars / prod.tfvars — committed, non-secret per-env config
 |-- database/                  # SQLAlchemy models + Alembic migrations (schema source of truth), Attio sync, and DB tools
+|-- docs/                      # Handover/contract/runbook docs that aren't tied to one folder's code
 |-- workflows/                 # One folder per workflow: scripts + docs together
 |   |-- n8n/                   # n8n scripts and infrastructure/architecture docs
 |   |-- bedrock-ai/            # AWS Bedrock model access scripts (operator PowerShell, no deploy)
@@ -239,7 +246,7 @@ toolkit-only change no longer touches n8n at all. A `base` change, a
 workflow/composite-action change, or an `envs/*.tfvars` edit forces every
 stack to redeploy regardless, since those can affect (or can't be cheaply
 attributed to) more than one stack. See `terraform/README.md` and
-`CD_RESTRUCTURE_RESULT.md` for the exact path-to-stack mapping.
+`docs/CD_RESTRUCTURE_RESULT.md` for the exact path-to-stack mapping.
 
 A successful `tofu apply` only proves the bootstrap document was
 *registered*, not that the app actually deployed, so neither n8n's nor
@@ -274,7 +281,7 @@ The historical flat SQL files (`database/sql/001` through `007`) are not
 deleted or superseded retroactively — `database/setup-postgres.ps1`/
 `sync-postgres.ps1` (Attio data sync, a separate concern from schema) are
 unaffected, and deleting the flat files is an explicit, separate future
-decision per `ALEMBIC_MIGRATION_HANDOVER.md`, not automatic.
+decision, not automatic — see `database/README.md` for the current Alembic workflow.
 
 ## n8n SMTP email
 
@@ -316,12 +323,12 @@ deliberately switched on — until then, `stacks/toolkit` for prod only
 provisions the ECR repository and secret.
 
 There is deliberately no human approval gate between a `prod` merge and the
-apply — see `RESTRUCTURE_PROGRESS.md` for the accepted-risk reasoning and
+apply — see `docs/RESTRUCTURE_PROGRESS.md` for the accepted-risk reasoning and
 the mitigation in place (`backmerge.yml`).
 
 ## Project status
 
-[PROGRESS.md](PROGRESS.md) is the single, high-level file that tracks what
+[PROGRESS.md](docs/PROGRESS.md) is the single, high-level file that tracks what
 has been done across every workstream (infrastructure, CRM/data-platform
 migration, and any new work). Read it before starting a session instead of
 reconstructing status from git history.
@@ -335,7 +342,7 @@ Use $sync-terraform-docs
 ```
 
 After any other change worth recording — a migration milestone, a new script,
-a new workstream — run the sibling skill to update `PROGRESS.md` and the
+a new workstream — run the sibling skill to update `docs/PROGRESS.md` and the
 non-Terraform README files:
 
 ```text

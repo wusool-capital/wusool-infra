@@ -14,9 +14,12 @@ Bolt, boto3 (AWS Bedrock), `uv`, `pytest`, `ruff`.
 ## Database
 
 The application connects to the existing `wusool_crm` PostgreSQL database
-(see `../../../database/README.md` for schema and sync details). This
-application **never** creates tables, runs migrations, or resets schema —
-that database is owned and evolved outside this codebase.
+(see `../../../database/README.md` for schema, Alembic migrations, and sync
+details). This application **never** creates tables, runs migrations, or
+resets schema itself — the schema is owned by `database/wusool_db/` and
+evolved there via Alembic, wired into CD; this app only imports the models
+from that package (`app.shared.database.registry.import_all_models()` →
+`wusool_db.models`) and reads/writes through them.
 
 **Schema gap:** a `PRD.md` at the repo root describes a richer target schema
 (versioned `buyer_requirement_profiles`/`seller_profiles`, `match_runs`,
@@ -25,8 +28,8 @@ actually implemented in `wusool_crm`. This application maps the real,
 existing tables as they are — `buyer_roles`/`seller_roles` (flat, one row
 per organization, no versioning) and `match_scores` (the only match-related
 table; no run grouping, no evidence table, no approvals table at all). See
-docstrings in `app/shared/database/models/` and each module's
-`infrastructure/models.py` for the specifics, table by table.
+docstrings in `database/wusool_db/models/` for the specifics, table by
+table — this app no longer defines any model of its own.
 
 Schema-drift detection (`app/shared/database/schema_check.py`) runs at test
 time against a live database (`tests/integration/test_schema_drift.py`),
@@ -69,7 +72,7 @@ This app is not deployed standalone — it's one of two folders behind a
 single Slack bot together with `../ddl-commands/` (see `../README.md`). One
 Slack app serves `/find-match` (this folder) plus `/edit-seller`,
 `/edit-buyer`, `/add-seller`, `/add-buyer` (ddl-commands); see
-`../../../SLACK_APP_SETUP.md` at the repo root for the full setup checklist
+`../../../docs/SLACK_APP_SETUP.md` at the repo root for the full setup checklist
 covering all 5 commands under that one app.
 
 ### Configuring AWS/Bedrock permissions

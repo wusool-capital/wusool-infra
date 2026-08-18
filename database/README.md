@@ -46,8 +46,8 @@ before creating.
 
 ## Schema changes now go through Alembic, not new numbered SQL files
 
-As of Phase G of `Final_restructure_plan.md` (see `ALEMBIC_MIGRATION_HANDOVER.md`
-for the full history), this folder is also a Python package (`wusool_db/`,
+As of Phase G of `docs/Final_restructure_plan.md`, this folder is also a
+Python package (`wusool_db/`,
 `pyproject.toml`) holding the SQLAlchemy model for every table above, plus an
 Alembic migration chain (`alembic.ini`, `alembic/`) that is now the source of
 truth for **future** schema changes:
@@ -58,18 +58,50 @@ truth for **future** schema changes:
 | `alembic/env.py` | Reads `DATABASE_URL` from the environment (the same secret the toolkit app itself already reads — never a new credential), imports every model so `--autogenerate` can see the full schema. |
 | `alembic/versions/` | The actual migration files. `d982478fc6e3` → `87320bb9dc8d` → `eec9dde1cfbb` recreate everything `001`-`007` below produce, as the current baseline. |
 
-**To make a schema change:** edit the relevant model(s) in `wusool_db/models/`,
-then from this directory run `uv sync --extra dev && uv run alembic revision
---autogenerate -m "describe the change"`, review the generated file (autogenerate
-gets close but not everything — see the baseline revisions' own docstrings for
-concrete examples of what it missed: extensions, enum types with
-`create_type=False`, role grants, and one foreign-key constraint name), commit
-it, and open a PR.
+### To make a schema change
 
-**What happens automatically after that:**
+1. Edit the relevant model(s) in `wusool_db/models/`. This is the single
+   source of truth — `matching-engine` and `ddl-commands` only ever import
+   models from here, never define their own.
+2. From this directory: `uv sync --extra dev && uv run alembic revision
+   --autogenerate -m "describe the change"`.
+3. **Review the generated migration file before committing.** Autogenerate
+   gets close but not everything — check it did what you expect, in
+   particular:
+   - **New native Postgres enum type?** Only use `create_type=False` on the
+     column if you are hand-writing that type's `CREATE TYPE` in a migration
+     yourself (this is what `meeting_source`/`counterparty_role`/
+     `meeting_type` do, and why — see `d982478fc6e3`'s docstring). For a
+     normal new enum, leave `create_type` at its default (`True`) and let
+     autogenerate emit the `CREATE TYPE` for you. Setting `create_type=False`
+     without a matching hand-written `CREATE TYPE` makes `alembic upgrade
+     head` fail outright against an empty database — `ci.yml`'s
+     `alembic-check` job will catch this on the PR, but the fix is to not
+     copy that pattern unless you need it, not to debug the CI failure after
+     the fact.
+   - **Extensions, role grants, and non-default constraint names** —
+     autogenerate does not manage `CREATE EXTENSION`, `GRANT`, or a
+     hand-chosen constraint name (e.g. `fk_meetings_org`). If your change
+     needs any of these, add the `op.execute(...)` calls yourself; see the
+     baseline revisions (`d982478fc6e3`, `eec9dde1cfbb`, `87320bb9dc8d`) for
+     concrete examples.
+   - **Destructive or locking changes against real data** — adding
+     `NOT NULL` to a populated column, a new unique index where duplicates
+     may already exist, or any change that takes a long lock on a large
+     table (`organizations` has 3000+ rows) will pass `alembic-check` (which
+     only tests against an empty database) and still fail or lock in
+     production. Prefer an expand/contract approach (add nullable → backfill
+     → tighten in a later migration) for anything in this category.
+4. Commit the model change and the migration file together, and open a PR.
+
+### What happens automatically after that
+
 - Any PR touching `database/**` runs `ci.yml`'s `alembic-check` job — applies
   every migration to a fresh throwaway Postgres and runs `alembic check` to
-  catch drift between the models and the migrations, before merge.
+  catch drift between the models and the migrations, before merge. This
+  proves the chain works **from empty** — it does not prove a migration is
+  safe against an environment's real, populated data (see the destructive-
+  change bullet above).
 - Merging to `dev`/`prod` runs `_deploy.yml`'s "Run pending database
   migrations" step, which applies `alembic upgrade head` for real against that
   environment's actual RDS instance — via SSM against the toolkit EC2 instance,
@@ -78,11 +110,29 @@ it, and open a PR.
   the new image, so a failed migration blocks the deploy rather than leaving
   new app code running against a schema it doesn't have yet.
 
-**The flat SQL files below are not deleted or superseded retroactively** — they
-remain the historical record of how the schema reached its current state, and
-`sync-postgres.ps1`/`validate-postgres.ps1` (Attio data sync, a separate concern
-from schema) are unaffected by any of this. Per the handover doc, deleting them
-is an explicit, separate future decision, not automatic.
+### The flat SQL files below are frozen — historical record only
+
+**Do not add new numbered files to `sql/` and do not edit the existing ones.**
+They remain as the historical record of how the schema reached its current
+state, and `sync-postgres.ps1`/`validate-postgres.ps1` (Attio data sync, a
+separate concern from schema) are unaffected by any of this. Per the handover
+doc, deleting them outright is an explicit, separate future decision, not
+automatic — but every *new* schema change from now on goes through Alembic,
+never a new `sql/00N_*.sql` file.
+
+### Onboarding an environment that predates Alembic
+
+`dev` and `prod` both had their tables created by the flat SQL files above
+before this Alembic chain existed — `alembic upgrade head` cannot run
+against either of them from scratch, because the first real migration
+(`87320bb9dc8d`, unguarded `op.create_table(...)`) would try to recreate
+tables that already exist and fail with `DuplicateTable`. Both needed (or, for
+`prod`, will need) a one-time `alembic stamp 87320bb9dc8d` run directly
+against that environment before the normal CD pipeline can apply anything —
+this tells Alembic "table creation already happened" without executing it,
+so the grants revision and the two orphaned-column-drop revisions after it
+still run for real. This is a one-time bootstrapping step per environment,
+not something to repeat for ordinary schema changes.
 
 ## First-time or changed-schema setup
 
