@@ -1,6 +1,11 @@
 import pytest
 
 from ddl_commands.modules.attio_sync import dispatch, registry
+from ddl_commands.modules.attio_sync.schemas import AttioWebhookEvent, AttioWebhookEventId
+
+
+def _event(event_type: str, **id_kwargs) -> AttioWebhookEvent:
+    return AttioWebhookEvent(event_type=event_type, id=AttioWebhookEventId(**id_kwargs))
 
 
 class _FakeClient:
@@ -60,10 +65,7 @@ async def test_record_created_dispatches_to_matching_sync_fn(monkeypatch) -> Non
 
     await dispatch.dispatch_event(
         _FakeClient(),
-        {
-            "event_type": "record.created",
-            "id": {"object_id": "org-object-uuid", "record_id": "org-1"},
-        },
+        _event("record.created", object_id="org-object-uuid", record_id="org-1"),
     )
 
     assert calls == ["org-1"]
@@ -75,10 +77,7 @@ async def test_record_deleted_dispatches_to_delete_fn(monkeypatch) -> None:
 
     await dispatch.dispatch_event(
         _FakeClient(),
-        {
-            "event_type": "record.deleted",
-            "id": {"object_id": "org-object-uuid", "record_id": "org-1"},
-        },
+        _event("record.deleted", object_id="org-object-uuid", record_id="org-1"),
     )
 
     assert calls == ["org-1"]
@@ -90,10 +89,7 @@ async def test_record_deleted_for_table_without_delete_handling_is_a_noop(monkey
 
     await dispatch.dispatch_event(
         _FakeClient(),
-        {
-            "event_type": "record.deleted",
-            "id": {"object_id": "person-object-uuid", "record_id": "person-1"},
-        },
+        _event("record.deleted", object_id="person-object-uuid", record_id="person-1"),
     )
 
     assert calls == []  # sync_fn must not run for a deleted record
@@ -107,10 +103,7 @@ async def test_unknown_object_is_ignored(monkeypatch) -> None:
 
     await dispatch.dispatch_event(
         _FakeClient(),
-        {
-            "event_type": "record.created",
-            "id": {"object_id": "tasks-object-uuid", "record_id": "task-1"},
-        },
+        _event("record.created", object_id="tasks-object-uuid", record_id="task-1"),
     )
 
     assert calls == []
@@ -122,10 +115,7 @@ async def test_list_entry_created_dispatches_to_matching_sync_fn(monkeypatch) ->
 
     await dispatch.dispatch_event(
         _FakeClient(),
-        {
-            "event_type": "list-entry.created",
-            "id": {"list_id": "buyer-role-list-uuid", "entry_id": "entry-1"},
-        },
+        _event("list-entry.created", list_id="buyer-role-list-uuid", entry_id="entry-1"),
     )
 
     assert calls == ["entry-1"]
@@ -138,16 +128,13 @@ async def test_list_entry_deleted_is_a_noop() -> None:
     # Should not raise even though no delete handler is registered for lists.
     await dispatch.dispatch_event(
         _FakeClient(),
-        {
-            "event_type": "list-entry.deleted",
-            "id": {"list_id": "buyer-role-list-uuid", "entry_id": "entry-1"},
-        },
+        _event("list-entry.deleted", list_id="buyer-role-list-uuid", entry_id="entry-1"),
     )
 
 
 async def test_unrecognized_event_type_is_ignored() -> None:
-    await dispatch.dispatch_event(_FakeClient(), {"event_type": "webhook.test", "id": {}})
+    await dispatch.dispatch_event(_FakeClient(), _event("webhook.test"))
 
 
 async def test_missing_ids_are_ignored() -> None:
-    await dispatch.dispatch_event(_FakeClient(), {"event_type": "record.created", "id": {}})
+    await dispatch.dispatch_event(_FakeClient(), _event("record.created"))

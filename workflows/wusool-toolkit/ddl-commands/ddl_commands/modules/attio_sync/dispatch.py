@@ -16,6 +16,7 @@ not an error.
 import logging
 
 from ddl_commands.modules.attio_sync import registry, upsert
+from ddl_commands.modules.attio_sync.schemas import AttioWebhookEvent, AttioWebhookEventId
 from ddl_commands.shared.attio.client import AttioClient
 
 _logger = logging.getLogger("ddl_commands.attio_sync")
@@ -38,9 +39,9 @@ _LIST_SYNC = {
 }
 
 
-async def dispatch_event(client: AttioClient, event: dict) -> None:
-    event_type = event.get("event_type", "")
-    ids = event.get("id") or {}
+async def dispatch_event(client: AttioClient, event: AttioWebhookEvent) -> None:
+    event_type = event.event_type
+    ids = event.id
 
     if event_type.startswith("record."):
         await _dispatch_record_event(client, event_type, ids)
@@ -50,9 +51,11 @@ async def dispatch_event(client: AttioClient, event: dict) -> None:
         _logger.debug("ignoring unhandled event_type %s", event_type)
 
 
-async def _dispatch_record_event(client: AttioClient, event_type: str, ids: dict) -> None:
-    object_id = ids.get("object_id")
-    record_id = ids.get("record_id")
+async def _dispatch_record_event(
+    client: AttioClient, event_type: str, ids: AttioWebhookEventId
+) -> None:
+    object_id = ids.object_id
+    record_id = ids.record_id
     if not object_id or not record_id:
         return
     slug = await registry.object_slug(client, object_id)
@@ -72,9 +75,11 @@ async def _dispatch_record_event(client: AttioClient, event_type: str, ids: dict
         await sync_fn(client, record_id)
 
 
-async def _dispatch_list_entry_event(client: AttioClient, event_type: str, ids: dict) -> None:
-    list_id = ids.get("list_id")
-    entry_id = ids.get("entry_id")
+async def _dispatch_list_entry_event(
+    client: AttioClient, event_type: str, ids: AttioWebhookEventId
+) -> None:
+    list_id = ids.list_id
+    entry_id = ids.entry_id
     if not list_id or not entry_id:
         return
     slug = await registry.list_slug(client, list_id)

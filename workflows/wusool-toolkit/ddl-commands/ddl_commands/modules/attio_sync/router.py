@@ -21,9 +21,11 @@ public and shares a process with the Slack bot (`/slack/events`):
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Request, Response
+from pydantic import ValidationError
 
 from ddl_commands.config import get_settings
 from ddl_commands.modules.attio_sync.dispatch import dispatch_event
+from ddl_commands.modules.attio_sync.schemas import AttioWebhookEvent
 from ddl_commands.shared.attio.client import get_attio_client
 from ddl_commands.shared.attio.signature import verify_attio_signature
 
@@ -31,7 +33,7 @@ router = APIRouter()
 _logger = logging.getLogger("ddl_commands.attio_sync")
 
 
-async def _process(event: dict) -> None:
+async def _process(event: AttioWebhookEvent) -> None:
     try:
         await dispatch_event(get_attio_client(), event)
     except Exception:
@@ -46,8 +48,8 @@ async def attio_webhook(request: Request, background_tasks: BackgroundTasks) -> 
         return Response(status_code=401)
 
     try:
-        event = await request.json()
-    except ValueError:
+        event = AttioWebhookEvent.model_validate_json(raw_body)
+    except ValidationError:
         return Response(status_code=400)
 
     background_tasks.add_task(_process, event)
