@@ -31,6 +31,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
 
+    # Never let tonight's run and tomorrow's cron trigger overlap against the
+    # same tables — a run that's still executing when the next one fires
+    # would otherwise race it (see the poll-cap comment below for how a run
+    # could legitimately still be in progress this long).
+    concurrency:
+      group: nightly-attio-sync
+      cancel-in-progress: false
+
     steps:
       - uses: actions/checkout@v4
 
@@ -73,8 +81,15 @@ jobs:
             --query Command.CommandId --output text)
           echo "command: $CMD"
 
+          # 40 minutes (160 x 15s) -- full_resync.py syncs one record at a
+          # time across 6 entity types, so this needs real headroom, not just
+          # today's data volume: too tight a cap here doesn't stop the SSM
+          # command itself (it keeps running on the instance regardless of
+          # whether anything's still polling it), it just makes this job
+          # falsely report failure while the resync is still genuinely
+          # succeeding in the background.
           STATUS=""
-          for _ in $(seq 1 80); do
+          for _ in $(seq 1 160); do
             STATUS=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
                   --query Status --output text 2>/dev/null || echo Pending)
             case "$STATUS" in

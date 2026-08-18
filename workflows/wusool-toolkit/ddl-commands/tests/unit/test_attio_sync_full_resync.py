@@ -109,6 +109,49 @@ async def test_run_raises_systemexit_when_a_table_has_failures(monkeypatch) -> N
         await full_resync.run()
 
 
+async def test_run_continues_past_a_failed_entity_listing(monkeypatch) -> None:
+    """A failure just listing one entity's records (Attio 500, exhausted
+    retries, malformed page) must not prevent every entity after it in
+    `plan` from being attempted that night — this is the exact failure mode
+    the nightly safety net exists to guard against. Before this fix, an
+    exception here propagated straight out of `run()` uncaught, and this
+    test would fail with RuntimeError instead of the expected SystemExit."""
+    monkeypatch.setattr(full_resync, "import_all_models", lambda: None)
+    monkeypatch.setattr(
+        "ddl_commands.modules.attio_sync.full_resync.AttioClient", lambda api_key: object()
+    )
+
+    async def object_ids(client, slug):
+        if slug == "organizations":
+            raise RuntimeError("Attio 500")
+        return ["person-1"] if slug == "person" else []
+
+    async def list_ids(client, slug):
+        return []
+
+    async def org_dedup(client, slug):
+        return []
+
+    async def no_users(client):
+        return 0
+
+    person_synced = []
+
+    async def sync_person(client, record_id):
+        person_synced.append(record_id)
+
+    monkeypatch.setattr(full_resync, "_object_record_ids", object_ids)
+    monkeypatch.setattr(full_resync, "_list_entry_ids", list_ids)
+    monkeypatch.setattr(full_resync, "_one_entry_id_per_org", org_dedup)
+    monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
+    monkeypatch.setattr(full_resync.upsert, "sync_person", sync_person)
+
+    with pytest.raises(SystemExit):
+        await full_resync.run()
+
+    assert person_synced == ["person-1"]  # ran despite organizations' listing failing first
+
+
 async def test_run_reports_users_sync_failure(monkeypatch) -> None:
     """A users-sync failure alone must still fail the whole run — it's not
     a table that gets silently skipped just because it runs first."""

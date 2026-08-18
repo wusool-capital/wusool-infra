@@ -113,7 +113,16 @@ async def run() -> None:
 
     summary: dict[str, tuple[int, int]] = {"users": (users_synced, users_failed)}
     for slug, ids_coro, sync_fn in plan:
-        ids = await ids_coro
+        try:
+            ids = await ids_coro
+        except Exception:
+            # A failure just listing this entity's records (Attio 500, rate
+            # limit exhausted, malformed page) must not abort the whole run --
+            # every entity after this one in `plan` still needs its chance to
+            # sync tonight. Counted as a full failure for this entity alone.
+            _logger.error("full resync: failed to list %s records", slug, exc_info=True)
+            summary[slug] = (0, 1)
+            continue
         _logger.info("full resync: %s — %d records", slug, len(ids))
         summary[slug] = await _sync_all(client, slug, ids, sync_fn)
 
