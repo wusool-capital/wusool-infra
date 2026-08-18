@@ -5,6 +5,16 @@ This table IS the buyer's requirement profile: there is no separate
 never implemented — see the schema-gap note in the Phase 2 plan). One row
 per organization (`UNIQUE(org_attio_id)`), no version column: this is flat,
 unversioned data, not a version history.
+
+matching-engine and ddl-commands each had their own copy of this class before
+Stage 1 of the Alembic migration (see `ALEMBIC_MIGRATION_HANDOVER.md`);
+they differed only in `key_contact_attio_id` — matching-engine declared it as
+a real `ForeignKey("people.attio_id")` with a `key_contact` relationship
+(matching-engine also maps `people`), ddl-commands declared it as a plain
+column (ddl-commands never mapped `people`, so it couldn't reference it).
+This is matching-engine's version — a real FK object here doesn't change any
+behavior for ddl-commands (it never traverses `key_contact`), and this repo
+maps `people` regardless.
 """
 
 import uuid
@@ -15,11 +25,11 @@ from sqlalchemy import ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.shared.database.base import Base
+from wusool_db.base import Base
 
 if TYPE_CHECKING:
-    from app.shared.database.models.organization import Organization
-    from app.shared.database.models.person import Person
+    from wusool_db.models.organization import Organization
+    from wusool_db.models.person import Person
 
 
 class BuyerRole(Base):

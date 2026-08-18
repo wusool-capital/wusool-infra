@@ -1,20 +1,25 @@
-"""`meetings` — read-only from this app's perspective. Owned and written by
-Scribe (its own standalone Postgres/Alembic chain) and by the one-time Attio
-notes migration; this app only ever SELECTs. DDL lives in
-database/sql/005_meetings.sql, one level above this repo.
+"""`meetings` — read-only from matching-engine's perspective. Owned and
+written by Scribe (its own standalone Postgres/Alembic chain) and by the
+one-time Attio notes migration. DDL lives in `database/sql/005_meetings.sql`.
 """
 
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Integer, Text, text
+from sqlalchemy import ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ENUM, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.shared.database.base import Base
+from wusool_db.base import Base
 
-# Native Postgres enums (005_meetings.sql) — create_type=False since this app
-# never creates the schema, only reads it; values must match the DDL exactly.
+# Native Postgres enums (005_meetings.sql) — create_type=False since no app in
+# this repo creates this schema, only reads it; values must match the DDL
+# exactly. Do not flip this to create_type=True: an `alembic upgrade head`
+# against an empty database needs a hand-written revision to CREATE TYPE
+# before the revision that reaches `meetings` (see
+# ALEMBIC_MIGRATION_HANDOVER.md point 4) — flipping this instead would break
+# integration tests that run `metadata.create_all()` against a database that
+# already has these types.
 _MeetingSource = ENUM(
     "in_house", "granola", "manual", name="meeting_source", create_type=False
 )
@@ -27,6 +32,10 @@ _MeetingType = ENUM(
 
 class Meeting(Base):
     __tablename__ = "meetings"
+    __table_args__ = (
+        Index("ix_meetings_org_id", "org_id"),
+        Index("ix_meetings_occurred_at", "occurred_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[str | None] = mapped_column(Text, ForeignKey("organizations.attio_id"))

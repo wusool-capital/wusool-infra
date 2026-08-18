@@ -16,10 +16,15 @@ dependencies = [
     "boto3>=1.35.0",
     "firecrawl-py>=1.0.0",
     "toolkit-shared",
+    "wusool-db",
 ]
 
 [tool.uv.sources]
 toolkit-shared = { workspace = true }
+# `database/` is a sibling of `workflows/wusool-toolkit/` (this workspace's
+# root), one level up — it cannot be a uv workspace member (see
+# ALEMBIC_MIGRATION_HANDOVER.md point 1), so it's a path dependency instead.
+wusool-db = { path = "../../../database", editable = true }
 
 [dependency-groups]
 dev = [

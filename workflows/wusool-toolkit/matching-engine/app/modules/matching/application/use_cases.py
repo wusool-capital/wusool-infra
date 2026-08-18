@@ -19,6 +19,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
+from wusool_db.models import MatchResult
 
 from app.modules.buyers.domain.value_objects import BuyerContext
 from app.modules.matching.application.reasoning_service import MatchReasoningService
@@ -26,7 +27,6 @@ from app.modules.matching.domain.candidate_retriever import CandidateRetriever
 from app.modules.matching.domain.scoring import ScoringEngine, select_top_n
 from app.modules.matching.domain.value_objects import CandidateScore
 from app.modules.matching.infrastructure.meeting_repository import MeetingRepository
-from app.modules.matching.infrastructure.models import MatchResult
 from app.modules.matching.infrastructure.repositories import (
     MatchResultRepository,
     MatchScoreRepository,

@@ -2,10 +2,11 @@
 
 import json
 
+from wusool_db.models import Organization
+
 from ddl_commands.modules.buyers.field_spec import BUYER_ROLE_FIELDS
 from ddl_commands.modules.slack.views.dynamic_fields import render_field_block
 from ddl_commands.modules.slack.views.form_values import text_input_block
-from ddl_commands.shared.database.models.organization import Organization
 from ddl_commands.shared.organization_field_spec import ORGANIZATION_FIELDS
 
 

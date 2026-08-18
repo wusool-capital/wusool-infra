@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from wusool_db.models import Organization, SellerRole
 
 from ddl_commands.modules.sellers.application.use_cases import (
     CreateSellerUseCase,
@@ -9,8 +10,6 @@ from ddl_commands.modules.sellers.application.use_cases import (
     SellerNotFoundError,
     UpdateSellerUseCase,
 )
-from ddl_commands.modules.sellers.infrastructure.models import SellerRole
-from ddl_commands.shared.database.models import Organization
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
 
 

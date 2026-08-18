@@ -3,18 +3,22 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Text, text
+from sqlalchemy import ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.shared.database.base import Base
+from wusool_db.base import Base
 
 if TYPE_CHECKING:
-    from app.shared.database.models.organization import Organization
+    from wusool_db.models.organization import Organization
 
 
 class Person(Base):
     __tablename__ = "people"
+    __table_args__ = (
+        Index("idx_people_company", "company_attio_id"),
+        Index("idx_people_email", "email", postgresql_using="gin"),
+    )
 
     attio_id: Mapped[str] = mapped_column(Text, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -24,7 +28,9 @@ class Person(Base):
     linkedin: Mapped[str | None] = mapped_column(Text)
     relationship_status: Mapped[str | None] = mapped_column(Text)
     connection_strength: Mapped[str | None] = mapped_column(Text)
-    owner_attio_id: Mapped[str | None] = mapped_column(Text)
+    owner_attio_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("users.attio_id", name="people_owner_attio_id_fkey")
+    )
     past_employers: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     education: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     enrichment: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")

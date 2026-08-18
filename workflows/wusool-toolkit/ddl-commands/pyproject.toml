@@ -14,10 +14,15 @@ dependencies = [
     "slack-bolt>=1.21.0",
     "aiohttp>=3.10.0",
     "toolkit-shared",
+    "wusool-db",
 ]
 
 [tool.uv.sources]
 toolkit-shared = { workspace = true }
+# `database/` is a sibling of `workflows/wusool-toolkit/` (this workspace's
+# root), one level up — it cannot be a uv workspace member (see
+# ALEMBIC_MIGRATION_HANDOVER.md point 1), so it's a path dependency instead.
+wusool-db = { path = "../../../database", editable = true }
 
 [dependency-groups]
 dev = [

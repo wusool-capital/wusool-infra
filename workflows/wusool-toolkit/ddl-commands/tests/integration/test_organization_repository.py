@@ -1,8 +1,8 @@
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from wusool_db.models import Organization
 
-from ddl_commands.shared.database.models import Organization
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
 
 
