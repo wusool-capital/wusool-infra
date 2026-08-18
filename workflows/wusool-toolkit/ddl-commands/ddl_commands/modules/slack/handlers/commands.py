@@ -6,6 +6,7 @@ then open the next modal in the flow. Mirrors matching-engine's
 """
 
 import logging
+import time
 
 from slack_bolt.async_app import AsyncApp
 
@@ -25,27 +26,76 @@ logger = logging.getLogger(__name__)
 
 _idempotency_store = InMemoryIdempotencyStore()
 
+# Slack invalidates a command's `trigger_id` 3s after it's issued. Anything
+# slower than this and `views_open` is already doomed — worth a WARNING.
+_TRIGGER_ID_BUDGET_MS = 2500
+
+
+async def _run(action: str, command: dict, client, coro) -> None:  # noqa: ANN001
+    """Everything after `ack()` runs detached from the HTTP response (Bolt is
+    built with `process_before_response=False`), so nothing that happens here
+    can reach Slack on its own. Two distinct failure modes get lost without
+    this wrapper:
+
+    - a raised exception reaches `@bolt_app.error` but never the operator, who
+      only sees Slack's own generic message;
+    - overrunning Slack's 3-second `trigger_id` window raises nothing at all —
+      `views_open` just fails, and the command dies silently.
+
+    So: time every invocation, log the elapsed ms either way, and tell the
+    user when their command actually failed.
+    """
+    started = time.monotonic()
+    try:
+        await coro
+    except Exception:
+        logger.exception("%s_failed", action)
+        try:
+            await client.chat_postEphemeral(
+                channel=command["channel_id"],
+                user=command["user_id"],
+                text=f"`/{action.replace('_', '-')}` failed. The error has been logged.",
+            )
+        except Exception:
+            logger.exception("%s_error_notice_failed", action)
+    finally:
+        elapsed_ms = (time.monotonic() - started) * 1000
+        log = logger.warning if elapsed_ms > _TRIGGER_ID_BUDGET_MS else logger.info
+        log("%s_finished elapsed_ms=%.0f", action, elapsed_ms)
+
 
 def register(app: AsyncApp) -> None:
     @app.command("/edit-seller")
     async def handle_edit_seller(ack, command, client):  # noqa: ANN001
         await ack()
-        await _handle_seller_command(command, client, action="edit_seller")
+        await _run(
+            "edit_seller",
+            command,
+            client,
+            _handle_seller_command(command, client, action="edit_seller"),
+        )
 
     @app.command("/edit-buyer")
     async def handle_edit_buyer(ack, command, client):  # noqa: ANN001
         await ack()
-        await _handle_buyer_command(command, client, action="edit_buyer")
+        await _run(
+            "edit_buyer",
+            command,
+            client,
+            _handle_buyer_command(command, client, action="edit_buyer"),
+        )
 
     @app.command("/add-seller")
     async def handle_add_seller(ack, command, client):  # noqa: ANN001
         await ack()
-        await _handle_add_command(command, client, kind="seller")
+        await _run(
+            "add_seller", command, client, _handle_add_command(command, client, kind="seller")
+        )
 
     @app.command("/add-buyer")
     async def handle_add_buyer(ack, command, client):  # noqa: ANN001
         await ack()
-        await _handle_add_command(command, client, kind="buyer")
+        await _run("add_buyer", command, client, _handle_add_command(command, client, kind="buyer"))
 
 
 async def _handle_seller_command(command: dict, client, *, action: str) -> None:  # noqa: ANN001
