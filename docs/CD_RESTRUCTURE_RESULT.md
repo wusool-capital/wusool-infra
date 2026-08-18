@@ -62,7 +62,7 @@ tfvars against them).
 whose value legitimately differs from another stack's same-named variable
 must get a distinct name in `envs/*.tfvars` — hit and fixed twice during this
 migration (`instance_type` → `toolkit_instance_type`, `ami_id` →
-`toolkit_ami_id`). See [`terraform/README.md`](terraform/README.md).
+`toolkit_ami_id`). See [`terraform/README.md`](../terraform/README.md).
 
 ## CI/CD — what runs on every push and PR
 

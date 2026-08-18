@@ -7,7 +7,7 @@ in its own document (linked below) — this file stays a short, high-level
 index and is kept current by the `sync-project-docs` skill (or manually,
 see [Keeping this file current](#keeping-this-file-current)).
 
-Last updated: 2026-08-11
+Last updated: 2026-08-18
 
 ## Workstreams
 
@@ -34,9 +34,48 @@ applied via GitHub Actions on merge to `dev`/`prod`, authenticated by OIDC
 (no static AWS keys). n8n is pinned to `n8n.wusoolcapital.com` in both
 Terraform and DNS (the dual-domain/Terraform-orphaned prod gap this section
 used to describe is resolved). See
-[workflows/n8n/docs/infrastructure-overview.md](workflows/n8n/docs/infrastructure-overview.md)
+[workflows/n8n/docs/infrastructure-overview.md](../workflows/n8n/docs/infrastructure-overview.md)
 for n8n-specific operational detail (SMTP, the stdlib task-runner config fix,
 etc.) — that document was not part of the restructure and remains current.
+
+**Since the restructure landed, toolkit-specific hardening merged on top of
+it (PRs #29, #31–#33, #37–#39):** the prod `wusool-toolkit` EC2 instance was
+switched on for real (`create_instance = true`), the SSM
+bootstrap/docker-compose-recreate cycle gained retries for a couple of
+transient races, the `gha_apply` role picked up a missing
+`iam:TagInstanceProfile` permission it needed, app logs now ship to
+CloudWatch tagged by module, and the shared Docker build picked up a fix for
+copying the `shared/` workspace member correctly. All routine, all merged
+through `dev` → `prod` the normal way — no open follow-up from any of these.
+
+### 6. Database schema management (SQLAlchemy + Alembic) — Phase G landed; dev fully migrated, prod bootstrapping in progress
+
+- **Done (2026-08-18, PR #45):** every table's SQLAlchemy model relocated
+  into `database/wusool_db/models/` as the single source of truth —
+  `matching-engine` and `ddl-commands` no longer define any model of their
+  own, both just import from here. An Alembic migration chain
+  (`database/alembic/`) now owns schema changes going forward; `ci.yml`'s
+  `alembic-check` job validates every PR's migrations against a fresh
+  throwaway Postgres, and `_deploy.yml` applies `alembic upgrade head` for
+  real via SSM against each environment's RDS before the app rolls to new
+  code. See `database/README.md` for the full day-to-day workflow.
+- **Dev verified live (2026-08-18):** `alembic_version` = `6b0642671e13`
+  (head), all 23 tables present and matching the models exactly, the two
+  orphaned `removed_at`/`bot_managed_at`/`bot_managed_by` columns (dead
+  leftovers from reverted PR #23) confirmed dropped from both
+  `buyer_roles`/`seller_roles`, row counts unchanged (279/210/3137)
+  confirming zero data loss.
+- **Prod (2026-08-18):** `stacks/postgres` for prod predates Alembic — its
+  23 tables were already there from the old flat-SQL setup, with no
+  `alembic_version` bookkeeping and the same orphaned columns still present.
+  Stamped `alembic_version` at `87320bb9dc8d` directly (bookkeeping only, no
+  schema change) so the pending grants + orphan-column-drop migrations can
+  still apply for real on the next deploy instead of the chain failing
+  outright on `DuplicateTable`. PR #46 ("Dev -> prod promotion") is open to
+  actually ship this to prod — not yet merged as of this update.
+- **Not yet done:** confirm prod ends at head with the orphan columns
+  dropped after PR #46 merges and the CD migration step runs for real (see
+  `database/README.md`'s "Onboarding an environment that predates Alembic").
 
 ### 2. CRM / data-platform migration (Attio + PostgreSQL) — core objects migrated and re-synced, tail work remains
 
@@ -53,7 +92,7 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   person -> buyer_role -> seller_role -> deals -> mandates`), fails fast on
   the first error, supports running a subset by name, and parallel workers
   where the underlying scripts support it. See
-  [workflows/crm-sync/scripts/README.md](workflows/crm-sync/scripts/README.md).
+  [workflows/crm-sync/scripts/README.md](../workflows/crm-sync/scripts/README.md).
 - Ran a full re-sync via `sync-all.ps1` (2026-08-09) after several Attio
   decisions/fixes landed the same day: the `exclusivity_date` split-field
   rename, Buyer Role `deal_structure_tolerance` converted to a single-select
@@ -73,8 +112,8 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   with a full DEV extraction mirrored in; record counts there predate this
   latest Attio re-sync and need refreshing (see "Not started" below).
 - Attio/PostgreSQL and CRM migration scripts consolidated (see
-  [CRM_MIGRATION_GUIDE.md](workflows/crm-sync/docs/CRM_MIGRATION_GUIDE.md) and
-  [CLIENT_SCHEMA_OVERVIEW.md](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md)).
+  [CRM_MIGRATION_GUIDE.md](../workflows/crm-sync/docs/CRM_MIGRATION_GUIDE.md) and
+  [CLIENT_SCHEMA_OVERVIEW.md](../workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md)).
 
 **Not started:**
 - Investor/lender scope
@@ -221,13 +260,13 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   developer to find the actual redirect cause. Deferred setting up an
   equivalent pipeline for prod until dev's is confirmed working.
 
-### 5. Scribe integration (meetings table + access) — done: role, grants, FK, and networking live
+### 5. Scribe integration (meetings table + access) — dev networking/role/grants done; prod peering live, real prod credential still pending
 
 - **Done (2026-08-11):** added `database/sql/005_meetings.sql` — canonical
   DDL for the `meetings` table (buyer/seller meeting summaries), owned by
   Wusool but written only by the standalone scribe service (separate
   EC2/Postgres, no shared Alembic chain). See
-  [CLIENT_SCHEMA_OVERVIEW.md](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md#meetings)
+  [CLIENT_SCHEMA_OVERVIEW.md](../workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md#meetings)
   for the column reference.
 - Created the least-privilege `scribe_pub` role on `wusool_crm` and granted
   `CONNECT` on the database, `USAGE` on `public`, `SELECT, INSERT, UPDATE` on
@@ -253,7 +292,19 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   schema file uses — re-running `setup-postgres.ps1` after this one has
   applied once will fail. Fine for the one-time apply already done; needs a
   guard before any future full schema re-run. See
-  [database/README.md](database/README.md#sql-schema-files).
+  [database/README.md](../database/README.md#sql-schema-files).
+- **Prod networking done (2026-08-17, PR #43):** dev/prod VPCs peered
+  specifically so scribe (running in the dev VPC) can reach
+  `wusool-prod-postgres` — see `docs/CD_RESTRUCTURE_RESULT.md`/git history
+  for the Terraform detail.
+- **Not yet done, prod-specific:** `docs/infra_access.md` documents the
+  remaining manual step — creating the *real* `scribe_pub` LOGIN role with a
+  real generated password on prod (the Alembic chain only ever creates a
+  harmless `NOLOGIN` placeholder if the real role doesn't already exist,
+  deliberately never a real credential — see that migration's own docstring)
+  and handing the resulting DSN to scribe as `WUSOOL_DATABASE_URL_PROD`.
+  Until that's done, scribe cannot publish prod meetings even though the
+  network path and the table-level grants both exist.
 
 ## Keeping this file current
 

@@ -1370,8 +1370,9 @@ Per the decision to model all ~22 tables.
    `alembic upgrade head`, keeping its `current_database() == 'wusool_crm'` guard.
 
 **Note:** prod's database now exists (`stacks/postgres` for prod, Phase F step 5,
-applied 2026-08-17) — this prerequisite for prod migrations is satisfied. Phase
-G's Alembic execution itself has not run yet; see `ALEMBIC_MIGRATION_HANDOVER.md`.
+applied 2026-08-17) — this prerequisite for prod migrations is satisfied.
+**Phase G has since landed** (PR #45) — see `database/README.md` for the
+current Alembic workflow.
 
 ---
 
