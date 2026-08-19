@@ -8,17 +8,20 @@ it yet; add it later against the same pattern once something reads it.
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from decimal import Decimal
+
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     Index,
     Integer,
     Interval,
+    Numeric,
     Text,
     literal_column,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from wusool_db.base import Base
@@ -66,6 +69,18 @@ class Deal(Base):
     next_task: Mapped[str | None] = mapped_column(Text)
     data_room_substatus: Mapped[str | None] = mapped_column(Text)
     comparables: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # Added 2026-08-19 alongside the DEV Attio attributes of the same names
+    # (Wusool Schema Handover artifact). `estimated_deal_value_aed` and `fee`
+    # are real DEV Attio type "number" (plain scalar), not "currency" — no
+    # money-shape wrapping, unlike `value` above. `assigned_advisor` is a
+    # plain multiselect of advisor names, not a workspace-member/User FK.
+    nda_status: Mapped[str | None] = mapped_column(Text)
+    estimated_deal_value_aed: Mapped[Decimal | None] = mapped_column(Numeric)
+    expected_close_date: Mapped[date | None] = mapped_column()
+    fee: Mapped[Decimal | None] = mapped_column(Numeric)
+    assigned_advisor: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{}"
+    )
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
