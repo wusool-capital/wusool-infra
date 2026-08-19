@@ -33,7 +33,7 @@ class BuyerRoleRead(BaseModel):
     check_size_max: Money | None = None
     ev_ceiling: Money | None = None
     deal_structure_tolerance: str | None = None
-    earnout_tolerance: str | None = None
+    earnout_tolerance: bool | None = None
     profitable_only: bool | None = None
     investment_strategy: str | None = None
     notes: str | None = None
