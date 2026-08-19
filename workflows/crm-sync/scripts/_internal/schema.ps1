@@ -1078,7 +1078,6 @@ $fields = @(
   [pscustomobject]@{ Title="Sell Timeline"; Slug="sell_timeline"; Type="select"; SourceOptions=@(); TargetOptions=@("Immediate","Within 6 Months","6-12 Months","12-24 Months","Not Selling"); Config=@{} },
   [pscustomobject]@{ Title="Readiness Score"; Slug="readiness_score"; Type="number"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Readiness Band"; Slug="readiness_band"; Type="select"; SourceOptions=@(); Config=@{} },
-  [pscustomobject]@{ Title="Intake Source"; Slug="intake_source"; Type="select"; SourceOptions=@(); TargetOptions=@("Inbound Lead Magnet","Outbound","Referral Partner","Direct","Reengagement"); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Date"; Slug="last_attempt_date"; Type="date"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Channel"; Slug="last_attempt_channel"; Type="select"; SourceOptions=@("attempt_1_channel","attempt_2_channel","attempt_2_channel_6"); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Outcome"; Slug="last_attempt_outcome"; Type="select"; SourceOptions=@("attempt_1_outcome","attempt_2_outcome","attempt_2_outcome_6"); Config=@{} },

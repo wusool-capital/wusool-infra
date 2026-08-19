@@ -50,6 +50,15 @@ $devHeaders = @{
   "Content-Type" = "application/json"
 }
 
+$decisions = Get-Content (Join-Path $PSScriptRoot "..\config\migration-decisions.json") -Raw | ConvertFrom-Json
+$ownerCrosswalkByName = @{}
+foreach ($entry in @($decisions.workspace_member_crosswalk.mapping)) {
+  $firstName = ([string]$entry.source_name).Split(" ")[0].Trim().ToLowerInvariant()
+  if (-not [string]::IsNullOrWhiteSpace($firstName)) {
+    $ownerCrosswalkByName[$firstName] = [string]$entry.dev_workspace_member_id
+  }
+}
+
 function Invoke-AttioRequest {
   param(
     [ValidateSet("Get", "Post", "Patch", "Put")]
@@ -143,11 +152,13 @@ function Get-ScalarValue {
   if ($null -ne $Item.value) { return $Item.value }
   if ($Item.full_name) { return [string]$Item.full_name }
   if ($Item.email_address) { return [string]$Item.email_address }
+  if ($Item.phone_number) { return [string]$Item.phone_number }
   if ($Item.option.title) { return [string]$Item.option.title }
   if ($Item.status.title) { return [string]$Item.status.title }
   if ($Item.domain) { return [string]$Item.domain }
   if ($Item.title) { return [string]$Item.title }
   if ($Item.country) { return [string]$Item.country }
+  if ($null -ne $Item.currency_value) { return [decimal]$Item.currency_value }
   return $null
 }
 
@@ -282,11 +293,14 @@ function Convert-TargetValue {
   }
 
   $attribute = $TargetAttributes[$TargetSlug]
-  if ($TargetSlug -eq "domains" -or $TargetSlug -eq "email") {
-    # Attio custom objects do not support domain attributes or multiselect text.
-    # Store a readable delimited value; domain names cannot contain commas.
-    $domainArray = @($Values | ForEach-Object { [string]$_ })
-    return [string]($domainArray -join ", ")
+  if ($TargetSlug -eq "domains" -or $TargetSlug -eq "email" -or $TargetSlug -eq "phone") {
+    # Attio custom objects do not support domain/email/phone attributes or
+    # multiselect text. Store a readable delimited value.
+    $joinArray = @($Values | ForEach-Object { [string]$_ })
+    return [string]($joinArray -join ", ")
+  }
+  if ($attribute.type -eq "currency") {
+    return @{ currency_value = [decimal]$Values[0] }
   }
   if ($TargetSlug -eq "hq_country") {
     $location = $Values[0]
@@ -356,7 +370,16 @@ $fieldMappings = if ($isPerson) {
     [pscustomobject]@{ Source = "linkedin"; Target = "linkedin" },
     [pscustomobject]@{ Source = "relationship_status"; Target = "relationship_status" },
     [pscustomobject]@{ Source = "strongest_connection_strength"; Target = "connection_strength" },
-    [pscustomobject]@{ Source = "last_interaction"; Target = "last_interaction_at" }
+    [pscustomobject]@{ Source = "last_interaction"; Target = "last_interaction_at" },
+    [pscustomobject]@{ Source = "job_title"; Target = "job_title" },
+    [pscustomobject]@{ Source = "contact_type"; Target = "contact_type" },
+    [pscustomobject]@{ Source = "phone_numbers"; Target = "phone" },
+    [pscustomobject]@{ Source = "avatar_url"; Target = "avatar_url" },
+    [pscustomobject]@{ Source = "angellist"; Target = "angellist" },
+    [pscustomobject]@{ Source = "facebook"; Target = "facebook" },
+    [pscustomobject]@{ Source = "instagram"; Target = "instagram" },
+    [pscustomobject]@{ Source = "twitter"; Target = "twitter" },
+    [pscustomobject]@{ Source = "twitter_follower_count"; Target = "twitter_follower_count" }
   )
 } else {
   @(
@@ -373,7 +396,19 @@ $fieldMappings = if ($isPerson) {
     [pscustomobject]@{ Source = "categories"; Target = "categories" },
     [pscustomobject]@{ Source = "relationship_status"; Target = "relationship_status" },
     [pscustomobject]@{ Source = "strongest_connection_strength"; Target = "connection_strength" },
-    [pscustomobject]@{ Source = "last_interaction"; Target = "last_interaction_at" }
+    [pscustomobject]@{ Source = "last_interaction"; Target = "last_interaction_at" },
+    [pscustomobject]@{ Source = "relationship_owner"; Target = "owner" },
+    [pscustomobject]@{ Source = "funding_raised_usd"; Target = "funding_raised" },
+    [pscustomobject]@{ Source = "estimated_arr_usd"; Target = "estimated_arr" },
+    [pscustomobject]@{ Source = "angellist"; Target = "angellist" },
+    [pscustomobject]@{ Source = "facebook"; Target = "facebook" },
+    [pscustomobject]@{ Source = "instagram"; Target = "instagram" },
+    [pscustomobject]@{ Source = "twitter"; Target = "twitter" },
+    [pscustomobject]@{ Source = "twitter_follower_count"; Target = "twitter_follower_count" },
+    [pscustomobject]@{ Source = "foundation_date"; Target = "foundation_date" },
+    [pscustomobject]@{ Source = "ticket_size"; Target = "ticket_size" },
+    [pscustomobject]@{ Source = "employee_range"; Target = "employee_range" },
+    [pscustomobject]@{ Source = "linkedin"; Target = "linkedin" }
   )
 }
 
@@ -416,7 +451,6 @@ if ($isPerson) {
   Write-Host "Indexing DEV Organizations for Person company references."
   $devOrganizationsByLegacyId = Get-ExistingByLegacyId -ObjectSlug "organizations"
 }
-
 $sourceRecords = @()
 $offset = $StartOffset
 while ($Limit -eq 0 -or $sourceRecords.Count -lt $Limit) {
@@ -448,6 +482,14 @@ foreach ($record in $sourceRecords) {
   $stats.inspected++
   $sourceId = Get-RecordId -Record $record
   $payload = @{ legacy_attio_id = $sourceId }
+  if (-not $isPerson) {
+    # Every migrated Organization is historic-by-definition for this
+    # migration, regardless of whether SOURCE had a real lead_source tool
+    # name (Valuation Tool, M&A Readiness Tool, Buyer Form) or nothing at
+    # all -- "Outbound" is reserved for organizations created going forward
+    # via manual outreach, never written by this migration.
+    $payload.lead_source = "Inbound"
+  }
   $recordErrors = @()
   $recordWarnings = @()
 
@@ -472,6 +514,25 @@ foreach ($record in $sourceRecords) {
         }
       } catch {
         $recordErrors += $_.Exception.Message
+      }
+      continue
+    }
+
+    if ($mapping.Target -eq "owner") {
+      $ownerNames = @(Get-SourceValues -Values $record.values -Slug $mapping.Source)
+      if ($ownerNames.Count -gt 1) {
+        $recordWarnings += "owner: SOURCE relationship_owner has multiple values ($($ownerNames -join ', ')); using the first."
+      }
+      if ($ownerNames.Count -gt 0) {
+        $ownerKey = ([string]$ownerNames[0]).Trim().ToLowerInvariant()
+        if ($ownerCrosswalkByName.ContainsKey($ownerKey)) {
+          $payload.owner = @{
+            referenced_actor_type = "workspace-member"
+            referenced_actor_id = $ownerCrosswalkByName[$ownerKey]
+          }
+        } else {
+          $recordWarnings += "owner: no DEV workspace-member mapped for SOURCE relationship_owner '$($ownerNames[0])'."
+        }
       }
       continue
     }
@@ -892,6 +953,9 @@ function Value($vs,$slug){
   if($null-ne$x.currency_value){return $x.currency_value}
   return $null
 }
+function Values($vs,$slug){
+  return @(@($vs.$slug)|Where-Object{$null-eq$_.active_until}|ForEach-Object{if($_.option.title){[string]$_.option.title}}|Where-Object{-not[string]::IsNullOrWhiteSpace($_)})
+}
 function CheckboxValue($vs,$slug){
   $x=ActiveValue $vs $slug
   if($null-eq$x-or$null-eq$x.value){return $null}
@@ -929,6 +993,10 @@ $statusMap=@{}
 foreach($x in @((Request Get $dh "/objects/deals/attributes/stage/statuses" $null).data|Where-Object{-not$_.is_archived})){$statusMap[[string]$x.title]=[string]$x.id.status_id}
 $teaserMap=@{}
 foreach($x in @((Request Get $dh "/objects/deals/attributes/teaser_status/options" $null).data|Where-Object{-not$_.is_archived})){$teaserMap[[string]$x.title]=[string]$x.id.option_id}
+$ndaStatusMap=@{}
+foreach($x in @((Request Get $dh "/objects/deals/attributes/nda_status/options" $null).data|Where-Object{-not$_.is_archived})){$ndaStatusMap[[string]$x.title]=[string]$x.id.option_id}
+$advisorMap=@{}
+foreach($x in @((Request Get $dh "/objects/deals/attributes/assigned_advisor/options" $null).data|Where-Object{-not$_.is_archived})){$advisorMap[[string]$x.title]=[string]$x.id.option_id}
 $plans=[Collections.Generic.List[object]]::new()
 foreach($s in $source){
   $sid=Id $s
@@ -964,6 +1032,12 @@ foreach($s in $source){
   }
   $exclusivityStart=Value $s.values "exclusivity_start_date";if($exclusivityStart){$values.contract_signed_date=[string]$exclusivityStart}
   $exclusivityEnd=Value $s.values "exclusivity_end_date";if($exclusivityEnd){$values.exclusivity_date=[string]$exclusivityEnd}
+  $ndaStatus=Value $s.values "nda_status";if($ndaStatus){$values.nda_status=[string]$ndaStatus}
+  $estDealValue=Value $s.values "estimated_deal_value_aed";if($null-ne$estDealValue){$values.estimated_deal_value_aed=$estDealValue}
+  $expectedClose=Value $s.values "expected_close_date";if($expectedClose){$values.expected_close_date=[string]$expectedClose}
+  $fee=Value $s.values "fee";if($null-ne$fee){$values.fee=$fee}
+  $advisorNames=@(Values $s.values "assigned_advisor")
+  if($advisorNames.Count-gt0){$values.assigned_advisor=@($advisorNames)}
   $sourceSellerId=ReferenceId $s.values "associated_company"
   $sellerResolution="missing_source_associated_company"
   if($sourceSellerId-and$organizationByLegacy.ContainsKey($sourceSellerId)){
@@ -982,9 +1056,13 @@ foreach($s in $source){
     values=$values
   })
 }
-$unresolvedSellers=@($plans|Where-Object seller_resolution -ne "resolved")
+$unresolvedSellers=@($plans|Where-Object seller_resolution -eq "missing_dev_organization")
 if($unresolvedSellers.Count-gt0){
   throw "Cannot migrate Deals: $($unresolvedSellers.Count) seller relationship(s) did not resolve uniquely to DEV Organizations."
+}
+$blankSellerDeals=@($plans|Where-Object seller_resolution -eq "missing_source_associated_company")
+foreach($blankPlan in $blankSellerDeals){
+  Write-Warning "Deal $($blankPlan.source_id) has no SOURCE seller company linked; migrating with seller_id left blank (matches SOURCE)."
 }
 $populatedDevBuyers=@($dev|Where-Object{(Value $_.values "legacy_attio_id")-and@($_.values.buyer_id|Where-Object{$null-eq$_.active_until}).Count-gt0})
 if($populatedDevBuyers.Count-gt0){
@@ -1013,6 +1091,15 @@ if($Apply){
     $payload=@{};foreach($k in $plan.values.Keys){$payload[$k]=$plan.values[$k]}
     if($payload.ContainsKey("stage")){$title=[string]$payload.stage;if(-not$statusMap.ContainsKey($title)){throw "Missing DEV Deal stage '$title'."};$payload.stage=$statusMap[$title]}
     if($payload.ContainsKey("teaser_status")){$title=[string]$payload.teaser_status;if(-not$teaserMap.ContainsKey($title)){throw "Missing DEV teaser_status option '$title'."};$payload.teaser_status=$teaserMap[$title]}
+    if($payload.ContainsKey("nda_status")){$title=[string]$payload.nda_status;if(-not$ndaStatusMap.ContainsKey($title)){throw "Missing DEV nda_status option '$title'."};$payload.nda_status=$ndaStatusMap[$title]}
+    if($payload.ContainsKey("assigned_advisor")){
+      $ids=[Collections.Generic.List[string]]::new()
+      foreach($advisorTitle in @($payload.assigned_advisor)){
+        if(-not$advisorMap.ContainsKey([string]$advisorTitle)){throw "Missing DEV assigned_advisor option '$advisorTitle'."}
+        $ids.Add($advisorMap[[string]$advisorTitle])
+      }
+      $payload.assigned_advisor=@($ids)
+    }
     if($plan.action-eq"create"){$payload.owner=@{referenced_actor_type="workspace-member";referenced_actor_id=$DevOwnerWorkspaceMemberId}}
     try{
       if($plan.action-eq"update"){Request Put $dh "/objects/deals/records/$($plan.dev_record_id)" @{data=@{values=$payload}}|Out-Null;$updated++}

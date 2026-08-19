@@ -58,6 +58,13 @@ class SellerRole(Base):
     last_attempt_outcome: Mapped[str | None] = mapped_column(Text)
     lead_quality_score: Mapped[Decimal | None] = mapped_column(Numeric)
     re_engage_date: Mapped[date | None] = mapped_column()
+    # Mirrors DEV Attio's Seller Database is_active/legacy_entry_id (added
+    # 2026-08-19 when duplicate SOURCE submissions were split into separate
+    # DEV entries instead of being blended) — only ever the active entry
+    # lands here since sync-postgres.ps1 filters on is_active before writing,
+    # but legacy_entry_id still records which exact DEV entry this row came from.
+    is_active: Mapped[bool | None] = mapped_column()
+    legacy_entry_id: Mapped[str | None] = mapped_column(Text)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
