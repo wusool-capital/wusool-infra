@@ -89,6 +89,11 @@ class Organization(Base):
     foundation_date: Mapped[date | None] = mapped_column()
     ticket_size: Mapped[str | None] = mapped_column(Text)
     lead_source: Mapped[str | None] = mapped_column(Text)
+    # Added 2026-08-19: SOURCE's own bands adopted as-is (1-10, 11-50, 51-250,
+    # 251-1K, 1K-5K, 5K-10K, 10K-50K, 50K-100K, 100K+) — the earlier requested
+    # target bands were dropped in favor of not needing a reconciliation table.
+    employee_range: Mapped[str | None] = mapped_column(Text)
+    linkedin: Mapped[str | None] = mapped_column(Text)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

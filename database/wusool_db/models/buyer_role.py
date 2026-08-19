@@ -50,7 +50,7 @@ class BuyerRole(Base):
     check_size_max: Mapped[dict | None] = mapped_column(JSONB)
     ev_ceiling: Mapped[dict | None] = mapped_column(JSONB)
     deal_structure_tolerance: Mapped[str | None] = mapped_column(Text)
-    earnout_tolerance: Mapped[str | None] = mapped_column(Text)
+    earnout_tolerance: Mapped[bool | None] = mapped_column()
     profitable_only: Mapped[bool | None] = mapped_column()
     investment_strategy: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
