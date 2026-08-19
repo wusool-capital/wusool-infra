@@ -19,7 +19,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Numeric, Text, text
+from sqlalchemy import ForeignKey, Numeric, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 
 class SellerRole(Base):
     __tablename__ = "seller_roles"
-    __table_args__ = (Index("idx_seller_roles_intake_source", "intake_source"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")
@@ -53,7 +52,6 @@ class SellerRole(Base):
     sell_timeline: Mapped[str | None] = mapped_column(Text)
     readiness_score: Mapped[Decimal | None] = mapped_column(Numeric)
     readiness_band: Mapped[str | None] = mapped_column(Text)
-    intake_source: Mapped[str | None] = mapped_column(Text)
     mandate_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("mandates.id"))
     last_attempt_date: Mapped[date | None] = mapped_column()
     last_attempt_channel: Mapped[str | None] = mapped_column(Text)

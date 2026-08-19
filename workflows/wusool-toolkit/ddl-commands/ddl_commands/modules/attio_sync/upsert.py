@@ -111,7 +111,8 @@ _ORG_UPSERT = text(
         attio_id, name, description, type, client_type, sector_focus, stage_focus,
         geographic_focus, hq_country, domains, categories, relationship_status,
         connection_strength, owner_attio_id, last_interaction_at, funding_raised,
-        estimated_arr, raw_attio
+        estimated_arr, angellist, facebook, instagram, twitter, twitter_follower_count,
+        foundation_date, ticket_size, lead_source, employee_range, linkedin, raw_attio
     ) VALUES (
         :attio_id, :name, :description, :type, :client_type, :sector_focus, :stage_focus,
         :geographic_focus, :hq_country, :domains, :categories, :relationship_status,
@@ -119,6 +120,8 @@ _ORG_UPSERT = text(
         CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :owner_attio_id)
              THEN :owner_attio_id ELSE NULL END,
         :last_interaction_at, CAST(:funding_raised AS jsonb), :estimated_arr,
+        :angellist, :facebook, :instagram, :twitter, :twitter_follower_count,
+        :foundation_date, :ticket_size, :lead_source, :employee_range, :linkedin,
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (attio_id) DO UPDATE SET
@@ -129,7 +132,12 @@ _ORG_UPSERT = text(
         categories=excluded.categories, relationship_status=excluded.relationship_status,
         connection_strength=excluded.connection_strength, owner_attio_id=excluded.owner_attio_id,
         last_interaction_at=excluded.last_interaction_at, funding_raised=excluded.funding_raised,
-        estimated_arr=excluded.estimated_arr, raw_attio=excluded.raw_attio, updated_at=now(),
+        estimated_arr=excluded.estimated_arr, angellist=excluded.angellist,
+        facebook=excluded.facebook, instagram=excluded.instagram, twitter=excluded.twitter,
+        twitter_follower_count=excluded.twitter_follower_count,
+        foundation_date=excluded.foundation_date, ticket_size=excluded.ticket_size,
+        lead_source=excluded.lead_source, employee_range=excluded.employee_range,
+        linkedin=excluded.linkedin, raw_attio=excluded.raw_attio, updated_at=now(),
         removed_at=NULL
     """
 )
@@ -160,6 +168,20 @@ async def sync_organization(client: AttioClient, record_id: str) -> None:
         "estimated_arr": v.first(values, "estimated_arr"),
         "raw_attio": _j(data),
     }
+    params.update(
+        {
+            "angellist": v.first(values, "angellist"),
+            "facebook": v.first(values, "facebook"),
+            "instagram": v.first(values, "instagram"),
+            "twitter": v.first(values, "twitter"),
+            "twitter_follower_count": v.integer(values, "twitter_follower_count"),
+            "foundation_date": v.first(values, "foundation_date"),
+            "ticket_size": v.first(values, "ticket_size"),
+            "lead_source": v.first(values, "lead_source"),
+            "employee_range": v.first(values, "employee_range"),
+            "linkedin": v.first(values, "linkedin"),
+        }
+    )
     async with get_sessionmaker()() as session:
         await session.execute(_ORG_UPSERT, params)
         await session.commit()
@@ -182,7 +204,9 @@ _PERSON_UPSERT = text(
     """
     INSERT INTO people(
         attio_id, name, role, company_attio_id, email, linkedin, relationship_status,
-        connection_strength, owner_attio_id, last_interaction_at, raw_attio
+        connection_strength, owner_attio_id, last_interaction_at, job_title, contact_type,
+        phone, avatar_url, angellist, facebook, instagram, twitter, twitter_follower_count,
+        raw_attio
     ) VALUES (
         :attio_id, :name, :role,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :company_attio_id)
@@ -190,15 +214,21 @@ _PERSON_UPSERT = text(
         :email, :linkedin, :relationship_status, :connection_strength,
         CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :owner_attio_id)
              THEN :owner_attio_id ELSE NULL END,
-        :last_interaction_at, CAST(:raw_attio AS jsonb)
+        :last_interaction_at, :job_title, :contact_type, :phone, :avatar_url,
+        :angellist, :facebook, :instagram, :twitter, :twitter_follower_count,
+        CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (attio_id) DO UPDATE SET
         name=excluded.name, role=excluded.role, company_attio_id=excluded.company_attio_id,
         email=excluded.email, linkedin=excluded.linkedin,
         relationship_status=excluded.relationship_status,
         connection_strength=excluded.connection_strength, owner_attio_id=excluded.owner_attio_id,
-        last_interaction_at=excluded.last_interaction_at, raw_attio=excluded.raw_attio,
-        updated_at=now()
+        last_interaction_at=excluded.last_interaction_at, job_title=excluded.job_title,
+        contact_type=excluded.contact_type, phone=excluded.phone,
+        avatar_url=excluded.avatar_url, angellist=excluded.angellist,
+        facebook=excluded.facebook, instagram=excluded.instagram, twitter=excluded.twitter,
+        twitter_follower_count=excluded.twitter_follower_count,
+        raw_attio=excluded.raw_attio, updated_at=now()
     """
 )
 
@@ -224,6 +254,15 @@ async def sync_person(client: AttioClient, record_id: str) -> None:
         "connection_strength": v.first(values, "strongest_connection_strength"),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.first(values, "last_interaction_at"),
+        "job_title": v.first(values, "job_title"),
+        "contact_type": v.first(values, "contact_type"),
+        "phone": v.first(values, "phone"),
+        "avatar_url": v.first(values, "avatar_url"),
+        "angellist": v.first(values, "angellist"),
+        "facebook": v.first(values, "facebook"),
+        "instagram": v.first(values, "instagram"),
+        "twitter": v.first(values, "twitter"),
+        "twitter_follower_count": v.integer(values, "twitter_follower_count"),
         "raw_attio": _j(data),
     }
     async with get_sessionmaker()() as session:
@@ -241,7 +280,8 @@ _DEAL_UPSERT = text(
         attio_id, name, stage, stage_changed_at, buyer_organization_attio_id,
         buyer_person_attio_id, seller_organization_attio_id, owner_attio_id, value,
         teaser_status, nda_count, cim_ready, deal_memo_ready, contract_signed_date,
-        exclusivity_date, next_task, data_room_substatus, raw_attio
+        exclusivity_date, next_task, data_room_substatus, nda_status,
+        estimated_deal_value_aed, expected_close_date, fee, assigned_advisor, raw_attio
     ) VALUES (
         :attio_id, :name, :stage, :stage_changed_at,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :buyer_id)
@@ -254,7 +294,8 @@ _DEAL_UPSERT = text(
              THEN :owner_attio_id ELSE NULL END,
         CAST(:value AS jsonb), :teaser_status, :nda_count, :cim_ready, :deal_memo_ready,
         :contract_signed_date, :exclusivity_date, :next_task, :data_room_substatus,
-        CAST(:raw_attio AS jsonb)
+        :nda_status, :estimated_deal_value_aed, :expected_close_date, :fee,
+        :assigned_advisor, CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (attio_id) DO UPDATE SET
         name=excluded.name, stage=excluded.stage, stage_changed_at=excluded.stage_changed_at,
@@ -266,7 +307,10 @@ _DEAL_UPSERT = text(
         cim_ready=excluded.cim_ready, deal_memo_ready=excluded.deal_memo_ready,
         contract_signed_date=excluded.contract_signed_date,
         exclusivity_date=excluded.exclusivity_date, next_task=excluded.next_task,
-        data_room_substatus=excluded.data_room_substatus, raw_attio=excluded.raw_attio,
+        data_room_substatus=excluded.data_room_substatus, nda_status=excluded.nda_status,
+        estimated_deal_value_aed=excluded.estimated_deal_value_aed,
+        expected_close_date=excluded.expected_close_date, fee=excluded.fee,
+        assigned_advisor=excluded.assigned_advisor, raw_attio=excluded.raw_attio,
         updated_at=now()
     """
 )
@@ -294,6 +338,11 @@ async def sync_deal(client: AttioClient, record_id: str) -> None:
         "exclusivity_date": v.first(values, "exclusivity_date"),
         "next_task": v.ref(values, "next_due_task") or v.first(values, "next_task"),
         "data_room_substatus": v.first(values, "data_room_substatus"),
+        "nda_status": v.first(values, "nda_status"),
+        "estimated_deal_value_aed": v.number(values, "estimated_deal_value_aed"),
+        "expected_close_date": v.first(values, "expected_close_date"),
+        "fee": v.number(values, "fee"),
+        "assigned_advisor": v.titles(values, "assigned_advisor"),
         "raw_attio": _j(data),
     }
     async with get_sessionmaker()() as session:
@@ -311,7 +360,7 @@ _MANDATE_UPSERT = text(
         attio_id, side, buyer_attio_id, seller_attio_id, phase,
         assigned_advisor_attio_ids, start_date, expiry_date, universe_constructed,
         shortlist_approved, universe_size, shortlist_size, tier1_contacted, responses,
-        raw_attio
+        sellers_interested, retainer_amount, raw_attio
     ) VALUES (
         :attio_id, :side,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :buyer_id)
@@ -321,6 +370,7 @@ _MANDATE_UPSERT = text(
         :phase, :assigned_advisor_attio_ids, :start_date, :expiry_date,
         COALESCE(:universe_constructed, false), COALESCE(:shortlist_approved, false),
         :universe_size, :shortlist_size, :tier1_contacted, :responses,
+        :sellers_interested, CAST(:retainer_amount AS jsonb),
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (attio_id) DO UPDATE SET
@@ -331,7 +381,8 @@ _MANDATE_UPSERT = text(
         universe_constructed=excluded.universe_constructed,
         shortlist_approved=excluded.shortlist_approved, universe_size=excluded.universe_size,
         shortlist_size=excluded.shortlist_size, tier1_contacted=excluded.tier1_contacted,
-        responses=excluded.responses, raw_attio=excluded.raw_attio, updated_at=now()
+        responses=excluded.responses, sellers_interested=excluded.sellers_interested,
+        retainer_amount=excluded.retainer_amount, raw_attio=excluded.raw_attio, updated_at=now()
     """
 )
 
@@ -356,6 +407,8 @@ async def sync_mandate(client: AttioClient, entry_id: str) -> None:
         "shortlist_size": v.integer(values, "shortlist_size"),
         "tier1_contacted": v.integer(values, "tier1_contacted"),
         "responses": v.integer(values, "responses"),
+        "sellers_interested": v.integer(values, "sellers_interested"),
+        "retainer_amount": _j(v.money(values, "retainer_amount")),
         "raw_attio": _j(entry),
     }
     async with get_sessionmaker()() as session:
@@ -423,7 +476,9 @@ _BUYER_ROLE_UPSERT = text(
         org_attio_id, model, mandate_status, ebitda_floor, check_size_min, check_size_max,
         ev_ceiling, deal_structure_tolerance, earnout_tolerance, profitable_only,
         investment_strategy, notes, key_contact_attio_id, acquisition_enrichment,
-        deals_introduced, deals_converted, raw_attio
+        deals_introduced, deals_converted, ebitda_ceiling, estimated_aum, mandate_details,
+        notable_investments, key_personnel, relationship_warmth, target_geography,
+        typical_check_size, last_mandate_briefing_date, prior_gcc_acquisition, raw_attio
     ) VALUES (
         :org_attio_id, :model, :mandate_status, CAST(:ebitda_floor AS jsonb),
         CAST(:check_size_min AS jsonb), CAST(:check_size_max AS jsonb),
@@ -431,7 +486,11 @@ _BUYER_ROLE_UPSERT = text(
         :profitable_only, :investment_strategy, :notes,
         CASE WHEN EXISTS (SELECT 1 FROM people WHERE attio_id = :key_contact_attio_id)
              THEN :key_contact_attio_id ELSE NULL END,
-        :acquisition_enrichment, :deals_introduced, :deals_converted, CAST(:raw_attio AS jsonb)
+        :acquisition_enrichment, :deals_introduced, :deals_converted,
+        CAST(:ebitda_ceiling AS jsonb), CAST(:estimated_aum AS jsonb), :mandate_details,
+        :notable_investments, :key_personnel, :relationship_warmth, :target_geography,
+        :typical_check_size, :last_mandate_briefing_date, :prior_gcc_acquisition,
+        CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (org_attio_id) DO UPDATE SET
         model=excluded.model, mandate_status=excluded.mandate_status,
@@ -443,6 +502,14 @@ _BUYER_ROLE_UPSERT = text(
         key_contact_attio_id=excluded.key_contact_attio_id,
         acquisition_enrichment=excluded.acquisition_enrichment,
         deals_introduced=excluded.deals_introduced, deals_converted=excluded.deals_converted,
+        ebitda_ceiling=excluded.ebitda_ceiling, estimated_aum=excluded.estimated_aum,
+        mandate_details=excluded.mandate_details,
+        notable_investments=excluded.notable_investments,
+        key_personnel=excluded.key_personnel, relationship_warmth=excluded.relationship_warmth,
+        target_geography=excluded.target_geography,
+        typical_check_size=excluded.typical_check_size,
+        last_mandate_briefing_date=excluded.last_mandate_briefing_date,
+        prior_gcc_acquisition=excluded.prior_gcc_acquisition,
         raw_attio=excluded.raw_attio, updated_at=now()
     """
 )
@@ -462,13 +529,7 @@ async def sync_buyer_role(client: AttioClient, entry_id: str) -> None:
         "check_size_max": _j(v.money(values, "check_size_max")),
         "ev_ceiling": _j(v.money(values, "ev_ceiling")),
         "deal_structure_tolerance": v.first(values, "deal_structure_tolerance"),
-        # `buyer_roles.earnout_tolerance` is declared `text`, not `boolean`
-        # (database/sql/003_crm_roles.sql) — sync-postgres.ps1 calls
-        # `boolean()` on it anyway and gets away with it under psycopg's
-        # lenient parameter binding; asyncpg is strict about parameter
-        # types and would reject a Python bool bound to a text column, so
-        # this stays a plain text value to match the actual column type.
-        "earnout_tolerance": v.first(values, "earnout_tolerance"),
+        "earnout_tolerance": v.boolean(values, "earnout_tolerance"),
         "profitable_only": v.boolean(values, "profitable_only"),
         "investment_strategy": v.first(values, "investment_strategy"),
         "notes": v.first(values, "notes"),
@@ -476,6 +537,16 @@ async def sync_buyer_role(client: AttioClient, entry_id: str) -> None:
         "acquisition_enrichment": v.first(values, "acquisition_enrichment"),
         "deals_introduced": v.integer(values, "deals_introduced"),
         "deals_converted": v.integer(values, "deals_converted"),
+        "ebitda_ceiling": _j(v.money(values, "ebitda_ceiling")),
+        "estimated_aum": _j(v.money(values, "estimated_aum")),
+        "mandate_details": v.first(values, "mandate_details"),
+        "notable_investments": v.first(values, "notable_investments"),
+        "key_personnel": v.first(values, "key_personnel"),
+        "relationship_warmth": v.first(values, "relationship_warmth"),
+        "target_geography": v.titles(values, "target_geography"),
+        "typical_check_size": v.titles(values, "typical_check_size"),
+        "last_mandate_briefing_date": v.first(values, "last_mandate_briefing_date"),
+        "prior_gcc_acquisition": v.first(values, "prior_gcc_acquisition"),
         "raw_attio": _j(winner),
     }
     async with get_sessionmaker()() as session:
@@ -488,7 +559,7 @@ _SELLER_ROLE_UPSERT = text(
     INSERT INTO seller_roles(
         org_attio_id, outreach_tier, appetite_signal, relationship_status, est_revenue,
         est_ebitda, owner_salary, valuation_low, valuation_mid, valuation_high,
-        sell_timeline, readiness_score, readiness_band, intake_source, mandate_id,
+        sell_timeline, readiness_score, readiness_band, mandate_id,
         last_attempt_date, last_attempt_channel, last_attempt_outcome, lead_quality_score,
         re_engage_date, raw_attio
     ) VALUES (
@@ -496,7 +567,7 @@ _SELLER_ROLE_UPSERT = text(
         CAST(:est_revenue AS jsonb), CAST(:est_ebitda AS jsonb), CAST(:owner_salary AS jsonb),
         CAST(:valuation_low AS jsonb), CAST(:valuation_mid AS jsonb),
         CAST(:valuation_high AS jsonb), :sell_timeline, :readiness_score, :readiness_band,
-        :intake_source, (SELECT id FROM mandates WHERE attio_id = :mandate_attio_id),
+        (SELECT id FROM mandates WHERE attio_id = :mandate_attio_id),
         :last_attempt_date, :last_attempt_channel, :last_attempt_outcome,
         :lead_quality_score, :re_engage_date, CAST(:raw_attio AS jsonb)
     )
@@ -507,7 +578,7 @@ _SELLER_ROLE_UPSERT = text(
         valuation_low=excluded.valuation_low, valuation_mid=excluded.valuation_mid,
         valuation_high=excluded.valuation_high, sell_timeline=excluded.sell_timeline,
         readiness_score=excluded.readiness_score, readiness_band=excluded.readiness_band,
-        intake_source=excluded.intake_source, mandate_id=excluded.mandate_id,
+        mandate_id=excluded.mandate_id,
         last_attempt_date=excluded.last_attempt_date,
         last_attempt_channel=excluded.last_attempt_channel,
         last_attempt_outcome=excluded.last_attempt_outcome,
@@ -542,7 +613,6 @@ async def sync_seller_role(client: AttioClient, entry_id: str) -> None:
             v.number(values, "outreach_score") or v.number(values, "readiness_score")
         ),
         "readiness_band": v.first(values, "readiness_band"),
-        "intake_source": v.first(values, "intake_source"),
         "mandate_attio_id": v.ref(values, "mandate_id"),
         "last_attempt_date": v.first(values, "last_attempt_date"),
         "last_attempt_channel": v.first(values, "last_attempt_channel"),
