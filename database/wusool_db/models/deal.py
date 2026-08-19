@@ -6,9 +6,8 @@ it yet; add it later against the same pattern once something reads it.
 """
 
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING
-
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
