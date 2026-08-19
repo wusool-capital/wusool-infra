@@ -94,6 +94,7 @@ class Organization(Base):
     # target bands were dropped in favor of not needing a reconciliation table.
     employee_range: Mapped[str | None] = mapped_column(Text)
     linkedin: Mapped[str | None] = mapped_column(Text)
+    logo_url: Mapped[str | None] = mapped_column(Text)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

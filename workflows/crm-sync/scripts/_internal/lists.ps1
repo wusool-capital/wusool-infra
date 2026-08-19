@@ -167,6 +167,45 @@ function Add-MergedText {
   }
 }
 
+function Add-EntryScalar {
+  param(
+    [hashtable]$Target,
+    [object]$Entry,
+    [string]$SourceSlug,
+    [string]$TargetSlug,
+    [ValidateSet("plain", "currency")][string]$Kind = "plain"
+  )
+  $raw = Get-Value -Values $Entry.entry_values -Slug $SourceSlug
+  if ($null -eq $raw) { return }
+  if ($raw -is [string]) {
+    $raw = $raw.Trim()
+    if ([string]::IsNullOrWhiteSpace($raw)) { return }
+  }
+  if ($Kind -eq "currency") {
+    $Target[$TargetSlug] = @{ currency_value = [decimal]$raw }
+  } else {
+    $Target[$TargetSlug] = $raw
+  }
+}
+
+function Add-EntryText {
+  param(
+    [hashtable]$Target,
+    [object]$Entry,
+    [string]$SourceSlug,
+    [string]$TargetSlug
+  )
+  $raw = Get-Value -Values $Entry.entry_values -Slug $SourceSlug
+  if ($null -eq $raw) { return }
+  $text = ([string]$raw).Trim()
+  if ($text) { $Target[$TargetSlug] = $text }
+}
+
+function Get-EntryValueTitles {
+  param([object]$Entry, [string]$Slug)
+  return @(@($Entry.entry_values.$Slug) | Where-Object { $null -eq $_.active_until } | ForEach-Object { if ($_.option.title) { [string]$_.option.title } } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
 function Normalize-PersonName {
   param([string]$Name)
   if ([string]::IsNullOrWhiteSpace($Name)) { return $null }
@@ -276,94 +315,109 @@ foreach ($group in $groups) {
     $unresolvedParents.Add($sourceParentId)
     continue
   }
+  $devParentId = $devOrganizationByLegacyId[$sourceParentId]
 
-  $values = @{}
-  $conflicts = [System.Collections.Generic.List[object]]::new()
-  $entries = @($group.Group)
+  # Every raw SOURCE entry becomes its own DEV entry -- duplicates are no
+  # longer merged. Sorted newest-first so entries[0] is the one flagged
+  # is_active = true; every other duplicate in the group is is_active = false.
+  $entries = @(@($group.Group) | Sort-Object { [datetime]$_.created_at } -Descending)
 
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "buyer_model" -TargetSlug "model"
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "mandate_status" -TargetSlug "mandate_status"
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "ebitda_floor_aed" -TargetSlug "ebitda_floor" -Kind currency
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "check_size_min_aed" -TargetSlug "check_size_min" -Kind currency
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "check_size_max_aed" -TargetSlug "check_size_max" -Kind currency
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "ev_ceiling_aed" -TargetSlug "ev_ceiling" -Kind currency
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "earnout_tolerance" -TargetSlug "earnout_tolerance"
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "profitable_companies_only_mandate" -TargetSlug "profitable_only"
-  Add-MergedText -Target $values -Entries $entries `
-    -SourceSlug "investment_strategy" -TargetSlug "investment_strategy"
-  Add-MergedText -Target $values -Entries $entries `
-    -SourceSlug "additional_notes" -TargetSlug "notes"
-  $dealStructureSourceValues = @(Get-DistinctValues -Entries $entries -Slug "deal_structure_tolerance")
-  if ($dealStructureSourceValues.Count -gt 0) {
-    $dealStructureNote = "SOURCE deal structure tolerance (pre-migration wording, not mapped to the new Majority/Minority/Flexible/Acquisition Financing options): " + ($dealStructureSourceValues -join "; ")
-    $values["notes"] = if ($values.ContainsKey("notes")) { $values["notes"] + "`r`n`r`n" + $dealStructureNote } else { $dealStructureNote }
-  }
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "deals_introduced_count" -TargetSlug "deals_introduced"
-  Add-UniqueScalar -Target $values -Conflicts $conflicts -Entries $entries `
-    -SourceSlug "deals_converted_count" -TargetSlug "deals_converted"
+  for ($i = 0; $i -lt $entries.Count; $i++) {
+    $entry = $entries[$i]
+    $sourceEntryId = if ($entry.id.entry_id) { [string]$entry.id.entry_id } else { [string]$entry.entry_id }
+    $isActive = ($i -eq 0)
 
-  $keyContactNames = @(Get-DistinctValues -Entries $entries -Slug "key_personnel_email")
-  $keyContactResolution = if ($keyContactNames.Count -eq 0) { "blank_source" } elseif ($keyContactNames.Count -gt 1) { "multiple_source_names" } else { "unmatched" }
-  if ($keyContactNames.Count -eq 1) {
-    $normalizedContact = Normalize-PersonName -Name ([string]$keyContactNames[0])
-    $teamMatches = @(
-      @($sourceCompanyTeam[$sourceParentId]) | Where-Object {
-        $sourcePersonById.ContainsKey($_) -and $sourcePersonById[$_].NormalizedName -eq $normalizedContact
-      }
-    )
-    $contactTokens = @($normalizedContact -split " " | Where-Object { $_ })
-    $teamFirstNameMatches = if ($contactTokens.Count -eq 1) {
-      @(
+    $values = @{}
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "buyer_model" -TargetSlug "model"
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "mandate_status" -TargetSlug "mandate_status"
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ebitda_floor_aed" -TargetSlug "ebitda_floor" -Kind currency
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "check_size_min_aed" -TargetSlug "check_size_min" -Kind currency
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "check_size_max_aed" -TargetSlug "check_size_max" -Kind currency
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ev_ceiling_aed" -TargetSlug "ev_ceiling" -Kind currency
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "earnout_tolerance" -TargetSlug "earnout_tolerance"
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "profitable_companies_only_mandate" -TargetSlug "profitable_only"
+    Add-EntryText -Target $values -Entry $entry -SourceSlug "investment_strategy" -TargetSlug "investment_strategy"
+    Add-EntryText -Target $values -Entry $entry -SourceSlug "additional_notes" -TargetSlug "notes"
+    # 2026-08-19 decision: live data is 274 of 275 Buyer Database entries
+    # blank, and the one populated value is "Flexible", which already
+    # matches a DEV option directly -- wired as a real mapping despite the
+    # SOURCE (100% Cash/Cash + Seller Note/Earnout Considered/Flexible) and
+    # DEV (Majority/Minority/Flexible/Acquisition Financing) option sets not
+    # otherwise aligning. Revisit if SOURCE usage of the other 3 options grows.
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "deal_structure_tolerance" -TargetSlug "deal_structure_tolerance"
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "deals_introduced_count" -TargetSlug "deals_introduced"
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "deals_converted_count" -TargetSlug "deals_converted"
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ebitda_ceiling_aed" -TargetSlug "ebitda_ceiling" -Kind currency
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "estimated_aum_usd" -TargetSlug "estimated_aum" -Kind currency
+    Add-EntryText -Target $values -Entry $entry -SourceSlug "mandate_details" -TargetSlug "mandate_details"
+    Add-EntryText -Target $values -Entry $entry -SourceSlug "notable_investments" -TargetSlug "notable_investments"
+    Add-EntryText -Target $values -Entry $entry -SourceSlug "key_personnel" -TargetSlug "key_personnel"
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "relationship_warmth" -TargetSlug "relationship_warmth"
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "last_mandate_briefing_date" -TargetSlug "last_mandate_briefing_date"
+    Add-EntryText -Target $values -Entry $entry -SourceSlug "prior_gcc_acquisition" -TargetSlug "prior_gcc_acquisition"
+    $targetGeographyTitles = @(Get-EntryValueTitles -Entry $entry -Slug "target_geography")
+    if ($targetGeographyTitles.Count -gt 0) { $values["target_geography"] = @($targetGeographyTitles) }
+    $checkSizeTitles = @(Get-EntryValueTitles -Entry $entry -Slug "typical_check_size_7")
+    if ($checkSizeTitles.Count -gt 0) { $values["typical_check_size"] = @($checkSizeTitles) }
+    $values["is_active"] = $isActive
+    $values["legacy_entry_id"] = $sourceEntryId
+
+    $keyContactName = Get-Value -Values $entry.entry_values -Slug "key_personnel_email"
+    $hasKeyContactName = -not [string]::IsNullOrWhiteSpace([string]$keyContactName)
+    $keyContactResolution = if ($hasKeyContactName) { "unmatched" } else { "blank_source" }
+    if ($hasKeyContactName) {
+      $normalizedContact = Normalize-PersonName -Name ([string]$keyContactName)
+      $teamMatches = @(
         @($sourceCompanyTeam[$sourceParentId]) | Where-Object {
-          if (-not $sourcePersonById.ContainsKey($_)) { return $false }
-          $personTokens = @($sourcePersonById[$_].NormalizedName -split " " | Where-Object { $_ })
-          return $personTokens.Count -gt 0 -and $personTokens[0] -eq $contactTokens[0]
+          $sourcePersonById.ContainsKey($_) -and $sourcePersonById[$_].NormalizedName -eq $normalizedContact
         }
       )
-    } else { @() }
-    $globalMatches = if ($sourcePersonIdsByName.ContainsKey($normalizedContact)) {
-      @($sourcePersonIdsByName[$normalizedContact].ToArray())
-    } else { @() }
-    $candidateIds = if ($teamMatches.Count -eq 1) {
-      $keyContactResolution = "team_exact"
-      $teamMatches
-    } elseif ($teamFirstNameMatches.Count -eq 1) {
-      $keyContactResolution = "team_unique_first_name"
-      $teamFirstNameMatches
-    } elseif ($globalMatches.Count -eq 1) {
-      $keyContactResolution = "global_unique_exact"
-      $globalMatches
-    } elseif ($teamMatches.Count -gt 1 -or $teamFirstNameMatches.Count -gt 1 -or $globalMatches.Count -gt 1) {
-      $keyContactResolution = "ambiguous_exact"
-      @()
-    } else { @() }
-    $candidateIds = @($candidateIds)
-    if ($candidateIds.Count -eq 1) {
-      $sourcePersonId = [string]$candidateIds[0]
-      if ($devPersonByLegacyId.ContainsKey($sourcePersonId)) {
-        $values["key_contact"] = @{ target_object="person"; target_record_id=$devPersonByLegacyId[$sourcePersonId] }
-      } else { $keyContactResolution = "missing_dev_person" }
+      $contactTokens = @($normalizedContact -split " " | Where-Object { $_ })
+      $teamFirstNameMatches = if ($contactTokens.Count -eq 1) {
+        @(
+          @($sourceCompanyTeam[$sourceParentId]) | Where-Object {
+            if (-not $sourcePersonById.ContainsKey($_)) { return $false }
+            $personTokens = @($sourcePersonById[$_].NormalizedName -split " " | Where-Object { $_ })
+            return $personTokens.Count -gt 0 -and $personTokens[0] -eq $contactTokens[0]
+          }
+        )
+      } else { @() }
+      $globalMatches = if ($sourcePersonIdsByName.ContainsKey($normalizedContact)) {
+        @($sourcePersonIdsByName[$normalizedContact].ToArray())
+      } else { @() }
+      $candidateIds = if ($teamMatches.Count -eq 1) {
+        $keyContactResolution = "team_exact"
+        $teamMatches
+      } elseif ($teamFirstNameMatches.Count -eq 1) {
+        $keyContactResolution = "team_unique_first_name"
+        $teamFirstNameMatches
+      } elseif ($globalMatches.Count -eq 1) {
+        $keyContactResolution = "global_unique_exact"
+        $globalMatches
+      } elseif ($teamMatches.Count -gt 1 -or $teamFirstNameMatches.Count -gt 1 -or $globalMatches.Count -gt 1) {
+        $keyContactResolution = "ambiguous_exact"
+        @()
+      } else { @() }
+      $candidateIds = @($candidateIds)
+      if ($candidateIds.Count -eq 1) {
+        $sourcePersonId = [string]$candidateIds[0]
+        if ($devPersonByLegacyId.ContainsKey($sourcePersonId)) {
+          $values["key_contact"] = @{ target_object="person"; target_record_id=$devPersonByLegacyId[$sourcePersonId] }
+        } else { $keyContactResolution = "missing_dev_person" }
+      }
     }
+    $plans.Add([pscustomobject]@{
+      source_parent_id = $sourceParentId
+      source_entry_id = $sourceEntryId
+      dev_parent_id = $devParentId
+      is_active = $isActive
+      group_size = $entries.Count
+      values = $values
+      key_contact_name_count_pending_backfill = if ($hasKeyContactName) { 1 } else { 0 }
+      key_contact_source = if ($hasKeyContactName) { [string]$keyContactName } else { $null }
+      key_contact_resolution = $keyContactResolution
+    })
   }
-  $plans.Add([pscustomobject]@{
-    source_parent_id = $sourceParentId
-    dev_parent_id = $devOrganizationByLegacyId[$sourceParentId]
-    merged_source_entry_count = $entries.Count
-    values = $values
-    conflicts = @($conflicts)
-    key_contact_name_count_pending_backfill = $keyContactNames.Count
-    key_contact_source = if ($keyContactNames.Count -eq 1) { [string]$keyContactNames[0] } else { $null }
-    key_contact_resolution = $keyContactResolution
-  })
 }
 
 $existingEntries = @()
@@ -375,19 +429,33 @@ for ($offset = 0; ; $offset += 500) {
   if ($page.Count -lt 500) { break }
 }
 
-$existingByParent = @{}
+$existingByLegacyEntryId = @{}
+$untaggedExistingByParent = @{}
 foreach ($entry in $existingEntries) {
   $parentId = Get-ParentRecordId -Entry $entry
-  if ($parentId) {
-    $entryId = if ($entry.id.entry_id) { [string]$entry.id.entry_id } else { [string]$entry.entry_id }
-    $existingByParent[$parentId] = $entryId
+  $entryId = if ($entry.id.entry_id) { [string]$entry.id.entry_id } else { [string]$entry.entry_id }
+  $legacyEntryId = Get-Value -Values $entry.entry_values -Slug "legacy_entry_id"
+  if (-not [string]::IsNullOrWhiteSpace([string]$legacyEntryId)) {
+    $existingByLegacyEntryId[[string]$legacyEntryId] = $entryId
+  } elseif ($parentId) {
+    # Pre-dates the is_active/legacy_entry_id fields: a single blended entry
+    # from the old merge-by-parent logic. The group's active (newest) plan
+    # claims it below and overwrites its blended values with its own raw
+    # SOURCE row; older duplicates in the group always create fresh entries.
+    if ($untaggedExistingByParent.ContainsKey($parentId)) {
+      Write-Warning "buyer_role parent $parentId has more than one untagged legacy entry; only the first is auto-claimed."
+    } else {
+      $untaggedExistingByParent[$parentId] = $entryId
+    }
   }
 }
 
 $applyStats = [ordered]@{ created = 0; updated = 0; errors = 0 }
 if ($Apply) {
   $optionMaps = @{}
-  foreach ($field in @("model", "mandate_status")) {
+  $singleSelectFields = @("model", "mandate_status", "deal_structure_tolerance", "relationship_warmth")
+  $multiSelectFields = @("target_geography", "typical_check_size")
+  foreach ($field in $singleSelectFields + $multiSelectFields) {
     $response = Invoke-AttioRequest -Method Get -Headers $devHeaders `
       -Path "/lists/buyer_role/attributes/$field/options"
     $map = @{}
@@ -403,14 +471,11 @@ if ($Apply) {
     @($plans | Select-Object -Skip $StartIndex -First $Limit)
   }
   foreach ($plan in $selectedPlans) {
-    if (@($plan.conflicts).Count -gt 0) {
-      throw "Refusing to apply a Buyer Role plan containing scalar conflicts."
-    }
     $payloadValues = @{}
     foreach ($key in $plan.values.Keys) {
       $payloadValues[$key] = $plan.values[$key]
     }
-    foreach ($field in @("model", "mandate_status")) {
+    foreach ($field in $singleSelectFields) {
       if ($payloadValues.ContainsKey($field)) {
         $title = [string]$payloadValues[$field]
         if (-not $optionMaps[$field].ContainsKey($title)) {
@@ -419,13 +484,34 @@ if ($Apply) {
         $payloadValues[$field] = $optionMaps[$field][$title]
       }
     }
+    foreach ($field in $multiSelectFields) {
+      if ($payloadValues.ContainsKey($field)) {
+        $ids = [Collections.Generic.List[string]]::new()
+        foreach ($title in @($payloadValues[$field])) {
+          $titleStr = [string]$title
+          if (-not $optionMaps[$field].ContainsKey($titleStr)) {
+            throw "DEV buyer_role/$field option '$titleStr' is missing."
+          }
+          $ids.Add($optionMaps[$field][$titleStr])
+        }
+        $payloadValues[$field] = @($ids)
+      }
+    }
+
+    $targetEntryId = $null
+    if ($existingByLegacyEntryId.ContainsKey($plan.source_entry_id)) {
+      $targetEntryId = $existingByLegacyEntryId[$plan.source_entry_id]
+    } elseif ($plan.is_active -and $untaggedExistingByParent.ContainsKey([string]$plan.dev_parent_id)) {
+      $targetEntryId = $untaggedExistingByParent[[string]$plan.dev_parent_id]
+      $untaggedExistingByParent.Remove([string]$plan.dev_parent_id)
+    }
 
     try {
-      if ($existingByParent.ContainsKey([string]$plan.dev_parent_id)) {
-        $entryId = $existingByParent[[string]$plan.dev_parent_id]
+      if ($targetEntryId) {
         Invoke-AttioRequest -Method Patch -Headers $devHeaders `
-          -Path "/lists/buyer_role/entries/$entryId" `
+          -Path "/lists/buyer_role/entries/$targetEntryId" `
           -Body @{ data = @{ entry_values = $payloadValues } } | Out-Null
+        $existingByLegacyEntryId[$plan.source_entry_id] = $targetEntryId
         $applyStats.updated++
       } else {
         $created = Invoke-AttioRequest -Method Post -Headers $devHeaders `
@@ -435,7 +521,7 @@ if ($Apply) {
             entry_values = $payloadValues
           } }
         $entryId = [string]$created.data.id.entry_id
-        $existingByParent[[string]$plan.dev_parent_id] = $entryId
+        $existingByLegacyEntryId[$plan.source_entry_id] = $entryId
         $applyStats.created++
       }
     } catch {
@@ -449,17 +535,17 @@ $summary = [ordered]@{
   generated_at_utc = [DateTime]::UtcNow.ToString("o")
   mode = if ($Apply) { "bounded-apply" } else { "dry-run" }
   source_entries = $sourceEntries.Count
-  canonical_parent_groups = $groups.Count
+  parent_groups = $groups.Count
   duplicate_parent_groups = @($groups | Where-Object Count -gt 1).Count
   resolved_plans = $plans.Count
+  active_plans = @($plans | Where-Object is_active).Count
+  inactive_plans = @($plans | Where-Object { -not $_.is_active }).Count
   unresolved_parents = $unresolvedParents.Count
-  scalar_conflicts = @($plans | ForEach-Object { $_.conflicts }).Count
   key_contacts_pending_backfill = @(
     $plans | Where-Object { $_.key_contact_name_count_pending_backfill -gt 0 -and $_.key_contact_resolution -notin @("team_exact","team_unique_first_name","global_unique_exact") }
   ).Count
   key_contacts_resolved = @($plans | Where-Object { $_.key_contact_resolution -in @("team_exact","team_unique_first_name","global_unique_exact") }).Count
   existing_dev_entries = $existingEntries.Count
-  would_create = if ($existingEntries.Count -eq 0) { $plans.Count } else { 0 }
   applied_limit = if ($Apply -and $Limit -eq 0) { $plans.Count } elseif ($Apply) { $Limit } else { 0 }
   applied_start_index = if ($Apply) { $StartIndex } else { 0 }
   applied_created = $applyStats.created
@@ -622,6 +708,27 @@ function Add-UniqueValue {
   }
 }
 
+function Add-EntryScalar {
+  param(
+    [hashtable]$Target,
+    [object]$Entry,
+    [string]$SourceSlug,
+    [string]$TargetSlug,
+    [switch]$Currency
+  )
+  $raw = Get-Value -Values $Entry.entry_values -Slug $SourceSlug
+  if ($null -eq $raw) { return }
+  if ($raw -is [string]) {
+    $raw = $raw.Trim()
+    if ([string]::IsNullOrWhiteSpace($raw)) { return }
+  }
+  if ($Currency) {
+    $Target[$TargetSlug] = @{ currency_value = [decimal]$raw }
+  } else {
+    $Target[$TargetSlug] = $raw
+  }
+}
+
 function Get-LatestAttempt {
   param([object[]]$Entries)
   $attempts = @(
@@ -695,31 +802,45 @@ foreach ($group in $groups) {
     $unresolvedParents.Add($sourceParentId)
     continue
   }
-  $values = @{}
-  $conflicts = [System.Collections.Generic.List[object]]::new()
-  $entries = @($group.Group)
-  Add-UniqueValue $values $conflicts $entries "outreach_tier" "outreach_tier"
-  Add-UniqueValue $values $conflicts $entries "seller_appetite_signal" "appetite_signal"
-  Add-UniqueValue $values $conflicts $entries "relationship_status" "relationship_status"
-  Add-UniqueValue $values $conflicts $entries "estimated_annual_revenue_aed" "est_revenue" -Currency
-  Add-UniqueValue $values $conflicts $entries "estimated_ebitda_aed" "est_ebitda" -Currency
-  Add-UniqueValue $values $conflicts $entries "outreach_score" "readiness_score"
-  Add-UniqueValue $values $conflicts $entries "re_engage_date" "re_engage_date"
+  $devParentId = $devOrganizationByLegacyId[$sourceParentId]
 
-  $latest = Get-LatestAttempt -Entries $entries
-  if ($latest) {
-    $values["last_attempt_date"] = $latest.DateText
-    if ($latest.Channel) { $values["last_attempt_channel"] = $latest.Channel }
-    if ($latest.Outcome) { $values["last_attempt_outcome"] = $latest.Outcome }
+  # Every raw SOURCE entry becomes its own DEV entry -- duplicates are no
+  # longer merged. Sorted newest-first so entries[0] is the one flagged
+  # is_active = true; every other duplicate in the group is is_active = false.
+  $entries = @(@($group.Group) | Sort-Object { [datetime]$_.created_at } -Descending)
+
+  for ($i = 0; $i -lt $entries.Count; $i++) {
+    $entry = $entries[$i]
+    $sourceEntryId = if ($entry.id.entry_id) { [string]$entry.id.entry_id } else { [string]$entry.entry_id }
+    $isActive = ($i -eq 0)
+
+    $values = @{}
+    Add-EntryScalar $values $entry "outreach_tier" "outreach_tier"
+    Add-EntryScalar $values $entry "seller_appetite_signal" "appetite_signal"
+    Add-EntryScalar $values $entry "relationship_status" "relationship_status"
+    Add-EntryScalar $values $entry "estimated_annual_revenue_aed" "est_revenue" -Currency
+    Add-EntryScalar $values $entry "estimated_ebitda_aed" "est_ebitda" -Currency
+    Add-EntryScalar $values $entry "outreach_score" "readiness_score"
+    Add-EntryScalar $values $entry "re_engage_date" "re_engage_date"
+
+    $latest = Get-LatestAttempt -Entries @($entry)
+    if ($latest) {
+      $values["last_attempt_date"] = $latest.DateText
+      if ($latest.Channel) { $values["last_attempt_channel"] = $latest.Channel }
+      if ($latest.Outcome) { $values["last_attempt_outcome"] = $latest.Outcome }
+    }
+    $values["is_active"] = $isActive
+    $values["legacy_entry_id"] = $sourceEntryId
+
+    $plans.Add([pscustomobject]@{
+      source_parent_id = $sourceParentId
+      source_entry_id = $sourceEntryId
+      dev_parent_id = $devParentId
+      is_active = $isActive
+      group_size = $entries.Count
+      values = $values
+    })
   }
-
-  $plans.Add([pscustomobject]@{
-    source_parent_id = $sourceParentId
-    dev_parent_id = $devOrganizationByLegacyId[$sourceParentId]
-    merged_source_entry_count = $entries.Count
-    values = $values
-    conflicts = @($conflicts)
-  })
 }
 
 $existingEntries = @()
@@ -730,24 +851,30 @@ for ($offset = 0; ; $offset += 500) {
   $existingEntries += $page
   if ($page.Count -lt 500) { break }
 }
-$existingByParent = @{}
+$existingByLegacyEntryId = @{}
+$untaggedExistingByParent = @{}
 foreach ($entry in $existingEntries) {
   $parentId = Get-ParentRecordId -Entry $entry
-  if ($parentId) {
-    if ($existingByParent.ContainsKey($parentId)) {
-      throw "DEV seller_role contains duplicate Organization parents."
+  $entryId = if ($entry.id.entry_id) { [string]$entry.id.entry_id } else { [string]$entry.entry_id }
+  $legacyEntryId = Get-Value -Values $entry.entry_values -Slug "legacy_entry_id"
+  if (-not [string]::IsNullOrWhiteSpace([string]$legacyEntryId)) {
+    $existingByLegacyEntryId[[string]$legacyEntryId] = $entryId
+  } elseif ($parentId) {
+    # Pre-dates the is_active/legacy_entry_id fields: a single blended entry
+    # from the old merge-by-parent logic. The group's active (newest) plan
+    # claims it below and overwrites its blended values with its own raw
+    # SOURCE row; older duplicates in the group always create fresh entries.
+    if ($untaggedExistingByParent.ContainsKey($parentId)) {
+      Write-Warning "seller_role parent $parentId has more than one untagged legacy entry; only the first is auto-claimed."
+    } else {
+      $untaggedExistingByParent[$parentId] = $entryId
     }
-    $entryId = if ($entry.id.entry_id) { [string]$entry.id.entry_id } else { [string]$entry.entry_id }
-    $existingByParent[$parentId] = $entryId
   }
 }
 
 $applyStats = [ordered]@{ created=0; updated=0; errors=0 }
 if ($Apply) {
   if ($unresolvedParents.Count -gt 0) { throw "Refusing apply with unresolved parents." }
-  if (@($plans | ForEach-Object { $_.conflicts }).Count -gt 0) {
-    throw "Refusing apply because duplicate parents contain conflicting mapped values."
-  }
 
   $optionMaps = @{}
   foreach ($field in @("outreach_tier","appetite_signal","relationship_status","last_attempt_channel","last_attempt_outcome")) {
@@ -777,12 +904,20 @@ if ($Apply) {
         $payloadValues[$field] = $optionMaps[$field][$title]
       }
     }
+    $targetEntryId = $null
+    if ($existingByLegacyEntryId.ContainsKey($plan.source_entry_id)) {
+      $targetEntryId = $existingByLegacyEntryId[$plan.source_entry_id]
+    } elseif ($plan.is_active -and $untaggedExistingByParent.ContainsKey([string]$plan.dev_parent_id)) {
+      $targetEntryId = $untaggedExistingByParent[[string]$plan.dev_parent_id]
+      $untaggedExistingByParent.Remove([string]$plan.dev_parent_id)
+    }
+
     try {
-      if ($existingByParent.ContainsKey([string]$plan.dev_parent_id)) {
-        $entryId = $existingByParent[[string]$plan.dev_parent_id]
+      if ($targetEntryId) {
         Invoke-AttioRequest -Method Patch -Headers $devHeaders `
-          -Path "/lists/seller_role/entries/$entryId" `
+          -Path "/lists/seller_role/entries/$targetEntryId" `
           -Body @{ data=@{ entry_values=$payloadValues } } | Out-Null
+        $existingByLegacyEntryId[$plan.source_entry_id] = $targetEntryId
         $applyStats.updated++
       } else {
         $created = Invoke-AttioRequest -Method Post -Headers $devHeaders `
@@ -791,7 +926,8 @@ if ($Apply) {
             parent_object = "organizations"
             entry_values = $payloadValues
           } }
-        $existingByParent[[string]$plan.dev_parent_id] = [string]$created.data.id.entry_id
+        $entryId = [string]$created.data.id.entry_id
+        $existingByLegacyEntryId[$plan.source_entry_id] = $entryId
         $applyStats.created++
       }
     } catch {
@@ -805,13 +941,13 @@ $summary = [ordered]@{
   generated_at_utc = [DateTime]::UtcNow.ToString("o")
   mode = if ($Apply) { "apply" } else { "dry-run" }
   source_entries = $sourceEntries.Count
-  canonical_parent_groups = $groups.Count
+  parent_groups = $groups.Count
   duplicate_parent_groups = @($groups | Where-Object Count -gt 1).Count
   resolved_plans = $plans.Count
+  active_plans = @($plans | Where-Object is_active).Count
+  inactive_plans = @($plans | Where-Object { -not $_.is_active }).Count
   unresolved_parents = $unresolvedParents.Count
-  scalar_conflicts = @($plans | ForEach-Object { $_.conflicts }).Count
   existing_dev_entries = $existingEntries.Count
-  would_create = @($plans | Where-Object { -not $existingByParent.ContainsKey([string]$_.dev_parent_id) }).Count
   applied_limit = if ($Apply -and $Limit -eq 0) { $plans.Count } elseif ($Apply) { $Limit } else { 0 }
   applied_created = $applyStats.created
   applied_updated = $applyStats.updated
@@ -864,6 +1000,11 @@ $migrationRoot=Split-Path $PSScriptRoot -Parent
 $decisions=Get-Content (Join-Path $migrationRoot "config\migration-decisions.json") -Raw|ConvertFrom-Json
 $expectedWorkspaceId=[string]$decisions.dev_workspace_id
 $outputPath=Join-Path $migrationRoot "..\..\..\outputs\attio_migration\mandates-plan.json"
+$ownerCrosswalkByName=@{}
+foreach($entry in @($decisions.workspace_member_crosswalk.mapping)){
+  $firstName=([string]$entry.source_name).Split(" ")[0].Trim().ToLowerInvariant()
+  if(-not[string]::IsNullOrWhiteSpace($firstName)){$ownerCrosswalkByName[$firstName]=[string]$entry.dev_workspace_member_id}
+}
 
 function Invoke-AttioRequest{
   param([ValidateSet("Get","Post","Patch")][string]$Method,[hashtable]$Headers,[string]$Path,[object]$Body)
@@ -893,6 +1034,10 @@ function Add-Value{
   param([hashtable]$Target,[object]$Values,[string]$SourceSlug,[string]$TargetSlug)
   $value=Get-Value $Values $SourceSlug
   if($null-ne$value-and(-not($value-is[string])-or-not[string]::IsNullOrWhiteSpace($value))){$Target[$TargetSlug]=$value}
+}
+function Get-ValueTitles{
+  param([object]$Values,[string]$Slug)
+  return @(@($Values.$Slug)|Where-Object{$null-eq$_.active_until}|ForEach-Object{if($_.option.title){[string]$_.option.title}}|Where-Object{-not[string]::IsNullOrWhiteSpace($_)})
 }
 
 $devOrganization=Invoke-AttioRequest Get $devHeaders "/objects/organizations" $null
@@ -939,6 +1084,22 @@ foreach($group in $sourceGroups){
   Add-Value $values $entry.entry_values "shortlist_size" "shortlist_size"
   Add-Value $values $entry.entry_values "tier_1_targets_contacted" "tier1_contacted"
   Add-Value $values $entry.entry_values "responses_received" "responses"
+  Add-Value $values $entry.entry_values "sellers_interested" "sellers_interested"
+  Add-Value $values $entry.entry_values "retainer_amount_aed" "retainer_amount"
+  if($values.ContainsKey("retainer_amount")){$values["retainer_amount"]=@{currency_value=[decimal]$values["retainer_amount"]}}
+  $advisorNames=@(Get-ValueTitles $entry.entry_values "assigned_advisor")
+  $advisorRefs=[Collections.Generic.List[object]]::new()
+  $unmappedAdvisors=[Collections.Generic.List[string]]::new()
+  foreach($advisorName in $advisorNames){
+    $key=$advisorName.Trim().ToLowerInvariant()
+    if($ownerCrosswalkByName.ContainsKey($key)){
+      $advisorRefs.Add(@{referenced_actor_type="workspace-member";referenced_actor_id=$ownerCrosswalkByName[$key]})
+    }else{
+      $unmappedAdvisors.Add($advisorName)
+    }
+  }
+  if($advisorRefs.Count-gt0){$values["assigned_advisor"]=@($advisorRefs)}
+  if($unmappedAdvisors.Count-gt0){Write-Warning "$sourceParentId assigned_advisor: no DEV workspace-member mapped for $($unmappedAdvisors -join ', ') - left unset."}
   $plans.Add([pscustomobject]@{source_parent_id=$sourceParentId;dev_parent_id=$devParentId;values=$values})
 }
 

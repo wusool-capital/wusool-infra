@@ -112,7 +112,7 @@ _ORG_UPSERT = text(
         geographic_focus, hq_country, domains, categories, relationship_status,
         connection_strength, owner_attio_id, last_interaction_at, funding_raised,
         estimated_arr, angellist, facebook, instagram, twitter, twitter_follower_count,
-        foundation_date, ticket_size, lead_source, employee_range, linkedin, raw_attio
+        foundation_date, ticket_size, lead_source, employee_range, linkedin, logo_url, raw_attio
     ) VALUES (
         :attio_id, :name, :description, :type, :client_type, :sector_focus, :stage_focus,
         :geographic_focus, :hq_country, :domains, :categories, :relationship_status,
@@ -121,7 +121,7 @@ _ORG_UPSERT = text(
              THEN :owner_attio_id ELSE NULL END,
         :last_interaction_at, CAST(:funding_raised AS jsonb), :estimated_arr,
         :angellist, :facebook, :instagram, :twitter, :twitter_follower_count,
-        :foundation_date, :ticket_size, :lead_source, :employee_range, :linkedin,
+        :foundation_date, :ticket_size, :lead_source, :employee_range, :linkedin, :logo_url,
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (attio_id) DO UPDATE SET
@@ -137,8 +137,8 @@ _ORG_UPSERT = text(
         twitter_follower_count=excluded.twitter_follower_count,
         foundation_date=excluded.foundation_date, ticket_size=excluded.ticket_size,
         lead_source=excluded.lead_source, employee_range=excluded.employee_range,
-        linkedin=excluded.linkedin, raw_attio=excluded.raw_attio, updated_at=now(),
-        removed_at=NULL
+        linkedin=excluded.linkedin, logo_url=excluded.logo_url, raw_attio=excluded.raw_attio,
+        updated_at=now(), removed_at=NULL
     """
 )
 
@@ -180,6 +180,7 @@ async def sync_organization(client: AttioClient, record_id: str) -> None:
             "lead_source": v.first(values, "lead_source"),
             "employee_range": v.first(values, "employee_range"),
             "linkedin": v.first(values, "linkedin"),
+            "logo_url": v.first(values, "logo_url"),
         }
     )
     async with get_sessionmaker()() as session:
@@ -478,7 +479,8 @@ _BUYER_ROLE_UPSERT = text(
         investment_strategy, notes, key_contact_attio_id, acquisition_enrichment,
         deals_introduced, deals_converted, ebitda_ceiling, estimated_aum, mandate_details,
         notable_investments, key_personnel, relationship_warmth, target_geography,
-        typical_check_size, last_mandate_briefing_date, prior_gcc_acquisition, raw_attio
+        typical_check_size, last_mandate_briefing_date, prior_gcc_acquisition,
+        is_active, legacy_entry_id, raw_attio
     ) VALUES (
         :org_attio_id, :model, :mandate_status, CAST(:ebitda_floor AS jsonb),
         CAST(:check_size_min AS jsonb), CAST(:check_size_max AS jsonb),
@@ -490,7 +492,7 @@ _BUYER_ROLE_UPSERT = text(
         CAST(:ebitda_ceiling AS jsonb), CAST(:estimated_aum AS jsonb), :mandate_details,
         :notable_investments, :key_personnel, :relationship_warmth, :target_geography,
         :typical_check_size, :last_mandate_briefing_date, :prior_gcc_acquisition,
-        CAST(:raw_attio AS jsonb)
+        :is_active, :legacy_entry_id, CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (org_attio_id) DO UPDATE SET
         model=excluded.model, mandate_status=excluded.mandate_status,
@@ -510,6 +512,7 @@ _BUYER_ROLE_UPSERT = text(
         typical_check_size=excluded.typical_check_size,
         last_mandate_briefing_date=excluded.last_mandate_briefing_date,
         prior_gcc_acquisition=excluded.prior_gcc_acquisition,
+        is_active=excluded.is_active, legacy_entry_id=excluded.legacy_entry_id,
         raw_attio=excluded.raw_attio, updated_at=now()
     """
 )
@@ -547,6 +550,8 @@ async def sync_buyer_role(client: AttioClient, entry_id: str) -> None:
         "typical_check_size": v.titles(values, "typical_check_size"),
         "last_mandate_briefing_date": v.first(values, "last_mandate_briefing_date"),
         "prior_gcc_acquisition": v.first(values, "prior_gcc_acquisition"),
+        "is_active": v.boolean(values, "is_active"),
+        "legacy_entry_id": v.entry_id(winner),
         "raw_attio": _j(winner),
     }
     async with get_sessionmaker()() as session:
@@ -561,7 +566,7 @@ _SELLER_ROLE_UPSERT = text(
         est_ebitda, owner_salary, valuation_low, valuation_mid, valuation_high,
         sell_timeline, readiness_score, readiness_band, mandate_id,
         last_attempt_date, last_attempt_channel, last_attempt_outcome, lead_quality_score,
-        re_engage_date, raw_attio
+        re_engage_date, is_active, legacy_entry_id, raw_attio
     ) VALUES (
         :org_attio_id, :outreach_tier, :appetite_signal, :relationship_status,
         CAST(:est_revenue AS jsonb), CAST(:est_ebitda AS jsonb), CAST(:owner_salary AS jsonb),
@@ -569,7 +574,8 @@ _SELLER_ROLE_UPSERT = text(
         CAST(:valuation_high AS jsonb), :sell_timeline, :readiness_score, :readiness_band,
         (SELECT id FROM mandates WHERE attio_id = :mandate_attio_id),
         :last_attempt_date, :last_attempt_channel, :last_attempt_outcome,
-        :lead_quality_score, :re_engage_date, CAST(:raw_attio AS jsonb)
+        :lead_quality_score, :re_engage_date, :is_active, :legacy_entry_id,
+        CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (org_attio_id) DO UPDATE SET
         outreach_tier=excluded.outreach_tier, appetite_signal=excluded.appetite_signal,
@@ -583,6 +589,7 @@ _SELLER_ROLE_UPSERT = text(
         last_attempt_channel=excluded.last_attempt_channel,
         last_attempt_outcome=excluded.last_attempt_outcome,
         lead_quality_score=excluded.lead_quality_score, re_engage_date=excluded.re_engage_date,
+        is_active=excluded.is_active, legacy_entry_id=excluded.legacy_entry_id,
         raw_attio=excluded.raw_attio, updated_at=now()
     """
 )
@@ -619,6 +626,8 @@ async def sync_seller_role(client: AttioClient, entry_id: str) -> None:
         "last_attempt_outcome": v.first(values, "last_attempt_outcome"),
         "lead_quality_score": v.number(values, "lead_quality_score"),
         "re_engage_date": v.first(values, "re_engage_date"),
+        "is_active": v.boolean(values, "is_active"),
+        "legacy_entry_id": v.entry_id(winner),
         "raw_attio": _j(winner),
     }
     async with get_sessionmaker()() as session:

@@ -44,15 +44,25 @@
   "pending": [
     "investor_lender_role design",
     "new enum option sets",
-    "Deal buyer and seller relationship mapping",
-    "owner backfill after DEV workspace members are populated"
+    "Deal buyer and seller relationship mapping"
   ],
+  "workspace_member_crosswalk": {
+    "resolved": "2026-08-19",
+    "note": "SOURCE workspace members are @dopaminecap.com (the old company) - not real Wusool Capital people, so each was reassigned to a real DEV member rather than re-invited under the same email.",
+    "mapping": [
+      {"source_workspace_member_id": "97e79240-62bd-493d-b056-9b26846256bd", "source_email": "hugo@dopaminecap.com", "source_name": "Hugo Cugnet", "dev_workspace_member_id": "517bb9d6-cdd8-418b-8f1f-8b86839972ec", "dev_email": "tech@wusoolcapital.com", "dev_name": "Tech Wusool"},
+      {"source_workspace_member_id": "bb40387a-b57b-491e-b8a6-9ba593d6e97d", "source_email": "ramzy@dopaminecap.com", "source_name": "Ramzy Osman", "dev_workspace_member_id": "67fb42ec-facb-40ab-bc37-7cc654a53d75", "dev_email": "richucherian07@gmail.com", "dev_name": "Richu Cherian"},
+      {"source_workspace_member_id": "bd1fdd66-b15b-4601-9fce-949fb7b2da4d", "source_email": "jules@dopaminecap.com", "source_name": "Jules Chasles", "dev_workspace_member_id": "20ee7570-f1c0-476a-b505-c50e95d7c577", "dev_email": "richucherian447@gmail.com", "dev_name": "Sinan Muhammed"},
+      {"source_workspace_member_id": "fb4df22b-81f5-4356-b485-9eb23a2e84f4", "source_email": "tech@wusoolcapital.com", "source_name": "Tech Wusool", "dev_workspace_member_id": "517bb9d6-cdd8-418b-8f1f-8b86839972ec", "dev_email": "tech@wusoolcapital.com", "dev_name": "Tech Wusool"}
+    ]
+  },
   "deferred_backfills": {
     "organization_owner": {
       "source_field": "relationship_owner",
       "initial_value": null,
-      "rule": "Leave blank during initial Organization migration; never default to Tech Wusool.",
-      "resume_when": "All approved advisors exist as DEV workspace members and the user mapping has no unmatched or ambiguous owners."
+      "rule": "Resolve via workspace_member_crosswalk above; leave blank only if the SOURCE owner reference is itself missing.",
+      "status": "unblocked_2026-08-19",
+      "applies_to": ["organization.owner", "person.owner", "mandates.assigned_advisor", "organization.strongest_connection_user", "person.strongest_connection_user"]
     }
   },
   "system_objects": {
