@@ -87,13 +87,18 @@ async def create_organization(client: AttioClient, values: dict) -> str:
 async def create_role_entry(
     client: AttioClient, list_slug: str, org_attio_id: str, entry_values: dict
 ) -> str:
+    # Every entry created here is, by definition, the only one this bot knows
+    # of for this org — `is_active: True` is what the dedup reconciliation
+    # (`attio_sync/upsert.py::_reconcile_active_entry`) reads to decide which
+    # sibling entry wins, so a freshly created entry has to assert it rather
+    # than sit `null` until that reconciliation happens to run.
     response = await client.post(
         f"/lists/{list_slug}/entries",
         {
             "data": {
                 "parent_record_id": org_attio_id,
                 "parent_object": "organizations",
-                "entry_values": entry_values,
+                "entry_values": {**entry_values, "is_active": True},
             }
         },
     )

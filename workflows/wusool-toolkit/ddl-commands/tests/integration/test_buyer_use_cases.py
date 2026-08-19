@@ -51,6 +51,7 @@ async def test_create_with_new_org_inserts_org_and_role(
 
     role = await CreateBuyerUseCase(db_sessionmaker).execute(
         org_attio_id=attio_id,
+        entry_id="entry-1",
         is_new_org=True,
         org_name="Brand New Buyer Co",
         org_fields={"hq_country": "AE"},
@@ -59,6 +60,8 @@ async def test_create_with_new_org_inserts_org_and_role(
 
     assert role.org_attio_id == attio_id
     assert role.model == "Model 1 (Network)"
+    assert role.is_active is True
+    assert role.legacy_entry_id == "entry-1"
 
     async with db_sessionmaker() as session:
         org = await OrganizationRepository(session).get_by_id(attio_id)
@@ -79,6 +82,7 @@ async def test_create_attaches_to_existing_org(
 
     role = await CreateBuyerUseCase(db_sessionmaker).execute(
         org_attio_id=attio_id,
+        entry_id="entry-2",
         is_new_org=False,
         org_fields=None,
         role_fields={"model": "Model 2 (Full Mandate)"},
@@ -86,6 +90,8 @@ async def test_create_attaches_to_existing_org(
 
     assert role.org_attio_id == attio_id
     assert role.model == "Model 2 (Full Mandate)"
+    assert role.is_active is True
+    assert role.legacy_entry_id == "entry-2"
 
 
 async def test_create_raises_when_role_already_exists(
@@ -104,6 +110,7 @@ async def test_create_raises_when_role_already_exists(
     with pytest.raises(BuyerAlreadyExistsError):
         await CreateBuyerUseCase(db_sessionmaker).execute(
             org_attio_id=attio_id,
+            entry_id="entry-3",
             is_new_org=False,
             org_fields=None,
             role_fields={"model": "Model 1 (Network)"},
