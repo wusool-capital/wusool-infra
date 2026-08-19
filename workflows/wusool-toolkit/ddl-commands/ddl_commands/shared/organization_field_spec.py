@@ -13,16 +13,11 @@ org fields other than `sector_focus` (`type`, `stage_focus`,
 from dataclasses import dataclass
 from typing import Literal
 
-# "bool_as_text" exists for exactly one field, `buyer_roles.earnout_tolerance`
-# — a real boolean in Attio (same tri-state Yes/No/Not-set UI as `"bool"`,
-# same `boolean(v, slug)` parser on the Attio-read side per
-# `database/sync-postgres.ps1`), but a `text` column in Postgres, not
-# `boolean` — a pre-existing schema anomaly, not something this bot
-# introduced or is allowed to fix by changing the column type. Rendering and
-# Attio-side serialization are identical to `"bool"`; only the Postgres
-# write differs (stringified, see `ddl_commands/shared/attio/write_payload.py`).
+# A "bool_as_text" kind used to live here for `buyer_roles.earnout_tolerance`
+# alone — boolean in Attio, `text` in Postgres. #53 made the column a real
+# boolean, so the workaround and its stringify/parse round trip are gone.
 FieldKind = Literal[
-    "text", "multiline", "select", "multi_select_text", "currency", "date", "bool", "bool_as_text"
+    "text", "multiline", "select", "multi_select_text", "currency", "date", "bool"
 ]
 
 

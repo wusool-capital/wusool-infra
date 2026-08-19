@@ -58,6 +58,12 @@ def _async_returning(value):
     return _fn
 
 
+async def _raises_if_called(*_args, **_kwargs):
+    """Stands in for a database call that must not happen on a path with only
+    3s to `ack()`."""
+    raise AssertionError("database was queried before ack()")
+
+
 def _fake_org(
     attio_id: str = "org-attio-1",
     name: str = "Acme Capital",
@@ -99,7 +105,6 @@ def _fake_seller_role(role_id: str, *, org=None):
         valuation_low=None,
         valuation_mid=None,
         valuation_high=None,
-        intake_source=None,
     )
 
 
@@ -149,11 +154,10 @@ def _mock_slack_web_client(monkeypatch):
 
 def test_seller_selection_opens_field_picker(monkeypatch) -> None:
     seller_id = str(uuid.uuid4())
-    monkeypatch.setattr(
-        actions_module,
-        "resolve_seller_by_id",
-        _async_returning(_fake_seller_role(seller_id, org=_fake_org(name="Typo Target Co"))),
-    )
+    # This step must `ack()` without touching the database — Slack abandons a
+    # view submission after 3s and Bolt reports that as an empty 200 rather
+    # than an exception, so a slow query here fails silently.
+    monkeypatch.setattr(actions_module, "resolve_seller_by_id", _raises_if_called)
 
     payload = {
         "type": "view_submission",
@@ -162,7 +166,13 @@ def test_seller_selection_opens_field_picker(monkeypatch) -> None:
             "type": "modal",
             "id": "V1",
             "callback_id": "seller_role_selection_modal",
-            "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
+            "private_metadata": json.dumps(
+                {
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "org_names": {seller_id: "Typo Target Co"},
+                }
+            ),
             "state": {
                 "values": {
                     "seller_role_id": {
@@ -186,11 +196,8 @@ def test_seller_selection_opens_field_picker(monkeypatch) -> None:
 
 def test_buyer_selection_opens_field_picker(monkeypatch) -> None:
     buyer_id = str(uuid.uuid4())
-    monkeypatch.setattr(
-        actions_module,
-        "resolve_buyer_by_id",
-        _async_returning(_fake_buyer_role(buyer_id, org=_fake_org(name="Blue Horizon Buyers"))),
-    )
+    # Same 3s-ack constraint as the seller case above.
+    monkeypatch.setattr(actions_module, "resolve_buyer_by_id", _raises_if_called)
 
     payload = {
         "type": "view_submission",
@@ -199,7 +206,13 @@ def test_buyer_selection_opens_field_picker(monkeypatch) -> None:
             "type": "modal",
             "id": "V1",
             "callback_id": "buyer_role_selection_modal",
-            "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
+            "private_metadata": json.dumps(
+                {
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "org_names": {buyer_id: "Blue Horizon Buyers"},
+                }
+            ),
             "state": {
                 "values": {
                     "buyer_role_id": {"selected_buyer": {"selected_option": {"value": buyer_id}}}
@@ -520,10 +533,16 @@ def test_edit_form_removed_org_is_rejected_before_any_write(
     assert "gone or was merged" in _mock_slack_web_client.posted[0]["text"]
 
 
-def test_gated_field_without_confirmation_requires_checkbox() -> None:
+def test_gated_field_without_confirmation_requires_checkbox(monkeypatch) -> None:
+    """No seller field is gated today — `intake_source` was the only one and
+    #53 dropped the column — so this gates a real field for the duration of
+    the test. The machinery is kept for the next write-once field; without
+    this it would be untested until then.
+    """
+    monkeypatch.setattr(actions_module, "GATED_SELLER_ROLE_FIELDS", frozenset({"outreach_tier"}))
     seller_id = str(uuid.uuid4())
-    values = {"intake_source": {"intake_source": {"selected_option": {"value": "Direct"}}}}
-    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["intake_source"], values)
+    values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
+    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["outreach_tier"], values)
 
     response = _post_interactivity(payload)
 

@@ -38,7 +38,6 @@ class SellerRoleRead(BaseModel):
     sell_timeline: str | None = None
     readiness_score: float | None = None
     readiness_band: str | None = None
-    intake_source: str | None = None
     last_attempt_date: date | None = None
     last_attempt_channel: str | None = None
     last_attempt_outcome: str | None = None

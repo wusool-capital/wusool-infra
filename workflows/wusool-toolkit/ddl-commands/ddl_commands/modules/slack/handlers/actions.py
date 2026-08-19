@@ -89,8 +89,14 @@ def register(app: AsyncApp) -> None:
         selected = view["state"]["values"]["seller_role_id"]["selected_seller"]["selected_option"]
         seller_role_id = selected["value"]
 
-        role = await resolve_seller_by_id(seller_role_id)
-        if role is None:
+        # No database call before `ack()`: Slack abandons a view submission
+        # after 3s, and Bolt's runner reports that by returning an empty 200
+        # rather than raising, so an overrun here fails silently. The name is
+        # carried in `private_metadata` by the modal that produced this
+        # submission; the role's existence is re-checked by the field-picker
+        # handler below, which does have to load it anyway.
+        org_name = (metadata.get("org_names") or {}).get(seller_role_id)
+        if org_name is None:
             await ack()
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="This seller could not be found."
@@ -101,7 +107,7 @@ def register(app: AsyncApp) -> None:
             view=build_field_picker_modal(
                 kind="seller",
                 role_id=seller_role_id,
-                org_name=role.organization.name,
+                org_name=org_name,
                 requested_by=requested_by,
                 channel_id=channel_id,
                 role_fields=SELLER_ROLE_FIELDS,
@@ -120,8 +126,9 @@ def register(app: AsyncApp) -> None:
         selected = view["state"]["values"]["buyer_role_id"]["selected_buyer"]["selected_option"]
         buyer_role_id = selected["value"]
 
-        role = await resolve_buyer_by_id(buyer_role_id)
-        if role is None:
+        # See the seller handler above — no database call before `ack()`.
+        org_name = (metadata.get("org_names") or {}).get(buyer_role_id)
+        if org_name is None:
             await ack()
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="This buyer could not be found."
@@ -132,7 +139,7 @@ def register(app: AsyncApp) -> None:
             view=build_field_picker_modal(
                 kind="buyer",
                 role_id=buyer_role_id,
-                org_name=role.organization.name,
+                org_name=org_name,
                 requested_by=requested_by,
                 channel_id=channel_id,
                 role_fields=BUYER_ROLE_FIELDS,

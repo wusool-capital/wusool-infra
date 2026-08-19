@@ -170,29 +170,32 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
     modal must fire ddl-commands' handler, never matching-engine's.
     """
     from app.modules.slack.handlers import actions as matching_engine_actions
-    from ddl_commands.modules.slack.handlers import actions as ddl_commands_actions
 
     def fail_if_called(*_args, **_kwargs):
         raise AssertionError("matching-engine's task runner must not be called")
 
     monkeypatch.setattr(matching_engine_actions._task_runner, "run", fail_if_called)
 
-    resolve_calls: list[str] = []
-
-    async def fake_resolve_buyer_by_id(buyer_role_id: str):
-        resolve_calls.append(buyer_role_id)
-        return None  # short-circuits to the "could not be found" branch, no DB needed
-
-    monkeypatch.setattr(ddl_commands_actions, "resolve_buyer_by_id", fake_resolve_buyer_by_id)
-
     view = {
         "type": "modal",
         "id": "V1",
         "callback_id": "buyer_role_selection_modal",
-        "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
+        "private_metadata": json.dumps(
+            {
+                "requested_by": "U_TEST",
+                "channel_id": "C_TEST",
+                "org_names": {"buyer-role-123": "Blue Horizon Buyers"},
+            }
+        ),
         "state": {"values": _view_state_with_selected_buyer("buyer-role-123")},
     }
     response = _post_view_submission_raw(view)
 
     assert response.status_code == 200
-    assert resolve_calls == ["buyer-role-123"]
+    # ddl-commands' handler is the only one that answers this callback_id with
+    # the buyer field picker — that response *is* the proof of routing. It used
+    # to be proven by spying on a database call, but that call was removed: the
+    # handler has 3s to ack and no longer queries before doing so.
+    body = response.json()
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "buyer_field_picker_modal"
