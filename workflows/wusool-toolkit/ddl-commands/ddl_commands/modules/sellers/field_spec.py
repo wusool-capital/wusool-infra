@@ -6,9 +6,12 @@ Deliberately excluded (plan.md Part C): `readiness_band` (zero options
 currently defined in DEV Attio — nothing to show in a dropdown),
 `readiness_score`/`lead_quality_score` (ownership: both manual and
 pipeline-written — needs the data engineer's confirmation before this bot
-edits them, not this bot's own call). `intake_source` is `gated=True` — the
-dynamic form appends a required confirmation checkbox only when it's among
-the selected fields, matching its `write_once_except_correction` mutability.
+edits them, not this bot's own call). `intake_source` was dropped from the
+table entirely (#53 — every populated value was the constant "Direct", and
+`organizations.lead_source` already carries the signal), taking the only
+gated field with it: `GATED_SELLER_ROLE_FIELDS` is empty now, and the
+confirmation-checkbox machinery it drove is kept for the next write-once
+field rather than deleted.
 """
 
 from ddl_commands.shared.organization_field_spec import FieldSpec
@@ -77,13 +80,7 @@ SELLER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("valuation_low", "Valuation - low (AED)", "currency"),
     FieldSpec("valuation_mid", "Valuation - mid (AED)", "currency"),
     FieldSpec("valuation_high", "Valuation - high (AED)", "currency"),
-    FieldSpec(
-        "intake_source",
-        "Intake source",
-        "select",
-        options=("Direct", "Outbound", "Reengagement", "Inbound Lead Magnet", "Referral Partner"),
-    ),
 )
 
 SELLER_ROLE_FIELDS_BY_NAME = {f.name: f for f in SELLER_ROLE_FIELDS}
-GATED_SELLER_ROLE_FIELDS = frozenset({"intake_source"})
+GATED_SELLER_ROLE_FIELDS: frozenset[str] = frozenset()

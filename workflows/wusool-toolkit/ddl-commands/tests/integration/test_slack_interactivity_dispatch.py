@@ -105,7 +105,6 @@ def _fake_seller_role(role_id: str, *, org=None):
         valuation_low=None,
         valuation_mid=None,
         valuation_high=None,
-        intake_source=None,
     )
 
 
@@ -534,10 +533,16 @@ def test_edit_form_removed_org_is_rejected_before_any_write(
     assert "gone or was merged" in _mock_slack_web_client.posted[0]["text"]
 
 
-def test_gated_field_without_confirmation_requires_checkbox() -> None:
+def test_gated_field_without_confirmation_requires_checkbox(monkeypatch) -> None:
+    """No seller field is gated today — `intake_source` was the only one and
+    #53 dropped the column — so this gates a real field for the duration of
+    the test. The machinery is kept for the next write-once field; without
+    this it would be untested until then.
+    """
+    monkeypatch.setattr(actions_module, "GATED_SELLER_ROLE_FIELDS", frozenset({"outreach_tier"}))
     seller_id = str(uuid.uuid4())
-    values = {"intake_source": {"intake_source": {"selected_option": {"value": "Direct"}}}}
-    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["intake_source"], values)
+    values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
+    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["outreach_tier"], values)
 
     response = _post_interactivity(payload)
 

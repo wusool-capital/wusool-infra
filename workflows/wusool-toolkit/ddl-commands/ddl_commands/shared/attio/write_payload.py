@@ -23,21 +23,15 @@ from ddl_commands.shared.organization_field_spec import FieldSpec
 def build_postgres_values(
     *, table: str, fields: dict[str, FieldSpec], extracted: dict
 ) -> dict:
-    """Two kinds need reshaping from what `dynamic_fields.extract_field_value`
-    returns: `currency` (a bare amount -> `{"amount", "currency"}`) and
-    `bool_as_text` (a real `bool` -> the `"true"`/`"false"` string Postgres's
-    `text` column actually holds for `earnout_tolerance` — see
-    `organization_field_spec.py`'s `FieldKind` docstring for why that column
-    is text at all). Every other kind is already stored in Postgres exactly
-    as extracted.
+    """One kind needs reshaping from what `dynamic_fields.extract_field_value`
+    returns: `currency` (a bare amount -> `{"amount", "currency"}`). Every
+    other kind is already stored in Postgres exactly as extracted.
     """
     postgres_values: dict = {}
     for name, value in extracted.items():
         spec = fields[name]
         if spec.kind == "currency" and value is not None:
             postgres_values[name] = to_postgres_money(table, name, value)
-        elif spec.kind == "bool_as_text" and value is not None:
-            postgres_values[name] = "true" if value else "false"
         else:
             postgres_values[name] = value
     return postgres_values
@@ -96,7 +90,7 @@ async def build_attio_values(
             attio_values[name] = serialize_date(name, value)
         elif spec.kind == "currency":
             attio_values[name] = serialize_money(table, name, value)
-        elif spec.kind in ("bool", "bool_as_text"):
+        elif spec.kind == "bool":
             attio_values[name] = value
         else:
             raise ValueError(f"Unsupported field kind for Attio write: {spec.kind!r}")
