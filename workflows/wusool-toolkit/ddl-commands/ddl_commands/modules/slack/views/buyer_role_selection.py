@@ -38,7 +38,15 @@ def build_buyer_selection_modal(
     return {
         "type": "modal",
         "callback_id": "buyer_role_selection_modal",
-        "private_metadata": json.dumps({"requested_by": requested_by, "channel_id": channel_id}),
+        # See `seller_role_selection.py` — `org_names` exists so the submission
+        # handler can `ack()` inside Slack's 3s window without a database query.
+        "private_metadata": json.dumps(
+            {
+                "requested_by": requested_by,
+                "channel_id": channel_id,
+                "org_names": {str(c.id): c.organization.name for c in candidates},
+            }
+        ),
         "title": {"type": "plain_text", "text": "Confirm buyer"},
         "submit": {"type": "plain_text", "text": "Continue"},
         "close": {"type": "plain_text", "text": "Cancel"},

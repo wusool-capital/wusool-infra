@@ -9,8 +9,17 @@ import json
 
 from ddl_commands.shared.organization_field_spec import ORGANIZATION_FIELDS, FieldSpec
 
+# Slack caps a `checkboxes` element at 10 options, and both role field lists
+# are already past it (15 seller, 11 buyer). Over the cap Slack rejects the
+# whole `response_action: "update"` view: the modal shows "We had some trouble
+# connecting", while our side logs a clean 200 and never raises. Same
+# `selected_options` payload shape either way, so `extract_selected_fields`
+# below is unchanged — but a multi-select holds 100.
+_MAX_OPTIONS = 100
 
-def _checkbox_options(fields: tuple[FieldSpec, ...]) -> list[dict]:
+
+def _field_options(fields: tuple[FieldSpec, ...]) -> list[dict]:
+    assert len(fields) <= _MAX_OPTIONS, f"{len(fields)} options exceeds Slack's {_MAX_OPTIONS}"
     return [{"text": {"type": "plain_text", "text": f.label}, "value": f.name} for f in fields]
 
 
@@ -52,9 +61,10 @@ def build_field_picker_modal(
                 "optional": True,
                 "label": {"type": "plain_text", "text": "Organization"},
                 "element": {
-                    "type": "checkboxes",
+                    "type": "multi_static_select",
                     "action_id": "selected_org_fields",
-                    "options": _checkbox_options(ORGANIZATION_FIELDS),
+                    "placeholder": {"type": "plain_text", "text": "Pick fields to edit"},
+                    "options": _field_options(ORGANIZATION_FIELDS),
                 },
             },
             {
@@ -63,9 +73,10 @@ def build_field_picker_modal(
                 "optional": True,
                 "label": {"type": "plain_text", "text": kind.capitalize() + " profile"},
                 "element": {
-                    "type": "checkboxes",
+                    "type": "multi_static_select",
                     "action_id": "selected_role_fields",
-                    "options": _checkbox_options(role_fields),
+                    "placeholder": {"type": "plain_text", "text": "Pick fields to edit"},
+                    "options": _field_options(role_fields),
                 },
             },
         ],

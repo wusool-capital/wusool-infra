@@ -4,10 +4,9 @@ field-picker-then-form, every eligible field is shown at once, all optional
 except `name` — see `ddl-commands/README.md` for why creation gets one form
 instead of a picker.
 
-No gated-field confirmation checkbox here (unlike `seller_form.py`):
-`intake_source`'s `write_once_except_correction` mutability gates
-*overwriting* an existing value, and a brand new seller role has no existing
-value to overwrite.
+No gated-field confirmation checkbox here: nothing is gated any more (#53
+dropped `intake_source`, the only such field), and a brand new role has no
+existing value to overwrite regardless.
 """
 
 import json

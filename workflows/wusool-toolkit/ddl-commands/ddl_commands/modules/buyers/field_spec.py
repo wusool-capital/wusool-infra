@@ -6,8 +6,8 @@ Deliberately excluded (plan.md Part C): `acquisition_enrichment`,
 `deals_introduced`, `deals_converted` (ownership: both manual and
 pipeline-written — needs the data engineer's confirmation before this bot
 edits them). `key_contact` deferred — a `record-reference` type, not a
-plain field. No gated fields on the buyer side (unlike seller's
-`intake_source`).
+plain field. No gated fields on the buyer side — nor on the seller side
+any more, since `intake_source` was dropped in #53.
 """
 
 from ddl_commands.shared.organization_field_spec import FieldSpec
@@ -28,7 +28,7 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
         "select",
         options=("Majority", "Minority", "Flexible", "Acquisition Financing"),
     ),
-    FieldSpec("earnout_tolerance", "Earnout tolerance", "bool_as_text"),
+    FieldSpec("earnout_tolerance", "Earnout tolerance", "bool"),
     FieldSpec("profitable_only", "Profitable only", "bool"),
     FieldSpec("investment_strategy", "Investment strategy", "multiline"),
     FieldSpec("notes", "Notes", "multiline"),

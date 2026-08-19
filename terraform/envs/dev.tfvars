@@ -42,3 +42,9 @@ extra_allowed_security_group_ids = ["sg-0684b8cf83abfd065"]
 # stacks/toolkit — image pinned by digest (Phase F). Built and pushed by
 # _build.yml; verified against ECR before pinning here.
 image_digest = "sha256:ad9e212f7c868cda1dabd4bc1c41da068b6448b32c13219d4bf6198dc2f42da2"
+
+# 2026-08-19: t2.micro hit InsufficientInstanceCapacity in eu-central-1a mid-
+# deploy, leaving wusool-dev-toolkit stopped. Switched to the documented
+# fallback (see toolkit-ec2/variables.tf's instance_type description) so the
+# next apply doesn't fight the manual AWS-CLI workaround used to unblock it.
+toolkit_instance_type = "t3.micro"

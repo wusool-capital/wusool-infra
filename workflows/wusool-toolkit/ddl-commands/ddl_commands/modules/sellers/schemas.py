@@ -53,4 +53,3 @@ class SellerUpdate(BaseModel):
     valuation_low: float | None = None
     valuation_mid: float | None = None
     valuation_high: float | None = None
-    intake_source: str | None = Field(default=None, max_length=100)
