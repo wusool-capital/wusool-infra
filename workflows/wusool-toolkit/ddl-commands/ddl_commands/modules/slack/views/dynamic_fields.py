@@ -65,9 +65,12 @@ def extract_field_value(spec: FieldSpec, values: dict, *, block_id_prefix: str =
     if spec.kind == "select":
         return get_static_select(values, block_id, block_id)
     if spec.kind == "multi_select_text":
+        # `[]`, not `None`, when blank: `organizations.sector_focus` (the only
+        # field of this kind) is `text[] NOT NULL DEFAULT '{}'` — an empty
+        # selection is a real, storable value for it, never a null one.
         raw = get_text(values, block_id, block_id)
         if not raw:
-            return None
+            return []
         return [part.strip() for part in raw.split(",") if part.strip()]
     if spec.kind == "date":
         raw = get_date(values, block_id, block_id)
