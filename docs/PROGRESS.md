@@ -306,7 +306,7 @@ repo) per `AGENTS.md`; consult that when doing further Attio/Postgres work.
   Until that's done, scribe cannot publish prod meetings even though the
   network path and the table-level grants both exist.
 
-### 7. Real-time Attio → PostgreSQL sync via webhook — code complete and tested, PR #47 open against `dev`
+### 7. Real-time Attio → PostgreSQL sync via webhook — done: live-verified working end-to-end
 
 **What it is:** `POST /webhooks/attio` on the toolkit (`workflows/wusool-toolkit`) —
 Attio calls it the instant a record or list entry changes in DEV Attio, for
@@ -317,25 +317,35 @@ one (`full_resync.py` + `.github/workflows/nightly-attio-sync.yml`), and adds
 automatic Attio-webhook pause/resume around `sync-all.ps1 -Apply` runs so a
 bulk migration doesn't generate wasted webhook churn.
 
-**Current state (2026-08-18):**
-- **PR #47** (`feature/attio-postgres-realtime-sync` → `dev`) open, rebased
-  onto `dev` after PR #45 (this workstream depends on `database/wusool_db`,
-  which #45 introduced), CI green. Reviewed by Sinan — asked for pydantic
-  validation at the webhook boundary, added (`modules/attio_sync/schemas.py`,
-  matching the existing `modules/buyers/schemas.py` convention).
-- Already done against real infrastructure: Attio webhook registered and
-  active (5 event types: `record.created`, `record.updated`,
-  `record.deleted`, `list-entry.created`, `list-entry.updated`);
-  `ATTIO_WEBHOOK_SECRET` added to the toolkit's Secrets Manager secret
-  (`/wusool/dev/toolkit`); a live bounded `sync-all.ps1 -Apply -Limit 1` run
-  against `buyer_role` proved the full pause → migrate → resume cycle
-  end-to-end.
-- 87 unit + live-DB integration tests passing.
+**Shipped (2026-08-18), three PRs into `dev`:**
+- **PR #47** — the feature itself. Reviewed by Sinan, who separately caught
+  two real resilience gaps in the nightly resync (an unguarded exception
+  that could abort the whole run partway through, and a 20-minute poll cap
+  with no headroom and no concurrency guard against overlapping runs) —
+  both fixed in the same PR before merge.
+- **PR #49 → #50** — post-merge live testing surfaced that Attio's real
+  webhook payload didn't match the schema written from docs/examples alone
+  (rejected with HTTP 400). #49 added logging of the raw rejected body
+  rather than guessing again; the very next real delivery, caught in
+  CloudWatch, revealed Attio's actual shape: an envelope
+  `{"webhook_id": ..., "events": [...]}`, where `events` is a genuine array
+  — not a bare event object. #50 fixed the schema to match, confirmed
+  against the real logged payload, and now dispatches every event in that
+  array (a single delivery can carry more than one).
+- **Live-verified end-to-end (2026-08-18):** a real DEV Attio field edit
+  synced into Postgres within seconds — confirmed independently via both
+  the target row in Postgres and a `200` in the toolkit's CloudWatch logs —
+  then reverted, and the revert synced correctly too, proving both
+  directions.
+- Also already done: Attio webhook registered and active (5 event types:
+  `record.created`, `record.updated`, `record.deleted`, `list-entry.created`,
+  `list-entry.updated`); `ATTIO_WEBHOOK_SECRET` added to the toolkit's
+  Secrets Manager secret (`/wusool/dev/toolkit`); a live bounded
+  `sync-all.ps1 -Apply -Limit 1` run against `buyer_role` proved the full
+  webhook pause → migrate → resume cycle end-to-end.
+- 91 unit + live-DB integration tests passing.
 
-**Not yet done:**
-- Merge PR #47, then the live smoke test (one real DEV Attio change, confirm
-  it lands in Postgres via the deployed route) — the toolkit doesn't have
-  this route live until that deploy completes.
+**Not yet done, low priority:**
 - A more detailed technical write-up is sitting on the desktop
   (`ATTIO_POSTGRES_REALTIME_SYNC.md`), not yet committed into the repo.
 - The stale `database/rds-tunnel-runbook.md` (references

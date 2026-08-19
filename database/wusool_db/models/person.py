@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Text, text
+from sqlalchemy import ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,6 +35,17 @@ class Person(Base):
     education: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     enrichment: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     last_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # Added 2026-08-19 alongside the DEV Attio attributes of the same names
+    # (Wusool Schema Handover artifact).
+    job_title: Mapped[str | None] = mapped_column(Text)
+    contact_type: Mapped[str | None] = mapped_column(Text)
+    phone: Mapped[str | None] = mapped_column(Text)
+    avatar_url: Mapped[str | None] = mapped_column(Text)
+    angellist: Mapped[str | None] = mapped_column(Text)
+    facebook: Mapped[str | None] = mapped_column(Text)
+    instagram: Mapped[str | None] = mapped_column(Text)
+    twitter: Mapped[str | None] = mapped_column(Text)
+    twitter_follower_count: Mapped[int | None] = mapped_column(Integer)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

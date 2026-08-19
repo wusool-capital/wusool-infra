@@ -16,10 +16,10 @@ subset of matching-engine's columns, so neither prior mapping alone is a
 superset of the other. This is the union of both — not a re-narrowing.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Text, text
+from sqlalchemy import ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -78,6 +78,17 @@ class Organization(Base):
     # checked before any Attio write so a bot never PATCHes a record Attio no
     # longer has.
     removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # Added 2026-08-19 alongside the DEV Attio attributes of the same names
+    # (Wusool Schema Handover artifact) — all plain text/number/date, no
+    # money-shape wrapping needed for any of these.
+    angellist: Mapped[str | None] = mapped_column(Text)
+    facebook: Mapped[str | None] = mapped_column(Text)
+    instagram: Mapped[str | None] = mapped_column(Text)
+    twitter: Mapped[str | None] = mapped_column(Text)
+    twitter_follower_count: Mapped[int | None] = mapped_column(Integer)
+    foundation_date: Mapped[date | None] = mapped_column()
+    ticket_size: Mapped[str | None] = mapped_column(Text)
+    lead_source: Mapped[str | None] = mapped_column(Text)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

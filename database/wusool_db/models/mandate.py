@@ -8,7 +8,7 @@ import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Text, text
+from sqlalchemy import ForeignKey, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,6 +40,12 @@ class Mandate(Base):
     shortlist_size: Mapped[int | None] = mapped_column()
     tier1_contacted: Mapped[int | None] = mapped_column()
     responses: Mapped[int | None] = mapped_column()
+    # Added 2026-08-19 alongside the DEV Attio attributes of the same names
+    # (Wusool Schema Handover artifact). `retainer_amount` is DEV Attio type
+    # "currency" (unlike SOURCE's plain-number `retainer_amount_aed`) — money
+    # shape confirmed via database/sync-postgres.ps1's existing convention.
+    sellers_interested: Mapped[int | None] = mapped_column(Integer)
+    retainer_amount: Mapped[dict | None] = mapped_column(JSONB)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
