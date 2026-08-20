@@ -18,6 +18,7 @@ from ddl_commands.modules.buyers.application.use_cases import (
 )
 from ddl_commands.modules.buyers.dependencies import (
     build_create_buyer_use_case,
+    build_create_key_contact_use_case,
     build_update_buyer_use_case,
     resolve_buyer_by_id,
 )
@@ -26,6 +27,7 @@ from ddl_commands.modules.buyers.field_spec import (
     BUYER_ROLE_FIELDS_BY_NAME,
     GATED_BUYER_ROLE_FIELDS,
 )
+from ddl_commands.modules.buyers.person_field_spec import PERSON_FIELDS, PERSON_FIELDS_BY_NAME
 from ddl_commands.modules.buyers.schemas import BuyerUpdate
 from ddl_commands.modules.sellers.application.use_cases import (
     SellerAlreadyExistsError,
@@ -48,11 +50,15 @@ from ddl_commands.modules.slack.views.dynamic_fields import extract_field_value
 from ddl_commands.modules.slack.views.field_picker import (
     build_field_picker_modal,
     extract_selected_fields,
+    wants_key_contact,
 )
 from ddl_commands.modules.slack.views.form_values import (
     get_checkbox_selected,
     get_text,
     pydantic_errors_to_slack,
+)
+from ddl_commands.modules.slack.views.key_contact_create_form import (
+    build_key_contact_create_form_modal,
 )
 from ddl_commands.modules.slack.views.organization_selection import NEW_ORGANIZATION_VALUE
 from ddl_commands.modules.slack.views.seller_add_form import build_seller_add_form_modal
@@ -61,6 +67,7 @@ from ddl_commands.shared.attio.client import AttioError, get_attio_client
 from ddl_commands.shared.attio.entries import (
     RoleEntryNotFoundError,
     create_organization,
+    create_person,
     create_role_entry,
     patch_organization,
     patch_role_entry,
@@ -187,11 +194,154 @@ def register(app: AsyncApp) -> None:
         channel_id = metadata["channel_id"]
         buyer_role_id = metadata["buyer_role_id"]
 
-        org_fields, role_fields = extract_selected_fields(view["state"]["values"])
-        if not org_fields and not role_fields:
+        values = view["state"]["values"]
+        org_fields, role_fields = extract_selected_fields(values)
+        want_key_contact = wants_key_contact(values)
+        if not org_fields and not role_fields and not want_key_contact:
             await ack()
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="Pick at least one field to edit."
+            )
+            return
+
+        role = await resolve_buyer_by_id(buyer_role_id)
+        if role is None:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id, user=requested_by, text="This buyer could not be found."
+            )
+            return
+
+        if want_key_contact:
+            await ack(
+                response_action="update",
+                view=build_key_contact_create_form_modal(
+                    buyer_role_id=buyer_role_id,
+                    org_attio_id=role.organization.attio_id,
+                    org_name=role.organization.name,
+                    selected_org_fields=org_fields,
+                    selected_role_fields=role_fields,
+                    requested_by=requested_by,
+                    channel_id=channel_id,
+                ),
+            )
+            return
+
+        await ack(
+            response_action="update",
+            view=build_buyer_edit_form_modal(
+                role,
+                role.organization,
+                selected_org_fields=org_fields,
+                selected_role_fields=role_fields,
+                requested_by=requested_by,
+                channel_id=channel_id,
+            ),
+        )
+
+    @app.view("buyer_key_contact_create_modal")
+    async def handle_buyer_key_contact_create_submission(ack, body, view, client):  # noqa: ANN001
+        """Always creates a brand-new person — there is no search-and-pick-
+        an-existing-one path. Has to create the contact *before* `ack()`
+        when continuing to the edit form: `response_action: "update"`
+        requires the next view's content synchronously, and that view needs
+        the new contact's id. Same tension `resolve_seller_by_id`'s DB read
+        already accepts in `handle_seller_field_picker_submission` — this is
+        two lightweight calls on the plain, non-retrying `AttioClient`
+        (`shared/attio/client.py`'s own docstring: fails fast rather than
+        retrying, exactly because a human is waiting on it), not the
+        retry-heavy path `attio_sync` uses for webhook delivery.
+        """
+        metadata = json.loads(view.get("private_metadata") or "{}")
+        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        channel_id = metadata["channel_id"]
+        buyer_role_id = metadata["buyer_role_id"]
+        org_attio_id = metadata["org_attio_id"]
+        org_name = metadata["org_name"]
+        selected_org_fields: list[str] = metadata["selected_org_fields"]
+        selected_role_fields: list[str] = metadata["selected_role_fields"]
+
+        values = view["state"]["values"]
+        name = get_text(values, "name", "name")
+        if not name:
+            await ack(response_action="errors", errors={"name": "Contact name is required."})
+            return
+        person_extracted = {spec.name: extract_field_value(spec, values) for spec in PERSON_FIELDS}
+
+        attio_client = get_attio_client()
+        try:
+            person_attio_values = await build_attio_values(
+                attio_client,
+                target_kind="objects",
+                target_slug="person",
+                table="people",
+                fields=PERSON_FIELDS_BY_NAME,
+                extracted=person_extracted,
+            )
+            person_attio_values["name"] = name
+            person_attio_id = await create_person(attio_client, person_attio_values)
+        except (AttioError, OptionNotFoundError) as exc:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=requested_by,
+                text=f"Couldn't create {name} in Attio: {exc}. Nothing was saved.",
+            )
+            return
+
+        person_postgres_fields = build_postgres_values(
+            table="people", fields=PERSON_FIELDS_BY_NAME, extracted=person_extracted
+        )
+        try:
+            await build_create_key_contact_use_case().execute(
+                attio_id=person_attio_id,
+                name=name,
+                company_attio_id=org_attio_id,
+                fields=person_postgres_fields,
+            )
+        except Exception as exc:
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=requested_by,
+                text=(
+                    f"Created {name} in Attio, but saving them to Postgres failed: {exc}. "
+                    "The next sync will pick them up."
+                ),
+            )
+            return
+
+        if not selected_org_fields and not selected_role_fields:
+            await ack()
+            try:
+                await _write_buyer_edit(
+                    buyer_role_id=buyer_role_id,
+                    org_attio_id=org_attio_id,
+                    org_extracted={},
+                    role_extracted={},
+                    key_contact_attio_id=person_attio_id,
+                )
+            except BuyerNotFoundError:
+                await client.chat_postEphemeral(
+                    channel=channel_id, user=requested_by, text="This buyer could not be found."
+                )
+                return
+            except _OrgRemovedError:
+                await client.chat_postEphemeral(
+                    channel=channel_id,
+                    user=requested_by,
+                    text=f"{org_name}'s Attio record is gone or was merged — can't write to it.",
+                )
+                return
+            except PartialWriteError as exc:
+                await client.chat_postEphemeral(
+                    channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                )
+                return
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=requested_by,
+                text=f"Set {name} as the key contact for {org_name}.",
             )
             return
 
@@ -207,10 +357,11 @@ def register(app: AsyncApp) -> None:
             view=build_buyer_edit_form_modal(
                 role,
                 role.organization,
-                selected_org_fields=org_fields,
-                selected_role_fields=role_fields,
+                selected_org_fields=selected_org_fields,
+                selected_role_fields=selected_role_fields,
                 requested_by=requested_by,
                 channel_id=channel_id,
+                key_contact_attio_id=person_attio_id,
             ),
         )
 
@@ -300,6 +451,7 @@ def register(app: AsyncApp) -> None:
         org_name = metadata["org_name"]
         selected_org_fields: list[str] = metadata["selected_org_fields"]
         selected_role_fields: list[str] = metadata["selected_role_fields"]
+        key_contact_attio_id: str | None = metadata.get("key_contact_attio_id")
 
         values = view["state"]["values"]
         org_extracted = {
@@ -343,6 +495,7 @@ def register(app: AsyncApp) -> None:
                 org_attio_id=org_attio_id,
                 org_extracted=org_extracted,
                 role_extracted=role_extracted,
+                key_contact_attio_id=key_contact_attio_id,
             )
         except BuyerNotFoundError:
             await client.chat_postEphemeral(
@@ -643,7 +796,12 @@ async def _write_seller_edit(
 
 
 async def _write_buyer_edit(
-    *, buyer_role_id: str, org_attio_id: str, org_extracted: dict, role_extracted: dict
+    *,
+    buyer_role_id: str,
+    org_attio_id: str,
+    org_extracted: dict,
+    role_extracted: dict,
+    key_contact_attio_id: str | None = None,
 ) -> None:
     role = await resolve_buyer_by_id(buyer_role_id)
     if role is None:
@@ -666,7 +824,7 @@ async def _write_buyer_edit(
             if org_attio_values:
                 await patch_organization(attio_client, org_attio_id, org_attio_values)
                 landed.append("organization fields (Attio)")
-        if role_extracted:
+        if role_extracted or key_contact_attio_id:
             role_attio_values = await build_attio_values(
                 attio_client,
                 target_kind="lists",
@@ -675,6 +833,16 @@ async def _write_buyer_edit(
                 fields=BUYER_ROLE_FIELDS_BY_NAME,
                 extracted=role_extracted,
             )
+            # `key_contact` is a record-reference, not a `FieldSpec` — it
+            # never goes through `build_attio_values`'s generic dispatch,
+            # since that function only knows the kinds `BUYER_ROLE_FIELDS`
+            # declares. Confirmed write shape:
+            # `crm-sync/scripts/_internal/lists.ps1:405`.
+            if key_contact_attio_id:
+                role_attio_values["key_contact"] = {
+                    "target_object": "person",
+                    "target_record_id": key_contact_attio_id,
+                }
             if role_attio_values:
                 entry_id = await resolve_role_entry_id(attio_client, "buyer_role", org_attio_id)
                 await patch_role_entry(attio_client, "buyer_role", entry_id, role_attio_values)
@@ -696,6 +864,11 @@ async def _write_buyer_edit(
         if role_extracted
         else {}
     )
+    if key_contact_attio_id:
+        # Same reasoning as `is_active`/`legacy_entry_id` in the create
+        # path: bot-resolved state, set directly, never through
+        # `BuyerUpdate`/`BUYER_ROLE_FIELDS` (which deliberately excludes it).
+        role_postgres_fields["key_contact_attio_id"] = key_contact_attio_id
     try:
         await build_update_buyer_use_case().execute(
             buyer_role_id,

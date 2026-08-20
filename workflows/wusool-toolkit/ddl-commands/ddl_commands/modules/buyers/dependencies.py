@@ -10,6 +10,7 @@ from ddl_commands.modules.buyers.application.resolution_service import (
 )
 from ddl_commands.modules.buyers.application.use_cases import (
     CreateBuyerUseCase,
+    CreateKeyContactUseCase,
     UpdateBuyerUseCase,
 )
 from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
@@ -34,3 +35,7 @@ def build_update_buyer_use_case() -> UpdateBuyerUseCase:
 
 def build_create_buyer_use_case() -> CreateBuyerUseCase:
     return CreateBuyerUseCase(get_sessionmaker())
+
+
+def build_create_key_contact_use_case() -> CreateKeyContactUseCase:
+    return CreateKeyContactUseCase(get_sessionmaker())

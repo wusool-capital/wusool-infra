@@ -132,6 +132,17 @@ async def create_organization(client: AttioClient, values: dict) -> str:
     return response["data"]["id"]["record_id"]
 
 
+async def create_person(client: AttioClient, values: dict) -> str:
+    """Same shape as `create_organization` — confirmed the same live shape
+    applies: `crm-sync`'s own record-create loop (`objects.ps1`) is generic
+    over the target object slug and already runs this exact path for Person
+    records, just with `person` (singular — Attio's DEV object slug, not the
+    `people` Postgres table name) instead of `organizations`.
+    """
+    response = await client.post("/objects/person/records", {"data": {"values": values}})
+    return response["data"]["id"]["record_id"]
+
+
 async def create_role_entry(
     client: AttioClient, list_slug: str, org_attio_id: str, entry_values: dict
 ) -> str:

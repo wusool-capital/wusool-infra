@@ -1010,3 +1010,132 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     assert postgres_use_case.calls[0]["org_attio_id"] == "org-attio-existing"
     assert postgres_use_case.calls[0]["is_new_org"] is False
     assert "Added buyer profile for Existing Buyer Co" in _mock_slack_web_client.posted[0]["text"]
+
+
+# --------------------------------------------------------------------------
+# key contact: field-picker branch, and threading into the edit form
+# --------------------------------------------------------------------------
+
+
+def test_buyer_field_picker_key_contact_only_opens_create_modal_not_usage_error(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    """Ticking "Also set a new key contact" with nothing else selected must
+    satisfy the "pick at least one field" guard, not trip it.
+    """
+    buyer_id = str(uuid.uuid4())
+    monkeypatch.setattr(
+        actions_module, "resolve_buyer_by_id", _async_returning(_fake_buyer_role(buyer_id))
+    )
+
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V8",
+            "callback_id": "buyer_field_picker_modal",
+            "private_metadata": json.dumps(
+                {
+                    "buyer_role_id": buyer_id,
+                    "org_name": "Blue Horizon",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                }
+            ),
+            "state": {
+                "values": {
+                    "org_fields": {"selected_org_fields": {"selected_options": []}},
+                    "role_fields": {"selected_role_fields": {"selected_options": []}},
+                    "key_contact_flag": {
+                        "set_key_contact": {
+                            "selected_options": [{"value": "set_key_contact"}]
+                        }
+                    },
+                }
+            },
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "buyer_key_contact_create_modal"
+    assert _mock_slack_web_client.posted == []
+
+
+def test_key_contact_create_with_other_fields_continues_to_edit_form(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    """Key contact ticked *alongside* a normal field: creates the person,
+    then must continue into the existing edit form (not finish early),
+    carrying the new contact's id forward for `_write_buyer_edit` to merge
+    in at the final step.
+    """
+    buyer_id = str(uuid.uuid4())
+    org = _fake_org(attio_id="org-attio-9", name="Blue Horizon")
+    monkeypatch.setattr(
+        actions_module, "resolve_buyer_by_id", _async_returning(_fake_buyer_role(buyer_id, org=org))
+    )
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        return {}
+
+    create_person_calls: list[dict] = []
+
+    async def fake_create_person(_client, values):
+        create_person_calls.append(values)
+        return "person-attio-9"
+
+    execute_calls: list[dict] = []
+
+    async def fake_execute(**kwargs):
+        execute_calls.append(kwargs)
+        return None
+
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "create_person", fake_create_person)
+    monkeypatch.setattr(
+        actions_module,
+        "build_create_key_contact_use_case",
+        lambda: SimpleNamespace(execute=fake_execute),
+    )
+
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V9",
+            "callback_id": "buyer_key_contact_create_modal",
+            "private_metadata": json.dumps(
+                {
+                    "buyer_role_id": buyer_id,
+                    "org_attio_id": "org-attio-9",
+                    "org_name": "Blue Horizon",
+                    "selected_org_fields": [],
+                    "selected_role_fields": ["model"],
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                }
+            ),
+            "state": {"values": {"name": {"name": {"value": "Jane Doe"}}}},
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "buyer_edit_form_modal"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["key_contact_attio_id"] == "person-attio-9"
+    assert metadata["selected_role_fields"] == ["model"]
+    assert create_person_calls[0]["name"] == "Jane Doe"
+    assert execute_calls[0]["attio_id"] == "person-attio-9"
+    assert execute_calls[0]["company_attio_id"] == "org-attio-9"
+    assert _mock_slack_web_client.posted == []

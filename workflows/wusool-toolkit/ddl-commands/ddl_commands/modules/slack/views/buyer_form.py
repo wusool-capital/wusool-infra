@@ -23,6 +23,7 @@ def build_buyer_edit_form_modal(
     selected_role_fields: list[str],
     requested_by: str,
     channel_id: str,
+    key_contact_attio_id: str | None = None,
 ) -> dict:
     blocks: list[dict] = []
     for name in selected_org_fields:
@@ -55,6 +56,7 @@ def build_buyer_edit_form_modal(
                 "channel_id": channel_id,
                 "selected_org_fields": selected_org_fields,
                 "selected_role_fields": selected_role_fields,
+                "key_contact_attio_id": key_contact_attio_id,
             }
         ),
         "title": {"type": "plain_text", "text": "Edit buyer"},

@@ -7,10 +7,11 @@ the transaction — never trusts a Slack payload's claimed state.
 """
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from wusool_db.models import BuyerRole
+from wusool_db.models import BuyerRole, Person
 
 from ddl_commands.modules.buyers.infrastructure.repositories import BuyerRepository
 from ddl_commands.shared.database.organization_repository import OrganizationRepository
+from ddl_commands.shared.database.person_repository import PersonRepository
 
 
 class BuyerNotFoundError(Exception):
@@ -91,3 +92,25 @@ class CreateBuyerUseCase:
                     org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
                 )
         return role
+
+
+class CreateKeyContactUseCase:
+    def __init__(self, sessionmaker: async_sessionmaker) -> None:
+        self._sessionmaker = sessionmaker
+
+    async def execute(
+        self, *, attio_id: str, name: str, company_attio_id: str, fields: dict
+    ) -> Person:
+        """Called only after the corresponding Attio Person create already
+        succeeded (see `_handle_buyer_key_contact_create_submission` in
+        `actions.py`) — this never talks to Attio itself, same convention as
+        every other write use case here. `company_attio_id` is always the
+        buyer role's own org — the new contact isn't operator-assigned to a
+        company, they're auto-linked to the one they're being created for.
+        """
+        async with self._sessionmaker() as session:
+            async with session.begin():
+                person = await PersonRepository(session).create(
+                    attio_id, name, company_attio_id=company_attio_id, **fields
+                )
+        return person

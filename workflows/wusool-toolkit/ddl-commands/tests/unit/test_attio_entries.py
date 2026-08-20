@@ -3,6 +3,7 @@ import pytest
 from ddl_commands.shared.attio.entries import (
     RoleEntryNotFoundError,
     create_organization,
+    create_person,
     create_role_entry,
     patch_organization,
     patch_role_entry,
@@ -162,6 +163,22 @@ async def test_create_organization_targets_records_endpoint_and_returns_record_i
     assert path == "/objects/organizations/records"
     assert body == {"data": {"values": {"name": "New Co"}}}
     assert record_id == "org-new-1"
+
+
+async def test_create_person_targets_person_object_singular_and_returns_record_id() -> None:
+    """Attio's DEV object slug for a Person is singular `person`, not
+    `people` (the Postgres table name) — confirmed independently in both
+    `crm-sync` and this bot's own read of a Person
+    (`attio_sync/upsert.py:237`).
+    """
+    client = _FakeCreateClient({"data": {"id": {"record_id": "person-new-1"}}})
+
+    record_id = await create_person(client, {"name": "Jane Doe"})
+
+    path, body = client.post_calls[0]
+    assert path == "/objects/person/records"
+    assert body == {"data": {"values": {"name": "Jane Doe"}}}
+    assert record_id == "person-new-1"
 
 
 async def test_create_role_entry_targets_entries_endpoint_and_returns_entry_id() -> None:

@@ -33,6 +33,61 @@ def build_field_picker_modal(
     role_fields: tuple[FieldSpec, ...],
 ) -> dict:
     role_id_key = f"{kind}_role_id"
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"Which fields do you want to edit for *{org_name}*?",
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "org_fields",
+            "optional": True,
+            "label": {"type": "plain_text", "text": "Organization"},
+            "element": {
+                "type": "multi_static_select",
+                "action_id": "selected_org_fields",
+                "placeholder": {"type": "plain_text", "text": "Pick fields to edit"},
+                "options": _field_options(ORGANIZATION_FIELDS),
+            },
+        },
+        {
+            "type": "input",
+            "block_id": "role_fields",
+            "optional": True,
+            "label": {"type": "plain_text", "text": kind.capitalize() + " profile"},
+            "element": {
+                "type": "multi_static_select",
+                "action_id": "selected_role_fields",
+                "placeholder": {"type": "plain_text", "text": "Pick fields to edit"},
+                "options": _field_options(role_fields),
+            },
+        },
+    ]
+    # `key_contact` is a `record-reference`, not a plain field — it can't go
+    # through `BUYER_ROLE_FIELDS`/`extract_field_value` like everything
+    # above, so it isn't one. Buyer-only: sellers have no key contact.
+    if kind == "buyer":
+        blocks.append(
+            {
+                "type": "input",
+                "block_id": "key_contact_flag",
+                "optional": True,
+                "label": {"type": "plain_text", "text": "Key contact"},
+                "element": {
+                    "type": "checkboxes",
+                    "action_id": "set_key_contact",
+                    "options": [
+                        {
+                            "text": {"type": "plain_text", "text": "Also set a new key contact"},
+                            "value": "set_key_contact",
+                        }
+                    ],
+                },
+            }
+        )
     return {
         "type": "modal",
         "callback_id": f"{kind}_field_picker_modal",
@@ -47,39 +102,7 @@ def build_field_picker_modal(
         "title": {"type": "plain_text", "text": f"Edit {kind}: fields"},
         "submit": {"type": "plain_text", "text": "Continue"},
         "close": {"type": "plain_text", "text": "Cancel"},
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"Which fields do you want to edit for *{org_name}*?",
-                },
-            },
-            {
-                "type": "input",
-                "block_id": "org_fields",
-                "optional": True,
-                "label": {"type": "plain_text", "text": "Organization"},
-                "element": {
-                    "type": "multi_static_select",
-                    "action_id": "selected_org_fields",
-                    "placeholder": {"type": "plain_text", "text": "Pick fields to edit"},
-                    "options": _field_options(ORGANIZATION_FIELDS),
-                },
-            },
-            {
-                "type": "input",
-                "block_id": "role_fields",
-                "optional": True,
-                "label": {"type": "plain_text", "text": kind.capitalize() + " profile"},
-                "element": {
-                    "type": "multi_static_select",
-                    "action_id": "selected_role_fields",
-                    "placeholder": {"type": "plain_text", "text": "Pick fields to edit"},
-                    "options": _field_options(role_fields),
-                },
-            },
-        ],
+        "blocks": blocks,
     }
 
 
@@ -94,3 +117,15 @@ def extract_selected_fields(values: dict) -> tuple[list[str], list[str]]:
         [o["value"] for o in org_selected],
         [o["value"] for o in role_selected],
     )
+
+
+def wants_key_contact(values: dict) -> bool:
+    """The buyer-only "Also set a new key contact" checkbox — kept separate
+    from `extract_selected_fields` rather than a third return value, since
+    sellers never have this block at all and shouldn't need to unpack a
+    value that's always empty for them.
+    """
+    selected = values.get("key_contact_flag", {}).get("set_key_contact", {}).get(
+        "selected_options", []
+    )
+    return any(o["value"] == "set_key_contact" for o in selected)
