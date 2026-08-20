@@ -113,7 +113,21 @@ async def test_create_role_entry_targets_entries_endpoint_and_returns_entry_id()
         "data": {
             "parent_record_id": "org-new-1",
             "parent_object": "organizations",
-            "entry_values": {"outreach_tier": "opt-1"},
+            "entry_values": {"outreach_tier": "opt-1", "is_active": True},
         }
     }
     assert entry_id == "entry-new-1"
+
+
+async def test_create_role_entry_always_sets_is_active_true() -> None:
+    """A freshly created entry is by definition the only one this bot knows
+    of for the org — `_reconcile_active_entry` reads `is_active` to pick a
+    winner among siblings, so a new entry can't be left `null` until that
+    reconciliation happens to run.
+    """
+    client = _FakeCreateClient({"data": {"id": {"entry_id": "entry-new-2"}}})
+
+    await create_role_entry(client, "buyer_role", "org-new-2", {})
+
+    _, body = client.post_calls[0]
+    assert body["data"]["entry_values"]["is_active"] is True

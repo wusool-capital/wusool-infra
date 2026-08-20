@@ -55,6 +55,7 @@ class CreateSellerUseCase:
         self,
         *,
         org_attio_id: str,
+        entry_id: str,
         is_new_org: bool,
         org_name: str | None = None,
         org_fields: dict | None = None,
@@ -65,6 +66,7 @@ class CreateSellerUseCase:
         this never talks to Attio itself. `org_attio_id` is always Attio's
         own `record_id`, whether from a create that just happened
         (`is_new_org=True`) or an existing org the operator attached to.
+        `entry_id` is the just-created seller_role list entry's own id.
 
         Re-checks for an existing seller role on `org_attio_id` inside this
         same transaction rather than trusting the Slack payload's claim that
@@ -85,5 +87,11 @@ class CreateSellerUseCase:
                 seller_repo = SellerRepository(session)
                 if await seller_repo.get_by_org_attio_id(org_attio_id) is not None:
                     raise SellerAlreadyExistsError(org_attio_id)
-                role = await seller_repo.create(org_attio_id, **role_fields)
+                # `is_active`/`legacy_entry_id` are bot-owned reconciliation
+                # state, not operator-editable — set explicitly here, never
+                # via `role_fields` (built from `SELLER_ROLE_FIELDS`, the
+                # Slack form's editable set).
+                role = await seller_repo.create(
+                    org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
+                )
         return role

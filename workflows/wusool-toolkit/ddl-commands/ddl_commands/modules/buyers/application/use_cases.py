@@ -61,13 +61,15 @@ class CreateBuyerUseCase:
         self,
         *,
         org_attio_id: str,
+        entry_id: str,
         is_new_org: bool,
         org_name: str | None = None,
         org_fields: dict | None = None,
         role_fields: dict,
     ) -> BuyerRole:
         """Mirrors `CreateSellerUseCase.execute` exactly, buyer-typed — see
-        that docstring for the re-check rationale.
+        that docstring for the re-check rationale. `entry_id` is the
+        just-created buyer_role list entry's own id.
         """
         async with self._sessionmaker() as session:
             async with session.begin():
@@ -81,5 +83,11 @@ class CreateBuyerUseCase:
                 buyer_repo = BuyerRepository(session)
                 if await buyer_repo.get_by_org_attio_id(org_attio_id) is not None:
                     raise BuyerAlreadyExistsError(org_attio_id)
-                role = await buyer_repo.create(org_attio_id, **role_fields)
+                # `is_active`/`legacy_entry_id` are bot-owned reconciliation
+                # state, not operator-editable — set explicitly here, never
+                # via `role_fields` (built from `BUYER_ROLE_FIELDS`, the
+                # Slack form's editable set).
+                role = await buyer_repo.create(
+                    org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
+                )
         return role
