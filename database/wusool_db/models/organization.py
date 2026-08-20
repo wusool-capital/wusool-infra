@@ -19,7 +19,7 @@ superset of the other. This is the union of both — not a re-narrowing.
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Integer, Text, text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -95,6 +95,12 @@ class Organization(Base):
     employee_range: Mapped[str | None] = mapped_column(Text)
     linkedin: Mapped[str | None] = mapped_column(Text)
     logo_url: Mapped[str | None] = mapped_column(Text)
+    # Added 2026-08-20 alongside DEV Attio organizations.is_active (Wusool
+    # Schema Handover artifact): true for the newest SOURCE record in a
+    # duplicate-name group, false for older duplicates, true for a unique
+    # name. Mirrors DEV as-is -- not filtered on here, since Postgres already
+    # holds one row per organization (no duplicate rows to prefer between).
+    is_active: Mapped[bool | None] = mapped_column(Boolean)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

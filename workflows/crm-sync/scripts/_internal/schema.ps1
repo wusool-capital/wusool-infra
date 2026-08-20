@@ -122,7 +122,8 @@ $fields = @(
   [pscustomobject]@{ Title = "Last Interaction At"; Slug = "last_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null },
   [pscustomobject]@{ Title = "Funding Raised"; Slug = "funding_raised"; Type = "currency"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; Config = @{ currency = @{ default_currency_code = "USD"; display_type = "symbol" } } },
-  [pscustomobject]@{ Title = "Estimated ARR"; Slug = "estimated_arr"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @('$0-$1M', '$1M-$10M', '$10M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B-$10B', '$10B+') }
+  [pscustomobject]@{ Title = "Estimated ARR"; Slug = "estimated_arr"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @('$0-$1M', '$1M-$10M', '$10M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B-$10B', '$10B+') },
+  [pscustomobject]@{ Title = "Is Active"; Slug = "is_active"; Type = "checkbox"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; Config = @{} }
 )
 
 $targetAttributes = Get-Attributes -Headers $devHeaders -ObjectSlug "organizations"

@@ -126,6 +126,17 @@ function Get-ScalarValue {
   if ($Item.attribute_type -eq "interaction" -and $Item.active_from) {
     return [string]$Item.active_from
   }
+  # Checked before the location heuristic below: an Attio phone-number item
+  # also carries its own `country_code` (e.g. "AE") alongside `phone_number`
+  # -- the location branch's `-or $Item.country_code` fallback used to match
+  # phone items too and return a raw ordered-dictionary location object
+  # instead of the phone string, which then serialized as the literal text
+  # "System.Collections.Specialized.OrderedDictionary" once written to DEV.
+  # A genuine location item never has these three fields set, so checking
+  # them first is always safe.
+  if ($Item.full_name) { return [string]$Item.full_name }
+  if ($Item.email_address) { return [string]$Item.email_address }
+  if ($Item.phone_number) { return [string]$Item.phone_number }
   if ($Item.attribute_type -eq "location" -or $Item.country_code) {
     $location = [ordered]@{}
     foreach ($property in @(
@@ -150,9 +161,6 @@ function Get-ScalarValue {
     }
   }
   if ($null -ne $Item.value) { return $Item.value }
-  if ($Item.full_name) { return [string]$Item.full_name }
-  if ($Item.email_address) { return [string]$Item.email_address }
-  if ($Item.phone_number) { return [string]$Item.phone_number }
   if ($Item.option.title) { return [string]$Item.option.title }
   if ($Item.status.title) { return [string]$Item.status.title }
   if ($Item.domain) { return [string]$Item.domain }
@@ -371,6 +379,7 @@ $fieldMappings = if ($isPerson) {
     [pscustomobject]@{ Source = "relationship_status"; Target = "relationship_status" },
     [pscustomobject]@{ Source = "strongest_connection_strength"; Target = "connection_strength" },
     [pscustomobject]@{ Source = "last_interaction"; Target = "last_interaction_at" },
+    [pscustomobject]@{ Source = "relationship_owner"; Target = "owner" },
     [pscustomobject]@{ Source = "job_title"; Target = "job_title" },
     [pscustomobject]@{ Source = "contact_type"; Target = "contact_type" },
     [pscustomobject]@{ Source = "phone_numbers"; Target = "phone" },
@@ -422,7 +431,7 @@ $missingSource = @(
     Sort-Object -Unique
 )
 $requiredTarget = @($fieldMappings.Target) + @("legacy_attio_id")
-if ($isPerson) { $requiredTarget += "company" }
+if ($isPerson) { $requiredTarget += "company" } else { $requiredTarget += "is_active" }
 $missingTarget = @(
   $requiredTarget |
     Where-Object { -not $targetAttributes.ContainsKey($_) } |
@@ -450,6 +459,44 @@ $devOrganizationsByLegacyId = @{}
 if ($isPerson) {
   Write-Host "Indexing DEV Organizations for Person company references."
   $devOrganizationsByLegacyId = Get-ExistingByLegacyId -ObjectSlug "organizations"
+}
+
+# is_active resolves SOURCE Organizations that share a name (case/whitespace
+# insensitive): the newest by created_at is active, every older duplicate in
+# the group is inactive. Requires the full SOURCE company set regardless of
+# this run's -StartOffset/-Limit slice, since a duplicate pair can land in
+# different offset windows (or different parallel workers).
+$isActiveBySourceId = @{}
+if (-not $isPerson) {
+  Write-Host "Grouping SOURCE Organizations by name to resolve is_active."
+  $allSourceCompanies = @()
+  for ($groupOffset = 0; ; $groupOffset += $PageSize) {
+    $groupResponse = Invoke-AttioRequest -Method Post -Headers $sourceHeaders `
+      -Path "/objects/$sourceObjectSlug/records/query" `
+      -Body @{ limit = $PageSize; offset = $groupOffset }
+    $groupPage = @($groupResponse.data)
+    $allSourceCompanies += $groupPage
+    if ($groupPage.Count -lt $PageSize) { break }
+  }
+  $nameGroups = @{}
+  foreach ($company in $allSourceCompanies) {
+    $companyName = @(Get-SourceValues -Values $company.values -Slug "name") | Select-Object -First 1
+    if (-not $companyName) { continue }
+    $normalizedName = ([string]$companyName).Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($normalizedName)) { continue }
+    if (-not $nameGroups.ContainsKey($normalizedName)) {
+      $nameGroups[$normalizedName] = [System.Collections.Generic.List[object]]::new()
+    }
+    $nameGroups[$normalizedName].Add($company)
+  }
+  foreach ($group in $nameGroups.Values) {
+    $orderedGroup = @($group | Sort-Object { [datetime]$_.created_at } -Descending)
+    for ($groupIndex = 0; $groupIndex -lt $orderedGroup.Count; $groupIndex++) {
+      $isActiveBySourceId[(Get-RecordId -Record $orderedGroup[$groupIndex])] = ($groupIndex -eq 0)
+    }
+  }
+  $duplicateNameGroups = @($nameGroups.Values | Where-Object Count -gt 1).Count
+  Write-Host "Resolved is_active for $($isActiveBySourceId.Count) named Organizations ($duplicateNameGroups duplicate-name groups)."
 }
 $sourceRecords = @()
 $offset = $StartOffset
@@ -489,6 +536,11 @@ foreach ($record in $sourceRecords) {
     # all -- "Outbound" is reserved for organizations created going forward
     # via manual outreach, never written by this migration.
     $payload.lead_source = "Inbound"
+    $payload.is_active = if ($isActiveBySourceId.ContainsKey($sourceId)) {
+      $isActiveBySourceId[$sourceId]
+    } else {
+      $true
+    }
   }
   $recordErrors = @()
   $recordWarnings = @()
@@ -927,6 +979,18 @@ $sh=@{Authorization="Bearer $($SourceApiKey.Trim())";Accept="application/json";"
 $dh=@{Authorization="Bearer $($DevApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
 $decisions=Get-Content (Join-Path $PSScriptRoot "..\config\migration-decisions.json") -Raw|ConvertFrom-Json
 $expectedWorkspaceId=[string]$decisions.dev_workspace_id
+# Deal.owner was previously never read from SOURCE at all -- every DEV Deal
+# got the same hardcoded batch default (Tech Wusool) at creation and was
+# never touched again on update. Keyed by SOURCE workspace-member ID (not
+# name) since SOURCE Deal owner is a real actor-reference, unlike
+# Organization/Person's relationship_owner select field. Two of the five
+# SOURCE deal owners are deactivated former members with no name recoverable
+# via the API; those stay unresolved and fall back to the existing default.
+$ownerCrosswalkBySourceId=@{}
+foreach($entry in @($decisions.workspace_member_crosswalk.mapping)){
+  $sourceId=[string]$entry.source_workspace_member_id
+  if(-not[string]::IsNullOrWhiteSpace($sourceId)){$ownerCrosswalkBySourceId[$sourceId]=[string]$entry.dev_workspace_member_id}
+}
 $outputPath=Join-Path $PSScriptRoot "..\..\..\..\scripts\outputs\attio_migration\deals-plan.json"
 function Request{
   param([ValidateSet("Get","Post","Put")][string]$Method,[hashtable]$Headers,[string]$Path,[object]$Body)
@@ -1004,6 +1068,11 @@ foreach($s in $source){
   $action=if($null-ne$existing){"update"}else{"create"}
   $name=Value $s.values "name";if([string]::IsNullOrWhiteSpace([string]$name)){$name="Unknown Source Deal $sid"}
   $values=@{legacy_attio_id=$sid;name=[string]$name}
+  $sourceOwnerItem=ActiveValue $s.values "owner"
+  $sourceOwnerId=if($sourceOwnerItem){[string]$sourceOwnerItem.referenced_actor_id}else{$null}
+  $resolvedOwnerId=if($sourceOwnerId-and$ownerCrosswalkBySourceId.ContainsKey($sourceOwnerId)){$ownerCrosswalkBySourceId[$sourceOwnerId]}else{$null}
+  $ownerResolution=if(-not$sourceOwnerId){"missing_source_owner"}elseif($resolvedOwnerId){"resolved"}else{"unmapped_source_owner"}
+  if($resolvedOwnerId){$values.owner=@{referenced_actor_type="workspace-member";referenced_actor_id=$resolvedOwnerId}}
   $sourceStageValue=ActiveValue $s.values "stage"
   $stage=Value $s.values "stage";if($stage){$values.stage=[string]$stage}
   if($action-eq"update"-and$stage){
@@ -1053,6 +1122,7 @@ foreach($s in $source){
     seller_org_id=if($sellerResolution-eq"resolved"){$organizationByLegacy[$sourceSellerId]}else{$null}
     dev_record_id=if($existing){Id $existing}else{$null}
     action=$action
+    owner_resolution=$ownerResolution
     values=$values
   })
 }
@@ -1071,8 +1141,9 @@ if($populatedDevBuyers.Count-gt0){
 $eligiblePlans=if($ExistingOnly){@($plans|Where-Object action -eq "update")}else{@($plans)}
 $selected=if($Limit-eq0){@($eligiblePlans)}else{@($eligiblePlans|Select-Object -First $Limit)}
 $selectedCreates=@($selected|Where-Object action -eq "create")
-if($Apply-and$selectedCreates.Count-gt0-and[string]::IsNullOrWhiteSpace($DevOwnerWorkspaceMemberId)){
-  throw "Attio requires Deal owner. Supply an approved DevOwnerWorkspaceMemberId to create $($selectedCreates.Count) missing Deal(s), or use -ExistingOnly."
+$selectedCreatesNeedingOwner=@($selectedCreates|Where-Object{-not$_.values.ContainsKey("owner")})
+if($Apply-and$selectedCreatesNeedingOwner.Count-gt0-and[string]::IsNullOrWhiteSpace($DevOwnerWorkspaceMemberId)){
+  throw "Attio requires Deal owner. $($selectedCreatesNeedingOwner.Count) new Deal(s) have no resolvable SOURCE owner -- supply an approved DevOwnerWorkspaceMemberId as a fallback, or use -ExistingOnly."
 }
 $missingSellerRoleOrgIds=@{}
 foreach($plan in $selected){
@@ -1100,14 +1171,14 @@ if($Apply){
       }
       $payload.assigned_advisor=@($ids)
     }
-    if($plan.action-eq"create"){$payload.owner=@{referenced_actor_type="workspace-member";referenced_actor_id=$DevOwnerWorkspaceMemberId}}
+    if(-not$payload.ContainsKey("owner")-and$plan.action-eq"create"){$payload.owner=@{referenced_actor_type="workspace-member";referenced_actor_id=$DevOwnerWorkspaceMemberId}}
     try{
       if($plan.action-eq"update"){Request Put $dh "/objects/deals/records/$($plan.dev_record_id)" @{data=@{values=$payload}}|Out-Null;$updated++}
       else{$new=Request Post $dh "/objects/deals/records" @{data=@{values=$payload}};$plan.dev_record_id=Id $new.data;$created++}
     }catch{$errors++;throw}
   }
 }
-$summary=[ordered]@{mode=if($Apply){"apply"}else{"dry-run"};existing_only=[bool]$ExistingOnly;source_deals=$source.Count;existing_dev_deals=$dev.Count;resolved_existing=@($plans|Where-Object action -eq "update").Count;resolved_sellers=@($plans|Where-Object seller_resolution -eq "resolved").Count;unresolved_sellers=$unresolvedSellers.Count;populated_dev_buyers=$populatedDevBuyers.Count;would_create=@($plans|Where-Object action -eq "create").Count;owner_blocked_creates=if([string]::IsNullOrWhiteSpace($DevOwnerWorkspaceMemberId)){@($plans|Where-Object action -eq "create").Count}else{0};selected=$selected.Count;created=$created;updated=$updated;errors=$errors;missing_seller_role_orgs=$missingSellerRoleOrgs.Count;seller_role_created=$sellerRoleCreated}
+$summary=[ordered]@{mode=if($Apply){"apply"}else{"dry-run"};existing_only=[bool]$ExistingOnly;source_deals=$source.Count;existing_dev_deals=$dev.Count;resolved_existing=@($plans|Where-Object action -eq "update").Count;resolved_sellers=@($plans|Where-Object seller_resolution -eq "resolved").Count;unresolved_sellers=$unresolvedSellers.Count;resolved_owners=@($plans|Where-Object owner_resolution -eq "resolved").Count;unmapped_source_owners=@($plans|Where-Object owner_resolution -eq "unmapped_source_owner").Count;missing_source_owners=@($plans|Where-Object owner_resolution -eq "missing_source_owner").Count;populated_dev_buyers=$populatedDevBuyers.Count;would_create=@($plans|Where-Object action -eq "create").Count;owner_blocked_creates=$selectedCreatesNeedingOwner.Count;selected=$selected.Count;created=$created;updated=$updated;errors=$errors;missing_seller_role_orgs=$missingSellerRoleOrgs.Count;seller_role_created=$sellerRoleCreated}
 [IO.Directory]::CreateDirectory((Split-Path $outputPath -Parent))|Out-Null
 [IO.File]::WriteAllText($outputPath,([ordered]@{summary=$summary;plans=@($plans)}|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
 $summary|Format-List

@@ -31,6 +31,7 @@ from wusool_db.models.mandate_target import MandateTarget
 from wusool_db.models.match_result import MatchResult
 from wusool_db.models.match_score import MatchScore
 from wusool_db.models.meeting import Meeting
+from wusool_db.models.note import Note
 from wusool_db.models.organization import Organization
 from wusool_db.models.person import Person
 from wusool_db.models.scorecard import Scorecard
@@ -56,6 +57,7 @@ __all__ = [
     "MatchResult",
     "MatchScore",
     "Meeting",
+    "Note",
     "Organization",
     "Person",
     "Scorecard",
