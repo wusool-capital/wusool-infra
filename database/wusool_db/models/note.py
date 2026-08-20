@@ -4,6 +4,13 @@ it on purpose (deferred until the feature is actually approved/built — see
 the "Notes" section of the Wusool Schema Handover artifact, which this model
 mirrors field-for-field).
 
+Deliberately NOT imported from `wusool_db/models/__init__.py` yet: doing so
+would register this table on `Base.metadata`, and CI's Alembic drift check
+compares that metadata against the migration history -- with no migration
+for `notes`, that check would fail. Add the `Note` import back to
+`__init__.py` (and its `__all__` entry) in the same change that adds its
+migration, not before.
+
 Replaces the separate notes fields scattered today across DEV Attio's own
 Organization `notes`, Person `notes`, and Buyer Role `notes`/
 `additional_notes` (none of which this repo's models mirror as a `notes`
