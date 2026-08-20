@@ -30,3 +30,29 @@ def test_bool_extracts_a_real_bool_not_a_string() -> None:
     result = extract_field_value(_EARNOUT_SPEC, values)
     assert result is True
     assert isinstance(result, bool)
+
+
+# `organizations.sector_focus` is `text[] NOT NULL DEFAULT '{}'` — the only
+# `multi_select_text` field. Extraction used to return `None` for a blank
+# box, which sailed through `OrganizationUpdate` (`list[str] | None`)
+# untouched and hit Postgres's real NOT NULL constraint as the very last
+# line of defense, after both an organization-fields Attio write and a role
+# entry had already been created.
+_SECTOR_FOCUS_SPEC = FieldSpec("sector_focus", "Sector focus", "multi_select_text")
+
+
+def test_multi_select_text_renders_empty_list_as_blank() -> None:
+    block = render_field_block(_SECTOR_FOCUS_SPEC, [])
+    assert "initial_value" not in block["element"]
+
+
+def test_multi_select_text_extracts_blank_as_empty_list_not_none() -> None:
+    values = {"sector_focus": {"sector_focus": {"value": None}}}
+    result = extract_field_value(_SECTOR_FOCUS_SPEC, values)
+    assert result == []
+
+
+def test_multi_select_text_extracts_comma_separated_values() -> None:
+    values = {"sector_focus": {"sector_focus": {"value": "Fintech, Logistics"}}}
+    result = extract_field_value(_SECTOR_FOCUS_SPEC, values)
+    assert result == ["Fintech", "Logistics"]

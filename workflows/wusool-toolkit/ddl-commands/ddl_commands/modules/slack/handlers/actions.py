@@ -759,7 +759,9 @@ async def _write_seller_add(
             fields=SELLER_ROLE_FIELDS_BY_NAME,
             extracted=role_extracted,
         )
-        await create_role_entry(attio_client, "seller_role", org_attio_id, role_attio_values)
+        entry_id = await create_role_entry(
+            attio_client, "seller_role", org_attio_id, role_attio_values
+        )
         landed.append("seller role entry (Attio)")
     except (AttioError, OptionNotFoundError) as exc:
         raise PartialWriteError(landed, exc) from exc
@@ -777,6 +779,7 @@ async def _write_seller_add(
     try:
         await build_create_seller_use_case().execute(
             org_attio_id=org_attio_id,
+            entry_id=entry_id,
             is_new_org=is_new_org,
             org_name=org_name if is_new_org else None,
             org_fields=org_postgres_fields,
@@ -835,7 +838,9 @@ async def _write_buyer_add(
             fields=BUYER_ROLE_FIELDS_BY_NAME,
             extracted=role_extracted,
         )
-        await create_role_entry(attio_client, "buyer_role", org_attio_id, role_attio_values)
+        entry_id = await create_role_entry(
+            attio_client, "buyer_role", org_attio_id, role_attio_values
+        )
         landed.append("buyer role entry (Attio)")
     except (AttioError, OptionNotFoundError) as exc:
         raise PartialWriteError(landed, exc) from exc
@@ -853,6 +858,7 @@ async def _write_buyer_add(
     try:
         await build_create_buyer_use_case().execute(
             org_attio_id=org_attio_id,
+            entry_id=entry_id,
             is_new_org=is_new_org,
             org_name=org_name if is_new_org else None,
             org_fields=org_postgres_fields,
