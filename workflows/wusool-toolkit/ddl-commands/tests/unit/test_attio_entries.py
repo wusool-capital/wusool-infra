@@ -28,8 +28,21 @@ class _FakeClient:
         return {}
 
 
-def _entry(entry_id: str, parent_record_id: str) -> dict:
-    return {"id": {"entry_id": entry_id}, "parent_record_id": {"record_id": parent_record_id}}
+def _entry(
+    entry_id: str,
+    parent_record_id: str,
+    *,
+    is_active: bool | None = None,
+    created_at: str = "",
+) -> dict:
+    entry: dict = {
+        "id": {"entry_id": entry_id},
+        "parent_record_id": {"record_id": parent_record_id},
+        "created_at": created_at,
+    }
+    if is_active is not None:
+        entry["entry_values"] = {"is_active": [{"active_until": None, "value": is_active}]}
+    return entry
 
 
 async def test_resolve_role_entry_id_finds_matching_parent() -> None:
@@ -57,6 +70,57 @@ async def test_resolve_role_entry_id_raises_when_not_found() -> None:
 
     with pytest.raises(RoleEntryNotFoundError):
         await resolve_role_entry_id(client, "seller_role", "org-missing")
+
+
+async def test_resolve_role_entry_id_prefers_active_entry_over_an_earlier_stale_match() -> None:
+    """The stale duplicate is listed *before* the active one — proves this
+    doesn't just return whichever match pagination happens to hit first.
+    """
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("entry-stale", "org-a", is_active=False, created_at="2024-01-01"),
+                _entry("entry-active", "org-a", is_active=True, created_at="2024-06-01"),
+            ]
+        ]
+    )
+
+    entry_id = await resolve_role_entry_id(client, "seller_role", "org-a")
+
+    assert entry_id == "entry-active"
+
+
+async def test_resolve_role_entry_id_short_circuits_on_first_active_match() -> None:
+    """The common, zero-duplicate case: the org's one entry is active and
+    sits on page 1 — must not pay for a second page just to be sure.
+    """
+    page_1 = [_entry("entry-target", "org-target", is_active=True, created_at="2024-01-01")]
+    page_2 = [_entry("entry-other", "org-other", is_active=True, created_at="2024-01-01")]
+    client = _FakeClient(entry_pages=[page_1, page_2])
+
+    entry_id = await resolve_role_entry_id(client, "seller_role", "org-target")
+
+    assert entry_id == "entry-target"
+    assert len(client.post_calls) == 1
+
+
+async def test_resolve_role_entry_id_falls_back_to_newest_when_none_active() -> None:
+    """An org that predates `is_active` (or hasn't been reconciled yet):
+    nothing is flagged, so the newest by `created_at` wins — the same
+    tiebreak `reconcile_active_entry` uses.
+    """
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("entry-old", "org-a", created_at="2024-01-01"),
+                _entry("entry-new", "org-a", created_at="2024-06-01"),
+            ]
+        ]
+    )
+
+    entry_id = await resolve_role_entry_id(client, "seller_role", "org-a")
+
+    assert entry_id == "entry-new"
 
 
 async def test_patch_organization_targets_records_endpoint() -> None:
