@@ -32,8 +32,14 @@ param(
 # Organizations must come first: Deals/Buyer Role/Seller Role are all
 # parented to Organization, and Deal sync throws if a SOURCE company isn't
 # in DEV Organizations yet. Person before Buyer Role: key_contact resolution
-# needs DEV Person records. Buyer Role/Seller Role before Deals so the Deal
-# sync's Seller-Role self-heal fallback rarely has to fire.
+# needs DEV Person records. Buyer Role/Seller Role before Deals so both are
+# already populated by the time Deals sync runs, though Deals no longer
+# depends on it -- the Deal sync's Seller-Role "self-heal" fallback (a blank
+# placeholder Seller Role entry for any Deal seller Organization missing
+# one) was removed 2026-08-23: those blank rows weren't in SOURCE at all,
+# and a Deal's seller Organization now simply has no Seller Role entry if
+# SOURCE's own Seller Database never had one for it -- matches SOURCE
+# exactly instead of the sync fabricating a placeholder.
 #
 # Mandates retired 2026-08-23: no longer an ensure-schema-managed object/list
 # and not part of the entity pipeline above -- but the Mandates list itself

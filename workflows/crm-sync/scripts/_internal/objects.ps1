@@ -1103,12 +1103,6 @@ foreach($r in $devOrganizations){
   if($organizationByLegacy.ContainsKey([string]$legacy)){throw "Duplicate DEV Organization legacy_attio_id '$legacy'."}
   $organizationByLegacy[[string]$legacy]=Id $r
 }
-$sellerRoleEntries=@(All $dh "/lists/seller_role/entries/query")
-$sellerRoleOrgIds=@{}
-foreach($e in $sellerRoleEntries){
-  $sellerRoleParentId=if($e.parent_record_id.record_id){[string]$e.parent_record_id.record_id}else{[string]$e.parent_record_id}
-  if($sellerRoleParentId){$sellerRoleOrgIds[$sellerRoleParentId]=$true}
-}
 $byLegacy=@{}
 foreach($r in $dev){$legacy=Value $r.values "legacy_attio_id";if($legacy){if($byLegacy.ContainsKey([string]$legacy)){throw "Duplicate DEV Deal legacy_attio_id."};$byLegacy[[string]$legacy]=$r}}
 
@@ -1205,19 +1199,8 @@ $selectedCreatesNeedingOwner=@($selectedCreates|Where-Object{-not$_.values.Conta
 if($Apply-and$selectedCreatesNeedingOwner.Count-gt0-and[string]::IsNullOrWhiteSpace($DevOwnerWorkspaceMemberId)){
   throw "Attio requires Deal owner. $($selectedCreatesNeedingOwner.Count) new Deal(s) have no resolvable SOURCE owner -- supply an approved DevOwnerWorkspaceMemberId as a fallback, or use -ExistingOnly."
 }
-$missingSellerRoleOrgIds=@{}
-foreach($plan in $selected){
-  if($plan.seller_org_id-and-not$sellerRoleOrgIds.ContainsKey($plan.seller_org_id)){
-    $missingSellerRoleOrgIds[$plan.seller_org_id]=$true
-  }
-}
-$missingSellerRoleOrgs=@($missingSellerRoleOrgIds.Keys)
-$created=0;$updated=0;$errors=0;$sellerRoleCreated=0
+$created=0;$updated=0;$errors=0
 if($Apply){
-  foreach($orgId in $missingSellerRoleOrgs){
-    Request Post $dh "/lists/seller_role/entries" @{data=@{parent_record_id=$orgId;parent_object="organizations";entry_values=@{}}}|Out-Null
-    $sellerRoleCreated++
-  }
   foreach($plan in $selected){
     $payload=@{};foreach($k in $plan.values.Keys){$payload[$k]=$plan.values[$k]}
     if($payload.ContainsKey("stage")){$title=[string]$payload.stage;if(-not$statusMap.ContainsKey($title)){throw "Missing DEV Deal stage '$title'."};$payload.stage=$statusMap[$title]}
@@ -1238,7 +1221,7 @@ if($Apply){
     }catch{$errors++;throw}
   }
 }
-$summary=[ordered]@{mode=if($Apply){"apply"}else{"dry-run"};existing_only=[bool]$ExistingOnly;source_deals=$source.Count;existing_dev_deals=$dev.Count;resolved_existing=@($plans|Where-Object action -eq "update").Count;resolved_sellers=@($plans|Where-Object seller_resolution -eq "resolved").Count;unresolved_sellers=$unresolvedSellers.Count;resolved_owners=@($plans|Where-Object owner_resolution -eq "resolved").Count;unmapped_source_owners=@($plans|Where-Object owner_resolution -eq "unmapped_source_owner").Count;missing_source_owners=@($plans|Where-Object owner_resolution -eq "missing_source_owner").Count;populated_dev_buyers=$populatedDevBuyers.Count;would_create=@($plans|Where-Object action -eq "create").Count;owner_blocked_creates=$selectedCreatesNeedingOwner.Count;selected=$selected.Count;created=$created;updated=$updated;errors=$errors;missing_seller_role_orgs=$missingSellerRoleOrgs.Count;seller_role_created=$sellerRoleCreated}
+$summary=[ordered]@{mode=if($Apply){"apply"}else{"dry-run"};existing_only=[bool]$ExistingOnly;source_deals=$source.Count;existing_dev_deals=$dev.Count;resolved_existing=@($plans|Where-Object action -eq "update").Count;resolved_sellers=@($plans|Where-Object seller_resolution -eq "resolved").Count;unresolved_sellers=$unresolvedSellers.Count;resolved_owners=@($plans|Where-Object owner_resolution -eq "resolved").Count;unmapped_source_owners=@($plans|Where-Object owner_resolution -eq "unmapped_source_owner").Count;missing_source_owners=@($plans|Where-Object owner_resolution -eq "missing_source_owner").Count;populated_dev_buyers=$populatedDevBuyers.Count;would_create=@($plans|Where-Object action -eq "create").Count;owner_blocked_creates=$selectedCreatesNeedingOwner.Count;selected=$selected.Count;created=$created;updated=$updated;errors=$errors}
 [IO.Directory]::CreateDirectory((Split-Path $outputPath -Parent))|Out-Null
 [IO.File]::WriteAllText($outputPath,([ordered]@{summary=$summary;plans=@($plans)}|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
 $summary|Format-List
