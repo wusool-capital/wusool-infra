@@ -35,7 +35,6 @@ _OBJECT_DELETE = {
 _LIST_SYNC = {
     "buyer_role": upsert.sync_buyer_role,
     "seller_role": upsert.sync_seller_role,
-    "mandates": upsert.sync_mandate,
 }
 
 

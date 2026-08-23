@@ -27,8 +27,23 @@ IDs make reruns update existing records instead of creating duplicates.
 | Deals | Deals | `deals` |
 | Buyer Brain | Buyer Role | `buyer_roles` |
 | Valuation Tool Leads | Seller Role | `seller_roles` |
-| Buy-side Mandates | Mandates | `mandates` |
+| Buy-side Mandates | Mandates *(retired 2026-08-23, see below)* | `mandates` |
 | DEV members | Users | `users` |
+
+**2026-08-23 Mandate/Deal merge:** the DEV Mandates list is retired — every
+Mandate entry becomes its own Deal record instead (`stage` = `Mandate
+Active`, a signed mandate still sourcing candidates with no specific
+counterparty yet). One-time, idempotent migration via `sync-all.ps1
+-Entities deals -MigrateMandates`. Details and full field mapping in
+[Client schema overview](CLIENT_SCHEMA_OVERVIEW.md#mandate--retired-2026-08-23-merged-into-deal).
+The PostgreSQL `mandates` table has not been updated to match — follow-up work.
+
+**Deal owner for automation-created inbound leads:** ValuationTool and n8n
+Integration (the SOURCE identities that create inbound leads) resolve via
+`workspace_member_crosswalk` in `scripts/config/migration-decisions.json` to
+Ramzy's DEV stand-in, not the generic tech@ account — see the crosswalk
+entries' `note` fields for why. `assigned_advisor` on Deal is unrelated: it's
+a separate multiselect `Hugo`/`Jules`/`Ramzy` field, not derived from `owner`.
 
 Important rules:
 
@@ -52,7 +67,7 @@ Attio:
 
 | Script | Purpose |
 | --- | --- |
-| `sync-all.ps1` | Single entry point for a full migration run: wraps `sync-objects.ps1`/`sync-lists.ps1` in the required order (`organizations -> person -> buyer_role -> seller_role -> deals -> mandates`), fails fast on the first error, supports running a subset via `-Entities`. Prefer this over the two scripts below unless you need one in isolation. |
+| `sync-all.ps1` | Single entry point for a full migration run: wraps `sync-objects.ps1`/`sync-lists.ps1` in the required order (`organizations -> person -> buyer_role -> seller_role -> deals -> mandates`), fails fast on the first error, supports running a subset via `-Entities`. Prefer this over the two scripts below unless you need one in isolation. `-Entities deals -DeleteOrphaned` deletes DEV Deals whose `legacy_attio_id` no longer exists in SOURCE (a SOURCE Deal deleted after migration). `-Entities deals -MigrateMandates` runs the one-time Mandate-to-Deal migration (see above) after the normal deals sync completes, in the same run. Both are idempotent and safe to re-run. |
 | `ensure-schema.ps1` | Validate/create the approved DEV schema. |
 | `sync-objects.ps1` | Sync Organizations, Persons, and Deals. |
 | `sync-lists.ps1` | Sync Buyer Role, Seller Role, and Mandates. |

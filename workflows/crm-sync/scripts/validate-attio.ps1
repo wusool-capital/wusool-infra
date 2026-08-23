@@ -79,7 +79,7 @@ for source_name, definition in mapping["objects"].items():
   object_routes.append((source_name, definition["target"]))
 
 list_routes = []
-for target_name in ("buyer_role", "seller_role", "mandates"):
+for target_name in ("buyer_role", "seller_role"):
   definition = mapping["lists"][target_name]
   list_routes.append((definition["source"], definition["target"]))
 

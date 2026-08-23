@@ -30,7 +30,7 @@ or Attio keys.
 | File | Purpose |
 | --- | --- |
 | `001_extensions.sql` | Enable `pgcrypto`, `pg_trgm` (fuzzy organization-name search), and pgvector when available. |
-| `002_core_attio_mirror.sql` | Create Users, Organizations, People, Deals, and Mandates. Organizations includes `removed_at timestamptz` (nullable; NULL means active) — `sync-postgres.ps1 -Apply` sets it when an org drops out of the DEV Attio organizations query and clears it if the org reappears. |
+| `002_core_attio_mirror.sql` | Create Users, Organizations, People, Deals, and Mandates. Organizations includes `removed_at timestamptz` (nullable; NULL means active) — `sync-postgres.ps1 -Apply` sets it when an org drops out of the DEV Attio organizations query and clears it if the org reappears. **Mandates retired 2026-08-23** (see below) — table kept for its 2 historical rows, but this file is frozen (see "flat SQL files are frozen" below) so the merge went through Alembic (`9c4d71ea2b56`), not here. |
 | `003_crm_roles.sql` | Create Buyer Role, Seller Role, and optional investor/lender roles. |
 | `004_machine_layer.sql` | Create activities, stage history, intelligence, matching, documents, graph, scorecards, reconciliation columns, and indexes. |
 | `005_meetings.sql` | Create the `meetings` table (scribe-published buyer/seller meeting summaries) and enable `fk_meetings_org`. Not part of the Attio mirror — scribe is the sole writer. |
@@ -181,6 +181,17 @@ Sync order preserves foreign keys:
 ```text
 Users -> Organizations -> People -> Deals -> Mandates -> Buyer Roles -> Seller Roles
 ```
+
+**2026-08-23 Mandate/Deal merge:** `deals` gained 12 columns merged in from
+`mandates` (`deal_type`, `universe_constructed`/`_size`,
+`shortlist_approved`/`_size`, `tier1_contacted`, `responses`,
+`counterparty_interested`, `mandate_start_date`/`mandate_expiry_date`,
+`retainer_amount`, `source_mandate_entry_id`) via Alembic migration
+`9c4d71ea2b56`. `mandates` itself is untouched, kept only for its 2
+historical rows — nothing writes new rows there going forward. Run `alembic
+upgrade head` (see "Schema changes now go through Alembic" below) before the
+next `sync-postgres.ps1 -Apply`, or the new columns won't exist yet to sync
+into.
 
 The script uses parameterized `INSERT ... ON CONFLICT ... DO UPDATE` queries.
 Core tables conflict on DEV `attio_id`; role tables conflict on

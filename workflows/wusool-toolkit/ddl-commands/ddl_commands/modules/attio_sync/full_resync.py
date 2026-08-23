@@ -106,7 +106,6 @@ async def run() -> None:
         ("organizations", _object_record_ids(client, "organizations"), upsert.sync_organization),
         ("person", _object_record_ids(client, "person"), upsert.sync_person),
         ("deals", _object_record_ids(client, "deals"), upsert.sync_deal),
-        ("mandates", _list_entry_ids(client, "mandates"), upsert.sync_mandate),
         ("buyer_role", _one_entry_id_per_org(client, "buyer_role"), upsert.sync_buyer_role),
         ("seller_role", _one_entry_id_per_org(client, "seller_role"), upsert.sync_seller_role),
     ]

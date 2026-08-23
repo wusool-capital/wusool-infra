@@ -1,8 +1,8 @@
 param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DevApiKey = $env:DEV_ATTIO_API_KEY,
-  [ValidateSet("buyer_role", "seller_role", "mandates")]
-  [string[]]$Lists = @("buyer_role", "seller_role", "mandates"),
+  [ValidateSet("buyer_role", "seller_role")]
+  [string[]]$Lists = @("buyer_role", "seller_role"),
   [int]$SampleSize = 10,
   [ValidateRange(1, 3)]
   [int]$Workers = 3,
@@ -61,12 +61,10 @@ if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
 $workerPaths = @{
   buyer_role = (Join-Path $PSScriptRoot "_internal\lists.ps1")
   seller_role = (Join-Path $PSScriptRoot "_internal\lists.ps1")
-  mandates = (Join-Path $PSScriptRoot "_internal\lists.ps1")
 }
 $schemaChecks = @{
   buyer_role = "buyer_role"
   seller_role = "seller_role"
-  mandates = "mandates"
 }
 
 $results = [System.Collections.Generic.List[object]]::new()
@@ -110,21 +108,6 @@ if ($Apply) {
       -Task seller_role -Apply -Limit $Limit -SampleSize $SampleSize -Confirmation $Confirmation
     if ($LASTEXITCODE -ne 0) { throw "Seller Role apply failed." }
     Write-Host "Unified Seller Role apply complete."
-    return
-  }
-  if ($Lists[0] -eq "mandates") {
-    $isBoundedMandatesApply = $Limit -ge 1 -and $Limit -le 10 -and
-      $Confirmation -eq "APPLY_MANDATES_TO_DEV"
-    $isFullMandatesApply = $Limit -eq 0 -and
-      $Confirmation -eq "APPLY_ALL_MANDATES_TO_DEV"
-    if (-not $isBoundedMandatesApply -and -not $isFullMandatesApply) {
-      throw "Use a 1-10 limit with APPLY_MANDATES_TO_DEV, or Limit 0 with APPLY_ALL_MANDATES_TO_DEV."
-    }
-    $worker = $workerPaths["mandates"]
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $worker `
-      -Task mandates -Apply -Limit $Limit -SampleSize $SampleSize -Confirmation $Confirmation
-    if ($LASTEXITCODE -ne 0) { throw "Mandates apply failed." }
-    Write-Host "Unified Mandates apply complete."
     return
   }
   if ($Lists[0] -ne "buyer_role") {

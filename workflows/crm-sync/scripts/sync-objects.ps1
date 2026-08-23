@@ -10,6 +10,8 @@ param(
   [ValidateRange(1,8)]
   [int]$Workers=4,
   [switch]$ExistingDealsOnly,
+  [switch]$DeleteOrphaned,
+  [switch]$MigrateMandates,
   [switch]$Apply
 )
 $ErrorActionPreference="Stop"
@@ -19,8 +21,18 @@ if([string]::IsNullOrWhiteSpace($SourceApiKey)){throw "Missing SOURCE_ATTIO_API_
 if([string]::IsNullOrWhiteSpace($DevApiKey)){throw "Missing DEV_ATTIO_API_KEY."}
 if($Limit-lt0){throw "Limit cannot be negative. Use 0 for all records."}
 if($Parallel-and$Limit-ne0){throw "Parallel mode processes complete objects and requires -Limit 0."}
-if($Apply-and$Confirmation-ne"APPLY_SELECTED_OBJECTS_TO_DEV"){
-  throw "Apply requires Confirmation APPLY_SELECTED_OBJECTS_TO_DEV."
+if($DeleteOrphaned-and($Objects.Count-ne1-or$Objects[0]-ne"deals")){
+  throw "-DeleteOrphaned only supports -Objects deals."
+}
+if($MigrateMandates-and($Objects.Count-ne1-or$Objects[0]-ne"deals")){
+  throw "-MigrateMandates only supports -Objects deals."
+}
+if($Apply){
+  if($DeleteOrphaned){
+    if($Confirmation-ne"DELETE_ORPHANED_DEALS_FROM_DEV"){throw "Apply with -DeleteOrphaned requires Confirmation DELETE_ORPHANED_DEALS_FROM_DEV."}
+  }elseif($Confirmation-ne"APPLY_SELECTED_OBJECTS_TO_DEV"){
+    throw "Apply requires Confirmation APPLY_SELECTED_OBJECTS_TO_DEV."
+  }
 }
 foreach($object in $Objects){
   Write-Host ""
@@ -37,7 +49,13 @@ foreach($object in $Objects){
     $args=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit}
     if($ExistingDealsOnly){$args.ExistingOnly=$true}
     if(-not[string]::IsNullOrWhiteSpace($DevDealOwnerWorkspaceMemberId)){$args.DevOwnerWorkspaceMemberId=$DevDealOwnerWorkspaceMemberId}
-    if($Apply){$args.Apply=$true;$args.Confirmation=if($Limit-eq0){"APPLY_ALL_DEALS_TO_DEV"}else{"APPLY_DEALS_TO_DEV"}}
+    if($DeleteOrphaned){
+      $args.DeleteOrphaned=$true
+      if($Apply){$args.Apply=$true;$args.Confirmation="DELETE_ORPHANED_DEALS_FROM_DEV"}
+    }elseif($Apply){
+      $args.Apply=$true;$args.Confirmation=if($Limit-eq0){"APPLY_ALL_DEALS_TO_DEV"}else{"APPLY_DEALS_TO_DEV"}
+    }
+    if($MigrateMandates){$args.MigrateMandates=$true}
     $args.Task="deals"
     & (Join-Path $PSScriptRoot "_internal\objects.ps1") @args
   }else{

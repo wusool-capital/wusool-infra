@@ -28,7 +28,6 @@ from wusool_db.base import Base
 if TYPE_CHECKING:
     from wusool_db.models.buyer_role import BuyerRole
     from wusool_db.models.deal import Deal
-    from wusool_db.models.mandate import Mandate
     from wusool_db.models.person import Person
     from wusool_db.models.seller_role import SellerRole
 
@@ -121,10 +120,4 @@ class Organization(Base):
     )
     deals_as_seller: Mapped[list["Deal"]] = relationship(
         foreign_keys="Deal.seller_organization_attio_id", back_populates="seller_organization"
-    )
-    mandates_as_buyer: Mapped[list["Mandate"]] = relationship(
-        foreign_keys="Mandate.buyer_attio_id", back_populates="buyer_organization"
-    )
-    mandates_as_seller: Mapped[list["Mandate"]] = relationship(
-        foreign_keys="Mandate.seller_attio_id", back_populates="seller_organization"
     )

@@ -10,7 +10,7 @@ Run only these public scripts:
 
 | Script | Responsibility |
 | --- | --- |
-| `sync-all.ps1` | Single entry point for a full migration run. Wraps `sync-objects.ps1`/`sync-lists.ps1` in the required dependency order (`organizations -> person -> buyer_role -> seller_role -> deals -> mandates`), fails fast on the first error, and accepts `-Entities` to run a subset instead of everything. Prefer this over calling `sync-objects.ps1`/`sync-lists.ps1` directly unless you specifically need one of them in isolation. |
+| `sync-all.ps1` | Single entry point for a full migration run. Wraps `sync-objects.ps1`/`sync-lists.ps1` in the required dependency order (`organizations -> person -> buyer_role -> seller_role -> deals -> mandates`), fails fast on the first error, and accepts `-Entities` to run a subset instead of everything. Prefer this over calling `sync-objects.ps1`/`sync-lists.ps1` directly unless you specifically need one of them in isolation. `-Entities deals -DeleteOrphaned` deletes DEV Deals whose `legacy_attio_id` no longer exists in SOURCE. `-Entities deals -MigrateMandates` runs the one-time Mandate-to-Deal migration (see "2026-08-23 Mandate/Deal merge" below) after the normal deals sync, in the same run. Both idempotent, safe to re-run. |
 | `ensure-schema.ps1` | Validate or create the approved DEV object/list schema. Does not migrate records. |
 | `sync-objects.ps1` | Migrate Organizations, Persons, and Deals. |
 | `sync-lists.ps1` | Migrate Buyer Role, Seller Role, and Mandates. |
@@ -154,6 +154,26 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 Existing list entries use `PATCH`; missing entries use `POST`. Each list entry
 is attached to its resolved DEV Organization parent.
 
+### 2026-08-23 Mandate/Deal merge
+
+The Mandates list above is **retired**: the one-mandate-to-many-deals model
+it was built for was never actually used (neither of the 2 real DEV Mandate
+entries had a linked Deal), so every Mandate entry becomes its own Deal
+record instead, at the new `Mandate Active` stage. Full field mapping and
+rationale in `docs/CLIENT_SCHEMA_OVERVIEW.md` and the "Wusool Schema
+Handover" artifact.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\workflows\crm-sync\scripts\sync-all.ps1 `
+  -Entities deals -MigrateMandates -Apply
+```
+
+Idempotent via a new `source_mandate_entry_id` Deal field -- safe to re-run,
+already-migrated entries are skipped. Continuing to run `sync-lists.ps1
+-Lists mandates` above is harmless (the 2 historical entries still exist and
+still sync) but nothing new should ever appear there again.
+
 ### 6. Final SOURCE to DEV validation
 
 ```powershell
@@ -185,7 +205,11 @@ Use these as reconciliation evidence, not hard-coded migration limits:
 - SOURCE Companies -> custom DEV `organizations`.
 - SOURCE People -> custom DEV `person`.
 - SOURCE `associated_company` -> DEV Deal `seller_id`.
-- Existing Deal `buyer_id` remains blank.
+- Historical Deal `buyer_id` remains blank -- SOURCE `deals` has no
+  buyer-referencing field at all, so every migrated Deal is `deal_type =
+  Sell-side` by construction (backfilled 2026-08-23, all 58 pre-existing
+  Deals). `buyer_id` is only ever set on the 2 Deals created by
+  `-MigrateMandates` below.
 - Organization/Person Relationship Status is an optional single select.
 - Deal readiness fields are optional Booleans.
 - Exclusivity start/end dates are preserved separately.

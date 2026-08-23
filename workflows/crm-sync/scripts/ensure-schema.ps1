@@ -1,6 +1,6 @@
 param(
-  [ValidateSet("organizations","person","deals","buyer_role","seller_role","mandates")]
-  [string[]]$Entities=@("organizations","person","deals","buyer_role","seller_role","mandates"),
+  [ValidateSet("organizations","person","deals","buyer_role","seller_role")]
+  [string[]]$Entities=@("organizations","person","deals","buyer_role","seller_role"),
   [string]$SourceApiKey=$env:SOURCE_ATTIO_API_KEY,
   [string]$DevApiKey=$env:DEV_ATTIO_API_KEY,
   [switch]$FailOnDrift,
