@@ -169,6 +169,14 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT(attio_id) DO UPDATE SET name=excluded.name,role=excluded.role,company_attio_id=excluded.company_attio_id,email=excluded.email,linkedin=excluded.linkedin,relationship_status=excluded.relationship_status,connection_strength=excluded.connection_strength,owner_attio_id=excluded.owner_attio_id,last_interaction_at=excluded.last_interaction_at,job_title=excluded.job_title,contact_type=excluded.contact_type,phone=excluded.phone,avatar_url=excluded.avatar_url,angellist=excluded.angellist,facebook=excluded.facebook,instagram=excluded.instagram,twitter=excluded.twitter,twitter_follower_count=excluded.twitter_follower_count,raw_attio=excluded.raw_attio,updated_at=now()""",person_rows)
     person_ids={r[0] for r in person_rows}
+    person_ids_list=list(person_ids)
+    if not person_ids_list: raise RuntimeError("DEV Attio returned zero people; refusing to mark all people removed.")
+    # Soft-delete, same reasoning as organizations.removed_at above:
+    # buyer_roles.key_contact_attio_id / deals.buyer_person_attio_id both
+    # reference people with ON DELETE NO ACTION, so a hard delete could fail
+    # or silently orphan a still-valid buyer role/deal's contact reference.
+    c.execute("UPDATE people SET removed_at=now() WHERE removed_at IS NULL AND NOT (attio_id = ANY(%s))",(person_ids_list,))
+    c.execute("UPDATE people SET removed_at=NULL WHERE removed_at IS NOT NULL AND attio_id = ANY(%s)",(person_ids_list,))
 
     deal_rows=[]
     for r in deals:
@@ -183,6 +191,14 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     c.executemany("""INSERT INTO deals(attio_id,name,stage,stage_changed_at,buyer_organization_attio_id,buyer_person_attio_id,seller_organization_attio_id,owner_attio_id,value,teaser_status,nda_count,cim_ready,deal_memo_ready,contract_signed_date,exclusivity_date,next_task,data_room_substatus,nda_status,estimated_deal_value_aed,expected_close_date,fee,assigned_advisor,deal_type,universe_constructed,universe_size,shortlist_approved,shortlist_size,tier1_contacted,responses,counterparty_interested,mandate_start_date,mandate_expiry_date,retainer_amount,source_mandate_entry_id,raw_attio)
       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,COALESCE(%s,false),%s,COALESCE(%s,false),%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT(attio_id) DO UPDATE SET name=excluded.name,stage=excluded.stage,stage_changed_at=excluded.stage_changed_at,buyer_organization_attio_id=excluded.buyer_organization_attio_id,buyer_person_attio_id=excluded.buyer_person_attio_id,seller_organization_attio_id=excluded.seller_organization_attio_id,owner_attio_id=excluded.owner_attio_id,value=excluded.value,teaser_status=excluded.teaser_status,nda_count=excluded.nda_count,cim_ready=excluded.cim_ready,deal_memo_ready=excluded.deal_memo_ready,contract_signed_date=excluded.contract_signed_date,exclusivity_date=excluded.exclusivity_date,next_task=excluded.next_task,data_room_substatus=excluded.data_room_substatus,nda_status=excluded.nda_status,estimated_deal_value_aed=excluded.estimated_deal_value_aed,expected_close_date=excluded.expected_close_date,fee=excluded.fee,assigned_advisor=excluded.assigned_advisor,deal_type=excluded.deal_type,universe_constructed=excluded.universe_constructed,universe_size=excluded.universe_size,shortlist_approved=excluded.shortlist_approved,shortlist_size=excluded.shortlist_size,tier1_contacted=excluded.tier1_contacted,responses=excluded.responses,counterparty_interested=excluded.counterparty_interested,mandate_start_date=excluded.mandate_start_date,mandate_expiry_date=excluded.mandate_expiry_date,retainer_amount=excluded.retainer_amount,source_mandate_entry_id=excluded.source_mandate_entry_id,raw_attio=excluded.raw_attio,updated_at=now()""",deal_rows)
+    deal_ids_list=[r[0] for r in deal_rows]
+    if not deal_ids_list: raise RuntimeError("DEV Attio returned zero deals; refusing to delete all deals.")
+    # Hard delete, unlike organizations/people above: nothing outside deals
+    # references it with a blocking (NO ACTION) constraint -- only
+    # deal_stage_events/documents, both ON DELETE CASCADE and entirely
+    # derived from that specific deal, so cleaning them up alongside it is
+    # correct, not data loss of anything independently meaningful.
+    c.execute("DELETE FROM deals WHERE NOT (attio_id = ANY(%s))",(deal_ids_list,))
 
     buyer_rows=[]
     for e in buyer_entries:
@@ -193,6 +209,12 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     c.executemany("""INSERT INTO buyer_roles(org_attio_id,model,mandate_status,ebitda_floor,check_size_min,check_size_max,ev_ceiling,deal_structure_tolerance,earnout_tolerance,profitable_only,investment_strategy,notes,key_contact_attio_id,acquisition_enrichment,deals_introduced,deals_converted,ebitda_ceiling,estimated_aum,notable_investments,key_personnel,relationship_warmth,target_geography,last_mandate_briefing_date,prior_gcc_acquisition,is_active,legacy_entry_id,raw_attio)
       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT(org_attio_id) DO UPDATE SET model=excluded.model,mandate_status=excluded.mandate_status,ebitda_floor=excluded.ebitda_floor,check_size_min=excluded.check_size_min,check_size_max=excluded.check_size_max,ev_ceiling=excluded.ev_ceiling,deal_structure_tolerance=excluded.deal_structure_tolerance,earnout_tolerance=excluded.earnout_tolerance,profitable_only=excluded.profitable_only,investment_strategy=excluded.investment_strategy,notes=excluded.notes,key_contact_attio_id=excluded.key_contact_attio_id,acquisition_enrichment=excluded.acquisition_enrichment,deals_introduced=excluded.deals_introduced,deals_converted=excluded.deals_converted,ebitda_ceiling=excluded.ebitda_ceiling,estimated_aum=excluded.estimated_aum,notable_investments=excluded.notable_investments,key_personnel=excluded.key_personnel,relationship_warmth=excluded.relationship_warmth,target_geography=excluded.target_geography,last_mandate_briefing_date=excluded.last_mandate_briefing_date,prior_gcc_acquisition=excluded.prior_gcc_acquisition,is_active=excluded.is_active,legacy_entry_id=excluded.legacy_entry_id,raw_attio=excluded.raw_attio,updated_at=now()""",buyer_rows)
+    buyer_org_ids_list=[r[0] for r in buyer_rows]
+    if not buyer_org_ids_list: raise RuntimeError("DEV Attio returned zero buyer_role entries; refusing to delete all buyer_roles.")
+    # Hard delete: only match_results.buyer_role_id references buyer_roles,
+    # ON DELETE CASCADE, and is entirely specific to that buyer role's own
+    # matches.
+    c.execute("DELETE FROM buyer_roles WHERE NOT (org_attio_id = ANY(%s))",(buyer_org_ids_list,))
 
     seller_rows=[]
     for e in seller_entries:
@@ -201,9 +223,14 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     c.executemany("""INSERT INTO seller_roles(org_attio_id,outreach_tier,appetite_signal,relationship_status,est_revenue,est_ebitda,owner_salary,valuation_low,valuation_mid,valuation_high,sell_timeline,readiness_score,readiness_band,last_attempt_date,last_attempt_channel,last_attempt_outcome,lead_quality_score,re_engage_date,is_active,legacy_entry_id,raw_attio)
       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT(org_attio_id) DO UPDATE SET outreach_tier=excluded.outreach_tier,appetite_signal=excluded.appetite_signal,relationship_status=excluded.relationship_status,est_revenue=excluded.est_revenue,est_ebitda=excluded.est_ebitda,owner_salary=excluded.owner_salary,valuation_low=excluded.valuation_low,valuation_mid=excluded.valuation_mid,valuation_high=excluded.valuation_high,sell_timeline=excluded.sell_timeline,readiness_score=excluded.readiness_score,readiness_band=excluded.readiness_band,last_attempt_date=excluded.last_attempt_date,last_attempt_channel=excluded.last_attempt_channel,last_attempt_outcome=excluded.last_attempt_outcome,lead_quality_score=excluded.lead_quality_score,re_engage_date=excluded.re_engage_date,is_active=excluded.is_active,legacy_entry_id=excluded.legacy_entry_id,raw_attio=excluded.raw_attio,updated_at=now()""",seller_rows)
+    seller_org_ids_list=[r[0] for r in seller_rows]
+    if not seller_org_ids_list: raise RuntimeError("DEV Attio returned zero seller_role entries; refusing to delete all seller_roles.")
+    # Hard delete: only match_results.seller_role_id references seller_roles,
+    # ON DELETE CASCADE, entirely specific to that seller role's own matches.
+    c.execute("DELETE FROM seller_roles WHERE NOT (org_attio_id = ANY(%s))",(seller_org_ids_list,))
   with conn.cursor() as check:
     for table, expected in counts.items():
-      query = "SELECT count(*) FROM organizations WHERE removed_at IS NULL" if table == "organizations" else f"SELECT count(*) FROM {table}"
+      query = f"SELECT count(*) FROM {table} WHERE removed_at IS NULL" if table in ("organizations","people") else f"SELECT count(*) FROM {table}"
       check.execute(query)
       actual=check.fetchone()[0]
       print(f"validated {table:16} expected={expected} actual={actual}")

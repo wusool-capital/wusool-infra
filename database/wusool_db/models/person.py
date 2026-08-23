@@ -46,6 +46,13 @@ class Person(Base):
     instagram: Mapped[str | None] = mapped_column(Text)
     twitter: Mapped[str | None] = mapped_column(Text)
     twitter_follower_count: Mapped[int | None] = mapped_column(Integer)
+    # Added 2026-08-23, mirrors organizations.removed_at: sync-postgres.ps1
+    # soft-deletes (instead of hard-deleting) a person no longer present in
+    # DEV Attio, since buyer_roles.key_contact_attio_id and
+    # deals.buyer_person_attio_id both reference people with ON DELETE NO
+    # ACTION -- a hard delete would fail outright (or silently break a
+    # still-valid buyer role/deal's contact) if either still points at it.
+    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
