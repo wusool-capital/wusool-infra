@@ -31,8 +31,7 @@ The two platforms have different responsibilities but share common record identi
 | buyer_role | Buyer profile, investment criteria, and mandate readiness | list | `buyer_roles` |
 | seller_role | Seller profile, valuation indicators, and outreach progress | list | `seller_roles` |
 | investor_lender_role | Investor or lender preferences and areas of focus | list | `investor_lender_roles` |
-| Deal | Transaction opportunities and pipeline progression | object | `deals` |
-| Mandate | Buy-side or sell-side engagements and execution progress | list | `mandates` |
+| Deal | Transaction opportunities and pipeline progression, including buy-side and sell-side mandates (see retired Mandate note below) | object | `deals` |
 
 ## Attio schema
 
@@ -173,7 +172,6 @@ Type: list | API identifier: `seller_role` | Parent: `organizations`
 | `sell_timeline` | `enum` | attio | - |
 | `readiness_score` | `numeric` | attio | - |
 | `readiness_band` | `enum` | attio | - |
-| `mandate_id` | `record-reference` | both | Mandate (historical rows only, see retired Mandate note above) |
 | `last_attempt_date` | `date` | both | - |
 | `last_attempt_channel` | `enum` | both | - |
 | `last_attempt_outcome` | `enum` | both | - |
@@ -283,10 +281,11 @@ field on Deal would be worse than picking one.
 | `tier1_contacted` | `integer` | both | - |
 | `responses` | `integer` | both | - |
 
-**Not yet done:** the PostgreSQL `mandates` table (see below) and its
-relationships (`mandate_targets`, etc.) still reflect the old two-object
-model and have not been updated to match this Attio-side merge — follow-up
-work, not part of this change.
+**Done, same day:** the PostgreSQL `mandates` and `mandate_targets` tables
+were dropped entirely (their data now lives on `deals` via the merged
+columns above) — `seller_roles.mandate_id` was dropped along with them.
+See the Alembic chain `9c4d71ea2b56` → `7b3f0d5e9a41` → `2e8a6c14f7b9` →
+`a4f9e61c3d78`.
 
 ## PostgreSQL schema
 
@@ -296,10 +295,10 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 
 | Area | Tables | Purpose |
 |---|---|---|
-| CRM mirror | `users`, `organizations`, `people`, `deals`, `mandates` | Structured copies of core CRM records |
+| CRM mirror | `users`, `organizations`, `people`, `deals` | Structured copies of core CRM records |
 | Business roles | `buyer_roles`, `seller_roles`, `investor_lender_roles` | Buyer, seller, investor, and lender-specific information |
 | Activity and pipeline | `activities`, `deal_stage_events`, `signals` | Interactions, deal movements, and market or buyer signals |
-| Intelligence and matching | `buyer_intel`, `seller_financials`, `mandate_targets`, `match_scores` | Research, financial normalization, targeting, and opportunity matching |
+| Intelligence and matching | `buyer_intel`, `seller_financials`, `match_scores` | Research, financial normalization, targeting, and opportunity matching |
 | Knowledge and documents | `documents`, `vertical_kb`, `graph_edges`, `scorecards` | Generated files, sector research, relationship networks, and reporting |
 | Integration operations | `attio_sync_state`, `attio_raw_events` | Synchronization progress and incoming Attio events |
 | Scribe integration | `meetings` | Buyer/seller meeting summaries published by the standalone scribe service |
@@ -409,34 +408,9 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 
 - `CONSTRAINT deals_one_buyer CHECK (`
 
-`deal_type` through `source_mandate_entry_id` merged in from `mandates` below, 2026-08-23 (see the retired Mandate note in the Attio schema section above). `source_mandate_entry_id` is an idempotency key for the migration script, not a business field.
+`deal_type` through `source_mandate_entry_id` merged in from the retired Mandate list, 2026-08-23 (see the retired Mandate note in the Attio schema section above). `source_mandate_entry_id` is an idempotency key for the migration script, not a business field.
 
-### mandates
-
-Retired 2026-08-23 (see the Attio schema section above) — kept only for its 2 historical rows, nothing writes new rows here going forward.
-
-| Column | Type | Nullable | Key | References | Default |
-|---|---|---:|---|---|---|
-| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `attio_id` | `text` | Yes | Unique | - | - |
-| `side` | `text` | No | - | - | - |
-| `buyer_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
-| `seller_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
-| `phase` | `text` | Yes | - | - | - |
-| `assigned_advisor_attio_ids` | `text[]` | No | - | - | `'{}'` |
-| `start_date` | `date` | Yes | - | - | - |
-| `expiry_date` | `date` | Yes | - | - | - |
-| `universe_constructed` | `boolean` | No | - | - | `false` |
-| `shortlist_approved` | `boolean` | No | - | - | `false` |
-| `universe_size` | `integer` | Yes | - | - | - |
-| `shortlist_size` | `integer` | Yes | - | - | - |
-| `tier1_contacted` | `integer` | Yes | - | - | - |
-| `responses` | `integer` | Yes | - | - | - |
-| `sellers_interested` | `integer` | Yes | - | - | - |
-| `retainer_amount` | `jsonb` | Yes | - | - | - |
-| `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
-| `created_at` | `timestamptz` | No | - | - | `now()` |
-| `updated_at` | `timestamptz` | No | - | - | `now()` |
+`mandates` table dropped 2026-08-23, same day as the Attio-side Mandate retirement above — its 2 historical rows carried no data that isn't already on the corresponding `deals` rows via the merge. `mandate_targets` was dropped alongside it (was never populated). See `database/alembic/versions/2e8a6c14f7b9_drop_mandates_and_mandate_targets.py`.
 
 ### buyer_roles
 
@@ -495,7 +469,6 @@ Retired 2026-08-23 (see the Attio schema section above) — kept only for its 2 
 | `sell_timeline` | `text` | Yes | - | - | - |
 | `readiness_score` | `numeric` | Yes | - | - | - |
 | `readiness_band` | `text` | Yes | - | - | - |
-| `mandate_id` | `uuid` | Yes | - | `mandates.id` | - |
 | `last_attempt_date` | `date` | Yes | - | - | - |
 | `last_attempt_channel` | `text` | Yes | - | - | - |
 | `last_attempt_outcome` | `text` | Yes | - | - | - |
@@ -601,23 +574,6 @@ Retired 2026-08-23 (see the Attio schema section above) — kept only for its 2 
 | `source_cite` | `jsonb` | No | - | - | `'[]'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
-
-### mandate_targets
-
-| Column | Type | Nullable | Key | References | Default |
-|---|---|---:|---|---|---|
-| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `mandate_id` | `uuid` | No | - | `mandates.id` | - |
-| `seller_attio_id` | `text` | No | - | `organizations.attio_id` | - |
-| `proxy_size` | `jsonb` | No | - | - | `'{}'::jsonb` |
-| `tier` | `text` | Yes | - | - | - |
-| `score` | `numeric` | Yes | - | - | - |
-| `created_at` | `timestamptz` | No | - | - | `now()` |
-| `updated_at` | `timestamptz` | No | - | - | `now()` |
-
-**Table constraints**
-
-- `UNIQUE (mandate_id, seller_attio_id)`
 
 ### match_scores
 
