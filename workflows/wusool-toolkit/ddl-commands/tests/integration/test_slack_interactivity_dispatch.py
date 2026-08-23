@@ -401,7 +401,8 @@ def test_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_cli
     args, kwargs = postgres_use_case.calls[0]
     assert args[0] == seller_id
     assert kwargs["org_attio_id"] == "org-attio-1"
-    assert "Updated seller profile for Acme Capital" in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Updated* seller profile for *Acme Capital*." in text
 
 
 def test_edit_form_attio_failure_prevents_postgres_write(
@@ -441,7 +442,8 @@ def test_edit_form_attio_failure_prevents_postgres_write(
 
     assert response.status_code == 200
     assert postgres_calls == []
-    assert "Couldn't write to Attio, nothing was saved" in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Couldn't write to Attio* — nothing was saved" in text
 
 
 def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
@@ -497,7 +499,7 @@ def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
     assert response.status_code == 200
     assert postgres_calls == []
     text = _mock_slack_web_client.posted[0]["text"]
-    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "*Couldn't write to Attio*" not in text
     assert "organization fields" in text
 
 
@@ -621,7 +623,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
 
     assert response.status_code == 200
     assert len(postgres_use_case.calls) == 1
-    assert "Updated buyer profile for Blue Horizon" in _mock_slack_web_client.posted[0]["text"]
+    assert "*Updated* buyer profile for *Blue Horizon*." in _mock_slack_web_client.posted[0]["text"]
 
 
 # --------------------------------------------------------------------------
@@ -809,7 +811,7 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
     assert postgres_use_case.calls[0]["org_attio_id"] == "org-new-1"
     assert postgres_use_case.calls[0]["is_new_org"] is True
     assert postgres_use_case.calls[0]["org_name"] == "New Seller Co"
-    assert "Added seller profile for New Seller Co" in _mock_slack_web_client.posted[0]["text"]
+    assert "*Added* seller profile for *New Seller Co*." in _mock_slack_web_client.posted[0]["text"]
 
 
 def test_seller_add_form_new_org_without_name_shows_error() -> None:
@@ -854,7 +856,8 @@ def test_seller_add_form_attio_failure_prevents_postgres_write(
 
     assert response.status_code == 200
     assert postgres_calls == []
-    assert "Couldn't write to Attio, nothing was saved" in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Couldn't write to Attio* — nothing was saved" in text
 
 
 def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed(
@@ -899,7 +902,7 @@ def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed
     assert response.status_code == 200
     assert postgres_calls == []
     text = _mock_slack_web_client.posted[0]["text"]
-    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "*Couldn't write to Attio*" not in text
     assert "New Seller Co" in text
     assert "org-new-1" in text
 
@@ -943,7 +946,7 @@ def test_seller_add_form_postgres_failure_after_attio_success_reports_what_lande
 
     assert response.status_code == 200
     text = _mock_slack_web_client.posted[0]["text"]
-    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "*Couldn't write to Attio*" not in text
     assert "org-new-1" in text
     assert "seller role entry" in text
     assert "connection reset" in text
@@ -1009,4 +1012,5 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     assert call_order == ["create_role_entry", "postgres_write"]
     assert postgres_use_case.calls[0]["org_attio_id"] == "org-attio-existing"
     assert postgres_use_case.calls[0]["is_new_org"] is False
-    assert "Added buyer profile for Existing Buyer Co" in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Added* buyer profile for *Existing Buyer Co*." in text

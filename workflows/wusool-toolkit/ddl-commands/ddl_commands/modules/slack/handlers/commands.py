@@ -54,7 +54,7 @@ async def _run(action: str, command: dict, client, coro) -> None:  # noqa: ANN00
             await client.chat_postEphemeral(
                 channel=command["channel_id"],
                 user=command["user_id"],
-                text=f"`/{action.replace('_', '-')}` failed. The error has been logged.",
+                text=f"*`/{action.replace('_', '-')}` failed.* The error has been logged.",
             )
         except Exception:
             logger.exception("%s_error_notice_failed", action)
@@ -113,7 +113,7 @@ async def _handle_seller_command(command: dict, client, *, action: str) -> None:
         await client.chat_postEphemeral(
             channel=channel_id,
             user=user_id,
-            text=f"Usage: `/{action.replace('_', '-')} <seller name>`",
+            text=f"*Usage:* `/{action.replace('_', '-')} <seller name>`",
         )
         return
 
@@ -123,7 +123,7 @@ async def _handle_seller_command(command: dict, client, *, action: str) -> None:
         await client.chat_postEphemeral(
             channel=channel_id,
             user=user_id,
-            text=f"No seller found for '{seller_name}'. Try a different name.",
+            text=f"No seller found for *{seller_name}*. _Try a different name._",
         )
         return
 
@@ -151,7 +151,7 @@ async def _handle_buyer_command(command: dict, client, *, action: str) -> None: 
         await client.chat_postEphemeral(
             channel=channel_id,
             user=user_id,
-            text=f"Usage: `/{action.replace('_', '-')} <buyer name>`",
+            text=f"*Usage:* `/{action.replace('_', '-')} <buyer name>`",
         )
         return
 
@@ -161,7 +161,7 @@ async def _handle_buyer_command(command: dict, client, *, action: str) -> None: 
         await client.chat_postEphemeral(
             channel=channel_id,
             user=user_id,
-            text=f"No buyer found for '{buyer_name}'. Try a different name.",
+            text=f"No buyer found for *{buyer_name}*. _Try a different name._",
         )
         return
 
@@ -188,7 +188,7 @@ async def _handle_add_command(command: dict, client, *, kind: str) -> None:  # n
 
     if not org_name:
         await client.chat_postEphemeral(
-            channel=channel_id, user=user_id, text=f"Usage: `/add-{kind} <organization name>`"
+            channel=channel_id, user=user_id, text=f"*Usage:* `/add-{kind} <organization name>`"
         )
         return
 
