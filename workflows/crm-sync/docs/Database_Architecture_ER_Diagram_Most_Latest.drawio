@@ -1,0 +1,744 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="LsO5gTNNwX4CWzMSSLPg">
+    <mxGraphModel dx="1700" dy="874" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-1" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=19;fontStyle=1;fontColor=#000523;" value="Wusool Capital · Database Architecture" vertex="1">
+          <mxGeometry height="26" width="1300" x="430" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-2" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=10;fontStyle=0;fontColor=#555555;" value="Attio = system of record (state) · Postgres+pgvector = machine layer · join = attio_record_id. Row colour = where the field&#39;s master lives. Crow&#39;s-foot = cardinality." vertex="1">
+          <mxGeometry height="16" width="1500" x="430" y="468" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-3" parent="1" style="text;html=1;whiteSpace=wrap;fillColor=#FFFFFF;strokeColor=#D9D7D0;rounded=1;spacingLeft=8;spacingTop=6;fontSize=10;align=left;verticalAlign=top;" value="&lt;b&gt;Master:&lt;/b&gt; &lt;font style='background-color:#DAE8FC'&gt;&amp;nbsp;Attio&amp;nbsp;&lt;/font&gt; state &amp;nbsp; &lt;font style='background-color:#E1D5E7'&gt;&amp;nbsp;Postgres&amp;nbsp;&lt;/font&gt; intelligence/history &amp;nbsp; &lt;font style='background-color:#FFF2CC'&gt;&amp;nbsp;Both&amp;nbsp;&lt;/font&gt; PG-master, cached in Attio &amp;nbsp; &lt;font style='background-color:#ECECEC'&gt;&amp;nbsp;Key&amp;nbsp;&lt;/font&gt; PK / FK &amp;nbsp;&amp;nbsp; ┊ dashed border = proposed, not yet built" vertex="1">
+          <mxGeometry height="26" width="1500" x="430" y="488" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-4" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#5B7FB9;swimlaneFillColor=#FFFFFF;strokeColor=#5B7FB9;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="Organization&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · Companies object&lt;/font&gt;" vertex="1">
+          <mxGeometry height="528" width="300" x="898" y="1175" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-5" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK  attio_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-6" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="name : text" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-7" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="description : text" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-8" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="type[] : enum (PE/FO/VC/Target/Client:*)" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-9" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="client_type : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-10" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="sector_focus[] / stage_focus[] : enum[]" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-11" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="geographic_focus[] : enum[]" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-12" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="hq_country : text" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-13" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="domains : text[]" vertex="1">
+          <mxGeometry height="18" width="300" y="186" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-14" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="categories[] : enum[]" vertex="1">
+          <mxGeometry height="18" width="300" y="204" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-15" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="relationship_status : enum  (single warmth field)" vertex="1">
+          <mxGeometry height="18" width="300" y="222" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-16" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="connection_strength : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-17" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK owner : uuid → User" vertex="1">
+          <mxGeometry height="18" width="300" y="258" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-18" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="last_interaction_at : timestamptz  (cached)" vertex="1">
+          <mxGeometry height="18" width="300" y="276" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-300" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="funding_raised : currency (USD)" vertex="1">
+          <mxGeometry height="18" width="300" y="294" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-301" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="estimated_arr : enum (9 revenue bands)" vertex="1">
+          <mxGeometry height="18" width="300" y="312" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-302" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="angellist : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-303" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="facebook : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-304" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="instagram : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="366" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-305" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="twitter : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="384" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-306" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="twitter_follower_count : int" vertex="1">
+          <mxGeometry height="18" width="300" y="402" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-307" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="foundation_date : date" vertex="1">
+          <mxGeometry height="18" width="300" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-308" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="employee_range : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="438" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-309" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ticket_size : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="456" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-311" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="lead_source : enum (Inbound / Outbound)" vertex="1">
+          <mxGeometry height="18" width="300" y="474" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-312" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="linkedin : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="492" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-900" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="is_active : bool  (true = newest entry per duplicate name group)" vertex="1">
+          <mxGeometry height="18" width="300" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-19" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#5B7FB9;swimlaneFillColor=#FFFFFF;strokeColor=#5B7FB9;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="Person&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · People object&lt;/font&gt;" vertex="1">
+          <mxGeometry height="420" width="300" x="898" y="607" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-20" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK  attio_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-21" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="name : text" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-22" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="role : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-23" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK company : uuid → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-24" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="email : text[]" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-25" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="linkedin : text" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-26" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="relationship_status : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-27" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="connection_strength : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-28" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK owner : uuid → User" vertex="1">
+          <mxGeometry height="18" width="300" y="186" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-29" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="past_employers/education : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="204" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-30" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="enrichment : jsonb (LinkedIn/Clay)" vertex="1">
+          <mxGeometry height="18" width="300" y="222" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-31" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="last_interaction_at : timestamptz (cached)" vertex="1">
+          <mxGeometry height="18" width="300" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-320" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="job_title : text" vertex="1">
+          <mxGeometry height="18" width="300" y="258" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-321" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="contact_type : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="276" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-322" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="phone : text" vertex="1">
+          <mxGeometry height="18" width="300" y="294" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-323" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="avatar_url : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="312" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-324" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="angellist : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-325" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="facebook : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-326" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="instagram : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="366" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-327" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="twitter : text (url)" vertex="1">
+          <mxGeometry height="18" width="300" y="384" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-328" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="twitter_follower_count : int" vertex="1">
+          <mxGeometry height="18" width="300" y="402" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-32" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#5B7FB9;swimlaneFillColor=#FFFFFF;strokeColor=#5B7FB9;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="User (advisor)&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · workspace members (internal)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="132" width="300" x="1860" y="1793" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-33" parent="RgGBnucupUyAWn9DcVHZ-32" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK  attio_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-34" parent="RgGBnucupUyAWn9DcVHZ-32" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="name : text (Hugo/Jules/Ramzy/Tech)" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-35" parent="RgGBnucupUyAWn9DcVHZ-32" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="email : text" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-36" parent="RgGBnucupUyAWn9DcVHZ-32" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="access : enum (Admin/Member)" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-37" parent="RgGBnucupUyAWn9DcVHZ-32" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="active : bool  (NEW)" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-38" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8C8C8C;swimlaneFillColor=#FFFFFF;strokeColor=#8C8C8C;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="Scorecards&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · internal weekly perf  (SCOPE? — out of layer)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="96" width="300" x="2471" y="601" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-39" parent="RgGBnucupUyAWn9DcVHZ-38" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK  attio_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-40" parent="RgGBnucupUyAWn9DcVHZ-38" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="week_start : date" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-41" parent="RgGBnucupUyAWn9DcVHZ-38" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK created_by → User" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-42" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#2E7D6F;swimlaneFillColor=#FFFFFF;strokeColor=#2E7D6F;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="buyer_role&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · role on Organization (or Person)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="438" width="300" x="1230" y="604" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-43" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id  ·  FK org_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-44" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="model : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-45" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="mandate_status : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-46" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ebitda_floor : money{amt,ccy}" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-47" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="check_size_min/max : money{amt,ccy}" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-48" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ev_ceiling : money{amt,ccy}" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-49" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="deal_structure_tol : text  ·  earnout_tol : bool" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-50" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="profitable_only : bool" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-51" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="investment_strategy/notes : text" vertex="1">
+          <mxGeometry height="18" width="300" y="186" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-52" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK key_contact → Person (migrate from text)" vertex="1">
+          <mxGeometry height="18" width="300" y="204" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-53" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="acquisition_enrichment : text (Claude, matching)" vertex="1">
+          <mxGeometry height="18" width="300" y="222" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-54" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="deals_introduced/converted : int (derived)" vertex="1">
+          <mxGeometry height="18" width="300" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-520" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="is_active : bool  (true = newest entry per company)" vertex="1">
+          <mxGeometry height="18" width="300" y="258" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-521" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="legacy_entry_id : text  (SOURCE row identifier)" vertex="1">
+          <mxGeometry height="18" width="300" y="276" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-522" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ebitda_ceiling : money{amt,ccy}" vertex="1">
+          <mxGeometry height="18" width="300" y="294" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-523" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="estimated_aum : money{amt,ccy}" vertex="1">
+          <mxGeometry height="18" width="300" y="312" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-525" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="notable_investments : text" vertex="1">
+          <mxGeometry height="18" width="300" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-526" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="key_personnel : text" vertex="1">
+          <mxGeometry height="18" width="300" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-527" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="relationship_warmth : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="366" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-528" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="target_geography : enum[] (multiselect)" vertex="1">
+          <mxGeometry height="18" width="300" y="384" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-530" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="last_mandate_briefing_date : date" vertex="1">
+          <mxGeometry height="18" width="300" y="402" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-531" parent="RgGBnucupUyAWn9DcVHZ-42" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="prior_gcc_acquisition : text" vertex="1">
+          <mxGeometry height="18" width="300" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-55" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#2E7D6F;swimlaneFillColor=#FFFFFF;strokeColor=#2E7D6F;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="seller_role&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · role on Organization&lt;/font&gt;" vertex="1">
+          <mxGeometry height="222" width="300" x="1259" y="1369" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-56" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id  ·  FK org_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-57" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="outreach_tier : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-58" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="appetite_signal : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-59" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="est_revenue/est_ebitda : money{amt,ccy}" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-60" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="owner_salary / valuation_{lo,mid,hi} : money" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-61" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="sell_timeline : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-62" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="readiness_score : numeric  ·  readiness_band : enum (Yes/No, binary)" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-65" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="last_attempt_{date,channel,outcome} (cached)" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-66" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="lead_quality_score : numeric (conv×value)" vertex="1">
+          <mxGeometry height="18" width="300" y="186" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-67" parent="RgGBnucupUyAWn9DcVHZ-55" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="re_engage_date : date (derived)" vertex="1">
+          <mxGeometry height="18" width="300" y="204" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-68" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8C8C8C;swimlaneFillColor=#FFFFFF;strokeColor=#8C8C8C;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="investor_role / lender_role&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · role (SCOPE? — graph-only)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="132" width="300" x="433" y="1037" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-69" parent="RgGBnucupUyAWn9DcVHZ-68" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK org_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-70" parent="RgGBnucupUyAWn9DcVHZ-68" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="investor_type : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-71" parent="RgGBnucupUyAWn9DcVHZ-68" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="stage/sector_focus : enum[]" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-72" parent="RgGBnucupUyAWn9DcVHZ-68" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="interests / facility_type : text" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-73" parent="RgGBnucupUyAWn9DcVHZ-68" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="activity_level : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-74" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#5B7FB9;swimlaneFillColor=#FFFFFF;strokeColor=#5B7FB9;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="Deal&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · Deals object (native pipeline)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="546" width="300" x="1578" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-75" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK  attio_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-76" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="name : text" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-77" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="stage : enum (Inbound…Closed, Kanban)" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-78" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="stage_changed_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-79" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="time_in_stage : interval (→ reminders)" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-80" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK buyer_id → Organization/Person" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-81" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK seller_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-82" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK owner : uuid → User" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-83" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="value : money{amt,ccy}" vertex="1">
+          <mxGeometry height="18" width="300" y="186" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-84" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="teaser_status : enum  ·  nda_count : int" vertex="1">
+          <mxGeometry height="18" width="300" y="204" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-85" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="cim_ready/deal_memo_ready : bool" vertex="1">
+          <mxGeometry height="18" width="300" y="222" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-86" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="exclusivity_date : date" vertex="1">
+          <mxGeometry height="18" width="300" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-88" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="data_room_substatus : enum (manual→M1)" vertex="1">
+          <mxGeometry height="18" width="300" y="258" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-89" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="comparables : jsonb (post-close)" vertex="1">
+          <mxGeometry height="18" width="300" y="276" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-330" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="nda_status : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="294" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-331" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="estimated_deal_value_aed : numeric (AED, ≠ value, not currency-typed)" vertex="1">
+          <mxGeometry height="18" width="300" y="312" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-500" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="expected_close_date : date" vertex="1">
+          <mxGeometry height="18" width="300" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-501" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="fee : percentage (commission)" vertex="1">
+          <mxGeometry height="18" width="300" y="348" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-502" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="assigned_advisor : enum (Hugo/Jules/Ramzy — plain select, not a User FK)" vertex="1">
+          <mxGeometry height="18" width="300" y="366" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-503" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="contract_signed_date : date" vertex="1">
+          <mxGeometry height="18" width="300" y="384" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-701" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="deal_type : enum (Buy-side / Sell-side)" vertex="1">
+          <mxGeometry height="18" width="300" y="402" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-702" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="universe_constructed/shortlist_approved : bool" vertex="1">
+          <mxGeometry height="18" width="300" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-703" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="universe_size/shortlist_size : int" vertex="1">
+          <mxGeometry height="18" width="300" y="438" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-704" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="tier1_contacted/responses : int" vertex="1">
+          <mxGeometry height="18" width="300" y="456" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-705" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="counterparty_interested : int" vertex="1">
+          <mxGeometry height="18" width="300" y="474" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-706" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="Mandate Start Date / Mandate Expiry Date : date" vertex="1">
+          <mxGeometry height="18" width="300" y="492" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-707" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="retainer_amount : currency (AED)" vertex="1">
+          <mxGeometry height="18" width="300" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-708" parent="RgGBnucupUyAWn9DcVHZ-74" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="source_mandate_entry_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="528" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-101" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;dashed=1;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="activities&lt;br&gt;&lt;font style='font-size:8px;font-weight:normal'&gt;PROPOSED — not yet built · Postgres-only, never written to Attio&lt;/font&gt;" vertex="1">
+          <mxGeometry height="204" width="300" x="1578" y="592" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-102" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-103" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="subject_type : enum (Organization, Person, BuyerRole, SellerRole, Mandate, Deal)" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-560" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="subject_id : uuid  (references table named by subject_type)" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-104" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK actor_id → User  (nullable, null = system-generated)" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-105" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="occurred_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-106" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="channel : enum (Calendar, Email, Call, Outreach, DataRoom, Nudge, Other)" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-107" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="direction : enum (In, Out)  — nullable" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-108" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="outcome : text  — nullable" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-109" parent="RgGBnucupUyAWn9DcVHZ-101" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="source : text (cite, e.g. &quot;SOURCE Attio first_email_interaction backfill&quot;)" vertex="1">
+          <mxGeometry height="18" width="300" y="186" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-110" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="signals&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · buyer signals (M2)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="300" x="899" y="1739" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-111" parent="RgGBnucupUyAWn9DcVHZ-110" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-112" parent="RgGBnucupUyAWn9DcVHZ-110" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK buyer_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-113" parent="RgGBnucupUyAWn9DcVHZ-110" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="source : enum (transcript/news/LI/jobs)" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-114" parent="RgGBnucupUyAWn9DcVHZ-110" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="payload : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-115" parent="RgGBnucupUyAWn9DcVHZ-110" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ts : timestamptz  ·  rank : int" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-116" parent="RgGBnucupUyAWn9DcVHZ-110" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="source_cite : text" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-117" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="buyer_intel&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · weekly brief (M2)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="300" x="433" y="1394" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-118" parent="RgGBnucupUyAWn9DcVHZ-117" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id  ·  FK buyer_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-119" parent="RgGBnucupUyAWn9DcVHZ-117" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="cash_window : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-120" parent="RgGBnucupUyAWn9DcVHZ-117" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="appetite_score : numeric" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-121" parent="RgGBnucupUyAWn9DcVHZ-117" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="brief : text" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-122" parent="RgGBnucupUyAWn9DcVHZ-117" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="brief_embedding : vector" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-123" parent="RgGBnucupUyAWn9DcVHZ-117" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ideal_target : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-124" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="seller_fin&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · normalised financials (M1/M4)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="132" width="300" x="433" y="857" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-125" parent="RgGBnucupUyAWn9DcVHZ-124" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id  ·  FK seller_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-126" parent="RgGBnucupUyAWn9DcVHZ-124" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="normalised_ebitda_sde : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-127" parent="RgGBnucupUyAWn9DcVHZ-124" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="add_backs : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-128" parent="RgGBnucupUyAWn9DcVHZ-124" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="proxy_revenue : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-129" parent="RgGBnucupUyAWn9DcVHZ-124" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="confidence : numeric" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-130" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="mandate_targets&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · buy-side universe (M4)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="300" x="1247" y="1674" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-131" parent="RgGBnucupUyAWn9DcVHZ-130" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-132" parent="RgGBnucupUyAWn9DcVHZ-130" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK mandate_id → Mandate" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-133" parent="RgGBnucupUyAWn9DcVHZ-130" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK seller_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-134" parent="RgGBnucupUyAWn9DcVHZ-130" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="proxy_size : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-135" parent="RgGBnucupUyAWn9DcVHZ-130" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="tier : enum (A/B/C)" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-136" parent="RgGBnucupUyAWn9DcVHZ-130" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="score : numeric" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-137" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="match_scores&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · matching (M3)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="168" width="300" x="433" y="1207" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-138" parent="RgGBnucupUyAWn9DcVHZ-137" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-139" parent="RgGBnucupUyAWn9DcVHZ-137" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK buyer_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-140" parent="RgGBnucupUyAWn9DcVHZ-137" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK seller_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-141" parent="RgGBnucupUyAWn9DcVHZ-137" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="score : numeric" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-142" parent="RgGBnucupUyAWn9DcVHZ-137" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="dims : jsonb {geography, sector, ticket/acqn}" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-143" parent="RgGBnucupUyAWn9DcVHZ-137" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="reasoning : text  ·  citations : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-144" parent="RgGBnucupUyAWn9DcVHZ-137" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="generated_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-145" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="documents / generation_outputs&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres + Drive refs (M1)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="168" width="300" x="1959" y="778" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-146" parent="RgGBnucupUyAWn9DcVHZ-145" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-147" parent="RgGBnucupUyAWn9DcVHZ-145" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK deal_id → Deal" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-148" parent="RgGBnucupUyAWn9DcVHZ-145" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="kind : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-149" parent="RgGBnucupUyAWn9DcVHZ-145" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="output_type : enum (FinModel…Teaser/CIM)" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-150" parent="RgGBnucupUyAWn9DcVHZ-145" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="drive_ref : text" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-151" parent="RgGBnucupUyAWn9DcVHZ-145" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="extracted_json : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-152" parent="RgGBnucupUyAWn9DcVHZ-145" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="qc_state : enum  ·  version : int" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-153" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="vertical_kb&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · reusable Tier-1 research (M1)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="132" width="300" x="2471" y="751" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-154" parent="RgGBnucupUyAWn9DcVHZ-153" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-155" parent="RgGBnucupUyAWn9DcVHZ-153" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="sector : text" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-156" parent="RgGBnucupUyAWn9DcVHZ-153" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="tier1_research : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-157" parent="RgGBnucupUyAWn9DcVHZ-153" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="embedding : vector" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-158" parent="RgGBnucupUyAWn9DcVHZ-153" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="source_cite : jsonb" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-159" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="deal_stage_events&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · full deal-stage history&lt;/font&gt;" vertex="1">
+          <mxGeometry height="114" width="300" x="1964" y="1017" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-160" parent="RgGBnucupUyAWn9DcVHZ-159" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-161" parent="RgGBnucupUyAWn9DcVHZ-159" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK deal_id → Deal" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-162" parent="RgGBnucupUyAWn9DcVHZ-159" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="from_stage / to_stage : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-163" parent="RgGBnucupUyAWn9DcVHZ-159" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ts : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-164" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="users&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · advisors + activity linkage (mirror)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="114" width="300" x="2204" y="1198" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-165" parent="RgGBnucupUyAWn9DcVHZ-164" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK attio_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-166" parent="RgGBnucupUyAWn9DcVHZ-164" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="name : text" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-167" parent="RgGBnucupUyAWn9DcVHZ-164" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="active : bool" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-168" parent="RgGBnucupUyAWn9DcVHZ-164" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="activity linkage · future API/KPI" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-169" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-19" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-170" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERone;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-42" value="1..*">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1380" y="1069" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-171" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERone;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-55" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-172" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERone;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-68" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-173" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-74" value="buyer/seller">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1560" y="1160" />
+              <mxPoint x="1560" y="977" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-175" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-32" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-74" value="owner">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-177" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-32" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERone;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-164" value="1..1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-180" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-74" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-145" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-181" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-74" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-159" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-182" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-74" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-101" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-183" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-110" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-184" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERone;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-117" value="1..1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="1160" />
+              <mxPoint x="890" y="1514" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-185" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERone;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-124" value="1..1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1048" y="931" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-186" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-137" value="buyer/seller">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-187" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=0;" target="RgGBnucupUyAWn9DcVHZ-188" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-188" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="graph_edges&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Postgres · network graph (M6)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="132" width="300" x="434" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-189" parent="RgGBnucupUyAWn9DcVHZ-188" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-190" parent="RgGBnucupUyAWn9DcVHZ-188" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK person_a → Person" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-191" parent="RgGBnucupUyAWn9DcVHZ-188" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK person_b → Person" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-192" parent="RgGBnucupUyAWn9DcVHZ-188" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="hop : enum (direct/1-hop/2-hop)" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-193" parent="RgGBnucupUyAWn9DcVHZ-188" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="basis : enum" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-194" parent="1" style="text;html=1;whiteSpace=wrap;fontSize=11;fontColor=#4B2E83;align=left;verticalAlign=top;" value="&lt;b&gt;MEETINGS&lt;/b&gt; — in-house notetaker (Capture/Transcription adapter). One row per conversation, tied to an Organization + its buyer/seller role. Feeds M1 narrative · M2/M3 signals · M5 memory (via summary_embedding)." vertex="1">
+          <mxGeometry height="52" width="360" x="220" y="1590" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-195" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-196" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="RgGBnucupUyAWn9DcVHZ-18">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="347" y="1001" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-196" parent="1" style="text;html=1;whiteSpace=wrap;fillColor=#FFFFFF;strokeColor=#7A5CA5;rounded=1;spacingLeft=8;spacingTop=6;spacingRight=6;fontSize=10;align=left;verticalAlign=top;" value="&lt;b&gt;&lt;font color=&#39;#4B2E83&#39;&gt;meetings&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size:9px&#39; color=&#39;#333333&#39;&gt;PK id : uuid  (meeting_id)&lt;br&gt;org_id : FK -&amp;gt; Organization&lt;br&gt;counterparty_role : enum(buyer/seller)&lt;br&gt;meeting_type : enum(enrichment/alignment/owner_iv/buyer_intro/internal)&lt;br&gt;occurred_at : timestamptz&lt;br&gt;title : text&lt;br&gt;source : enum(in_house/granola/manual)&lt;br&gt;audio_ref : text  (S3/Drive)&lt;br&gt;duration_s : int&lt;br&gt;created_by : FK -&amp;gt; User&lt;br&gt;participants : jsonb  (names/roles/speakers)&lt;br&gt;transcript : text   &amp;#8592; full transcript&lt;br&gt;summary : text   &amp;#8592; generated summary&lt;br&gt;summary_embedding : vector  (recall)&lt;br&gt;metadata : jsonb  (external_ref, status, consent)&lt;br&gt;created_at : timestamptz&lt;/font&gt;" vertex="1">
+          <mxGeometry height="262" width="360" x="220" y="1646" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-400" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;dashed=1;fillColor=#5B7FB9;swimlaneFillColor=#FFFFFF;strokeColor=#5B7FB9;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="notes&lt;br&gt;&lt;font style='font-size:8px;font-weight:normal'&gt;PROPOSED — not yet built · Attio notes object + Postgres notes table&lt;/font&gt;" vertex="1">
+          <mxGeometry height="186" width="300" x="2204" y="1360" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-401" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK  id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-402" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK organization_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-403" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK person_id → Person  (nullable)" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-404" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK buyer_role_id → buyer_role  (nullable)" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-405" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK seller_role_id → seller_role  (nullable)" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-406" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="note_type : enum (Manual, Meeting)" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-407" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="content : text  (Manual = hand-entered; Meeting = transcript summary)" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-408" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-409" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=1;" target="RgGBnucupUyAWn9DcVHZ-400" value="1..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-410" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=1;" target="RgGBnucupUyAWn9DcVHZ-400" value="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-411" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-42" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=1;" target="RgGBnucupUyAWn9DcVHZ-400" value="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-412" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-55" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=1;" target="RgGBnucupUyAWn9DcVHZ-400" value="0..*">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -61,6 +61,19 @@ Type: object | API identifier: `organizations`
 | `connection_strength` | `enum` | attio | - |
 | `owner` | `user-reference` | key | User |
 | `last_interaction_at` | `timestamp` | both | - |
+| `funding_raised` | `money` (USD) | attio | - |
+| `estimated_arr` | `enum` | attio | - |
+| `angellist` | `text` | attio | - |
+| `facebook` | `text` | attio | - |
+| `instagram` | `text` | attio | - |
+| `twitter` | `text` | attio | - |
+| `twitter_follower_count` | `integer` | attio | - |
+| `foundation_date` | `date` | attio | - |
+| `employee_range` | `enum` | attio | - |
+| `linkedin` | `text` | attio | - |
+| `ticket_size` | `text` | attio | - |
+| `lead_source` | `enum` (Inbound / Outbound) | attio | - |
+| `is_active` | `boolean` | attio | - |
 
 ### Person
 
@@ -82,6 +95,15 @@ Type: object | API identifier: `person`
 | `education` | `jsonb` | postgres | - |
 | `enrichment` | `jsonb` | postgres | - |
 | `last_interaction_at` | `timestamp` | both | - |
+| `job_title` | `text` | attio | - |
+| `contact_type` | `enum` | attio | - |
+| `phone` | `text` | attio | - |
+| `avatar_url` | `text` | attio | - |
+| `angellist` | `text` | attio | - |
+| `facebook` | `text` | attio | - |
+| `instagram` | `text` | attio | - |
+| `twitter` | `text` | attio | - |
+| `twitter_follower_count` | `integer` | attio | - |
 
 ### User
 
@@ -118,6 +140,18 @@ Type: list | API identifier: `buyer_role` | Parent: `organizations`
 | `acquisition_enrichment` | `text` | both | - |
 | `deals_introduced` | `integer` | both | - |
 | `deals_converted` | `integer` | both | - |
+| `is_active` | `boolean` | both | - |
+| `legacy_entry_id` | `text` | key | - |
+| `ebitda_ceiling` | `money` | attio | - |
+| `estimated_aum` | `money` | attio | - |
+| `notable_investments` | `text` | attio | - |
+| `key_personnel` | `text` | attio | - |
+| `relationship_warmth` | `enum` | attio | - |
+| `target_geography` | `enum[]` (multiselect) | attio | - |
+| `last_mandate_briefing_date` | `date` | attio | - |
+| `prior_gcc_acquisition` | `text` | attio | - |
+
+`typical_check_size` dropped 2026-08-23 (see `migration-decisions.json`'s `dropped_fields`) — redundant with `check_size_min`/`check_size_max` above.
 
 ### seller_role
 
@@ -139,13 +173,14 @@ Type: list | API identifier: `seller_role` | Parent: `organizations`
 | `sell_timeline` | `enum` | attio | - |
 | `readiness_score` | `numeric` | attio | - |
 | `readiness_band` | `enum` | attio | - |
-| `intake_source` | `enum` | attio | - |
-| `mandate_id` | `record-reference` | both | Mandate |
+| `mandate_id` | `record-reference` | both | Mandate (historical rows only, see retired Mandate note above) |
 | `last_attempt_date` | `date` | both | - |
 | `last_attempt_channel` | `enum` | both | - |
 | `last_attempt_outcome` | `enum` | both | - |
 | `lead_quality_score` | `numeric` | both | - |
 | `re_engage_date` | `date` | both | - |
+| `is_active` | `boolean` | both | - |
+| `legacy_entry_id` | `text` | key | - |
 
 ### investor_lender_role
 
@@ -186,10 +221,50 @@ Type: object | API identifier: `deals`
 | `next_task` | `text` | attio | - |
 | `data_room_substatus` | `enum` | both | - |
 | `comparables` | `jsonb` | postgres | - |
+| `assigned_advisor` | `enum[]` (multiselect) | attio | - |
+| `deal_type` | `enum` (`Buy-side` / `Sell-side`) | attio | - |
+| `universe_constructed` | `boolean` | attio | - |
+| `universe_size` | `integer` | attio | - |
+| `shortlist_approved` | `boolean` | attio | - |
+| `shortlist_size` | `integer` | attio | - |
+| `tier1_contacted` | `integer` | attio | - |
+| `responses` | `integer` | attio | - |
+| `counterparty_interested` | `integer` | attio | - |
+| `start_date` | `date` | attio | - |
+| `expiry_date` | `date` | attio | - |
+| `retainer_amount` | `money` (AED) | attio | - |
+| `source_mandate_entry_id` | `text` | key | Idempotency key for the one-time Mandate migration below — not a real business field. |
 
-### Mandate
+`stage` includes a `Mandate Active` status: a signed mandate still sourcing
+candidates, no specific counterparty locked in yet. Distinct from
+`Mandate Signed`, which already implies a specific counterparty and signed
+terms — the two "mandate" states were never the same thing (see the retired
+Mandate section below).
+
+### Mandate — retired 2026-08-23, merged into Deal
 
 Type: list | API identifier: `mandates` | Parent: `organizations`
+
+**Status: retired.** Every Mandate entry now becomes its own Deal record
+(`stage` = `Mandate Active`) instead of a separate list attached to an
+Organization — see `scripts/_internal/objects.ps1`'s `Invoke-Deals
+-MigrateMandates` for the one-time migration logic (idempotent via
+`source_mandate_entry_id`, safe to re-run). Rationale: the two-tier model
+(one Mandate → many candidate Deals) was designed for but never actually
+used — neither of the 2 real DEV Mandate entries had a single Deal record
+linked to them at the time of the merge.
+
+`phase` was deliberately **not** carried over to Deal: it's a manually-typed
+label that only restates what `universe_constructed`/`universe_size`/
+`shortlist_approved`/`shortlist_size`/`tier1_contacted`/`responses` already
+show, and can silently drift out of sync with those numbers. `sellers_interested`
+was renamed to `counterparty_interested` on Deal since "sellers" only makes
+sense framed from a buy-side mandate, and the merged model needs one field
+that reads correctly for both `Buy-side` and `Sell-side` deals.
+`assigned_advisor` reuses Deal's existing `Hugo`/`Jules`/`Ramzy` multiselect
+enum rather than Mandate's `user-reference[]` type — Attio doesn't support
+changing a field's type in place, and a second parallel "who's the advisor"
+field on Deal would be worse than picking one.
 
 | Field | Type | Data responsibility | Relationship |
 |---|---|---|---|
@@ -207,6 +282,11 @@ Type: list | API identifier: `mandates` | Parent: `organizations`
 | `shortlist_size` | `integer` | both | - |
 | `tier1_contacted` | `integer` | both | - |
 | `responses` | `integer` | both | - |
+
+**Not yet done:** the PostgreSQL `mandates` table (see below) and its
+relationships (`mandate_targets`, etc.) still reflect the old two-object
+model and have not been updated to match this Attio-side merge — follow-up
+work, not part of this change.
 
 ## PostgreSQL schema
 
@@ -303,6 +383,23 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `next_task` | `text` | Yes | - | - | - |
 | `data_room_substatus` | `text` | Yes | - | - | - |
 | `comparables` | `jsonb` | No | - | - | `'{}'::jsonb` |
+| `nda_status` | `text` | Yes | - | - | - |
+| `estimated_deal_value_aed` | `numeric` | Yes | - | - | - |
+| `expected_close_date` | `date` | Yes | - | - | - |
+| `fee` | `numeric` | Yes | - | - | - |
+| `assigned_advisor` | `text[]` | No | - | - | `'{}'` |
+| `deal_type` | `text` | Yes | - | - | - |
+| `universe_constructed` | `boolean` | No | - | - | `false` |
+| `universe_size` | `integer` | Yes | - | - | - |
+| `shortlist_approved` | `boolean` | No | - | - | `false` |
+| `shortlist_size` | `integer` | Yes | - | - | - |
+| `tier1_contacted` | `integer` | Yes | - | - | - |
+| `responses` | `integer` | Yes | - | - | - |
+| `counterparty_interested` | `integer` | Yes | - | - | - |
+| `mandate_start_date` | `date` | Yes | - | - | - |
+| `mandate_expiry_date` | `date` | Yes | - | - | - |
+| `retainer_amount` | `jsonb` | Yes | - | - | - |
+| `source_mandate_entry_id` | `text` | Yes | Unique | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
@@ -312,7 +409,11 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 
 - `CONSTRAINT deals_one_buyer CHECK (`
 
+`deal_type` through `source_mandate_entry_id` merged in from `mandates` below, 2026-08-23 (see the retired Mandate note in the Attio schema section above). `source_mandate_entry_id` is an idempotency key for the migration script, not a business field.
+
 ### mandates
+
+Retired 2026-08-23 (see the Attio schema section above) — kept only for its 2 historical rows, nothing writes new rows here going forward.
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
@@ -331,6 +432,8 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `shortlist_size` | `integer` | Yes | - | - | - |
 | `tier1_contacted` | `integer` | Yes | - | - | - |
 | `responses` | `integer` | Yes | - | - | - |
+| `sellers_interested` | `integer` | Yes | - | - | - |
+| `retainer_amount` | `jsonb` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
@@ -340,13 +443,15 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `org_attio_id` | `text` | No | - | `organizations.attio_id` | - |
+| `org_attio_id` | `text` | No | Unique | `organizations.attio_id` | - |
 | `model` | `text` | Yes | - | - | - |
 | `mandate_status` | `text` | Yes | - | - | - |
 | `ebitda_floor` | `jsonb` | Yes | - | - | - |
+| `check_size_min` | `jsonb` | Yes | - | - | - |
+| `check_size_max` | `jsonb` | Yes | - | - | - |
 | `ev_ceiling` | `jsonb` | Yes | - | - | - |
 | `deal_structure_tolerance` | `text` | Yes | - | - | - |
-| `earnout_tolerance` | `text` | Yes | - | - | - |
+| `earnout_tolerance` | `boolean` | Yes | - | - | - |
 | `profitable_only` | `boolean` | Yes | - | - | - |
 | `investment_strategy` | `text` | Yes | - | - | - |
 | `notes` | `text` | Yes | - | - | - |
@@ -354,22 +459,30 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `acquisition_enrichment` | `text` | Yes | - | - | - |
 | `deals_introduced` | `integer` | Yes | - | - | - |
 | `deals_converted` | `integer` | Yes | - | - | - |
+| `ebitda_ceiling` | `jsonb` | Yes | - | - | - |
+| `estimated_aum` | `jsonb` | Yes | - | - | - |
+| `notable_investments` | `text` | Yes | - | - | - |
+| `key_personnel` | `text` | Yes | - | - | - |
+| `relationship_warmth` | `text` | Yes | - | - | - |
+| `target_geography` | `text[]` | No | - | - | `'{}'` |
+| `last_mandate_briefing_date` | `date` | Yes | - | - | - |
+| `prior_gcc_acquisition` | `text` | Yes | - | - | - |
+| `is_active` | `boolean` | Yes | - | - | - |
+| `legacy_entry_id` | `text` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
 
-**Table constraints**
+`mandate_details` dropped 2026-08-23 (see `migration-decisions.json`'s `dropped_fields`) — redundant with `investment_strategy` above.
 
-- `check_size_min jsonb`
-- `check_size_max jsonb`
-- `UNIQUE (org_attio_id)`
+`typical_check_size` dropped 2026-08-23 — redundant with `check_size_min`/`check_size_max` above. SOURCE's `typical_check_size_7` is still read during sync, only to backfill `check_size_min`/`check_size_max` when SOURCE left them blank; it's never written back to a Postgres column.
 
 ### seller_roles
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `org_attio_id` | `text` | No | - | `organizations.attio_id` | - |
+| `org_attio_id` | `text` | No | Unique | `organizations.attio_id` | - |
 | `outreach_tier` | `text` | Yes | - | - | - |
 | `appetite_signal` | `text` | Yes | - | - | - |
 | `relationship_status` | `text` | Yes | - | - | - |
@@ -382,20 +495,19 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `sell_timeline` | `text` | Yes | - | - | - |
 | `readiness_score` | `numeric` | Yes | - | - | - |
 | `readiness_band` | `text` | Yes | - | - | - |
-| `intake_source` | `text` | Yes | - | - | - |
 | `mandate_id` | `uuid` | Yes | - | `mandates.id` | - |
 | `last_attempt_date` | `date` | Yes | - | - | - |
 | `last_attempt_channel` | `text` | Yes | - | - | - |
 | `last_attempt_outcome` | `text` | Yes | - | - | - |
 | `lead_quality_score` | `numeric` | Yes | - | - | - |
 | `re_engage_date` | `date` | Yes | - | - | - |
+| `is_active` | `boolean` | Yes | - | - | - |
+| `legacy_entry_id` | `text` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
 
-**Table constraints**
-
-- `UNIQUE (org_attio_id)`
+`intake_source` dropped 2026-08-19 — redundant with `organizations.lead_source`, and every populated value was the same constant ("Direct"), so nothing distinguishing was lost. `mandate_id` now only ever points at one of the 2 historical `mandates` rows.
 
 ### investor_lender_roles
 

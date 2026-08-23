@@ -1,5 +1,5 @@
 ﻿param(
- [ValidateSet("buyer_role","seller_role","mandates")][string]$Task,
+ [ValidateSet("buyer_role","seller_role")][string]$Task,
  [string]$SourceApiKey=$env:SOURCE_ATTIO_API_KEY,[string]$DevApiKey=$env:DEV_ATTIO_API_KEY,
  [int]$SampleSize=10,[int]$StartIndex=0,[int]$Limit=0,[string]$OutputSuffix,
  [string]$Confirmation,[switch]$Apply
@@ -56,6 +56,17 @@ $migrationRoot = Split-Path $PSScriptRoot -Parent
 $decisions = Get-Content (Join-Path $migrationRoot "config\migration-decisions.json") -Raw |
   ConvertFrom-Json
 $expectedWorkspaceId = [string]$decisions.dev_workspace_id
+# Blank-duplicate SOURCE companies (a second lead-magnet submission for a
+# company that already exists) that were never migrated into DEV
+# Organizations and so block parent resolution below. SOURCE is read-only
+# to this tooling, so the duplicate can't be repointed at the source --
+# instead it's aliased here to the real, already-migrated SOURCE company id.
+$duplicateCompanyAlias = @{}
+if ($decisions.duplicate_source_company_ids.mapping) {
+  foreach ($property in $decisions.duplicate_source_company_ids.mapping.PSObject.Properties) {
+    $duplicateCompanyAlias[[string]$property.Name] = [string]$property.Value
+  }
+}
 $outputName = if ([string]::IsNullOrWhiteSpace($OutputSuffix)) {
   "buyer-role-plan.json"
 } else {
@@ -311,6 +322,7 @@ $groups = $sourceEntries | Group-Object { Get-ParentRecordId -Entry $_ }
 
 foreach ($group in $groups) {
   $sourceParentId = [string]$group.Name
+  if ($duplicateCompanyAlias.ContainsKey($sourceParentId)) { $sourceParentId = $duplicateCompanyAlias[$sourceParentId] }
   if (-not $devOrganizationByLegacyId.ContainsKey($sourceParentId)) {
     $unresolvedParents.Add($sourceParentId)
     continue
@@ -349,7 +361,6 @@ foreach ($group in $groups) {
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "deals_converted_count" -TargetSlug "deals_converted"
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ebitda_ceiling_aed" -TargetSlug "ebitda_ceiling" -Kind currency
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "estimated_aum_usd" -TargetSlug "estimated_aum" -Kind currency
-    Add-EntryText -Target $values -Entry $entry -SourceSlug "mandate_details" -TargetSlug "mandate_details"
     Add-EntryText -Target $values -Entry $entry -SourceSlug "notable_investments" -TargetSlug "notable_investments"
     Add-EntryText -Target $values -Entry $entry -SourceSlug "key_personnel" -TargetSlug "key_personnel"
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "relationship_warmth" -TargetSlug "relationship_warmth"
@@ -358,7 +369,43 @@ foreach ($group in $groups) {
     $targetGeographyTitles = @(Get-EntryValueTitles -Entry $entry -Slug "target_geography")
     if ($targetGeographyTitles.Count -gt 0) { $values["target_geography"] = @($targetGeographyTitles) }
     $checkSizeTitles = @(Get-EntryValueTitles -Entry $entry -Slug "typical_check_size_7")
-    if ($checkSizeTitles.Count -gt 0) { $values["typical_check_size"] = @($checkSizeTitles) }
+
+    # Backfill check_size_min/max from SOURCE's typical_check_size_7 when
+    # SOURCE left them blank (2026-08-23 decision). typical_check_size_7 is a
+    # coarse USD range bucket picked from a fixed 4-option set; check_size_min/max
+    # are real, more-precise AED figures -- never overwrite an already-resolved
+    # real value with this coarse approximation, only fill in whichever of
+    # min/max SOURCE didn't provide. Converted at the USD/AED peg (1 USD =
+    # 3.6725 AED). Multiselect-safe (the field allows it, even though no
+    # live entry currently selects more than one): takes the envelope
+    # (lowest min, highest max) across every option selected. DEV's own
+    # typical_check_size attribute was dropped 2026-08-23 (redundant with
+    # check_size_min/max) -- this only ever reads the SOURCE value now, never
+    # writes it back to DEV. See migration-decisions.json's dropped_fields.
+    if ($checkSizeTitles.Count -gt 0 -and (-not $values.ContainsKey("check_size_min") -or -not $values.ContainsKey("check_size_max"))) {
+      $usdToAed = [decimal]3.6725
+      $checkSizeRanges = @{
+        'Under $1M' = @{ MinUsd = [decimal]0;        MaxUsd = [decimal]1000000 }
+        '$1-5M'     = @{ MinUsd = [decimal]1000000;  MaxUsd = [decimal]5000000 }
+        '$5-20M'    = @{ MinUsd = [decimal]5000000;  MaxUsd = [decimal]20000000 }
+        '$20M+'     = @{ MinUsd = [decimal]20000000; MaxUsd = $null }
+      }
+      $mins = [Collections.Generic.List[decimal]]::new()
+      $maxes = [Collections.Generic.List[decimal]]::new()
+      $hasOpenEnded = $false
+      foreach ($title in $checkSizeTitles) {
+        if (-not $checkSizeRanges.ContainsKey($title)) { continue }
+        $range = $checkSizeRanges[$title]
+        $mins.Add($range.MinUsd * $usdToAed)
+        if ($null -eq $range.MaxUsd) { $hasOpenEnded = $true } else { $maxes.Add($range.MaxUsd * $usdToAed) }
+      }
+      if ($mins.Count -gt 0 -and -not $values.ContainsKey("check_size_min")) {
+        $values["check_size_min"] = @{ currency_value = ($mins | Measure-Object -Minimum).Minimum }
+      }
+      if (-not $hasOpenEnded -and $maxes.Count -gt 0 -and -not $values.ContainsKey("check_size_max")) {
+        $values["check_size_max"] = @{ currency_value = ($maxes | Measure-Object -Maximum).Maximum }
+      }
+    }
     $values["is_active"] = $isActive
     $values["legacy_entry_id"] = $sourceEntryId
 
@@ -454,7 +501,7 @@ $applyStats = [ordered]@{ created = 0; updated = 0; errors = 0 }
 if ($Apply) {
   $optionMaps = @{}
   $singleSelectFields = @("model", "mandate_status", "deal_structure_tolerance", "relationship_warmth")
-  $multiSelectFields = @("target_geography", "typical_check_size")
+  $multiSelectFields = @("target_geography")
   foreach ($field in $singleSelectFields + $multiSelectFields) {
     $response = Invoke-AttioRequest -Method Get -Headers $devHeaders `
       -Path "/lists/buyer_role/attributes/$field/options"
@@ -541,6 +588,7 @@ $summary = [ordered]@{
   active_plans = @($plans | Where-Object is_active).Count
   inactive_plans = @($plans | Where-Object { -not $_.is_active }).Count
   unresolved_parents = $unresolvedParents.Count
+  unresolved_parent_ids = @($unresolvedParents | Select-Object -Unique)
   key_contacts_pending_backfill = @(
     $plans | Where-Object { $_.key_contact_name_count_pending_backfill -gt 0 -and $_.key_contact_resolution -notin @("team_exact","team_unique_first_name","global_unique_exact") }
   ).Count
@@ -624,6 +672,17 @@ $migrationRoot = Split-Path $PSScriptRoot -Parent
 $decisions = Get-Content (Join-Path $migrationRoot "config\migration-decisions.json") -Raw |
   ConvertFrom-Json
 $expectedWorkspaceId = [string]$decisions.dev_workspace_id
+# Blank-duplicate SOURCE companies (a second lead-magnet submission for a
+# company that already exists) that were never migrated into DEV
+# Organizations and so block parent resolution below. SOURCE is read-only
+# to this tooling, so the duplicate can't be repointed at the source --
+# instead it's aliased here to the real, already-migrated SOURCE company id.
+$duplicateCompanyAlias = @{}
+if ($decisions.duplicate_source_company_ids.mapping) {
+  foreach ($property in $decisions.duplicate_source_company_ids.mapping.PSObject.Properties) {
+    $duplicateCompanyAlias[[string]$property.Name] = [string]$property.Value
+  }
+}
 $outputPath = Join-Path $migrationRoot "..\..\..\outputs\attio_migration\seller-role-plan.json"
 
 function Invoke-AttioRequest {
@@ -798,6 +857,7 @@ $groups = @($sourceEntries | Group-Object { Get-ParentRecordId -Entry $_ })
 
 foreach ($group in $groups) {
   $sourceParentId = [string]$group.Name
+  if ($duplicateCompanyAlias.ContainsKey($sourceParentId)) { $sourceParentId = $duplicateCompanyAlias[$sourceParentId] }
   if (-not $devOrganizationByLegacyId.ContainsKey($sourceParentId)) {
     $unresolvedParents.Add($sourceParentId)
     continue
@@ -947,6 +1007,7 @@ $summary = [ordered]@{
   active_plans = @($plans | Where-Object is_active).Count
   inactive_plans = @($plans | Where-Object { -not $_.is_active }).Count
   unresolved_parents = $unresolvedParents.Count
+  unresolved_parent_ids = @($unresolvedParents | Select-Object -Unique)
   existing_dev_entries = $existingEntries.Count
   applied_limit = if ($Apply -and $Limit -eq 0) { $plans.Count } elseif ($Apply) { $Limit } else { 0 }
   applied_created = $applyStats.created
@@ -974,194 +1035,5 @@ if ($Apply) {
 }
 
 }
-function Invoke-Mandates {
-param(
-  [string]$SourceApiKey=$env:SOURCE_ATTIO_API_KEY,
-  [string]$DevApiKey=$env:DEV_ATTIO_API_KEY,
-  [int]$SampleSize=10,
-  [int]$Limit=0,
-  [string]$Confirmation,
-  [switch]$Apply
-)
-
-$ErrorActionPreference="Stop"
-if([string]::IsNullOrWhiteSpace($SourceApiKey)){$SourceApiKey=[Environment]::GetEnvironmentVariable("SOURCE_ATTIO_API_KEY","User")}
-if([string]::IsNullOrWhiteSpace($DevApiKey)){$DevApiKey=[Environment]::GetEnvironmentVariable("DEV_ATTIO_API_KEY","User")}
-if([string]::IsNullOrWhiteSpace($SourceApiKey)){throw "Missing SOURCE_ATTIO_API_KEY."}
-if([string]::IsNullOrWhiteSpace($DevApiKey)){throw "Missing DEV_ATTIO_API_KEY."}
-if($Apply){
-  $bounded=$Limit-ge1-and$Limit-le10-and$Confirmation-eq"APPLY_MANDATES_TO_DEV"
-  $full=$Limit-eq0-and$Confirmation-eq"APPLY_ALL_MANDATES_TO_DEV"
-  if(-not$bounded-and-not$full){throw "Use a 1-10 limit with APPLY_MANDATES_TO_DEV, or Limit 0 with APPLY_ALL_MANDATES_TO_DEV."}
-}
-$sourceHeaders=@{Authorization="Bearer $($SourceApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
-$devHeaders=@{Authorization="Bearer $($DevApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
-$migrationRoot=Split-Path $PSScriptRoot -Parent
-$decisions=Get-Content (Join-Path $migrationRoot "config\migration-decisions.json") -Raw|ConvertFrom-Json
-$expectedWorkspaceId=[string]$decisions.dev_workspace_id
-$outputPath=Join-Path $migrationRoot "..\..\..\outputs\attio_migration\mandates-plan.json"
-$ownerCrosswalkByName=@{}
-foreach($entry in @($decisions.workspace_member_crosswalk.mapping)){
-  $firstName=([string]$entry.source_name).Split(" ")[0].Trim().ToLowerInvariant()
-  if(-not[string]::IsNullOrWhiteSpace($firstName)){$ownerCrosswalkByName[$firstName]=[string]$entry.dev_workspace_member_id}
-}
-
-function Invoke-AttioRequest{
-  param([ValidateSet("Get","Post","Patch")][string]$Method,[hashtable]$Headers,[string]$Path,[object]$Body)
-  $parameters=@{Method=$Method;Uri="https://api.attio.com/v2$Path";Headers=$Headers}
-  if($null-ne$Body){$parameters.Body=[Text.Encoding]::UTF8.GetBytes(($Body|ConvertTo-Json -Depth 30))}
-  Invoke-RestMethod @parameters
-}
-function Get-ParentId{
-  param([object]$Entry)
-  if($Entry.parent_record_id.record_id){return [string]$Entry.parent_record_id.record_id}
-  return [string]$Entry.parent_record_id
-}
-function Get-RecordId{
-  param([object]$Record)
-  if($Record.id.record_id){return [string]$Record.id.record_id}
-  return [string]$Record.record_id
-}
-function Get-Value{
-  param([object]$Values,[string]$Slug)
-  $item=@($Values.$Slug)|Where-Object{$null-eq$_.active_until}|Select-Object -First 1
-  if($null-eq$item){return $null}
-  if($null-ne$item.value){return $item.value}
-  if($item.option.title){return [string]$item.option.title}
-  return $null
-}
-function Add-Value{
-  param([hashtable]$Target,[object]$Values,[string]$SourceSlug,[string]$TargetSlug)
-  $value=Get-Value $Values $SourceSlug
-  if($null-ne$value-and(-not($value-is[string])-or-not[string]::IsNullOrWhiteSpace($value))){$Target[$TargetSlug]=$value}
-}
-function Get-ValueTitles{
-  param([object]$Values,[string]$Slug)
-  return @(@($Values.$Slug)|Where-Object{$null-eq$_.active_until}|ForEach-Object{if($_.option.title){[string]$_.option.title}}|Where-Object{-not[string]::IsNullOrWhiteSpace($_)})
-}
-
-$devOrganization=Invoke-AttioRequest Get $devHeaders "/objects/organizations" $null
-$connectedWorkspaceId=[string]$devOrganization.data.id.workspace_id
-if($connectedWorkspaceId-ne$expectedWorkspaceId){throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."}
-$devMandates=Invoke-AttioRequest Get $devHeaders "/lists/mandates" $null
-if(@($devMandates.data.parent_object)-notcontains"organizations"){throw "DEV mandates is not parented to organizations."}
-
-$sourceEntries=@()
-for($offset=0;;$offset+=500){
-  $page=@((Invoke-AttioRequest Post $sourceHeaders "/lists/buy_side_mandates/entries/query" @{limit=500;offset=$offset}).data)
-  $sourceEntries+=$page
-  if($page.Count-lt500){break}
-}
-$devOrganizationByLegacyId=@{}
-for($offset=0;;$offset+=500){
-  $page=@((Invoke-AttioRequest Post $devHeaders "/objects/organizations/records/query" @{limit=500;offset=$offset}).data)
-  foreach($record in $page){
-    $legacyId=Get-Value $record.values "legacy_attio_id"
-    if(-not[string]::IsNullOrWhiteSpace([string]$legacyId)){
-      if($devOrganizationByLegacyId.ContainsKey([string]$legacyId)){throw "DEV Organization legacy_attio_id is not unique."}
-      $devOrganizationByLegacyId[[string]$legacyId]=Get-RecordId $record
-    }
-  }
-  if($page.Count-lt500){break}
-}
-
-$plans=[Collections.Generic.List[object]]::new()
-$unresolved=[Collections.Generic.List[string]]::new()
-$sourceGroups=@($sourceEntries|Group-Object{Get-ParentId $_})
-foreach($group in $sourceGroups){
-  $sourceParentId=[string]$group.Name
-  if(-not$devOrganizationByLegacyId.ContainsKey($sourceParentId)){$unresolved.Add($sourceParentId);continue}
-  if($group.Count-ne1){throw "SOURCE buy_side_mandates contains duplicate parent entries; merge rule required."}
-  $entry=$group.Group[0]
-  $devParentId=[string]$devOrganizationByLegacyId[$sourceParentId]
-  $values=@{side="buy";buyer_id=$devParentId}
-  Add-Value $values $entry.entry_values "mandate_phase" "phase"
-  Add-Value $values $entry.entry_values "mandate_start_date" "start_date"
-  Add-Value $values $entry.entry_values "mandate_expiry_date" "expiry_date"
-  Add-Value $values $entry.entry_values "universe_constructed" "universe_constructed"
-  Add-Value $values $entry.entry_values "shortlist_approved" "shortlist_approved"
-  Add-Value $values $entry.entry_values "universe_size" "universe_size"
-  Add-Value $values $entry.entry_values "shortlist_size" "shortlist_size"
-  Add-Value $values $entry.entry_values "tier_1_targets_contacted" "tier1_contacted"
-  Add-Value $values $entry.entry_values "responses_received" "responses"
-  Add-Value $values $entry.entry_values "sellers_interested" "sellers_interested"
-  Add-Value $values $entry.entry_values "retainer_amount_aed" "retainer_amount"
-  if($values.ContainsKey("retainer_amount")){$values["retainer_amount"]=@{currency_value=[decimal]$values["retainer_amount"]}}
-  $advisorNames=@(Get-ValueTitles $entry.entry_values "assigned_advisor")
-  $advisorRefs=[Collections.Generic.List[object]]::new()
-  $unmappedAdvisors=[Collections.Generic.List[string]]::new()
-  foreach($advisorName in $advisorNames){
-    $key=$advisorName.Trim().ToLowerInvariant()
-    if($ownerCrosswalkByName.ContainsKey($key)){
-      $advisorRefs.Add(@{referenced_actor_type="workspace-member";referenced_actor_id=$ownerCrosswalkByName[$key]})
-    }else{
-      $unmappedAdvisors.Add($advisorName)
-    }
-  }
-  if($advisorRefs.Count-gt0){$values["assigned_advisor"]=@($advisorRefs)}
-  if($unmappedAdvisors.Count-gt0){Write-Warning "$sourceParentId assigned_advisor: no DEV workspace-member mapped for $($unmappedAdvisors -join ', ') - left unset."}
-  $plans.Add([pscustomobject]@{source_parent_id=$sourceParentId;dev_parent_id=$devParentId;values=$values})
-}
-
-$existingEntries=@()
-for($offset=0;;$offset+=500){
-  $page=@((Invoke-AttioRequest Post $devHeaders "/lists/mandates/entries/query" @{limit=500;offset=$offset}).data)
-  $existingEntries+=$page
-  if($page.Count-lt500){break}
-}
-$existingByParent=@{}
-foreach($entry in $existingEntries){
-  $parentId=Get-ParentId $entry
-  if($existingByParent.ContainsKey($parentId)){throw "DEV mandates contains duplicate Organization parents."}
-  $existingByParent[$parentId]=if($entry.id.entry_id){[string]$entry.id.entry_id}else{[string]$entry.entry_id}
-}
-
-$stats=[ordered]@{created=0;updated=0;errors=0}
-if($Apply){
-  if($unresolved.Count){throw "Refusing apply with unresolved parents."}
-  $optionMaps=@{}
-  foreach($field in @("side","phase")){
-    $map=@{}
-    $options=@((Invoke-AttioRequest Get $devHeaders "/lists/mandates/attributes/$field/options" $null).data)
-    foreach($option in $options|Where-Object{-not$_.is_archived}){$map[[string]$option.title]=[string]$option.id.option_id}
-    $optionMaps[$field]=$map
-  }
-  $selected=if($Limit-eq0){@($plans)}else{@($plans|Select-Object -First $Limit)}
-  foreach($plan in $selected){
-    $payload=@{};foreach($key in $plan.values.Keys){$payload[$key]=$plan.values[$key]}
-    foreach($field in $optionMaps.Keys){
-      if($payload.ContainsKey($field)){
-        $title=[string]$payload[$field]
-        if(-not$optionMaps[$field].ContainsKey($title)){throw "DEV mandates/$field option '$title' is missing."}
-        $payload[$field]=$optionMaps[$field][$title]
-      }
-    }
-    try{
-      if($existingByParent.ContainsKey([string]$plan.dev_parent_id)){
-        Invoke-AttioRequest Patch $devHeaders "/lists/mandates/entries/$($existingByParent[[string]$plan.dev_parent_id])" @{data=@{entry_values=$payload}}|Out-Null
-        $stats.updated++
-      }else{
-        $created=Invoke-AttioRequest Post $devHeaders "/lists/mandates/entries" @{data=@{parent_record_id=[string]$plan.dev_parent_id;parent_object="organizations";entry_values=$payload}}
-        $existingByParent[[string]$plan.dev_parent_id]=[string]$created.data.id.entry_id
-        $stats.created++
-      }
-    }catch{$stats.errors++;throw}
-  }
-}
-$summary=[ordered]@{
-  generated_at_utc=[DateTime]::UtcNow.ToString("o");mode=if($Apply){"apply"}else{"dry-run"}
-  source_entries=$sourceEntries.Count;canonical_parent_groups=$sourceGroups.Count;resolved_plans=$plans.Count
-  unresolved_parents=$unresolved.Count;existing_dev_entries=$existingEntries.Count
-  would_create=@($plans|Where-Object{-not$existingByParent.ContainsKey([string]$_.dev_parent_id)}).Count
-  applied_created=$stats.created;applied_updated=$stats.updated;apply_errors=$stats.errors
-}
-$result=[ordered]@{summary=$summary;sample=@($plans|Select-Object -First $SampleSize);plans=@($plans)}
-[IO.Directory]::CreateDirectory((Split-Path $outputPath -Parent))|Out-Null
-[IO.File]::WriteAllText($outputPath,($result|ConvertTo-Json -Depth 40),[Text.UTF8Encoding]::new($false))
-$summary|Format-List
-Write-Host "Mandates plan written to $outputPath"
-if($Apply){Write-Host "Mandates apply complete. Created=$($stats.created), updated=$($stats.updated), errors=$($stats.errors)."}else{Write-Host "No Attio records were written."}
-
-}
 $a=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;SampleSize=$SampleSize;Limit=$Limit;Confirmation=$Confirmation};if($StartIndex){$a.StartIndex=$StartIndex};if($OutputSuffix){$a.OutputSuffix=$OutputSuffix};if($Apply){$a.Apply=$true}
-switch($Task){"buyer_role"{Invoke-BuyerRole @a};"seller_role"{$a.Remove("OutputSuffix");Invoke-SellerRole @a};"mandates"{$a.Remove("StartIndex");$a.Remove("OutputSuffix");Invoke-Mandates @a}}
+switch($Task){"buyer_role"{Invoke-BuyerRole @a};"seller_role"{$a.Remove("OutputSuffix");Invoke-SellerRole @a}}

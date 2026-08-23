@@ -5,13 +5,9 @@ This table IS the seller's structured profile: there is no separate
 never implemented — see the schema-gap note in the Phase 2 plan). One row
 per organization (`UNIQUE(org_attio_id)`), no version column.
 
-matching-engine and ddl-commands each had their own copy of this class before
-Stage 1 of the Alembic migration (see `ALEMBIC_MIGRATION_HANDOVER.md`); they
-differed only in `mandate_id` — matching-engine declared a real
-`ForeignKey("mandates.id")` (matching-engine also maps `mandates`),
-ddl-commands declared a plain column (it never mapped `mandates`). This is
-matching-engine's version; ddl-commands never traverses a `mandate`
-relationship here, so the FK object is a no-op for it.
+`mandate_id` (an FK to the now-dropped `mandates` table) was removed
+2026-08-23 alongside `mandates`/`mandate_targets` themselves — the Mandates
+list is fully retired, merged into Deal. See migration-decisions.json.
 """
 
 import uuid
@@ -52,7 +48,9 @@ class SellerRole(Base):
     sell_timeline: Mapped[str | None] = mapped_column(Text)
     readiness_score: Mapped[Decimal | None] = mapped_column(Numeric)
     readiness_band: Mapped[str | None] = mapped_column(Text)
-    mandate_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("mandates.id"))
+    # mandate_id dropped 2026-08-23 alongside the mandates table itself --
+    # the Mandates list is fully retired, merged into Deal. See
+    # migration-decisions.json.
     last_attempt_date: Mapped[date | None] = mapped_column()
     last_attempt_channel: Mapped[str | None] = mapped_column(Text)
     last_attempt_outcome: Mapped[str | None] = mapped_column(Text)

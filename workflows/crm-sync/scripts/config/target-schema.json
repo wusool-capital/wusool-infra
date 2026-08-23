@@ -123,12 +123,10 @@
         {"slug": "deals_converted", "type": "integer", "ownership": "both"},
         {"slug": "ebitda_ceiling", "type": "money", "ownership": "attio", "currency": "AED"},
         {"slug": "estimated_aum", "type": "money", "ownership": "attio", "currency": "USD"},
-        {"slug": "mandate_details", "type": "text", "ownership": "attio"},
         {"slug": "notable_investments", "type": "text", "ownership": "attio"},
         {"slug": "key_personnel", "type": "text", "ownership": "attio"},
         {"slug": "relationship_warmth", "type": "enum", "ownership": "attio", "options_status": "source_preserved"},
         {"slug": "target_geography", "type": "enum", "ownership": "attio", "options_status": "source_preserved"},
-        {"slug": "typical_check_size", "attio_slug": "typical_check_size_7", "type": "enum", "ownership": "attio", "options_status": "source_preserved"},
         {"slug": "last_mandate_briefing_date", "type": "date", "ownership": "attio"},
         {"slug": "prior_gcc_acquisition", "type": "text", "ownership": "attio"}
       ]
@@ -210,32 +208,6 @@
       ]
     },
     {
-      "name": "Mandate",
-      "attio_kind": "list",
-      "attio_slug": "mandates",
-      "parent_object": "organizations",
-      "parent_object_status": "confirmed_for_current_buy_side_source_entries",
-      "postgres_table": "mandates",
-      "fields": [
-        {"slug": "id", "type": "uuid", "ownership": "key", "attio_storage": "entry_id"},
-        {"slug": "side", "type": "enum", "ownership": "attio", "options": ["buy", "sell"]},
-        {"slug": "buyer_id", "type": "record-reference", "ownership": "key", "target": "Organization"},
-        {"slug": "seller_id", "type": "record-reference", "ownership": "key", "target": "Organization"},
-        {"slug": "phase", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
-        {"slug": "assigned_advisor", "type": "user-reference[]", "ownership": "key", "target": "User"},
-        {"slug": "start_date", "type": "date", "ownership": "attio"},
-        {"slug": "expiry_date", "type": "date", "ownership": "attio"},
-        {"slug": "universe_constructed", "type": "boolean", "ownership": "attio"},
-        {"slug": "shortlist_approved", "type": "boolean", "ownership": "attio"},
-        {"slug": "universe_size", "type": "integer", "ownership": "both"},
-        {"slug": "shortlist_size", "type": "integer", "ownership": "both"},
-        {"slug": "tier1_contacted", "type": "integer", "ownership": "both"},
-        {"slug": "responses", "type": "integer", "ownership": "both"},
-        {"slug": "sellers_interested", "type": "integer", "ownership": "attio"},
-        {"slug": "retainer_amount", "attio_slug": "retainer_amount_aed", "type": "money", "ownership": "attio", "currency": "AED"}
-      ]
-    },
-    {
       "name": "Notes",
       "status": "proposed_not_yet_implemented",
       "attio_kind": "object",
@@ -268,10 +240,10 @@
       "status": "proposed_not_yet_implemented",
       "postgres_table": "activities",
       "postgres_only": true,
-      "purpose": "Append-only touch/interaction log. Replaces the scattered first/last/next_*_interaction summary fields on Organization and Person, plus Mandate.outreach_started_date, with real per-event rows - those become computed queries (MIN/MAX(occurred_at)) against this table instead of separately-maintained columns.",
+      "purpose": "Append-only touch/interaction log. Replaces the scattered first/last/next_*_interaction summary fields on Organization and Person, with real per-event rows - those become computed queries (MIN/MAX(occurred_at)) against this table instead of separately-maintained columns.",
       "fields": [
         {"slug": "id", "type": "uuid", "ownership": "postgres"},
-        {"slug": "subject_type", "type": "enum", "ownership": "postgres", "options": ["Organization", "Person", "BuyerRole", "SellerRole", "Mandate", "Deal"], "purpose": "Discriminator for the polymorphic subject_id reference below."},
+        {"slug": "subject_type", "type": "enum", "ownership": "postgres", "options": ["Organization", "Person", "BuyerRole", "SellerRole", "Deal"], "purpose": "Discriminator for the polymorphic subject_id reference below."},
         {"slug": "subject_id", "type": "uuid", "ownership": "postgres", "purpose": "References whichever table subject_type names. Whether an org/person is on the buy or sell side is captured by pointing subject_id at their BuyerRole or SellerRole entry, not by a separate flag."},
         {"slug": "actor_id", "type": "record-reference", "ownership": "postgres", "target": "User", "nullable": true, "purpose": "Null for system-generated activities (e.g. data room created) with no human actor."},
         {"slug": "occurred_at", "type": "timestamptz", "ownership": "postgres"},
@@ -281,7 +253,7 @@
         {"slug": "source", "type": "text", "ownership": "postgres", "purpose": "Citation of where this row came from, e.g. 'SOURCE Attio first_email_interaction backfill' or 'DEV data room service'."}
       ],
       "population": {
-        "historical_backfill": "One row per available boundary timestamp from Organization/Person first_calendar_interaction (channel=Calendar), last_calendar_interaction (channel=Calendar), next_calendar_interaction (channel=Calendar), first_email_interaction/last_email_interaction (channel=Email), first_interaction/next_interaction (channel=Other), and Mandate.outreach_started_date (channel=Outreach, direction=Out). These are only the boundary points SOURCE happened to track, not a full history - the backfill can't reconstruct touches SOURCE never recorded.",
+        "historical_backfill": "One row per available boundary timestamp from Organization/Person first_calendar_interaction (channel=Calendar), last_calendar_interaction (channel=Calendar), next_calendar_interaction (channel=Calendar), first_email_interaction/last_email_interaction (channel=Email), first_interaction/next_interaction (channel=Other). These are only the boundary points SOURCE happened to track, not a full history - the backfill can't reconstruct touches SOURCE never recorded.",
         "ongoing": "Every real touch going forward (email sent/received, call, meeting, data room created, nudge sent) is inserted as its own row at the moment it happens. Organization/Person last_interaction_at keeps being written directly for now (unchanged) but should eventually be derivable as MAX(occurred_at) from this table instead."
       },
       "left_out_on_purpose": [

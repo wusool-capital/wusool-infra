@@ -80,6 +80,44 @@ class Deal(Base):
     assigned_advisor: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )
+    # Merged in from the retired Mandates list, 2026-08-23 (see
+    # migration-decisions.json and the Wusool Schema Handover artifact): the
+    # one-mandate-to-many-deals model Mandate was built for was never
+    # actually used (neither of the 2 real DEV Mandate entries had a linked
+    # Deal), so every Mandate entry became its own Deal record instead.
+    # `deal_type` replaces Mandate's `side`. `phase` was deliberately not
+    # carried over -- a manually-typed label that only restates
+    # universe_constructed/universe_size/shortlist_approved/shortlist_size/
+    # tier1_contacted/responses, and can drift out of sync with those
+    # numbers. `counterparty_interested` renames Mandate's
+    # `sellers_interested`, which only read correctly on a buy-side mandate.
+    # `mandate_start_date`/`mandate_expiry_date` are named for disambiguation
+    # against `contract_signed_date`/`exclusivity_date`/`expected_close_date`
+    # above -- the DEV Attio attributes are still slugged start_date/
+    # expiry_date, only the display titles changed. `assigned_advisor` above
+    # is reused as-is, not replaced with Mandate's `user-reference[]`-typed
+    # version: Attio can't change a field's type in place, and a second
+    # parallel "who's the advisor" field would be worse than reusing this
+    # one. All 58 pre-existing Deals were backfilled to deal_type=Sell-side:
+    # confirmed directly from SOURCE's `deals` attribute list, which has no
+    # buyer-referencing field at all (only `associated_company` -> seller),
+    # so every Deal ever migrated from SOURCE is sell-side by construction.
+    deal_type: Mapped[str | None] = mapped_column(Text)
+    universe_constructed: Mapped[bool] = mapped_column(nullable=False, server_default="false")
+    universe_size: Mapped[int | None] = mapped_column()
+    shortlist_approved: Mapped[bool] = mapped_column(nullable=False, server_default="false")
+    shortlist_size: Mapped[int | None] = mapped_column()
+    tier1_contacted: Mapped[int | None] = mapped_column()
+    responses: Mapped[int | None] = mapped_column()
+    counterparty_interested: Mapped[int | None] = mapped_column(Integer)
+    mandate_start_date: Mapped[date | None] = mapped_column()
+    mandate_expiry_date: Mapped[date | None] = mapped_column()
+    retainer_amount: Mapped[dict | None] = mapped_column(JSONB)
+    # Idempotency key for the one-time Mandate-to-Deal migration
+    # (`Invoke-Deals -MigrateMandates` in
+    # workflows/crm-sync/scripts/_internal/objects.ps1) -- not a business
+    # field, lets that migration re-run without creating duplicate Deals.
+    source_mandate_entry_id: Mapped[str | None] = mapped_column(Text, unique=True)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

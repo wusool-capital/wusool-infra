@@ -12,7 +12,7 @@ from ddl_commands.modules.attio_sync.retry import get_with_retry
 from ddl_commands.shared.attio.client import AttioClient
 
 _KNOWN_OBJECTS = {"organizations", "person", "deals"}
-_KNOWN_LISTS = {"buyer_role", "seller_role", "mandates"}
+_KNOWN_LISTS = {"buyer_role", "seller_role"}
 
 _object_slug_by_id: dict[str, str] | None = None
 _list_slug_by_id: dict[str, str] | None = None

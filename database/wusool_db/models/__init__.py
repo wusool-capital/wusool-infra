@@ -26,8 +26,6 @@ from wusool_db.models.deal_stage_event import DealStageEvent
 from wusool_db.models.document import Document
 from wusool_db.models.graph_edge import GraphEdge
 from wusool_db.models.investor_lender_role import InvestorLenderRole
-from wusool_db.models.mandate import Mandate
-from wusool_db.models.mandate_target import MandateTarget
 from wusool_db.models.match_result import MatchResult
 from wusool_db.models.match_score import MatchScore
 from wusool_db.models.meeting import Meeting
@@ -59,8 +57,6 @@ __all__ = [
     "Document",
     "GraphEdge",
     "InvestorLenderRole",
-    "Mandate",
-    "MandateTarget",
     "MatchResult",
     "MatchScore",
     "Meeting",

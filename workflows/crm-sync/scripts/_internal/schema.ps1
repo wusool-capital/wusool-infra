@@ -1,5 +1,5 @@
 ﻿param(
- [ValidateSet("organizations","person","deals","buyer_role","seller_role","mandates")][string]$Entity,
+ [ValidateSet("organizations","person","deals","buyer_role","seller_role")][string]$Entity,
  [string]$SourceApiKey=$env:SOURCE_ATTIO_API_KEY,[string]$DevApiKey=$env:DEV_ATTIO_API_KEY,
  [switch]$FailOnDrift,[switch]$Apply
 )
@@ -123,7 +123,20 @@ $fields = @(
   [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null },
   [pscustomobject]@{ Title = "Funding Raised"; Slug = "funding_raised"; Type = "currency"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; Config = @{ currency = @{ default_currency_code = "USD"; display_type = "symbol" } } },
   [pscustomobject]@{ Title = "Estimated ARR"; Slug = "estimated_arr"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @('$0-$1M', '$1M-$10M', '$10M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B-$10B', '$10B+') },
-  [pscustomobject]@{ Title = "Is Active"; Slug = "is_active"; Type = "checkbox"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; Config = @{} }
+  [pscustomobject]@{ Title = "Is Active"; Slug = "is_active"; Type = "checkbox"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; Config = @{} },
+  # Created directly via the API when first migrated (2026-08-19), never
+  # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
+  # like every other field instead of silently trusted (same gap fixed for
+  # Person the same day).
+  [pscustomobject]@{ Title = "LinkedIn"; Slug = "linkedin"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "AngelList"; Slug = "angellist"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Facebook"; Slug = "facebook"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Instagram"; Slug = "instagram"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Twitter"; Slug = "twitter"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Twitter Follower Count"; Slug = "twitter_follower_count"; Type = "number"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Foundation Date"; Slug = "foundation_date"; Type = "date"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Ticket Size"; Slug = "ticket_size"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Employee Range"; Slug = "employee_range"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "employee_range" }
 )
 
 $targetAttributes = Get-Attributes -Headers $devHeaders -ObjectSlug "organizations"
@@ -425,7 +438,19 @@ $fields = @(
   [pscustomobject]@{ Title = "Connection Strength"; Slug = "connection_strength"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "strongest_connection_strength"; AllowedObject = $null },
   [pscustomobject]@{ Title = "Owner"; Slug = "owner"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
   [pscustomobject]@{ Title = "Last Interaction At"; Slug = "last_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
-  [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null; AllowedObject = $null }
+  [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null; AllowedObject = $null },
+  # Created directly via the API when first migrated (2026-08-19), never
+  # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
+  # like every other field instead of silently trusted.
+  [pscustomobject]@{ Title = "Job Title"; Slug = "job_title"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Contact Type"; Slug = "contact_type"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "contact_type"; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Phone"; Slug = "phone"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Avatar URL"; Slug = "avatar_url"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "AngelList"; Slug = "angellist"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Facebook"; Slug = "facebook"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Instagram"; Slug = "instagram"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Twitter"; Slug = "twitter"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Twitter Follower Count"; Slug = "twitter_follower_count"; Type = "number"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null }
 )
 
 $targetAttributes = Get-Attributes -Headers $devHeaders -ObjectSlug "person"
@@ -633,13 +658,42 @@ $fields=@(
   [pscustomobject]@{Title="Deal Memo Ready";Slug="deal_memo_ready";Type="checkbox";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Contract Signed Date";Slug="contract_signed_date";Type="date";Config=@{};RenameFrom="exclusivity_start_date"},
   [pscustomobject]@{Title="Exclusivity Date";Slug="exclusivity_date";Type="date";Config=@{};RenameFrom="exclusivity_end_date"},
-  [pscustomobject]@{Title="Data Room Substatus";Slug="data_room_substatus";Type="select";Config=@{};RenameFrom=$null}
+  [pscustomobject]@{Title="Data Room Substatus";Slug="data_room_substatus";Type="select";Config=@{};RenameFrom=$null},
+  # Merged in from the retired Mandates list (2026-08-23 Mandate/Deal merge --
+  # see migration-decisions.json). "phase" was deliberately left out: it's a
+  # manually-typed label that only restates what universe_constructed/
+  # universe_size/shortlist_approved/shortlist_size/tier1_contacted/responses
+  # already show, and can silently drift out of sync with those numbers.
+  [pscustomobject]@{Title="Deal Type";Slug="deal_type";Type="select";Config=@{};RenameFrom=$null;FixedOptions=@("Buy-side","Sell-side")},
+  [pscustomobject]@{Title="Universe Constructed";Slug="universe_constructed";Type="checkbox";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Universe Size";Slug="universe_size";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Shortlist Approved";Slug="shortlist_approved";Type="checkbox";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Shortlist Size";Slug="shortlist_size";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Tier 1 Contacted";Slug="tier1_contacted";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Responses";Slug="responses";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Counterparty Interested";Slug="counterparty_interested";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Mandate Start Date";Slug="start_date";Type="date";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Mandate Expiry Date";Slug="expiry_date";Type="date";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Retainer Amount";Slug="retainer_amount";Type="currency";Config=@{currency=@{default_currency_code="AED";display_type="symbol"}};RenameFrom=$null},
+  [pscustomobject]@{Title="Source Mandate Entry ID";Slug="source_mandate_entry_id";Type="text";Config=@{};RenameFrom=$null},
+  # Created directly via the API when first migrated (2026-07-19), never
+  # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
+  # like every other field instead of silently trusted (same gap fixed for
+  # Organization/Person/Buyer Role/Seller Role the same day).
+  [pscustomobject]@{Title="Teaser Status";Slug="teaser_status";Type="select";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="NDA Status";Slug="nda_status";Type="select";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Estimated Deal Value (AED)";Slug="estimated_deal_value_aed";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Expected Close Date";Slug="expected_close_date";Type="date";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Fee %";Slug="fee";Type="number";Config=@{};RenameFrom=$null},
+  # Only known multiselect among these custom Deal fields -- Multi=$true is
+  # load-bearing, the drift check and create body below both key off it.
+  [pscustomobject]@{Title="Assigned Advisor";Slug="assigned_advisor";Type="select";Multi=$true;Config=@{};RenameFrom=$null}
 )
 $actions=[Collections.Generic.List[string]]::new()
 foreach($field in $fields){
   if($attrs.ContainsKey($field.Slug)){
     $current=$attrs[$field.Slug]
-    if([string]$current.type-ne$field.Type-or[bool]$current.is_multiselect){throw "DEV deals/$($field.Slug) has unexpected type or cardinality."}
+    if([string]$current.type-ne$field.Type-or[bool]$current.is_multiselect-ne[bool]$field.Multi){throw "DEV deals/$($field.Slug) has unexpected type or cardinality."}
     if([string]$current.title-ne$field.Title){
       $actions.Add("update_title:$($field.Slug):$($field.Title)")
       if($Apply){
@@ -651,7 +705,7 @@ foreach($field in $fields){
   }
   if($field.RenameFrom-and$attrs.ContainsKey($field.RenameFrom)){
     $current=$attrs[$field.RenameFrom]
-    if([string]$current.type-ne$field.Type-or[bool]$current.is_multiselect){throw "DEV deals/$($field.RenameFrom) has unexpected type or cardinality for rename to $($field.Slug)."}
+    if([string]$current.type-ne$field.Type-or[bool]$current.is_multiselect-ne[bool]$field.Multi){throw "DEV deals/$($field.RenameFrom) has unexpected type or cardinality for rename to $($field.Slug)."}
     Clear-ArchivedSlug $field.Slug $field.Title
     $actions.Add("rename_attribute:$($field.RenameFrom):$($field.Slug)")
     if($Apply){
@@ -665,11 +719,42 @@ foreach($field in $fields){
   if($Apply){
     Request Post "/objects/deals/attributes" @{data=@{
       title=$field.Title;description="Wusool Deal target field.";api_slug=$field.Slug
-      type=$field.Type;is_required=$false;is_unique=$false;is_multiselect=$false;config=$field.Config
+      type=$field.Type;is_required=$false;is_unique=$false;is_multiselect=[bool]$field.Multi;config=$field.Config
     }}|Out-Null
     Write-Host "CREATED: $($field.Slug)"
   }else{Write-Host "DRY RUN: would create $($field.Slug) ($($field.Type))."}
 }
+if($Apply){$attrs=Map @((Request Get "/objects/deals/attributes" $null).data)}
+foreach($field in @($fields|Where-Object{$_.Type-eq"select"-and$_.PSObject.Properties.Name-contains"FixedOptions"-and$_.FixedOptions})){
+  if(-not$Apply-and-not$attrs.ContainsKey($field.Slug)){
+    foreach($title in $field.FixedOptions){$actions.Add("create_option:$($field.Slug):$title");Write-Host "DRY RUN: would create $($field.Slug) option '$title'."}
+    continue
+  }
+  $existingTitles=@{}
+  foreach($o in @((Request Get "/objects/deals/attributes/$($field.Slug)/options" $null).data|Where-Object{-not$_.is_archived})){$existingTitles[[string]$o.title.Trim().ToLowerInvariant()]=$true}
+  foreach($title in $field.FixedOptions){
+    $key=$title.Trim().ToLowerInvariant()
+    if($existingTitles.ContainsKey($key)){continue}
+    $actions.Add("create_option:$($field.Slug):$title")
+    if($Apply){
+      Request Post "/objects/deals/attributes/$($field.Slug)/options" @{data=@{title=$title}}|Out-Null
+      Write-Host "CREATED OPTION: $($field.Slug) -> $title"
+    }else{Write-Host "DRY RUN: would create $($field.Slug) option '$title'."}
+  }
+}
+# Idempotent: create the "Mandate Active" Deal stage whenever it's missing --
+# the stage this merge uses for a signed mandate that's still sourcing, with
+# no specific counterparty locked in yet (distinct from "Mandate Signed",
+# which already implies a specific counterparty and signed terms).
+$stageStatuses=@((Request Get "/objects/deals/attributes/stage/statuses" $null).data|Where-Object{-not$_.is_archived})
+$hasMandateActive=@($stageStatuses|Where-Object{[string]$_.title.Trim().ToLowerInvariant()-eq"mandate active"}).Count-gt0
+if(-not$hasMandateActive){
+  $actions.Add("create_stage:Mandate Active")
+  if($Apply){
+    Request Post "/objects/deals/attributes/stage/statuses" @{data=@{title="Mandate Active"}}|Out-Null
+    Write-Host "CREATED STAGE: Mandate Active"
+  }else{Write-Host "DRY RUN: would create Deal stage 'Mandate Active'."}
+}else{Write-Host "EXISTS: stage 'Mandate Active'"}
 if($FailOnDrift-and$actions.Count){throw "Deal schema drift detected. Planned actions: $($actions.Count)."}
 if($Apply){Write-Host "Deal schema apply complete."}else{Write-Host "Deal schema dry run complete. Planned actions: $($actions.Count)."}
 
@@ -807,7 +892,21 @@ $fields = @(
   [pscustomobject]@{ Title="Key Contact"; Slug="key_contact"; Type="record-reference"; Multi=$false; SourceOption=$null; Config=@{ record_reference=@{ allowed_objects=@("person") } } },
   [pscustomobject]@{ Title="Acquisition Enrichment"; Slug="acquisition_enrichment"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Deals Introduced"; Slug="deals_introduced"; Type="number"; Multi=$false; SourceOption=$null; Config=@{} },
-  [pscustomobject]@{ Title="Deals Converted"; Slug="deals_converted"; Type="number"; Multi=$false; SourceOption=$null; Config=@{} }
+  [pscustomobject]@{ Title="Deals Converted"; Slug="deals_converted"; Type="number"; Multi=$false; SourceOption=$null; Config=@{} },
+  # Created directly via the API when first migrated (2026-08-19), never
+  # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
+  # like every other field instead of silently trusted (same gap fixed for
+  # Organization/Person the same day).
+  [pscustomobject]@{ Title="EBITDA Ceiling"; Slug="ebitda_ceiling"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
+  [pscustomobject]@{ Title="Estimated AUM"; Slug="estimated_aum"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol" } } },
+  [pscustomobject]@{ Title="Notable Investments"; Slug="notable_investments"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  [pscustomobject]@{ Title="Key Personnel"; Slug="key_personnel"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  [pscustomobject]@{ Title="Relationship Warmth"; Slug="relationship_warmth"; Type="select"; Multi=$false; SourceOption="relationship_warmth"; Config=@{} },
+  [pscustomobject]@{ Title="Target Geography"; Slug="target_geography"; Type="select"; Multi=$true; SourceOption="target_geography"; Config=@{} },
+  [pscustomobject]@{ Title="Last Mandate Briefing Date"; Slug="last_mandate_briefing_date"; Type="date"; Multi=$false; SourceOption=$null; Config=@{} },
+  [pscustomobject]@{ Title="Prior GCC Acquisition"; Slug="prior_gcc_acquisition"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  [pscustomobject]@{ Title="Is Active"; Slug="is_active"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} },
+  [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} }
 )
 
 if ($Apply -and -not $devListMap.ContainsKey("buyer_role")) {
@@ -1083,7 +1182,13 @@ $fields = @(
   [pscustomobject]@{ Title="Last Attempt Channel"; Slug="last_attempt_channel"; Type="select"; SourceOptions=@("attempt_1_channel","attempt_2_channel","attempt_2_channel_6"); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Outcome"; Slug="last_attempt_outcome"; Type="select"; SourceOptions=@("attempt_1_outcome","attempt_2_outcome","attempt_2_outcome_6"); Config=@{} },
   [pscustomobject]@{ Title="Lead Quality Score"; Slug="lead_quality_score"; Type="number"; SourceOptions=@(); Config=@{} },
-  [pscustomobject]@{ Title="Re-Engage Date"; Slug="re_engage_date"; Type="date"; SourceOptions=@(); Config=@{} }
+  [pscustomobject]@{ Title="Re-Engage Date"; Slug="re_engage_date"; Type="date"; SourceOptions=@(); Config=@{} },
+  # Created directly via the API when first migrated (2026-08-17), never
+  # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
+  # like every other field instead of silently trusted (same gap fixed for
+  # Organization/Person/Buyer Role the same day).
+  [pscustomobject]@{ Title="Is Active"; Slug="is_active"; Type="checkbox"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; SourceOptions=@(); Config=@{} }
 )
 
 if ($Apply -and -not $devListMap.ContainsKey("seller_role")) {
@@ -1229,141 +1334,5 @@ if ($Apply) {
 }
 
 }
-function Invoke-MandatesSchema {
-param(
-  [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
-  [string]$DevApiKey = $env:DEV_ATTIO_API_KEY,
-  [switch]$FailOnDrift,
-  [switch]$Apply
-)
-
-
-$ErrorActionPreference = "Stop"
-if ([string]::IsNullOrWhiteSpace($SourceApiKey)) {
-  $SourceApiKey = [Environment]::GetEnvironmentVariable("SOURCE_ATTIO_API_KEY", "User")
-}
-if ([string]::IsNullOrWhiteSpace($DevApiKey)) {
-  $DevApiKey = [Environment]::GetEnvironmentVariable("DEV_ATTIO_API_KEY", "User")
-}
-if ([string]::IsNullOrWhiteSpace($SourceApiKey)) { throw "Missing SOURCE_ATTIO_API_KEY." }
-if ([string]::IsNullOrWhiteSpace($DevApiKey)) { throw "Missing DEV_ATTIO_API_KEY." }
-
-$sourceHeaders = @{ Authorization="Bearer $($SourceApiKey.Trim())"; Accept="application/json"; "Content-Type"="application/json" }
-$devHeaders = @{ Authorization="Bearer $($DevApiKey.Trim())"; Accept="application/json"; "Content-Type"="application/json" }
-$decisions = Get-Content (Join-Path $PSScriptRoot "..\config\migration-decisions.json") -Raw | ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
-
-function Invoke-AttioRequest {
-  param([ValidateSet("Get","Post")][string]$Method,[hashtable]$Headers,[string]$Path,[object]$Body)
-  $parameters = @{ Method=$Method; Uri="https://api.attio.com/v2$Path"; Headers=$Headers }
-  if ($null -ne $Body) {
-    $parameters.Body = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 30))
-  }
-  Invoke-RestMethod @parameters
-}
-function Get-Map {
-  param([object[]]$Items)
-  $map=@{}
-  foreach($item in @($Items)){ $map[[string]$item.api_slug]=$item }
-  return $map
-}
-function Get-OptionTitles {
-  param([hashtable]$Headers,[string]$ListSlug,[string]$AttributeSlug)
-  @((Invoke-AttioRequest Get $Headers "/lists/$ListSlug/attributes/$AttributeSlug/options" $null).data |
-    Where-Object { -not $_.is_archived -and $_.title } |
-    ForEach-Object { [string]$_.title })
-}
-
-$devOrganization=Invoke-AttioRequest Get $devHeaders "/objects/organizations" $null
-$connectedWorkspaceId=[string]$devOrganization.data.id.workspace_id
-if($connectedWorkspaceId-ne$expectedWorkspaceId){throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."}
-$sourceList=Invoke-AttioRequest Get $sourceHeaders "/lists/buy_side_mandates" $null
-if([string]$sourceList.data.api_slug-ne"buy_side_mandates"-or @($sourceList.data.parent_object)-notcontains"companies"){
-  throw "SOURCE buy_side_mandates is missing or has the wrong parent."
-}
-
-$devLists=Invoke-AttioRequest Get $devHeaders "/lists" $null
-$devListMap=Get-Map @($devLists.data)
-$actions=[Collections.Generic.List[string]]::new()
-if(-not$devListMap.ContainsKey("mandates")){
-  $actions.Add("create_list:mandates")
-  if($Apply){
-    Invoke-AttioRequest Post $devHeaders "/lists" @{
-      data=@{name="Mandates";api_slug="mandates";parent_object="organizations";workspace_access="full-access";workspace_member_access=@()}
-    } | Out-Null
-    Write-Host "CREATED: mandates list"
-  }else{Write-Host "DRY RUN: would create DEV mandates parented to organizations."}
-}else{
-  if(@($devListMap["mandates"].parent_object)-notcontains"organizations"){throw "DEV mandates has the wrong parent object."}
-  Write-Host "EXISTS: mandates list parented to organizations"
-}
-
-$fields=@(
-  [pscustomobject]@{Title="Side";Slug="side";Type="select";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@("buy","sell")},
-  [pscustomobject]@{Title="Buyer";Slug="buyer_id";Type="record-reference";Multi=$false;Config=@{record_reference=@{allowed_objects=@("organizations")}};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Seller";Slug="seller_id";Type="record-reference";Multi=$false;Config=@{record_reference=@{allowed_objects=@("organizations")}};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Phase";Slug="phase";Type="select";Multi=$false;Config=@{};SourceOption="mandate_phase";FixedOptions=@()},
-  [pscustomobject]@{Title="Assigned Advisor";Slug="assigned_advisor";Type="actor-reference";Multi=$true;Config=@{};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Start Date";Slug="start_date";Type="date";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Expiry Date";Slug="expiry_date";Type="date";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Universe Constructed";Slug="universe_constructed";Type="checkbox";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Shortlist Approved";Slug="shortlist_approved";Type="checkbox";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Universe Size";Slug="universe_size";Type="number";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Shortlist Size";Slug="shortlist_size";Type="number";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Tier 1 Contacted";Slug="tier1_contacted";Type="number";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@()},
-  [pscustomobject]@{Title="Responses";Slug="responses";Type="number";Multi=$false;Config=@{};SourceOption=$null;FixedOptions=@()}
-)
-
-if($Apply-and-not$devListMap.ContainsKey("mandates")){
-  $devListMap=Get-Map @((Invoke-AttioRequest Get $devHeaders "/lists" $null).data)
-}
-$attributes=@{}
-if($devListMap.ContainsKey("mandates")){
-  $attributes=Get-Map @((Invoke-AttioRequest Get $devHeaders "/lists/mandates/attributes" $null).data)
-}
-foreach($field in $fields){
-  if($attributes.ContainsKey($field.Slug)){
-    $current=$attributes[$field.Slug]
-    if([string]$current.type-ne$field.Type-or[bool]$current.is_multiselect-ne[bool]$field.Multi){
-      throw "DEV mandates/$($field.Slug) has unexpected type or cardinality."
-    }
-    Write-Host "EXISTS: $($field.Slug)"
-    continue
-  }
-  $actions.Add("create_attribute:$($field.Slug)")
-  if($Apply){
-    Invoke-AttioRequest Post $devHeaders "/lists/mandates/attributes" @{
-      data=@{title=$field.Title;description="Wusool Mandate target field.";api_slug=$field.Slug;type=$field.Type;is_required=$false;is_unique=$false;is_multiselect=[bool]$field.Multi;config=$field.Config}
-    } | Out-Null
-    Write-Host "CREATED: $($field.Slug)"
-  }else{Write-Host "DRY RUN: would create $($field.Slug) ($($field.Type))."}
-}
-if($Apply){$attributes=Get-Map @((Invoke-AttioRequest Get $devHeaders "/lists/mandates/attributes" $null).data)}
-
-foreach($field in @($fields|Where-Object{$_.Type-eq"select"})){
-  $sourceTitles=if($field.SourceOption){
-    @(Get-OptionTitles $sourceHeaders "buy_side_mandates" $field.SourceOption)
-  }else{@($field.FixedOptions)}
-  if(-not$Apply-and-not$attributes.ContainsKey($field.Slug)){
-    foreach($title in $sourceTitles){$actions.Add("create_option:$($field.Slug):$title");Write-Host "DRY RUN: would create $($field.Slug) option '$title'."}
-    continue
-  }
-  $targetTitles=@(Get-OptionTitles $devHeaders "mandates" $field.Slug)
-  $existing=@{};foreach($title in $targetTitles){$existing[$title.Trim().ToLowerInvariant()]=$true}
-  foreach($title in $sourceTitles){
-    $key=$title.Trim().ToLowerInvariant()
-    if($existing.ContainsKey($key)){continue}
-    $actions.Add("create_option:$($field.Slug):$title")
-    if($Apply){
-      Invoke-AttioRequest Post $devHeaders "/lists/mandates/attributes/$($field.Slug)/options" @{data=@{title=$title}} | Out-Null
-      Write-Host "CREATED OPTION: $($field.Slug) -> $title"
-    }else{Write-Host "DRY RUN: would create $($field.Slug) option '$title'."}
-  }
-}
-Write-Host ""
-if($FailOnDrift-and$actions.Count-gt0){throw "Mandates schema drift detected. Planned actions: $($actions.Count)."}
-if($Apply){Write-Host "Mandates schema apply complete."}else{Write-Host "Mandates schema dry run complete. Planned actions: $($actions.Count)."}
-
-}
-$args=@{DevApiKey=$DevApiKey};if($Entity-ne"deals"){$args.SourceApiKey=$SourceApiKey};if($FailOnDrift-and$Entity-in@("deals","buyer_role","seller_role","mandates")){$args.FailOnDrift=$true};if($Apply){$args.Apply=$true}
-switch($Entity){"organizations"{Invoke-OrganizationSchema @args};"person"{Invoke-PersonSchema @args};"deals"{Invoke-DealSchema @args};"buyer_role"{Invoke-BuyerRoleSchema @args};"seller_role"{Invoke-SellerRoleSchema @args};"mandates"{Invoke-MandatesSchema @args}}
+$args=@{DevApiKey=$DevApiKey};if($Entity-ne"deals"){$args.SourceApiKey=$SourceApiKey};if($FailOnDrift-and$Entity-in@("deals","buyer_role","seller_role")){$args.FailOnDrift=$true};if($Apply){$args.Apply=$true}
+switch($Entity){"organizations"{Invoke-OrganizationSchema @args};"person"{Invoke-PersonSchema @args};"deals"{Invoke-DealSchema @args};"buyer_role"{Invoke-BuyerRoleSchema @args};"seller_role"{Invoke-SellerRoleSchema @args}}

@@ -59,23 +59,24 @@ class BuyerRole(Base):
     deals_introduced: Mapped[int | None] = mapped_column()
     deals_converted: Mapped[int | None] = mapped_column()
     # Added 2026-08-19 alongside the DEV Attio attributes of the same names
-    # (Wusool Schema Handover artifact). `target_geography` and
-    # `typical_check_size` are real DEV Attio multiselect (confirmed via the
-    # live attribute, despite the ER diagram labeling the latter a scalar
-    # money field) — stored as arrays of the selected option titles, same
-    # pattern as `Organization.type`/`sector_focus`.
+    # (Wusool Schema Handover artifact). `target_geography` is a real DEV
+    # Attio multiselect — stored as an array of the selected option titles,
+    # same pattern as `Organization.type`/`sector_focus`.
     ebitda_ceiling: Mapped[dict | None] = mapped_column(JSONB)
     estimated_aum: Mapped[dict | None] = mapped_column(JSONB)
-    mandate_details: Mapped[str | None] = mapped_column(Text)
+    # mandate_details dropped 2026-08-23: redundant with investment_strategy
+    # above -- same information, two places to maintain it. See
+    # migration-decisions.json's dropped_fields.
     notable_investments: Mapped[str | None] = mapped_column(Text)
     key_personnel: Mapped[str | None] = mapped_column(Text)
     relationship_warmth: Mapped[str | None] = mapped_column(Text)
     target_geography: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )
-    typical_check_size: Mapped[list[str]] = mapped_column(
-        ARRAY(Text), nullable=False, server_default="{}"
-    )
+    # typical_check_size dropped 2026-08-23: redundant with check_size_min/max
+    # above -- it was a coarse 4-option USD range bucket, backfilled into
+    # those two real AED figures rather than kept as its own column. See
+    # migration-decisions.json's dropped_fields.
     last_mandate_briefing_date: Mapped[date | None] = mapped_column()
     prior_gcc_acquisition: Mapped[str | None] = mapped_column(Text)
     # Mirrors DEV Attio's Buyer Database is_active/legacy_entry_id (added

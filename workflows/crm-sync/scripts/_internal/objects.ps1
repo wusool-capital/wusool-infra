@@ -3,7 +3,7 @@
  [ValidateSet("organizations","person")][string]$Object="organizations",
  [string]$SourceApiKey=$env:SOURCE_ATTIO_API_KEY,[string]$DevApiKey=$env:DEV_ATTIO_API_KEY,
  [int]$Limit=10,[int]$StartOffset=0,[int]$PageSize=100,[int]$Workers=4,
- [string]$DevOwnerWorkspaceMemberId,[string]$Confirmation,[switch]$ExistingOnly,[switch]$Apply
+ [string]$DevOwnerWorkspaceMemberId,[string]$Confirmation,[switch]$ExistingOnly,[switch]$DeleteOrphaned,[switch]$MigrateMandates,[switch]$Apply
 )
 $ErrorActionPreference="Stop"
 function Invoke-ObjectRecord {
@@ -962,6 +962,8 @@ param(
   [int]$Limit=0,
   [string]$Confirmation,
   [switch]$ExistingOnly,
+  [switch]$DeleteOrphaned,
+  [switch]$MigrateMandates,
   [switch]$Apply
 )
 
@@ -971,9 +973,13 @@ if([string]::IsNullOrWhiteSpace($DevApiKey)){$DevApiKey=[Environment]::GetEnviro
 if([string]::IsNullOrWhiteSpace($SourceApiKey)){throw "Missing SOURCE_ATTIO_API_KEY."}
 if([string]::IsNullOrWhiteSpace($DevApiKey)){throw "Missing DEV_ATTIO_API_KEY."}
 if($Apply){
-  $bounded=$Limit-ge1-and$Limit-le10-and$Confirmation-eq"APPLY_DEALS_TO_DEV"
-  $full=$Limit-eq0-and$Confirmation-eq"APPLY_ALL_DEALS_TO_DEV"
-  if(-not$bounded-and-not$full){throw "Use a 1-10 limit with APPLY_DEALS_TO_DEV, or Limit 0 with APPLY_ALL_DEALS_TO_DEV."}
+  if($DeleteOrphaned){
+    if($Confirmation-ne"DELETE_ORPHANED_DEALS_FROM_DEV"){throw "Apply with -DeleteOrphaned requires -Confirmation DELETE_ORPHANED_DEALS_FROM_DEV."}
+  }else{
+    $bounded=$Limit-ge1-and$Limit-le10-and$Confirmation-eq"APPLY_DEALS_TO_DEV"
+    $full=$Limit-eq0-and$Confirmation-eq"APPLY_ALL_DEALS_TO_DEV"
+    if(-not$bounded-and-not$full){throw "Use a 1-10 limit with APPLY_DEALS_TO_DEV, or Limit 0 with APPLY_ALL_DEALS_TO_DEV."}
+  }
 }
 $sh=@{Authorization="Bearer $($SourceApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
 $dh=@{Authorization="Bearer $($DevApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
@@ -991,9 +997,20 @@ foreach($entry in @($decisions.workspace_member_crosswalk.mapping)){
   $sourceId=[string]$entry.source_workspace_member_id
   if(-not[string]::IsNullOrWhiteSpace($sourceId)){$ownerCrosswalkBySourceId[$sourceId]=[string]$entry.dev_workspace_member_id}
 }
+# Blank-duplicate SOURCE companies (a second lead-magnet submission for a
+# company that already exists) that were never migrated into DEV
+# Organizations and so block seller resolution below. SOURCE is read-only
+# to this tooling, so the duplicate can't be repointed at the source --
+# instead it's aliased here to the real, already-migrated SOURCE company id.
+$duplicateCompanyAlias=@{}
+if($decisions.duplicate_source_company_ids.mapping){
+  foreach($property in $decisions.duplicate_source_company_ids.mapping.PSObject.Properties){
+    $duplicateCompanyAlias[[string]$property.Name]=[string]$property.Value
+  }
+}
 $outputPath=Join-Path $PSScriptRoot "..\..\..\..\scripts\outputs\attio_migration\deals-plan.json"
 function Request{
-  param([ValidateSet("Get","Post","Put")][string]$Method,[hashtable]$Headers,[string]$Path,[object]$Body)
+  param([ValidateSet("Get","Post","Put","Delete")][string]$Method,[hashtable]$Headers,[string]$Path,[object]$Body)
   $p=@{Method=$Method;Uri="https://api.attio.com/v2$Path";Headers=$Headers}
   if($null-ne$Body){$p.Body=[Text.Encoding]::UTF8.GetBytes(($Body|ConvertTo-Json -Depth 30))}
   Invoke-RestMethod @p
@@ -1036,6 +1053,48 @@ $workspaceId=[string]$devObject.data.id.workspace_id
 if($workspaceId-ne$expectedWorkspaceId){throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $workspaceId."}
 $source=@(All $sh "/objects/deals/records/query")
 $dev=@(All $dh "/objects/deals/records/query")
+if($DeleteOrphaned){
+  # Idempotency here only ever meant "safe to re-run the create/update loop
+  # below" -- it never covered the reverse direction (a SOURCE Deal deleted
+  # after migration leaves an orphaned DEV Deal behind forever, since the
+  # loop below only ever creates/updates, matched by legacy_attio_id, and
+  # never looks at DEV records the SOURCE side no longer has). A DEV Deal
+  # with no legacy_attio_id at all is a legitimate DEV-native record (e.g.
+  # created directly by the lead-magnet automation) and must never be
+  # touched here -- only ones that WERE migrated from a SOURCE id that has
+  # since vanished are orphans.
+  $sourceIdSet=@{}
+  foreach($s in $source){$sourceIdSet[(Id $s)]=$true}
+  $orphans=@($dev|Where-Object{
+    $legacy=Value $_.values "legacy_attio_id"
+    $legacy-and-not$sourceIdSet.ContainsKey([string]$legacy)
+  })
+  Write-Host "DEV Deals total: $($dev.Count)"
+  Write-Host "SOURCE Deals total: $($source.Count)"
+  Write-Host "Orphaned (legacy_attio_id no longer present in SOURCE): $($orphans.Count)"
+  Write-Host ""
+  $deleted=0;$errors=0
+  foreach($o in $orphans){
+    $name=Value $o.values "name"
+    $recordId=Id $o
+    $legacy=Value $o.values "legacy_attio_id"
+    if($Apply){
+      try{
+        Request Delete $dh "/objects/deals/records/$recordId" $null|Out-Null
+        Write-Host "Deleted: $name ($recordId)"
+        $deleted++
+      }catch{
+        Write-Warning "FAILED to delete $name ($recordId): $($_.Exception.Message)"
+        $errors++
+      }
+    }else{
+      Write-Host "Would delete: $name ($recordId) -- legacy_attio_id=$legacy not found in SOURCE"
+    }
+  }
+  Write-Host ""
+  if($Apply){Write-Host "Done. Deleted $deleted, failed $errors."}else{Write-Host "Dry run only -- no records were deleted. Re-run with -Apply -Confirmation DELETE_ORPHANED_DEALS_FROM_DEV to delete."}
+  return
+}
 $devOrganizations=@(All $dh "/objects/organizations/records/query")
 $organizationByLegacy=@{}
 foreach($r in $devOrganizations){
@@ -1108,6 +1167,7 @@ foreach($s in $source){
   $advisorNames=@(Values $s.values "assigned_advisor")
   if($advisorNames.Count-gt0){$values.assigned_advisor=@($advisorNames)}
   $sourceSellerId=ReferenceId $s.values "associated_company"
+  if($sourceSellerId-and$duplicateCompanyAlias.ContainsKey($sourceSellerId)){$sourceSellerId=$duplicateCompanyAlias[$sourceSellerId]}
   $sellerResolution="missing_source_associated_company"
   if($sourceSellerId-and$organizationByLegacy.ContainsKey($sourceSellerId)){
     $values.seller_id=@{target_object="organizations";target_record_id=$organizationByLegacy[$sourceSellerId]}
@@ -1185,9 +1245,129 @@ $summary|Format-List
 Write-Host "Deal plan written to $outputPath"
 if(-not$Apply){Write-Host "No Attio records were written."}
 
+if($MigrateMandates){
+  Write-Host ""
+  Write-Host "===== migrate mandates to deals ====="
+  # 2026-08-23 Mandate/Deal merge (see migration-decisions.json): the
+  # Mandates list is being retired -- every Mandate entry becomes its own
+  # Deal record at the new "Mandate Active" stage (a signed mandate still
+  # sourcing candidates, no specific counterparty locked in yet -- distinct
+  # from "Mandate Signed", which already implies a specific counterparty and
+  # signed terms). Requires ensure-schema.ps1 -Entities deals -Apply to have
+  # run first (adds the merged fields + Mandate Active stage + deal_type
+  # options). Idempotent via source_mandate_entry_id: safe to re-run,
+  # already-migrated entries are skipped.
+  #
+  # Hardcoded rather than derived from workspace_member_crosswalk: several
+  # crosswalk entries (Hugo, Tech Wusool, ValuationTool, n8n Integration)
+  # all collapse onto the same DEV id (tech@) today, so a generic
+  # "first word of source_name" derivation would be ambiguous/order
+  # -dependent. Only these two real people are actually distinguishable DEV
+  # identities right now.
+  $advisorNameByDevId=@{
+    "20ee7570-f1c0-476a-b505-c50e95d7c577"="Jules"  # Sinan Muhammed, DEV stand-in
+    "67fb42ec-facb-40ab-bc37-7cc654a53d75"="Ramzy"  # Richu Cherian, DEV stand-in
+  }
+  $mandateOwnerWorkspaceMemberId="20ee7570-f1c0-476a-b505-c50e95d7c577"  # Sinan (Jules stand-in) -- common advisor across both mandates
+
+  $mandateActiveStatusId=$statusMap["Mandate Active"]
+  if(-not$mandateActiveStatusId){throw "Deal stage 'Mandate Active' not found -- run ensure-schema.ps1 -Entities deals -Apply first."}
+  function OptionMap($path){$m=@{};foreach($o in @((Request Get $dh $path $null).data|Where-Object{-not$_.is_archived})){$m[[string]$o.title]=[string]$o.id.option_id};return $m}
+  $dealTypeOptions=OptionMap "/objects/deals/attributes/deal_type/options"
+  $mandateAdvisorOptions=OptionMap "/objects/deals/attributes/assigned_advisor/options"
+
+  # Backfill deal_type=Sell-side on every pre-existing Deal that has a
+  # seller_id but no deal_type yet. Confirmed against SOURCE, not assumed:
+  # SOURCE deals has no buyer-referencing attribute at all (checked its full
+  # attribute list) -- only associated_company (-> seller_id), so every Deal
+  # ever migrated from SOURCE is sell-side by construction. Buy-side never
+  # existed as a concept there; it only existed on the now-merged Mandate
+  # list. Confirmed zero overlap too: none of the 58 SOURCE deal seller
+  # companies appear in SOURCE buyer_brain (Buyer Role) either.
+  Write-Host ""
+  Write-Host "-- backfill deal_type=Sell-side on pre-existing Deals with seller_id set --"
+  if(-not$dealTypeOptions.ContainsKey("Sell-side")){throw "Missing deal_type option 'Sell-side'."}
+  $sellSideOptionId=$dealTypeOptions["Sell-side"]
+  $sellSideCandidates=@($dev|Where-Object{
+    $hasSeller=@($_.values.seller_id|Where-Object{$null-eq$_.active_until}).Count-gt0
+    $hasDealType=@($_.values.deal_type|Where-Object{$null-eq$_.active_until}).Count-gt0
+    $hasSeller-and-not$hasDealType
+  })
+  Write-Host "Candidates: $($sellSideCandidates.Count)"
+  $sellSideBackfilled=0
+  foreach($d in $sellSideCandidates){
+    $name=Value $d.values "name"
+    $recordId=Id $d
+    if($Apply){
+      Request Put $dh "/objects/deals/records/$recordId" @{data=@{values=@{deal_type=$sellSideOptionId}}}|Out-Null
+      Write-Host "Backfilled Sell-side: $name ($recordId)"
+      $sellSideBackfilled++
+    }else{Write-Host "Would backfill Sell-side: $name ($recordId)"}
+  }
+  if($Apply){Write-Host "Backfilled $sellSideBackfilled."}else{Write-Host "Dry run only -- no records were written."}
+
+  $migratedMandateIds=@{}
+  foreach($d in $dev){
+    $v=Value $d.values "source_mandate_entry_id"
+    if($v){$migratedMandateIds[[string]$v]=$true}
+  }
+  $mandateEntries=@(All $dh "/lists/mandates/entries/query")
+  $mandatesCreated=0;$mandatesSkipped=0
+  foreach($entry in $mandateEntries){
+    $mandateEntryId=[string]$entry.id.entry_id
+    if($migratedMandateIds.ContainsKey($mandateEntryId)){Write-Host "SKIP (already migrated): entry $mandateEntryId";$mandatesSkipped++;continue}
+    $orgId=[string]$entry.parent_record_id
+    $orgName=(Request Get $dh "/objects/organizations/records/$orgId" $null).data.values.name[0].value
+    $side=(ActiveValue $entry.entry_values "side").option.title
+    $dealType=if($side-eq"buy"){"Buy-side"}else{"Sell-side"}
+    $advisorActorIds=@($entry.entry_values.assigned_advisor|Where-Object{$null-eq$_.active_until}|ForEach-Object{[string]$_.referenced_actor_id})
+    $advisorNames=@($advisorActorIds|ForEach-Object{$advisorNameByDevId[$_]}|Where-Object{$_})
+    $universeConstructed=(ActiveValue $entry.entry_values "universe_constructed").value
+    $universeSize=(ActiveValue $entry.entry_values "universe_size").value
+    $shortlistApproved=(ActiveValue $entry.entry_values "shortlist_approved").value
+    $shortlistSize=(ActiveValue $entry.entry_values "shortlist_size").value
+    $tier1Contacted=(ActiveValue $entry.entry_values "tier1_contacted").value
+    $mandateResponses=(ActiveValue $entry.entry_values "responses").value
+    $retainer=ActiveValue $entry.entry_values "retainer_amount"
+
+    $mValues=@{
+      name="$orgName"
+      stage=$mandateActiveStatusId
+      source_mandate_entry_id=$mandateEntryId
+      owner=@{referenced_actor_type="workspace-member";referenced_actor_id=$mandateOwnerWorkspaceMemberId}
+      buyer_id=@{target_object="organizations";target_record_id=$orgId}
+    }
+    if(-not$dealTypeOptions.ContainsKey($dealType)){throw "Missing deal_type option '$dealType'."}
+    $mValues.deal_type=$dealTypeOptions[$dealType]
+    if($advisorNames.Count-gt0){
+      $mIds=@($advisorNames|ForEach-Object{if(-not$mandateAdvisorOptions.ContainsKey($_)){throw "Missing assigned_advisor option '$_'."};$mandateAdvisorOptions[$_]})
+      $mValues.assigned_advisor=$mIds
+    }
+    if($null-ne$universeConstructed){$mValues.universe_constructed=[bool]$universeConstructed}
+    if($null-ne$universeSize){$mValues.universe_size=$universeSize}
+    if($null-ne$shortlistApproved){$mValues.shortlist_approved=[bool]$shortlistApproved}
+    if($null-ne$shortlistSize){$mValues.shortlist_size=$shortlistSize}
+    if($null-ne$tier1Contacted){$mValues.tier1_contacted=$tier1Contacted}
+    if($null-ne$mandateResponses){$mValues.responses=$mandateResponses}
+    if($retainer-and$null-ne$retainer.currency_value){$mValues.retainer_amount=@{currency_value=[decimal]$retainer.currency_value}}
+
+    Write-Host ""
+    Write-Host "Deal: $orgName"
+    Write-Host "  deal_type=$dealType advisor=$($advisorNames -join ',') owner=Sinan universe=$universeSize shortlist=$shortlistSize tier1_contacted=$tier1Contacted responses=$mandateResponses"
+    if($Apply){
+      $newDeal=Request Post $dh "/objects/deals/records" @{data=@{values=$mValues}}
+      Write-Host "  CREATED: $($newDeal.data.id.record_id)"
+      $mandatesCreated++
+    }else{Write-Host "  Would create."}
+  }
+  Write-Host ""
+  if($Apply){Write-Host "Mandate migration done. Created $mandatesCreated, skipped $mandatesSkipped (already migrated)."}
+  else{Write-Host "Mandate migration dry run only -- no records were created."}
+}
+
 }
 switch($Task){
  "record"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;StartOffset=$StartOffset;PageSize=$PageSize};if($Apply){$a.Apply=$true};Invoke-ObjectRecord @a}
  "parallel"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Workers=$Workers;PageSize=$PageSize};if($Apply){$a.Apply=$true};Invoke-ObjectParallel @a}
- "deals"{$a=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;Confirmation=$Confirmation};if($DevOwnerWorkspaceMemberId){$a.DevOwnerWorkspaceMemberId=$DevOwnerWorkspaceMemberId};if($ExistingOnly){$a.ExistingOnly=$true};if($Apply){$a.Apply=$true};Invoke-Deals @a}
+ "deals"{$a=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;Confirmation=$Confirmation};if($DevOwnerWorkspaceMemberId){$a.DevOwnerWorkspaceMemberId=$DevOwnerWorkspaceMemberId};if($ExistingOnly){$a.ExistingOnly=$true};if($DeleteOrphaned){$a.DeleteOrphaned=$true};if($MigrateMandates){$a.MigrateMandates=$true};if($Apply){$a.Apply=$true};Invoke-Deals @a}
 }
