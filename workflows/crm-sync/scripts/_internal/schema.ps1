@@ -878,7 +878,7 @@ if (-not $devListMap.ContainsKey("buyer_role")) {
 }
 
 $fields = @(
-  [pscustomobject]@{ Title="Buyer Model"; Slug="model"; Type="select"; Multi=$false; SourceOption="buyer_model"; Config=@{} },
+  [pscustomobject]@{ Title="Model"; Slug="model"; Type="select"; Multi=$false; SourceOption="buyer_model"; Config=@{} },
   [pscustomobject]@{ Title="Mandate Status"; Slug="mandate_status"; Type="select"; Multi=$false; SourceOption="mandate_status"; Config=@{} },
   [pscustomobject]@{ Title="EBITDA Floor"; Slug="ebitda_floor"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
   [pscustomobject]@{ Title="Check Size Min"; Slug="check_size_min"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
