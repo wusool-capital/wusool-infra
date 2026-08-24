@@ -1,3 +1,5 @@
+from datetime import date, datetime
+
 from ddl_commands.modules.attio_sync import values as v
 
 
@@ -60,6 +62,30 @@ def test_money_reads_currency_value() -> None:
 def test_money_returns_none_for_blank_amount() -> None:
     values = {"check_size_min": [_item(currency_value="", currency_code="AED")]}
     assert v.money(values, "check_size_min") is None
+
+
+def test_date_parses_into_a_date_object() -> None:
+    """`first`'s raw value is a bare `"YYYY-MM-DD"` string — asyncpg rejects
+    that for a `DATE` column (needs `datetime.date`), which is exactly what
+    broke `sync_seller_role` on a real `last_attempt_date` value.
+    """
+    values = {"last_attempt_date": [_item(date="2026-08-24")]}
+    assert v.date(values, "last_attempt_date") == date(2026, 8, 24)
+
+
+def test_date_returns_none_when_missing() -> None:
+    assert v.date({}, "last_attempt_date") is None
+
+
+def test_timestamp_parses_into_a_datetime_object() -> None:
+    values = {"last_interaction_at": [_item(timestamp="2026-08-24T10:00:00.000000000Z")]}
+    assert v.timestamp(values, "last_interaction_at") == datetime.fromisoformat(
+        "2026-08-24T10:00:00.000000000Z"
+    )
+
+
+def test_timestamp_returns_none_when_missing() -> None:
+    assert v.timestamp({}, "last_interaction_at") is None
 
 
 def test_parent_id_from_dict_shape() -> None:
