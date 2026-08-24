@@ -87,8 +87,6 @@ class CreateSellerUseCase:
                     await org_repo.update(org_attio_id, **org_fields)
 
                 seller_repo = SellerRepository(session)
-                if await seller_repo.get_by_org_attio_id(org_attio_id) is not None:
-                    raise SellerAlreadyExistsError(org_attio_id)
                 # `is_active`/`legacy_entry_id` are bot-owned reconciliation
                 # state, not operator-editable — set explicitly here, never
                 # via `role_fields` (built from `SELLER_ROLE_FIELDS`, the
@@ -96,4 +94,14 @@ class CreateSellerUseCase:
                 role = await seller_repo.create(
                     org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
                 )
+                if role.legacy_entry_id != entry_id:
+                    # With the Attio webhook live, its own `list-entry.created`
+                    # for the entry this same call just created in Attio can
+                    # reach `attio_sync.upsert.sync_seller_role` and land first
+                    # — `create` then no-ops and hands back that row instead
+                    # of this one. A different `legacy_entry_id` means a real
+                    # pre-existing role won the conflict, not this call's own
+                    # write arriving early via a second path — genuine
+                    # conflict, `UNIQUE(org_attio_id)`'s actual job.
+                    raise SellerAlreadyExistsError(org_attio_id)
         return role
