@@ -739,6 +739,7 @@ async def _write_seller_add(
                 extracted=org_extracted,
             )
             org_attio_values["name"] = org_name
+            org_attio_values["is_active"] = True
             org_attio_id = await create_organization(attio_client, org_attio_values)
             landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
         elif org_extracted:
@@ -818,6 +819,7 @@ async def _write_buyer_add(
                 extracted=org_extracted,
             )
             org_attio_values["name"] = org_name
+            org_attio_values["is_active"] = True
             org_attio_id = await create_organization(attio_client, org_attio_values)
             landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
         elif org_extracted:
