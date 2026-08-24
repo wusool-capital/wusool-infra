@@ -9,10 +9,13 @@
 # the same "RDS is private, only the toolkit EC2 instance has a network path
 # to it" pattern _deploy.yml already uses for `alembic upgrade head`. No new
 # infrastructure, no new dependencies, and never a separate build: this reads
-# back and reuses whatever digest-pinned image is already running, exactly
-# as `docker ps` reports it — this repo never runs images by a mutable tag
-# (see terraform/modules/n8n-ec2/variables.tf's image-pinning validation for
-# why), so there is no "latest" to fall back to here either.
+# back and reuses whatever digest-pinned image is already running — this
+# repo never runs images by a mutable tag (see terraform/modules/n8n-ec2/
+# variables.tf's image-pinning validation for why), so the container's own
+# image ID (via `docker inspect`, not `docker ps`'s `.Image` column — that
+# column silently drops the digest for a container started by digest
+# reference, which made every run of this job through 2026-08-23 fail
+# trying to pull a nonexistent "latest" tag) is captured instead.
 name: Nightly Attio full resync
 
 on:
@@ -68,10 +71,19 @@ jobs:
           IID: ${{ steps.toolkit.outputs.instance_id }}
         run: |
           set -uo pipefail
+          # `docker ps --format "{{.Image}}"` drops the digest for a
+          # container started by digest reference (`repo@sha256:...`),
+          # printing just the bare repo name — `docker run` on that then
+          # silently falls back to Docker's own implicit ":latest", which
+          # this repo's build never pushes. `docker inspect --format
+          # '{{.Image}}'` instead gives the container's actual local image
+          # ID, already the exact digest-pinned image running — no registry
+          # lookup needed at all.
           COMMANDS_JSON=$(jq -n \
-            --arg get_image 'IMAGE=$(docker ps --filter "name=toolkit" --format "{{.Image}}" | head -1)' \
+            --arg get_id 'CID=$(docker ps --filter "name=toolkit" --format "{{.ID}}" | head -1)' \
+            --arg get_image 'IMAGE=$(docker inspect --format="{{.Image}}" "$CID")' \
             --arg run_resync 'docker run --rm --env-file /opt/toolkit/toolkit/.env.production "$IMAGE" python -m ddl_commands.modules.attio_sync.full_resync' \
-            '["set -e", $get_image, $run_resync]')
+            '["set -e", $get_id, $get_image, $run_resync]')
 
           CMD=$(aws ssm send-command \
             --document-name AWS-RunShellScript \
