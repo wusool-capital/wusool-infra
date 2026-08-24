@@ -68,6 +68,7 @@ async def test_create_with_new_org_inserts_org_and_role(
         assert org is not None
         assert org.name == "Brand New Buyer Co"
         assert org.hq_country == "AE"
+        assert org.is_active is True
 
 
 async def test_create_attaches_to_existing_org(

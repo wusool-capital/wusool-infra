@@ -80,7 +80,9 @@ class CreateSellerUseCase:
                 org_repo = OrganizationRepository(session)
                 if is_new_org:
                     assert org_name is not None
-                    await org_repo.create(org_attio_id, org_name, **(org_fields or {}))
+                    await org_repo.create(
+                        org_attio_id, org_name, is_active=True, **(org_fields or {})
+                    )
                 elif org_fields:
                     await org_repo.update(org_attio_id, **org_fields)
 
