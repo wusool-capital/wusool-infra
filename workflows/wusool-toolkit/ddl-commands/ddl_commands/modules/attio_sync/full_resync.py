@@ -140,6 +140,9 @@ async def _write_and_verify(
     model, table: str, rows: list[dict], expected_count: int
 ) -> tuple[int, int]:
     ok, failed, returned = await _write_batches_concurrently(model, rows)
+    _logger.info(
+        "full resync: %s changed=%d unchanged=%d", table, len(returned), len(rows) - len(returned)
+    )
     conflict_col = upsert._CONFLICT_COL[model]
     intended_by_key = {r[conflict_col]: r["raw_attio"] for r in rows}
     mismatches = [

@@ -817,7 +817,19 @@ async def _upsert_batch(model, rows: list[dict]) -> dict[str, dict]:
     }
     update_cols["updated_at"] = func.now()
     update_cols.update(_EXTRA_UPDATE_COLS.get(model, {}))
-    stmt = stmt.on_conflict_do_update(index_elements=[conflict_col], set_=update_cols)
+    # Skip the write entirely when nothing actually changed (Stripe's
+    # reconciliation-blog advice: compare content, not timestamps, before
+    # writing) -- avoids rewriting all ~8,000 rows every night regardless of
+    # whether Attio's data moved, and the bump-free `updated_at` means a row
+    # genuinely untouched tonight doesn't look "just synced" to anything
+    # watching that column. `removed_at IS NOT NULL` forces the write through
+    # anyway for a soft-deleted row that reappears with byte-identical
+    # raw_attio, so its `removed_at=NULL` reset (see _EXTRA_UPDATE_COLS)
+    # still lands -- content-only comparison would otherwise skip it forever.
+    where = stmt.excluded.raw_attio.is_distinct_from(model.raw_attio)
+    if hasattr(model, "removed_at"):
+        where = where | (model.removed_at.is_not(None))
+    stmt = stmt.on_conflict_do_update(index_elements=[conflict_col], set_=update_cols, where=where)
     conflict_column_obj = getattr(model, conflict_col)
     stmt = stmt.returning(conflict_column_obj, model.raw_attio)
     async with get_sessionmaker()() as session:

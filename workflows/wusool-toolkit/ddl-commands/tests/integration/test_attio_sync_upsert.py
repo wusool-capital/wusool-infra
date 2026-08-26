@@ -181,6 +181,70 @@ async def test_upsert_batch_on_conflict_updates_existing_row(
     assert name == "Updated"
 
 
+async def test_upsert_batch_skips_the_write_when_content_is_unchanged(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    oid = f"test-org-{uuid.uuid4()}"
+    row = upsert._organization_params(
+        {"id": {"record_id": oid}, "values": {"name": [_item(value="Stable Org")]}}
+    )
+    await upsert.upsert_batch_with_retry(Organization, [row])
+    async with db_sessionmaker() as session:
+        first_updated_at = (
+            await session.execute(
+                text("SELECT updated_at FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+
+    # Re-upsert with byte-identical raw_attio -- nothing changed in Attio.
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [row])
+
+    assert (ok, failed) == (1, 0)
+    assert returned == {}  # skipped: no RETURNING row for an unwritten conflict
+    async with db_sessionmaker() as session:
+        second_updated_at = (
+            await session.execute(
+                text("SELECT updated_at FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+    assert second_updated_at == first_updated_at  # write was actually skipped, not just fast
+
+
+async def test_upsert_batch_still_clears_removed_at_when_content_is_unchanged(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    oid = f"test-org-{uuid.uuid4()}"
+    row = upsert._organization_params(
+        {"id": {"record_id": oid}, "values": {"name": [_item(value="Reappearing Org")]}}
+    )
+    await upsert.upsert_batch_with_retry(Organization, [row])
+    await upsert.delete_organization(oid)
+    async with db_sessionmaker() as session:
+        removed_at = (
+            await session.execute(
+                text("SELECT removed_at FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+    assert removed_at is not None
+
+    # Org reappears in Attio with byte-identical raw_attio to before deletion
+    # -- content comparison alone would see "no change" and skip the write,
+    # leaving removed_at stuck forever.
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [row])
+
+    assert (ok, failed) == (1, 0)
+    assert oid in returned  # forced through despite unchanged content
+    async with db_sessionmaker() as session:
+        removed_at = (
+            await session.execute(
+                text("SELECT removed_at FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+    assert removed_at is None
+
+
 async def test_upsert_batch_with_retry_falls_back_to_per_row_on_a_bad_row(
     monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
 ) -> None:
