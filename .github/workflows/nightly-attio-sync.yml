@@ -93,16 +93,15 @@ jobs:
             --query Command.CommandId --output text)
           echo "command: $CMD"
 
-          # 90 minutes (360 x 15s) -- cheap insurance on top of full_resync.py
-          # now batching + parallelizing its writes (see that module's
-          # docstring): too tight a cap here doesn't stop the SSM command
-          # itself (it keeps running on the instance regardless of whether
-          # anything's still polling it), it just makes this job falsely
-          # report failure while the resync is still genuinely succeeding in
-          # the background -- exactly what happened on the 2026-08-25 run
-          # (43m20s actual, past the previous 40-minute cap).
+          # 40 minutes (160 x 15s) -- full_resync.py syncs one record at a
+          # time across 6 entity types, so this needs real headroom, not just
+          # today's data volume: too tight a cap here doesn't stop the SSM
+          # command itself (it keeps running on the instance regardless of
+          # whether anything's still polling it), it just makes this job
+          # falsely report failure while the resync is still genuinely
+          # succeeding in the background.
           STATUS=""
-          for _ in $(seq 1 360); do
+          for _ in $(seq 1 160); do
             STATUS=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
                   --query Status --output text 2>/dev/null || echo Pending)
             case "$STATUS" in

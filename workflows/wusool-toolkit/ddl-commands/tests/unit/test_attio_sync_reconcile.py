@@ -1,8 +1,4 @@
-from ddl_commands.modules.attio_sync.upsert import (
-    _fetch_siblings,
-    _reconcile_active_entry,
-    group_entries_by_org,
-)
+from ddl_commands.modules.attio_sync.upsert import _fetch_siblings, _reconcile_active_entry
 
 
 def _entry(entry_id: str, org_id: str, created_at: str, is_active: bool | None = None) -> dict:
@@ -34,10 +30,9 @@ class _FakeClient:
 
 
 async def test_single_entry_with_missing_is_active_becomes_active() -> None:
-    entry = _entry("entry-1", "org-a", "2024-01-01T00:00:00Z")
-    client = _FakeClient([])
+    client = _FakeClient([[_entry("entry-1", "org-a", "2024-01-01T00:00:00Z")]])
 
-    winner = await _reconcile_active_entry(client, "buyer_role", [entry])
+    winner = await _reconcile_active_entry(client, "buyer_role", "org-a")
 
     assert winner["id"]["entry_id"] == "entry-1"
     assert client.patch_calls == [
@@ -46,10 +41,9 @@ async def test_single_entry_with_missing_is_active_becomes_active() -> None:
 
 
 async def test_single_entry_already_active_is_left_alone() -> None:
-    entry = _entry("entry-1", "org-a", "2024-01-01T00:00:00Z", is_active=True)
-    client = _FakeClient([])
+    client = _FakeClient([[_entry("entry-1", "org-a", "2024-01-01T00:00:00Z", is_active=True)]])
 
-    await _reconcile_active_entry(client, "buyer_role", [entry])
+    await _reconcile_active_entry(client, "buyer_role", "org-a")
 
     assert client.patch_calls == []
 
@@ -57,9 +51,9 @@ async def test_single_entry_already_active_is_left_alone() -> None:
 async def test_newest_entry_wins_and_older_flips_to_inactive() -> None:
     older = _entry("entry-old", "org-a", "2024-01-01T00:00:00Z", is_active=True)
     newer = _entry("entry-new", "org-a", "2024-01-03T00:00:00Z", is_active=None)
-    client = _FakeClient([])
+    client = _FakeClient([[older, newer]])
 
-    winner = await _reconcile_active_entry(client, "buyer_role", [older, newer])
+    winner = await _reconcile_active_entry(client, "buyer_role", "org-a")
 
     assert winner["id"]["entry_id"] == "entry-new"
     assert (
@@ -76,9 +70,9 @@ async def test_newest_entry_wins_and_older_flips_to_inactive() -> None:
 async def test_already_converged_state_issues_no_patches() -> None:
     older = _entry("entry-old", "org-a", "2024-01-01T00:00:00Z", is_active=False)
     newer = _entry("entry-new", "org-a", "2024-01-03T00:00:00Z", is_active=True)
-    client = _FakeClient([])
+    client = _FakeClient([[older, newer]])
 
-    await _reconcile_active_entry(client, "buyer_role", [older, newer])
+    await _reconcile_active_entry(client, "buyer_role", "org-a")
 
     assert client.patch_calls == []
 
@@ -101,14 +95,3 @@ async def test_fetch_siblings_pages_through_multiple_pages() -> None:
     siblings = await _fetch_siblings(client, "buyer_role", "org-target")
 
     assert [s["id"]["entry_id"] for s in siblings] == ["entry-target"]
-
-
-def test_group_entries_by_org_groups_duplicates_and_keeps_others_separate() -> None:
-    mine_1 = _entry("entry-mine-1", "org-a", "2024-01-01T00:00:00Z")
-    mine_2 = _entry("entry-mine-2", "org-a", "2024-01-02T00:00:00Z")
-    other = _entry("entry-other", "org-b", "2024-01-01T00:00:00Z")
-
-    by_org = group_entries_by_org([mine_1, mine_2, other])
-
-    assert {e["id"]["entry_id"] for e in by_org["org-a"]} == {"entry-mine-1", "entry-mine-2"}
-    assert [e["id"]["entry_id"] for e in by_org["org-b"]] == ["entry-other"]
