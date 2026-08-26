@@ -17,12 +17,14 @@ arrives before its organization has synced is expected to fail loudly, get
 caught by the background-task handler (see `router.py`), and resolve itself
 on the next event or the nightly full resync.
 
-Only `organizations` has a deletion story (`removed_at`, matching the
-convention `sync-postgres.ps1` already established) — `record.deleted`/
-`list-entry.deleted` for every other table is deliberately out of scope here,
-because the existing bulk script doesn't prune those tables either. Closing
-that gap is a separate, pre-existing piece of work, not a regression this
-sync introduces.
+`organizations` and `people` both have a deletion story (`removed_at`,
+matching the convention `sync-postgres.ps1` already established for both —
+`people` needs it too since `buyer_roles.key_contact_attio_id`/
+`deals.buyer_person_attio_id` reference it with `ON DELETE NO ACTION`).
+`record.deleted`/`list-entry.deleted` for every other table is deliberately
+out of scope here, because the existing bulk script doesn't prune those
+tables either. Closing that gap is a separate, pre-existing piece of work,
+not a regression this sync introduces.
 """
 
 import json
@@ -268,6 +270,15 @@ async def sync_person(client: AttioClient, record_id: str) -> None:
     }
     async with get_sessionmaker()() as session:
         await session.execute(_PERSON_UPSERT, params)
+        await session.commit()
+
+
+async def delete_person(record_id: str) -> None:
+    async with get_sessionmaker()() as session:
+        await session.execute(
+            text("UPDATE people SET removed_at = now() WHERE attio_id = :attio_id"),
+            {"attio_id": record_id},
+        )
         await session.commit()
 
 

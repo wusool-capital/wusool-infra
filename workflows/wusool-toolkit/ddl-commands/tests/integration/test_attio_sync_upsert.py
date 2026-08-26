@@ -9,7 +9,7 @@ import uuid
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from wusool_db.models import Organization
+from wusool_db.models import Organization, Person
 
 from ddl_commands.modules.attio_sync import upsert
 
@@ -105,6 +105,26 @@ async def test_sync_organization_is_idempotent(
             )
         ).scalar_one()
     assert count == 1
+
+
+async def test_delete_person_sets_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    person_id = f"test-person-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Person(attio_id=person_id, name="Test Person"))
+        await session.commit()
+
+    await upsert.delete_person(person_id)
+
+    async with db_sessionmaker() as session:
+        removed_at = (
+            await session.execute(
+                text("SELECT removed_at FROM people WHERE attio_id = :id"), {"id": person_id}
+            )
+        ).scalar_one()
+    assert removed_at is not None
 
 
 async def test_sync_buyer_role_reconciles_and_upserts(

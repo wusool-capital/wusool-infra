@@ -19,9 +19,11 @@ specific entry triggered it, so calling it once per raw duplicate entry
 would redo that same reconciliation N times for nothing.
 
 Deletions are still out of scope here, for the same reason `upsert.py`
-doesn't handle them per-event: only `organizations` gets pruned
-(`removed_at`), matching `sync-postgres.ps1`'s existing convention; no other
-table's stale rows are cleaned up by this pass either.
+doesn't diff them per-run: only `organizations` and `people` get pruned
+(`removed_at`), and only via the real-time webhook's `record.deleted`
+handling, matching `sync-postgres.ps1`'s existing convention; no table's
+stale rows are cleaned up by this full-resync pass, since it only re-syncs
+IDs still present in Attio and has no step that notices one gone missing.
 """
 
 import asyncio

@@ -27,10 +27,12 @@ _OBJECT_SYNC = {
     "deals": upsert.sync_deal,
 }
 _OBJECT_DELETE = {
-    # Only `organizations` has a deletion convention (`removed_at`) —
-    # see upsert.py's module docstring for why every other table's
-    # `record.deleted`/`list-entry.deleted` is deliberately a no-op here.
+    # `organizations` and `people` both have a deletion convention
+    # (`removed_at`) — see upsert.py's module docstring for why every other
+    # table's `record.deleted`/`list-entry.deleted` is deliberately a no-op
+    # here.
     "organizations": upsert.delete_organization,
+    "person": upsert.delete_person,
 }
 _LIST_SYNC = {
     "buyer_role": upsert.sync_buyer_role,
