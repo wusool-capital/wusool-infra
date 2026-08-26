@@ -42,6 +42,7 @@ doc for the tradeoff and a proposed periodic-spot-check follow-up.
 
 import asyncio
 import logging
+import time
 
 from sqlalchemy import text
 from wusool_db.models import BuyerRole, Deal, Organization, Person, SellerRole
@@ -122,12 +123,15 @@ async def _write_batches_concurrently(model, rows: list[dict]) -> tuple[int, int
     `returned_by_key` only covers rows written via the batch path (not the
     per-row fallback), for the content-consistency check."""
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
+    pages = _chunk(rows, _PAGE_SIZE)
 
-    async def _write_one(page: list[dict]):
+    async def _write_one(page: list[dict], label: str):
         async with semaphore:
-            return await upsert.upsert_batch_with_retry(model, page)
+            return await upsert.upsert_batch_with_retry(model, page, page_label=label)
 
-    results = await asyncio.gather(*(_write_one(page) for page in _chunk(rows, _PAGE_SIZE)))
+    results = await asyncio.gather(
+        *(_write_one(page, f"page {i + 1}/{len(pages)}") for i, page in enumerate(pages))
+    )
     ok = sum(r[0] for r in results)
     failed = sum(r[1] for r in results)
     returned: dict = {}
@@ -139,9 +143,14 @@ async def _write_batches_concurrently(model, rows: list[dict]) -> tuple[int, int
 async def _write_and_verify(
     model, table: str, rows: list[dict], expected_count: int
 ) -> tuple[int, int]:
+    started = time.monotonic()
     ok, failed, returned = await _write_batches_concurrently(model, rows)
     _logger.info(
-        "full resync: %s changed=%d unchanged=%d", table, len(returned), len(rows) - len(returned)
+        "full resync: %s changed=%d unchanged=%d write_duration=%.1fs",
+        table,
+        len(returned),
+        len(rows) - len(returned),
+        time.monotonic() - started,
     )
     conflict_col = upsert._CONFLICT_COL[model]
     intended_by_key = {r[conflict_col]: r["raw_attio"] for r in rows}
@@ -177,6 +186,7 @@ async def _reconcile_roles(
     and is_active PATCH-back is independent of every other org's. Returns
     the mapped params for every org that reconciled successfully, plus a
     count of orgs that failed to reconcile."""
+    started = time.monotonic()
     by_org = upsert.group_entries_by_org(entries)
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
 
@@ -195,6 +205,13 @@ async def _reconcile_roles(
         *(_reconcile_one(org_id, siblings) for org_id, siblings in by_org.items())
     )
     rows = [r for r in results if r is not None]
+    _logger.info(
+        "full resync: %s reconciled %d/%d orgs in %.1fs",
+        list_slug,
+        len(rows),
+        len(results),
+        time.monotonic() - started,
+    )
     return rows, len(results) - len(rows)
 
 
@@ -208,6 +225,7 @@ async def run() -> None:
 
 
 async def _run(client: AttioClient) -> None:
+    run_started = time.monotonic()
     summary: dict[str, tuple[int, int]] = {}
 
     users_synced = 0
@@ -222,6 +240,7 @@ async def _run(client: AttioClient) -> None:
     user_ids = await _existing_ids("users")
 
     # Fetch phase -- pure reads, safe to run concurrently.
+    fetch_started = time.monotonic()
     org_records, person_records, deal_records, buyer_entries, seller_entries = await asyncio.gather(
         _safe_fetch(
             _page_through(client, "/objects/organizations/records/query"), "organizations"
@@ -230,6 +249,16 @@ async def _run(client: AttioClient) -> None:
         _safe_fetch(_page_through(client, "/objects/deals/records/query"), "deals"),
         _safe_fetch(_page_through(client, "/lists/buyer_role/entries/query"), "buyer_role"),
         _safe_fetch(_page_through(client, "/lists/seller_role/entries/query"), "seller_role"),
+    )
+    _logger.info(
+        "full resync: fetch phase complete in %.1fs — organizations=%s person=%s deals=%s "
+        "buyer_role=%s seller_role=%s",
+        time.monotonic() - fetch_started,
+        "FAILED" if org_records is None else len(org_records),
+        "FAILED" if person_records is None else len(person_records),
+        "FAILED" if deal_records is None else len(deal_records),
+        "FAILED" if buyer_entries is None else len(buyer_entries),
+        "FAILED" if seller_entries is None else len(seller_entries),
     )
 
     # organizations
@@ -240,7 +269,6 @@ async def _run(client: AttioClient) -> None:
         summary["organizations"] = await _write_and_verify(
             Organization, "organizations", rows, len(org_records)
         )
-    _logger.info("full resync: organizations — %d records", len(org_records or []))
     org_ids = await _existing_ids("organizations")
 
     # people
@@ -249,7 +277,6 @@ async def _run(client: AttioClient) -> None:
     else:
         rows = [upsert._person_batch_params(r, org_ids, user_ids) for r in person_records]
         summary["person"] = await _write_and_verify(Person, "people", rows, len(person_records))
-    _logger.info("full resync: person — %d records", len(person_records or []))
     person_ids = await _existing_ids("people")
 
     # deals
@@ -260,7 +287,6 @@ async def _run(client: AttioClient) -> None:
             upsert._deal_batch_params(r, org_ids, person_ids, user_ids) for r in deal_records
         ]
         summary["deals"] = await _write_and_verify(Deal, "deals", rows, len(deal_records))
-    _logger.info("full resync: deals — %d records", len(deal_records or []))
 
     # buyer_role / seller_role -- reconcile duplicates per org concurrently,
     # then one batched write for every org's winner.
@@ -275,7 +301,6 @@ async def _run(client: AttioClient) -> None:
         )
         ok, write_failed = await _write_and_verify(BuyerRole, "buyer_roles", rows, len(rows))
         summary["buyer_role"] = (ok, reconcile_failed + write_failed)
-    _logger.info("full resync: buyer_role — %d records", len(buyer_entries or []))
 
     if seller_entries is None:
         summary["seller_role"] = (0, 1)
@@ -288,13 +313,17 @@ async def _run(client: AttioClient) -> None:
         )
         ok, write_failed = await _write_and_verify(SellerRole, "seller_roles", rows, len(rows))
         summary["seller_role"] = (ok, reconcile_failed + write_failed)
-    _logger.info("full resync: seller_role — %d records", len(seller_entries or []))
 
     total_ok = sum(ok for ok, _ in summary.values())
     total_failed = sum(failed for _, failed in summary.values())
     for slug, (ok, failed) in summary.items():
         _logger.info("full resync: %-14s synced=%-5d failed=%d", slug, ok, failed)
-    _logger.info("full resync complete: synced=%d failed=%d", total_ok, total_failed)
+    _logger.info(
+        "full resync complete: synced=%d failed=%d duration=%.1fs",
+        total_ok,
+        total_failed,
+        time.monotonic() - run_started,
+    )
 
     if total_failed:
         # Non-zero exit code — the SSM/GH Actions caller must see this as failed.

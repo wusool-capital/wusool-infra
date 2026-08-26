@@ -489,7 +489,14 @@ async def _reconcile_active_entry(
     siblings = sorted(siblings, key=lambda e: e.get("created_at") or "", reverse=True)
     winner, *losers = siblings
 
+    org_id = v.parent_id(winner)
     if v.boolean(v.vals(winner), "is_active") is not True:
+        _logger.info(
+            "full resync: correcting %s is_active=True for org %s entry %s",
+            list_slug,
+            org_id,
+            v.entry_id(winner),
+        )
         await patch_with_retry(
             client,
             f"/lists/{list_slug}/entries/{v.entry_id(winner)}",
@@ -497,6 +504,12 @@ async def _reconcile_active_entry(
         )
     for loser in losers:
         if v.boolean(v.vals(loser), "is_active") is not False:
+            _logger.info(
+                "full resync: correcting %s is_active=False for org %s entry %s",
+                list_slug,
+                org_id,
+                v.entry_id(loser),
+            )
             await patch_with_retry(
                 client,
                 f"/lists/{list_slug}/entries/{v.entry_id(loser)}",
@@ -839,15 +852,20 @@ async def _upsert_batch(model, rows: list[dict]) -> dict[str, dict]:
         return returned
 
 
-async def upsert_batch_with_retry(model, rows: list[dict]) -> tuple[int, int, dict[str, dict]]:
+async def upsert_batch_with_retry(
+    model, rows: list[dict], page_label: str = ""
+) -> tuple[int, int, dict[str, dict]]:
     """Batches `rows` for `model`; on a transient DB error, retries the
     whole batch with backoff; on any other error (e.g. one malformed row),
     falls back to the existing single-row `text()` upsert one row at a time
     so a single bad row is reported and skipped instead of losing the whole
     page. Returns `(ok, failed, returned_by_key)` -- the last only populated
-    on the batch-success path, for the content-consistency check.
+    on the batch-success path, for the content-consistency check. `page_label`
+    is purely for tracing (e.g. "page 2/7") when a caller writes several
+    pages of the same table concurrently -- optional, defaults to blank.
     """
     conflict_col = _CONFLICT_COL[model]
+    table_name = _MODEL_TABLE[model]
     for attempt in range(3):
         try:
             returned = await _upsert_batch(model, rows)
@@ -855,18 +873,27 @@ async def upsert_batch_with_retry(model, rows: list[dict]) -> tuple[int, int, di
         except OperationalError:
             if attempt == 2:
                 break
-            await asyncio.sleep(min(30, 5 * (attempt + 1)))
+            delay = min(30, 5 * (attempt + 1))
+            _logger.warning(
+                "full resync: %s %s batch upsert attempt %d failed (transient), retrying in %ds",
+                table_name,
+                page_label,
+                attempt + 1,
+                delay,
+                exc_info=True,
+            )
+            await asyncio.sleep(delay)
         except Exception:
             break  # not transient (e.g. a bad row) -- don't retry the whole batch again
 
     _logger.warning(
-        "full resync: batch upsert failed for %s (%d rows), falling back to per-row",
-        _MODEL_TABLE[model],
+        "full resync: batch upsert failed for %s %s (%d rows), falling back to per-row",
+        table_name,
+        page_label,
         len(rows),
     )
     ok = failed = 0
     single_stmt = _MODEL_UPSERT_SQL[model]
-    table_name = _MODEL_TABLE[model]
     async with get_sessionmaker()() as session:
         for row in rows:
             try:

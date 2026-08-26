@@ -54,7 +54,7 @@ def test_chunk_empty_list() -> None:
 async def test_write_batches_concurrently_aggregates_across_pages(monkeypatch) -> None:
     calls = []
 
-    async def fake_upsert_batch_with_retry(model, page):
+    async def fake_upsert_batch_with_retry(model, page, page_label=""):
         calls.append(page)
         return len(page), 0, {row["attio_id"]: row["raw_attio"] for row in page}
 
