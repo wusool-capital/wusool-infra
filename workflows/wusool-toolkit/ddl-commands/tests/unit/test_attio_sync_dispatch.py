@@ -83,13 +83,25 @@ async def test_record_deleted_dispatches_to_delete_fn(monkeypatch) -> None:
     assert calls == ["org-1"]
 
 
-async def test_record_deleted_for_table_without_delete_handling_is_a_noop(monkeypatch) -> None:
+async def test_person_record_deleted_dispatches_to_delete_fn(monkeypatch) -> None:
     calls = []
-    monkeypatch.setitem(dispatch._OBJECT_SYNC, "person", _async_recorder(calls, arity=2))
+    monkeypatch.setitem(dispatch._OBJECT_DELETE, "person", _async_recorder(calls, arity=1))
 
     await dispatch.dispatch_event(
         _FakeClient(),
         _event("record.deleted", object_id="person-object-uuid", record_id="person-1"),
+    )
+
+    assert calls == ["person-1"]
+
+
+async def test_record_deleted_for_table_without_delete_handling_is_a_noop(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setitem(dispatch._OBJECT_SYNC, "deals", _async_recorder(calls, arity=2))
+
+    await dispatch.dispatch_event(
+        _FakeClient(),
+        _event("record.deleted", object_id="deals-object-uuid", record_id="deal-1"),
     )
 
     assert calls == []  # sync_fn must not run for a deleted record
