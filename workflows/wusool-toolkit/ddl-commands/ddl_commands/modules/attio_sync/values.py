@@ -6,6 +6,8 @@ operating on one fetched record/entry instead of a paged-through list.
 
 from __future__ import annotations
 
+from datetime import date as _date
+from datetime import datetime as _datetime
 from typing import Any
 
 
@@ -91,6 +93,24 @@ def number(v: dict, slug: str) -> float | None:
 def integer(v: dict, slug: str) -> int | None:
     value = number(v, slug)
     return None if value is None else int(value)
+
+
+def date(v: dict, slug: str) -> _date | None:
+    """`first`'s raw `date`-type value is a plain `"YYYY-MM-DD"` string —
+    asyncpg's binary protocol rejects a bare `str` for a `DATE` column
+    (needs `datetime.date`), so every `date`-typed Postgres column must go
+    through this, never `first` directly.
+    """
+    raw = first(v, slug)
+    return _date.fromisoformat(raw) if raw else None
+
+
+def timestamp(v: dict, slug: str) -> _datetime | None:
+    """Same rule as `date`, for `timestamp`-type values feeding a
+    `TIMESTAMP` column — asyncpg needs `datetime.datetime`, not `str`.
+    """
+    raw = first(v, slug)
+    return _datetime.fromisoformat(raw) if raw else None
 
 
 def money(v: dict, slug: str) -> dict | None:

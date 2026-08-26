@@ -8,6 +8,7 @@ transaction boundary.
 """
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from wusool_db.models import Organization
@@ -65,10 +66,26 @@ class OrganizationRepository:
 
     async def create(self, attio_id: str, name: str, **fields) -> Organization:
         """`attio_id` is always Attio's own `record_id` from a create that
-        already succeeded there — this method never invents one."""
-        org = Organization(attio_id=attio_id, name=name, **fields)
-        self._session.add(org)
+        already succeeded there — this method never invents one.
+
+        Upserts (`ON CONFLICT ... DO NOTHING`) rather than a plain insert:
+        with the Attio webhook live, `record.created` for this same
+        `attio_id` can reach `attio_sync.upsert.sync_organization` and land
+        first, since that path is a single re-fetch-and-upsert while this
+        one still has a role entry left to create in Attio first. On that
+        race, the webhook's row — fetched straight from Attio, so at least
+        as complete as this call's operator-entered subset — wins untouched
+        rather than this raising `UniqueViolationError`.
+        """
+        stmt = (
+            pg_insert(Organization)
+            .values(attio_id=attio_id, name=name, **fields)
+            .on_conflict_do_nothing(index_elements=["attio_id"])
+        )
+        await self._session.execute(stmt)
         await self._session.flush()
+        org = await self.get_by_id(attio_id)
+        assert org is not None
         return org
 
     async def update(self, attio_id: str, **fields) -> Organization | None:
