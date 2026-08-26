@@ -69,12 +69,14 @@ class Deal(Base):
     data_room_substatus: Mapped[str | None] = mapped_column(Text)
     comparables: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     # Added 2026-08-19 alongside the DEV Attio attributes of the same names
-    # (Wusool Schema Handover artifact). `estimated_deal_value_aed` and `fee`
+    # (Wusool Schema Handover artifact). `estimated_deal_value_usd` and `fee`
     # are real DEV Attio type "number" (plain scalar), not "currency" — no
     # money-shape wrapping, unlike `value` above. `assigned_advisor` is a
     # plain multiselect of advisor names, not a workspace-member/User FK.
+    # Renamed from `estimated_deal_value_aed` 2026-08-25 (AED -> USD cleanup);
+    # see c1a9f4e83d67's follow-up migration.
     nda_status: Mapped[str | None] = mapped_column(Text)
-    estimated_deal_value_aed: Mapped[Decimal | None] = mapped_column(Numeric)
+    estimated_deal_value_usd: Mapped[Decimal | None] = mapped_column(Numeric)
     expected_close_date: Mapped[date | None] = mapped_column()
     fee: Mapped[Decimal | None] = mapped_column(Numeric)
     assigned_advisor: Mapped[list[str]] = mapped_column(

@@ -32,10 +32,10 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("profitable_only", "Profitable only", "bool"),
     FieldSpec("investment_strategy", "Investment strategy", "multiline"),
     FieldSpec("notes", "Notes", "multiline"),
-    FieldSpec("ebitda_floor", "EBITDA floor (AED)", "currency"),
-    FieldSpec("check_size_min", "Check size - min (AED)", "currency"),
-    FieldSpec("check_size_max", "Check size - max (AED)", "currency"),
-    FieldSpec("ev_ceiling", "EV ceiling (AED)", "currency"),
+    FieldSpec("ebitda_floor", "EBITDA floor (USD)", "currency"),
+    FieldSpec("check_size_min", "Check size - min (USD)", "currency"),
+    FieldSpec("check_size_max", "Check size - max (USD)", "currency"),
+    FieldSpec("ev_ceiling", "EV ceiling (USD)", "currency"),
 )
 
 BUYER_ROLE_FIELDS_BY_NAME = {f.name: f for f in BUYER_ROLE_FIELDS}

@@ -377,10 +377,10 @@ BuyerContext(
     org_name="Acme Capital",
     model="Buy-and-build platform",
     mandate_status="Active",
-    ebitda_floor=Money(amount=5_000_000, currency="AED"),
-    check_size_min=Money(amount=20_000_000, currency="AED"),
-    check_size_max=Money(amount=80_000_000, currency="AED"),
-    ev_ceiling=Money(amount=150_000_000, currency="AED"),
+    ebitda_floor=Money(amount=5_000_000, currency="USD"),
+    check_size_min=Money(amount=20_000_000, currency="USD"),
+    check_size_max=Money(amount=80_000_000, currency="USD"),
+    ev_ceiling=Money(amount=150_000_000, currency="USD"),
     deal_structure_tolerance="Majority or full acquisition only",
     earnout_tolerance="Up to 20% of consideration",
     profitable_only=True,
@@ -432,7 +432,7 @@ ideal_target_description, scoring_rubric, data_confidence}.
 ...
 Organization: Acme Capital
 Known structured buyer fields: {'model': 'Buy-and-build platform',
-  'mandate_status': 'Active', 'ebitda_floor': Money(5,000,000 AED), ...}
+  'mandate_status': 'Active', 'ebitda_floor': Money(5,000,000 USD), ...}
 Investment strategy (free text): We acquire profitable healthcare services
   businesses based in Saudi Arabia. We do not invest in fintech. Looking
   for founder-led operators with recurring revenue.

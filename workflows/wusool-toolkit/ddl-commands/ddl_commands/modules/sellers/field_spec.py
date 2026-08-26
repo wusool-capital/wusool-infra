@@ -74,12 +74,12 @@ SELLER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
         ),
     ),
     FieldSpec("re_engage_date", "Re-engage date", "date"),
-    FieldSpec("est_revenue", "Est. revenue (AED)", "currency"),
-    FieldSpec("est_ebitda", "Est. EBITDA (AED)", "currency"),
-    FieldSpec("owner_salary", "Owner salary (AED)", "currency"),
-    FieldSpec("valuation_low", "Valuation - low (AED)", "currency"),
-    FieldSpec("valuation_mid", "Valuation - mid (AED)", "currency"),
-    FieldSpec("valuation_high", "Valuation - high (AED)", "currency"),
+    FieldSpec("est_revenue", "Est. revenue (USD)", "currency"),
+    FieldSpec("est_ebitda", "Est. EBITDA (USD)", "currency"),
+    FieldSpec("owner_salary", "Owner salary (USD)", "currency"),
+    FieldSpec("valuation_low", "Valuation - low (USD)", "currency"),
+    FieldSpec("valuation_mid", "Valuation - mid (USD)", "currency"),
+    FieldSpec("valuation_high", "Valuation - high (USD)", "currency"),
 )
 
 SELLER_ROLE_FIELDS_BY_NAME = {f.name: f for f in SELLER_ROLE_FIELDS}

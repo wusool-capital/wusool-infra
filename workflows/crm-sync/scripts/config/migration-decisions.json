@@ -70,7 +70,7 @@
       "no_longer_synced_from": "SOURCE buyer_brain.mandate_details"
     },
     "buyer_role.typical_check_size": {
-      "reason": "Redundant with the existing buyer_role.check_size_min/check_size_max fields -- typical_check_size was a coarse 4-option USD range bucket, check_size_min/max are real AED figures. SOURCE's typical_check_size_7 is still read (not dropped as an input), but only to backfill check_size_min/max when SOURCE left them blank -- see the backfill logic in _internal/lists.ps1's Invoke-BuyerRole. It is never written back to a DEV typical_check_size attribute anymore.",
+      "reason": "Redundant with the existing buyer_role.check_size_min/check_size_max fields -- typical_check_size was a coarse 4-option USD range bucket, check_size_min/max are real USD figures. SOURCE's typical_check_size_7 is still read (not dropped as an input), but only to backfill check_size_min/max when SOURCE left them blank -- see the backfill logic in _internal/lists.ps1's Invoke-BuyerRole. It is never written back to a DEV typical_check_size attribute anymore.",
       "status": "archived_in_dev_attio",
       "no_longer_synced_from": "DEV buyer_role.typical_check_size (SOURCE buyer_brain.typical_check_size_7 is still read, only to backfill check_size_min/max)"
     },

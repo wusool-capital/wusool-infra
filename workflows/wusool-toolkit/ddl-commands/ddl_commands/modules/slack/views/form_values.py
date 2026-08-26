@@ -86,7 +86,7 @@ def money_input_blocks(field: str, label: str, money: dict | None) -> list[dict]
     currency = money.get("currency") if money else None
     return [
         number_input_block(f"{field}_amount", f"{label} — amount", amount),
-        text_input_block(f"{field}_currency", f"{label} — currency (e.g. AED)", currency),
+        text_input_block(f"{field}_currency", f"{label} — currency (e.g. USD)", currency),
     ]
 
 

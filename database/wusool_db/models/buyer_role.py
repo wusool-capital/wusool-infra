@@ -75,7 +75,7 @@ class BuyerRole(Base):
     )
     # typical_check_size dropped 2026-08-23: redundant with check_size_min/max
     # above -- it was a coarse 4-option USD range bucket, backfilled into
-    # those two real AED figures rather than kept as its own column. See
+    # those two real USD figures rather than kept as its own column. See
     # migration-decisions.json's dropped_fields.
     last_mandate_briefing_date: Mapped[date | None] = mapped_column()
     prior_gcc_acquisition: Mapped[str | None] = mapped_column(Text)

@@ -184,7 +184,13 @@ function Add-EntryScalar {
     [object]$Entry,
     [string]$SourceSlug,
     [string]$TargetSlug,
-    [ValidateSet("plain", "currency")][string]$Kind = "plain"
+    [ValidateSet("plain", "currency")][string]$Kind = "plain",
+    # SOURCE's own *_aed fields are real AED figures; DEV's equivalent
+    # currency attributes now default to USD (2026-08-25 cleanup) -- set this
+    # so the migrated number is an actual USD-equivalent, not an AED number
+    # under a USD label. Fixed peg (1 USD = 3.6725 AED), matching the rate
+    # already used elsewhere in this file's check_size backfill.
+    [switch]$AedToUsd
   )
   $raw = Get-Value -Values $Entry.entry_values -Slug $SourceSlug
   if ($null -eq $raw) { return }
@@ -193,7 +199,9 @@ function Add-EntryScalar {
     if ([string]::IsNullOrWhiteSpace($raw)) { return }
   }
   if ($Kind -eq "currency") {
-    $Target[$TargetSlug] = @{ currency_value = [decimal]$raw }
+    $amount = [decimal]$raw
+    if ($AedToUsd) { $amount = [Math]::Round($amount / [decimal]3.6725, 2) }
+    $Target[$TargetSlug] = @{ currency_value = $amount }
   } else {
     $Target[$TargetSlug] = $raw
   }
@@ -342,10 +350,10 @@ foreach ($group in $groups) {
     $values = @{}
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "buyer_model" -TargetSlug "model"
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "mandate_status" -TargetSlug "mandate_status"
-    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ebitda_floor_aed" -TargetSlug "ebitda_floor" -Kind currency
-    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "check_size_min_aed" -TargetSlug "check_size_min" -Kind currency
-    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "check_size_max_aed" -TargetSlug "check_size_max" -Kind currency
-    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ev_ceiling_aed" -TargetSlug "ev_ceiling" -Kind currency
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ebitda_floor_aed" -TargetSlug "ebitda_floor" -Kind currency -AedToUsd
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "check_size_min_aed" -TargetSlug "check_size_min" -Kind currency -AedToUsd
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "check_size_max_aed" -TargetSlug "check_size_max" -Kind currency -AedToUsd
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ev_ceiling_aed" -TargetSlug "ev_ceiling" -Kind currency -AedToUsd
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "earnout_tolerance" -TargetSlug "earnout_tolerance"
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "profitable_companies_only_mandate" -TargetSlug "profitable_only"
     Add-EntryText -Target $values -Entry $entry -SourceSlug "investment_strategy" -TargetSlug "investment_strategy"
@@ -359,7 +367,7 @@ foreach ($group in $groups) {
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "deal_structure_tolerance" -TargetSlug "deal_structure_tolerance"
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "deals_introduced_count" -TargetSlug "deals_introduced"
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "deals_converted_count" -TargetSlug "deals_converted"
-    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ebitda_ceiling_aed" -TargetSlug "ebitda_ceiling" -Kind currency
+    Add-EntryScalar -Target $values -Entry $entry -SourceSlug "ebitda_ceiling_aed" -TargetSlug "ebitda_ceiling" -Kind currency -AedToUsd
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "estimated_aum_usd" -TargetSlug "estimated_aum" -Kind currency
     Add-EntryText -Target $values -Entry $entry -SourceSlug "notable_investments" -TargetSlug "notable_investments"
     Add-EntryText -Target $values -Entry $entry -SourceSlug "key_personnel" -TargetSlug "key_personnel"
@@ -373,17 +381,18 @@ foreach ($group in $groups) {
     # Backfill check_size_min/max from SOURCE's typical_check_size_7 when
     # SOURCE left them blank (2026-08-23 decision). typical_check_size_7 is a
     # coarse USD range bucket picked from a fixed 4-option set; check_size_min/max
-    # are real, more-precise AED figures -- never overwrite an already-resolved
+    # are real, more-precise USD figures -- never overwrite an already-resolved
     # real value with this coarse approximation, only fill in whichever of
-    # min/max SOURCE didn't provide. Converted at the USD/AED peg (1 USD =
-    # 3.6725 AED). Multiselect-safe (the field allows it, even though no
-    # live entry currently selects more than one): takes the envelope
-    # (lowest min, highest max) across every option selected. DEV's own
-    # typical_check_size attribute was dropped 2026-08-23 (redundant with
-    # check_size_min/max) -- this only ever reads the SOURCE value now, never
-    # writes it back to DEV. See migration-decisions.json's dropped_fields.
+    # min/max SOURCE didn't provide. No currency conversion needed -- both
+    # sides are USD as of the 2026-08-25 AED->USD cleanup (previously converted
+    # at a fixed USD/AED peg, back when check_size_min/max were AED). Multiselect
+    # -safe (the field allows it, even though no live entry currently selects
+    # more than one): takes the envelope (lowest min, highest max) across every
+    # option selected. DEV's own typical_check_size attribute was dropped
+    # 2026-08-23 (redundant with check_size_min/max) -- this only ever reads
+    # the SOURCE value now, never writes it back to DEV. See
+    # migration-decisions.json's dropped_fields.
     if ($checkSizeTitles.Count -gt 0 -and (-not $values.ContainsKey("check_size_min") -or -not $values.ContainsKey("check_size_max"))) {
-      $usdToAed = [decimal]3.6725
       $checkSizeRanges = @{
         'Under $1M' = @{ MinUsd = [decimal]0;        MaxUsd = [decimal]1000000 }
         '$1-5M'     = @{ MinUsd = [decimal]1000000;  MaxUsd = [decimal]5000000 }
@@ -396,8 +405,8 @@ foreach ($group in $groups) {
       foreach ($title in $checkSizeTitles) {
         if (-not $checkSizeRanges.ContainsKey($title)) { continue }
         $range = $checkSizeRanges[$title]
-        $mins.Add($range.MinUsd * $usdToAed)
-        if ($null -eq $range.MaxUsd) { $hasOpenEnded = $true } else { $maxes.Add($range.MaxUsd * $usdToAed) }
+        $mins.Add($range.MinUsd)
+        if ($null -eq $range.MaxUsd) { $hasOpenEnded = $true } else { $maxes.Add($range.MaxUsd) }
       }
       if ($mins.Count -gt 0 -and -not $values.ContainsKey("check_size_min")) {
         $values["check_size_min"] = @{ currency_value = ($mins | Measure-Object -Minimum).Minimum }
@@ -773,7 +782,13 @@ function Add-EntryScalar {
     [object]$Entry,
     [string]$SourceSlug,
     [string]$TargetSlug,
-    [switch]$Currency
+    [switch]$Currency,
+    # SOURCE's own *_aed fields are real AED figures; DEV's equivalent
+    # currency attributes now default to USD (2026-08-25 cleanup) -- set this
+    # so the migrated number is an actual USD-equivalent, not an AED number
+    # under a USD label. Fixed peg (1 USD = 3.6725 AED), matching the rate
+    # already used elsewhere in this file's check_size backfill.
+    [switch]$AedToUsd
   )
   $raw = Get-Value -Values $Entry.entry_values -Slug $SourceSlug
   if ($null -eq $raw) { return }
@@ -782,7 +797,9 @@ function Add-EntryScalar {
     if ([string]::IsNullOrWhiteSpace($raw)) { return }
   }
   if ($Currency) {
-    $Target[$TargetSlug] = @{ currency_value = [decimal]$raw }
+    $amount = [decimal]$raw
+    if ($AedToUsd) { $amount = [Math]::Round($amount / [decimal]3.6725, 2) }
+    $Target[$TargetSlug] = @{ currency_value = $amount }
   } else {
     $Target[$TargetSlug] = $raw
   }
@@ -878,8 +895,8 @@ foreach ($group in $groups) {
     Add-EntryScalar $values $entry "outreach_tier" "outreach_tier"
     Add-EntryScalar $values $entry "seller_appetite_signal" "appetite_signal"
     Add-EntryScalar $values $entry "relationship_status" "relationship_status"
-    Add-EntryScalar $values $entry "estimated_annual_revenue_aed" "est_revenue" -Currency
-    Add-EntryScalar $values $entry "estimated_ebitda_aed" "est_ebitda" -Currency
+    Add-EntryScalar $values $entry "estimated_annual_revenue_aed" "est_revenue" -Currency -AedToUsd
+    Add-EntryScalar $values $entry "estimated_ebitda_aed" "est_ebitda" -Currency -AedToUsd
     Add-EntryScalar $values $entry "outreach_score" "readiness_score"
     Add-EntryScalar $values $entry "re_engage_date" "re_engage_date"
 

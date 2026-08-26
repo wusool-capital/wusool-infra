@@ -132,7 +132,7 @@ def test_build_postgres_values_wraps_currency_with_fixed_code() -> None:
     result = build_postgres_values(
         table="seller_role", fields={"est_revenue": _CURRENCY}, extracted={"est_revenue": 250.0}
     )
-    assert result == {"est_revenue": {"amount": 250.0, "currency": "AED"}}
+    assert result == {"est_revenue": {"amount": 250.0, "currency": "USD"}}
 
 
 def test_build_postgres_values_passes_non_currency_through() -> None:

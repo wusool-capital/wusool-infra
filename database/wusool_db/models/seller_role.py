@@ -63,6 +63,19 @@ class SellerRole(Base):
     # but legacy_entry_id still records which exact DEV entry this row came from.
     is_active: Mapped[bool | None] = mapped_column()
     legacy_entry_id: Mapped[str | None] = mapped_column(Text)
+    # Lead Magnet questionnaire fields (2026-08-25) -- money shape matches
+    # est_revenue/est_ebitda/owner_salary: {"amount": ..., "currency": ...}
+    # or NULL, never fabricated when absent.
+    years_active: Mapped[int | None] = mapped_column()
+    funding_stage: Mapped[str | None] = mapped_column(Text)
+    revenue_last_full_year: Mapped[dict | None] = mapped_column(JSONB)
+    revenue_year_before: Mapped[dict | None] = mapped_column(JSONB)
+    gross_margin_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    ebitda_deducts_salary: Mapped[bool | None] = mapped_column()
+    annual_rent_cost: Mapped[dict | None] = mapped_column(JSONB)
+    largest_customer_revenue_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    repeat_revenue_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    location_count: Mapped[int | None] = mapped_column()
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

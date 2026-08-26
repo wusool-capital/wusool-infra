@@ -1045,6 +1045,12 @@ function CheckboxValue($vs,$slug){
 function MoneyValue($vs,$slug){
   $x=@($vs.$slug)|Where-Object{$null-eq$_.active_until}|Select-Object -First 1
   if($null-eq$x-or$null-eq$x.currency_value){return $null}
+  # NOT converted to USD, unlike the other AED fields in this AED->USD
+  # cleanup (2026-08-25): "value" is Attio's built-in System attribute on
+  # Deals, and Attio rejects any config change on System attributes (confirmed
+  # live: HTTP 400 system_edit_unauthorized on both "title" and "config").
+  # Its currency is permanently stuck at AED, so converting the number here
+  # would produce a wrong figure under a label that can never change to match.
   if([string]$x.currency_code-ne"AED"){throw "Unexpected SOURCE Deal currency '$($x.currency_code)'; DEV Deal value is configured for AED."}
   return @{currency_value=[decimal]$x.currency_value}
 }
@@ -1155,7 +1161,11 @@ foreach($s in $source){
   $exclusivityStart=Value $s.values "exclusivity_start_date";if($exclusivityStart){$values.contract_signed_date=[string]$exclusivityStart}
   $exclusivityEnd=Value $s.values "exclusivity_end_date";if($exclusivityEnd){$values.exclusivity_date=[string]$exclusivityEnd}
   $ndaStatus=Value $s.values "nda_status";if($ndaStatus){$values.nda_status=[string]$ndaStatus}
-  $estDealValue=Value $s.values "estimated_deal_value_aed";if($null-ne$estDealValue){$values.estimated_deal_value_aed=$estDealValue}
+  # SOURCE's estimated_deal_value_aed is a real AED figure; DEV's renamed
+  # estimated_deal_value_usd now expects USD (2026-08-25 cleanup) -- divide
+  # by the fixed peg (1 USD = 3.6725 AED) instead of copying the raw number,
+  # same conversion as lists.ps1's Add-EntryScalar -AedToUsd.
+  $estDealValue=Value $s.values "estimated_deal_value_aed";if($null-ne$estDealValue){$values.estimated_deal_value_usd=[Math]::Round([decimal]$estDealValue/[decimal]3.6725,2)}
   $expectedClose=Value $s.values "expected_close_date";if($expectedClose){$values.expected_close_date=[string]$expectedClose}
   $fee=Value $s.values "fee";if($null-ne$fee){$values.fee=$fee}
   $advisorNames=@(Values $s.values "assigned_advisor")

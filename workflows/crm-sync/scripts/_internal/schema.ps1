@@ -674,7 +674,13 @@ $fields=@(
   [pscustomobject]@{Title="Counterparty Interested";Slug="counterparty_interested";Type="number";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Mandate Start Date";Slug="start_date";Type="date";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Mandate Expiry Date";Slug="expiry_date";Type="date";Config=@{};RenameFrom=$null},
-  [pscustomobject]@{Title="Retainer Amount";Slug="retainer_amount";Type="currency";Config=@{currency=@{default_currency_code="AED";display_type="symbol"}};RenameFrom=$null},
+  # "value" deliberately NOT managed here -- it's Attio's built-in System
+  # attribute on Deals. Confirmed live (2026-08-25): Attio rejects ANY config
+  # PATCH on a System attribute (HTTP 400 system_edit_unauthorized, on both
+  # "title" and "config"/entity_reference), so its currency is permanently
+  # stuck at whatever it was set to. Left as AED -- see objects.ps1's
+  # MoneyValue, which correspondingly does NOT convert it.
+  [pscustomobject]@{Title="Retainer Amount";Slug="retainer_amount";Type="currency";Config=@{currency=@{default_currency_code="USD";display_type="symbol"}};RenameFrom=$null},
   [pscustomobject]@{Title="Source Mandate Entry ID";Slug="source_mandate_entry_id";Type="text";Config=@{};RenameFrom=$null},
   # Created directly via the API when first migrated (2026-07-19), never
   # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
@@ -682,7 +688,7 @@ $fields=@(
   # Organization/Person/Buyer Role/Seller Role the same day).
   [pscustomobject]@{Title="Teaser Status";Slug="teaser_status";Type="select";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="NDA Status";Slug="nda_status";Type="select";Config=@{};RenameFrom=$null},
-  [pscustomobject]@{Title="Estimated Deal Value (AED)";Slug="estimated_deal_value_aed";Type="number";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Estimated Deal Value (USD)";Slug="estimated_deal_value_usd";Type="number";Config=@{};RenameFrom="estimated_deal_value_aed"},
   [pscustomobject]@{Title="Expected Close Date";Slug="expected_close_date";Type="date";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Fee %";Slug="fee";Type="number";Config=@{};RenameFrom=$null},
   # Only known multiselect among these custom Deal fields -- Multi=$true is
@@ -700,7 +706,18 @@ foreach($field in $fields){
         Request Patch "/objects/deals/attributes/$($current.id.attribute_id)" @{data=@{title=$field.Title}}|Out-Null
         Write-Host "RENAMED: $($field.Slug) -> $($field.Title)"
       }else{Write-Host "DRY RUN: would rename $($field.Slug) to '$($field.Title)'."}
-    }else{Write-Host "EXISTS: $($field.Slug)"}
+    }
+    # A currency field's default_currency_code is config, not the title check
+    # above -- so it never caught the AED->USD drift (2026-08-25 cleanup).
+    # Patched here instead of silently staying AED.
+    if($field.Type-eq"currency"-and$field.Config.currency-and
+        [string]$current.config.currency.default_currency_code-ne[string]$field.Config.currency.default_currency_code){
+      $actions.Add("update_currency:$($field.Slug)")
+      if($Apply){
+        Request Patch "/objects/deals/attributes/$($current.id.attribute_id)" @{data=@{config=$field.Config}}|Out-Null
+        Write-Host "CURRENCY UPDATED: $($field.Slug) -> $($field.Config.currency.default_currency_code)"
+      }else{Write-Host "DRY RUN: would update $($field.Slug) default currency to $($field.Config.currency.default_currency_code)."}
+    }elseif([string]$current.title-eq$field.Title){Write-Host "EXISTS: $($field.Slug)"}
     continue
   }
   if($field.RenameFrom-and$attrs.ContainsKey($field.RenameFrom)){
@@ -880,10 +897,10 @@ if (-not $devListMap.ContainsKey("buyer_role")) {
 $fields = @(
   [pscustomobject]@{ Title="Model"; Slug="model"; Type="select"; Multi=$false; SourceOption="buyer_model"; Config=@{} },
   [pscustomobject]@{ Title="Mandate Status"; Slug="mandate_status"; Type="select"; Multi=$false; SourceOption="mandate_status"; Config=@{} },
-  [pscustomobject]@{ Title="EBITDA Floor"; Slug="ebitda_floor"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Check Size Min"; Slug="check_size_min"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Check Size Max"; Slug="check_size_max"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="EV Ceiling"; Slug="ev_ceiling"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
+  [pscustomobject]@{ Title="EBITDA Floor"; Slug="ebitda_floor"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Check Size Min"; Slug="check_size_min"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Check Size Max"; Slug="check_size_max"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="EV Ceiling"; Slug="ev_ceiling"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
   [pscustomobject]@{ Title="Deal Structure Tolerance"; Slug="deal_structure_tolerance"; Type="select"; Multi=$false; SourceOption=$null; FixedOptions=@("Majority","Minority","Flexible","Acquisition Financing"); Config=@{} },
   [pscustomobject]@{ Title="Earnout Tolerance"; Slug="earnout_tolerance"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Profitable Only"; Slug="profitable_only"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} },
@@ -897,7 +914,7 @@ $fields = @(
   # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
   # like every other field instead of silently trusted (same gap fixed for
   # Organization/Person the same day).
-  [pscustomobject]@{ Title="EBITDA Ceiling"; Slug="ebitda_ceiling"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
+  [pscustomobject]@{ Title="EBITDA Ceiling"; Slug="ebitda_ceiling"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
   [pscustomobject]@{ Title="Estimated AUM"; Slug="estimated_aum"; Type="currency"; Multi=$false; SourceOption=$null; Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol" } } },
   [pscustomobject]@{ Title="Notable Investments"; Slug="notable_investments"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Key Personnel"; Slug="key_personnel"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
@@ -946,7 +963,24 @@ foreach ($field in $fields) {
       }
       $attributes.Remove($field.Slug)
     } else {
-      Write-Host "EXISTS: $($field.Slug)"
+      # Existing attributes are otherwise left alone by this loop -- but a
+      # currency field's default_currency_code is config, not type/cardinality,
+      # so the type/multiselect check above never catches an AED->USD drift
+      # (2026-08-25 cleanup). Patched here instead of silently staying AED.
+      if ($field.Type -eq "currency" -and $field.Config.currency -and
+          [string]$current.config.currency.default_currency_code -ne [string]$field.Config.currency.default_currency_code) {
+        $actions.Add("update_currency:$($field.Slug)")
+        if ($Apply) {
+          Invoke-AttioRequest -Method Patch -Headers $devHeaders `
+            -Path "/lists/buyer_role/attributes/$([string]$current.id.attribute_id)" `
+            -Body @{ data = @{ config = $field.Config } } | Out-Null
+          Write-Host "CURRENCY UPDATED: $($field.Slug) -> $($field.Config.currency.default_currency_code)"
+        } else {
+          Write-Host "DRY RUN: would update $($field.Slug) default currency to $($field.Config.currency.default_currency_code)."
+        }
+      } else {
+        Write-Host "EXISTS: $($field.Slug)"
+      }
       continue
     }
   }
@@ -1169,12 +1203,12 @@ $fields = @(
   [pscustomobject]@{ Title="Outreach Tier"; Slug="outreach_tier"; Type="select"; SourceOptions=@("outreach_tier"); Config=@{} },
   [pscustomobject]@{ Title="Appetite Signal"; Slug="appetite_signal"; Type="select"; SourceOptions=@("seller_appetite_signal"); Config=@{} },
   [pscustomobject]@{ Title="Relationship Status"; Slug="relationship_status"; Type="select"; SourceOptions=@("relationship_status"); Config=@{} },
-  [pscustomobject]@{ Title="Estimated Revenue"; Slug="est_revenue"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Estimated EBITDA"; Slug="est_ebitda"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Owner Salary"; Slug="owner_salary"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Valuation Low"; Slug="valuation_low"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Valuation Mid"; Slug="valuation_mid"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
-  [pscustomobject]@{ Title="Valuation High"; Slug="valuation_high"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="AED"; display_type="symbol" } } },
+  [pscustomobject]@{ Title="Estimated Revenue"; Slug="est_revenue"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Estimated EBITDA"; Slug="est_ebitda"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Owner Salary"; Slug="owner_salary"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Valuation Low"; Slug="valuation_low"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Valuation Mid"; Slug="valuation_mid"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Valuation High"; Slug="valuation_high"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
   [pscustomobject]@{ Title="Sell Timeline"; Slug="sell_timeline"; Type="select"; SourceOptions=@(); TargetOptions=@("Immediate","Within 6 Months","6-12 Months","12-24 Months","Not Selling"); Config=@{} },
   [pscustomobject]@{ Title="Readiness Score"; Slug="readiness_score"; Type="number"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Readiness Band"; Slug="readiness_band"; Type="select"; SourceOptions=@(); Config=@{} },
@@ -1188,7 +1222,19 @@ $fields = @(
   # like every other field instead of silently trusted (same gap fixed for
   # Organization/Person/Buyer Role the same day).
   [pscustomobject]@{ Title="Is Active"; Slug="is_active"; Type="checkbox"; SourceOptions=@(); Config=@{} },
-  [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; SourceOptions=@(); Config=@{} }
+  [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; SourceOptions=@(); Config=@{} },
+  # Lead Magnet questionnaire fields (2026-08-25) -- no SOURCE equivalent,
+  # manually maintained like Sell Timeline/Readiness Score above.
+  [pscustomobject]@{ Title="Years Active"; Slug="years_active"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Funding Stage"; Slug="funding_stage"; Type="select"; SourceOptions=@(); TargetOptions=@("Bootstrapped","Pre-Seed","Seed","Series A","Series B","Series C+","Not Applicable"); Config=@{} },
+  [pscustomobject]@{ Title="Revenue Last Full Year"; Slug="revenue_last_full_year"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Revenue Year Before"; Slug="revenue_year_before"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Gross Margin %"; Slug="gross_margin_pct"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="EBITDA Deducts Salary"; Slug="ebitda_deducts_salary"; Type="checkbox"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Annual Rent Cost"; Slug="annual_rent_cost"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Largest Customer Revenue %"; Slug="largest_customer_revenue_pct"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Repeat Revenue %"; Slug="repeat_revenue_pct"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Location Count"; Slug="location_count"; Type="number"; SourceOptions=@(); Config=@{} }
 )
 
 if ($Apply -and -not $devListMap.ContainsKey("seller_role")) {
@@ -1209,7 +1255,24 @@ foreach ($field in $fields) {
     if ([string]$current.type -ne $field.Type -or [bool]$current.is_multiselect) {
       throw "DEV seller_role/$($field.Slug) has unexpected type or cardinality."
     }
-    Write-Host "EXISTS: $($field.Slug)"
+    # Existing attributes are otherwise left alone by this loop -- but a
+    # currency field's default_currency_code is config, not type/cardinality,
+    # so the check above never catches an AED->USD drift (2026-08-25 cleanup).
+    # Patched here instead of silently staying AED.
+    if ($field.Type -eq "currency" -and $field.Config.currency -and
+        [string]$current.config.currency.default_currency_code -ne [string]$field.Config.currency.default_currency_code) {
+      $actions.Add("update_currency:$($field.Slug)")
+      if ($Apply) {
+        Invoke-AttioRequest -Method Patch -Headers $devHeaders `
+          -Path "/lists/seller_role/attributes/$([string]$current.id.attribute_id)" `
+          -Body @{ data = @{ config = $field.Config } } | Out-Null
+        Write-Host "CURRENCY UPDATED: $($field.Slug) -> $($field.Config.currency.default_currency_code)"
+      } else {
+        Write-Host "DRY RUN: would update $($field.Slug) default currency to $($field.Config.currency.default_currency_code)."
+      }
+    } else {
+      Write-Host "EXISTS: $($field.Slug)"
+    }
     continue
   }
 

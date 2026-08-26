@@ -230,7 +230,7 @@ Type: object | API identifier: `deals`
 | `counterparty_interested` | `integer` | attio | - |
 | `start_date` | `date` | attio | - |
 | `expiry_date` | `date` | attio | - |
-| `retainer_amount` | `money` (AED) | attio | - |
+| `retainer_amount` | `money` (USD) | attio | - |
 | `source_mandate_entry_id` | `text` | key | Idempotency key for the one-time Mandate migration below — not a real business field. |
 
 `stage` includes a `Mandate Active` status: a signed mandate still sourcing
@@ -383,7 +383,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `data_room_substatus` | `text` | Yes | - | - | - |
 | `comparables` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `nda_status` | `text` | Yes | - | - | - |
-| `estimated_deal_value_aed` | `numeric` | Yes | - | - | - |
+| `estimated_deal_value_usd` | `numeric` | Yes | - | - | - |
 | `expected_close_date` | `date` | Yes | - | - | - |
 | `fee` | `numeric` | Yes | - | - | - |
 | `assigned_advisor` | `text[]` | No | - | - | `'{}'` |
