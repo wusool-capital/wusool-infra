@@ -614,14 +614,22 @@ _SELLER_ROLE_UPSERT = text(
         est_ebitda, owner_salary, valuation_low, valuation_mid, valuation_high,
         sell_timeline, readiness_score, readiness_band,
         last_attempt_date, last_attempt_channel, last_attempt_outcome, lead_quality_score,
-        re_engage_date, is_active, legacy_entry_id, raw_attio
+        re_engage_date, is_active,
+        years_active, funding_stage, revenue_last_full_year, revenue_year_before,
+        gross_margin_pct, ebitda_deducts_salary, annual_rent_cost,
+        largest_customer_revenue_pct, repeat_revenue_pct, location_count,
+        legacy_entry_id, raw_attio
     ) VALUES (
         :org_attio_id, :outreach_tier, :appetite_signal, :relationship_status,
         CAST(:est_revenue AS jsonb), CAST(:est_ebitda AS jsonb), CAST(:owner_salary AS jsonb),
         CAST(:valuation_low AS jsonb), CAST(:valuation_mid AS jsonb),
         CAST(:valuation_high AS jsonb), :sell_timeline, :readiness_score, :readiness_band,
         :last_attempt_date, :last_attempt_channel, :last_attempt_outcome,
-        :lead_quality_score, :re_engage_date, :is_active, :legacy_entry_id,
+        :lead_quality_score, :re_engage_date, :is_active,
+        :years_active, :funding_stage, CAST(:revenue_last_full_year AS jsonb),
+        CAST(:revenue_year_before AS jsonb), :gross_margin_pct, :ebitda_deducts_salary,
+        CAST(:annual_rent_cost AS jsonb), :largest_customer_revenue_pct, :repeat_revenue_pct,
+        :location_count, :legacy_entry_id,
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (org_attio_id) DO UPDATE SET
@@ -635,7 +643,16 @@ _SELLER_ROLE_UPSERT = text(
         last_attempt_channel=excluded.last_attempt_channel,
         last_attempt_outcome=excluded.last_attempt_outcome,
         lead_quality_score=excluded.lead_quality_score, re_engage_date=excluded.re_engage_date,
-        is_active=excluded.is_active, legacy_entry_id=excluded.legacy_entry_id,
+        is_active=excluded.is_active,
+        years_active=excluded.years_active, funding_stage=excluded.funding_stage,
+        revenue_last_full_year=excluded.revenue_last_full_year,
+        revenue_year_before=excluded.revenue_year_before,
+        gross_margin_pct=excluded.gross_margin_pct,
+        ebitda_deducts_salary=excluded.ebitda_deducts_salary,
+        annual_rent_cost=excluded.annual_rent_cost,
+        largest_customer_revenue_pct=excluded.largest_customer_revenue_pct,
+        repeat_revenue_pct=excluded.repeat_revenue_pct, location_count=excluded.location_count,
+        legacy_entry_id=excluded.legacy_entry_id,
         raw_attio=excluded.raw_attio, updated_at=now()
     """
 )
@@ -667,6 +684,19 @@ def _seller_role_params(org_id: str, winner: dict) -> dict:
         "lead_quality_score": v.number(values, "lead_quality_score"),
         "re_engage_date": v.date(values, "re_engage_date"),
         "is_active": v.boolean(values, "is_active"),
+        # Lead Magnet questionnaire fields (0fca196) -- same money shape as
+        # est_revenue/est_ebitda/owner_salary above: {"amount", "currency"}
+        # or NULL, never fabricated when absent.
+        "years_active": v.integer(values, "years_active"),
+        "funding_stage": v.first(values, "funding_stage"),
+        "revenue_last_full_year": v.money(values, "revenue_last_full_year"),
+        "revenue_year_before": v.money(values, "revenue_year_before"),
+        "gross_margin_pct": v.number(values, "gross_margin_pct"),
+        "ebitda_deducts_salary": v.boolean(values, "ebitda_deducts_salary"),
+        "annual_rent_cost": v.money(values, "annual_rent_cost"),
+        "largest_customer_revenue_pct": v.number(values, "largest_customer_revenue_pct"),
+        "repeat_revenue_pct": v.number(values, "repeat_revenue_pct"),
+        "location_count": v.integer(values, "location_count"),
         "legacy_entry_id": v.entry_id(winner),
         "raw_attio": winner,
     }
@@ -715,6 +745,9 @@ _JSONB_FIELDS = {
         "valuation_low",
         "valuation_mid",
         "valuation_high",
+        "revenue_last_full_year",
+        "revenue_year_before",
+        "annual_rent_cost",
         "raw_attio",
     ),
 }
