@@ -823,10 +823,18 @@ async def _upsert_batch(model, rows: list[dict]) -> dict[str, dict]:
         return {}
     conflict_col = _CONFLICT_COL[model]
     stmt = pg_insert(model).values(rows)
+    # Only update columns the mapper actually populated (every row shares the
+    # same keys -- one mapper produced them all). A column the model has but
+    # the mapper doesn't map yet (e.g. a field added to the schema before the
+    # sync code catches up) must never appear here: it was never in the
+    # INSERT's VALUES either, so Postgres's `excluded` row has it as NULL --
+    # blindly setting `col=excluded.col` for every model column would silently
+    # wipe that column to NULL on every existing row's conflict-update.
+    mapped_cols = set(rows[0])
     update_cols = {
         c.name: getattr(stmt.excluded, c.name)
         for c in model.__table__.columns
-        if c.name != conflict_col and c.name not in _NEVER_UPDATE_COLS
+        if c.name in mapped_cols and c.name != conflict_col and c.name not in _NEVER_UPDATE_COLS
     }
     update_cols["updated_at"] = func.now()
     update_cols.update(_EXTRA_UPDATE_COLS.get(model, {}))
