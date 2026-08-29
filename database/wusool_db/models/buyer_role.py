@@ -109,5 +109,5 @@ class BuyerRole(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    organization: Mapped["Organization"] = relationship(back_populates="buyer_role")
+    organization: Mapped["Organization"] = relationship(back_populates="buyer_roles")
     key_contact: Mapped["Person | None"] = relationship(foreign_keys=[key_contact_attio_id])

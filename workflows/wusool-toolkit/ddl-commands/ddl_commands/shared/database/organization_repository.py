@@ -25,7 +25,7 @@ class OrganizationRepository:
         return await self._session.get(Organization, attio_id)
 
     async def get_by_id_with_roles(self, attio_id: str) -> Organization | None:
-        """Like `get_by_id`, but eager-loads `seller_role`/`buyer_role` — for
+        """Like `get_by_id`, but eager-loads `seller_roles`/`buyer_roles` — for
         the org-selection step of `/add-seller`/`/add-buyer`, which needs to
         re-check (never trusting the Slack payload) whether the freshly
         re-loaded org already has the role kind being added.
@@ -33,7 +33,7 @@ class OrganizationRepository:
         stmt = (
             select(Organization)
             .where(Organization.attio_id == attio_id)
-            .options(selectinload(Organization.seller_role), selectinload(Organization.buyer_role))
+            .options(selectinload(Organization.seller_roles), selectinload(Organization.buyer_roles))
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
@@ -45,7 +45,7 @@ class OrganizationRepository:
         itself, not an existing role on it. Reuses the same
         `ix_organizations_name_trgm` GIN index.
 
-        Eager-loads `seller_role`/`buyer_role` — the org-selection-or-create
+        Eager-loads `seller_roles`/`buyer_roles` — the org-selection-or-create
         modal needs to know, for each match, whether it already has the role
         kind being added, without a lazy-load per candidate.
         """
@@ -58,7 +58,7 @@ class OrganizationRepository:
                     similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
                 )
             )
-            .options(selectinload(Organization.seller_role), selectinload(Organization.buyer_role))
+            .options(selectinload(Organization.seller_roles), selectinload(Organization.buyer_roles))
             .order_by(similarity.desc())
             .limit(limit)
         )

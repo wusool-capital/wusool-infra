@@ -1,5 +1,5 @@
 """Ensures every ORM model is imported so cross-module relationship string
-forward-references (e.g. `Organization.buyer_role: Mapped["BuyerRole | None"]`)
+forward-references (e.g. `Organization.buyer_roles: Mapped[list["BuyerRole"]]`)
 resolve against the shared declarative `Base` registry.
 
 Call once before any query that traverses a cross-module relationship —

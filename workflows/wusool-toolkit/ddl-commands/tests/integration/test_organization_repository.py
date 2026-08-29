@@ -65,8 +65,8 @@ async def test_get_by_id_with_roles_eager_loads_seller_and_buyer_role(
     assert found is not None
     # No lazy-load error accessing these outside further awaits — proves
     # they were eager-loaded, not just present on the still-open session.
-    assert found.seller_role is None
-    assert found.buyer_role is None
+    assert found.seller_roles == []
+    assert found.buyer_roles == []
 
 
 async def test_create_inserts_a_new_organization(db_session: AsyncSession) -> None:

@@ -6,7 +6,7 @@ travels in `private_metadata` rather than the callback_id, since the
 selection UI itself doesn't differ.
 
 Picking an org that already has the target role isn't blocked here (its
-`seller_role`/`buyer_role` isn't loaded far enough to filter cheaply against
+`seller_roles`/`buyer_roles` isn't loaded far enough to filter cheaply against
 in a Slack option list) — the submission handler in `actions.py` re-checks
 the freshly-loaded org and stops with an "already exists" message rather
 than silently overwriting.
@@ -29,7 +29,8 @@ def build_organization_selection_modal(
 ) -> dict:
     options = []
     for org in candidates:
-        has_role = (org.seller_role if kind == "seller" else org.buyer_role) is not None
+        roles = org.seller_roles if kind == "seller" else org.buyer_roles
+        has_role = any(r.is_active for r in roles)
         suffix = f" (already has a {kind} role)" if has_role else ""
         options.append(
             {

@@ -92,4 +92,4 @@ class SellerRole(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    organization: Mapped["Organization"] = relationship(back_populates="seller_role")
+    organization: Mapped["Organization"] = relationship(back_populates="seller_roles")
