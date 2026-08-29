@@ -33,7 +33,9 @@ class OrganizationRepository:
         stmt = (
             select(Organization)
             .where(Organization.attio_id == attio_id)
-            .options(selectinload(Organization.seller_roles), selectinload(Organization.buyer_roles))
+            .options(
+                selectinload(Organization.seller_roles), selectinload(Organization.buyer_roles)
+            )
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
@@ -58,7 +60,9 @@ class OrganizationRepository:
                     similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
                 )
             )
-            .options(selectinload(Organization.seller_roles), selectinload(Organization.buyer_roles))
+            .options(
+                selectinload(Organization.seller_roles), selectinload(Organization.buyer_roles)
+            )
             .order_by(similarity.desc())
             .limit(limit)
         )
