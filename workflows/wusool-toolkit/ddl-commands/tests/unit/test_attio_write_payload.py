@@ -32,6 +32,7 @@ _MULTI = FieldSpec("sector_focus", "Sector focus", "multi_select_text")
 _DATE = FieldSpec("re_engage_date", "Re-engage date", "date")
 _CURRENCY = FieldSpec("est_revenue", "Est. revenue", "currency")
 _BOOL = FieldSpec("profitable_only", "Profitable only", "bool")
+_NUMBER = FieldSpec("twitter_follower_count", "Twitter follower count", "number")
 
 
 async def test_build_attio_values_resolves_select_to_option_id() -> None:
@@ -128,6 +129,19 @@ async def test_build_attio_values_passes_bool_through() -> None:
     assert result == {"profitable_only": True}
 
 
+async def test_build_attio_values_passes_number_through() -> None:
+    client = _FakeClient({})
+    result = await build_attio_values(
+        client,
+        target_kind="objects",
+        target_slug="organizations",
+        table="organizations",
+        fields={"twitter_follower_count": _NUMBER},
+        extracted={"twitter_follower_count": 1200},
+    )
+    assert result == {"twitter_follower_count": 1200}
+
+
 def test_build_postgres_values_wraps_currency_with_fixed_code() -> None:
     result = build_postgres_values(
         table="seller_role", fields={"est_revenue": _CURRENCY}, extracted={"est_revenue": 250.0}
@@ -161,3 +175,12 @@ def test_build_postgres_values_passes_bool_through_unchanged() -> None:
         extracted={"earnout_tolerance": True},
     )
     assert result == {"earnout_tolerance": True}
+
+
+def test_build_postgres_values_passes_number_through_unchanged() -> None:
+    result = build_postgres_values(
+        table="organizations",
+        fields={"twitter_follower_count": _NUMBER},
+        extracted={"twitter_follower_count": 1200},
+    )
+    assert result == {"twitter_follower_count": 1200}

@@ -6,8 +6,15 @@ Deliberately excluded (plan.md Part C): `acquisition_enrichment`,
 `deals_introduced`, `deals_converted` (ownership: both manual and
 pipeline-written — needs the data engineer's confirmation before this bot
 edits them). `key_contact` deferred — a `record-reference` type, not a
-plain field. No gated fields on the buyer side — nor on the seller side
-any more, since `intake_source` was dropped in #53.
+plain field. `key_personnel` — intentionally not exposed. No gated fields
+on the buyer side — nor on the seller side any more, since `intake_source`
+was dropped in #53.
+
+`relationship_warmth` and `prior_gcc_acquisition` are given `"text"` kind
+because their real Attio attribute type (free text vs. select) isn't
+confirmed anywhere in this codebase — see
+`ddl_commands/shared/organization_field_spec.py`'s docstring for the same
+caveat and the reasoning for defaulting to `"text"`.
 """
 
 from ddl_commands.shared.organization_field_spec import FieldSpec
@@ -36,6 +43,15 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("check_size_min", "Check size - min (USD)", "currency"),
     FieldSpec("check_size_max", "Check size - max (USD)", "currency"),
     FieldSpec("ev_ceiling", "EV ceiling (USD)", "currency"),
+    FieldSpec("ebitda_ceiling", "EBITDA ceiling (USD)", "currency"),
+    FieldSpec("estimated_aum", "Estimated AUM (USD)", "currency"),
+    FieldSpec("notable_investments", "Notable investments", "multiline"),
+    FieldSpec("relationship_warmth", "Relationship warmth", "text"),
+    FieldSpec(
+        "target_geography", "Target geography (comma-separated)", "multi_select_text"
+    ),
+    FieldSpec("last_mandate_briefing_date", "Last mandate briefing date", "date"),
+    FieldSpec("prior_gcc_acquisition", "Prior GCC acquisition", "text"),
 )
 
 BUYER_ROLE_FIELDS_BY_NAME = {f.name: f for f in BUYER_ROLE_FIELDS}
