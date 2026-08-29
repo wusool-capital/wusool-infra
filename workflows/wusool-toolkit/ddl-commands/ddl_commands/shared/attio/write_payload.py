@@ -10,7 +10,7 @@ Select/multiselect values are always an array in Attio's API, even for a
 single value, and a resolved option ID must be wrapped as `{"option": id}`
 — confirmed against Attio's own REST API docs
 (rest-api/attribute-types/attribute-types-select), not inferred. Every
-other kind (text, date, currency, bool) is a bare value, unwrapped.
+other kind (text, date, currency, bool, number) is a bare value, unwrapped.
 """
 
 from ddl_commands.shared.attio.client import AttioClient
@@ -91,6 +91,8 @@ async def build_attio_values(
         elif spec.kind == "currency":
             attio_values[name] = serialize_money(table, name, value)
         elif spec.kind == "bool":
+            attio_values[name] = value
+        elif spec.kind == "number":
             attio_values[name] = value
         else:
             raise ValueError(f"Unsupported field kind for Attio write: {spec.kind!r}")
