@@ -127,6 +127,153 @@ async def test_delete_person_sets_removed_at(
     assert removed_at is not None
 
 
+async def test_upsert_batch_inserts_multiple_organizations(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    ids = [f"test-org-{uuid.uuid4()}" for _ in range(3)]
+    rows = [
+        upsert._organization_params(
+            {"id": {"record_id": oid}, "values": {"name": [_item(value=f"Batch Org {i}")]}}
+        )
+        for i, oid in enumerate(ids)
+    ]
+
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, rows)
+
+    assert (ok, failed) == (3, 0)
+    assert set(returned) == set(ids)
+    async with db_sessionmaker() as session:
+        rows_in_db = (
+            await session.execute(
+                text("SELECT attio_id, name FROM organizations WHERE attio_id = ANY(:ids)"),
+                {"ids": ids},
+            )
+        ).all()
+    assert {r.attio_id: r.name for r in rows_in_db} == {
+        oid: f"Batch Org {i}" for i, oid in enumerate(ids)
+    }
+
+
+async def test_upsert_batch_on_conflict_updates_existing_row(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    oid = f"test-org-{uuid.uuid4()}"
+    original = upsert._organization_params(
+        {"id": {"record_id": oid}, "values": {"name": [_item(value="Original")]}}
+    )
+    await upsert.upsert_batch_with_retry(Organization, [original])
+
+    changed = upsert._organization_params(
+        {"id": {"record_id": oid}, "values": {"name": [_item(value="Updated")]}}
+    )
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [changed])
+
+    assert (ok, failed) == (1, 0)
+    assert returned[oid]["values"]["name"][0]["value"] == "Updated"
+    async with db_sessionmaker() as session:
+        name = (
+            await session.execute(
+                text("SELECT name FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+    assert name == "Updated"
+
+
+async def test_upsert_batch_skips_the_write_when_content_is_unchanged(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    oid = f"test-org-{uuid.uuid4()}"
+    row = upsert._organization_params(
+        {"id": {"record_id": oid}, "values": {"name": [_item(value="Stable Org")]}}
+    )
+    await upsert.upsert_batch_with_retry(Organization, [row])
+    async with db_sessionmaker() as session:
+        first_updated_at = (
+            await session.execute(
+                text("SELECT updated_at FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+
+    # Re-upsert with byte-identical raw_attio -- nothing changed in Attio.
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [row])
+
+    assert (ok, failed) == (1, 0)
+    assert returned == {}  # skipped: no RETURNING row for an unwritten conflict
+    async with db_sessionmaker() as session:
+        second_updated_at = (
+            await session.execute(
+                text("SELECT updated_at FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+    assert second_updated_at == first_updated_at  # write was actually skipped, not just fast
+
+
+async def test_upsert_batch_still_clears_removed_at_when_content_is_unchanged(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    oid = f"test-org-{uuid.uuid4()}"
+    row = upsert._organization_params(
+        {"id": {"record_id": oid}, "values": {"name": [_item(value="Reappearing Org")]}}
+    )
+    await upsert.upsert_batch_with_retry(Organization, [row])
+    await upsert.delete_organization(oid)
+    async with db_sessionmaker() as session:
+        removed_at = (
+            await session.execute(
+                text("SELECT removed_at FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+    assert removed_at is not None
+
+    # Org reappears in Attio with byte-identical raw_attio to before deletion
+    # -- content comparison alone would see "no change" and skip the write,
+    # leaving removed_at stuck forever.
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [row])
+
+    assert (ok, failed) == (1, 0)
+    assert oid in returned  # forced through despite unchanged content
+    async with db_sessionmaker() as session:
+        removed_at = (
+            await session.execute(
+                text("SELECT removed_at FROM organizations WHERE attio_id = :id"), {"id": oid}
+            )
+        ).scalar_one()
+    assert removed_at is None
+
+
+async def test_upsert_batch_with_retry_falls_back_to_per_row_on_a_bad_row(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    good_id = f"test-org-{uuid.uuid4()}"
+    bad_id = f"test-org-{uuid.uuid4()}"
+    good_row = upsert._organization_params(
+        {"id": {"record_id": good_id}, "values": {"name": [_item(value="Good Org")]}}
+    )
+    bad_row = upsert._organization_params(
+        {"id": {"record_id": bad_id}, "values": {"name": [_item(value="Bad Org")]}}
+    )
+    bad_row["name"] = None  # violates organizations.name's NOT NULL constraint
+
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [good_row, bad_row])
+
+    assert ok == 1
+    assert failed == 1
+    assert returned == {}  # the whole batch failed; nothing to content-check from it
+
+    async with db_sessionmaker() as session:
+        count = (
+            await session.execute(
+                text("SELECT count(*) FROM organizations WHERE attio_id = :id"), {"id": good_id}
+            )
+        ).scalar_one()
+    assert count == 1  # the good row still landed via the per-row fallback
+
+
 async def test_sync_buyer_role_reconciles_and_upserts(
     monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
 ) -> None:
@@ -165,15 +312,26 @@ async def test_sync_buyer_role_reconciles_and_upserts(
 
     await upsert.sync_buyer_role(client, "entry-new")
 
-    # The newer entry won the tiebreak, so *its* values land in Postgres —
-    # even though the event that triggered this was for entry-new directly.
+    # Both entries land in Postgres now, one row each keyed by
+    # legacy_entry_id (2026-08-28 pluralization: org_attio_id is no longer
+    # unique) -- the newer one as the active winner, the older as an
+    # explicitly-inactive duplicate, even though the event that triggered
+    # this was for entry-new directly.
     async with db_sessionmaker() as session:
-        row = (
+        rows = (
             await session.execute(
-                text("SELECT model FROM buyer_roles WHERE org_attio_id = :id"), {"id": org_id}
+                text(
+                    "SELECT legacy_entry_id, model, is_active FROM buyer_roles "
+                    "WHERE org_attio_id = :id"
+                ),
+                {"id": org_id},
             )
-        ).one()
-    assert row.model == "Financial"
+        ).all()
+    by_entry = {r.legacy_entry_id: (r.model, r.is_active) for r in rows}
+    assert by_entry == {
+        "entry-new": ("Financial", True),
+        "entry-old": ("Strategic", False),
+    }
 
     # And Attio's own is_active flags got corrected: new -> true, old -> false.
     assert (

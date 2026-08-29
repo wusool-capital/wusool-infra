@@ -1,4 +1,5 @@
 import pytest
+from wusool_db.models import Organization
 
 from ddl_commands.modules.attio_sync import full_resync
 
@@ -20,38 +21,145 @@ class _FakeClient:
         return {"data": page}
 
 
-async def test_one_entry_id_per_org_dedupes_duplicates() -> None:
-    client = _FakeClient(
-        {
-            "buyer_role": [
-                [
-                    _entry("entry-1", "org-a"),
-                    _entry("entry-2", "org-a"),  # duplicate for org-a
-                    _entry("entry-3", "org-b"),
-                ]
-            ]
-        }
+class _FakeAttioClient:
+    """Stands in for `AttioClient` in `run()`-level tests -- just needs the
+    `aclose()` `run()` always calls in its `finally` block."""
+
+    async def aclose(self) -> None:
+        pass
+
+
+async def test_safe_fetch_returns_none_and_logs_on_failure() -> None:
+    async def failing():
+        raise RuntimeError("Attio 500")
+
+    assert await full_resync._safe_fetch(failing(), "organizations") is None
+
+
+async def test_safe_fetch_returns_result_on_success() -> None:
+    async def ok():
+        return ["a", "b"]
+
+    assert await full_resync._safe_fetch(ok(), "organizations") == ["a", "b"]
+
+
+def test_chunk_splits_into_fixed_size_pages() -> None:
+    assert full_resync._chunk(list(range(7)), 3) == [[0, 1, 2], [3, 4, 5], [6]]
+
+
+def test_chunk_empty_list() -> None:
+    assert full_resync._chunk([], 3) == []
+
+
+async def test_write_batches_concurrently_aggregates_across_pages(monkeypatch) -> None:
+    calls = []
+
+    async def fake_upsert_batch_with_retry(model, page, page_label=""):
+        calls.append(page)
+        return len(page), 0, {row["attio_id"]: row["raw_attio"] for row in page}
+
+    monkeypatch.setattr(
+        "ddl_commands.modules.attio_sync.upsert.upsert_batch_with_retry",
+        fake_upsert_batch_with_retry,
     )
+    monkeypatch.setattr(full_resync, "_PAGE_SIZE", 2)
 
-    ids = await full_resync._one_entry_id_per_org(client, "buyer_role")
+    rows = [{"attio_id": str(i), "raw_attio": {"i": i}} for i in range(5)]
+    ok, failed, returned = await full_resync._write_batches_concurrently(Organization, rows)
 
-    assert set(ids) == {"entry-1", "entry-3"}  # one representative per org, not three
+    assert ok == 5
+    assert failed == 0
+    assert returned == {str(i): {"i": i} for i in range(5)}
+    assert len(calls) == 3  # 5 rows / page size 2 -> 3 pages
 
 
-async def test_one_entry_id_per_org_empty_list() -> None:
-    client = _FakeClient({"buyer_role": [[]]})
-    assert await full_resync._one_entry_id_per_org(client, "buyer_role") == []
+async def test_write_and_verify_flags_count_mismatch(monkeypatch) -> None:
+    async def fake_write_batches(model, rows):
+        return len(rows), 0, {r["attio_id"]: r["raw_attio"] for r in rows}
 
+    async def fake_count(table):
+        return 1  # only 1 row actually landed, though 2 were expected
 
-async def test_sync_all_counts_successes_and_failures() -> None:
-    async def sync_fn(client, record_id):
-        if record_id == "bad":
-            raise RuntimeError("boom")
+    monkeypatch.setattr(full_resync, "_write_batches_concurrently", fake_write_batches)
+    monkeypatch.setattr(full_resync, "_count", fake_count)
 
-    ok, failed = await full_resync._sync_all(None, "organizations", ["a", "bad", "b"], sync_fn)
+    rows = [
+        {"attio_id": "a", "raw_attio": {"v": 1}},
+        {"attio_id": "b", "raw_attio": {"v": 2}},
+    ]
+    ok, failed = await full_resync._write_and_verify(Organization, "organizations", rows, 2)
 
     assert ok == 2
-    assert failed == 1
+    assert failed == 1  # count mismatch flagged even though the writes themselves succeeded
+
+
+async def test_write_and_verify_flags_content_mismatch(monkeypatch) -> None:
+    async def fake_write_batches(model, rows):
+        # Simulate the DB returning a different raw_attio than what was sent.
+        return len(rows), 0, {"a": {"v": "WRONG"}}
+
+    async def fake_count(table):
+        return 1
+
+    monkeypatch.setattr(full_resync, "_write_batches_concurrently", fake_write_batches)
+    monkeypatch.setattr(full_resync, "_count", fake_count)
+
+    rows = [{"attio_id": "a", "raw_attio": {"v": 1}}]
+    ok, failed = await full_resync._write_and_verify(Organization, "organizations", rows, 1)
+
+    assert ok == 1
+    assert failed == 1  # content mismatch flagged despite the count matching
+
+
+async def test_write_and_verify_passes_when_everything_matches(monkeypatch) -> None:
+    async def fake_write_batches(model, rows):
+        return len(rows), 0, {r["attio_id"]: r["raw_attio"] for r in rows}
+
+    async def fake_count(table):
+        return 1
+
+    monkeypatch.setattr(full_resync, "_write_batches_concurrently", fake_write_batches)
+    monkeypatch.setattr(full_resync, "_count", fake_count)
+
+    rows = [{"attio_id": "a", "raw_attio": {"v": 1}}]
+    ok, failed = await full_resync._write_and_verify(Organization, "organizations", rows, 1)
+
+    assert ok == 1
+    assert failed == 0
+
+
+async def test_reconcile_roles_groups_by_org_and_isolates_failures(monkeypatch) -> None:
+    client = _FakeClient({})
+    entries = [
+        _entry("entry-1", "org-a"),
+        _entry("entry-2", "org-a"),  # duplicate for org-a
+        _entry("entry-3", "org-b"),
+    ]
+
+    async def fake_reconcile(client, list_slug, siblings):
+        parent = siblings[0]["parent_record_id"]["record_id"]
+        if parent == "org-b":
+            raise RuntimeError("boom")
+        return siblings  # winner-first, matching the real function's contract
+
+    monkeypatch.setattr(
+        "ddl_commands.modules.attio_sync.upsert._reconcile_active_entry", fake_reconcile
+    )
+
+    rows, reconcile_failed = await full_resync._reconcile_roles(
+        client,
+        "buyer_role",
+        entries,
+        lambda org_id, entry, is_active: {"org_id": org_id, "is_active": is_active},
+    )
+
+    # org-a's 2 duplicate entries each get their own row now (2026-08-28
+    # pluralization -- Postgres mirrors every entry, not just the winner).
+    assert rows == [
+        {"org_id": "org-a", "is_active": True},
+        {"org_id": "org-a", "is_active": False},
+    ]
+    assert reconcile_failed == 1  # org-b's reconciliation failed and was skipped
 
 
 async def test_run_raises_systemexit_on_any_failure(monkeypatch) -> None:
@@ -60,50 +168,58 @@ async def test_run_raises_systemexit_on_any_failure(monkeypatch) -> None:
     safety net."""
     monkeypatch.setattr(full_resync, "import_all_models", lambda: None)
     monkeypatch.setattr(
-        "ddl_commands.modules.attio_sync.full_resync.AttioClient", lambda api_key: object()
+        "ddl_commands.modules.attio_sync.full_resync.AttioClient",
+        lambda api_key: _FakeAttioClient(),
     )
-
-    async def always_empty(client, slug):
-        return []
 
     async def no_users(client):
         return 0
 
-    monkeypatch.setattr(full_resync, "_object_record_ids", always_empty)
-    monkeypatch.setattr(full_resync, "_list_entry_ids", always_empty)
-    monkeypatch.setattr(full_resync, "_one_entry_id_per_org", always_empty)
-    monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
+    async def empty_page(client, path):
+        return []
 
-    # No ids at all -> nothing synced, nothing failed -> should NOT raise.
+    async def no_ids(table):
+        return set()
+
+    async def noop_write(model, table, rows, expected_count):
+        return 0, 0
+
+    async def noop_reconcile(client, list_slug, entries, build_params):
+        return [], 0
+
+    monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
+    monkeypatch.setattr(full_resync, "_page_through", empty_page)
+    monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
+    monkeypatch.setattr(full_resync, "_write_and_verify", noop_write)
+    monkeypatch.setattr(full_resync, "_reconcile_roles", noop_reconcile)
+
+    # Nothing fetched, nothing to write -> should NOT raise.
     await full_resync.run()
 
 
 async def test_run_raises_systemexit_when_a_table_has_failures(monkeypatch) -> None:
     monkeypatch.setattr(full_resync, "import_all_models", lambda: None)
     monkeypatch.setattr(
-        "ddl_commands.modules.attio_sync.full_resync.AttioClient", lambda api_key: object()
+        "ddl_commands.modules.attio_sync.full_resync.AttioClient",
+        lambda api_key: _FakeAttioClient(),
     )
-
-    async def one_id(client, slug):
-        return ["only-one"]
-
-    async def none_id(client, slug):
-        return []
 
     async def no_users(client):
         return 0
 
-    monkeypatch.setattr(full_resync, "_object_record_ids", one_id)
-    monkeypatch.setattr(full_resync, "_list_entry_ids", none_id)
-    monkeypatch.setattr(full_resync, "_one_entry_id_per_org", none_id)
+    async def one_record_page(client, path):
+        return [{"id": {"record_id": "only-one"}, "values": {}}] if "organizations" in path else []
+
+    async def no_ids(table):
+        return set()
+
+    async def failing_write(model, table, rows, expected_count):
+        return 0, 1
+
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
-
-    async def failing_sync(client, record_id):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(full_resync.upsert, "sync_organization", failing_sync)
-    monkeypatch.setattr(full_resync.upsert, "sync_person", failing_sync)
-    monkeypatch.setattr(full_resync.upsert, "sync_deal", failing_sync)
+    monkeypatch.setattr(full_resync, "_page_through", one_record_page)
+    monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
+    monkeypatch.setattr(full_resync, "_write_and_verify", failing_write)
 
     with pytest.raises(SystemExit):
         await full_resync.run()
@@ -111,45 +227,43 @@ async def test_run_raises_systemexit_when_a_table_has_failures(monkeypatch) -> N
 
 async def test_run_continues_past_a_failed_entity_listing(monkeypatch) -> None:
     """A failure just listing one entity's records (Attio 500, exhausted
-    retries, malformed page) must not prevent every entity after it in
-    `plan` from being attempted that night — this is the exact failure mode
-    the nightly safety net exists to guard against. Before this fix, an
-    exception here propagated straight out of `run()` uncaught, and this
-    test would fail with RuntimeError instead of the expected SystemExit."""
+    retries, malformed page) must not prevent every entity after it from
+    being attempted that night — this is the exact failure mode the nightly
+    safety net exists to guard against."""
     monkeypatch.setattr(full_resync, "import_all_models", lambda: None)
     monkeypatch.setattr(
-        "ddl_commands.modules.attio_sync.full_resync.AttioClient", lambda api_key: object()
+        "ddl_commands.modules.attio_sync.full_resync.AttioClient",
+        lambda api_key: _FakeAttioClient(),
     )
-
-    async def object_ids(client, slug):
-        if slug == "organizations":
-            raise RuntimeError("Attio 500")
-        return ["person-1"] if slug == "person" else []
-
-    async def list_ids(client, slug):
-        return []
-
-    async def org_dedup(client, slug):
-        return []
 
     async def no_users(client):
         return 0
 
-    person_synced = []
+    async def flaky_page(client, path):
+        if "organizations" in path:
+            raise RuntimeError("Attio 500")
+        if "person" in path:
+            return [{"id": {"record_id": "person-1"}, "values": {}}]
+        return []
 
-    async def sync_person(client, record_id):
-        person_synced.append(record_id)
+    async def no_ids(table):
+        return set()
 
-    monkeypatch.setattr(full_resync, "_object_record_ids", object_ids)
-    monkeypatch.setattr(full_resync, "_list_entry_ids", list_ids)
-    monkeypatch.setattr(full_resync, "_one_entry_id_per_org", org_dedup)
+    write_calls = []
+
+    async def recording_write(model, table, rows, expected_count):
+        write_calls.append(table)
+        return len(rows), 0
+
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
-    monkeypatch.setattr(full_resync.upsert, "sync_person", sync_person)
+    monkeypatch.setattr(full_resync, "_page_through", flaky_page)
+    monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
+    monkeypatch.setattr(full_resync, "_write_and_verify", recording_write)
 
     with pytest.raises(SystemExit):
         await full_resync.run()
 
-    assert person_synced == ["person-1"]  # ran despite organizations' listing failing first
+    assert "people" in write_calls  # ran despite organizations' listing failing first
 
 
 async def test_run_reports_users_sync_failure(monkeypatch) -> None:
@@ -157,19 +271,30 @@ async def test_run_reports_users_sync_failure(monkeypatch) -> None:
     a table that gets silently skipped just because it runs first."""
     monkeypatch.setattr(full_resync, "import_all_models", lambda: None)
     monkeypatch.setattr(
-        "ddl_commands.modules.attio_sync.full_resync.AttioClient", lambda api_key: object()
+        "ddl_commands.modules.attio_sync.full_resync.AttioClient",
+        lambda api_key: _FakeAttioClient(),
     )
-
-    async def always_empty(client, slug):
-        return []
 
     async def failing_users(client):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(full_resync, "_object_record_ids", always_empty)
-    monkeypatch.setattr(full_resync, "_list_entry_ids", always_empty)
-    monkeypatch.setattr(full_resync, "_one_entry_id_per_org", always_empty)
+    async def empty_page(client, path):
+        return []
+
+    async def no_ids(table):
+        return set()
+
+    async def noop_write(model, table, rows, expected_count):
+        return 0, 0
+
+    async def noop_reconcile(client, list_slug, entries, build_params):
+        return [], 0
+
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", failing_users)
+    monkeypatch.setattr(full_resync, "_page_through", empty_page)
+    monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
+    monkeypatch.setattr(full_resync, "_write_and_verify", noop_write)
+    monkeypatch.setattr(full_resync, "_reconcile_roles", noop_reconcile)
 
     with pytest.raises(SystemExit):
         await full_resync.run()
