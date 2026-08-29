@@ -29,14 +29,7 @@ from wusool_db.models.investor_lender_role import InvestorLenderRole
 from wusool_db.models.match_result import MatchResult
 from wusool_db.models.match_score import MatchScore
 from wusool_db.models.meeting import Meeting
-
-# wusool_db.models.note.Note is a draft model for the proposed (not yet
-# built) Notes feature -- deliberately NOT imported here yet. Importing it
-# would register `notes` onto Base.metadata, and CI's Alembic drift check
-# compares that metadata against the migration history: since there is no
-# migration for `notes` yet (on purpose -- DEV Attio's Notes object doesn't
-# exist either), the drift check would fail. Import it here only once its
-# migration is written.
+from wusool_db.models.note import Note
 from wusool_db.models.organization import Organization
 from wusool_db.models.person import Person
 from wusool_db.models.scorecard import Scorecard
@@ -60,6 +53,7 @@ __all__ = [
     "MatchResult",
     "MatchScore",
     "Meeting",
+    "Note",
     "Organization",
     "Person",
     "Scorecard",

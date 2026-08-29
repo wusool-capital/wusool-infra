@@ -13,7 +13,7 @@ This skill owns two additional things:
    know "what has been done so far" without reconstructing it from git log
    or chat history.
 2. **Every other README** in the repo that isn't already covered by
-   `sync-terraform-docs` (e.g. `workflows/crm-sync/scripts/README.md`,
+   `sync-terraform-docs` (e.g. `workflows/crm-sync/scripts/dev-attio/README.md`,
    `database/README.md`, `terraform/environments/dev/README.md`, root
    `README.md` sections that aren't purely Terraform architecture).
 

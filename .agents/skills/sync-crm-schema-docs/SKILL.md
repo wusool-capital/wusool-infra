@@ -1,6 +1,6 @@
 ---
 name: sync-crm-schema-docs
-description: Keep every CRM schema document in sync whenever an Attio DEV attribute/list/stage or a Postgres deals/mandates/etc. column changes — the ER diagram, the published "Wusool Schema Handover" artifact, CLIENT_SCHEMA_OVERVIEW.md, CRM_MIGRATION_GUIDE.md, scripts/README.md, and database/README.md. Use immediately after any change to workflows/crm-sync/scripts/_internal/schema.ps1, migration-decisions.json, target-schema.json, a Postgres model in database/wusool_db/models/, or a new Alembic migration — before ending the session, not as a separate later cleanup.
+description: Keep every CRM schema document in sync whenever an Attio DEV attribute/list/stage or a Postgres deals/mandates/etc. column changes — the ER diagram, the published "Wusool Schema Handover" artifact, CLIENT_SCHEMA_OVERVIEW.md, CRM_MIGRATION_GUIDE.md, scripts/README.md, and database/README.md. Use immediately after any change to workflows/crm-sync/scripts/dev-attio/_internal/schema.ps1, migration-decisions.json, target-schema.json, a Postgres model in database/wusool_db/models/, or a new Alembic migration — before ending the session, not as a separate later cleanup.
 ---
 
 # Sync CRM Schema Docs
@@ -18,7 +18,7 @@ deferred:
 
 - A new/renamed/retyped Attio attribute, list, or pipeline stage (via
   `ensure-schema.ps1` / `_internal/schema.ps1`, or a direct API call)
-- An entry added to `workflows/crm-sync/scripts/config/migration-decisions.json`
+- An entry added to `workflows/crm-sync/scripts/dev-attio/config/migration-decisions.json`
   (crosswalk, alias map, deferred backfill) or `target-schema.json`
 - A new flag/behavior added to `objects.ps1`/`lists.ps1` (e.g. `-DeleteOrphaned`,
   `-MigrateMandates`)
@@ -42,7 +42,7 @@ deferred:
    at this altitude; the detailed version belongs in
    `CLIENT_SCHEMA_OVERVIEW.md`, not duplicated here.
 
-3. **`workflows/crm-sync/scripts/README.md`** and **`database/README.md`** —
+3. **`workflows/crm-sync/scripts/dev-attio/README.md`** and **`database/README.md`** —
    whichever side changed (Attio-facing scripts vs. Postgres). Check every
    command example, flag list, and mapping-rules bullet still matches the
    actual script/model — these are read and run literally, so a stale flag

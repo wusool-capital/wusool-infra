@@ -1,0 +1,158 @@
+{
+  "version": "0.1-draft",
+  "rules": {
+    "unmapped_source_fields": "ignore",
+    "ambiguous_values": "report_and_skip_field",
+    "missing_source_values": "leave_empty",
+    "object_identity": "source_record_id_to_dev_legacy_attio_id",
+    "list_identity": "target_parent_dev_record_id"
+  },
+  "objects": {
+    "companies": {
+      "source": "companies",
+      "target": "organizations",
+      "fields": [
+        {"source": "$record_id", "target": "legacy_attio_id", "transform": "text", "status": "confirmed"},
+        {"source": "name", "target": "name", "transform": "name_or_first_domain_or_traceable_placeholder", "status": "confirmed"},
+        {"source": "description", "target": "description", "transform": "attio_native", "status": "confirmed"},
+        {"source": "type", "target": "type", "transform": "select_titles_all", "status": "confirmed"},
+        {"source": "client_type", "target": "client_type", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
+        {"source": "sector_focus", "target": "sector_focus", "transform": "select_titles_all", "status": "confirmed"},
+        {"source": "stage", "target": "stage_focus", "transform": "select_titles_all", "status": "confirmed"},
+        {"source": "geographic_focus", "target": "geographic_focus", "transform": "select_titles_all", "status": "confirmed"},
+        {"source": "primary_location", "target": "hq_country", "transform": "location_country_text", "status": "confirmed"},
+        {"source": "domains", "target": "domains", "transform": "domain_values_to_comma_delimited_text", "status": "confirmed_platform_constraint"},
+        {"source": "logo_url", "target": "logo_url", "transform": "text", "status": "confirmed"},
+        {"source": "categories", "target": "categories", "transform": "select_titles_all", "status": "confirmed"},
+        {"source": "relationship_status", "target": "relationship_status", "transform": "normalize_to_warm_cold_closed_latest_active_from", "status": "confirmed"},
+        {"source": "strongest_connection_strength", "target": "strongest_connection_strength", "transform": "attio_system_managed", "status": "confirmed"},
+        {"source": "last_interaction", "target": "last_interaction_at", "transform": "interaction_active_from_timestamp", "status": "draft"},
+        {"source": "relationship_owner", "target": "owner", "transform": "resolve_via_workspace_member_crosswalk_by_name", "status": "confirmed_2026-08-19"},
+        {"source": "funding_raised_usd", "target": "funding_raised", "transform": "attio_native", "status": "confirmed"},
+        {"source": "estimated_arr_usd", "target": "estimated_arr", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
+        {"source": "angellist", "target": "angellist", "transform": "attio_native", "status": "confirmed"},
+        {"source": "facebook", "target": "facebook", "transform": "attio_native", "status": "confirmed"},
+        {"source": "instagram", "target": "instagram", "transform": "attio_native", "status": "confirmed"},
+        {"source": "twitter", "target": "twitter", "transform": "attio_native", "status": "confirmed"},
+        {"source": "twitter_follower_count", "target": "twitter_follower_count", "transform": "attio_native", "status": "confirmed"},
+        {"source": "foundation_date", "target": "foundation_date", "transform": "attio_native", "status": "confirmed"},
+        {"source": "employee_range", "target": "employee_range", "transform": null, "status": "needs_band_decision_source_bands_do_not_align_to_requested_target_bands"},
+        {"source": "ticket_size", "target": "ticket_size", "transform": "attio_native", "status": "confirmed"},
+        {"source": "lead_source", "target": "lead_source", "transform": "single_select_title_or_report_multiple", "status": "confirmed"}
+      ]
+    },
+    "people": {
+      "source": "people",
+      "target": "person",
+      "fields": [
+        {"source": "$record_id", "target": "legacy_attio_id", "transform": "text", "status": "confirmed"},
+        {"source": "name", "target": "name", "transform": "attio_native", "status": "confirmed"},
+        {"source": "role", "target": "role", "transform": "select_titles_all", "status": "confirmed"},
+        {"source": "company", "fallback_source": "company_4", "target": "company", "transform": "source_record_reference_to_dev_record", "status": "draft"},
+        {"source": "email_addresses", "target": "email", "transform": "email_values_to_comma_delimited_text", "status": "confirmed_platform_constraint"},
+        {"source": "linkedin", "target": "linkedin", "transform": "attio_native", "status": "confirmed"},
+        {"source": "relationship_status", "target": "relationship_status", "transform": "normalize_to_warm_cold_closed_latest_active_from", "status": "confirmed"},
+        {"source": "strongest_connection_strength", "target": "strongest_connection_strength", "transform": "attio_system_managed", "status": "confirmed"},
+        {"source": "last_interaction", "target": "last_interaction_at", "transform": "interaction_active_from_timestamp", "status": "draft"},
+        {"source": null, "target": "owner", "transform": null, "status": "blocked_needs_owner_definition"},
+        {"source": "job_title", "target": "job_title", "transform": "attio_native", "status": "confirmed"},
+        {"source": "contact_type", "target": "contact_type", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
+        {"source": "phone_numbers", "target": "phone", "transform": "phone_values_to_comma_delimited_text", "status": "confirmed_platform_constraint"},
+        {"source": "avatar_url", "target": "avatar_url", "transform": "text", "status": "confirmed"},
+        {"source": "angellist", "target": "angellist", "transform": "attio_native", "status": "confirmed"},
+        {"source": "facebook", "target": "facebook", "transform": "attio_native", "status": "confirmed"},
+        {"source": "instagram", "target": "instagram", "transform": "attio_native", "status": "confirmed"},
+        {"source": "twitter", "target": "twitter", "transform": "attio_native", "status": "confirmed"},
+        {"source": "twitter_follower_count", "target": "twitter_follower_count", "transform": "attio_native", "status": "confirmed"}
+      ]
+    },
+    "deals": {
+      "source": "deals",
+      "target": "deals",
+      "fields": [
+        {"source": "$record_id", "target": "legacy_attio_id", "transform": "text", "status": "confirmed"},
+        {"source": "name", "target": "name", "transform": "attio_native", "status": "confirmed"},
+        {"source": "stage", "target": "stage", "transform": "status_title", "status": "confirmed"},
+        {"source": "stage", "target": "stage_changed_at", "transform": "set_status_active_from_only_when_source_stage_differs_from_existing_dev_stage", "status": "confirmed"},
+        {"source": null, "dev_source": "stage_changed_at", "target": "time_in_stage", "transform": "elapsed_days_at_sync_or_blank", "status": "confirmed", "note": "Reads DEV's own stage_changed_at (set by the row above), not a SOURCE field - no such SOURCE attribute exists."},
+        {"source": "owner", "target": "owner", "transform": "required_source_workspace_member_to_approved_dev_member", "status": "blocked_required_user_mapping"},
+        {"source": "value", "target": "value", "transform": "attio_native", "status": "confirmed"},
+        {"source": "teaser_status", "target": "teaser_status", "transform": "single_select_title", "status": "confirmed"},
+        {"source": "ndas_signed_count", "target": "nda_count", "transform": "integer", "status": "confirmed"},
+        {"source": "nda_status", "target": "nda_status", "transform": "single_select_title", "status": "confirmed"},
+        {"source": "estimated_deal_value_aed", "target": "estimated_deal_value_usd", "transform": "aed_to_usd_peg_conversion", "status": "confirmed"},
+        {"source": "expected_close_date", "target": "expected_close_date", "transform": "date", "status": "confirmed"},
+        {"source": "fee", "target": "fee", "transform": "attio_native", "status": "confirmed"},
+        {"source": "assigned_advisor", "target": "assigned_advisor", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
+        {"source": "deal_memo_filed|deal_memo_decision", "target": "deal_memo_ready", "transform": "filed_boolean_else_proceed_or_pass_true_hold_false", "status": "confirmed"},
+        {"source": "exclusivity_start_date", "target": "contract_signed_date", "transform": "date", "status": "confirmed"},
+        {"source": "exclusivity_end_date", "target": "exclusivity_date", "transform": "date", "status": "confirmed"},
+        {"source": null, "target": "buyer_id", "transform": null, "status": "confirmed_leave_empty"},
+        {"source": "associated_company", "target": "seller_id", "transform": "source_company_reference_to_dev_organization_via_legacy_attio_id", "status": "confirmed"},
+        {"source": "cim_status", "target": "cim_ready", "transform": "approved_or_distributed_true_other_populated_false_blank_null", "status": "confirmed"},
+        {"source": null, "target": "data_room_substatus", "transform": null, "status": "confirmed_initial_leave_empty"}
+      ]
+    }
+  },
+  "lists": {
+    "buyer_role": {
+      "source": "buyer_brain",
+      "target": "buyer_role",
+      "source_parent_object": "companies",
+      "target_parent_object": "organizations",
+      "fields": [
+        {"source": "buyer_model", "target": "model", "transform": "single_select_title", "status": "confirmed"},
+        {"source": "mandate_status", "target": "mandate_status", "transform": "single_select_title", "status": "confirmed"},
+        {"source": "ebitda_floor_aed", "target": "ebitda_floor", "transform": "aed_to_usd_peg_conversion", "status": "confirmed"},
+        {"source": "check_size_min_aed", "target": "check_size_min", "transform": "aed_to_usd_peg_conversion", "status": "confirmed"},
+        {"source": "check_size_max_aed", "target": "check_size_max", "transform": "aed_to_usd_peg_conversion", "status": "confirmed"},
+        {"source": "ev_ceiling_aed", "target": "ev_ceiling", "transform": "aed_to_usd_peg_conversion", "status": "confirmed"},
+        {"source": "deal_structure_tolerance", "target": "deal_structure_tolerance", "transform": "single_select_title", "status": "confirmed_low_risk_274_of_275_live_entries_blank_one_populated_value_matches_dev_option_directly", "note": "SOURCE options (100% Cash, Cash + Seller Note, Earnout Considered, Flexible) don't fully align with DEV's (Majority, Minority, Flexible, Acquisition Financing) - only Flexible overlaps. Wired anyway since live data is 274/275 blank and the sole populated value is Flexible. Revisit if SOURCE usage of the other 3 options grows."},
+        {"source": "earnout_tolerance", "target": "earnout_tolerance", "transform": "boolean", "status": "confirmed"},
+        {"source": "profitable_companies_only_mandate", "target": "profitable_only", "transform": "boolean", "status": "confirmed"},
+        {"source": "investment_strategy", "target": "investment_strategy", "transform": "text", "status": "confirmed"},
+        {"source": "additional_notes", "target": "notes", "transform": "text", "status": "confirmed"},
+        {"source": "key_personnel_email", "target": "key_contact", "transform": "source_contains_name_not_email; exact_normalized_name_within_parent_company_team; unique_company_team_first_name_for_single-token_source; then_global_unique_exact; then_fuzzy_name_match_within_parent_company_team_above_similarity_threshold; source_person_to_dev_person_via_legacy_attio_id; still_reported_if_unmatched_or_ambiguous", "status": "confirmed_fuzzy_enabled"},
+        {"source": "deals_introduced_count", "target": "deals_introduced", "transform": "integer", "status": "confirmed"},
+        {"source": "deals_converted_count", "target": "deals_converted", "transform": "integer", "status": "confirmed"},
+        {"source": null, "target": "acquisition_enrichment", "transform": null, "status": "new_leave_empty"},
+        {"source": "ebitda_ceiling_aed", "target": "ebitda_ceiling", "transform": "aed_to_usd_peg_conversion", "status": "confirmed"},
+        {"source": "estimated_aum_usd", "target": "estimated_aum", "transform": "number_to_currency_USD", "status": "confirmed"},
+        {"source": "notable_investments", "target": "notable_investments", "transform": "attio_native", "status": "confirmed"},
+        {"source": "key_personnel", "target": "key_personnel", "transform": "attio_native", "status": "confirmed"},
+        {"source": "relationship_warmth", "target": "relationship_warmth", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
+        {"source": "target_geography", "target": "target_geography", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
+        {"source": "last_mandate_briefing_date", "target": "last_mandate_briefing_date", "transform": "date", "status": "confirmed"},
+        {"source": "prior_gcc_acquisition", "target": "prior_gcc_acquisition", "transform": "attio_native", "status": "confirmed"}
+      ]
+    },
+    "seller_role": {
+      "source": "valuation_tool_leads",
+      "target": "seller_role",
+      "source_parent_object": "companies",
+      "target_parent_object": "organizations",
+      "fields": [
+        {"source": "outreach_tier", "target": "outreach_tier", "transform": "single_select_title", "status": "confirmed"},
+        {"source": "seller_appetite_signal", "target": "appetite_signal", "transform": "single_select_title", "status": "confirmed"},
+        {"source": "relationship_status", "target": "relationship_status", "transform": "single_select_title_preserve_seller_outreach_vocabulary", "status": "confirmed"},
+        {"source": "estimated_annual_revenue_aed", "target": "est_revenue", "transform": "aed_to_usd_peg_conversion", "status": "confirmed"},
+        {"source": "estimated_ebitda_aed", "target": "est_ebitda", "transform": "aed_to_usd_peg_conversion", "status": "confirmed"},
+        {"source": "re_engage_date", "target": "re_engage_date", "transform": "date", "status": "confirmed"},
+        {"source": "attempt_1_date|attempt_2_date|attempt_2_date_3", "target": "last_attempt_date", "transform": "latest_valid_attempt_date", "status": "confirmed_pending_api_slug_verification"},
+        {"source": "attempt_1_channel|attempt_2_channel|attempt_2_channel_6", "target": "last_attempt_channel", "transform": "same_attempt_as_latest_valid_date", "status": "confirmed_pending_api_slug_verification"},
+        {"source": "attempt_1_outcome|attempt_2_outcome|attempt_2_outcome_6", "target": "last_attempt_outcome", "transform": "same_attempt_as_latest_valid_date", "status": "confirmed_pending_api_slug_verification"},
+        {"source": null, "target": "owner_salary", "transform": null, "status": "new_leave_empty"},
+        {"source": null, "target": "valuation_low", "transform": null, "status": "new_leave_empty"},
+        {"source": null, "target": "valuation_mid", "transform": null, "status": "new_leave_empty"},
+        {"source": null, "target": "valuation_high", "transform": null, "status": "new_leave_empty"},
+        {"source": null, "target": "sell_timeline", "transform": null, "status": "confirmed_historical_leave_empty"},
+        {"source": "outreach_score", "source_title": "Outreach Score (0-1, increments of 0.2)", "target": "readiness_score", "transform": "numeric_preserve_scale", "status": "confirmed"},
+        {"source": null, "target": "readiness_band", "transform": null, "status": "new_leave_empty"},
+        {"source": null, "target": "lead_quality_score", "transform": null, "status": "new_leave_empty"}
+      ]
+    },
+    "investor_lender_role": {
+      "status": "pending_user_decision"
+    }
+  }
+}

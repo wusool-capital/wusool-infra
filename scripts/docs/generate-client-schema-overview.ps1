@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$attioPath = Join-Path $RepoRoot "workflows/crm-sync/scripts/config/target-schema.json"
+$attioPath = Join-Path $RepoRoot "workflows/crm-sync/scripts/dev-attio/config/target-schema.json"
 $sqlDir = Join-Path $RepoRoot "database/sql"
 $attio = Get-Content -Raw -LiteralPath $attioPath | ConvertFrom-Json
 

@@ -32,6 +32,7 @@ The two platforms have different responsibilities but share common record identi
 | seller_role | Seller profile, valuation indicators, and outreach progress | list | `seller_roles` |
 | investor_lender_role | Investor or lender preferences and areas of focus | list | `investor_lender_roles` |
 | Deal | Transaction opportunities and pipeline progression, including buy-side and sell-side mandates (see retired Mandate note below) | object | `deals` |
+| note | Unified notes on organizations, people, and buyer/seller roles (SOURCE Attio only — no DEV Attio object yet) | object | `notes` |
 
 ## Attio schema
 
@@ -239,6 +240,34 @@ candidates, no specific counterparty locked in yet. Distinct from
 terms — the two "mandate" states were never the same thing (see the retired
 Mandate section below).
 
+### note
+
+Type: object | API identifier: `note` (plural noun "Unified Notes" — `notes`
+is reserved by Attio itself for its own native per-record Notes feature) |
+SOURCE Attio only, no DEV Attio object yet
+
+Backfilled once from SOURCE's native per-record Notes (Companies, People) and
+the `buyer_role` list's own `notes` text field
+(`workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`), not a live
+two-way sync. Mastered in PostgreSQL going forward.
+
+| Field | Type | Data responsibility | Relationship |
+|---|---|---|---|
+| `legacy_note_id` | `text` | key | - |
+| `organization_id` | `record-reference` | key | Organization |
+| `person_id` | `record-reference` | key | Person |
+| `buyer_role_id` | `text` | key | - (list entry id, not a record-reference — Attio's record-reference type targets Objects, not List entries) |
+| `seller_role_id` | `text` | key | - |
+| `note_type` | `enum` (`Manual` / `Meeting`) | attio | - |
+| `content` | `text` | attio | - |
+| `note_created_at` | `timestamp` | attio | - |
+
+`organization_id` is left blank when the note's only anchor (a person or
+role) has no organization at all — some SOURCE contacts genuinely have no
+company on either of SOURCE's own company-reference fields. `note_type` is
+inferred from content: a `notes.granola.ai` transcript link or "Chat with
+meeting transcript" phrase means `Meeting`, everything else is `Manual`.
+
 ### Mandate — retired 2026-08-23, merged into Deal
 
 Type: list | API identifier: `mandates` | Parent: `organizations`
@@ -298,7 +327,8 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | CRM mirror | `users`, `organizations`, `people`, `deals` | Structured copies of core CRM records |
 | Business roles | `buyer_roles`, `seller_roles`, `investor_lender_roles` | Buyer, seller, investor, and lender-specific information |
 | Activity and pipeline | `activities`, `deal_stage_events`, `signals` | Interactions, deal movements, and market or buyer signals |
-| Intelligence and matching | `buyer_intel`, `seller_financials`, `match_scores` | Research, financial normalization, targeting, and opportunity matching |
+| Intelligence and matching | `buyer_intel`, `seller_financials`, `match_scores`, `match_results` | Research, financial normalization, targeting, scoring, and shortlisted match runs |
+| Notes | `notes` | Unified notes on organizations, people, and buyer/seller roles, replacing fields formerly scattered across those tables |
 | Knowledge and documents | `documents`, `vertical_kb`, `graph_edges`, `scorecards` | Generated files, sector research, relationship networks, and reporting |
 | Integration operations | `attio_sync_state`, `attio_raw_events` | Synchronization progress and incoming Attio events |
 | Scribe integration | `meetings` | Buyer/seller meeting summaries published by the standalone scribe service |
@@ -379,7 +409,6 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `deal_memo_ready` | `boolean` | Yes | - | - | - |
 | `contract_signed_date` | `date` | Yes | - | - | - |
 | `exclusivity_date` | `date` | Yes | - | - | - |
-| `next_task` | `text` | Yes | - | - | - |
 | `data_room_substatus` | `text` | Yes | - | - | - |
 | `comparables` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `nda_status` | `text` | Yes | - | - | - |
@@ -411,6 +440,8 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 `deal_type` through `source_mandate_entry_id` merged in from the retired Mandate list, 2026-08-23 (see the retired Mandate note in the Attio schema section above). `source_mandate_entry_id` is an idempotency key for the migration script, not a business field.
 
 `mandates` table dropped 2026-08-23, same day as the Attio-side Mandate retirement above — its 2 historical rows carried no data that isn't already on the corresponding `deals` rows via the merge. `mandate_targets` was dropped alongside it (was never populated). See `database/alembic/versions/2e8a6c14f7b9_drop_mandates_and_mandate_targets.py`.
+
+`next_task` dropped 2026-08-29 — confirmed dead by checking DEV Attio's live `deals` object directly: no `next_task`/`next_due_task` attribute exists there, active or archived, so the column was always written as `NULL`. Dead references removed from `sync-postgres.ps1` and `ddl_commands/modules/attio_sync/upsert.py` in the same change. See `database/alembic/versions/d5080e26bfc2_drop_deals_next_task.py`.
 
 ### buyer_roles
 
@@ -589,6 +620,83 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `generated_at` | `timestamptz` | No | - | - | `now()` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 
+### notes
+
+Unified notes on organizations, people, and buyer/seller roles, replacing the
+fields formerly scattered across `organizations`, `people`, and `buyer_roles`.
+Populated by `workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`
+from SOURCE Attio's `note` custom object (via a not-yet-built
+`database/sync-notes-from-source.ps1`), not through DEV Attio, which has no
+notes object yet.
+
+| Column | Type | Nullable | Key | References | Default |
+|---|---|---:|---|---|---|
+| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
+| `organization_id` | `text` | Yes | - | `organizations.attio_id` | - |
+| `person_id` | `text` | Yes | - | `people.attio_id` | - |
+| `buyer_role_id` | `uuid` | Yes | - | `buyer_roles.id` | - |
+| `seller_role_id` | `uuid` | Yes | - | `seller_roles.id` | - |
+| `note_type` | `text` | No | - | - | - |
+| `content` | `text` | No | - | - | - |
+| `created_at` | `timestamptz` | No | - | - | `now()` |
+
+`organization_id` is nullable (2026-08-29): a note whose only anchor is a
+person or role with no associated organization at all still needs a home —
+`person_id`/`buyer_role_id`/`seller_role_id` are set only when the note is
+about that more specific thing rather than the organization generally.
+`note_type` is constrained to `Manual`/`Meeting` (`notes_note_type_check`).
+
+### match_results
+
+One table covering run audit, shortlisted results, status, and approval —
+everything `match_runs`/`matches`/`match_evidence`/`approvals` (described but
+never implemented) would have. Rows come in two kinds distinguished by
+`rank`: `rank IS NULL` is the one-per-`run_id` header/run row (run-level
+columns meaningful); `rank IS NOT NULL` is a shortlisted candidate row
+(candidate-level columns meaningful, 1..N per run).
+
+| Column | Type | Nullable | Key | References | Default |
+|---|---|---:|---|---|---|
+| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
+| `run_id` | `uuid` | No | - | - | - |
+| `buyer_attio_id` | `text` | No | - | `organizations.attio_id` | - |
+| `buyer_role_id` | `uuid` | No | - | `buyer_roles.id` | - |
+| `rank` | `integer` | Yes | - | - | - |
+| `seller_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
+| `seller_role_id` | `uuid` | Yes | - | `seller_roles.id` | - |
+| `match_score_id` | `uuid` | Yes | - | `match_scores.id` | - |
+| `match_score` | `numeric` | Yes | - | - | - |
+| `data_confidence` | `numeric` | Yes | - | - | - |
+| `why_chosen_over_alternatives` | `text` | Yes | - | - | - |
+| `recommended_pitch` | `text` | Yes | - | - | - |
+| `risks_and_gaps` | `text` | Yes | - | - | - |
+| `status` | `text` | No | - | - | `'GENERATED'` |
+| `approved_by` | `text` | Yes | - | - | - |
+| `decision` | `text` | Yes | - | - | - |
+| `decided_at` | `timestamptz` | Yes | - | - | - |
+| `decision_notes` | `text` | Yes | - | - | - |
+| `requested_by` | `text` | Yes | - | - | - |
+| `model_version` | `text` | Yes | - | - | - |
+| `requirement_profile_version` | `integer` | Yes | - | - | - |
+| `requirement_profile` | `jsonb` | Yes | - | - | - |
+| `candidates_considered` | `integer` | Yes | - | - | - |
+| `candidates_filtered` | `integer` | Yes | - | - | - |
+| `filters_skipped` | `jsonb` | No | - | - | `'[]'::jsonb` |
+| `vector_queries` | `jsonb` | Yes | - | - | - |
+| `final_candidate_ids` | `jsonb` | Yes | - | - | - |
+| `execution_duration_ms` | `integer` | Yes | - | - | - |
+| `errors` | `jsonb` | Yes | - | - | - |
+| `started_at` | `timestamptz` | No | - | - | `now()` |
+| `completed_at` | `timestamptz` | Yes | - | - | - |
+| `metadata` | `jsonb` | No | - | - | `'{}'::jsonb` |
+| `created_at` | `timestamptz` | No | - | - | `now()` |
+
+**Table constraints**
+
+- `status IN ('GENERATED', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'FAILED')`
+- `decision IN ('APPROVED', 'REJECTED')`
+- `uq_match_results_run_header` — unique `run_id` where `rank IS NULL`
+
 ### documents
 
 | Column | Type | Nullable | Key | References | Default |
@@ -709,38 +817,48 @@ definition: `database/sql/005_meetings.sql`.
 | `deals.buyer_person_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
 | `deals.seller_organization_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `deals.owner_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
-| `mandates.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
-| `mandates.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
-| `buyer_roles.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
+| `buyer_roles.org_attio_id` | `organizations.attio_id` | Many-to-one (no longer unique as of 2026-08-28) |
 | `buyer_roles.key_contact_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
-| `seller_roles.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
-| `seller_roles.mandate_id` | `mandates.id` | Many-to-one unless constrained unique |
+| `seller_roles.org_attio_id` | `organizations.attio_id` | Many-to-one (no longer unique as of 2026-08-28) |
 | `investor_lender_roles.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `activities.actor_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
 | `deal_stage_events.deal_attio_id` | `deals.attio_id` | Many-to-one unless constrained unique |
 | `signals.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `buyer_intel.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `seller_financials.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
-| `mandate_targets.mandate_id` | `mandates.id` | Many-to-one unless constrained unique |
-| `mandate_targets.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `match_scores.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `match_scores.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
+| `match_results.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
+| `match_results.buyer_role_id` | `buyer_roles.id` | Many-to-one unless constrained unique |
+| `match_results.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
+| `match_results.seller_role_id` | `seller_roles.id` | Many-to-one unless constrained unique |
+| `match_results.match_score_id` | `match_scores.id` | Many-to-one unless constrained unique |
 | `documents.deal_attio_id` | `deals.attio_id` | Many-to-one unless constrained unique |
 | `graph_edges.person_a_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
 | `graph_edges.person_b_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
 | `scorecards.created_by_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
 | `meetings.org_id` | `organizations.attio_id` | Many-to-one; nullable, enforced via `fk_meetings_org` when set |
+| `notes.organization_id` | `organizations.attio_id` | Many-to-one; nullable (2026-08-29) |
+| `notes.person_id` | `people.attio_id` | Many-to-one unless constrained unique |
+| `notes.buyer_role_id` | `buyer_roles.id` | Many-to-one unless constrained unique |
+| `notes.seller_role_id` | `seller_roles.id` | Many-to-one unless constrained unique |
 
 Notable rules:
 
 - `deals` allows either an organization buyer or a person buyer, but not both.
-- Role tables are one-to-one with an organization because `org_attio_id` is unique.
-- `mandate_targets` is unique per `(mandate_id, seller_attio_id)` pair.
+- `buyer_roles`/`seller_roles` are no longer one-to-one with an organization
+  (2026-08-28) — an org can have more than one entry (duplicate SOURCE
+  submissions); `is_active` distinguishes the current one, and the unique
+  constraint moved to `legacy_entry_id`.
 - `graph_edges` rejects self-referencing person edges.
 - `meetings.org_id` is nullable — `org_name_raw` is set instead when scribe
   cannot resolve an organization at publish time. When `org_id` is set, it
   must reference an existing `organizations.attio_id` row (`fk_meetings_org`,
   enabled 2026-08-11).
+- `notes.organization_id` is nullable — blank only when the note's sole
+  anchor (a person or role) has no organization at all.
+- `mandates`/`mandate_targets` were dropped entirely 2026-08-23 (merged into
+  `deals` — see the retired Mandate section above); no relationships remain.
 
 ## Data ownership
 
@@ -753,4 +871,4 @@ Notable rules:
 
 ## Summary
 
-The combined model provides a unified structure for organizations, people, deals, mandates, investor and seller workflows, activities, intelligence, matching, documents, and integrations.
+The combined model provides a unified structure for organizations, people, deals (mandates merged in 2026-08-23), investor and seller workflows, activities, intelligence, matching, notes, documents, and integrations.
