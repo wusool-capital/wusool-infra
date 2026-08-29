@@ -68,8 +68,8 @@ def _fake_org(
     attio_id: str = "org-attio-1",
     name: str = "Acme Capital",
     removed_at=None,
-    seller_role=None,
-    buyer_role=None,
+    seller_roles=None,
+    buyer_roles=None,
 ):
     return SimpleNamespace(
         attio_id=attio_id,
@@ -82,8 +82,8 @@ def _fake_org(
         relationship_status=None,
         estimated_arr=None,
         funding_raised=None,
-        seller_role=seller_role,
-        buyer_role=buyer_role,
+        seller_roles=seller_roles or [],
+        buyer_roles=buyer_roles or [],
     )
 
 
@@ -713,7 +713,9 @@ def test_organization_selection_existing_org_opens_add_form(monkeypatch) -> None
 def test_organization_selection_existing_org_with_role_is_rejected(
     monkeypatch, _mock_slack_web_client
 ) -> None:
-    org = _fake_org(attio_id="org-attio-9", name="Found Co", seller_role=SimpleNamespace())
+    org = _fake_org(
+        attio_id="org-attio-9", name="Found Co", seller_roles=[SimpleNamespace(is_active=True)]
+    )
     monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
 
     payload = _organization_selection_payload("seller", "Found", "org-attio-9")
