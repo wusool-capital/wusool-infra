@@ -83,21 +83,40 @@ class CreateBuyerUseCase:
                     await org_repo.update(org_attio_id, **org_fields)
 
                 buyer_repo = BuyerRepository(session)
-                # `is_active`/`legacy_entry_id` are bot-owned reconciliation
-                # state, not operator-editable — set explicitly here, never
-                # via `role_fields` (built from `BUYER_ROLE_FIELDS`, the
-                # Slack form's editable set).
-                role = await buyer_repo.create(
-                    org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
-                )
-                if role.legacy_entry_id != entry_id:
-                    # With the Attio webhook live, its own `list-entry.created`
-                    # for the entry this same call just created in Attio can
-                    # reach `attio_sync.upsert.sync_buyer_role` and land first
-                    # — `create` then no-ops and hands back that row instead
-                    # of this one. A different `legacy_entry_id` means a real
-                    # pre-existing role won the conflict, not this call's own
-                    # write arriving early via a second path — genuine
-                    # conflict, `UNIQUE(org_attio_id)`'s actual job.
+                # `org_attio_id` is no longer unique (2026-08-28 migration —
+                # see `BuyerRole`'s docstring) — an org can hold several
+                # role rows, so "already exists" is now an explicit check
+                # for an *active* one, not a DB constraint rejecting a
+                # second insert. A matching `legacy_entry_id` means this is
+                # the very entry this call is about to create, arriving
+                # first via the Attio webhook (`sync_buyer_role`) racing
+                # this same submission — tolerate that and hand back the
+                # existing row, rather than raising for what isn't actually
+                # a different, pre-existing role.
+                existing = await buyer_repo.get_by_org_attio_id(org_attio_id)
+                if existing is not None and existing.legacy_entry_id != entry_id:
                     raise BuyerAlreadyExistsError(org_attio_id)
+
+                if existing is not None:
+                    role = existing
+                else:
+                    # `is_active`/`legacy_entry_id` are bot-owned
+                    # reconciliation state, not operator-editable — set
+                    # explicitly here, never via `role_fields` (built from
+                    # `BUYER_ROLE_FIELDS`, the Slack form's editable set).
+                    role = await buyer_repo.create(
+                        org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
+                    )
+                    if role.legacy_entry_id != entry_id:
+                        # ponytail: no DB constraint enforces "one active
+                        # role per org" post-migration (UNIQUE moved to
+                        # legacy_entry_id) — the check above plus this
+                        # post-insert re-check together close a narrow
+                        # TOCTOU window (a role for this org, with a
+                        # different entry, created concurrently between
+                        # them), not an atomic guarantee. Add a partial
+                        # unique index (`org_attio_id` WHERE `is_active`) if
+                        # concurrent `/add-buyer` submissions on the same
+                        # org become a real problem.
+                        raise BuyerAlreadyExistsError(org_attio_id)
         return role

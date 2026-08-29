@@ -104,7 +104,7 @@ async def test_create_raises_when_role_already_exists(
         org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Already Has Seller Co")
         session.add(org)
         await session.flush()
-        role = SellerRole(org_attio_id=org.attio_id)
+        role = SellerRole(org_attio_id=org.attio_id, is_active=True)
         session.add(role)
         await session.flush()
         await session.commit()
@@ -118,6 +118,35 @@ async def test_create_raises_when_role_already_exists(
             org_fields=None,
             role_fields={"outreach_tier": "Tier 1"},
         )
+
+
+async def test_create_succeeds_when_existing_role_is_inactive(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    """A stale/inactive duplicate role (a reconciliation artifact from the
+    2026-08-28 migration allowing multiple rows per org) must not block a
+    new `/add-seller` for the same organization.
+    """
+    async with db_sessionmaker() as session:
+        org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Stale Dup Seller Co")
+        session.add(org)
+        await session.flush()
+        role = SellerRole(org_attio_id=org.attio_id, is_active=False)
+        session.add(role)
+        await session.flush()
+        await session.commit()
+        attio_id = org.attio_id
+
+    role = await CreateSellerUseCase(db_sessionmaker).execute(
+        org_attio_id=attio_id,
+        entry_id="entry-5",
+        is_new_org=False,
+        org_fields=None,
+        role_fields={"outreach_tier": "Tier 1"},
+    )
+
+    assert role.is_active is True
+    assert role.legacy_entry_id == "entry-5"
 
 
 async def test_create_does_not_raise_when_webhook_already_wrote_this_same_entry(
