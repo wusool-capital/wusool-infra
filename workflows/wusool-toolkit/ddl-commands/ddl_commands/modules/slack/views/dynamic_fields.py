@@ -48,6 +48,8 @@ def render_field_block(spec: FieldSpec, current_value, *, block_id_prefix: str =
         return bool_select_block(block_id, spec.label, current_value)
     if spec.kind == "number":
         return number_input_block(block_id, spec.label, current_value, is_decimal_allowed=False)
+    if spec.kind == "percent":
+        return number_input_block(block_id, spec.label, current_value, is_decimal_allowed=True)
     raise ValueError(f"Unsupported field kind for rendering: {spec.kind!r}")
 
 
@@ -91,4 +93,6 @@ def extract_field_value(spec: FieldSpec, values: dict, *, block_id_prefix: str =
     if spec.kind == "number":
         raw = get_number(values, block_id, block_id)
         return int(raw) if raw is not None else None
+    if spec.kind == "percent":
+        return get_number(values, block_id, block_id)
     raise ValueError(f"Unsupported field kind for extraction: {spec.kind!r}")

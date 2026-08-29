@@ -9,7 +9,7 @@ error on someone's `/add-seller`.
 """
 
 import pytest
-from sqlalchemy import ARRAY, Boolean, Date, Integer, Text
+from sqlalchemy import ARRAY, Boolean, Date, Integer, Numeric, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from wusool_db.models import BuyerRole, Organization, SellerRole
 
@@ -35,6 +35,7 @@ _EXPECTED_COLUMN_TYPE = {
     "date": Date,
     "bool": Boolean,
     "number": Integer,
+    "percent": Numeric,
 }
 
 

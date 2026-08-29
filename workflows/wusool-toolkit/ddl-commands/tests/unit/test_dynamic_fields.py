@@ -82,3 +82,27 @@ def test_number_extracts_blank_as_none() -> None:
     values = {"twitter_follower_count": {"twitter_follower_count": {"value": ""}}}
     result = extract_field_value(_FOLLOWER_COUNT_SPEC, values)
     assert result is None
+
+
+# `seller_roles.gross_margin_pct` is `Numeric` — a `percent` field, unlike
+# `number`, must keep decimal precision (e.g. `12.5`), not truncate to `int`.
+_GROSS_MARGIN_SPEC = FieldSpec("gross_margin_pct", "Gross margin %", "percent")
+
+
+def test_percent_renders_with_decimals_allowed() -> None:
+    block = render_field_block(_GROSS_MARGIN_SPEC, 12.5)
+    assert block["element"]["is_decimal_allowed"] is True
+    assert block["element"]["initial_value"] == "12.5"
+
+
+def test_percent_extracts_a_float_not_truncated_to_int() -> None:
+    values = {"gross_margin_pct": {"gross_margin_pct": {"value": "12.5"}}}
+    result = extract_field_value(_GROSS_MARGIN_SPEC, values)
+    assert result == 12.5
+    assert isinstance(result, float)
+
+
+def test_percent_extracts_blank_as_none() -> None:
+    values = {"gross_margin_pct": {"gross_margin_pct": {"value": ""}}}
+    result = extract_field_value(_GROSS_MARGIN_SPEC, values)
+    assert result is None
