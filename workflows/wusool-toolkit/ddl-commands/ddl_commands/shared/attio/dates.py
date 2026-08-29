@@ -3,13 +3,18 @@ writing the wrong shape to the wrong one is a real failure mode, not a
 formatting nicety:
 
 - `date`: plain calendar date, no time component (`last_attempt_date`,
-  `re_engage_date`).
+  `re_engage_date`, `foundation_date`, `last_mandate_briefing_date`).
 - `timestamp`: full ISO-8601 with timezone (`last_interaction_at`).
 """
 
 from datetime import date, datetime
 
-_PLAIN_DATE_FIELDS = {"last_attempt_date", "re_engage_date"}
+_PLAIN_DATE_FIELDS = {
+    "last_attempt_date",
+    "re_engage_date",
+    "foundation_date",
+    "last_mandate_briefing_date",
+}
 _TIMESTAMP_FIELDS = {"last_interaction_at"}
 
 

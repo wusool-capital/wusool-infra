@@ -8,6 +8,8 @@ from ddl_commands.shared.attio.dates import UnknownDateFieldError, serialize_dat
 def test_plain_date_field_serializes_without_time() -> None:
     assert serialize_date("last_attempt_date", date(2026, 3, 5)) == "2026-03-05"
     assert serialize_date("re_engage_date", date(2026, 12, 25)) == "2026-12-25"
+    assert serialize_date("foundation_date", date(2010, 1, 1)) == "2010-01-01"
+    assert serialize_date("last_mandate_briefing_date", date(2026, 6, 1)) == "2026-06-01"
 
 
 def test_timestamp_field_serializes_full_iso() -> None:

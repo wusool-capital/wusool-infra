@@ -23,6 +23,8 @@ def test_organizations_funding_raised_is_usd() -> None:
         ("seller_role", "valuation_low"),
         ("buyer_role", "ebitda_floor"),
         ("buyer_role", "check_size_max"),
+        ("buyer_role", "ebitda_ceiling"),
+        ("buyer_role", "estimated_aum"),
     ],
 )
 def test_role_money_fields_are_usd(table: str, field: str) -> None:
