@@ -26,6 +26,9 @@ _CURRENCY_CODE_BY_FIELD = {
     ("seller_role", "valuation_low"): "USD",
     ("seller_role", "valuation_mid"): "USD",
     ("seller_role", "valuation_high"): "USD",
+    ("seller_role", "revenue_last_full_year"): "USD",
+    ("seller_role", "revenue_year_before"): "USD",
+    ("seller_role", "annual_rent_cost"): "USD",
 }
 
 

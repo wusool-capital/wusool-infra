@@ -34,3 +34,30 @@ def test_everything_optional() -> None:
     validated = SellerUpdate.model_validate({})
     assert validated.outreach_tier is None
     assert validated.est_revenue is None
+
+
+def test_newer_fields_round_trip() -> None:
+    validated = SellerUpdate.model_validate(
+        {
+            "years_active": 5,
+            "funding_stage": "Bootstrapped",
+            "revenue_last_full_year": 1_000_000.0,
+            "revenue_year_before": 900_000.0,
+            "gross_margin_pct": 42.5,
+            "ebitda_deducts_salary": True,
+            "annual_rent_cost": 120_000.0,
+            "largest_customer_revenue_pct": 15.0,
+            "repeat_revenue_pct": 60.0,
+            "location_count": 3,
+        }
+    )
+    assert validated.years_active == 5
+    assert validated.funding_stage == "Bootstrapped"
+    assert validated.revenue_last_full_year == 1_000_000.0
+    assert validated.revenue_year_before == 900_000.0
+    assert validated.gross_margin_pct == 42.5
+    assert validated.ebitda_deducts_salary is True
+    assert validated.annual_rent_cost == 120_000.0
+    assert validated.largest_customer_revenue_pct == 15.0
+    assert validated.repeat_revenue_pct == 60.0
+    assert validated.location_count == 3

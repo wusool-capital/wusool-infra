@@ -28,8 +28,22 @@ from typing import Literal
 # A "bool_as_text" kind used to live here for `buyer_roles.earnout_tolerance`
 # alone — boolean in Attio, `text` in Postgres. #53 made the column a real
 # boolean, so the workaround and its stringify/parse round trip are gone.
+#
+# "number" vs "percent": both render a Slack `number_input` and pass through
+# bare to Attio, but "number" maps to an `Integer` column and hard-casts to
+# `int` (built for `twitter_follower_count`), while "percent" maps to
+# `Numeric` and keeps decimal precision (e.g. `12.5`) for percentage-shaped
+# columns like `seller_roles.gross_margin_pct`.
 FieldKind = Literal[
-    "text", "multiline", "select", "multi_select_text", "currency", "date", "bool", "number"
+    "text",
+    "multiline",
+    "select",
+    "multi_select_text",
+    "currency",
+    "date",
+    "bool",
+    "number",
+    "percent",
 ]
 
 

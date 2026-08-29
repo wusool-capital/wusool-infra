@@ -12,6 +12,11 @@ table entirely (#53 — every populated value was the constant "Direct", and
 gated field with it: `GATED_SELLER_ROLE_FIELDS` is empty now, and the
 confirmation-checkbox machinery it drove is kept for the next write-once
 field rather than deleted.
+
+`funding_stage` is given `"text"` kind because its real Attio attribute type
+(free text vs. select) isn't confirmed anywhere in this codebase — see
+`ddl_commands/shared/organization_field_spec.py`'s docstring for the same
+caveat and the reasoning for defaulting to `"text"`.
 """
 
 from ddl_commands.shared.organization_field_spec import FieldSpec
@@ -80,6 +85,16 @@ SELLER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("valuation_low", "Valuation - low (USD)", "currency"),
     FieldSpec("valuation_mid", "Valuation - mid (USD)", "currency"),
     FieldSpec("valuation_high", "Valuation - high (USD)", "currency"),
+    FieldSpec("years_active", "Years active", "number"),
+    FieldSpec("funding_stage", "Funding stage", "text"),
+    FieldSpec("revenue_last_full_year", "Revenue - last full year (USD)", "currency"),
+    FieldSpec("revenue_year_before", "Revenue - year before (USD)", "currency"),
+    FieldSpec("gross_margin_pct", "Gross margin %", "percent"),
+    FieldSpec("ebitda_deducts_salary", "EBITDA deducts salary", "bool"),
+    FieldSpec("annual_rent_cost", "Annual rent cost (USD)", "currency"),
+    FieldSpec("largest_customer_revenue_pct", "Largest customer revenue %", "percent"),
+    FieldSpec("repeat_revenue_pct", "Repeat revenue %", "percent"),
+    FieldSpec("location_count", "Location count", "number"),
 )
 
 SELLER_ROLE_FIELDS_BY_NAME = {f.name: f for f in SELLER_ROLE_FIELDS}
