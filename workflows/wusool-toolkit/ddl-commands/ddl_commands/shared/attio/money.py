@@ -18,6 +18,8 @@ _CURRENCY_CODE_BY_FIELD = {
     ("buyer_role", "check_size_min"): "USD",
     ("buyer_role", "check_size_max"): "USD",
     ("buyer_role", "ev_ceiling"): "USD",
+    ("buyer_role", "ebitda_ceiling"): "USD",
+    ("buyer_role", "estimated_aum"): "USD",
     ("seller_role", "est_revenue"): "USD",
     ("seller_role", "est_ebitda"): "USD",
     ("seller_role", "owner_salary"): "USD",
