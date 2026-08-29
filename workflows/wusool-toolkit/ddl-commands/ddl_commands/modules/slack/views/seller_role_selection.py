@@ -36,7 +36,17 @@ def build_seller_selection_modal(
     return {
         "type": "modal",
         "callback_id": "seller_role_selection_modal",
-        "private_metadata": json.dumps({"requested_by": requested_by, "channel_id": channel_id}),
+        # `org_names` carries each candidate's organization name forward so the
+        # submission handler can build the next modal without a database round
+        # trip. It has only 3s to `ack()` before Slack abandons the request, and
+        # the name is the only thing it needed that query for.
+        "private_metadata": json.dumps(
+            {
+                "requested_by": requested_by,
+                "channel_id": channel_id,
+                "org_names": {str(c.id): c.organization.name for c in candidates},
+            }
+        ),
         "title": {"type": "plain_text", "text": "Confirm seller"},
         "submit": {"type": "plain_text", "text": "Continue"},
         "close": {"type": "plain_text", "text": "Cancel"},

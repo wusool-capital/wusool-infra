@@ -32,7 +32,6 @@ _MULTI = FieldSpec("sector_focus", "Sector focus", "multi_select_text")
 _DATE = FieldSpec("re_engage_date", "Re-engage date", "date")
 _CURRENCY = FieldSpec("est_revenue", "Est. revenue", "currency")
 _BOOL = FieldSpec("profitable_only", "Profitable only", "bool")
-_BOOL_AS_TEXT = FieldSpec("earnout_tolerance", "Earnout tolerance", "bool_as_text")
 
 
 async def test_build_attio_values_resolves_select_to_option_id() -> None:
@@ -129,24 +128,11 @@ async def test_build_attio_values_passes_bool_through() -> None:
     assert result == {"profitable_only": True}
 
 
-async def test_build_attio_values_passes_bool_as_text_through_as_real_bool() -> None:
-    client = _FakeClient({})
-    result = await build_attio_values(
-        client,
-        target_kind="lists",
-        target_slug="buyer_role",
-        table="buyer_role",
-        fields={"earnout_tolerance": _BOOL_AS_TEXT},
-        extracted={"earnout_tolerance": True},
-    )
-    assert result == {"earnout_tolerance": True}
-
-
 def test_build_postgres_values_wraps_currency_with_fixed_code() -> None:
     result = build_postgres_values(
         table="seller_role", fields={"est_revenue": _CURRENCY}, extracted={"est_revenue": 250.0}
     )
-    assert result == {"est_revenue": {"amount": 250.0, "currency": "AED"}}
+    assert result == {"est_revenue": {"amount": 250.0, "currency": "USD"}}
 
 
 def test_build_postgres_values_passes_non_currency_through() -> None:
@@ -165,26 +151,13 @@ def test_build_postgres_values_none_currency_stays_none() -> None:
     assert result == {"est_revenue": None}
 
 
-def test_build_postgres_values_stringifies_bool_as_text() -> None:
+def test_build_postgres_values_passes_bool_through_unchanged() -> None:
+    """#53 made `earnout_tolerance` a real boolean column; it used to be text,
+    and this function stringified it on the way in. Nothing reshapes a bool now.
+    """
     result = build_postgres_values(
         table="buyer_role",
-        fields={"earnout_tolerance": _BOOL_AS_TEXT},
+        fields={"earnout_tolerance": _BOOL},
         extracted={"earnout_tolerance": True},
     )
-    assert result == {"earnout_tolerance": "true"}
-
-    result = build_postgres_values(
-        table="buyer_role",
-        fields={"earnout_tolerance": _BOOL_AS_TEXT},
-        extracted={"earnout_tolerance": False},
-    )
-    assert result == {"earnout_tolerance": "false"}
-
-
-def test_build_postgres_values_none_bool_as_text_stays_none() -> None:
-    result = build_postgres_values(
-        table="buyer_role",
-        fields={"earnout_tolerance": _BOOL_AS_TEXT},
-        extracted={"earnout_tolerance": None},
-    )
-    assert result == {"earnout_tolerance": None}
+    assert result == {"earnout_tolerance": True}

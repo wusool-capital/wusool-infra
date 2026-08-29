@@ -89,11 +89,17 @@ def register(app: AsyncApp) -> None:
         selected = view["state"]["values"]["seller_role_id"]["selected_seller"]["selected_option"]
         seller_role_id = selected["value"]
 
-        role = await resolve_seller_by_id(seller_role_id)
-        if role is None:
+        # No database call before `ack()`: Slack abandons a view submission
+        # after 3s, and Bolt's runner reports that by returning an empty 200
+        # rather than raising, so an overrun here fails silently. The name is
+        # carried in `private_metadata` by the modal that produced this
+        # submission; the role's existence is re-checked by the field-picker
+        # handler below, which does have to load it anyway.
+        org_name = (metadata.get("org_names") or {}).get(seller_role_id)
+        if org_name is None:
             await ack()
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="This seller could not be found."
+                channel=channel_id, user=requested_by, text="This *seller* could not be found."
             )
             return
         await ack(
@@ -101,7 +107,7 @@ def register(app: AsyncApp) -> None:
             view=build_field_picker_modal(
                 kind="seller",
                 role_id=seller_role_id,
-                org_name=role.organization.name,
+                org_name=org_name,
                 requested_by=requested_by,
                 channel_id=channel_id,
                 role_fields=SELLER_ROLE_FIELDS,
@@ -120,11 +126,12 @@ def register(app: AsyncApp) -> None:
         selected = view["state"]["values"]["buyer_role_id"]["selected_buyer"]["selected_option"]
         buyer_role_id = selected["value"]
 
-        role = await resolve_buyer_by_id(buyer_role_id)
-        if role is None:
+        # See the seller handler above — no database call before `ack()`.
+        org_name = (metadata.get("org_names") or {}).get(buyer_role_id)
+        if org_name is None:
             await ack()
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="This buyer could not be found."
+                channel=channel_id, user=requested_by, text="This *buyer* could not be found."
             )
             return
         await ack(
@@ -132,7 +139,7 @@ def register(app: AsyncApp) -> None:
             view=build_field_picker_modal(
                 kind="buyer",
                 role_id=buyer_role_id,
-                org_name=role.organization.name,
+                org_name=org_name,
                 requested_by=requested_by,
                 channel_id=channel_id,
                 role_fields=BUYER_ROLE_FIELDS,
@@ -150,7 +157,7 @@ def register(app: AsyncApp) -> None:
         if not org_fields and not role_fields:
             await ack()
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="Pick at least one field to edit."
+                channel=channel_id, user=requested_by, text="Pick at least *one field* to edit."
             )
             return
 
@@ -158,7 +165,7 @@ def register(app: AsyncApp) -> None:
         if role is None:
             await ack()
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="This seller could not be found."
+                channel=channel_id, user=requested_by, text="This *seller* could not be found."
             )
             return
         await ack(
@@ -184,7 +191,7 @@ def register(app: AsyncApp) -> None:
         if not org_fields and not role_fields:
             await ack()
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="Pick at least one field to edit."
+                channel=channel_id, user=requested_by, text="Pick at least *one field* to edit."
             )
             return
 
@@ -192,7 +199,7 @@ def register(app: AsyncApp) -> None:
         if role is None:
             await ack()
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="This buyer could not be found."
+                channel=channel_id, user=requested_by, text="This *buyer* could not be found."
             )
             return
         await ack(
@@ -263,14 +270,14 @@ def register(app: AsyncApp) -> None:
             )
         except SellerNotFoundError:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="This seller could not be found."
+                channel=channel_id, user=requested_by, text="This *seller* could not be found."
             )
             return
         except _OrgRemovedError:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text=f"{org_name}'s Attio record is gone or was merged — can't write to it.",
+                text=f"*{org_name}*'s Attio record is gone or was merged — can't write to it.",
             )
             return
         except PartialWriteError as exc:
@@ -280,7 +287,9 @@ def register(app: AsyncApp) -> None:
             return
 
         await client.chat_postEphemeral(
-            channel=channel_id, user=requested_by, text=f"Updated seller profile for {org_name}."
+            channel=channel_id,
+            user=requested_by,
+            text=f"*Updated* seller profile for *{org_name}*.",
         )
 
     @app.view("buyer_edit_form_modal")
@@ -339,14 +348,14 @@ def register(app: AsyncApp) -> None:
             )
         except BuyerNotFoundError:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="This buyer could not be found."
+                channel=channel_id, user=requested_by, text="This *buyer* could not be found."
             )
             return
         except _OrgRemovedError:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text=f"{org_name}'s Attio record is gone or was merged — can't write to it.",
+                text=f"*{org_name}*'s Attio record is gone or was merged — can't write to it.",
             )
             return
         except PartialWriteError as exc:
@@ -356,7 +365,7 @@ def register(app: AsyncApp) -> None:
             return
 
         await client.chat_postEphemeral(
-            channel=channel_id, user=requested_by, text=f"Updated buyer profile for {org_name}."
+            channel=channel_id, user=requested_by, text=f"*Updated* buyer profile for *{org_name}*."
         )
 
     @app.view("organization_selection_modal")
@@ -390,19 +399,22 @@ def register(app: AsyncApp) -> None:
         if org is None:
             await ack()
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="This organization could not be found."
+                channel=channel_id,
+                user=requested_by,
+                text="This *organization* could not be found.",
             )
             return
 
-        has_role = (org.seller_role if kind == "seller" else org.buyer_role) is not None
+        roles = org.seller_roles if kind == "seller" else org.buyer_roles
+        has_role = any(r.is_active for r in roles)
         if has_role:
             await ack()
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
                 text=(
-                    f"{org.name} already has a {kind} role — use `/edit-{kind} {org.name}` "
-                    "instead."
+                    f"*{org.name}* already has a {kind} role — "
+                    f"_use `/edit-{kind} {org.name}` instead_."
                 ),
             )
             return
@@ -461,8 +473,8 @@ def register(app: AsyncApp) -> None:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text="A seller role already exists for this organization — use `/edit-seller`"
-                " instead.",
+                text="A seller role already exists for this organization — "
+                "_use `/edit-seller` instead_.",
             )
             return
         except PartialWriteError as exc:
@@ -472,7 +484,7 @@ def register(app: AsyncApp) -> None:
             return
 
         await client.chat_postEphemeral(
-            channel=channel_id, user=requested_by, text=f"Added seller profile for {org_name}."
+            channel=channel_id, user=requested_by, text=f"*Added* seller profile for *{org_name}*."
         )
 
     @app.view("buyer_add_form_modal")
@@ -524,8 +536,8 @@ def register(app: AsyncApp) -> None:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text="A buyer role already exists for this organization — use `/edit-buyer`"
-                " instead.",
+                text="A buyer role already exists for this organization — "
+                "_use `/edit-buyer` instead_.",
             )
             return
         except PartialWriteError as exc:
@@ -535,7 +547,7 @@ def register(app: AsyncApp) -> None:
             return
 
         await client.chat_postEphemeral(
-            channel=channel_id, user=requested_by, text=f"Added buyer profile for {org_name}."
+            channel=channel_id, user=requested_by, text=f"*Added* buyer profile for *{org_name}*."
         )
 
 
@@ -561,9 +573,9 @@ class PartialWriteError(Exception):
 
 def _partial_write_message(exc: PartialWriteError) -> str:
     if not exc.landed:
-        return f"Couldn't write to Attio, nothing was saved: {exc.cause}"
+        return f"*Couldn't write to Attio* — nothing was saved. _{exc.cause}_"
     landed_text = "; ".join(exc.landed)
-    return f"Write failed partway through. Already saved: {landed_text}. Error: {exc.cause}"
+    return f"*Write failed partway through.* Already saved: {landed_text}. _{exc.cause}_"
 
 
 async def _write_seller_edit(
@@ -728,6 +740,7 @@ async def _write_seller_add(
                 extracted=org_extracted,
             )
             org_attio_values["name"] = org_name
+            org_attio_values["is_active"] = True
             org_attio_id = await create_organization(attio_client, org_attio_values)
             landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
         elif org_extracted:
@@ -752,7 +765,9 @@ async def _write_seller_add(
             fields=SELLER_ROLE_FIELDS_BY_NAME,
             extracted=role_extracted,
         )
-        await create_role_entry(attio_client, "seller_role", org_attio_id, role_attio_values)
+        entry_id = await create_role_entry(
+            attio_client, "seller_role", org_attio_id, role_attio_values
+        )
         landed.append("seller role entry (Attio)")
     except (AttioError, OptionNotFoundError) as exc:
         raise PartialWriteError(landed, exc) from exc
@@ -770,6 +785,7 @@ async def _write_seller_add(
     try:
         await build_create_seller_use_case().execute(
             org_attio_id=org_attio_id,
+            entry_id=entry_id,
             is_new_org=is_new_org,
             org_name=org_name if is_new_org else None,
             org_fields=org_postgres_fields,
@@ -804,6 +820,7 @@ async def _write_buyer_add(
                 extracted=org_extracted,
             )
             org_attio_values["name"] = org_name
+            org_attio_values["is_active"] = True
             org_attio_id = await create_organization(attio_client, org_attio_values)
             landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
         elif org_extracted:
@@ -828,7 +845,9 @@ async def _write_buyer_add(
             fields=BUYER_ROLE_FIELDS_BY_NAME,
             extracted=role_extracted,
         )
-        await create_role_entry(attio_client, "buyer_role", org_attio_id, role_attio_values)
+        entry_id = await create_role_entry(
+            attio_client, "buyer_role", org_attio_id, role_attio_values
+        )
         landed.append("buyer role entry (Attio)")
     except (AttioError, OptionNotFoundError) as exc:
         raise PartialWriteError(landed, exc) from exc
@@ -846,6 +865,7 @@ async def _write_buyer_add(
     try:
         await build_create_buyer_use_case().execute(
             org_attio_id=org_attio_id,
+            entry_id=entry_id,
             is_new_org=is_new_org,
             org_name=org_name if is_new_org else None,
             org_fields=org_postgres_fields,

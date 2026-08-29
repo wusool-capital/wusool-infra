@@ -86,7 +86,7 @@ def money_input_blocks(field: str, label: str, money: dict | None) -> list[dict]
     currency = money.get("currency") if money else None
     return [
         number_input_block(f"{field}_amount", f"{label} — amount", amount),
-        text_input_block(f"{field}_currency", f"{label} — currency (e.g. AED)", currency),
+        text_input_block(f"{field}_currency", f"{label} — currency (e.g. USD)", currency),
     ]
 
 
@@ -127,8 +127,9 @@ def confirmation_checkbox_block(
     block_id: str, action_id: str, label: str, option_text: str
 ) -> dict:
     """A required checkbox, not just a relabeled submit button, so the
-    gated action is something the operator must actively opt into. Used
-    today for `intake_source`'s `write_once_except_correction` gate.
+    gated action is something the operator must actively opt into. Nothing
+    is gated today — `intake_source` was the only such field and #53 dropped
+    it — but `GATED_*_ROLE_FIELDS` still drives this for the next one.
     """
     return {
         "type": "input",

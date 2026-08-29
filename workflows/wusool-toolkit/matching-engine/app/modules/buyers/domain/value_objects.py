@@ -20,7 +20,7 @@ class BuyerContext:
     check_size_max: Money | None
     ev_ceiling: Money | None
     deal_structure_tolerance: str | None
-    earnout_tolerance: str | None
+    earnout_tolerance: bool | None
     profitable_only: bool | None
     investment_strategy: str | None
     notes: str | None

@@ -28,17 +28,6 @@ def _block_id(spec: FieldSpec, block_id_prefix: str) -> str:
     return f"{block_id_prefix}{spec.name}"
 
 
-def _text_to_bool(value: str | None) -> bool | None:
-    """Mirrors `database/sync-postgres.ps1`'s own `boolean(v, slug)` parser,
-    for the one field (`earnout_tolerance`) stored as text in Postgres but
-    genuinely boolean in Attio — so this bot's read of a synced row agrees
-    with the sync script's own read of the same data.
-    """
-    if value is None:
-        return None
-    return value.strip().lower() in ("true", "yes", "1", "checked")
-
-
 def render_field_block(spec: FieldSpec, current_value, *, block_id_prefix: str = "") -> dict:
     block_id = _block_id(spec, block_id_prefix)
     if spec.kind == "text":
@@ -56,8 +45,6 @@ def render_field_block(spec: FieldSpec, current_value, *, block_id_prefix: str =
         return number_input_block(block_id, spec.label, amount)
     if spec.kind == "bool":
         return bool_select_block(block_id, spec.label, current_value)
-    if spec.kind == "bool_as_text":
-        return bool_select_block(block_id, spec.label, _text_to_bool(current_value))
     raise ValueError(f"Unsupported field kind for rendering: {spec.kind!r}")
 
 
@@ -68,12 +55,7 @@ def extract_field_value(spec: FieldSpec, values: dict, *, block_id_prefix: str =
     which table the field belongs to, via
     `ddl_commands.shared.attio.money.default_currency_code`, so both the
     Postgres write and the Attio write use the identical fixed currency — a
-    `list[str]` for the multi-select stand-in). One more exception besides
-    money: `"bool_as_text"` (`earnout_tolerance`) also extracts as a real
-    `bool | None`, not the `str` Postgres actually stores — the caller
-    stringifies it via `ddl_commands.shared.attio.write_payload.build_postgres_values`,
-    the same "extraction stays simple, table-specific shaping happens at the
-    write boundary" split money already uses. Attio-specific serialization
+    `list[str]` for the multi-select stand-in). Attio-specific serialization
     beyond that (option IDs, date-vs-timestamp shape) happens later, only
     when actually building the Attio write payload.
     """
@@ -83,9 +65,12 @@ def extract_field_value(spec: FieldSpec, values: dict, *, block_id_prefix: str =
     if spec.kind == "select":
         return get_static_select(values, block_id, block_id)
     if spec.kind == "multi_select_text":
+        # `[]`, not `None`, when blank: `organizations.sector_focus` (the only
+        # field of this kind) is `text[] NOT NULL DEFAULT '{}'` — an empty
+        # selection is a real, storable value for it, never a null one.
         raw = get_text(values, block_id, block_id)
         if not raw:
-            return None
+            return []
         return [part.strip() for part in raw.split(",") if part.strip()]
     if spec.kind == "date":
         raw = get_date(values, block_id, block_id)
@@ -98,6 +83,6 @@ def extract_field_value(spec: FieldSpec, values: dict, *, block_id_prefix: str =
             return float(raw)
         except ValueError:
             return None
-    if spec.kind in ("bool", "bool_as_text"):
+    if spec.kind == "bool":
         return get_bool_select(values, block_id, block_id)
     raise ValueError(f"Unsupported field kind for extraction: {spec.kind!r}")

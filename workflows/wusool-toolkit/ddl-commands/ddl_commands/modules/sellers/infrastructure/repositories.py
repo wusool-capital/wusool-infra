@@ -5,6 +5,7 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from wusool_db.models import Organization, SellerRole
@@ -38,9 +39,24 @@ class SellerRepository:
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def create(self, org_attio_id: str, **fields) -> SellerRole:
-        role = SellerRole(org_attio_id=org_attio_id, **fields)
-        self._session.add(role)
+        """Upserts (`ON CONFLICT ... DO NOTHING`) rather than a plain insert
+        — with the Attio webhook live, `list-entry.created` for the entry
+        this same call just created in Attio can reach
+        `attio_sync.upsert.sync_seller_role` and land here first, racing
+        this call's own write to the same `UNIQUE(org_attio_id)` row. The
+        caller (`CreateSellerUseCase`) tells that apart from a genuine
+        pre-existing role by comparing `legacy_entry_id` on whatever this
+        returns.
+        """
+        stmt = (
+            pg_insert(SellerRole)
+            .values(org_attio_id=org_attio_id, **fields)
+            .on_conflict_do_nothing(index_elements=["org_attio_id"])
+        )
+        await self._session.execute(stmt)
         await self._session.flush()
+        role = await self.get_by_org_attio_id(org_attio_id)
+        assert role is not None
         return role
 
     async def search_by_organization_name(self, term: str, limit: int = 10) -> list[SellerRole]:

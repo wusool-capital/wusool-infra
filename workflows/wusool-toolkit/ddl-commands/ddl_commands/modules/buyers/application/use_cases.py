@@ -61,25 +61,43 @@ class CreateBuyerUseCase:
         self,
         *,
         org_attio_id: str,
+        entry_id: str,
         is_new_org: bool,
         org_name: str | None = None,
         org_fields: dict | None = None,
         role_fields: dict,
     ) -> BuyerRole:
         """Mirrors `CreateSellerUseCase.execute` exactly, buyer-typed — see
-        that docstring for the re-check rationale.
+        that docstring for the re-check rationale. `entry_id` is the
+        just-created buyer_role list entry's own id.
         """
         async with self._sessionmaker() as session:
             async with session.begin():
                 org_repo = OrganizationRepository(session)
                 if is_new_org:
                     assert org_name is not None
-                    await org_repo.create(org_attio_id, org_name, **(org_fields or {}))
+                    await org_repo.create(
+                        org_attio_id, org_name, is_active=True, **(org_fields or {})
+                    )
                 elif org_fields:
                     await org_repo.update(org_attio_id, **org_fields)
 
                 buyer_repo = BuyerRepository(session)
-                if await buyer_repo.get_by_org_attio_id(org_attio_id) is not None:
+                # `is_active`/`legacy_entry_id` are bot-owned reconciliation
+                # state, not operator-editable — set explicitly here, never
+                # via `role_fields` (built from `BUYER_ROLE_FIELDS`, the
+                # Slack form's editable set).
+                role = await buyer_repo.create(
+                    org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
+                )
+                if role.legacy_entry_id != entry_id:
+                    # With the Attio webhook live, its own `list-entry.created`
+                    # for the entry this same call just created in Attio can
+                    # reach `attio_sync.upsert.sync_buyer_role` and land first
+                    # — `create` then no-ops and hands back that row instead
+                    # of this one. A different `legacy_entry_id` means a real
+                    # pre-existing role won the conflict, not this call's own
+                    # write arriving early via a second path — genuine
+                    # conflict, `UNIQUE(org_attio_id)`'s actual job.
                     raise BuyerAlreadyExistsError(org_attio_id)
-                role = await buyer_repo.create(org_attio_id, **role_fields)
         return role

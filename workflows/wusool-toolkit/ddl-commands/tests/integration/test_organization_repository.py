@@ -65,8 +65,8 @@ async def test_get_by_id_with_roles_eager_loads_seller_and_buyer_role(
     assert found is not None
     # No lazy-load error accessing these outside further awaits — proves
     # they were eager-loaded, not just present on the still-open session.
-    assert found.seller_role is None
-    assert found.buyer_role is None
+    assert found.seller_roles == []
+    assert found.buyer_roles == []
 
 
 async def test_create_inserts_a_new_organization(db_session: AsyncSession) -> None:
@@ -82,3 +82,22 @@ async def test_create_inserts_a_new_organization(db_session: AsyncSession) -> No
     found = await repo.get_by_id(attio_id)
     assert found is not None
     assert found.name == "Brand New Co"
+
+
+async def test_create_does_not_raise_when_the_row_already_exists(
+    db_session: AsyncSession,
+) -> None:
+    """A `record.created` webhook for this same org can land first and
+    upsert it before this call runs — `create` must tolerate that race
+    instead of raising `UniqueViolationError`, and must not clobber the
+    webhook's row with this call's narrower field set.
+    """
+    attio_id = f"test-org-{uuid.uuid4()}"
+    repo = OrganizationRepository(db_session)
+    await repo.create(attio_id, "Webhook-Written Name", hq_country="AE")
+
+    created = await repo.create(attio_id, "Bot-Written Name", hq_country="US")
+
+    assert created.attio_id == attio_id
+    assert created.name == "Webhook-Written Name"
+    assert created.hq_country == "AE"

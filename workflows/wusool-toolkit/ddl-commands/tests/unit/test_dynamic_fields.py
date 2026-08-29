@@ -1,43 +1,58 @@
 from ddl_commands.modules.slack.views.dynamic_fields import extract_field_value, render_field_block
 from ddl_commands.shared.organization_field_spec import FieldSpec
 
-_EARNOUT_SPEC = FieldSpec("earnout_tolerance", "Earnout tolerance", "bool_as_text")
+# Was a "bool_as_text" spec until #53 made the column a real boolean. The
+# tri-state Yes/No/Not-set rendering is what mattered and it is unchanged —
+# only the stringify/parse round trip either side of it is gone.
+_EARNOUT_SPEC = FieldSpec("earnout_tolerance", "Earnout tolerance", "bool")
 
 
-def test_bool_as_text_renders_true_string_as_yes() -> None:
-    block = render_field_block(_EARNOUT_SPEC, "true")
+def test_bool_renders_true_as_yes() -> None:
+    block = render_field_block(_EARNOUT_SPEC, True)
     assert block["element"]["initial_option"]["value"] == "true"
 
 
-def test_bool_as_text_renders_false_string_as_no() -> None:
-    block = render_field_block(_EARNOUT_SPEC, "false")
+def test_bool_renders_false_as_no() -> None:
+    block = render_field_block(_EARNOUT_SPEC, False)
     assert block["element"]["initial_option"]["value"] == "false"
 
 
-def test_bool_as_text_renders_none_as_not_set() -> None:
+def test_bool_renders_none_as_not_set() -> None:
+    """`False` and "never set" are different states and must stay distinguishable
+    — a falsy check here would collapse them.
+    """
     block = render_field_block(_EARNOUT_SPEC, None)
     assert block["element"]["initial_option"]["value"] == "unset"
 
 
-def test_bool_as_text_renders_unrecognized_string_as_false() -> None:
-    """Matches `database/sync-postgres.ps1`'s own `boolean()` fallback: only
-    a genuinely absent value (`None`) is "not set" — any stored string that
-    isn't one of the truthy tokens is treated as false, same as the sync
-    script would read it. In practice the column only ever holds `NULL`,
-    `"true"`, or `"false"` (this bot only ever writes those two strings —
-    see `write_payload.build_postgres_values`), so this is a defensive
-    fallback, not a real data case.
-    """
-    block = render_field_block(_EARNOUT_SPEC, "maybe")
-    assert block["element"]["initial_option"]["value"] == "false"
-
-
-def test_bool_as_text_extracts_a_real_bool_not_a_string() -> None:
-    values = {
-        "earnout_tolerance": {
-            "earnout_tolerance": {"selected_option": {"value": "true"}}
-        }
-    }
+def test_bool_extracts_a_real_bool_not_a_string() -> None:
+    values = {"earnout_tolerance": {"earnout_tolerance": {"selected_option": {"value": "true"}}}}
     result = extract_field_value(_EARNOUT_SPEC, values)
     assert result is True
     assert isinstance(result, bool)
+
+
+# `organizations.sector_focus` is `text[] NOT NULL DEFAULT '{}'` — the only
+# `multi_select_text` field. Extraction used to return `None` for a blank
+# box, which sailed through `OrganizationUpdate` (`list[str] | None`)
+# untouched and hit Postgres's real NOT NULL constraint as the very last
+# line of defense, after both an organization-fields Attio write and a role
+# entry had already been created.
+_SECTOR_FOCUS_SPEC = FieldSpec("sector_focus", "Sector focus", "multi_select_text")
+
+
+def test_multi_select_text_renders_empty_list_as_blank() -> None:
+    block = render_field_block(_SECTOR_FOCUS_SPEC, [])
+    assert "initial_value" not in block["element"]
+
+
+def test_multi_select_text_extracts_blank_as_empty_list_not_none() -> None:
+    values = {"sector_focus": {"sector_focus": {"value": None}}}
+    result = extract_field_value(_SECTOR_FOCUS_SPEC, values)
+    assert result == []
+
+
+def test_multi_select_text_extracts_comma_separated_values() -> None:
+    values = {"sector_focus": {"sector_focus": {"value": "Fintech, Logistics"}}}
+    result = extract_field_value(_SECTOR_FOCUS_SPEC, values)
+    assert result == ["Fintech", "Logistics"]

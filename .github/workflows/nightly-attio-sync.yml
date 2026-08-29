@@ -1,0 +1,125 @@
+# Nightly safety-net full resync of DEV Attio -> Postgres. Complements, not
+# replaces, the real-time webhook (workflows/wusool-toolkit/ddl-commands/
+# ddl_commands/modules/attio_sync/, `POST /webhooks/attio`) — catches
+# anything a dropped delivery, an out-of-order race, or a deliberate pause
+# (e.g. during a bulk crm-sync migration — see that runbook for the
+# pause/resume commands) left inconsistent.
+#
+# Runs the already-deployed toolkit image's own full_resync module via SSM —
+# the same "RDS is private, only the toolkit EC2 instance has a network path
+# to it" pattern _deploy.yml already uses for `alembic upgrade head`. No new
+# infrastructure, no new dependencies, and never a separate build: this reads
+# back and reuses whatever digest-pinned image is already running — this
+# repo never runs images by a mutable tag (see terraform/modules/n8n-ec2/
+# variables.tf's image-pinning validation for why), so the container's own
+# image ID (via `docker inspect`, not `docker ps`'s `.Image` column — that
+# column silently drops the digest for a container started by digest
+# reference, which made every run of this job through 2026-08-23 fail
+# trying to pull a nonexistent "latest" tag) is captured instead.
+name: Nightly Attio full resync
+
+on:
+  schedule:
+    # 02:00 Asia/Dubai (n8n's configured default timezone, kept as this
+    # repo's de facto reference timezone) = 22:00 UTC the previous day.
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  full-resync:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    # Never let tonight's run and tomorrow's cron trigger overlap against the
+    # same tables — a run that's still executing when the next one fires
+    # would otherwise race it (see the poll-cap comment below for how a run
+    # could legitimately still be in progress this long).
+    concurrency:
+      group: nightly-attio-sync
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-opentofu
+
+      - uses: ./.github/actions/aws-oidc
+        with:
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-dev
+
+      # Read-only: no `apply` here, only the instance_id output already
+      # applied by deploy-dev.yml's own run of stacks/toolkit.
+      - name: Read toolkit stack outputs
+        id: toolkit
+        working-directory: terraform/stacks/toolkit
+        run: |
+          set -euo pipefail
+          tofu init -reconfigure -input=false \
+            -backend-config=bucket=wusool-tfstate \
+            -backend-config=region=me-central-1 \
+            -backend-config=key=wusool/dev/toolkit/terraform.tfstate \
+            -backend-config=use_lockfile=true -backend-config=encrypt=true
+          echo "instance_id=$(tofu output -raw instance_id 2>/dev/null || echo '')" >> "$GITHUB_OUTPUT"
+
+      - name: Run full resync on the toolkit instance
+        if: steps.toolkit.outputs.instance_id != ''
+        env:
+          IID: ${{ steps.toolkit.outputs.instance_id }}
+        run: |
+          set -uo pipefail
+          # `docker ps --format "{{.Image}}"` drops the digest for a
+          # container started by digest reference (`repo@sha256:...`),
+          # printing just the bare repo name — `docker run` on that then
+          # silently falls back to Docker's own implicit ":latest", which
+          # this repo's build never pushes. `docker inspect --format
+          # '{{.Image}}'` instead gives the container's actual local image
+          # ID, already the exact digest-pinned image running — no registry
+          # lookup needed at all.
+          COMMANDS_JSON=$(jq -n \
+            --arg get_id 'CID=$(docker ps --filter "name=toolkit" --format "{{.ID}}" | head -1)' \
+            --arg get_image 'IMAGE=$(docker inspect --format="{{.Image}}" "$CID")' \
+            --arg run_resync 'docker run --rm --env-file /opt/toolkit/toolkit/.env.production "$IMAGE" python -m ddl_commands.modules.attio_sync.full_resync' \
+            '["set -e", $get_id, $get_image, $run_resync]')
+
+          CMD=$(aws ssm send-command \
+            --document-name AWS-RunShellScript \
+            --instance-ids "$IID" \
+            --comment "nightly attio full resync (run ${{ github.run_id }})" \
+            --parameters commands="$COMMANDS_JSON" \
+            --query Command.CommandId --output text)
+          echo "command: $CMD"
+
+          # 40 minutes (160 x 15s) -- full_resync.py syncs one record at a
+          # time across 6 entity types, so this needs real headroom, not just
+          # today's data volume: too tight a cap here doesn't stop the SSM
+          # command itself (it keeps running on the instance regardless of
+          # whether anything's still polling it), it just makes this job
+          # falsely report failure while the resync is still genuinely
+          # succeeding in the background.
+          STATUS=""
+          for _ in $(seq 1 160); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+                  --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Success) echo "full resync succeeded"; break ;;
+              Failed|Cancelled|TimedOut) break ;;
+            esac
+            sleep 15
+          done
+
+          echo "--- stdout ---"
+          aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+            --query StandardOutputContent --output text
+          echo "--- stderr ---"
+          aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+            --query StandardErrorContent --output text
+
+          [ "$STATUS" = "Success" ] || { echo "::error::nightly full resync ended in status: $STATUS"; exit 1; }
+
+      - name: No toolkit instance in dev
+        if: steps.toolkit.outputs.instance_id == ''
+        run: echo "::notice::No toolkit instance in dev (create_instance=false) — skipping nightly resync."

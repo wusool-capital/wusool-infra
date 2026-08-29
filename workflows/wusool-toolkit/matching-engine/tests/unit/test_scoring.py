@@ -35,7 +35,7 @@ def _seller(
         relationship_status=None,
         appetite_signal=None,
         readiness_score=None,
-        est_revenue=Money(amount=est_revenue, currency="AED") if est_revenue is not None else None,
+        est_revenue=Money(amount=est_revenue, currency="USD") if est_revenue is not None else None,
         est_ebitda=None,
         valuation_low=None,
         valuation_mid=None,

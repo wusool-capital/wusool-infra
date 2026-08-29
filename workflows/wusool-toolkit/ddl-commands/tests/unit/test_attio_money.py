@@ -25,9 +25,9 @@ def test_organizations_funding_raised_is_usd() -> None:
         ("buyer_role", "check_size_max"),
     ],
 )
-def test_role_money_fields_are_aed(table: str, field: str) -> None:
+def test_role_money_fields_are_usd(table: str, field: str) -> None:
     assert serialize_money(table, field, 500.0) == {"currency_value": 500.0}
-    assert default_currency_code(table, field) == "AED"
+    assert default_currency_code(table, field) == "USD"
 
 
 def test_unknown_field_raises() -> None:

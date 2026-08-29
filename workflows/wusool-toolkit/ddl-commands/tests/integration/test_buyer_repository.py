@@ -62,3 +62,20 @@ async def test_create_inserts_a_new_role(
 
     assert created.org_attio_id == throwaway_org.attio_id
     assert created.model == "Model 1 (Network)"
+
+
+async def test_create_does_not_raise_when_the_row_already_exists(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    """A `list-entry.created` webhook for this same role can land first and
+    upsert it before this call runs — `create` must tolerate that race
+    instead of raising `UniqueViolationError`, and must not clobber the
+    webhook's row with this call's narrower field set.
+    """
+    repo = BuyerRepository(db_session)
+    await repo.create(throwaway_org.attio_id, model="Webhook-Written Model")
+
+    created = await repo.create(throwaway_org.attio_id, model="Bot-Written Model")
+
+    assert created.org_attio_id == throwaway_org.attio_id
+    assert created.model == "Webhook-Written Model"

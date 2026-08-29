@@ -1,0 +1,101 @@
+{
+  "version": "0.1",
+  "dev_workspace_id": "176eb4b0-40a9-419b-b363-784b596a6bbc",
+  "objects": {
+    "organization": {
+      "kind": "custom",
+      "singular_noun": "Organization",
+      "plural_noun": "Organizations",
+      "api_slug": "organizations",
+      "source_object": "companies"
+    },
+    "person": {
+      "kind": "custom",
+      "singular_noun": "Person",
+      "plural_noun": "Person",
+      "api_slug": "person",
+      "source_object": "people"
+    },
+    "deal": {
+      "kind": "standard",
+      "singular_noun": "Deal",
+      "plural_noun": "Deals",
+      "api_slug": "deals",
+      "source_object": "deals"
+    }
+  },
+  "lists": {
+    "buyer_role": {
+      "api_slug": "buyer_role",
+      "parent_object": "organizations",
+      "source_list": "buyer_brain"
+    },
+    "seller_role": {
+      "api_slug": "seller_role",
+      "parent_object": "organizations",
+      "source_list": "valuation_tool_leads"
+    }
+  },
+  "pending": [
+    "investor_lender_role design",
+    "new enum option sets",
+    "Deal buyer and seller relationship mapping"
+  ],
+  "workspace_member_crosswalk": {
+    "resolved": "2026-08-19",
+    "note": "SOURCE workspace members are @dopaminecap.com (the old company) - not real Wusool Capital people, so each was reassigned to a real DEV member rather than re-invited under the same email.",
+    "mapping": [
+      {"source_workspace_member_id": "97e79240-62bd-493d-b056-9b26846256bd", "source_email": "hugo@dopaminecap.com", "source_name": "Hugo Cugnet", "dev_workspace_member_id": "517bb9d6-cdd8-418b-8f1f-8b86839972ec", "dev_email": "tech@wusoolcapital.com", "dev_name": "Tech Wusool"},
+      {"source_workspace_member_id": "bb40387a-b57b-491e-b8a6-9ba593d6e97d", "source_email": "ramzy@dopaminecap.com", "source_name": "Ramzy Osman", "dev_workspace_member_id": "67fb42ec-facb-40ab-bc37-7cc654a53d75", "dev_email": "richucherian07@gmail.com", "dev_name": "Richu Cherian"},
+      {"source_workspace_member_id": "bd1fdd66-b15b-4601-9fce-949fb7b2da4d", "source_email": "jules@dopaminecap.com", "source_name": "Jules Chasles", "dev_workspace_member_id": "20ee7570-f1c0-476a-b505-c50e95d7c577", "dev_email": "richucherian447@gmail.com", "dev_name": "Sinan Muhammed"},
+      {"source_workspace_member_id": "fb4df22b-81f5-4356-b485-9eb23a2e84f4", "source_email": "tech@wusoolcapital.com", "source_name": "Tech Wusool", "dev_workspace_member_id": "517bb9d6-cdd8-418b-8f1f-8b86839972ec", "dev_email": "tech@wusoolcapital.com", "dev_name": "Tech Wusool"},
+      {"source_workspace_member_id": "5ad02074-998e-4165-8784-a5e518898961", "source_name": "ValuationTool (api-token, not a workspace member)", "dev_workspace_member_id": "67fb42ec-facb-40ab-bc37-7cc654a53d75", "dev_email": "richucherian07@gmail.com", "dev_name": "Richu Cherian", "note": "Was tech@wusoolcapital.com. Per Jules/Ramzy 2026-08-22: inbound leads from this bot need Ramzy tagged as owner, not the generic tech@ account. Ramzy has no real DEV seat yet, so this points at his crosswalk stand-in (see the Ramzy Osman entry above) -- update both together once he has a real seat."},
+      {"source_workspace_member_id": "28894b0a-1c11-461d-adf4-14f76e4acd71", "source_name": "n8n Integration (api-token, not a workspace member)", "dev_workspace_member_id": "67fb42ec-facb-40ab-bc37-7cc654a53d75", "dev_email": "richucherian07@gmail.com", "dev_name": "Richu Cherian", "note": "Was tech@wusoolcapital.com. Same reasoning as the ValuationTool entry above."}
+    ]
+  },
+  "duplicate_source_company_ids": {
+    "note": "SOURCE 'companies' with no data of their own (blank duplicate created by a second lead-magnet submission for the same company) that block parent-organization resolution (Deal seller, Buyer Role/Seller Role parent) because they were never migrated into DEV Organizations. SOURCE is read-only to this tooling (API key has no write scope), so the duplicate can't be fixed at the source -- instead each blank duplicate id here is treated as an alias of the real, already-migrated SOURCE company id wherever a SOURCE company id needs resolving to its DEV Organization. Maps blank-duplicate SOURCE company id -> real SOURCE company id.",
+    "mapping": {
+      "9a836550-c952-4630-aee4-9788799c68f3": "c609e6ed-b823-468f-bf45-5ded7f3188a4",
+      "ab8bb49a-a2d2-43ea-bac0-3066165fc89f": "4e037299-8746-422f-9055-b8e0289c1a4a",
+      "90a879bf-fc13-4e7e-8967-2697fa29608a": "1359792d-d6be-4341-85ad-cec549bf8683",
+      "a0af3a02-6145-4108-a08f-1f18156719f0": "b7b00269-00dc-4efb-9cbb-56bb4d7e7637",
+      "b0bf1b53-56d7-4dba-9a0a-93cc0b76130f": "c516c270-6bef-5fbf-83eb-c2791d67f8f3"
+    }
+  },
+  "dropped_fields": {
+    "buyer_role.mandate_details": {
+      "reason": "Redundant with the existing buyer_role.investment_strategy field -- same information, two places to maintain it.",
+      "status": "archived_in_dev_attio",
+      "no_longer_synced_from": "SOURCE buyer_brain.mandate_details"
+    },
+    "buyer_role.typical_check_size": {
+      "reason": "Redundant with the existing buyer_role.check_size_min/check_size_max fields -- typical_check_size was a coarse 4-option USD range bucket, check_size_min/max are real USD figures. SOURCE's typical_check_size_7 is still read (not dropped as an input), but only to backfill check_size_min/max when SOURCE left them blank -- see the backfill logic in _internal/lists.ps1's Invoke-BuyerRole. It is never written back to a DEV typical_check_size attribute anymore.",
+      "status": "archived_in_dev_attio",
+      "no_longer_synced_from": "DEV buyer_role.typical_check_size (SOURCE buyer_brain.typical_check_size_7 is still read, only to backfill check_size_min/max)"
+    },
+    "organization.contact_person": {
+      "reason": "Created 2026-08-19 as a record-reference to Person, meant to resolve an org's contact via legacy_attio_id, but never actually implemented in objects.ps1/schema.ps1/sync-postgres.ps1 -- and structurally can't be, in the current pipeline: organizations sync runs before person (see sync-all.ps1's fixed dependency order), so no DEV Person records exist yet to resolve against at the point an Organization is created. Confirmed empty on every checked live record (0 of 500 sampled) before archiving -- never manually populated either.",
+      "status": "archived_in_dev_attio",
+      "no_longer_synced_from": "never synced -- no implementation ever existed"
+    },
+    "organization.zz_kanban_test": {
+      "reason": "Throwaway test attribute, per its own DEV Attio description (\"Throwaway test attribute - safe to delete\"). Never referenced by any sync script.",
+      "status": "archived_in_dev_attio",
+      "no_longer_synced_from": "never synced -- test attribute only"
+    }
+  },
+  "deferred_backfills": {
+    "organization_owner": {
+      "source_field": "relationship_owner",
+      "initial_value": null,
+      "rule": "Resolve via workspace_member_crosswalk above; leave blank only if the SOURCE owner reference is itself missing.",
+      "status": "unblocked_2026-08-19",
+      "applies_to": ["organization.owner", "person.owner", "organization.strongest_connection_user", "person.strongest_connection_user"]
+    }
+  },
+  "system_objects": {
+    "companies": "empty_and_leave_unused",
+    "people": "empty_and_leave_unused"
+  }
+}

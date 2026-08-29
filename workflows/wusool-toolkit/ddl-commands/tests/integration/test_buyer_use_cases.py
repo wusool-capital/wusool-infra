@@ -51,6 +51,7 @@ async def test_create_with_new_org_inserts_org_and_role(
 
     role = await CreateBuyerUseCase(db_sessionmaker).execute(
         org_attio_id=attio_id,
+        entry_id="entry-1",
         is_new_org=True,
         org_name="Brand New Buyer Co",
         org_fields={"hq_country": "AE"},
@@ -59,12 +60,15 @@ async def test_create_with_new_org_inserts_org_and_role(
 
     assert role.org_attio_id == attio_id
     assert role.model == "Model 1 (Network)"
+    assert role.is_active is True
+    assert role.legacy_entry_id == "entry-1"
 
     async with db_sessionmaker() as session:
         org = await OrganizationRepository(session).get_by_id(attio_id)
         assert org is not None
         assert org.name == "Brand New Buyer Co"
         assert org.hq_country == "AE"
+        assert org.is_active is True
 
 
 async def test_create_attaches_to_existing_org(
@@ -79,6 +83,7 @@ async def test_create_attaches_to_existing_org(
 
     role = await CreateBuyerUseCase(db_sessionmaker).execute(
         org_attio_id=attio_id,
+        entry_id="entry-2",
         is_new_org=False,
         org_fields=None,
         role_fields={"model": "Model 2 (Full Mandate)"},
@@ -86,6 +91,8 @@ async def test_create_attaches_to_existing_org(
 
     assert role.org_attio_id == attio_id
     assert role.model == "Model 2 (Full Mandate)"
+    assert role.is_active is True
+    assert role.legacy_entry_id == "entry-2"
 
 
 async def test_create_raises_when_role_already_exists(
@@ -104,7 +111,38 @@ async def test_create_raises_when_role_already_exists(
     with pytest.raises(BuyerAlreadyExistsError):
         await CreateBuyerUseCase(db_sessionmaker).execute(
             org_attio_id=attio_id,
+            entry_id="entry-3",
             is_new_org=False,
             org_fields=None,
             role_fields={"model": "Model 1 (Network)"},
         )
+
+
+async def test_create_does_not_raise_when_webhook_already_wrote_this_same_entry(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    """With the Attio webhook live, `sync_buyer_role` for the entry this
+    call is about to write can land first and insert the exact same row —
+    that's not a genuine conflict, just this call's own write arriving via
+    a second path, told apart by a matching `legacy_entry_id`.
+    """
+    async with db_sessionmaker() as session:
+        org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Webhook-Raced Buyer Co")
+        session.add(org)
+        await session.flush()
+        role = BuyerRole(org_attio_id=org.attio_id, legacy_entry_id="entry-4", is_active=True)
+        session.add(role)
+        await session.flush()
+        await session.commit()
+        attio_id = org.attio_id
+
+    role = await CreateBuyerUseCase(db_sessionmaker).execute(
+        org_attio_id=attio_id,
+        entry_id="entry-4",
+        is_new_org=False,
+        org_fields=None,
+        role_fields={"model": "Model 1 (Network)"},
+    )
+
+    assert role.org_attio_id == attio_id
+    assert role.legacy_entry_id == "entry-4"

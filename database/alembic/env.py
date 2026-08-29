@@ -67,6 +67,17 @@ def _database_url() -> str:
     — asyncpg doesn't understand libpq's `sslmode` query parameter (see
     Final_restructure_plan.md §D2a); adding it would likely break the
     connection outright.
+
+    Incident note (2026-08-23): this env var comes from the toolkit
+    instance's `.env.production`, which `user_data.sh.tpl`'s bootstrap
+    script writes ONCE by fetching this same secret -- it is not re-read
+    live. If the RDS master password ever changes (rotation, manual reset)
+    without a matching `/wusool/<env>/toolkit.database_url` update, this
+    migration step starts failing with `InvalidPasswordError` and updating
+    the secret alone will NOT fix it -- the toolkit instance's bootstrap
+    document must also be re-invoked (`aws ssm send-command
+    --document-name <project>-<env>-toolkit-bootstrap ...`) to refresh the
+    stale file before the next deploy's migration step will pick it up.
     """
     url = os.environ["DATABASE_URL"]
     if url.startswith("postgresql+asyncpg://"):

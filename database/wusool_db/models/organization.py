@@ -16,10 +16,10 @@ subset of matching-engine's columns, so neither prior mapping alone is a
 superset of the other. This is the union of both — not a re-narrowing.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Text, text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,7 +28,6 @@ from wusool_db.base import Base
 if TYPE_CHECKING:
     from wusool_db.models.buyer_role import BuyerRole
     from wusool_db.models.deal import Deal
-    from wusool_db.models.mandate import Mandate
     from wusool_db.models.person import Person
     from wusool_db.models.seller_role import SellerRole
 
@@ -78,6 +77,29 @@ class Organization(Base):
     # checked before any Attio write so a bot never PATCHes a record Attio no
     # longer has.
     removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # Added 2026-08-19 alongside the DEV Attio attributes of the same names
+    # (Wusool Schema Handover artifact) — all plain text/number/date, no
+    # money-shape wrapping needed for any of these.
+    angellist: Mapped[str | None] = mapped_column(Text)
+    facebook: Mapped[str | None] = mapped_column(Text)
+    instagram: Mapped[str | None] = mapped_column(Text)
+    twitter: Mapped[str | None] = mapped_column(Text)
+    twitter_follower_count: Mapped[int | None] = mapped_column(Integer)
+    foundation_date: Mapped[date | None] = mapped_column()
+    ticket_size: Mapped[str | None] = mapped_column(Text)
+    lead_source: Mapped[str | None] = mapped_column(Text)
+    # Added 2026-08-19: SOURCE's own bands adopted as-is (1-10, 11-50, 51-250,
+    # 251-1K, 1K-5K, 5K-10K, 10K-50K, 50K-100K, 100K+) — the earlier requested
+    # target bands were dropped in favor of not needing a reconciliation table.
+    employee_range: Mapped[str | None] = mapped_column(Text)
+    linkedin: Mapped[str | None] = mapped_column(Text)
+    logo_url: Mapped[str | None] = mapped_column(Text)
+    # Added 2026-08-20 alongside DEV Attio organizations.is_active (Wusool
+    # Schema Handover artifact): true for the newest SOURCE record in a
+    # duplicate-name group, false for older duplicates, true for a unique
+    # name. Mirrors DEV as-is -- not filtered on here, since Postgres already
+    # holds one row per organization (no duplicate rows to prefer between).
+    is_active: Mapped[bool | None] = mapped_column(Boolean)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
@@ -86,22 +108,16 @@ class Organization(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    buyer_role: Mapped["BuyerRole | None"] = relationship(
-        back_populates="organization", uselist=False
-    )
-    seller_role: Mapped["SellerRole | None"] = relationship(
-        back_populates="organization", uselist=False
-    )
+    # Plural as of 2026-08-28: buyer_roles.org_attio_id/seller_roles.org_attio_id
+    # are no longer UNIQUE (see BuyerRole's docstring) -- an org can have more
+    # than one entry (is_active distinguishes the current one from stale
+    # duplicates). Filter to is_active=True for "the" buyer/seller role.
+    buyer_roles: Mapped[list["BuyerRole"]] = relationship(back_populates="organization")
+    seller_roles: Mapped[list["SellerRole"]] = relationship(back_populates="organization")
     people: Mapped[list["Person"]] = relationship(back_populates="company")
     deals_as_buyer: Mapped[list["Deal"]] = relationship(
         foreign_keys="Deal.buyer_organization_attio_id", back_populates="buyer_organization"
     )
     deals_as_seller: Mapped[list["Deal"]] = relationship(
         foreign_keys="Deal.seller_organization_attio_id", back_populates="seller_organization"
-    )
-    mandates_as_buyer: Mapped[list["Mandate"]] = relationship(
-        foreign_keys="Mandate.buyer_attio_id", back_populates="buyer_organization"
-    )
-    mandates_as_seller: Mapped[list["Mandate"]] = relationship(
-        foreign_keys="Mandate.seller_attio_id", back_populates="seller_organization"
     )

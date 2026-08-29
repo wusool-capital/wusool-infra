@@ -11,6 +11,7 @@ construction, not by convention.
 """
 
 import logging
+import time
 from functools import lru_cache
 
 from app.config import get_settings
@@ -18,6 +19,7 @@ from app.modules.slack.handlers import register_handlers as register_matching_en
 from app.shared.database import check_database_connectivity
 from app.shared.database import import_all_models as import_matching_engine_models
 from app.shared.errors import register_exception_handlers
+from ddl_commands.modules.attio_sync.router import router as attio_sync_router
 from ddl_commands.modules.slack.handlers import (
     register_handlers as register_ddl_commands_handlers,
 )
@@ -48,8 +50,13 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
 _UNKNOWN_TRIGGER = "unknown"
 _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
 
+# Bolt's own `ack_timeout` is 3s; warn a little under it so a request that is
+# merely close to the edge still shows up before it starts failing outright.
+_ACK_BUDGET_MS = 2500
+
 app = FastAPI(title="Wusool Toolkit Bot")
 register_exception_handlers(app)
+app.include_router(attio_sync_router)
 
 
 @app.exception_handler(Exception)
@@ -132,9 +139,25 @@ def _bolt_app() -> AsyncApp:
                 "channel_id": body.get("channel_id") or (body.get("channel") or {}).get("id"),
             }
         )
+        started = time.monotonic()
         try:
             await next()
         finally:
+            # `next()` returns when the listener calls `ack()`, not when it
+            # finishes — so this measures ack latency specifically. That's the
+            # number Slack budgets 3s for. Overrun it on a view submission and
+            # Bolt's runner stops waiting, logs only at WARNING under its own
+            # logger, and returns an empty 200: no exception, so the
+            # `@bolt_app.error` handler below never fires and the operator just
+            # sees Slack's "We had some trouble connecting". Log it here or it
+            # is invisible.
+            elapsed_ms = (time.monotonic() - started) * 1000
+            if elapsed_ms > _ACK_BUDGET_MS:
+                _slack_dispatch_logger.warning(
+                    "Slow ack for %s: %.0fms (Slack abandons the request at 3000ms)",
+                    trigger,
+                    elapsed_ms,
+                )
             log_context.reset(token)
 
     @bolt_app.error

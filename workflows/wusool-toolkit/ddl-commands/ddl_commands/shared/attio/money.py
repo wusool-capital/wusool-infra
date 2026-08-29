@@ -10,20 +10,20 @@ Attio's attribute config does.
 """
 
 # organizations.funding_raised -> USD; every buyer_role/seller_role money
-# field -> AED. Keyed by (table, field) so identically-named fields on
+# field -> USD. Keyed by (table, field) so identically-named fields on
 # different tables can't be confused.
 _CURRENCY_CODE_BY_FIELD = {
     ("organizations", "funding_raised"): "USD",
-    ("buyer_role", "ebitda_floor"): "AED",
-    ("buyer_role", "check_size_min"): "AED",
-    ("buyer_role", "check_size_max"): "AED",
-    ("buyer_role", "ev_ceiling"): "AED",
-    ("seller_role", "est_revenue"): "AED",
-    ("seller_role", "est_ebitda"): "AED",
-    ("seller_role", "owner_salary"): "AED",
-    ("seller_role", "valuation_low"): "AED",
-    ("seller_role", "valuation_mid"): "AED",
-    ("seller_role", "valuation_high"): "AED",
+    ("buyer_role", "ebitda_floor"): "USD",
+    ("buyer_role", "check_size_min"): "USD",
+    ("buyer_role", "check_size_max"): "USD",
+    ("buyer_role", "ev_ceiling"): "USD",
+    ("seller_role", "est_revenue"): "USD",
+    ("seller_role", "est_ebitda"): "USD",
+    ("seller_role", "owner_salary"): "USD",
+    ("seller_role", "valuation_low"): "USD",
+    ("seller_role", "valuation_mid"): "USD",
+    ("seller_role", "valuation_high"): "USD",
 }
 
 

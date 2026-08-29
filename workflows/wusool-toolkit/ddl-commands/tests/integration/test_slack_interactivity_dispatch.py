@@ -58,12 +58,18 @@ def _async_returning(value):
     return _fn
 
 
+async def _raises_if_called(*_args, **_kwargs):
+    """Stands in for a database call that must not happen on a path with only
+    3s to `ack()`."""
+    raise AssertionError("database was queried before ack()")
+
+
 def _fake_org(
     attio_id: str = "org-attio-1",
     name: str = "Acme Capital",
     removed_at=None,
-    seller_role=None,
-    buyer_role=None,
+    seller_roles=None,
+    buyer_roles=None,
 ):
     return SimpleNamespace(
         attio_id=attio_id,
@@ -76,8 +82,8 @@ def _fake_org(
         relationship_status=None,
         estimated_arr=None,
         funding_raised=None,
-        seller_role=seller_role,
-        buyer_role=buyer_role,
+        seller_roles=seller_roles or [],
+        buyer_roles=buyer_roles or [],
     )
 
 
@@ -99,7 +105,6 @@ def _fake_seller_role(role_id: str, *, org=None):
         valuation_low=None,
         valuation_mid=None,
         valuation_high=None,
-        intake_source=None,
     )
 
 
@@ -149,11 +154,10 @@ def _mock_slack_web_client(monkeypatch):
 
 def test_seller_selection_opens_field_picker(monkeypatch) -> None:
     seller_id = str(uuid.uuid4())
-    monkeypatch.setattr(
-        actions_module,
-        "resolve_seller_by_id",
-        _async_returning(_fake_seller_role(seller_id, org=_fake_org(name="Typo Target Co"))),
-    )
+    # This step must `ack()` without touching the database — Slack abandons a
+    # view submission after 3s and Bolt reports that as an empty 200 rather
+    # than an exception, so a slow query here fails silently.
+    monkeypatch.setattr(actions_module, "resolve_seller_by_id", _raises_if_called)
 
     payload = {
         "type": "view_submission",
@@ -162,7 +166,13 @@ def test_seller_selection_opens_field_picker(monkeypatch) -> None:
             "type": "modal",
             "id": "V1",
             "callback_id": "seller_role_selection_modal",
-            "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
+            "private_metadata": json.dumps(
+                {
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "org_names": {seller_id: "Typo Target Co"},
+                }
+            ),
             "state": {
                 "values": {
                     "seller_role_id": {
@@ -186,11 +196,8 @@ def test_seller_selection_opens_field_picker(monkeypatch) -> None:
 
 def test_buyer_selection_opens_field_picker(monkeypatch) -> None:
     buyer_id = str(uuid.uuid4())
-    monkeypatch.setattr(
-        actions_module,
-        "resolve_buyer_by_id",
-        _async_returning(_fake_buyer_role(buyer_id, org=_fake_org(name="Blue Horizon Buyers"))),
-    )
+    # Same 3s-ack constraint as the seller case above.
+    monkeypatch.setattr(actions_module, "resolve_buyer_by_id", _raises_if_called)
 
     payload = {
         "type": "view_submission",
@@ -199,7 +206,13 @@ def test_buyer_selection_opens_field_picker(monkeypatch) -> None:
             "type": "modal",
             "id": "V1",
             "callback_id": "buyer_role_selection_modal",
-            "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
+            "private_metadata": json.dumps(
+                {
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "org_names": {buyer_id: "Blue Horizon Buyers"},
+                }
+            ),
             "state": {
                 "values": {
                     "buyer_role_id": {"selected_buyer": {"selected_option": {"value": buyer_id}}}
@@ -388,7 +401,8 @@ def test_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_cli
     args, kwargs = postgres_use_case.calls[0]
     assert args[0] == seller_id
     assert kwargs["org_attio_id"] == "org-attio-1"
-    assert "Updated seller profile for Acme Capital" in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Updated* seller profile for *Acme Capital*." in text
 
 
 def test_edit_form_attio_failure_prevents_postgres_write(
@@ -428,7 +442,8 @@ def test_edit_form_attio_failure_prevents_postgres_write(
 
     assert response.status_code == 200
     assert postgres_calls == []
-    assert "Couldn't write to Attio, nothing was saved" in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Couldn't write to Attio* — nothing was saved" in text
 
 
 def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
@@ -484,7 +499,7 @@ def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
     assert response.status_code == 200
     assert postgres_calls == []
     text = _mock_slack_web_client.posted[0]["text"]
-    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "*Couldn't write to Attio*" not in text
     assert "organization fields" in text
 
 
@@ -520,10 +535,16 @@ def test_edit_form_removed_org_is_rejected_before_any_write(
     assert "gone or was merged" in _mock_slack_web_client.posted[0]["text"]
 
 
-def test_gated_field_without_confirmation_requires_checkbox() -> None:
+def test_gated_field_without_confirmation_requires_checkbox(monkeypatch) -> None:
+    """No seller field is gated today — `intake_source` was the only one and
+    #53 dropped the column — so this gates a real field for the duration of
+    the test. The machinery is kept for the next write-once field; without
+    this it would be untested until then.
+    """
+    monkeypatch.setattr(actions_module, "GATED_SELLER_ROLE_FIELDS", frozenset({"outreach_tier"}))
     seller_id = str(uuid.uuid4())
-    values = {"intake_source": {"intake_source": {"selected_option": {"value": "Direct"}}}}
-    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["intake_source"], values)
+    values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
+    payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["outreach_tier"], values)
 
     response = _post_interactivity(payload)
 
@@ -602,7 +623,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
 
     assert response.status_code == 200
     assert len(postgres_use_case.calls) == 1
-    assert "Updated buyer profile for Blue Horizon" in _mock_slack_web_client.posted[0]["text"]
+    assert "*Updated* buyer profile for *Blue Horizon*." in _mock_slack_web_client.posted[0]["text"]
 
 
 # --------------------------------------------------------------------------
@@ -692,7 +713,9 @@ def test_organization_selection_existing_org_opens_add_form(monkeypatch) -> None
 def test_organization_selection_existing_org_with_role_is_rejected(
     monkeypatch, _mock_slack_web_client
 ) -> None:
-    org = _fake_org(attio_id="org-attio-9", name="Found Co", seller_role=SimpleNamespace())
+    org = _fake_org(
+        attio_id="org-attio-9", name="Found Co", seller_roles=[SimpleNamespace(is_active=True)]
+    )
     monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
 
     payload = _organization_selection_payload("seller", "Found", "org-attio-9")
@@ -790,7 +813,7 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
     assert postgres_use_case.calls[0]["org_attio_id"] == "org-new-1"
     assert postgres_use_case.calls[0]["is_new_org"] is True
     assert postgres_use_case.calls[0]["org_name"] == "New Seller Co"
-    assert "Added seller profile for New Seller Co" in _mock_slack_web_client.posted[0]["text"]
+    assert "*Added* seller profile for *New Seller Co*." in _mock_slack_web_client.posted[0]["text"]
 
 
 def test_seller_add_form_new_org_without_name_shows_error() -> None:
@@ -835,7 +858,8 @@ def test_seller_add_form_attio_failure_prevents_postgres_write(
 
     assert response.status_code == 200
     assert postgres_calls == []
-    assert "Couldn't write to Attio, nothing was saved" in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Couldn't write to Attio* — nothing was saved" in text
 
 
 def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed(
@@ -880,7 +904,7 @@ def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed
     assert response.status_code == 200
     assert postgres_calls == []
     text = _mock_slack_web_client.posted[0]["text"]
-    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "*Couldn't write to Attio*" not in text
     assert "New Seller Co" in text
     assert "org-new-1" in text
 
@@ -924,7 +948,7 @@ def test_seller_add_form_postgres_failure_after_attio_success_reports_what_lande
 
     assert response.status_code == 200
     text = _mock_slack_web_client.posted[0]["text"]
-    assert "Couldn't write to Attio, nothing was saved" not in text
+    assert "*Couldn't write to Attio*" not in text
     assert "org-new-1" in text
     assert "seller role entry" in text
     assert "connection reset" in text
@@ -990,4 +1014,5 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     assert call_order == ["create_role_entry", "postgres_write"]
     assert postgres_use_case.calls[0]["org_attio_id"] == "org-attio-existing"
     assert postgres_use_case.calls[0]["is_new_org"] is False
-    assert "Added buyer profile for Existing Buyer Co" in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Added* buyer profile for *Existing Buyer Co*." in text

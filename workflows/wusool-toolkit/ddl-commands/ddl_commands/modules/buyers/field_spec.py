@@ -6,8 +6,8 @@ Deliberately excluded (plan.md Part C): `acquisition_enrichment`,
 `deals_introduced`, `deals_converted` (ownership: both manual and
 pipeline-written — needs the data engineer's confirmation before this bot
 edits them). `key_contact` deferred — a `record-reference` type, not a
-plain field. No gated fields on the buyer side (unlike seller's
-`intake_source`).
+plain field. No gated fields on the buyer side — nor on the seller side
+any more, since `intake_source` was dropped in #53.
 """
 
 from ddl_commands.shared.organization_field_spec import FieldSpec
@@ -28,14 +28,14 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
         "select",
         options=("Majority", "Minority", "Flexible", "Acquisition Financing"),
     ),
-    FieldSpec("earnout_tolerance", "Earnout tolerance", "bool_as_text"),
+    FieldSpec("earnout_tolerance", "Earnout tolerance", "bool"),
     FieldSpec("profitable_only", "Profitable only", "bool"),
     FieldSpec("investment_strategy", "Investment strategy", "multiline"),
     FieldSpec("notes", "Notes", "multiline"),
-    FieldSpec("ebitda_floor", "EBITDA floor (AED)", "currency"),
-    FieldSpec("check_size_min", "Check size - min (AED)", "currency"),
-    FieldSpec("check_size_max", "Check size - max (AED)", "currency"),
-    FieldSpec("ev_ceiling", "EV ceiling (AED)", "currency"),
+    FieldSpec("ebitda_floor", "EBITDA floor (USD)", "currency"),
+    FieldSpec("check_size_min", "Check size - min (USD)", "currency"),
+    FieldSpec("check_size_max", "Check size - max (USD)", "currency"),
+    FieldSpec("ev_ceiling", "EV ceiling (USD)", "currency"),
 )
 
 BUYER_ROLE_FIELDS_BY_NAME = {f.name: f for f in BUYER_ROLE_FIELDS}
