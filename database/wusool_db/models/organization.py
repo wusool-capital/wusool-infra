@@ -108,12 +108,12 @@ class Organization(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    buyer_role: Mapped["BuyerRole | None"] = relationship(
-        back_populates="organization", uselist=False
-    )
-    seller_role: Mapped["SellerRole | None"] = relationship(
-        back_populates="organization", uselist=False
-    )
+    # Plural as of 2026-08-28: buyer_roles.org_attio_id/seller_roles.org_attio_id
+    # are no longer UNIQUE (see BuyerRole's docstring) -- an org can have more
+    # than one entry (is_active distinguishes the current one from stale
+    # duplicates). Filter to is_active=True for "the" buyer/seller role.
+    buyer_roles: Mapped[list["BuyerRole"]] = relationship(back_populates="organization")
+    seller_roles: Mapped[list["SellerRole"]] = relationship(back_populates="organization")
     people: Mapped[list["Person"]] = relationship(back_populates="company")
     deals_as_buyer: Mapped[list["Deal"]] = relationship(
         foreign_keys="Deal.buyer_organization_attio_id", back_populates="buyer_organization"

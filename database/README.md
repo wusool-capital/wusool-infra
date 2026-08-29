@@ -9,8 +9,32 @@ stores a relational mirror plus automation, history, analytics, and AI data.
 | Script | Responsibility |
 | --- | --- |
 | `setup-postgres.ps1` | Apply four idempotent SQL schema files and validate required tables/columns. Optional guarded reset. |
-| `sync-postgres.ps1` | Read canonical DEV Attio, map values, and dry-run or transactionally upsert PostgreSQL rows. |
+| `sync-postgres.ps1` | Read canonical DEV Attio, map values, and dry-run or transactionally upsert PostgreSQL rows. As of 2026-08-28, writes every `buyer_role`/`seller_role` list entry (not just the active one per org -- see the "Mirroring every Attio record" note below). |
+| `sync-notes-from-source.ps1` | The one exception to "DEV Attio -> PostgreSQL": populates `notes` directly from **SOURCE** Attio's `note` custom object (`workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`), since DEV has no notes object yet. Bridges SOURCE record ids to Postgres's existing DEV-keyed rows via `organizations.raw_attio`/`people.raw_attio`'s `legacy_attio_id`. |
 | `validate-postgres.ps1` | Independently compare DEV/PostgreSQL counts and validate key relationships. Read-only. |
+
+### Mirroring every Attio record (2026-08-28)
+
+`buyer_roles`/`seller_roles` used to be one row per organization
+(`UNIQUE(org_attio_id)`), with `sync-postgres.ps1` silently dropping every
+DEV Attio list entry except the active one before writing, specifically to
+keep that constraint satisfiable. Per explicit product decision, Postgres
+should mirror every Attio record that exists, full stop -- `is_active`
+(already a column on both tables) is how a caller distinguishes the current
+entry from stale duplicates, not something the sync script pre-filters on.
+
+The unique constraint moved to `legacy_entry_id` (one row per DEV entry
+instead of per org) via Alembic migration `b8f4c1e93a56`; `org_attio_id` is
+now a plain indexed FK, so an org can have more than one `buyer_roles`/
+`seller_roles` row. `Organization.buyer_role`/`.seller_role` became the
+plural `buyer_roles`/`seller_roles` relationships in
+`wusool_db/models/organization.py` to match. **Any consumer that assumed a
+single buyer/seller role per organization must now filter to
+`is_active=True` explicitly** -- this includes
+`workflows/wusool-toolkit/matching-engine` and `.../ddl-commands` (Slack
+`/edit-buyer`/`/edit-seller` and related), which have not been updated as
+part of this change and should be checked before relying on this behavior
+there.
 
 ## Prerequisites
 

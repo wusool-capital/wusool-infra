@@ -2,8 +2,14 @@
 
 This table IS the seller's structured profile: there is no separate
 `seller_profiles` table (PRD.md §3.3 describes a versioned one, but it was
-never implemented — see the schema-gap note in the Phase 2 plan). One row
-per organization (`UNIQUE(org_attio_id)`), no version column.
+never implemented — see the schema-gap note in the Phase 2 plan).
+
+`org_attio_id` was `UNIQUE` (one row per organization) until 2026-08-28 --
+same change and same reasoning as `BuyerRole` (see that class's docstring):
+Postgres should mirror every DEV Attio `seller_role` entry, not silently
+drop inactive/duplicate ones before they arrive. The unique constraint moved
+to `legacy_entry_id`; `org_attio_id` is now a plain indexed FK. Callers that
+want "the" seller role for an org must filter `is_active=true` themselves.
 
 `mandate_id` (an FK to the now-dropped `mandates` table) was removed
 2026-08-23 alongside `mandates`/`mandate_targets` themselves — the Mandates
@@ -15,7 +21,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Numeric, Text, text
+from sqlalchemy import ForeignKey, Index, Numeric, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,12 +33,13 @@ if TYPE_CHECKING:
 
 class SellerRole(Base):
     __tablename__ = "seller_roles"
+    __table_args__ = (Index("idx_seller_roles_org_attio_id", "org_attio_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")
     )
     org_attio_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False, unique=True
+        Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False
     )
     outreach_tier: Mapped[str | None] = mapped_column(Text)
     appetite_signal: Mapped[str | None] = mapped_column(Text)
@@ -58,11 +65,12 @@ class SellerRole(Base):
     re_engage_date: Mapped[date | None] = mapped_column()
     # Mirrors DEV Attio's Seller Database is_active/legacy_entry_id (added
     # 2026-08-19 when duplicate SOURCE submissions were split into separate
-    # DEV entries instead of being blended) — only ever the active entry
-    # lands here since sync-postgres.ps1 filters on is_active before writing,
-    # but legacy_entry_id still records which exact DEV entry this row came from.
+    # DEV entries instead of being blended). Every DEV entry gets its own row
+    # here as of 2026-08-28 (see the class docstring) -- is_active is how
+    # callers tell the current entry apart from stale duplicates, not a
+    # pre-filter applied before writing.
     is_active: Mapped[bool | None] = mapped_column()
-    legacy_entry_id: Mapped[str | None] = mapped_column(Text)
+    legacy_entry_id: Mapped[str | None] = mapped_column(Text, unique=True)
     # Lead Magnet questionnaire fields (2026-08-25) -- money shape matches
     # est_revenue/est_ebitda/owner_salary: {"amount": ..., "currency": ...}
     # or NULL, never fabricated when absent.
@@ -84,4 +92,4 @@ class SellerRole(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    organization: Mapped["Organization"] = relationship(back_populates="seller_role")
+    organization: Mapped["Organization"] = relationship(back_populates="seller_roles")

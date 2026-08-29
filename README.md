@@ -150,8 +150,8 @@ The current documentation covers:
 
 | Schema | Source |
 | --- | --- |
-| Attio target model | `workflows/crm-sync/scripts/config/target-schema.json` |
-| Attio migration mapping | `workflows/crm-sync/scripts/config/source-to-target-mapping.json` |
+| Attio target model | `workflows/crm-sync/scripts/dev-attio/config/target-schema.json` |
+| Attio migration mapping | `workflows/crm-sync/scripts/dev-attio/config/source-to-target-mapping.json` |
 | PostgreSQL schema | `database/wusool_db/models/` + `database/alembic/versions/` (Alembic migrations, current baseline). Historical flat SQL: `database/sql/001_extensions.sql` through `007_org_name_trgm_index.sql` — `008_bot_managed_columns.sql` was added and reverted before this table was last accurate, and never actually shipped. |
 
 The generated documents describe the schema declared in this repository. They

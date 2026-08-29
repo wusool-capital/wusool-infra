@@ -65,7 +65,6 @@ class Deal(Base):
     deal_memo_ready: Mapped[bool | None] = mapped_column()
     contract_signed_date: Mapped[date | None] = mapped_column()
     exclusivity_date: Mapped[date | None] = mapped_column()
-    next_task: Mapped[str | None] = mapped_column(Text)
     data_room_substatus: Mapped[str | None] = mapped_column(Text)
     comparables: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     # Added 2026-08-19 alongside the DEV Attio attributes of the same names

@@ -405,7 +405,8 @@ def register(app: AsyncApp) -> None:
             )
             return
 
-        has_role = (org.seller_role if kind == "seller" else org.buyer_role) is not None
+        roles = org.seller_roles if kind == "seller" else org.buyer_roles
+        has_role = any(r.is_active for r in roles)
         if has_role:
             await ack()
             await client.chat_postEphemeral(
