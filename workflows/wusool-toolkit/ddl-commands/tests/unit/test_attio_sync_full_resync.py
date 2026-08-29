@@ -140,17 +140,25 @@ async def test_reconcile_roles_groups_by_org_and_isolates_failures(monkeypatch) 
         parent = siblings[0]["parent_record_id"]["record_id"]
         if parent == "org-b":
             raise RuntimeError("boom")
-        return siblings[0]
+        return siblings  # winner-first, matching the real function's contract
 
     monkeypatch.setattr(
         "ddl_commands.modules.attio_sync.upsert._reconcile_active_entry", fake_reconcile
     )
 
     rows, reconcile_failed = await full_resync._reconcile_roles(
-        client, "buyer_role", entries, lambda org_id, winner: {"org_id": org_id}
+        client,
+        "buyer_role",
+        entries,
+        lambda org_id, entry, is_active: {"org_id": org_id, "is_active": is_active},
     )
 
-    assert rows == [{"org_id": "org-a"}]
+    # org-a's 2 duplicate entries each get their own row now (2026-08-28
+    # pluralization -- Postgres mirrors every entry, not just the winner).
+    assert rows == [
+        {"org_id": "org-a", "is_active": True},
+        {"org_id": "org-a", "is_active": False},
+    ]
     assert reconcile_failed == 1  # org-b's reconciliation failed and was skipped
 
 

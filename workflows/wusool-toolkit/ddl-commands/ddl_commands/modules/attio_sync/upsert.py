@@ -11,11 +11,14 @@ guarded with `CASE WHEN EXISTS (...)` so a webhook arriving slightly out of
 order degrades to a NULL reference instead of failing the whole upsert —
 `sync-postgres.ps1`'s own periodic full resync (or the next event touching
 the same row) fills it in once the referenced row exists. The one exception
-is `buyer_roles`/`seller_roles`' own `org_attio_id`: that one can't be
-nulled out (it's the row's own key), so a buyer/seller-role event that
-arrives before its organization has synced is expected to fail loudly, get
-caught by the background-task handler (see `router.py`), and resolve itself
-on the next event or the nightly full resync.
+is `buyer_roles`/`seller_roles`' own `org_attio_id`: it's a `NOT NULL` FK
+with no such guard, so it can't be nulled out -- a buyer/seller-role event
+that arrives before its organization has synced is expected to fail loudly,
+get caught by the background-task handler (see `router.py`), and resolve
+itself on the next event or the nightly full resync. (`org_attio_id` is no
+longer the row's unique key either way -- `legacy_entry_id` is, since the
+2026-08-28 pluralization lets multiple entries share an org; see
+`BuyerRole`/`SellerRole`'s docstrings.)
 
 `organizations` and `people` both have a deletion story (`removed_at`,
 matching the convention `sync-postgres.ps1` already established for both —
@@ -475,14 +478,22 @@ def group_entries_by_org(entries: list[dict]) -> dict[str, list[dict]]:
 
 async def _reconcile_active_entry(
     client: AttioClient, list_slug: str, siblings: list[dict]
-) -> dict:
+) -> list[dict]:
     """Ensures exactly one entry among `siblings` (all belonging to the same
     org) is `is_active`, flipping Attio's own flags (not just Postgres's) if
     needed — `is_active` is a real Attio field other consumers read too, so
     the correction has to land there, not just in our mirror. Newest
     `created_at` wins, the same tiebreak `lists.ps1` already applies
-    elsewhere. Returns the winner's current entry for the caller to map into
-    Postgres.
+    elsewhere.
+
+    Postgres mirrors every DEV Attio entry now, one row each keyed by
+    `legacy_entry_id` (buyer_roles/seller_roles' 2026-08-28 pluralization --
+    `org_attio_id` is no longer unique) rather than collapsing to a single
+    row per org, so this returns every sibling, winner first, instead of
+    just the winner: the caller writes one Postgres row per entry, with
+    `is_active` set explicitly from each entry's position here (winner=True,
+    every loser=False) rather than re-read from Attio -- that avoids relying
+    on the PATCH above having already taken effect by the time it's read.
     """
     if not siblings:
         raise ValueError(f"no {list_slug} entries found for this org")
@@ -515,7 +526,7 @@ async def _reconcile_active_entry(
                 f"/lists/{list_slug}/entries/{v.entry_id(loser)}",
                 {"data": {"entry_values": {"is_active": False}}},
             )
-    return winner
+    return siblings
 
 
 _BUYER_ROLE_UPSERT = text(
@@ -541,7 +552,8 @@ _BUYER_ROLE_UPSERT = text(
         :last_mandate_briefing_date, :prior_gcc_acquisition,
         :is_active, :legacy_entry_id, CAST(:raw_attio AS jsonb)
     )
-    ON CONFLICT (org_attio_id) DO UPDATE SET
+    ON CONFLICT (legacy_entry_id) DO UPDATE SET
+        org_attio_id=excluded.org_attio_id,
         model=excluded.model, mandate_status=excluded.mandate_status,
         ebitda_floor=excluded.ebitda_floor, check_size_min=excluded.check_size_min,
         check_size_max=excluded.check_size_max, ev_ceiling=excluded.ev_ceiling,
@@ -557,14 +569,14 @@ _BUYER_ROLE_UPSERT = text(
         target_geography=excluded.target_geography,
         last_mandate_briefing_date=excluded.last_mandate_briefing_date,
         prior_gcc_acquisition=excluded.prior_gcc_acquisition,
-        is_active=excluded.is_active, legacy_entry_id=excluded.legacy_entry_id,
+        is_active=excluded.is_active,
         raw_attio=excluded.raw_attio, updated_at=now()
     """
 )
 
 
-def _buyer_role_params(org_id: str, winner: dict) -> dict:
-    values = v.vals(winner)
+def _buyer_role_params(org_id: str, entry: dict, is_active: bool) -> dict:
+    values = v.vals(entry)
     return {
         "org_attio_id": org_id,
         "model": v.first(values, "model"),
@@ -590,9 +602,9 @@ def _buyer_role_params(org_id: str, winner: dict) -> dict:
         "target_geography": v.titles(values, "target_geography"),
         "last_mandate_briefing_date": v.date(values, "last_mandate_briefing_date"),
         "prior_gcc_acquisition": v.first(values, "prior_gcc_acquisition"),
-        "is_active": v.boolean(values, "is_active"),
-        "legacy_entry_id": v.entry_id(winner),
-        "raw_attio": winner,
+        "is_active": is_active,
+        "legacy_entry_id": v.entry_id(entry),
+        "raw_attio": entry,
     }
 
 
@@ -600,10 +612,11 @@ async def sync_buyer_role(client: AttioClient, entry_id: str) -> None:
     fetched = await get_with_retry(client, f"/lists/buyer_role/entries/{entry_id}")
     org_id = v.parent_id(fetched["data"])
     siblings = await _fetch_siblings(client, "buyer_role", org_id)
-    winner = await _reconcile_active_entry(client, "buyer_role", siblings)
-    params = _buyer_role_params(org_id, winner)
+    reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
     async with get_sessionmaker()() as session:
-        await session.execute(_BUYER_ROLE_UPSERT, _for_text_sql("buyer_roles", params))
+        for i, entry in enumerate(reconciled):
+            params = _buyer_role_params(org_id, entry, is_active=(i == 0))
+            await session.execute(_BUYER_ROLE_UPSERT, _for_text_sql("buyer_roles", params))
         await session.commit()
 
 
@@ -632,7 +645,8 @@ _SELLER_ROLE_UPSERT = text(
         :location_count, :legacy_entry_id,
         CAST(:raw_attio AS jsonb)
     )
-    ON CONFLICT (org_attio_id) DO UPDATE SET
+    ON CONFLICT (legacy_entry_id) DO UPDATE SET
+        org_attio_id=excluded.org_attio_id,
         outreach_tier=excluded.outreach_tier, appetite_signal=excluded.appetite_signal,
         relationship_status=excluded.relationship_status, est_revenue=excluded.est_revenue,
         est_ebitda=excluded.est_ebitda, owner_salary=excluded.owner_salary,
@@ -652,14 +666,13 @@ _SELLER_ROLE_UPSERT = text(
         annual_rent_cost=excluded.annual_rent_cost,
         largest_customer_revenue_pct=excluded.largest_customer_revenue_pct,
         repeat_revenue_pct=excluded.repeat_revenue_pct, location_count=excluded.location_count,
-        legacy_entry_id=excluded.legacy_entry_id,
         raw_attio=excluded.raw_attio, updated_at=now()
     """
 )
 
 
-def _seller_role_params(org_id: str, winner: dict) -> dict:
-    values = v.vals(winner)
+def _seller_role_params(org_id: str, entry: dict, is_active: bool) -> dict:
+    values = v.vals(entry)
     return {
         "org_attio_id": org_id,
         "outreach_tier": v.first(values, "outreach_tier"),
@@ -683,7 +696,7 @@ def _seller_role_params(org_id: str, winner: dict) -> dict:
         "last_attempt_outcome": v.first(values, "last_attempt_outcome"),
         "lead_quality_score": v.number(values, "lead_quality_score"),
         "re_engage_date": v.date(values, "re_engage_date"),
-        "is_active": v.boolean(values, "is_active"),
+        "is_active": is_active,
         # Lead Magnet questionnaire fields (0fca196) -- same money shape as
         # est_revenue/est_ebitda/owner_salary above: {"amount", "currency"}
         # or NULL, never fabricated when absent.
@@ -697,8 +710,8 @@ def _seller_role_params(org_id: str, winner: dict) -> dict:
         "largest_customer_revenue_pct": v.number(values, "largest_customer_revenue_pct"),
         "repeat_revenue_pct": v.number(values, "repeat_revenue_pct"),
         "location_count": v.integer(values, "location_count"),
-        "legacy_entry_id": v.entry_id(winner),
-        "raw_attio": winner,
+        "legacy_entry_id": v.entry_id(entry),
+        "raw_attio": entry,
     }
 
 
@@ -706,10 +719,11 @@ async def sync_seller_role(client: AttioClient, entry_id: str) -> None:
     fetched = await get_with_retry(client, f"/lists/seller_role/entries/{entry_id}")
     org_id = v.parent_id(fetched["data"])
     siblings = await _fetch_siblings(client, "seller_role", org_id)
-    winner = await _reconcile_active_entry(client, "seller_role", siblings)
-    params = _seller_role_params(org_id, winner)
+    reconciled = await _reconcile_active_entry(client, "seller_role", siblings)
     async with get_sessionmaker()() as session:
-        await session.execute(_SELLER_ROLE_UPSERT, _for_text_sql("seller_roles", params))
+        for i, entry in enumerate(reconciled):
+            params = _seller_role_params(org_id, entry, is_active=(i == 0))
+            await session.execute(_SELLER_ROLE_UPSERT, _for_text_sql("seller_roles", params))
         await session.commit()
 
 
@@ -776,8 +790,13 @@ _CONFLICT_COL = {
     Organization: "attio_id",
     Person: "attio_id",
     Deal: "attio_id",
-    BuyerRole: "org_attio_id",
-    SellerRole: "org_attio_id",
+    # legacy_entry_id, not org_attio_id: buyer_roles/seller_roles.org_attio_id
+    # lost its UNIQUE constraint in the 2026-08-28 pluralization (Postgres
+    # now mirrors every DEV Attio entry, one row each -- see BuyerRole's
+    # docstring) -- org_attio_id is a plain indexed FK now, not a valid
+    # ON CONFLICT target.
+    BuyerRole: "legacy_entry_id",
+    SellerRole: "legacy_entry_id",
 }
 # organizations.removed_at is Attio-owned (cleared whenever a currently-live
 # record is (re)written -- see the raw-SQL upserts' `removed_at=NULL`) but
@@ -839,8 +858,10 @@ def _deal_batch_params(
     return params
 
 
-def _buyer_role_batch_params(org_id: str, winner: dict, person_ids: set[str]) -> dict:
-    params = _buyer_role_params(org_id, winner)
+def _buyer_role_batch_params(
+    org_id: str, entry: dict, is_active: bool, person_ids: set[str]
+) -> dict:
+    params = _buyer_role_params(org_id, entry, is_active)
     params["key_contact_attio_id"] = _resolve_ref(params["key_contact_attio_id"], person_ids)
     return params
 

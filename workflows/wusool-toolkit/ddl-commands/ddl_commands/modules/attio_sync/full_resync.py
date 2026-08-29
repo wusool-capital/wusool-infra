@@ -22,12 +22,17 @@ foreign keys into `organizations` (unlike `owner_attio_id`/
 `company_attio_id`/etc., which are soft-guarded and resolved here against
 id sets queried fresh from Postgres after each prior entity type commits).
 
-`buyer_role`/`seller_role` entries are reconciled down to one winner per
-organization before syncing (`upsert.group_entries_by_org` +
-`upsert._reconcile_active_entry`, run concurrently across orgs, bounded) --
-`_reconcile_active_entry` already re-corrects every duplicate for that org
-regardless of which one triggered it, so reconciling once per org (not once
-per raw entry) gets the same result without redoing that work N times.
+`buyer_role`/`seller_role` entries are reconciled per organization
+(`upsert.group_entries_by_org` + `upsert._reconcile_active_entry`, run
+concurrently across orgs, bounded) -- `_reconcile_active_entry` already
+re-corrects every duplicate for that org regardless of which one triggered
+it, so reconciling once per org (not once per raw entry) gets the same
+result without redoing that work N times. Every entry still gets its own
+Postgres row, though, not just the winner: `buyer_roles`/`seller_roles.
+org_attio_id` lost its uniqueness in the 2026-08-28 pluralization (Postgres
+now mirrors every DEV Attio entry, `legacy_entry_id` the row key,
+`is_active` telling winner from duplicate) -- reconciliation only decides
+which entry Attio itself should flag active, not which one Postgres keeps.
 
 After each entity type's writes, two consistency checks run against data
 already in memory from this same pass -- no extra Attio calls: a row-count
@@ -183,18 +188,25 @@ async def _reconcile_roles(
 ) -> tuple[list[dict], int]:
     """Groups `entries` by org (one pass, already in hand) and reconciles
     each org's duplicates concurrently (bounded) -- each org's sibling set
-    and is_active PATCH-back is independent of every other org's. Returns
-    the mapped params for every org that reconciled successfully, plus a
-    count of orgs that failed to reconcile."""
+    and is_active PATCH-back is independent of every other org's. Postgres
+    mirrors every DEV Attio entry now, one row each keyed by legacy_entry_id
+    (see BuyerRole/SellerRole's 2026-08-28 pluralization), so this returns
+    one row per *entry*, not per org -- `build_params(org_id, entry,
+    is_active)` is called once per sibling, `is_active` set explicitly from
+    its position in the reconciled list (winner=True, every loser=False).
+    Second return value is a count of orgs whose reconciliation failed
+    entirely (every one of that org's entries lost, not just one row)."""
     started = time.monotonic()
     by_org = upsert.group_entries_by_org(entries)
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
 
-    async def _reconcile_one(org_id: str, siblings: list[dict]) -> dict | None:
+    async def _reconcile_one(org_id: str, siblings: list[dict]) -> list[dict] | None:
         try:
             async with semaphore:
-                winner = await upsert._reconcile_active_entry(client, list_slug, siblings)
-            return build_params(org_id, winner)
+                reconciled = await upsert._reconcile_active_entry(client, list_slug, siblings)
+            return [
+                build_params(org_id, entry, i == 0) for i, entry in enumerate(reconciled)
+            ]
         except Exception:
             _logger.error(
                 "full resync: failed to reconcile %s org %s", list_slug, org_id, exc_info=True
@@ -204,15 +216,17 @@ async def _reconcile_roles(
     results = await asyncio.gather(
         *(_reconcile_one(org_id, siblings) for org_id, siblings in by_org.items())
     )
-    rows = [r for r in results if r is not None]
+    rows = [row for group in results if group is not None for row in group]
+    failed_orgs = sum(1 for group in results if group is None)
     _logger.info(
-        "full resync: %s reconciled %d/%d orgs in %.1fs",
+        "full resync: %s reconciled %d/%d orgs (%d entries) in %.1fs",
         list_slug,
-        len(rows),
+        len(results) - failed_orgs,
         len(results),
+        len(rows),
         time.monotonic() - started,
     )
-    return rows, len(results) - len(rows)
+    return rows, failed_orgs
 
 
 async def run() -> None:
@@ -288,8 +302,10 @@ async def _run(client: AttioClient) -> None:
         ]
         summary["deals"] = await _write_and_verify(Deal, "deals", rows, len(deal_records))
 
-    # buyer_role / seller_role -- reconcile duplicates per org concurrently,
-    # then one batched write for every org's winner.
+    # buyer_role / seller_role -- reconcile duplicates per org concurrently
+    # (still one is_active PATCH-back per org), then one batched write for
+    # every entry (not just the winner -- see BuyerRole/SellerRole's
+    # 2026-08-28 pluralization: Postgres mirrors every DEV Attio entry now).
     if buyer_entries is None:
         summary["buyer_role"] = (0, 1)
     else:
@@ -297,7 +313,9 @@ async def _run(client: AttioClient) -> None:
             client,
             "buyer_role",
             buyer_entries,
-            lambda org_id, winner: upsert._buyer_role_batch_params(org_id, winner, person_ids),
+            lambda org_id, entry, is_active: upsert._buyer_role_batch_params(
+                org_id, entry, is_active, person_ids
+            ),
         )
         ok, write_failed = await _write_and_verify(BuyerRole, "buyer_roles", rows, len(rows))
         summary["buyer_role"] = (ok, reconcile_failed + write_failed)
@@ -309,7 +327,7 @@ async def _run(client: AttioClient) -> None:
             client,
             "seller_role",
             seller_entries,
-            lambda org_id, winner: upsert._seller_role_params(org_id, winner),
+            lambda org_id, entry, is_active: upsert._seller_role_params(org_id, entry, is_active),
         )
         ok, write_failed = await _write_and_verify(SellerRole, "seller_roles", rows, len(rows))
         summary["seller_role"] = (ok, reconcile_failed + write_failed)

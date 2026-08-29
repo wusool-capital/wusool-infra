@@ -312,15 +312,26 @@ async def test_sync_buyer_role_reconciles_and_upserts(
 
     await upsert.sync_buyer_role(client, "entry-new")
 
-    # The newer entry won the tiebreak, so *its* values land in Postgres —
-    # even though the event that triggered this was for entry-new directly.
+    # Both entries land in Postgres now, one row each keyed by
+    # legacy_entry_id (2026-08-28 pluralization: org_attio_id is no longer
+    # unique) -- the newer one as the active winner, the older as an
+    # explicitly-inactive duplicate, even though the event that triggered
+    # this was for entry-new directly.
     async with db_sessionmaker() as session:
-        row = (
+        rows = (
             await session.execute(
-                text("SELECT model FROM buyer_roles WHERE org_attio_id = :id"), {"id": org_id}
+                text(
+                    "SELECT legacy_entry_id, model, is_active FROM buyer_roles "
+                    "WHERE org_attio_id = :id"
+                ),
+                {"id": org_id},
             )
-        ).one()
-    assert row.model == "Financial"
+        ).all()
+    by_entry = {r.legacy_entry_id: (r.model, r.is_active) for r in rows}
+    assert by_entry == {
+        "entry-new": ("Financial", True),
+        "entry-old": ("Strategic", False),
+    }
 
     # And Attio's own is_active flags got corrected: new -> true, old -> false.
     assert (
