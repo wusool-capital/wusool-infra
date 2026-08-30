@@ -12,14 +12,13 @@ org fields other than `sector_focus` (`type`, `stage_focus`,
 operator-editable. `name` is shown as read-only context (the modal title),
 never editable here.
 
-`ticket_size`, `lead_source`, and `employee_range` are given `"text"` kind
-because their real Attio attribute type (free text vs. select) isn't
-confirmed anywhere in this codebase — `attio_sync/upsert.py` reads them with
-the same generic `v.first()` used for confirmed-`select` fields like
-`client_type`, which doesn't disambiguate. `"text"` is the safe default: a
-wrong guess at `select` options would silently misrepresent real Attio
-categories, while a wrong guess at `"text"` instead fails loudly at the
-Attio write if the attribute turns out to be `select`-typed.
+Attribute types below were verified live against the DEV Attio workspace
+(2026-08-30) via `GET /v2/objects/organizations/attributes`, not inferred:
+`ticket_size` is genuinely free text, while `lead_source` and
+`employee_range` are `select` and carry the option lists below verbatim from
+Attio. They had been guessed as `"text"`, which fails the Attio write with a
+400 as soon as an operator actually fills one in — a bare string is not a
+valid value for a select attribute.
 """
 
 from dataclasses import dataclass
@@ -111,8 +110,23 @@ ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("twitter_follower_count", "Twitter follower count", "number"),
     FieldSpec("foundation_date", "Foundation date", "date"),
     FieldSpec("ticket_size", "Ticket size", "text"),
-    FieldSpec("lead_source", "Lead source", "text"),
-    FieldSpec("employee_range", "Employee range", "text"),
+    FieldSpec("lead_source", "Lead source", "select", options=("Inbound", "Outbound")),
+    FieldSpec(
+        "employee_range",
+        "Employee range",
+        "select",
+        options=(
+            "1-10",
+            "11-50",
+            "51-250",
+            "251-1K",
+            "1K-5K",
+            "5K-10K",
+            "10K-50K",
+            "50K-100K",
+            "100K+",
+        ),
+    ),
 )
 
 ORGANIZATION_FIELDS_BY_NAME = {f.name: f for f in ORGANIZATION_FIELDS}

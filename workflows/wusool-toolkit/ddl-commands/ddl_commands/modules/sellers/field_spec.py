@@ -13,10 +13,12 @@ gated field with it: `GATED_SELLER_ROLE_FIELDS` is empty now, and the
 confirmation-checkbox machinery it drove is kept for the next write-once
 field rather than deleted.
 
-`funding_stage` is given `"text"` kind because its real Attio attribute type
-(free text vs. select) isn't confirmed anywhere in this codebase — see
-`ddl_commands/shared/organization_field_spec.py`'s docstring for the same
-caveat and the reasoning for defaulting to `"text"`.
+Attribute types and every option list below were verified live against the
+DEV Attio workspace (2026-08-30) via `GET /v2/lists/seller_role/attributes`
+and each attribute's `/options`. Two corrections came out of that:
+`funding_stage` is a `select`, not free text (a bare string 400s on write),
+and `last_attempt_channel` was missing Attio's "WhatsApp" option, so
+operators had no way to record it.
 """
 
 from ddl_commands.shared.organization_field_spec import FieldSpec
@@ -64,7 +66,7 @@ SELLER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
         "last_attempt_channel",
         "Last attempt channel",
         "select",
-        options=("Email", "In Person", "Instagram DM", "LinkedIn InMail", "Phone"),
+        options=("Email", "In Person", "Instagram DM", "LinkedIn InMail", "Phone", "WhatsApp"),
     ),
     FieldSpec(
         "last_attempt_outcome",
@@ -86,7 +88,20 @@ SELLER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("valuation_mid", "Valuation - mid (USD)", "currency"),
     FieldSpec("valuation_high", "Valuation - high (USD)", "currency"),
     FieldSpec("years_active", "Years active", "number"),
-    FieldSpec("funding_stage", "Funding stage", "text"),
+    FieldSpec(
+        "funding_stage",
+        "Funding stage",
+        "select",
+        options=(
+            "Bootstrapped",
+            "Not Applicable",
+            "Pre-Seed",
+            "Seed",
+            "Series A",
+            "Series B",
+            "Series C+",
+        ),
+    ),
     FieldSpec("revenue_last_full_year", "Revenue - last full year (USD)", "currency"),
     FieldSpec("revenue_year_before", "Revenue - year before (USD)", "currency"),
     FieldSpec("gross_margin_pct", "Gross margin %", "percent"),
