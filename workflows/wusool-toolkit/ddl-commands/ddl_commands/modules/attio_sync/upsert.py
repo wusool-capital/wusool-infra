@@ -20,9 +20,9 @@ longer the row's unique key either way -- `legacy_entry_id` is, since the
 2026-08-28 pluralization lets multiple entries share an org; see
 `BuyerRole`/`SellerRole`'s docstrings.)
 
-`organizations` and `people` both have a deletion story (`removed_at`,
+`organizations` and `person` both have a deletion story (`removed_at`,
 matching the convention `sync-postgres.ps1` already established for both —
-`people` needs it too since `buyer_roles.key_contact_attio_id`/
+`person` needs it too since `buyer_roles.key_contact_attio_id`/
 `deals.buyer_person_attio_id` reference it with `ON DELETE NO ACTION`).
 `record.deleted`/`list-entry.deleted` for every other table is deliberately
 out of scope here, because the existing bulk script doesn't prune those
@@ -228,12 +228,12 @@ async def delete_organization(record_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# people
+# person
 # ---------------------------------------------------------------------------
 
 _PERSON_UPSERT = text(
     """
-    INSERT INTO people(
+    INSERT INTO person(
         attio_id, name, role, company_attio_id, email, linkedin, relationship_status,
         connection_strength, owner_attio_id, last_interaction_at, job_title, contact_type,
         phone, avatar_url, angellist, facebook, instagram, twitter, twitter_follower_count,
@@ -300,14 +300,14 @@ async def sync_person(client: AttioClient, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/person/records/{record_id}")
     params = _person_params(fetched["data"])
     async with get_sessionmaker()() as session:
-        await session.execute(_PERSON_UPSERT, _for_text_sql("people", params))
+        await session.execute(_PERSON_UPSERT, _for_text_sql("person", params))
         await session.commit()
 
 
 async def delete_person(record_id: str) -> None:
     async with get_sessionmaker()() as session:
         await session.execute(
-            text("UPDATE people SET removed_at = now() WHERE attio_id = :attio_id"),
+            text("UPDATE person SET removed_at = now() WHERE attio_id = :attio_id"),
             {"attio_id": record_id},
         )
         await session.commit()
@@ -333,7 +333,7 @@ _DEAL_UPSERT = text(
         :attio_id, :name, :stage, :stage_changed_at,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :buyer_id)
              THEN :buyer_id ELSE NULL END,
-        CASE WHEN EXISTS (SELECT 1 FROM people WHERE attio_id = :buyer_id)
+        CASE WHEN EXISTS (SELECT 1 FROM person WHERE attio_id = :buyer_id)
              THEN :buyer_id ELSE NULL END,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :seller_id)
              THEN :seller_id ELSE NULL END,
@@ -544,7 +544,7 @@ _BUYER_ROLE_UPSERT = text(
         CAST(:check_size_min AS jsonb), CAST(:check_size_max AS jsonb),
         CAST(:ev_ceiling AS jsonb), :deal_structure_tolerance, :earnout_tolerance,
         :profitable_only, :investment_strategy, :notes,
-        CASE WHEN EXISTS (SELECT 1 FROM people WHERE attio_id = :key_contact_attio_id)
+        CASE WHEN EXISTS (SELECT 1 FROM person WHERE attio_id = :key_contact_attio_id)
              THEN :key_contact_attio_id ELSE NULL END,
         :acquisition_enrichment, :deals_introduced, :deals_converted,
         CAST(:ebitda_ceiling AS jsonb), CAST(:estimated_aum AS jsonb),
@@ -741,7 +741,7 @@ async def sync_seller_role(client: AttioClient, entry_id: str) -> None:
 # share one mapping function -- this converts for the text()-SQL callers.
 _JSONB_FIELDS = {
     "organizations": ("funding_raised", "raw_attio"),
-    "people": ("raw_attio",),
+    "person": ("raw_attio",),
     "deals": ("value", "retainer_amount", "raw_attio"),
     "buyer_roles": (
         "ebitda_floor",
@@ -774,7 +774,7 @@ def _for_text_sql(table_name: str, params: dict) -> dict:
 
 _MODEL_TABLE = {
     Organization: "organizations",
-    Person: "people",
+    Person: "person",
     Deal: "deals",
     BuyerRole: "buyer_roles",
     SellerRole: "seller_roles",

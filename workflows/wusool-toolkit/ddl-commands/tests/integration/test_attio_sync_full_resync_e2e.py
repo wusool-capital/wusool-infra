@@ -126,7 +126,7 @@ async def test_full_resync_run_end_to_end(
         )
         person_row = (
             await session.execute(
-                text("SELECT name, company_attio_id FROM people WHERE attio_id = :id"),
+                text("SELECT name, company_attio_id FROM person WHERE attio_id = :id"),
                 {"id": person_1},
             )
         ).one()

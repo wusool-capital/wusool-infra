@@ -121,7 +121,7 @@ async def test_delete_person_sets_removed_at(
     async with db_sessionmaker() as session:
         removed_at = (
             await session.execute(
-                text("SELECT removed_at FROM people WHERE attio_id = :id"), {"id": person_id}
+                text("SELECT removed_at FROM person WHERE attio_id = :id"), {"id": person_id}
             )
         ).scalar_one()
     assert removed_at is not None
