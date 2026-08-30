@@ -10,10 +10,13 @@ traffic — retry on 429/5xx with backoff instead of dropping the event.
 """
 
 import asyncio
+import logging
 
 from ddl_commands.shared.attio.client import AttioClient, AttioError
 
 _MAX_ATTEMPTS = 8
+
+_logger = logging.getLogger("ddl_commands.attio_sync.retry")
 
 
 async def _with_retry(call):
@@ -25,7 +28,19 @@ async def _with_retry(call):
                 raise
             if attempt == _MAX_ATTEMPTS - 1:
                 raise
-            await asyncio.sleep(min(90, 15 * (attempt + 1)))
+            delay = min(90, 15 * (attempt + 1))
+            # Logged, not silent: this backoff can spend up to 405s across
+            # its 8 attempts, and until now it did so without a word -- so a
+            # rate-limited nightly resync was indistinguishable from a merely
+            # slow one when reading the job output.
+            _logger.warning(
+                "attio %s — backing off %ds (attempt %d/%d)",
+                exc.status,
+                delay,
+                attempt + 1,
+                _MAX_ATTEMPTS,
+            )
+            await asyncio.sleep(delay)
     raise AssertionError("unreachable")  # pragma: no cover
 
 

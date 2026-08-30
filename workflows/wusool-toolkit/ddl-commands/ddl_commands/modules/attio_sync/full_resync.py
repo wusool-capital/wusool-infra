@@ -82,13 +82,29 @@ _ID_QUERY = {
 
 
 async def _page_through(client: AttioClient, path: str) -> list[dict]:
+    # Timed per stream, not just for the fetch phase as a whole: all five
+    # page-throughs run under one `asyncio.gather` below, so the phase-level
+    # duration only ever reports the slowest one without saying which it
+    # was. Pagination here is strictly serial (offset-based, each page
+    # awaited before the next is requested), so this is the term most likely
+    # to dominate a slow run.
     items: list[dict] = []
     offset = 0
+    pages = 0
+    started = time.monotonic()
     while True:
         response = await post_with_retry(client, path, {"limit": _PAGE_SIZE, "offset": offset})
         page = response.get("data", [])
         items.extend(page)
+        pages += 1
         if len(page) < _PAGE_SIZE:
+            _logger.info(
+                "full resync: fetched %s — %d records over %d pages in %.1fs",
+                path,
+                len(items),
+                pages,
+                time.monotonic() - started,
+            )
             return items
         offset += _PAGE_SIZE
 

@@ -212,9 +212,22 @@ jobs:
             echo "command: $CMD (attempt $attempt/2)"
 
             STATUS=""
+            ERRS=0
             for _ in $(seq 1 60); do
-              STATUS=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-                    --query Status --output text 2>/dev/null || echo Pending)
+              # Tolerate the InvocationDoesNotExist window right after
+              # send-command, but never swallow a persistent API error as
+              # "Pending" -- that misreports a throttle or an expired token
+              # as a bootstrap timeout (see nightly-attio-sync.yml's poll
+              # loop for the run that made this concrete).
+              if OUT=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+                    --query Status --output text 2>&1); then
+                ERRS=0
+                STATUS=$OUT
+              else
+                ERRS=$((ERRS + 1))
+                [ "$ERRS" -ge 8 ] && { echo "::error::SSM poll failed 8x in a row: $OUT"; exit 1; }
+                STATUS=Pending
+              fi
               case "$STATUS" in
                 Success) echo "bootstrap succeeded"; exit 0 ;;
                 Failed|Cancelled|TimedOut) break ;;
@@ -323,9 +336,20 @@ jobs:
             echo "command: $CMD (attempt $attempt/2)"
 
             STATUS=""
+            ERRS=0
             for _ in $(seq 1 40); do
-              STATUS=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-                    --query Status --output text 2>/dev/null || echo Pending)
+              # See the bootstrap poll above: a persistent API error must not
+              # masquerade as "Pending" and get reported as a migration
+              # timeout.
+              if OUT=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+                    --query Status --output text 2>&1); then
+                ERRS=0
+                STATUS=$OUT
+              else
+                ERRS=$((ERRS + 1))
+                [ "$ERRS" -ge 8 ] && { echo "::error::SSM poll failed 8x in a row: $OUT"; exit 1; }
+                STATUS=Pending
+              fi
               case "$STATUS" in
                 Success) echo "migration succeeded"; exit 0 ;;
                 Failed|Cancelled|TimedOut) break ;;
@@ -392,9 +416,22 @@ jobs:
             echo "command: $CMD (attempt $attempt/2)"
 
             STATUS=""
+            ERRS=0
             for _ in $(seq 1 60); do
-              STATUS=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-                    --query Status --output text 2>/dev/null || echo Pending)
+              # Tolerate the InvocationDoesNotExist window right after
+              # send-command, but never swallow a persistent API error as
+              # "Pending" -- that misreports a throttle or an expired token
+              # as a bootstrap timeout (see nightly-attio-sync.yml's poll
+              # loop for the run that made this concrete).
+              if OUT=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
+                    --query Status --output text 2>&1); then
+                ERRS=0
+                STATUS=$OUT
+              else
+                ERRS=$((ERRS + 1))
+                [ "$ERRS" -ge 8 ] && { echo "::error::SSM poll failed 8x in a row: $OUT"; exit 1; }
+                STATUS=Pending
+              fi
               case "$STATUS" in
                 Success) echo "bootstrap succeeded"; exit 0 ;;
                 Failed|Cancelled|TimedOut) break ;;
