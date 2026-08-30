@@ -9,6 +9,18 @@ inputs:
   role_arn:
     description: 'Role ARN to assume, e.g. arn:aws:iam::030179310793:role/wusool-gha-plan'
     required: true
+  duration_seconds:
+    # OIDC sessions default to 1 hour and do NOT auto-refresh - the action
+    # exports static env vars, and the GitHub ID token behind them is only
+    # valid for 300s, so nothing downstream can re-mint them. A job that
+    # polls AWS for longer than its session simply dies mid-poll. Only raise
+    # this for such jobs, and only as far as the role's own
+    # max_session_duration (terraform/stacks/account/main.tf) allows -
+    # asking for more is a hard ValidationError at assume time, not a
+    # silent clamp.
+    description: 'Session length in seconds. Raise only for jobs that poll longer than the 1h default.'
+    required: false
+    default: '3600'
 
 runs:
   using: composite
@@ -17,3 +29,4 @@ runs:
       with:
         role-to-assume: ${{ inputs.role_arn }}
         aws-region: eu-central-1
+        role-duration-seconds: ${{ inputs.duration_seconds }}

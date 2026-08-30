@@ -241,6 +241,15 @@ resource "aws_iam_role" "gha_apply" {
   name               = "${var.project}-gha-apply-${each.key}"
   description        = "GitHub Actions: terraform apply for the ${each.key} environment."
   assume_role_policy = data.aws_iam_policy_document.gha_apply_trust[each.key].json
+
+  # The nightly Attio resync polls SSM for up to 90 minutes
+  # (.github/workflows/nightly-attio-sync.yml), but AWS caps a session at
+  # this value regardless of what `role-duration-seconds` asks for - so the
+  # AWS/Terraform default of 3600 made that 90-minute cap unreachable: the
+  # 2026-08-29 run's credentials died at 60 minutes mid-poll and the job
+  # reported ExpiredTokenException instead of the resync's own result.
+  # prod stays at the default - its deploy polls cap at 15 minutes.
+  max_session_duration = each.key == "dev" ? 10800 : 3600
 }
 
 # PowerUserAccess + targeted IAM. Deliberately not AdministratorAccess: the
