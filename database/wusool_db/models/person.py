@@ -1,4 +1,4 @@
-"""`people` — real table name (not `persons`); see `002_core_attio_mirror.sql`."""
+"""`person` — renamed from `people` 2026-08-30; see `002_core_attio_mirror.sql`."""
 
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -14,10 +14,10 @@ if TYPE_CHECKING:
 
 
 class Person(Base):
-    __tablename__ = "people"
+    __tablename__ = "person"
     __table_args__ = (
-        Index("idx_people_company", "company_attio_id"),
-        Index("idx_people_email", "email", postgresql_using="gin"),
+        Index("idx_person_company", "company_attio_id"),
+        Index("idx_person_email", "email", postgresql_using="gin"),
     )
 
     attio_id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -29,7 +29,7 @@ class Person(Base):
     relationship_status: Mapped[str | None] = mapped_column(Text)
     connection_strength: Mapped[str | None] = mapped_column(Text)
     owner_attio_id: Mapped[str | None] = mapped_column(
-        Text, ForeignKey("users.attio_id", name="people_owner_attio_id_fkey")
+        Text, ForeignKey("users.attio_id", name="person_owner_attio_id_fkey")
     )
     past_employers: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     education: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
@@ -49,7 +49,7 @@ class Person(Base):
     # Added 2026-08-23, mirrors organizations.removed_at: sync-postgres.ps1
     # soft-deletes (instead of hard-deleting) a person no longer present in
     # DEV Attio, since buyer_roles.key_contact_attio_id and
-    # deals.buyer_person_attio_id both reference people with ON DELETE NO
+    # deals.buyer_person_attio_id both reference person with ON DELETE NO
     # ACTION -- a hard delete would fail outright (or silently break a
     # still-valid buyer role/deal's contact) if either still points at it.
     removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

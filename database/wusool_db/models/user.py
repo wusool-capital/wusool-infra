@@ -5,7 +5,7 @@ reflection — see `wusool_db/models/_static_analysis_notice.py` for the full
 caveat before trusting this for Stage 4 (`alembic stamp head`).
 
 Never mapped before this batch: `organizations.owner_attio_id`,
-`people.owner_attio_id`, and `deals.owner_attio_id` all reference this table
+`person.owner_attio_id`, and `deals.owner_attio_id` all reference this table
 but were deliberately left as plain columns (no `ForeignKey` object) when
 those files were written, since `users` didn't exist as a model yet — see
 each of those files' own comments. Not revisited here: retrofitting those to
