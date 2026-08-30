@@ -245,6 +245,35 @@ async def _reconcile_roles(
     return rows, failed_orgs
 
 
+async def _sync_notes_full(client: AttioClient, note_slug: str) -> tuple[int, int]:
+    """Plain per-row loop, not the batched `_upsert_batch` path: `notes` has
+    no `raw_attio` column (unlike every other table here), so it can't share
+    that machinery's content-comparison/RETURNING contract. Note volume is
+    much smaller than organizations/deals, so this doesn't need the same
+    performance work."""
+    try:
+        records = await _page_through(client, f"/objects/{note_slug}/records/query")
+    except Exception:
+        _logger.error("full resync: failed to list note records", exc_info=True)
+        return 0, 1
+    ok = failed = 0
+    async with get_sessionmaker()() as session:
+        for record in records:
+            try:
+                await session.execute(upsert._NOTE_UPSERT, upsert._note_params(record))
+                ok += 1
+            except Exception:
+                _logger.error(
+                    "full resync: failed to upsert note %s",
+                    upsert.v.record_id(record),
+                    exc_info=True,
+                )
+                failed += 1
+        await session.commit()
+    _logger.info("full resync: note — synced=%d failed=%d", ok, failed)
+    return ok, failed
+
+
 async def run() -> None:
     import_all_models()
     client = AttioClient(get_settings().attio_api_key)
@@ -256,6 +285,7 @@ async def run() -> None:
 
 async def _run(client: AttioClient) -> None:
     run_started = time.monotonic()
+    settings = get_settings()
     summary: dict[str, tuple[int, int]] = {}
 
     users_synced = 0
@@ -276,7 +306,10 @@ async def _run(client: AttioClient) -> None:
             _page_through(client, "/objects/organizations/records/query"), "organizations"
         ),
         _safe_fetch(_page_through(client, "/objects/person/records/query"), "person"),
-        _safe_fetch(_page_through(client, "/objects/deals/records/query"), "deals"),
+        _safe_fetch(
+            _page_through(client, f"/objects/{settings.attio_deal_object_slug}/records/query"),
+            "deals",
+        ),
         _safe_fetch(_page_through(client, "/lists/buyer_role/entries/query"), "buyer_role"),
         _safe_fetch(_page_through(client, "/lists/seller_role/entries/query"), "seller_role"),
     )
@@ -347,6 +380,13 @@ async def _run(client: AttioClient) -> None:
         )
         ok, write_failed = await _write_and_verify(SellerRole, "seller_roles", rows, len(rows))
         summary["seller_role"] = (ok, reconcile_failed + write_failed)
+
+    # The unified "note" object only exists in SOURCE Attio today (prod) --
+    # DEV Attio has no such object yet, so dev leaves ATTIO_NOTE_OBJECT_SLUG
+    # unset and this entity is skipped entirely rather than logging a nightly
+    # "failed to list note records" error for an object that isn't there.
+    if settings.attio_note_object_slug:
+        summary["note"] = await _sync_notes_full(client, settings.attio_note_object_slug)
 
     total_ok = sum(ok for ok, _ in summary.values())
     total_failed = sum(failed for _, failed in summary.values())

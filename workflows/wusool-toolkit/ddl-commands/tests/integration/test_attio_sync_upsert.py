@@ -14,6 +14,21 @@ from wusool_db.models import Organization, Person
 from ddl_commands.modules.attio_sync import upsert
 
 
+async def _activity_count(
+    db_sessionmaker: async_sessionmaker[AsyncSession], subject_type: str, subject_id: str
+) -> int:
+    async with db_sessionmaker() as session:
+        return (
+            await session.execute(
+                text(
+                    "SELECT count(*) FROM activities "
+                    "WHERE subject_type = :t AND (subject_attio_id = :id OR subject_uuid::text = :id)"
+                ),
+                {"t": subject_type, "id": subject_id},
+            )
+        ).scalar_one()
+
+
 def _item(**kwargs) -> dict:
     return {"active_until": None, **kwargs}
 
@@ -80,6 +95,7 @@ async def test_sync_organization_inserts_a_new_row(
     assert row.name == "Zephyr Manufacturing"
     assert row.hq_country == "AE"
     assert row.sector_focus == ["Industrials"]
+    assert await _activity_count(db_sessionmaker, "Organization", attio_id) == 1
 
 
 async def test_sync_organization_is_idempotent(
@@ -342,3 +358,120 @@ async def test_sync_buyer_role_reconciles_and_upserts(
         "/lists/buyer_role/entries/entry-old",
         {"data": {"entry_values": {"is_active": False}}},
     ) in client.patch_calls
+
+    # The activity is logged against the triggering entry's own row id
+    # (entry-new, since that's what sync_buyer_role was called with), not
+    # every sibling touched by the reconciliation.
+    async with db_sessionmaker() as session:
+        winner_id = (
+            await session.execute(
+                text("SELECT id FROM buyer_roles WHERE legacy_entry_id = 'entry-new'")
+            )
+        ).scalar_one()
+        loser_id = (
+            await session.execute(
+                text("SELECT id FROM buyer_roles WHERE legacy_entry_id = 'entry-old'")
+            )
+        ).scalar_one()
+    assert await _activity_count(db_sessionmaker, "BuyerRole", str(winner_id)) == 1
+    assert await _activity_count(db_sessionmaker, "BuyerRole", str(loser_id)) == 0
+
+
+async def test_sync_deal_fetches_from_source_object_slug(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    """SOURCE Attio's custom deal object is slug "deal" (singular, not
+    "deals") -- see `config.py`'s `attio_deal_object_slug`. Same `deals`
+    Postgres table either way."""
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-deal-{uuid.uuid4()}"
+    client = _FakeClient(
+        {
+            f"/objects/deal/records/{attio_id}": {
+                "data": {"id": {"record_id": attio_id}, "values": {"name": [_item(value="Deal X")]}}
+            }
+        }
+    )
+
+    await upsert.sync_deal(client, attio_id, object_slug="deal")
+
+    async with db_sessionmaker() as session:
+        row = (
+            await session.execute(
+                text("SELECT name FROM deals WHERE attio_id = :id"), {"id": attio_id}
+            )
+        ).one()
+    assert row.name == "Deal X"
+    assert await _activity_count(db_sessionmaker, "Deal", attio_id) == 1
+
+
+async def test_sync_note_resolves_org_and_role_references(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    org_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="Test Org"))
+        await session.commit()
+
+    note_id = str(uuid.uuid4())
+    client = _FakeClient(
+        {
+            f"/objects/note/records/{note_id}": {
+                "data": {
+                    "id": {"record_id": note_id},
+                    "values": {
+                        "organization_id": [_item(target_record_id=org_id)],
+                        "note_type": [_item(value="Manual")],
+                        "content": [_item(value="Called the seller, went well.")],
+                    },
+                }
+            }
+        }
+    )
+
+    await upsert.sync_note(client, note_id)
+
+    async with db_sessionmaker() as session:
+        row = (
+            await session.execute(
+                text(
+                    "SELECT organization_id, person_id, note_type, content FROM notes WHERE id = :id"
+                ),
+                {"id": note_id},
+            )
+        ).one()
+    assert row.organization_id == org_id
+    assert row.person_id is None
+    assert row.note_type == "Manual"
+    assert row.content == "Called the seller, went well."
+    assert await _activity_count(db_sessionmaker, "Note", note_id) == 1
+
+
+async def test_sync_note_is_idempotent(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    note_id = str(uuid.uuid4())
+    client = _FakeClient(
+        {
+            f"/objects/note/records/{note_id}": {
+                "data": {
+                    "id": {"record_id": note_id},
+                    "values": {
+                        "note_type": [_item(value="Manual")],
+                        "content": [_item(value="First version")],
+                    },
+                }
+            }
+        }
+    )
+
+    await upsert.sync_note(client, note_id)
+    await upsert.sync_note(client, note_id)  # must not raise or duplicate
+
+    async with db_sessionmaker() as session:
+        count = (
+            await session.execute(text("SELECT count(*) FROM notes WHERE id = :id"), {"id": note_id})
+        ).scalar_one()
+    assert count == 1
