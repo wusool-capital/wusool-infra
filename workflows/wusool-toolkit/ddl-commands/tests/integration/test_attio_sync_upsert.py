@@ -21,8 +21,8 @@ async def _activity_count(
         return (
             await session.execute(
                 text(
-                    "SELECT count(*) FROM activities "
-                    "WHERE subject_type = :t AND (subject_attio_id = :id OR subject_uuid::text = :id)"
+                    "SELECT count(*) FROM activities WHERE subject_type = :t "
+                    "AND (subject_attio_id = :id OR subject_uuid::text = :id)"
                 ),
                 {"t": subject_type, "id": subject_id},
             )
@@ -436,7 +436,8 @@ async def test_sync_note_resolves_org_and_role_references(
         row = (
             await session.execute(
                 text(
-                    "SELECT organization_id, person_id, note_type, content FROM notes WHERE id = :id"
+                    "SELECT organization_id, person_id, note_type, content "
+                    "FROM notes WHERE id = :id"
                 ),
                 {"id": note_id},
             )
@@ -472,6 +473,8 @@ async def test_sync_note_is_idempotent(
 
     async with db_sessionmaker() as session:
         count = (
-            await session.execute(text("SELECT count(*) FROM notes WHERE id = :id"), {"id": note_id})
+            await session.execute(
+                text("SELECT count(*) FROM notes WHERE id = :id"), {"id": note_id}
+            )
         ).scalar_one()
     assert count == 1
