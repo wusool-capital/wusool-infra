@@ -27,6 +27,7 @@ IDs still present in Attio and has no step that notices one gone missing.
 """
 
 import asyncio
+import functools
 import logging
 
 from ddl_commands.config import get_settings
@@ -87,9 +88,14 @@ async def _sync_all(client: AttioClient, slug: str, ids: list[str], sync_fn) -> 
     return ok, failed
 
 
+async def _sync_deal(client: AttioClient, record_id: str, object_slug: str) -> None:
+    await upsert.sync_deal(client, record_id, object_slug=object_slug)
+
+
 async def run() -> None:
     import_all_models()
-    client = AttioClient(get_settings().attio_api_key)
+    settings = get_settings()
+    client = AttioClient(settings.attio_api_key)
 
     # Users first: organizations/people/deals reference users.attio_id via
     # owner_attio_id (guarded with CASE WHEN EXISTS in upsert.py) -- syncing
@@ -104,13 +110,25 @@ async def run() -> None:
         _logger.error("full resync: failed to sync users", exc_info=True)
     _logger.info("full resync: users — synced=%d", users_synced)
 
+    deal_slug = settings.attio_deal_object_slug
     plan = [
         ("organizations", _object_record_ids(client, "organizations"), upsert.sync_organization),
         ("person", _object_record_ids(client, "person"), upsert.sync_person),
-        ("deals", _object_record_ids(client, "deals"), upsert.sync_deal),
+        (
+            deal_slug,
+            _object_record_ids(client, deal_slug),
+            functools.partial(_sync_deal, object_slug=deal_slug),
+        ),
         ("buyer_role", _one_entry_id_per_org(client, "buyer_role"), upsert.sync_buyer_role),
         ("seller_role", _one_entry_id_per_org(client, "seller_role"), upsert.sync_seller_role),
     ]
+    # The unified "note" object only exists in SOURCE Attio today (prod) --
+    # DEV Attio has no such object yet, so dev leaves ATTIO_NOTE_OBJECT_SLUG
+    # unset and this entity is skipped entirely rather than logging a nightly
+    # "failed to list note records" error for an object that isn't there.
+    if settings.attio_note_object_slug:
+        note_slug = settings.attio_note_object_slug
+        plan.append((note_slug, _object_record_ids(client, note_slug), upsert.sync_note))
 
     summary: dict[str, tuple[int, int]] = {"users": (users_synced, users_failed)}
     for slug, ids_coro, sync_fn in plan:

@@ -21,6 +21,8 @@ class _FakeClient:
                     {"id": {"object_id": "org-object-uuid"}, "api_slug": "organizations"},
                     {"id": {"object_id": "person-object-uuid"}, "api_slug": "person"},
                     {"id": {"object_id": "deals-object-uuid"}, "api_slug": "deals"},
+                    {"id": {"object_id": "deal-object-uuid"}, "api_slug": "deal"},
+                    {"id": {"object_id": "note-object-uuid"}, "api_slug": "note"},
                     {"id": {"object_id": "tasks-object-uuid"}, "api_slug": "tasks"},
                 ]
             }
@@ -69,6 +71,33 @@ async def test_record_created_dispatches_to_matching_sync_fn(monkeypatch) -> Non
     )
 
     assert calls == ["org-1"]
+
+
+async def test_source_deal_record_dispatches_to_matching_sync_fn(monkeypatch) -> None:
+    """SOURCE Attio's custom deal object (slug "deal", singular) must route
+    just like DEV's native "deals" object — see `config.py`'s
+    `attio_deal_object_slug`."""
+    calls = []
+    monkeypatch.setitem(dispatch._OBJECT_SYNC, "deal", _async_recorder(calls, arity=2))
+
+    await dispatch.dispatch_event(
+        _FakeClient(),
+        _event("record.created", object_id="deal-object-uuid", record_id="deal-1"),
+    )
+
+    assert calls == ["deal-1"]
+
+
+async def test_note_record_dispatches_to_matching_sync_fn(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setitem(dispatch._OBJECT_SYNC, "note", _async_recorder(calls, arity=2))
+
+    await dispatch.dispatch_event(
+        _FakeClient(),
+        _event("record.created", object_id="note-object-uuid", record_id="note-1"),
+    )
+
+    assert calls == ["note-1"]
 
 
 async def test_record_deleted_dispatches_to_delete_fn(monkeypatch) -> None:

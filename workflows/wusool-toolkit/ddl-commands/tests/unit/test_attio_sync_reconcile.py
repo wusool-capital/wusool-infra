@@ -32,9 +32,10 @@ class _FakeClient:
 async def test_single_entry_with_missing_is_active_becomes_active() -> None:
     client = _FakeClient([[_entry("entry-1", "org-a", "2024-01-01T00:00:00Z")]])
 
-    winner = await _reconcile_active_entry(client, "buyer_role", "org-a")
+    winner, losers = await _reconcile_active_entry(client, "buyer_role", "org-a")
 
     assert winner["id"]["entry_id"] == "entry-1"
+    assert losers == []
     assert client.patch_calls == [
         ("/lists/buyer_role/entries/entry-1", {"data": {"entry_values": {"is_active": True}}})
     ]
@@ -53,9 +54,10 @@ async def test_newest_entry_wins_and_older_flips_to_inactive() -> None:
     newer = _entry("entry-new", "org-a", "2024-01-03T00:00:00Z", is_active=None)
     client = _FakeClient([[older, newer]])
 
-    winner = await _reconcile_active_entry(client, "buyer_role", "org-a")
+    winner, losers = await _reconcile_active_entry(client, "buyer_role", "org-a")
 
     assert winner["id"]["entry_id"] == "entry-new"
+    assert [e["id"]["entry_id"] for e in losers] == ["entry-old"]
     assert (
         "/lists/buyer_role/entries/entry-new",
         {"data": {"entry_values": {"is_active": True}}},
