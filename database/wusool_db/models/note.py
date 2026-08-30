@@ -50,7 +50,7 @@ class Note(Base):
     organization_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("organizations.attio_id"), nullable=True
     )
-    person_id: Mapped[str | None] = mapped_column(Text, ForeignKey("people.attio_id"))
+    person_id: Mapped[str | None] = mapped_column(Text, ForeignKey("person.attio_id"))
     buyer_role_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("buyer_roles.id"))
     seller_role_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("seller_roles.id"))
     # Manual = historical/hand-entered. Meeting = generated from a meeting

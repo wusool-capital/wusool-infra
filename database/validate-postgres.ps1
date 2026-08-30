@@ -42,7 +42,7 @@ def count_pages(path):
 dev={
   "users":len(request("GET","/workspace_members").get("data",[])),
   "organizations":count_pages("/objects/organizations/records/query"),
-  "people":count_pages("/objects/person/records/query"),
+  "person":count_pages("/objects/person/records/query"),
   "deals":count_pages("/objects/deals/records/query"),
   "buyer_roles":count_pages("/lists/buyer_role/entries/query"),
   "seller_roles":count_pages("/lists/seller_role/entries/query"),
@@ -68,9 +68,9 @@ with psycopg.connect(os.environ["WUSOOL_VALIDATE_DATABASE_URL"],connect_timeout=
       if actual!=expected:failures.append(f"{table}: DEV={expected}, PostgreSQL={actual}")
 
     integrity={
-      "people missing organization": "select count(*) from people p where p.company_attio_id is not null and not exists(select 1 from organizations o where o.attio_id=p.company_attio_id)",
+      "person missing organization": "select count(*) from person p where p.company_attio_id is not null and not exists(select 1 from organizations o where o.attio_id=p.company_attio_id)",
       "deals missing buyer organization": "select count(*) from deals d where d.buyer_organization_attio_id is not null and not exists(select 1 from organizations o where o.attio_id=d.buyer_organization_attio_id)",
-      "deals missing buyer person": "select count(*) from deals d where d.buyer_person_attio_id is not null and not exists(select 1 from people p where p.attio_id=d.buyer_person_attio_id)",
+      "deals missing buyer person": "select count(*) from deals d where d.buyer_person_attio_id is not null and not exists(select 1 from person p where p.attio_id=d.buyer_person_attio_id)",
       "deals missing seller": "select count(*) from deals d where d.seller_organization_attio_id is not null and not exists(select 1 from organizations o where o.attio_id=d.seller_organization_attio_id)",
       "buyer roles missing organization": "select count(*) from buyer_roles b where not exists(select 1 from organizations o where o.attio_id=b.org_attio_id)",
       "seller roles missing organization": "select count(*) from seller_roles s where not exists(select 1 from organizations o where o.attio_id=s.org_attio_id)",

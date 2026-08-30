@@ -62,7 +62,7 @@ Money-shaped JSONB columns (marked below) hold either `{"amount": ...,
 
 Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 
-### `people` (`person.py`)
+### `person` (`person.py`)
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
@@ -95,7 +95,7 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 | stage | text | yes | | indexed |
 | stage_changed_at | timestamptz | yes | | indexed (DESC) |
 | buyer_organization_attio_id | text | yes | | FK → organizations, indexed |
-| buyer_person_attio_id | text | yes | | FK → people |
+| buyer_person_attio_id | text | yes | | FK → person |
 | seller_organization_attio_id | text | yes | | FK → organizations, indexed |
 | owner_attio_id | text | yes | | FK → users.attio_id |
 | value | jsonb | yes | | money-shaped |
@@ -137,7 +137,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 | earnout_tolerance / profitable_only | boolean | yes | | |
 | investment_strategy | text | yes | | |
 | notes | text | yes | | legacy free-text notes field |
-| key_contact_attio_id | text | yes | | FK → people.attio_id |
+| key_contact_attio_id | text | yes | | FK → person.attio_id |
 | acquisition_enrichment | text | yes | | |
 | deals_introduced / deals_converted | integer | yes | | |
 | ebitda_ceiling / estimated_aum | jsonb | yes | | money-shaped |
@@ -183,7 +183,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
 | organization_id | text | **yes** (2026-08-29) | | FK → organizations.attio_id; indexed. Blank only when the note's sole anchor (a person or role) has no org at all |
-| person_id | text | yes | | FK → people.attio_id; indexed |
+| person_id | text | yes | | FK → person.attio_id; indexed |
 | buyer_role_id | uuid | yes | | FK → buyer_roles.id |
 | seller_role_id | uuid | yes | | FK → seller_roles.id |
 | note_type | text | no | | CHECK: `Manual` or `Meeting` |
@@ -193,7 +193,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 Populated by `workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`
 from SOURCE Attio's `note` custom object, via a not-yet-built
 `database/sync-notes-from-source.ps1`. Replaces the notes fields formerly
-scattered across `organizations`/`people`/`buyer_roles`.
+scattered across `organizations`/`person`/`buyer_roles`.
 
 ### `meetings` (`meeting.py`)
 
@@ -393,7 +393,7 @@ Indexed on `(buyer_attio_id, generated_at DESC)`.
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
-| person_a_attio_id / person_b_attio_id | text | no | | FK → people, CASCADE; composite index |
+| person_a_attio_id / person_b_attio_id | text | no | | FK → person, CASCADE; composite index |
 | hop | text | no | | |
 | basis | text | yes | | |
 | source_cite | jsonb | no | `[]` | |

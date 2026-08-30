@@ -4,7 +4,7 @@ STATIC-ANALYSIS DRAFT derived from `database/sql/00*.sql`, not a live-DB
 reflection — see `wusool_db/models/_static_analysis_notice.py` for the full
 caveat before trusting this for Stage 4 (`alembic stamp head`).
 
-Two FKs to the same table (`people`), so both relationships need an explicit
+Two FKs to the same table (`person`), so both relationships need an explicit
 `foreign_keys=` to disambiguate. The DDL's `graph_edges_not_self` CHECK
 (`person_a_attio_id <> person_b_attio_id`) is reproduced below with its
 original name so a future `--autogenerate` sees no drift.
@@ -32,17 +32,17 @@ class GraphEdge(Base):
         CheckConstraint(
             "person_a_attio_id <> person_b_attio_id", name="graph_edges_not_self"
         ),
-        Index("idx_graph_edges_people", "person_a_attio_id", "person_b_attio_id"),
+        Index("idx_graph_edges_person", "person_a_attio_id", "person_b_attio_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")
     )
     person_a_attio_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("people.attio_id", ondelete="CASCADE"), nullable=False
+        Text, ForeignKey("person.attio_id", ondelete="CASCADE"), nullable=False
     )
     person_b_attio_id: Mapped[str] = mapped_column(
-        Text, ForeignKey("people.attio_id", ondelete="CASCADE"), nullable=False
+        Text, ForeignKey("person.attio_id", ondelete="CASCADE"), nullable=False
     )
     hop: Mapped[str] = mapped_column(Text, nullable=False)
     basis: Mapped[str | None] = mapped_column(Text)

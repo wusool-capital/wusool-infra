@@ -110,7 +110,7 @@ try: members=request("GET","/workspace_members").get("data",[])
 except Exception as exc:
     print(f"WARNING: workspace members unavailable: {exc}"); members=[]
 
-counts={"users":len(members),"organizations":len(organizations),"people":len(people),"deals":len(deals),"buyer_roles":len(buyer_entries),"seller_roles":len(seller_entries)}
+counts={"users":len(members),"organizations":len(organizations),"person":len(people),"deals":len(deals),"buyer_roles":len(buyer_entries),"seller_roles":len(seller_entries)}
 for name,count in counts.items(): print(f"{name:16} {count}")
 if not APPLY:
     print("DRY RUN complete. Add -Apply to upsert into PostgreSQL.")
@@ -154,7 +154,7 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
       emails=[x.get("email_address") for x in items(v,"email_addresses") if x.get("email_address")]
       roles=titles(v,"role") or titles(v,"job_title")
       person_rows.append((rid,first(v,"name") or f"Unnamed DEV Person [{rid}]",", ".join(roles) or first(v,"role"),company if company in org_ids else None,emails,first(v,"linkedin"),first(v,"relationship_status"),first(v,"strongest_connection_strength"),actor(v,"owner") if actor(v,"owner") in user_ids else None,first(v,"last_interaction_at"),first(v,"job_title"),first(v,"contact_type"),first(v,"phone"),first(v,"avatar_url"),first(v,"angellist"),first(v,"facebook"),first(v,"instagram"),first(v,"twitter"),integer(v,"twitter_follower_count"),J(r)))
-    c.executemany("""INSERT INTO people(attio_id,name,role,company_attio_id,email,linkedin,relationship_status,connection_strength,owner_attio_id,last_interaction_at,job_title,contact_type,phone,avatar_url,angellist,facebook,instagram,twitter,twitter_follower_count,raw_attio)
+    c.executemany("""INSERT INTO person(attio_id,name,role,company_attio_id,email,linkedin,relationship_status,connection_strength,owner_attio_id,last_interaction_at,job_title,contact_type,phone,avatar_url,angellist,facebook,instagram,twitter,twitter_follower_count,raw_attio)
       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT(attio_id) DO UPDATE SET name=excluded.name,role=excluded.role,company_attio_id=excluded.company_attio_id,email=excluded.email,linkedin=excluded.linkedin,relationship_status=excluded.relationship_status,connection_strength=excluded.connection_strength,owner_attio_id=excluded.owner_attio_id,last_interaction_at=excluded.last_interaction_at,job_title=excluded.job_title,contact_type=excluded.contact_type,phone=excluded.phone,avatar_url=excluded.avatar_url,angellist=excluded.angellist,facebook=excluded.facebook,instagram=excluded.instagram,twitter=excluded.twitter,twitter_follower_count=excluded.twitter_follower_count,raw_attio=excluded.raw_attio,updated_at=now()""",person_rows)
     person_ids={r[0] for r in person_rows}
@@ -164,8 +164,8 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     # buyer_roles.key_contact_attio_id / deals.buyer_person_attio_id both
     # reference people with ON DELETE NO ACTION, so a hard delete could fail
     # or silently orphan a still-valid buyer role/deal's contact reference.
-    c.execute("UPDATE people SET removed_at=now() WHERE removed_at IS NULL AND NOT (attio_id = ANY(%s))",(person_ids_list,))
-    c.execute("UPDATE people SET removed_at=NULL WHERE removed_at IS NOT NULL AND attio_id = ANY(%s)",(person_ids_list,))
+    c.execute("UPDATE person SET removed_at=now() WHERE removed_at IS NULL AND NOT (attio_id = ANY(%s))",(person_ids_list,))
+    c.execute("UPDATE person SET removed_at=NULL WHERE removed_at IS NOT NULL AND attio_id = ANY(%s)",(person_ids_list,))
 
     deal_rows=[]
     for r in deals:
@@ -225,7 +225,7 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     c.execute("DELETE FROM seller_roles WHERE NOT (legacy_entry_id = ANY(%s))",(seller_entry_ids_list,))
   with conn.cursor() as check:
     for table, expected in counts.items():
-      query = f"SELECT count(*) FROM {table} WHERE removed_at IS NULL" if table in ("organizations","people") else f"SELECT count(*) FROM {table}"
+      query = f"SELECT count(*) FROM {table} WHERE removed_at IS NULL" if table in ("organizations","person") else f"SELECT count(*) FROM {table}"
       check.execute(query)
       actual=check.fetchone()[0]
       print(f"validated {table:16} expected={expected} actual={actual}")

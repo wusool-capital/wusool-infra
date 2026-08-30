@@ -11,9 +11,9 @@ param(
 # sync-postgres.ps1); this one is the deliberate exception, same reasoning as
 # the (now-removed) meeting-notes bridge script from earlier this session.
 #
-# organization_id/person_id link to Postgres's EXISTING organizations/people
+# organization_id/person_id link to Postgres's EXISTING organizations/person
 # rows (which are keyed by DEV Attio's attio_id) by bridging through SOURCE
-# record ids: organizations.raw_attio / people.raw_attio already hold the
+# record ids: organizations.raw_attio / person.raw_attio already hold the
 # full DEV record JSON (from sync-postgres.ps1), including DEV's own
 # legacy_attio_id value -- the original SOURCE record id DEV was migrated
 # from. That SOURCE id is exactly what this SOURCE `note` object's
@@ -93,12 +93,12 @@ def ref(v, slug):
 
 def record_id(r): return str((r.get("id") or {}).get("record_id") or "")
 
-print("Reading Postgres organizations/people/buyer_roles/seller_roles...")
+print("Reading Postgres organizations/person/buyer_roles/seller_roles...")
 with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as conn:
     with conn.cursor() as c:
         c.execute("SELECT attio_id, raw_attio FROM organizations")
         org_rows = c.fetchall()
-        c.execute("SELECT attio_id, raw_attio FROM people")
+        c.execute("SELECT attio_id, raw_attio FROM person")
         person_rows = c.fetchall()
         c.execute("SELECT id, org_attio_id FROM buyer_roles")
         buyer_role_rows = c.fetchall()
