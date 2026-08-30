@@ -33,6 +33,20 @@ CREATE TABLE IF NOT EXISTS organizations (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Compatibility for a pre-#73 flat-SQL database. Rename the populated table
+-- in place before CREATE TABLE IF NOT EXISTS can create an empty sibling.
+DO $$
+BEGIN
+  IF to_regclass('public.people') IS NOT NULL
+     AND to_regclass('public.person') IS NULL THEN
+    ALTER TABLE people RENAME TO person;
+  ELSIF to_regclass('public.people') IS NOT NULL
+        AND to_regclass('public.person') IS NOT NULL THEN
+    RAISE EXCEPTION 'Both people and person exist; refusing to split person data across two tables.';
+  END IF;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS person (
   attio_id text PRIMARY KEY,
   name text NOT NULL,
@@ -47,10 +61,65 @@ CREATE TABLE IF NOT EXISTS person (
   education jsonb NOT NULL DEFAULT '[]'::jsonb,
   enrichment jsonb NOT NULL DEFAULT '{}'::jsonb,
   last_interaction_at timestamptz,
+  job_title text,
+  contact_type text,
+  phone text,
+  avatar_url text,
+  angellist text,
+  facebook text,
+  instagram text,
+  twitter text,
+  twitter_follower_count integer,
+  removed_at timestamptz,
   raw_attio jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- CREATE TABLE IF NOT EXISTS does not add columns to a legacy table renamed
+-- above. Keep the Person contract required by sync-postgres.ps1 complete.
+ALTER TABLE person
+  ADD COLUMN IF NOT EXISTS job_title text,
+  ADD COLUMN IF NOT EXISTS contact_type text,
+  ADD COLUMN IF NOT EXISTS phone text,
+  ADD COLUMN IF NOT EXISTS avatar_url text,
+  ADD COLUMN IF NOT EXISTS angellist text,
+  ADD COLUMN IF NOT EXISTS facebook text,
+  ADD COLUMN IF NOT EXISTS instagram text,
+  ADD COLUMN IF NOT EXISTS twitter text,
+  ADD COLUMN IF NOT EXISTS twitter_follower_count integer,
+  ADD COLUMN IF NOT EXISTS removed_at timestamptz;
+
+-- PostgreSQL keeps constraint/index names when their table is renamed. Align
+-- the legacy names with migration 2f4edfbfb647, guarded for repeat runs.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'person'::regclass AND conname = 'people_pkey')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'person'::regclass AND conname = 'person_pkey') THEN
+    ALTER TABLE person RENAME CONSTRAINT people_pkey TO person_pkey;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'person'::regclass AND conname = 'people_company_attio_id_fkey')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'person'::regclass AND conname = 'person_company_attio_id_fkey') THEN
+    ALTER TABLE person RENAME CONSTRAINT people_company_attio_id_fkey TO person_company_attio_id_fkey;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'person'::regclass AND conname = 'people_owner_attio_id_fkey')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'person'::regclass AND conname = 'person_owner_attio_id_fkey') THEN
+    ALTER TABLE person RENAME CONSTRAINT people_owner_attio_id_fkey TO person_owner_attio_id_fkey;
+  END IF;
+  IF to_regclass('public.idx_people_company') IS NOT NULL
+     AND to_regclass('public.idx_person_company') IS NULL THEN
+    ALTER INDEX idx_people_company RENAME TO idx_person_company;
+  END IF;
+  IF to_regclass('public.idx_people_email') IS NOT NULL
+     AND to_regclass('public.idx_person_email') IS NULL THEN
+    ALTER INDEX idx_people_email RENAME TO idx_person_email;
+  END IF;
+  IF to_regclass('public.idx_graph_edges_people') IS NOT NULL
+     AND to_regclass('public.idx_graph_edges_person') IS NULL THEN
+    ALTER INDEX idx_graph_edges_people RENAME TO idx_graph_edges_person;
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS deals (
   attio_id text PRIMARY KEY,

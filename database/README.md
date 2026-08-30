@@ -134,43 +134,59 @@ truth for **future** schema changes:
   the new image, so a failed migration blocks the deploy rather than leaving
   new app code running against a schema it doesn't have yet.
 
-### The flat SQL files below are frozen — historical record only
+### The flat SQL files below are frozen — legacy baseline only
 
-**Do not add new numbered files to `sql/` or evolve the schema in the existing
-ones.** Compatibility corrections must still keep this runnable bootstrap path
-aligned with the Alembic schema (for example, a renamed table and its dependent
-references/index names).
-They remain as the historical record of how the schema reached its current
-state, and `sync-postgres.ps1`/`validate-postgres.ps1` (Attio data sync, a
-separate concern from schema) are unaffected by any of this. Per the handover
-doc, deleting them outright is an explicit, separate future decision, not
-automatic — but every *new* schema change from now on goes through Alembic,
-never a new `sql/00N_*.sql` file.
+**Do not add new numbered files to `sql/` or use them for schema evolution.**
+They establish the pre-Alembic baseline only; they do not by themselves create
+the current application schema. Narrow compatibility corrections keep that
+baseline safe to run (for example, renaming a populated legacy `people` table
+in place and preserving its dependent foreign keys), but every new schema
+change goes through Alembic. A flat-SQL bootstrap must always be stamped and
+upgraded as described below before the application or data-sync scripts run.
+
+CI exercises both a fresh flat-SQL bootstrap and a rerun over a populated
+pre-rename snapshot, then stamps the baseline, upgrades through `head`, and
+runs `alembic check`. Deleting the legacy bootstrap outright remains an
+explicit, separate future decision.
 
 ### Onboarding an environment that predates Alembic
 
 `dev` and `prod` both had their tables created by the flat SQL files above
-before this Alembic chain existed — `alembic upgrade head` cannot run
-against either of them from scratch, because the first real migration
+before this Alembic chain existed. The same sequence applies to a database
+just created with `setup-postgres.ps1`: `alembic upgrade head` cannot run
+against it from the beginning, because the first real migration
 (`87320bb9dc8d`, unguarded `op.create_table(...)`) would try to recreate
-tables that already exist and fail with `DuplicateTable`. Both needed (or, for
-`prod`, will need) a one-time `alembic stamp 87320bb9dc8d` run directly
-against that environment before the normal CD pipeline can apply anything —
-this tells Alembic "table creation already happened" without executing it,
-so the grants revision and the two orphaned-column-drop revisions after it
-still run for real. This is a one-time bootstrapping step per environment,
-not something to repeat for ordinary schema changes.
+tables that already exist and fail with `DuplicateTable`.
 
-## First-time or changed-schema setup
+Run these commands once (the migration creates a harmless NOLOGIN
+`scribe_pub` placeholder if the real publishing role has not been provisioned):
+
+```bash
+cd database
+alembic stamp 87320bb9dc8d
+alembic upgrade head
+alembic check
+```
+
+The stamp tells Alembic that baseline table creation already happened without
+executing it. All later migrations still run for real. Both deployed
+environments have already been stamped; this procedure is for a new legacy
+bootstrap or restored pre-Alembic snapshot, not ordinary schema changes.
+
+## Legacy first-time bootstrap or pre-Alembic recovery
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\database\setup-postgres.ps1
 ```
 
-The script verifies `current_database()` is exactly `wusool_crm`, runs the SQL
-files, and validates required tables and columns. It is not required for every
-routine data sync.
+The script verifies `current_database()` is exactly `wusool_crm`, runs the
+legacy baseline SQL, renames a populated `people` table in place when needed,
+and validates the Person columns and foreign keys required by the sync. Follow
+it immediately with the one-time Alembic stamp/upgrade sequence above. It is
+not a schema-update command: once `alembic_version` exists, the script refuses
+to run unless an explicit destructive reset was requested. Use `alembic
+upgrade head` for every managed database and ordinary schema change.
 
 ## DEV extraction dry-run
 

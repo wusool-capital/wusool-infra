@@ -37,6 +37,10 @@ with psycopg.connect(url,autocommit=True,connect_timeout=10) as conn:
     database=c.fetchone()[0]
     if database!="wusool_crm": raise RuntimeError(f"Refusing setup outside wusool_crm: {database}")
     print(f"Verified database: {database}")
+    c.execute("select to_regclass('public.alembic_version')")
+    alembic_managed=c.fetchone()[0] is not None
+    if alembic_managed and not reset:
+      raise RuntimeError("This database is already Alembic-managed; use 'alembic upgrade head', not the legacy flat-SQL bootstrap.")
     if reset:
       c.execute("drop schema public cascade")
       c.execute("create schema public")
@@ -53,13 +57,25 @@ with psycopg.connect(url,autocommit=True,connect_timeout=10) as conn:
       "deals":{"stage_changed_at","time_in_stage","contract_signed_date","exclusivity_date","cim_ready","deal_memo_ready"},
       "seller_roles":{"relationship_status","sell_timeline","intake_source","last_attempt_date","last_attempt_channel","last_attempt_outcome"},
       "buyer_roles":{"acquisition_enrichment","deals_introduced","deals_converted"},
-      "organizations":{"funding_raised","estimated_arr","removed_at"}
+      "organizations":{"funding_raised","estimated_arr","removed_at"},
+      "person":{"job_title","contact_type","phone","avatar_url","angellist","facebook","instagram","twitter","twitter_follower_count","removed_at"}
     }
     for table,expected in required_columns.items():
       c.execute("select column_name from information_schema.columns where table_schema='public' and table_name=%s",(table,))
       actual={row[0] for row in c.fetchall()}
       missing=sorted(expected-actual)
       if missing: raise RuntimeError(f"Missing {table} columns: {', '.join(missing)}")
+    if "people" in found:
+      raise RuntimeError("Legacy people table still exists beside person; refusing a split schema.")
+    c.execute("""
+      select count(*)
+      from pg_constraint
+      where confrelid='person'::regclass
+        and conrelid in ('deals'::regclass,'buyer_roles'::regclass,'graph_edges'::regclass)
+    """)
+    person_fk_count=c.fetchone()[0]
+    if person_fk_count != 4:
+      raise RuntimeError(f"Expected 4 dependent foreign keys to target person, found {person_fk_count}.")
     print(f"Schema validation passed: {len(required)} required tables.")
 '@ | py - $schemaPath
 if ($LASTEXITCODE -ne 0) { throw "PostgreSQL setup failed with exit code $LASTEXITCODE." }

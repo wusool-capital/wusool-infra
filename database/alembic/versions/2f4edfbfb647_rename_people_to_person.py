@@ -15,6 +15,8 @@ Create Date: 2026-08-30 00:00:00.000000
 """
 from collections.abc import Sequence
 
+import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -26,6 +28,12 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    inspector = sa.inspect(op.get_bind())
+    if inspector.has_table("person"):
+        return
+    if not inspector.has_table("people"):
+        raise RuntimeError("Neither people nor person exists")
+
     op.rename_table("people", "person")
     op.execute("ALTER TABLE person RENAME CONSTRAINT people_pkey TO person_pkey")
     op.execute(

@@ -21,6 +21,10 @@ dependencies = [
     # (postgresql+asyncpg://) — env.py mirrors that exact convention rather
     # than introducing a second, sync driver just for migrations.
     "asyncpg>=0.29",
+    # SQLAlchemy's async engine bridges through its synchronous internals.
+    # Its platform markers do not install greenlet on Apple arm64, so declare
+    # the runtime requirement explicitly for portable Alembic commands.
+    "greenlet>=3.1",
 ]
 
 [project.optional-dependencies]

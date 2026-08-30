@@ -32,11 +32,17 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column(
-        "people", sa.Column("removed_at", sa.TIMESTAMP(timezone=True), nullable=True)
-    )
+    inspector = sa.inspect(op.get_bind())
+    table_name = "people" if inspector.has_table("people") else "person"
+    existing = {column["name"] for column in inspector.get_columns(table_name)}
+    if "removed_at" not in existing:
+        op.add_column(
+            table_name, sa.Column("removed_at", sa.TIMESTAMP(timezone=True), nullable=True)
+        )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_column("people", "removed_at")
+    inspector = sa.inspect(op.get_bind())
+    table_name = "people" if inspector.has_table("people") else "person"
+    op.drop_column(table_name, "removed_at")
