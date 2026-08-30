@@ -25,7 +25,7 @@ url=os.environ["WUSOOL_SETUP_DATABASE_URL"]
 reset=os.environ.get("WUSOOL_SETUP_RESET")=="1"
 schema_path=pathlib.Path(os.sys.argv[1])
 required={
- "users","organizations","people","deals","mandates","buyer_roles",
+ "users","organizations","person","deals","mandates","buyer_roles",
  "seller_roles","scorecards","activities","deal_stage_events","signals",
  "buyer_intel","seller_financials","mandate_targets","match_scores",
  "documents","vertical_kb","graph_edges","attio_sync_state","attio_raw_events"

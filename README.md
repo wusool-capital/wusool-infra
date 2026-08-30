@@ -152,7 +152,7 @@ The current documentation covers:
 | --- | --- |
 | Attio target model | `workflows/crm-sync/scripts/dev-attio/config/target-schema.json` |
 | Attio migration mapping | `workflows/crm-sync/scripts/dev-attio/config/source-to-target-mapping.json` |
-| PostgreSQL schema | `database/wusool_db/models/` + `database/alembic/versions/` (Alembic migrations, current baseline). Historical flat SQL: `database/sql/001_extensions.sql` through `007_org_name_trgm_index.sql` — `008_bot_managed_columns.sql` was added and reverted before this table was last accurate, and never actually shipped. |
+| PostgreSQL schema | `database/wusool_db/models/` + `database/alembic/versions/` (Alembic migrations, current baseline). Historical but still runnable bootstrap SQL: `database/sql/001_extensions.sql` through `007_org_name_trgm_index.sql` — `008_bot_managed_columns.sql` was added and reverted before this table was last accurate, and never actually shipped. |
 
 The generated documents describe the schema declared in this repository. They
 do not prove the current state of a live Attio workspace or PostgreSQL database.
@@ -278,10 +278,11 @@ models and migrations on every PR touching `database/**`, against a
 throwaway Postgres, before any of that.
 
 The historical flat SQL files (`database/sql/001` through `007`) are not
-deleted or superseded retroactively — `database/setup-postgres.ps1`/
-`sync-postgres.ps1` (Attio data sync, a separate concern from schema) are
-unaffected, and deleting the flat files is an explicit, separate future
-decision, not automatic — see `database/README.md` for the current Alembic workflow.
+deleted: `database/setup-postgres.ps1` and the toolkit's Docker first-start
+path still execute them for bootstrap, so compatibility corrections keep them
+aligned with the current Alembic schema even though new schema evolution goes
+through migrations. Deleting that bootstrap path is an explicit, separate
+future decision — see `database/README.md` for the current Alembic workflow.
 
 ## n8n SMTP email
 

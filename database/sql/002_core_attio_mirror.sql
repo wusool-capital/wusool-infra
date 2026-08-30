@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS organizations (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS people (
+CREATE TABLE IF NOT EXISTS person (
   attio_id text PRIMARY KEY,
   name text NOT NULL,
   role text,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS deals (
   stage text,
   stage_changed_at timestamptz,
   buyer_organization_attio_id text REFERENCES organizations(attio_id),
-  buyer_person_attio_id text REFERENCES people(attio_id),
+  buyer_person_attio_id text REFERENCES person(attio_id),
   seller_organization_attio_id text REFERENCES organizations(attio_id),
   owner_attio_id text REFERENCES users(attio_id),
   value jsonb,

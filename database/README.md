@@ -8,7 +8,7 @@ stores a relational mirror plus automation, history, analytics, and AI data.
 
 | Script | Responsibility |
 | --- | --- |
-| `setup-postgres.ps1` | Apply four idempotent SQL schema files and validate required tables/columns. Optional guarded reset. |
+| `setup-postgres.ps1` | Apply all ordered SQL schema files and validate required tables/columns. Optional guarded reset. |
 | `sync-postgres.ps1` | Read canonical DEV Attio, map values, and dry-run or transactionally upsert PostgreSQL rows. As of 2026-08-28, writes every `buyer_role`/`seller_role` list entry (not just the active one per org -- see the "Mirroring every Attio record" note below). |
 | `sync-notes-from-source.ps1` | The one exception to "DEV Attio -> PostgreSQL": populates `notes` directly from **SOURCE** Attio's `note` custom object (`workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`), since DEV has no notes object yet. Bridges SOURCE record ids to Postgres's existing DEV-keyed rows via `organizations.raw_attio`/`person.raw_attio`'s `legacy_attio_id`. |
 | `validate-postgres.ps1` | Independently compare DEV/PostgreSQL counts and validate key relationships. Read-only. |
@@ -54,7 +54,7 @@ or Attio keys.
 | File | Purpose |
 | --- | --- |
 | `001_extensions.sql` | Enable `pgcrypto`, `pg_trgm` (fuzzy organization-name search), and pgvector when available. |
-| `002_core_attio_mirror.sql` | Create Users, Organizations, People, Deals, and Mandates. Organizations includes `removed_at timestamptz` (nullable; NULL means active) — `sync-postgres.ps1 -Apply` sets it when an org drops out of the DEV Attio organizations query and clears it if the org reappears. **Mandates retired 2026-08-23** (see below) — table kept for its 2 historical rows, but this file is frozen (see "flat SQL files are frozen" below) so the merge went through Alembic (`9c4d71ea2b56`), not here. |
+| `002_core_attio_mirror.sql` | Create Users, Organizations, Person, Deals, and Mandates. Organizations includes `removed_at timestamptz` (nullable; NULL means active) — `sync-postgres.ps1 -Apply` sets it when an org drops out of the DEV Attio organizations query and clears it if the org reappears. **Mandates retired 2026-08-23** (see below) — table kept for its 2 historical rows, but this file is frozen (see "flat SQL files are frozen" below) so the merge went through Alembic (`9c4d71ea2b56`), not here. |
 | `003_crm_roles.sql` | Create Buyer Role, Seller Role, and optional investor/lender roles. |
 | `004_machine_layer.sql` | Create activities, stage history, intelligence, matching, documents, graph, scorecards, reconciliation columns, and indexes. |
 | `005_meetings.sql` | Create the `meetings` table (scribe-published buyer/seller meeting summaries) and enable `fk_meetings_org`. Not part of the Attio mirror — scribe is the sole writer. |
@@ -136,7 +136,10 @@ truth for **future** schema changes:
 
 ### The flat SQL files below are frozen — historical record only
 
-**Do not add new numbered files to `sql/` and do not edit the existing ones.**
+**Do not add new numbered files to `sql/` or evolve the schema in the existing
+ones.** Compatibility corrections must still keep this runnable bootstrap path
+aligned with the Alembic schema (for example, a renamed table and its dependent
+references/index names).
 They remain as the historical record of how the schema reached its current
 state, and `sync-postgres.ps1`/`validate-postgres.ps1` (Attio data sync, a
 separate concern from schema) are unaffected by any of this. Per the handover

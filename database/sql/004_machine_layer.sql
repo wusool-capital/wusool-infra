@@ -108,8 +108,8 @@ CREATE TABLE IF NOT EXISTS vertical_kb (
 
 CREATE TABLE IF NOT EXISTS graph_edges (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  person_a_attio_id text NOT NULL REFERENCES people(attio_id) ON DELETE CASCADE,
-  person_b_attio_id text NOT NULL REFERENCES people(attio_id) ON DELETE CASCADE,
+  person_a_attio_id text NOT NULL REFERENCES person(attio_id) ON DELETE CASCADE,
+  person_b_attio_id text NOT NULL REFERENCES person(attio_id) ON DELETE CASCADE,
   hop text NOT NULL,
   basis text,
   source_cite jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -201,8 +201,8 @@ CREATE TABLE IF NOT EXISTS scorecards (
 
 CREATE INDEX IF NOT EXISTS idx_organizations_domains ON organizations USING gin (domains);
 CREATE INDEX IF NOT EXISTS idx_organizations_type ON organizations USING gin (type);
-CREATE INDEX IF NOT EXISTS idx_people_email ON people USING gin (email);
-CREATE INDEX IF NOT EXISTS idx_people_company ON people (company_attio_id);
+CREATE INDEX IF NOT EXISTS idx_person_email ON person USING gin (email);
+CREATE INDEX IF NOT EXISTS idx_person_company ON person (company_attio_id);
 CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals (stage);
 CREATE INDEX IF NOT EXISTS idx_deals_buyer_org ON deals (buyer_organization_attio_id);
 CREATE INDEX IF NOT EXISTS idx_deals_seller_org ON deals (seller_organization_attio_id);
@@ -216,6 +216,6 @@ CREATE INDEX IF NOT EXISTS idx_seller_financials_seller ON seller_financials (se
 CREATE INDEX IF NOT EXISTS idx_match_scores_pair_generated ON match_scores (buyer_attio_id, seller_attio_id, generated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_documents_deal_kind ON documents (deal_attio_id, kind);
 CREATE INDEX IF NOT EXISTS idx_vertical_kb_sector ON vertical_kb (sector);
-CREATE INDEX IF NOT EXISTS idx_graph_edges_people ON graph_edges (person_a_attio_id, person_b_attio_id);
+CREATE INDEX IF NOT EXISTS idx_graph_edges_person ON graph_edges (person_a_attio_id, person_b_attio_id);
 CREATE INDEX IF NOT EXISTS idx_scorecards_week_start ON scorecards (week_start DESC);
 CREATE INDEX IF NOT EXISTS idx_seller_roles_intake_source ON seller_roles (intake_source);

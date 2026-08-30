@@ -7,7 +7,7 @@ in its own document (linked below) — this file stays a short, high-level
 index and is kept current by the `sync-project-docs` skill (or manually,
 see [Keeping this file current](#keeping-this-file-current)).
 
-Last updated: 2026-08-18
+Last updated: 2026-08-30
 
 ## Workstreams
 
@@ -48,7 +48,23 @@ CloudWatch tagged by module, and the shared Docker build picked up a fix for
 copying the `shared/` workspace member correctly. All routine, all merged
 through `dev` → `prod` the normal way — no open follow-up from any of these.
 
+**Account-stack follow-up (2026-08-30):** manually applied PR #72's sole
+account-wide change with administrator credentials: the
+`wusool-gha-apply-dev` role now allows 10,800-second sessions, while
+`wusool-gha-apply-prod` remains at 3,600 seconds. This unblocks the nightly
+Attio resync's requested three-hour OIDC session; `stacks/account` remains
+deliberately excluded from per-environment deploy automation.
+
 ### 6. Database schema management (SQLAlchemy + Alembic) — Phase G landed; dev fully migrated, prod bootstrapping in progress
+
+- **Person rename bootstrap alignment (2026-08-30):** PR #73's Alembic
+  migration renamed PostgreSQL `people` to `person`, and PR #74 fixed the live
+  webhook/nightly SQL. The still-executable flat-SQL bootstrap path
+  (`database/sql/002`–`004` plus `setup-postgres.ps1`) now creates, references,
+  indexes, and validates `person` consistently. The flat files remain frozen
+  for schema evolution, but compatibility corrections are required while
+  `setup-postgres.ps1` and the toolkit Docker first-start path still execute
+  them.
 
 - **Done (2026-08-18, PR #45):** every table's SQLAlchemy model relocated
   into `database/wusool_db/models/` as the single source of truth —
@@ -343,6 +359,14 @@ bulk migration doesn't generate wasted webhook churn.
   Secrets Manager secret (`/wusool/dev/toolkit`); a live bounded
   `sync-all.ps1 -Apply -Limit 1` run against `buyer_role` proved the full
   webhook pause → migrate → resume cycle end-to-end.
+- **Manual nightly validation (2026-08-30):** after the account role's
+  three-hour session limit was applied, workflow-dispatch run
+  `33306037552` passed OIDC assume-role and completed the full resync with
+  8,266 synced / 0 failed. The preceding run exposed two PostgreSQL
+  `person` rows whose Attio records both returned 404; they were repaired
+  with the existing reversible `removed_at` soft-delete behavior. The
+  workflow now redirects the resync logger's stderr into SSM stdout so its
+  per-stream timings appear beneath the intended `--- stdout ---` heading.
 - 91 unit + live-DB integration tests passing.
 
 **Not yet done, low priority:**

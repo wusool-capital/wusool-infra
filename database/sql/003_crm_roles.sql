@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS buyer_roles (
   profitable_only boolean,
   investment_strategy text,
   notes text,
-  key_contact_attio_id text REFERENCES people(attio_id),
+  key_contact_attio_id text REFERENCES person(attio_id),
   acquisition_enrichment text,
   deals_introduced integer,
   deals_converted integer,
