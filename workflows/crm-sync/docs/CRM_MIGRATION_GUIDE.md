@@ -23,7 +23,7 @@ IDs make reruns update existing records instead of creating duplicates.
 | SOURCE | DEV Attio | PostgreSQL |
 | --- | --- | --- |
 | Companies | Organizations | `organizations` |
-| People | Person | `people` |
+| People | Person | `person` |
 | Deals | Deals | `deals` |
 | Buyer Brain | Buyer Role | `buyer_roles` |
 | Valuation Tool Leads | Seller Role | `seller_roles` |

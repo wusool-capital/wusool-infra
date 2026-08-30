@@ -27,7 +27,7 @@ _OBJECT_SYNC = {
     "deals": upsert.sync_deal,
 }
 _OBJECT_DELETE = {
-    # `organizations` and `people` both have a deletion convention
+    # `organizations` and `person` both have a deletion convention
     # (`removed_at`) — see upsert.py's module docstring for why every other
     # table's `record.deleted`/`list-entry.deleted` is deliberately a no-op
     # here.

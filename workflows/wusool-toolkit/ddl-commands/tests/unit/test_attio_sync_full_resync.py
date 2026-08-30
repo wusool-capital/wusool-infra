@@ -263,7 +263,7 @@ async def test_run_continues_past_a_failed_entity_listing(monkeypatch) -> None:
     with pytest.raises(SystemExit):
         await full_resync.run()
 
-    assert "people" in write_calls  # ran despite organizations' listing failing first
+    assert "person" in write_calls  # ran despite organizations' listing failing first
 
 
 async def test_run_reports_users_sync_failure(monkeypatch) -> None:

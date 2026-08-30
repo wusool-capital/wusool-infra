@@ -69,14 +69,14 @@ _MAX_CONCURRENT = 5
 
 _COUNT_QUERY = {
     "organizations": text("SELECT count(*) FROM organizations WHERE removed_at IS NULL"),
-    "people": text("SELECT count(*) FROM people WHERE removed_at IS NULL"),
+    "person": text("SELECT count(*) FROM person WHERE removed_at IS NULL"),
     "deals": text("SELECT count(*) FROM deals"),
     "buyer_roles": text("SELECT count(*) FROM buyer_roles"),
     "seller_roles": text("SELECT count(*) FROM seller_roles"),
 }
 _ID_QUERY = {
     "organizations": text("SELECT attio_id FROM organizations"),
-    "people": text("SELECT attio_id FROM people"),
+    "person": text("SELECT attio_id FROM person"),
     "users": text("SELECT attio_id FROM users"),
 }
 
@@ -306,8 +306,8 @@ async def _run(client: AttioClient) -> None:
         summary["person"] = (0, 1)
     else:
         rows = [upsert._person_batch_params(r, org_ids, user_ids) for r in person_records]
-        summary["person"] = await _write_and_verify(Person, "people", rows, len(person_records))
-    person_ids = await _existing_ids("people")
+        summary["person"] = await _write_and_verify(Person, "person", rows, len(person_records))
+    person_ids = await _existing_ids("person")
 
     # deals
     if deal_records is None:
