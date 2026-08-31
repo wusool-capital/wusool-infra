@@ -10,11 +10,11 @@ plain field. `key_personnel` — intentionally not exposed. No gated fields
 on the buyer side — nor on the seller side any more, since `intake_source`
 was dropped in #53.
 
-`relationship_warmth` and `prior_gcc_acquisition` are given `"text"` kind
-because their real Attio attribute type (free text vs. select) isn't
-confirmed anywhere in this codebase — see
-`ddl_commands/shared/organization_field_spec.py`'s docstring for the same
-caveat and the reasoning for defaulting to `"text"`.
+Attribute types verified live against the DEV Attio workspace (2026-08-30)
+via `GET /v2/lists/buyer_role/attributes`: `prior_gcc_acquisition` is
+genuinely free text, while `relationship_warmth` is a `select` and carries
+Attio's own two options below. It had been guessed as `"text"`, which fails
+the Attio write with a 400 once an operator fills it in.
 """
 
 from ddl_commands.shared.organization_field_spec import FieldSpec
@@ -46,7 +46,7 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("ebitda_ceiling", "EBITDA ceiling (USD)", "currency"),
     FieldSpec("estimated_aum", "Estimated AUM (USD)", "currency"),
     FieldSpec("notable_investments", "Notable investments", "multiline"),
-    FieldSpec("relationship_warmth", "Relationship warmth", "text"),
+    FieldSpec("relationship_warmth", "Relationship warmth", "select", options=("Warm", "Cold")),
     FieldSpec(
         "target_geography", "Target geography (comma-separated)", "multi_select_text"
     ),

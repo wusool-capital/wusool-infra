@@ -16,7 +16,7 @@
         {"source": "name", "target": "name", "transform": "name_or_first_domain_or_traceable_placeholder", "status": "confirmed"},
         {"source": "description", "target": "description", "transform": "attio_native", "status": "confirmed"},
         {"source": "type", "target": "type", "transform": "select_titles_all", "status": "confirmed"},
-        {"source": "client_type", "target": "client_type", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
+        {"source": "client_type", "target": "client_type", "transform": "select_titles_all_comma_delimited", "status": "confirmed"},
         {"source": "sector_focus", "target": "sector_focus", "transform": "select_titles_all", "status": "confirmed"},
         {"source": "stage", "target": "stage_focus", "transform": "select_titles_all", "status": "confirmed"},
         {"source": "geographic_focus", "target": "geographic_focus", "transform": "select_titles_all", "status": "confirmed"},

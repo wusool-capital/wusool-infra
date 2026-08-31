@@ -21,8 +21,13 @@ def test_organizations_funding_raised_is_usd() -> None:
     [
         ("seller_role", "est_revenue"),
         ("seller_role", "valuation_low"),
+        ("seller_role", "revenue_last_full_year"),
+        ("seller_role", "revenue_year_before"),
+        ("seller_role", "annual_rent_cost"),
         ("buyer_role", "ebitda_floor"),
         ("buyer_role", "check_size_max"),
+        ("buyer_role", "ebitda_ceiling"),
+        ("buyer_role", "estimated_aum"),
     ],
 )
 def test_role_money_fields_are_usd(table: str, field: str) -> None:

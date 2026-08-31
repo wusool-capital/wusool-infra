@@ -154,7 +154,7 @@ Add '### PostgreSQL functional areas'
 Add
 Add '| Area | Tables | Purpose |'
 Add '|---|---|---|'
-Add '| CRM mirror | `users`, `organizations`, `people`, `deals`, `mandates` | Structured copies of core CRM records |'
+Add '| CRM mirror | `users`, `organizations`, `person`, `deals` | Structured copies of core CRM records |'
 Add '| Business roles | `buyer_roles`, `seller_roles`, `investor_lender_roles` | Buyer, seller, investor, and lender-specific information |'
 Add '| Activity and pipeline | `activities`, `deal_stage_events`, `signals` | Interactions, deal movements, and market or buyer signals |'
 Add '| Intelligence and matching | `buyer_intel`, `seller_financials`, `mandate_targets`, `match_scores` | Research, financial normalization, targeting, and opportunity matching |'

@@ -33,6 +33,7 @@ _DATE = FieldSpec("re_engage_date", "Re-engage date", "date")
 _CURRENCY = FieldSpec("est_revenue", "Est. revenue", "currency")
 _BOOL = FieldSpec("profitable_only", "Profitable only", "bool")
 _NUMBER = FieldSpec("twitter_follower_count", "Twitter follower count", "number")
+_PERCENT = FieldSpec("gross_margin_pct", "Gross margin %", "percent")
 
 
 async def test_build_attio_values_resolves_select_to_option_id() -> None:
@@ -140,6 +141,19 @@ async def test_build_attio_values_passes_number_through() -> None:
         extracted={"twitter_follower_count": 1200},
     )
     assert result == {"twitter_follower_count": 1200}
+
+
+async def test_build_attio_values_passes_percent_through() -> None:
+    client = _FakeClient({})
+    result = await build_attio_values(
+        client,
+        target_kind="lists",
+        target_slug="seller_role",
+        table="seller_role",
+        fields={"gross_margin_pct": _PERCENT},
+        extracted={"gross_margin_pct": 12.5},
+    )
+    assert result == {"gross_margin_pct": 12.5}
 
 
 def test_build_postgres_values_wraps_currency_with_fixed_code() -> None:

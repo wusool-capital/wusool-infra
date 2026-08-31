@@ -53,3 +53,13 @@ class SellerUpdate(BaseModel):
     valuation_low: float | None = None
     valuation_mid: float | None = None
     valuation_high: float | None = None
+    years_active: int | None = None
+    funding_stage: str | None = Field(default=None, max_length=100)
+    revenue_last_full_year: float | None = None
+    revenue_year_before: float | None = None
+    gross_margin_pct: float | None = None
+    ebitda_deducts_salary: bool | None = None
+    annual_rent_cost: float | None = None
+    largest_customer_revenue_pct: float | None = None
+    repeat_revenue_pct: float | None = None
+    location_count: int | None = None

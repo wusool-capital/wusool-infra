@@ -5,6 +5,7 @@ All nullable DB columns stay `X | None` here — no defaults invented, no
 """
 
 import uuid
+from datetime import date
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +26,8 @@ class BuyerUpdate(BaseModel):
     `ddl_commands/modules/buyers/field_spec.py` for the authoritative
     eligibility list this must stay in sync with. Excluded on purpose:
     `mandate_id`-equivalent (buyers have none), `key_contact` (a
-    record-reference, deferred), `raw_attio`/timestamps (system-managed),
+    record-reference, deferred), `key_personnel` (intentionally not
+    exposed), `raw_attio`/timestamps (system-managed),
     `acquisition_enrichment`/`deals_introduced`/`deals_converted`
     (ownership: both manual and pipeline-written — see plan.md Part C).
 
@@ -33,10 +35,8 @@ class BuyerUpdate(BaseModel):
     ever submits one of `field_spec.py`'s fixed option titles. Money fields
     are a bare `float` amount — currency is fixed per field now, never user
     input (see `ddl_commands/shared/attio/money.py`). `earnout_tolerance` is
-    `bool`, not `str`, despite being a `text` column in Postgres — it's a
-    real boolean in Attio (`database/sync-postgres.ps1` parses it with the
-    same `boolean()` function as `profitable_only`); the string-typed
-    column is a pre-existing schema anomaly this bot doesn't get to fix.
+    a real `bool` column since #53 (`database/sync-postgres.ps1` parses it
+    with the same `boolean()` function as `profitable_only`).
     """
 
     model: str | None = Field(default=None, max_length=100)
@@ -50,3 +50,10 @@ class BuyerUpdate(BaseModel):
     check_size_min: float | None = None
     check_size_max: float | None = None
     ev_ceiling: float | None = None
+    ebitda_ceiling: float | None = None
+    estimated_aum: float | None = None
+    notable_investments: str | None = Field(default=None, max_length=2000)
+    relationship_warmth: str | None = Field(default=None, max_length=100)
+    target_geography: list[str] | None = None
+    last_mandate_briefing_date: date | None = None
+    prior_gcc_acquisition: str | None = Field(default=None, max_length=100)
