@@ -1,13 +1,48 @@
 # Prod Postgres sync
 
-No separate scripts here on purpose. Every script in
-[`../dev-postgres-sync`](../dev-postgres-sync) is already environment-agnostic
-— none of them hardcode dev — they act entirely on whatever `DATABASE_URL`
-(and `SOURCE_ATTIO_API_KEY`/`DEV_ATTIO_API_KEY`) is in the environment when
-you run them, exactly like Alembic itself. A duplicate `prod` copy would just
-be the same logic maintained twice, drifting apart over time.
+Unlike [`../dev-postgres-sync`](../dev-postgres-sync), prod is **not** wired
+to DEV Attio at all. It syncs directly from SOURCE Attio's own custom
+objects (`organizations`, `person`, `deal`, `note`, and the `buyer_role`/
+`seller_role` lists on them — built by
+`workflows/crm-sync/scripts/source-attio/`), one hop shorter than the DEV
+path (`SOURCE native -> SOURCE custom -> DEV custom -> Postgres`).
 
-To run any of them against prod, supply a prod `DATABASE_URL` first. See
-`../dev-postgres-sync/rds-tunnel-runbook.md` for the tunnel steps — same
-mechanism for prod, pointed at `wusool-prod-postgres` / the prod n8n instance
-/ `eu-central-1` instead of dev's.
+That one-hop difference means prod Postgres's `attio_id` is the SOURCE
+custom object's own record id, not DEV's. `users` is still populated,
+though -- via `/workspace_members`, a core workspace endpoint (not a custom
+object), so it works the same on SOURCE as anywhere else and resolves
+`owner_attio_id` on organizations/person/deals.
+
+## Command surface
+
+Run in this order (each step depends on the ones before it):
+
+| Script | Responsibility |
+| --- | --- |
+| `sync-all-to-prod.ps1` | Single entry point through notes -- wraps the next two scripts in order, fails fast. Prefer this over running them separately. |
+| `sync-source-to-prod.ps1` | Users -> Organizations -> People -> Deals -> Buyer Roles -> Seller Roles, dry-run or `-Apply`. |
+| `sync-notes-from-source.ps1` | Notes, from SOURCE's `note` object -- run *after* the above (needs organizations/person/buyer_roles/seller_roles to already exist to resolve against). |
+| `sync-meetings-from-source.ps1` | One-time backfill of `meetings` from SOURCE's native Granola-classified Company/Person notes (summary + who logged it + a link to the full transcript -- SOURCE has no raw transcript, participant list, duration, or audio file, so those stay NULL). Run after organizations/person above. |
+| `backfill-activities.ps1` | One-off historical backfill of the `activities` table's boundary-interaction timestamps (not part of routine sync). |
+| `validate-postgres.ps1` | Independently compare SOURCE counts and validate key relationships. Read-only. |
+
+## Prerequisites
+
+- Python with `psycopg[binary]`.
+- Active AWS SSM port-forwarding tunnel to prod's private RDS (see
+  `../dev-postgres-sync/rds-tunnel-runbook.md` -- same mechanism, pointed at
+  `wusool-prod-postgres` / the prod n8n instance / `eu-central-1`).
+- `DATABASE_URL` for prod's `wusool_crm` through the tunnel.
+- `SOURCE_ATTIO_API_KEY`.
+
+## Routine synchronization
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-all-to-prod.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\sync-all-to-prod.ps1 -Apply
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\validate-postgres.ps1
+```
+
+Never share the RDS master password, complete admin `DATABASE_URL`, AWS keys,
+or Attio keys.
