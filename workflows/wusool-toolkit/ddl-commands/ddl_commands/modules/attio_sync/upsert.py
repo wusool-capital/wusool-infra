@@ -428,8 +428,15 @@ def _deal_params(data: dict) -> dict:
     seller_id = v.ref(values, "seller_id")
     return {
         "attio_id": rid,
-        "name": v.first(values, "name") or f"Unnamed DEV Deal [{rid}]",
-        "stage": v.first(values, "stage"),
+        # SOURCE Attio's custom "deal" object uses different slugs than DEV's
+        # native "deals" object for these three fields (deal_name/deal_stage/
+        # deal_owner vs name/stage/owner) -- same reason `value` below already
+        # falls back to `deal_value`. Confirmed against a real SOURCE record's
+        # field list, 2026-08-31.
+        "name": (
+            v.first(values, "name") or v.first(values, "deal_name") or f"Unnamed DEV Deal [{rid}]"
+        ),
+        "stage": v.first(values, "stage") or v.first(values, "deal_stage"),
         "stage_changed_at": v.timestamp(values, "stage_changed_at"),
         # Resolved against the real tables below, at write time, since a
         # buyer/seller id here can point at either an organization or a
@@ -437,7 +444,7 @@ def _deal_params(data: dict) -> dict:
         # `_DEAL_UPSERT` and the equivalent per-row check in `_deal_fk_params`.
         "buyer_id": buyer_id,
         "seller_id": seller_id,
-        "owner_attio_id": v.actor(values, "owner"),
+        "owner_attio_id": v.actor(values, "owner") or v.actor(values, "deal_owner"),
         "value": v.money(values, "value") or v.money(values, "deal_value"),
         "teaser_status": v.first(values, "teaser_status"),
         "nda_count": int(v.number(values, "nda_count") or 0),
