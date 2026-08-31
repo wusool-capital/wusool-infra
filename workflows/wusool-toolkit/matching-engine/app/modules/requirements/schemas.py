@@ -8,7 +8,7 @@ become unreadable.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 RequirementSource = Literal["crm_field", "llm_extracted", "llm_inferred", "unavailable"]
 ConfidenceLevel = Literal["high", "medium", "low"]
@@ -20,6 +20,12 @@ class ExtractedHardRequirement(BaseModel):
     source: RequirementSource
     confidence: ConfidenceLevel
     human_confirmed: bool = False
+
+    @model_validator(mode="after")
+    def prevent_unverified_confirmation(self) -> "ExtractedHardRequirement":
+        if self.source != "crm_field":
+            self.human_confirmed = False
+        return self
 
 
 class ExtractedSoftPreference(BaseModel):

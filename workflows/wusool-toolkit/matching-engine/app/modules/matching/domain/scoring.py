@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from app.modules.matching.domain.value_objects import CandidateScore, CriterionScore, DataConfidence
 from app.modules.requirements.domain.value_objects import RequirementProfile, RequirementSource
 from app.modules.sellers.domain.value_objects import SellerCandidate
+from app.shared.types import parse_usd_amount
 
 
 @dataclass(frozen=True)
@@ -94,27 +95,14 @@ def normalize_criterion(name: str) -> str:
     return name.strip().lower().replace(" ", "_").replace("-", "_")
 
 
+def is_monetary_criterion(name: str) -> bool:
+    key = normalize_criterion(name)
+    return key in _REVENUE_KEYS or key in _EBITDA_KEYS
+
+
 def _parse_amount(text: str) -> float | None:
-    """Best-effort numeric parse of a free-text requirement value (e.g.
-    "AED 50M", "50,000,000"). Returns None if it can't be confidently
-    parsed — callers must treat that the same as an unpopulated field.
-    """
-    cleaned = "".join(ch for ch in text if ch.isdigit() or ch in ".kmbKMB")
-    if not cleaned:
-        return None
-    multiplier = 1.0
-    if cleaned[-1] in "kK":
-        multiplier, cleaned = 1_000.0, cleaned[:-1]
-    elif cleaned[-1] in "mM":
-        multiplier, cleaned = 1_000_000.0, cleaned[:-1]
-    elif cleaned[-1] in "bB":
-        multiplier, cleaned = 1_000_000_000.0, cleaned[:-1]
-    if not cleaned:
-        return None
-    try:
-        return float(cleaned) * multiplier
-    except ValueError:
-        return None
+    """Parse the strict USD monetary requirement format."""
+    return parse_usd_amount(text)
 
 
 def _evaluate_criterion(

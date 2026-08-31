@@ -23,17 +23,31 @@ from app.modules.matching.dependencies import (
 from app.modules.slack.match_dispatch import run_match_and_post
 from app.modules.slack.views.full_analysis import build_full_analysis_blocks
 from app.modules.slack.views.match_result import build_match_result_blocks_from_view
+from app.shared.idempotency import InMemoryIdempotencyStore
 from app.shared.tasks import InProcessTaskRunner
 
 logger = logging.getLogger(__name__)
 
 _task_runner = InProcessTaskRunner()
+_submission_idempotency_store = InMemoryIdempotencyStore()
 
 
 def register(app: AsyncApp) -> None:
     @app.view("buyer_selection_modal")
     async def handle_buyer_selection_submission(ack, body, view):  # noqa: ANN001
         await ack()
+
+        view_id = view.get("id")
+        if view_id:
+            idempotency_key = f"buyer_selection_submission:{view_id}"
+            if _submission_idempotency_store.seen(idempotency_key):
+                logger.info(
+                    "buyer_selection_duplicate_delivery_skipped key=%s",
+                    idempotency_key,
+                    extra={"key": idempotency_key},
+                )
+                return
+            _submission_idempotency_store.mark(idempotency_key)
 
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")

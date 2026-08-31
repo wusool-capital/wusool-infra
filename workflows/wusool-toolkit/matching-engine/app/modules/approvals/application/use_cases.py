@@ -51,12 +51,17 @@ class ApproveMatchUseCase:
                     )
                 updated = await repo.update_status(
                     match_result_id,
+                    expected_status="PENDING_REVIEW",
                     status="APPROVED",
                     approved_by=approved_by,
                     decision="APPROVED",
                     decided_at=datetime.now(UTC),
                 )
-        assert updated is not None
+        if updated is None:
+            raise InvalidTransitionError(
+                f"cannot transition match_result {match_result_id} to APPROVED; "
+                "it was reviewed concurrently"
+            )
         return ApprovalResult(
             match_result_id=str(updated.id),
             run_id=str(updated.run_id),
@@ -87,13 +92,18 @@ class RejectMatchUseCase:
                     )
                 updated = await repo.update_status(
                     match_result_id,
+                    expected_status="PENDING_REVIEW",
                     status="REJECTED",
                     approved_by=approved_by,
                     decision="REJECTED",
                     decided_at=datetime.now(UTC),
                     decision_notes=notes,
                 )
-        assert updated is not None
+        if updated is None:
+            raise InvalidTransitionError(
+                f"cannot transition match_result {match_result_id} to REJECTED; "
+                "it was reviewed concurrently"
+            )
         return ApprovalResult(
             match_result_id=str(updated.id),
             run_id=str(updated.run_id),

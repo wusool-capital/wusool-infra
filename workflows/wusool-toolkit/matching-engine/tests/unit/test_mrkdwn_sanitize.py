@@ -20,6 +20,14 @@ def test_sanitize_replaces_tildes_with_approximation_sign() -> None:
     assert "≈" in sanitize_mrkdwn(text)
 
 
+def test_sanitize_escapes_slack_control_and_link_syntax() -> None:
+    text = "<!channel> <https://evil.example|click> & details"
+
+    rendered = sanitize_mrkdwn(text)
+
+    assert rendered == "&lt;!channel&gt; &lt;https://evil.example|click&gt; &amp; details"
+
+
 def test_sanitize_strips_markdown_headings_but_preserves_inline_hashes() -> None:
     text = (
         "## Related content\n"

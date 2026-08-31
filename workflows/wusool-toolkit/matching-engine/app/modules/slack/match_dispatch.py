@@ -25,46 +25,68 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
     from app.modules.slack.bolt_app import get_bolt_app
 
     app = get_bolt_app()
-    placeholder = await app.client.chat_postMessage(
-        channel=channel_id, text="✨ *_Finding matches, please wait…_*"
-    )
+    placeholder_ts: str | None = None
+    try:
+        placeholder = await app.client.chat_postMessage(
+            channel=channel_id, text="✨ *_Finding matches, please wait…_*"
+        )
+        placeholder_ts = placeholder["ts"]
+        assert placeholder_ts is not None
 
-    buyer = await resolve_buyer_by_id(buyer_role_id)
-    if buyer is None:
+        buyer = await resolve_buyer_by_id(buyer_role_id)
+        if buyer is None:
+            await app.client.chat_update(
+                channel=channel_id,
+                ts=placeholder_ts,
+                text="Buyer not found.",
+            )
+            return
+
+        result = await build_run_match_use_case().execute(buyer, requested_by=requested_by)
+
+        blocks = build_match_result_blocks(result)
+        scores = [c.match_score for c in result.results]
+        if result.status == "GENERATED" and needs_web_fallback(
+            scores, get_settings().web_fallback_min_score
+        ):
+            await app.client.chat_update(
+                channel=channel_id,
+                ts=placeholder_ts,
+                text="✨ *_No match found, searching Google Maps for potential sellers…_*",
+            )
+
+            lead_search = build_web_lead_search_service()
+            leads = await lead_search.search(uuid.UUID(result.run_id)) if lead_search else []
+            logger.info(
+                "web_fallback_triggered run_id=%s leads_found=%d",
+                result.run_id,
+                len(leads),
+                extra={"run_id": result.run_id, "leads_found": len(leads)},
+            )
+            if leads:
+                blocks = build_web_fallback_blocks(result.buyer_org_name, leads)
+
         await app.client.chat_update(
             channel=channel_id,
-            ts=placeholder["ts"],
-            text="Buyer not found.",
+            ts=placeholder_ts,
+            text=f"Match results for {result.buyer_org_name}",
+            blocks=blocks,
         )
-        return
-
-    result = await build_run_match_use_case().execute(buyer, requested_by=requested_by)
-
-    blocks = build_match_result_blocks(result)
-    scores = [c.match_score for c in result.results]
-    if result.status == "GENERATED" and needs_web_fallback(
-        scores, get_settings().web_fallback_min_score
-    ):
-        await app.client.chat_update(
-            channel=channel_id,
-            ts=placeholder["ts"],
-            text="✨ *_No match found, searching Google Maps for potential sellers…_*",
+    except Exception:
+        logger.exception(
+            "match_dispatch_failed",
+            extra={"buyer_role_id": buyer_role_id, "channel_id": channel_id},
         )
-
-        lead_search = build_web_lead_search_service()
-        leads = await lead_search.search(uuid.UUID(result.run_id)) if lead_search else []
-        logger.info(
-            "web_fallback_triggered run_id=%s leads_found=%d",
-            result.run_id,
-            len(leads),
-            extra={"run_id": result.run_id, "leads_found": len(leads)},
-        )
-        if leads:
-            blocks = build_web_fallback_blocks(result.buyer_org_name, leads)
-
-    await app.client.chat_update(
-        channel=channel_id,
-        ts=placeholder["ts"],
-        text=f"Match results for {result.buyer_org_name}",
-        blocks=blocks,
-    )
+        if placeholder_ts is None:
+            return
+        try:
+            await app.client.chat_update(
+                channel=channel_id,
+                ts=placeholder_ts,
+                text="Matching failed unexpectedly. Please try again.",
+            )
+        except Exception:
+            logger.exception(
+                "match_dispatch_failure_notification_failed",
+                extra={"buyer_role_id": buyer_role_id, "channel_id": channel_id},
+            )

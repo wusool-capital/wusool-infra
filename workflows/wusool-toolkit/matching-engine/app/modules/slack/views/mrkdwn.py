@@ -11,4 +11,5 @@ def sanitize_mrkdwn(text: str) -> str:
     Slack uses tildes for strikethrough and does not render Markdown headings,
     so replace approximation tildes and remove heading markers at line starts.
     """
-    return _MARKDOWN_HEADING_RE.sub("", text.replace("~", "≈"))
+    normalized = _MARKDOWN_HEADING_RE.sub("", text.replace("~", "≈"))
+    return normalized.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

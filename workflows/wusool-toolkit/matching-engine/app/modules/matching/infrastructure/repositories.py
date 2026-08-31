@@ -7,7 +7,7 @@ shape `MatchResultRepository` is used with (see `create_run`'s docstring).
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from wusool_db.models import MatchResult, MatchScore
@@ -186,30 +186,41 @@ class MatchResultRepository:
         self,
         match_result_id: uuid.UUID,
         *,
+        expected_status: str,
         status: str,
         approved_by: str | None = None,
         decision: str | None = None,
         decided_at: datetime | None = None,
         decision_notes: str | None = None,
     ) -> MatchResult | None:
-        """Applies a status/decision change to a single candidate row. Does
-        not validate the transition — callers (the approvals use cases) must
-        check `matching.domain.status.can_transition` before calling this.
+        """Compare-and-set a candidate status, returning None if it changed.
+
+        The status predicate is evaluated by the database so two concurrent
+        approval requests cannot both read ``PENDING_REVIEW`` and overwrite
+        one another.
         """
-        candidate = await self.get_by_id(match_result_id)
-        if candidate is None:
+        values = {
+            "status": status,
+            "approved_by": approved_by,
+            "decision": decision,
+            "decided_at": decided_at,
+            "decision_notes": decision_notes,
+        }
+        values = {key: value for key, value in values.items() if value is not None}
+        stmt = (
+            update(MatchResult)
+            .where(
+                MatchResult.id == match_result_id,
+                MatchResult.status == expected_status,
+            )
+            .values(**values)
+            .returning(MatchResult.id)
+        )
+        updated_id = (await self._session.execute(stmt)).scalar_one_or_none()
+        if updated_id is None:
             return None
-        candidate.status = status
-        if approved_by is not None:
-            candidate.approved_by = approved_by
-        if decision is not None:
-            candidate.decision = decision
-        if decided_at is not None:
-            candidate.decided_at = decided_at
-        if decision_notes is not None:
-            candidate.decision_notes = decision_notes
         await self._session.flush()
-        return candidate
+        return await self.get_by_id(updated_id)
 
     async def get_scores_for_run(self, run_id: uuid.UUID) -> list[MatchScore]:
         """The linked deterministic breakdowns for this run's candidates."""
