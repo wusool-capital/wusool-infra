@@ -60,6 +60,48 @@ def _j(value):
 
 
 # ---------------------------------------------------------------------------
+# activities — generic change log, one row per real-time webhook sync
+# ---------------------------------------------------------------------------
+#
+# `activities` otherwise holds curated business-interaction rows (calls,
+# emails, seller-outreach attempts) from the one-off `backfill-activities.ps1`
+# historical import. This adds a second, mechanical kind of row alongside
+# those: "this record was created/updated", with no channel/outcome/actor to
+# fill in (the webhook envelope carries only ids, never who made the change).
+# Real-time webhook path only -- full_resync.py's nightly batch pass doesn't
+# log one of these per row, or a routine resync of thousands of untouched
+# records would flood the feed. subject_uuid (not subject_attio_id) is used
+# for buyer_role/seller_role, matching backfill-activities.ps1's existing
+# convention for those two UUID-keyed tables.
+
+_ACTIVITY_INSERT = text(
+    """
+    INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, source)
+    VALUES (:subject_type, :subject_attio_id, :subject_uuid, :source)
+    """
+)
+
+
+async def _log_activity(
+    session,
+    subject_type: str,
+    *,
+    subject_attio_id: str | None = None,
+    subject_uuid: str | None = None,
+    source: str = "attio_webhook",
+) -> None:
+    await session.execute(
+        _ACTIVITY_INSERT,
+        {
+            "subject_type": subject_type,
+            "subject_attio_id": subject_attio_id,
+            "subject_uuid": subject_uuid,
+            "source": source,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # users (workspace members) -- full-refresh only, no real-time event
 # ---------------------------------------------------------------------------
 #
@@ -177,15 +219,29 @@ def _organization_params(data: dict) -> dict:
         "name": v.first(values, "name") or f"Unnamed DEV Organization [{rid}]",
         "description": v.first(values, "description"),
         "type": v.titles(values, "type"),
-        "client_type": v.first(values, "client_type"),
+        # client_type is multi-select on SOURCE Attio (e.g. a company can be
+        # both "Fundraising" and "M&A") -- v.first() silently dropped every
+        # value past the first. Postgres's client_type column is plain text
+        # (not an array like type/sector_focus/categories), so every
+        # selected value is comma-joined into it instead, matching
+        # person.role's existing join pattern. Per-manager request,
+        # 2026-08-31.
+        "client_type": ", ".join(v.titles(values, "client_type")) or None,
         "sector_focus": v.titles(values, "sector_focus"),
-        "stage_focus": v.titles(values, "stage"),
+        # SOURCE Attio's org object uses stage_focus/connection_strength
+        # directly, not DEV's stage/strongest_connection_strength -- same
+        # class of mismatch as _deal_params' deal_name/deal_stage/deal_owner.
+        # Confirmed against a real SOURCE record's field list, 2026-08-31.
+        "stage_focus": v.titles(values, "stage") or v.titles(values, "stage_focus"),
         "geographic_focus": v.titles(values, "geographic_focus"),
         "hq_country": v.first(values, "hq_country"),
         "domains": v.domains(values),
         "categories": v.titles(values, "categories"),
         "relationship_status": v.first(values, "relationship_status"),
-        "connection_strength": v.first(values, "strongest_connection_strength"),
+        "connection_strength": (
+            v.first(values, "strongest_connection_strength")
+            or v.first(values, "connection_strength")
+        ),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.timestamp(values, "last_interaction_at"),
         "funding_raised": v.money(values, "funding_raised"),
@@ -215,6 +271,7 @@ async def sync_organization(client: AttioClient, record_id: str) -> None:
     params = _organization_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_ORG_UPSERT, _for_text_sql("organizations", params))
+        await _log_activity(session, "Organization", subject_attio_id=params["attio_id"])
         await session.commit()
 
 
@@ -273,14 +330,24 @@ def _person_params(data: dict) -> dict:
         "name": v.first(values, "name") or f"Unnamed DEV Person [{rid}]",
         "role": ", ".join(roles) or v.first(values, "role"),
         "company_attio_id": v.ref(values, "company"),
-        "email": [
-            x.get("email_address")
-            for x in v.raw_items(values, "email_addresses")
-            if x.get("email_address")
-        ],
+        # DEV Attio's person object has a multi-valued email_addresses field;
+        # SOURCE Attio's uses a single plain "email" field instead -- same
+        # class of mismatch as _deal_params' deal_name/deal_stage/deal_owner.
+        # Confirmed against a real SOURCE record's field list, 2026-08-31.
+        "email": (
+            [
+                x.get("email_address")
+                for x in v.raw_items(values, "email_addresses")
+                if x.get("email_address")
+            ]
+            or ([v.first(values, "email")] if v.first(values, "email") else [])
+        ),
         "linkedin": v.first(values, "linkedin"),
         "relationship_status": v.first(values, "relationship_status"),
-        "connection_strength": v.first(values, "strongest_connection_strength"),
+        "connection_strength": (
+            v.first(values, "strongest_connection_strength")
+            or v.first(values, "connection_strength")
+        ),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.timestamp(values, "last_interaction_at"),
         "job_title": v.first(values, "job_title"),
@@ -301,6 +368,7 @@ async def sync_person(client: AttioClient, record_id: str) -> None:
     params = _person_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_PERSON_UPSERT, _for_text_sql("person", params))
+        await _log_activity(session, "Person", subject_attio_id=params["attio_id"])
         await session.commit()
 
 
@@ -384,8 +452,15 @@ def _deal_params(data: dict) -> dict:
     seller_id = v.ref(values, "seller_id")
     return {
         "attio_id": rid,
-        "name": v.first(values, "name") or f"Unnamed DEV Deal [{rid}]",
-        "stage": v.first(values, "stage"),
+        # SOURCE Attio's custom "deal" object uses different slugs than DEV's
+        # native "deals" object for these three fields (deal_name/deal_stage/
+        # deal_owner vs name/stage/owner) -- same reason `value` below already
+        # falls back to `deal_value`. Confirmed against a real SOURCE record's
+        # field list, 2026-08-31.
+        "name": (
+            v.first(values, "name") or v.first(values, "deal_name") or f"Unnamed DEV Deal [{rid}]"
+        ),
+        "stage": v.first(values, "stage") or v.first(values, "deal_stage"),
         "stage_changed_at": v.timestamp(values, "stage_changed_at"),
         # Resolved against the real tables below, at write time, since a
         # buyer/seller id here can point at either an organization or a
@@ -393,7 +468,7 @@ def _deal_params(data: dict) -> dict:
         # `_DEAL_UPSERT` and the equivalent per-row check in `_deal_fk_params`.
         "buyer_id": buyer_id,
         "seller_id": seller_id,
-        "owner_attio_id": v.actor(values, "owner"),
+        "owner_attio_id": v.actor(values, "owner") or v.actor(values, "deal_owner"),
         "value": v.money(values, "value") or v.money(values, "deal_value"),
         "teaser_status": v.first(values, "teaser_status"),
         "nda_count": int(v.number(values, "nda_count") or 0),
@@ -429,11 +504,16 @@ def _deal_params(data: dict) -> dict:
     }
 
 
-async def sync_deal(client: AttioClient, record_id: str) -> None:
-    fetched = await get_with_retry(client, f"/objects/deals/records/{record_id}")
+async def sync_deal(client: AttioClient, record_id: str, *, object_slug: str = "deals") -> None:
+    """`object_slug` is the actual Attio object api_slug to fetch from --
+    "deals" (DEV's native object, the default) or "deal" (SOURCE's custom
+    object, singular -- see `config.py`'s `attio_deal_object_slug`). Both map
+    to the same `deals` Postgres table either way."""
+    fetched = await get_with_retry(client, f"/objects/{object_slug}/records/{record_id}")
     params = _deal_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_DEAL_UPSERT, _for_text_sql("deals", params))
+        await _log_activity(session, "Deal", subject_attio_id=params["attio_id"])
         await session.commit()
 
 
@@ -571,6 +651,7 @@ _BUYER_ROLE_UPSERT = text(
         prior_gcc_acquisition=excluded.prior_gcc_acquisition,
         is_active=excluded.is_active,
         raw_attio=excluded.raw_attio, updated_at=now()
+    RETURNING id
     """
 )
 
@@ -614,9 +695,16 @@ async def sync_buyer_role(client: AttioClient, entry_id: str) -> None:
     siblings = await _fetch_siblings(client, "buyer_role", org_id)
     reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
     async with get_sessionmaker()() as session:
+        triggering_row_id = None
         for i, entry in enumerate(reconciled):
             params = _buyer_role_params(org_id, entry, is_active=(i == 0))
-            await session.execute(_BUYER_ROLE_UPSERT, _for_text_sql("buyer_roles", params))
+            result = await session.execute(
+                _BUYER_ROLE_UPSERT, _for_text_sql("buyer_roles", params)
+            )
+            row_id = result.scalar_one()
+            if v.entry_id(entry) == entry_id:
+                triggering_row_id = row_id
+        await _log_activity(session, "BuyerRole", subject_uuid=triggering_row_id)
         await session.commit()
 
 
@@ -667,6 +755,7 @@ _SELLER_ROLE_UPSERT = text(
         largest_customer_revenue_pct=excluded.largest_customer_revenue_pct,
         repeat_revenue_pct=excluded.repeat_revenue_pct, location_count=excluded.location_count,
         raw_attio=excluded.raw_attio, updated_at=now()
+    RETURNING id
     """
 )
 
@@ -676,7 +765,13 @@ def _seller_role_params(org_id: str, entry: dict, is_active: bool) -> dict:
     return {
         "org_attio_id": org_id,
         "outreach_tier": v.first(values, "outreach_tier"),
-        "appetite_signal": v.first(values, "seller_appetite_signal"),
+        # SOURCE Attio's seller_role list uses appetite_signal directly, not
+        # DEV's seller_appetite_signal -- same class of mismatch as
+        # _deal_params' deal_name/deal_stage/deal_owner. Confirmed against a
+        # real SOURCE record's field list, 2026-08-31.
+        "appetite_signal": (
+            v.first(values, "seller_appetite_signal") or v.first(values, "appetite_signal")
+        ),
         "relationship_status": v.first(values, "relationship_status"),
         "est_revenue": (
             v.money(values, "estimated_annual_revenue_aed") or v.money(values, "est_revenue")
@@ -721,9 +816,78 @@ async def sync_seller_role(client: AttioClient, entry_id: str) -> None:
     siblings = await _fetch_siblings(client, "seller_role", org_id)
     reconciled = await _reconcile_active_entry(client, "seller_role", siblings)
     async with get_sessionmaker()() as session:
+        triggering_row_id = None
         for i, entry in enumerate(reconciled):
             params = _seller_role_params(org_id, entry, is_active=(i == 0))
-            await session.execute(_SELLER_ROLE_UPSERT, _for_text_sql("seller_roles", params))
+            result = await session.execute(
+                _SELLER_ROLE_UPSERT, _for_text_sql("seller_roles", params)
+            )
+            row_id = result.scalar_one()
+            if v.entry_id(entry) == entry_id:
+                triggering_row_id = row_id
+        await _log_activity(session, "SellerRole", subject_uuid=triggering_row_id)
+        await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# note — unified notes object (SOURCE Attio only, slug "note"; see
+# `config.py`'s `attio_note_object_slug`). `notes.id` reuses the Attio
+# record's own id verbatim (already a UUID), matching
+# `sync-notes-from-source.ps1`'s convention -- upserts are ON CONFLICT(id).
+# `buyer_role_id`/`seller_role_id` on the Attio record are the SOURCE list
+# entry_id (plain text), resolved here to `buyer_roles`/`seller_roles.id` via
+# their `legacy_entry_id`, same one-hop simplification that script uses. No
+# `raw_attio` column on this table (unlike every other model here), so it
+# stays out of the generic `_upsert_batch`/`_CONFLICT_COL` batch machinery --
+# `full_resync.py` syncs it with a plain per-row loop instead.
+# ---------------------------------------------------------------------------
+
+_NOTE_UPSERT = text(
+    """
+    INSERT INTO notes(
+        id, organization_id, person_id, buyer_role_id, seller_role_id,
+        note_type, content, created_at
+    ) VALUES (
+        :id,
+        CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :organization_id)
+             THEN :organization_id ELSE NULL END,
+        CASE WHEN EXISTS (SELECT 1 FROM person WHERE attio_id = :person_id)
+             THEN :person_id ELSE NULL END,
+        (SELECT id FROM buyer_roles WHERE legacy_entry_id = :buyer_role_entry_id),
+        (SELECT id FROM seller_roles WHERE legacy_entry_id = :seller_role_entry_id),
+        :note_type, :content, COALESCE(:created_at, now())
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        organization_id=excluded.organization_id, person_id=excluded.person_id,
+        buyer_role_id=excluded.buyer_role_id, seller_role_id=excluded.seller_role_id,
+        note_type=excluded.note_type, content=excluded.content,
+        created_at=COALESCE(excluded.created_at, notes.created_at)
+    """
+)
+
+
+def _note_params(data: dict) -> dict:
+    values = v.vals(data)
+    return {
+        "id": v.record_id(data),
+        "organization_id": v.ref(values, "organization_id"),
+        "person_id": v.ref(values, "person_id"),
+        "buyer_role_entry_id": v.first(values, "buyer_role_id"),
+        "seller_role_entry_id": v.first(values, "seller_role_id"),
+        "note_type": v.first(values, "note_type"),
+        "content": v.first(values, "content"),
+        # Slug is note_created_at, not created_at -- Attio reserves
+        # created_at as a protected system attribute on every custom object.
+        "created_at": v.timestamp(values, "note_created_at"),
+    }
+
+
+async def sync_note(client: AttioClient, record_id: str) -> None:
+    fetched = await get_with_retry(client, f"/objects/note/records/{record_id}")
+    params = _note_params(fetched["data"])
+    async with get_sessionmaker()() as session:
+        await session.execute(_NOTE_UPSERT, params)
+        await _log_activity(session, "Note", subject_attio_id=params["id"])
         await session.commit()
 
 

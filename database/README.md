@@ -6,12 +6,24 @@ stores a relational mirror plus automation, history, analytics, and AI data.
 
 ## Command surface
 
+All scripts below live in [`dev-postgres-sync/`](dev-postgres-sync) (paths
+below are relative to it). Despite the folder name they're environment-
+agnostic -- driven entirely by whatever `DATABASE_URL`/Attio key is in the
+environment -- see [`prod-postgres-sync/README.md`](prod-postgres-sync/README.md)
+for running the same scripts against prod.
+
 | Script | Responsibility |
 | --- | --- |
-| `setup-postgres.ps1` | Apply all ordered SQL schema files and validate required tables/columns. Optional guarded reset. |
 | `sync-postgres.ps1` | Read canonical DEV Attio, map values, and dry-run or transactionally upsert PostgreSQL rows. As of 2026-08-28, writes every `buyer_role`/`seller_role` list entry (not just the active one per org -- see the "Mirroring every Attio record" note below). |
 | `sync-notes-from-source.ps1` | The one exception to "DEV Attio -> PostgreSQL": populates `notes` directly from **SOURCE** Attio's `note` custom object (`workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`), since DEV has no notes object yet. Bridges SOURCE record ids to Postgres's existing DEV-keyed rows via `organizations.raw_attio`/`person.raw_attio`'s `legacy_attio_id`. |
 | `validate-postgres.ps1` | Independently compare DEV/PostgreSQL counts and validate key relationships. Read-only. |
+| `backfill-activities.ps1` | One-off backfill for the `activities` table. |
+
+Schema setup/validation is now `alembic upgrade head`/`alembic current` (see
+"Schema changes now go through Alembic" below) -- there is no longer a
+separate setup script; it was retired 2026-08-29 once its only remaining job
+(a manual table/column existence check) became redundant with Alembic's own
+migration bookkeeping.
 
 ### Mirroring every Attio record (2026-08-28)
 
@@ -43,32 +55,18 @@ there.
 - `DATABASE_URL` for `wusool_crm` through `localhost:15432`.
 - `DEV_ATTIO_API_KEY` for synchronization.
 
-See `rds-tunnel-runbook.md` for tunnel and credential retrieval commands.
-Never share the RDS master password, complete admin `DATABASE_URL`, AWS keys,
-or Attio keys.
+See `dev-postgres-sync/rds-tunnel-runbook.md` for tunnel and credential
+retrieval commands. Never share the RDS master password, complete admin
+`DATABASE_URL`, AWS keys, or Attio keys.
 
-## SQL schema files
+## Schema changes now go through Alembic
 
-`setup-postgres.ps1` reads `sql/*.sql`, sorts them by filename, and executes:
-
-| File | Purpose |
-| --- | --- |
-| `001_extensions.sql` | Enable `pgcrypto`, `pg_trgm` (fuzzy organization-name search), and pgvector when available. |
-| `002_core_attio_mirror.sql` | Create Users, Organizations, Person, Deals, and Mandates. Organizations includes `removed_at timestamptz` (nullable; NULL means active) — `sync-postgres.ps1 -Apply` sets it when an org drops out of the DEV Attio organizations query and clears it if the org reappears. **Mandates retired 2026-08-23** (see below) — table kept for its 2 historical rows, but this file is frozen (see "flat SQL files are frozen" below) so the merge went through Alembic (`9c4d71ea2b56`), not here. |
-| `003_crm_roles.sql` | Create Buyer Role, Seller Role, and optional investor/lender roles. |
-| `004_machine_layer.sql` | Create activities, stage history, intelligence, matching, documents, graph, scorecards, reconciliation columns, and indexes. |
-| `005_meetings.sql` | Create the `meetings` table (scribe-published buyer/seller meeting summaries) and enable `fk_meetings_org`. Not part of the Attio mirror — scribe is the sole writer. |
-| `006_match_results.sql` | Create the `match_results` table for the matching-engine backend's Phase 3 Slack workflow (run audit, shortlisted candidates, status, approvals). Additive only — no existing table is touched. See `DOCS/migration/PHASE3_MATCH_RESULTS_HANDOVER.md` for full rationale. |
-| `007_org_name_trgm_index.sql` | GIN trigram index on `organizations.name`, backing fuzzy/typo-tolerant buyer-name search. Requires `pg_trgm` from `001_extensions.sql`. |
-
-All files (001-007) use `CREATE ... IF NOT EXISTS` and controlled `ALTER`
-statements, so normal setup does not recreate tables or delete data.
-`005_meetings.sql`'s `CREATE TYPE` statements and its `fk_meetings_org`
-constraint have no native `IF NOT EXISTS` form in PostgreSQL, so they're
-guarded with `DO $$ ... END $$` blocks that check `pg_type`/`pg_constraint`
-before creating.
-
-## Schema changes now go through Alembic, not new numbered SQL files
+The original `001`-`007` flat SQL files that first created this schema (and
+the `setup-postgres.ps1` script that applied them) were deleted 2026-08-29 --
+Alembic's baseline migrations (`d982478fc6e3` → `87320bb9dc8d` → `eec9dde1cfbb`)
+fully reproduce what those files created, and every environment that matters
+(`dev`, `prod`) already has its schema; see git history before this date if
+you need the original files for reference.
 
 As of Phase G of `docs/Final_restructure_plan.md`, this folder is also a
 Python package (`wusool_db/`,
@@ -134,65 +132,34 @@ truth for **future** schema changes:
   the new image, so a failed migration blocks the deploy rather than leaving
   new app code running against a schema it doesn't have yet.
 
-### The flat SQL files below are frozen — legacy baseline only
-
-**Do not add new numbered files to `sql/` or use them for schema evolution.**
-They establish the pre-Alembic baseline only; they do not by themselves create
-the current application schema. Narrow compatibility corrections keep that
-baseline safe to run (for example, renaming a populated legacy `people` table
-in place and preserving its dependent foreign keys), but every new schema
-change goes through Alembic. A flat-SQL bootstrap must always be stamped and
-upgraded as described below before the application or data-sync scripts run.
-
-CI exercises both a fresh flat-SQL bootstrap and a rerun over a populated
-pre-rename snapshot, then stamps the baseline, upgrades through `head`, and
-runs `alembic check`. Deleting the legacy bootstrap outright remains an
-explicit, separate future decision.
-
 ### Onboarding an environment that predates Alembic
 
-`dev` and `prod` both had their tables created by the flat SQL files above
-before this Alembic chain existed. The same sequence applies to a database
-just created with `setup-postgres.ps1`: `alembic upgrade head` cannot run
-against it from the beginning, because the first real migration
+`dev` and `prod` both had their tables created by the (now-deleted) flat SQL
+files before this Alembic chain existed — `alembic upgrade head` cannot run
+against either of them from scratch, because the first real migration
 (`87320bb9dc8d`, unguarded `op.create_table(...)`) would try to recreate
-tables that already exist and fail with `DuplicateTable`.
+tables that already exist and fail with `DuplicateTable`. Both needed (or, for
+`prod`, will need) a one-time `alembic stamp 87320bb9dc8d` run directly
+against that environment before the normal CD pipeline can apply anything —
+this tells Alembic "table creation already happened" without executing it,
+so the grants revision and the two orphaned-column-drop revisions after it
+still run for real. This is a one-time bootstrapping step per environment,
+not something to repeat for ordinary schema changes.
 
-Run these commands once (the migration creates a harmless NOLOGIN
-`scribe_pub` placeholder if the real publishing role has not been provisioned):
-
-```bash
-cd database
-alembic stamp 87320bb9dc8d
-alembic upgrade head
-alembic check
-```
-
-The stamp tells Alembic that baseline table creation already happened without
-executing it. All later migrations still run for real. Both deployed
-environments have already been stamped; this procedure is for a new legacy
-bootstrap or restored pre-Alembic snapshot, not ordinary schema changes.
-
-## Legacy first-time bootstrap or pre-Alembic recovery
+## First-time or changed-schema setup
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\database\setup-postgres.ps1
+uv run --project .\database alembic -c .\database\alembic.ini upgrade head
 ```
 
-The script verifies `current_database()` is exactly `wusool_crm`, runs the
-legacy baseline SQL, renames a populated `people` table in place when needed,
-and validates the Person columns and foreign keys required by the sync. Follow
-it immediately with the one-time Alembic stamp/upgrade sequence above. It is
-not a schema-update command: once `alembic_version` exists, the script refuses
-to run unless an explicit destructive reset was requested. Use `alembic
-upgrade head` for every managed database and ordinary schema change.
+Not required for every routine data sync -- only when the schema itself
+changed.
 
 ## DEV extraction dry-run
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\database\sync-postgres.ps1
+  -File .\database\dev-postgres-sync\sync-postgres.ps1
 ```
 
 This reads, paginates, and maps:
@@ -215,7 +182,7 @@ PostgreSQL.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\database\sync-postgres.ps1 `
+  -File .\database\dev-postgres-sync\sync-postgres.ps1 `
   -Apply
 ```
 
@@ -271,13 +238,13 @@ After DEV Attio is canonical, routine execution normally requires only:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\database\sync-postgres.ps1
+  -File .\database\dev-postgres-sync\sync-postgres.ps1
 
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\database\sync-postgres.ps1 -Apply
+  -File .\database\dev-postgres-sync\sync-postgres.ps1 -Apply
 
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\database\validate-postgres.ps1
+  -File .\database\dev-postgres-sync\validate-postgres.ps1
 ```
 
 The sync is idempotent: existing rows update and missing rows insert without
@@ -288,16 +255,6 @@ The final validation command reads both systems, compares Users,
 Organizations, People, Deals, Buyer Roles, Seller Roles, and Mandates, checks
 critical foreign-key relationships, and returns a failing exit code on any
 mismatch. It never writes to Attio or PostgreSQL.
-
-## Destructive reset—exception only
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\database\setup-postgres.ps1 `
-  -Reset -ConfirmDatabase wusool_crm
-```
-
-This drops the entire `public` schema. Never use it for routine setup or sync.
 
 ## Manager read-only access
 

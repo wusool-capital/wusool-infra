@@ -108,7 +108,12 @@ $fields = @(
   [pscustomobject]@{ Title = "Name"; Slug = "name"; Type = "text"; Multi = $false; Required = $true; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Description"; Slug = "description"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Type"; Slug = "type"; Type = "select"; Multi = $true; Required = $false; Unique = $false; SourceOption = "type" },
-  [pscustomobject]@{ Title = "Client Type"; Slug = "client_type"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "client_type" },
+  # Text, not select -- SOURCE occasionally holds more than one simultaneously-
+  # active client_type (e.g. "Fundraising" and "M&A"), and Attio custom
+  # objects don't support multiselect text; a single-select silently dropped
+  # every value past the first. Converted 2026-08-31, comma-joined like
+  # domains/email/phone -- see Convert-TargetValue in objects.ps1.
+  [pscustomobject]@{ Title = "Client Type"; Slug = "client_type"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Sector Focus"; Slug = "sector_focus"; Type = "select"; Multi = $true; Required = $false; Unique = $false; SourceOption = "sector_focus" },
   [pscustomobject]@{ Title = "Stage Focus"; Slug = "stage_focus"; Type = "select"; Multi = $true; Required = $false; Unique = $false; SourceOption = "stage" },
   [pscustomobject]@{ Title = "Geographic Focus"; Slug = "geographic_focus"; Type = "select"; Multi = $true; Required = $false; Unique = $false; SourceOption = "geographic_focus" },

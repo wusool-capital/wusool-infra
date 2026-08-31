@@ -34,15 +34,11 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    inspector = sa.inspect(op.get_bind())
-    person_table = "people" if inspector.has_table("people") else "person"
     op.create_table(
         "notes",
         sa.Column("id", postgresql.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("organization_id", sa.Text(), sa.ForeignKey("organizations.attio_id"), nullable=False),
-        sa.Column(
-            "person_id", sa.Text(), sa.ForeignKey(f"{person_table}.attio_id"), nullable=True
-        ),
+        sa.Column("person_id", sa.Text(), sa.ForeignKey("people.attio_id"), nullable=True),
         sa.Column("buyer_role_id", postgresql.UUID(), sa.ForeignKey("buyer_roles.id"), nullable=True),
         sa.Column("seller_role_id", postgresql.UUID(), sa.ForeignKey("seller_roles.id"), nullable=True),
         sa.Column("note_type", sa.Text(), nullable=False),

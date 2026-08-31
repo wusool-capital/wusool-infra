@@ -64,9 +64,8 @@ cp .env.example .env  # then fill in real values — one shared Slack token/secr
 uv run uvicorn main:app --reload
 ```
 
-or via Docker Compose (builds one image from the root `Dockerfile`, alongside
-a throwaway local Postgres, then upgrades its flat-SQL baseline through
-Alembic before starting the bot):
+or via Docker Compose (builds one image from the root `Dockerfile`,
+alongside a throwaway local Postgres):
 
 ```bash
 docker compose up --build

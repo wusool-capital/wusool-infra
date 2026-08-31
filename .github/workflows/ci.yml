@@ -8,8 +8,6 @@ on:
       - 'workflows/wusool-toolkit/**'
       - 'database/**'
       - 'workflows/**/scripts/**'
-      - 'scripts/docs/**'
-      - 'workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md'
       - '.github/workflows/ci.yml'
 
 permissions:
@@ -136,9 +134,6 @@ jobs:
       - name: alembic check (no undeclared drift between models and migrations)
         run: uv run alembic check
 
-      - name: Flat SQL bootstrap can onboard into Alembic
-        run: bash tests/verify_flat_sql_onboarding.sh "${{ job.services.postgres.id }}"
-
   # NOT dry-run locally (no pwsh on this machine) — unlike toolkit-python
   # above, which was verified end to end. Only fails on Severity=Error (not
   # Warning), since Error-level rules flag genuinely broken code rather than
@@ -162,29 +157,4 @@ jobs:
           if ($results | Where-Object Severity -eq 'Error') {
             Write-Error "PSScriptAnalyzer found errors."
             exit 1
-          }
-
-      # The overview has hand-maintained historical context beyond what the
-      # generator can reconstruct. Guard the two Person/CRM rows owned by the
-      # generator instead of replacing the curated document wholesale.
-      - name: Generated client schema uses the Person table
-        shell: pwsh
-        run: |
-          $overview = './workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md'
-          $expectedRows = @(
-            '| Person | Individual contacts and their organization relationships | object | `person` |',
-            '| CRM mirror | `users`, `organizations`, `person`, `deals` | Structured copies of core CRM records |'
-          )
-          $checkedIn = Get-Content -Raw -LiteralPath $overview
-          foreach ($row in $expectedRows) {
-            if (-not $checkedIn.Contains($row)) {
-              throw "Checked-in overview is missing: $row"
-            }
-          }
-          & ./scripts/docs/generate-client-schema-overview.ps1
-          $generated = Get-Content -Raw -LiteralPath $overview
-          foreach ($row in $expectedRows) {
-            if (-not $generated.Contains($row)) {
-              throw "Generator output is missing: $row"
-            }
           }

@@ -53,30 +53,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-
-  migrate:
-    # The flat SQL files establish only the legacy pre-Alembic baseline. On a
-    # new volume there is no version row yet, so stamp that baseline once;
-    # existing volumes retain their real revision and only upgrade forward.
-    build:
-      context: ../..
-      dockerfile: workflows/wusool-toolkit/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://matching:matching@db:5432/wusool_crm
-    command:
-      - sh
-      - -ec
-      - |
-        current="$$(python -m alembic -c database/alembic.ini current)"
-        if [ -z "$$current" ]; then
-          python -m alembic -c database/alembic.ini stamp 87320bb9dc8d
-        fi
-        python -m alembic -c database/alembic.ini upgrade head
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
   matching-engine-db-data:

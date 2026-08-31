@@ -7,7 +7,7 @@ in its own document (linked below) — this file stays a short, high-level
 index and is kept current by the `sync-project-docs` skill (or manually,
 see [Keeping this file current](#keeping-this-file-current)).
 
-Last updated: 2026-08-30
+Last updated: 2026-08-18
 
 ## Workstreams
 
@@ -48,23 +48,7 @@ CloudWatch tagged by module, and the shared Docker build picked up a fix for
 copying the `shared/` workspace member correctly. All routine, all merged
 through `dev` → `prod` the normal way — no open follow-up from any of these.
 
-**Account-stack follow-up (2026-08-30):** manually applied PR #72's sole
-account-wide change with administrator credentials: the
-`wusool-gha-apply-dev` role now allows 10,800-second sessions, while
-`wusool-gha-apply-prod` remains at 3,600 seconds. This unblocks the nightly
-Attio resync's requested three-hour OIDC session; `stacks/account` remains
-deliberately excluded from per-environment deploy automation.
-
-### 6. Database schema management (SQLAlchemy + Alembic) — Phase G landed; dev migrated, prod stamped
-
-- **Person rename bootstrap alignment (2026-08-30):** PR #73's Alembic
-  migration renamed PostgreSQL `people` to `person`, and PR #74 fixed the live
-  webhook/nightly SQL. The legacy flat-SQL baseline now renames a populated
-  pre-rename table in place, supplies the Person columns used by the sync, and
-  validates all four dependent foreign keys. Post-baseline migrations accept
-  either historical `people` or corrected `person`, so the documented
-  stamp-and-upgrade onboarding sequence reaches Alembic `head`. CI covers a
-  fresh bootstrap, a data-preserving rerun, and the full migration chain.
+### 6. Database schema management (SQLAlchemy + Alembic) — Phase G landed; dev fully migrated, prod bootstrapping in progress
 
 - **Done (2026-08-18, PR #45):** every table's SQLAlchemy model relocated
   into `database/wusool_db/models/` as the single source of truth —
@@ -81,13 +65,17 @@ deliberately excluded from per-environment deploy automation.
   leftovers from reverted PR #23) confirmed dropped from both
   `buyer_roles`/`seller_roles`, row counts unchanged (279/210/3137)
   confirming zero data loss.
-- **Prod bootstrapped (2026-08-18; PR #46 subsequently merged):** `stacks/postgres` for prod predates Alembic — its
+- **Prod (2026-08-18):** `stacks/postgres` for prod predates Alembic — its
   23 tables were already there from the old flat-SQL setup, with no
   `alembic_version` bookkeeping and the same orphaned columns still present.
   Stamped `alembic_version` at `87320bb9dc8d` directly (bookkeeping only, no
   schema change) so the pending grants + orphan-column-drop migrations can
-  can still apply for real through the promoted migration workflow instead of
-  the chain failing outright on `DuplicateTable`.
+  still apply for real on the next deploy instead of the chain failing
+  outright on `DuplicateTable`. PR #46 ("Dev -> prod promotion") is open to
+  actually ship this to prod — not yet merged as of this update.
+- **Not yet done:** confirm prod ends at head with the orphan columns
+  dropped after PR #46 merges and the CD migration step runs for real (see
+  `database/README.md`'s "Onboarding an environment that predates Alembic").
 
 ### 2. CRM / data-platform migration (Attio + PostgreSQL) — core objects migrated and re-synced, tail work remains
 
@@ -355,14 +343,6 @@ bulk migration doesn't generate wasted webhook churn.
   Secrets Manager secret (`/wusool/dev/toolkit`); a live bounded
   `sync-all.ps1 -Apply -Limit 1` run against `buyer_role` proved the full
   webhook pause → migrate → resume cycle end-to-end.
-- **Manual nightly validation (2026-08-30):** after the account role's
-  three-hour session limit was applied, workflow-dispatch run
-  `33306037552` passed OIDC assume-role and completed the full resync with
-  8,266 synced / 0 failed. The preceding run exposed two PostgreSQL
-  `person` rows whose Attio records both returned 404; they were repaired
-  with the existing reversible `removed_at` soft-delete behavior. The
-  workflow now redirects the resync logger's stderr into SSM stdout so its
-  per-stream timings appear beneath the intended `--- stdout ---` heading.
 - 91 unit + live-DB integration tests passing.
 
 **Not yet done, low priority:**

@@ -113,9 +113,7 @@ Builds the merged image from the root `Dockerfile` (both this folder and
 `../ddl-commands/`) and starts it alongside a throwaway Postgres
 (`pgvector/pgvector:pg16` — plain `postgres:16-alpine` lacks the extension,
 which is fatal to Postgres's own init-script runner) that auto-applies
-`database/sql/*.sql` as a legacy baseline on first start. The one-shot
-`migrate` service then stamps that baseline when necessary and upgrades it to
-Alembic `head` before the bot starts. `DATABASE_URL` always points at that
+`database/sql/*.sql` on first start. `DATABASE_URL` always points at that
 bundled `db` service, not whatever's in your `.env` — real Slack/AWS
 credentials still come from your environment or a root `.env` file
 (`SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `AWS_*`) if you want to exercise

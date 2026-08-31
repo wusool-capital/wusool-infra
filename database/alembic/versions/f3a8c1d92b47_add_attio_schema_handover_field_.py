@@ -38,34 +38,6 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def _person_table_name() -> str:
-    """Support both the historical baseline and the corrected flat bootstrap."""
-    inspector = sa.inspect(op.get_bind())
-    if inspector.has_table("people"):
-        return "people"
-    if inspector.has_table("person"):
-        return "person"
-    raise RuntimeError("Neither people nor person exists")
-
-
-def _add_missing_person_columns(table_name: str) -> None:
-    existing = {column["name"] for column in sa.inspect(op.get_bind()).get_columns(table_name)}
-    columns = [
-        sa.Column("job_title", sa.Text(), nullable=True),
-        sa.Column("contact_type", sa.Text(), nullable=True),
-        sa.Column("phone", sa.Text(), nullable=True),
-        sa.Column("avatar_url", sa.Text(), nullable=True),
-        sa.Column("angellist", sa.Text(), nullable=True),
-        sa.Column("facebook", sa.Text(), nullable=True),
-        sa.Column("instagram", sa.Text(), nullable=True),
-        sa.Column("twitter", sa.Text(), nullable=True),
-        sa.Column("twitter_follower_count", sa.Integer(), nullable=True),
-    ]
-    for column in columns:
-        if column.name not in existing:
-            op.add_column(table_name, column)
-
-
 def upgrade() -> None:
     """Upgrade schema."""
     op.add_column("organizations", sa.Column("angellist", sa.Text(), nullable=True))
@@ -79,7 +51,15 @@ def upgrade() -> None:
     op.add_column("organizations", sa.Column("ticket_size", sa.Text(), nullable=True))
     op.add_column("organizations", sa.Column("lead_source", sa.Text(), nullable=True))
 
-    _add_missing_person_columns(_person_table_name())
+    op.add_column("people", sa.Column("job_title", sa.Text(), nullable=True))
+    op.add_column("people", sa.Column("contact_type", sa.Text(), nullable=True))
+    op.add_column("people", sa.Column("phone", sa.Text(), nullable=True))
+    op.add_column("people", sa.Column("avatar_url", sa.Text(), nullable=True))
+    op.add_column("people", sa.Column("angellist", sa.Text(), nullable=True))
+    op.add_column("people", sa.Column("facebook", sa.Text(), nullable=True))
+    op.add_column("people", sa.Column("instagram", sa.Text(), nullable=True))
+    op.add_column("people", sa.Column("twitter", sa.Text(), nullable=True))
+    op.add_column("people", sa.Column("twitter_follower_count", sa.Integer(), nullable=True))
 
     op.add_column("deals", sa.Column("nda_status", sa.Text(), nullable=True))
     op.add_column(
@@ -163,19 +143,15 @@ def downgrade() -> None:
     op.drop_column("deals", "estimated_deal_value_aed")
     op.drop_column("deals", "nda_status")
 
-    person_table = _person_table_name()
-    for column_name in (
-        "twitter_follower_count",
-        "twitter",
-        "instagram",
-        "facebook",
-        "angellist",
-        "avatar_url",
-        "phone",
-        "contact_type",
-        "job_title",
-    ):
-        op.drop_column(person_table, column_name)
+    op.drop_column("people", "twitter_follower_count")
+    op.drop_column("people", "twitter")
+    op.drop_column("people", "instagram")
+    op.drop_column("people", "facebook")
+    op.drop_column("people", "angellist")
+    op.drop_column("people", "avatar_url")
+    op.drop_column("people", "phone")
+    op.drop_column("people", "contact_type")
+    op.drop_column("people", "job_title")
 
     op.drop_column("organizations", "lead_source")
     op.drop_column("organizations", "ticket_size")
