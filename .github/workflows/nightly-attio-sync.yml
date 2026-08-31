@@ -88,7 +88,7 @@ jobs:
           COMMANDS_JSON=$(jq -n \
             --arg get_id 'CID=$(docker ps --filter "name=toolkit" --format "{{.ID}}" | head -1)' \
             --arg get_image 'IMAGE=$(docker inspect --format="{{.Image}}" "$CID")' \
-            --arg run_resync 'docker run --rm --env-file /opt/toolkit/toolkit/.env.production "$IMAGE" python -m ddl_commands.modules.attio_sync.full_resync' \
+            --arg run_resync 'set +e; OUTPUT=$(docker run --rm --env-file /opt/toolkit/toolkit/.env.production "$IMAGE" python -m ddl_commands.modules.attio_sync.full_resync 2>&1); RC=$?; set -e; printf "%s\n" "$OUTPUT" | tail -c 20000; exit "$RC"' \
             '["set -e", $get_id, $get_image, $run_resync]')
 
           CMD=$(aws ssm send-command \

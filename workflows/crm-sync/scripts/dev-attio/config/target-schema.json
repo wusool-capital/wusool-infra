@@ -57,7 +57,7 @@
       "name": "Person",
       "attio_kind": "object",
       "attio_slug": "person",
-      "postgres_table": "people",
+      "postgres_table": "person",
       "fields": [
         {"slug": "attio_id", "type": "text", "ownership": "key", "attio_storage": "record_id"},
         {"slug": "legacy_attio_id", "type": "text", "ownership": "key", "purpose": "Source Attio record ID used for idempotent migration"},
