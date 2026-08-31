@@ -21,13 +21,22 @@ from ddl_commands.shared.attio.client import AttioClient
 
 _logger = logging.getLogger("ddl_commands.attio_sync")
 
+async def _sync_source_deal(client: AttioClient, record_id: str) -> None:
+    """SOURCE Attio's custom deal object is slug "deal" (singular) -- see
+    `config.py`'s `attio_deal_object_slug` and `upsert.sync_deal`'s
+    docstring. Both slugs land in the same `deals` Postgres table."""
+    await upsert.sync_deal(client, record_id, object_slug="deal")
+
+
 _OBJECT_SYNC = {
     "organizations": upsert.sync_organization,
     "person": upsert.sync_person,
     "deals": upsert.sync_deal,
+    "deal": _sync_source_deal,
+    "note": upsert.sync_note,
 }
 _OBJECT_DELETE = {
-    # `organizations` and `people` both have a deletion convention
+    # `organizations` and `person` both have a deletion convention
     # (`removed_at`) — see upsert.py's module docstring for why every other
     # table's `record.deleted`/`list-entry.deleted` is deliberately a no-op
     # here.

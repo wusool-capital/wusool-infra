@@ -108,7 +108,7 @@ flow and the add flow's form, since both read from the same
   both are reference types (Person / User) and this bot has no
   search-and-select-a-person/user UI built — the same kind of modal
   `organization_selection.py` already does for orgs, just not built for
-  `people`/`users` yet. Not a policy question, just unbuilt.
+  `person`/`users` yet. Not a policy question, just unbuilt.
 - Multi-select org fields other than `sector_focus` (`type`, `stage_focus`,
   `geographic_focus`, `domains`, `categories`) and `last_interaction_at` —
   deferred, not built this pass.

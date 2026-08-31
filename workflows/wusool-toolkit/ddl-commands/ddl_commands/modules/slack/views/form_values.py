@@ -30,8 +30,14 @@ def text_input_block(
     }
 
 
-def number_input_block(field: str, label: str, value: float | None) -> dict:
-    element: dict = {"type": "number_input", "action_id": field, "is_decimal_allowed": True}
+def number_input_block(
+    field: str, label: str, value: float | None, *, is_decimal_allowed: bool = True
+) -> dict:
+    element: dict = {
+        "type": "number_input",
+        "action_id": field,
+        "is_decimal_allowed": is_decimal_allowed,
+    }
     if value is not None:
         element["initial_value"] = str(value)
     return {

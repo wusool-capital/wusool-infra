@@ -14,6 +14,7 @@ from ddl_commands.modules.slack.views.form_values import (
     date_input_block,
     get_bool_select,
     get_date,
+    get_number,
     get_static_select,
     get_text,
     multi_select_text_block,
@@ -45,6 +46,8 @@ def render_field_block(spec: FieldSpec, current_value, *, block_id_prefix: str =
         return number_input_block(block_id, spec.label, amount)
     if spec.kind == "bool":
         return bool_select_block(block_id, spec.label, current_value)
+    if spec.kind == "number":
+        return number_input_block(block_id, spec.label, current_value, is_decimal_allowed=False)
     raise ValueError(f"Unsupported field kind for rendering: {spec.kind!r}")
 
 
@@ -85,4 +88,7 @@ def extract_field_value(spec: FieldSpec, values: dict, *, block_id_prefix: str =
             return None
     if spec.kind == "bool":
         return get_bool_select(values, block_id, block_id)
+    if spec.kind == "number":
+        raw = get_number(values, block_id, block_id)
+        return int(raw) if raw is not None else None
     raise ValueError(f"Unsupported field kind for extraction: {spec.kind!r}")

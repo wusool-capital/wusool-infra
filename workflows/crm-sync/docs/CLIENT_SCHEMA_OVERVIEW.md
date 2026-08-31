@@ -26,7 +26,7 @@ The two platforms have different responsibilities but share common record identi
 | Attio entity | Business purpose | Entity type | PostgreSQL table |
 |---|---|---|---|
 | Organization | Companies and institutions in the Wusool network | object | `organizations` |
-| Person | Individual contacts and their organization relationships | object | `people` |
+| Person | Individual contacts and their organization relationships | object | `person` |
 | User | Authorized workspace members and record owners | workspace-members | `users` |
 | buyer_role | Buyer profile, investment criteria, and mandate readiness | list | `buyer_roles` |
 | seller_role | Seller profile, valuation indicators, and outreach progress | list | `seller_roles` |
@@ -324,7 +324,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 
 | Area | Tables | Purpose |
 |---|---|---|
-| CRM mirror | `users`, `organizations`, `people`, `deals` | Structured copies of core CRM records |
+| CRM mirror | `users`, `organizations`, `person`, `deals` | Structured copies of core CRM records |
 | Business roles | `buyer_roles`, `seller_roles`, `investor_lender_roles` | Buyer, seller, investor, and lender-specific information |
 | Activity and pipeline | `activities`, `deal_stage_events`, `signals` | Interactions, deal movements, and market or buyer signals |
 | Intelligence and matching | `buyer_intel`, `seller_financials`, `match_scores`, `match_results` | Research, financial normalization, targeting, scoring, and shortlisted match runs |
@@ -369,7 +369,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
 
-### people
+### person
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
@@ -399,7 +399,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `stage` | `text` | Yes | - | - | - |
 | `stage_changed_at` | `timestamptz` | Yes | - | - | - |
 | `buyer_organization_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
-| `buyer_person_attio_id` | `text` | Yes | - | `people.attio_id` | - |
+| `buyer_person_attio_id` | `text` | Yes | - | `person.attio_id` | - |
 | `seller_organization_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
 | `owner_attio_id` | `text` | Yes | - | `users.attio_id` | - |
 | `value` | `jsonb` | Yes | - | - | - |
@@ -460,7 +460,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `profitable_only` | `boolean` | Yes | - | - | - |
 | `investment_strategy` | `text` | Yes | - | - | - |
 | `notes` | `text` | Yes | - | - | - |
-| `key_contact_attio_id` | `text` | Yes | - | `people.attio_id` | - |
+| `key_contact_attio_id` | `text` | Yes | - | `person.attio_id` | - |
 | `acquisition_enrichment` | `text` | Yes | - | - | - |
 | `deals_introduced` | `integer` | Yes | - | - | - |
 | `deals_converted` | `integer` | Yes | - | - | - |
@@ -623,7 +623,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 ### notes
 
 Unified notes on organizations, people, and buyer/seller roles, replacing the
-fields formerly scattered across `organizations`, `people`, and `buyer_roles`.
+fields formerly scattered across `organizations`, `person`, and `buyer_roles`.
 Populated by `workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`
 from SOURCE Attio's `note` custom object (via a not-yet-built
 `database/sync-notes-from-source.ps1`), not through DEV Attio, which has no
@@ -633,7 +633,7 @@ notes object yet.
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
 | `organization_id` | `text` | Yes | - | `organizations.attio_id` | - |
-| `person_id` | `text` | Yes | - | `people.attio_id` | - |
+| `person_id` | `text` | Yes | - | `person.attio_id` | - |
 | `buyer_role_id` | `uuid` | Yes | - | `buyer_roles.id` | - |
 | `seller_role_id` | `uuid` | Yes | - | `seller_roles.id` | - |
 | `note_type` | `text` | No | - | - | - |
@@ -728,8 +728,8 @@ columns meaningful); `rank IS NOT NULL` is a shortlisted candidate row
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `person_a_attio_id` | `text` | No | - | `people.attio_id` | - |
-| `person_b_attio_id` | `text` | No | - | `people.attio_id` | - |
+| `person_a_attio_id` | `text` | No | - | `person.attio_id` | - |
+| `person_b_attio_id` | `text` | No | - | `person.attio_id` | - |
 | `hop` | `text` | No | - | - | - |
 | `basis` | `text` | Yes | - | - | - |
 | `source_cite` | `jsonb` | No | - | - | `'[]'::jsonb` |
@@ -811,14 +811,14 @@ definition: `database/sql/005_meetings.sql`.
 | From | To | Cardinality / rule |
 |---|---|---|
 | `organizations.owner_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
-| `people.company_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
-| `people.owner_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
+| `person.company_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
+| `person.owner_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
 | `deals.buyer_organization_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
-| `deals.buyer_person_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
+| `deals.buyer_person_attio_id` | `person.attio_id` | Many-to-one unless constrained unique |
 | `deals.seller_organization_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `deals.owner_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
 | `buyer_roles.org_attio_id` | `organizations.attio_id` | Many-to-one (no longer unique as of 2026-08-28) |
-| `buyer_roles.key_contact_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
+| `buyer_roles.key_contact_attio_id` | `person.attio_id` | Many-to-one unless constrained unique |
 | `seller_roles.org_attio_id` | `organizations.attio_id` | Many-to-one (no longer unique as of 2026-08-28) |
 | `investor_lender_roles.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `activities.actor_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
@@ -834,12 +834,12 @@ definition: `database/sql/005_meetings.sql`.
 | `match_results.seller_role_id` | `seller_roles.id` | Many-to-one unless constrained unique |
 | `match_results.match_score_id` | `match_scores.id` | Many-to-one unless constrained unique |
 | `documents.deal_attio_id` | `deals.attio_id` | Many-to-one unless constrained unique |
-| `graph_edges.person_a_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
-| `graph_edges.person_b_attio_id` | `people.attio_id` | Many-to-one unless constrained unique |
+| `graph_edges.person_a_attio_id` | `person.attio_id` | Many-to-one unless constrained unique |
+| `graph_edges.person_b_attio_id` | `person.attio_id` | Many-to-one unless constrained unique |
 | `scorecards.created_by_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
 | `meetings.org_id` | `organizations.attio_id` | Many-to-one; nullable, enforced via `fk_meetings_org` when set |
 | `notes.organization_id` | `organizations.attio_id` | Many-to-one; nullable (2026-08-29) |
-| `notes.person_id` | `people.attio_id` | Many-to-one unless constrained unique |
+| `notes.person_id` | `person.attio_id` | Many-to-one unless constrained unique |
 | `notes.buyer_role_id` | `buyer_roles.id` | Many-to-one unless constrained unique |
 | `notes.seller_role_id` | `seller_roles.id` | Many-to-one unless constrained unique |
 

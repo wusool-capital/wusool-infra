@@ -30,32 +30,46 @@ class SellerRepository:
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def get_by_org_attio_id(self, org_attio_id: str) -> SellerRole | None:
-        """Used by `/add-seller`'s create path to re-check, inside the write
-        transaction, that no seller role was created on this organization
-        between the search step and the submission — `UNIQUE(org_attio_id)`
-        is the final backstop either way.
+        """Used by `CreateSellerUseCase` to check, inside the write
+        transaction, whether this organization already has an *active*
+        seller role — `org_attio_id` stopped being unique in the 2026-08-28
+        migration (an org can hold stale/duplicate rows too), so this
+        filters to the one flagged `is_active`, same truthy convention as
+        `handle_organization_selection_submission`'s
+        `any(r.is_active for r in roles)`.
         """
-        stmt = select(SellerRole).where(SellerRole.org_attio_id == org_attio_id)
+        stmt = select(SellerRole).where(
+            SellerRole.org_attio_id == org_attio_id, SellerRole.is_active.is_(True)
+        )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def create(self, org_attio_id: str, **fields) -> SellerRole:
-        """Upserts (`ON CONFLICT ... DO NOTHING`) rather than a plain insert
-        — with the Attio webhook live, `list-entry.created` for the entry
-        this same call just created in Attio can reach
+        """Upserts (`ON CONFLICT (legacy_entry_id) DO NOTHING`) rather than a
+        plain insert — with the Attio webhook live, `list-entry.created` for
+        the entry this same call just created in Attio can reach
         `attio_sync.upsert.sync_seller_role` and land here first, racing
-        this call's own write to the same `UNIQUE(org_attio_id)` row. The
-        caller (`CreateSellerUseCase`) tells that apart from a genuine
-        pre-existing role by comparing `legacy_entry_id` on whatever this
-        returns.
+        this call's own write to the same `legacy_entry_id` row (the unique
+        constraint moved there from `org_attio_id` in the 2026-08-28
+        migration — an org can hold several role rows now). `RETURNING`
+        tells us directly whether this call's insert won; only on a skipped
+        insert (conflict) do we look up the pre-existing winner by
+        `legacy_entry_id` — never by `org_attio_id`, which no longer
+        identifies a single row.
         """
         stmt = (
             pg_insert(SellerRole)
             .values(org_attio_id=org_attio_id, **fields)
-            .on_conflict_do_nothing(index_elements=["org_attio_id"])
+            .on_conflict_do_nothing(index_elements=["legacy_entry_id"])
+            .returning(SellerRole.id)
         )
-        await self._session.execute(stmt)
+        inserted_id = (await self._session.execute(stmt)).scalar_one_or_none()
         await self._session.flush()
-        role = await self.get_by_org_attio_id(org_attio_id)
+        if inserted_id is not None:
+            role = await self.get_by_id(str(inserted_id))
+        else:
+            legacy_entry_id = fields["legacy_entry_id"]
+            stmt = select(SellerRole).where(SellerRole.legacy_entry_id == legacy_entry_id)
+            role = (await self._session.execute(stmt)).scalar_one_or_none()
         assert role is not None
         return role
 
@@ -63,17 +77,22 @@ class SellerRepository:
         """Case-insensitive, typo-tolerant name match — same pg_trgm pattern
         as `BuyerRepository.search_by_organization_name`, reusing the same
         `ix_organizations_name_trgm` GIN index (it's on `organizations.name`,
-        not buyer/seller-scoped).
+        not buyer/seller-scoped). Filters to `is_active` roles only — an
+        org can hold stale/duplicate rows post-migration, and
+        `/edit-seller`'s resolution must never hand the operator an
+        inactive duplicate as a pickable candidate indistinguishable from
+        the real one.
         """
         similarity = func.similarity(Organization.name, term)
         stmt = (
             select(SellerRole)
             .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
             .where(
+                SellerRole.is_active.is_(True),
                 or_(
                     Organization.name.ilike(f"%{term}%"),
                     similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
-                )
+                ),
             )
             .options(selectinload(SellerRole.organization))
             .order_by(similarity.desc())

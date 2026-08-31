@@ -22,12 +22,12 @@ filter to `is_active=true` explicitly now -- see
 matching-engine and ddl-commands each had their own copy of this class before
 Stage 1 of the Alembic migration (see `ALEMBIC_MIGRATION_HANDOVER.md`);
 they differed only in `key_contact_attio_id` — matching-engine declared it as
-a real `ForeignKey("people.attio_id")` with a `key_contact` relationship
-(matching-engine also maps `people`), ddl-commands declared it as a plain
-column (ddl-commands never mapped `people`, so it couldn't reference it).
+a real `ForeignKey("person.attio_id")` with a `key_contact` relationship
+(matching-engine also maps `person`), ddl-commands declared it as a plain
+column (ddl-commands never mapped `person`, so it couldn't reference it).
 This is matching-engine's version — a real FK object here doesn't change any
 behavior for ddl-commands (it never traverses `key_contact`), and this repo
-maps `people` regardless.
+maps `person` regardless.
 """
 
 import uuid
@@ -68,7 +68,7 @@ class BuyerRole(Base):
     profitable_only: Mapped[bool | None] = mapped_column()
     investment_strategy: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
-    key_contact_attio_id: Mapped[str | None] = mapped_column(Text, ForeignKey("people.attio_id"))
+    key_contact_attio_id: Mapped[str | None] = mapped_column(Text, ForeignKey("person.attio_id"))
     acquisition_enrichment: Mapped[str | None] = mapped_column(Text)
     deals_introduced: Mapped[int | None] = mapped_column()
     deals_converted: Mapped[int | None] = mapped_column()

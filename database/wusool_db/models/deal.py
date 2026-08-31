@@ -50,7 +50,7 @@ class Deal(Base):
     buyer_organization_attio_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("organizations.attio_id")
     )
-    buyer_person_attio_id: Mapped[str | None] = mapped_column(Text, ForeignKey("people.attio_id"))
+    buyer_person_attio_id: Mapped[str | None] = mapped_column(Text, ForeignKey("person.attio_id"))
     seller_organization_attio_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("organizations.attio_id")
     )

@@ -82,6 +82,17 @@ def _fake_org(
         relationship_status=None,
         estimated_arr=None,
         funding_raised=None,
+        linkedin=None,
+        logo_url=None,
+        angellist=None,
+        facebook=None,
+        instagram=None,
+        twitter=None,
+        twitter_follower_count=None,
+        foundation_date=None,
+        ticket_size=None,
+        lead_source=None,
+        employee_range=None,
         seller_roles=seller_roles or [],
         buyer_roles=buyer_roles or [],
     )
@@ -123,6 +134,13 @@ def _fake_buyer_role(role_id: str, *, org=None):
         check_size_min=None,
         check_size_max=None,
         ev_ceiling=None,
+        ebitda_ceiling=None,
+        estimated_aum=None,
+        notable_investments=None,
+        relationship_warmth=None,
+        target_geography=None,
+        last_mandate_briefing_date=None,
+        prior_gcc_acquisition=None,
     )
 
 

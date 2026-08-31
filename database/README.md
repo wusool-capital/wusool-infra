@@ -10,7 +10,7 @@ stores a relational mirror plus automation, history, analytics, and AI data.
 | --- | --- |
 | `setup-postgres.ps1` | Apply four idempotent SQL schema files and validate required tables/columns. Optional guarded reset. |
 | `sync-postgres.ps1` | Read canonical DEV Attio, map values, and dry-run or transactionally upsert PostgreSQL rows. As of 2026-08-28, writes every `buyer_role`/`seller_role` list entry (not just the active one per org -- see the "Mirroring every Attio record" note below). |
-| `sync-notes-from-source.ps1` | The one exception to "DEV Attio -> PostgreSQL": populates `notes` directly from **SOURCE** Attio's `note` custom object (`workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`), since DEV has no notes object yet. Bridges SOURCE record ids to Postgres's existing DEV-keyed rows via `organizations.raw_attio`/`people.raw_attio`'s `legacy_attio_id`. |
+| `sync-notes-from-source.ps1` | The one exception to "DEV Attio -> PostgreSQL": populates `notes` directly from **SOURCE** Attio's `note` custom object (`workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`), since DEV has no notes object yet. Bridges SOURCE record ids to Postgres's existing DEV-keyed rows via `organizations.raw_attio`/`person.raw_attio`'s `legacy_attio_id`. |
 | `validate-postgres.ps1` | Independently compare DEV/PostgreSQL counts and validate key relationships. Read-only. |
 
 ### Mirroring every Attio record (2026-08-28)
@@ -240,7 +240,7 @@ count failure rolls back the transaction.
 | --- | ---: |
 | users | 1 |
 | organizations | 3,040 |
-| people | 4,329 |
+| person | 4,329 |
 | deals | 48 |
 | buyer_roles | 264 |
 | seller_roles | 172 |

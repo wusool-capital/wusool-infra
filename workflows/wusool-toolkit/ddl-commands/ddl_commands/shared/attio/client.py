@@ -23,35 +23,60 @@ class AttioError(Exception):
 
 
 class AttioClient:
+    """Reuses one `aiohttp.ClientSession` across every call instead of
+    opening a new TCP+TLS connection per request — matters most for
+    `full_resync.py`, which can make thousands of calls in one run. The
+    long-lived server singleton (`get_attio_client()`) just keeps its
+    session for the process's lifetime; short-lived callers should use this
+    as `async with AttioClient(...) as client:` (or call `aclose()`
+    explicitly) so the session gets cleaned up on exit.
+    """
+
     def __init__(self, api_key: str) -> None:
         self._headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        self._session: aiohttp.ClientSession | None = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(headers=self._headers)
+        return self._session
+
+    async def aclose(self) -> None:
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+
+    async def __aenter__(self) -> "AttioClient":
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        await self.aclose()
 
     async def get(self, path: str) -> dict:
-        async with aiohttp.ClientSession(headers=self._headers) as session:
-            async with session.get(f"{_BASE_URL}{path}") as resp:
-                body = await resp.text()
-                if resp.status >= 400:
-                    raise AttioError(resp.status, body)
-                return await resp.json()
+        session = await self._get_session()
+        async with session.get(f"{_BASE_URL}{path}") as resp:
+            body = await resp.text()
+            if resp.status >= 400:
+                raise AttioError(resp.status, body)
+            return await resp.json()
 
     async def post(self, path: str, json_body: dict) -> dict:
-        async with aiohttp.ClientSession(headers=self._headers) as session:
-            async with session.post(f"{_BASE_URL}{path}", json=json_body) as resp:
-                body = await resp.text()
-                if resp.status >= 400:
-                    raise AttioError(resp.status, body)
-                return await resp.json()
+        session = await self._get_session()
+        async with session.post(f"{_BASE_URL}{path}", json=json_body) as resp:
+            body = await resp.text()
+            if resp.status >= 400:
+                raise AttioError(resp.status, body)
+            return await resp.json()
 
     async def patch(self, path: str, json_body: dict) -> dict:
-        async with aiohttp.ClientSession(headers=self._headers) as session:
-            async with session.patch(f"{_BASE_URL}{path}", json=json_body) as resp:
-                body = await resp.text()
-                if resp.status >= 400:
-                    raise AttioError(resp.status, body)
-                return await resp.json()
+        session = await self._get_session()
+        async with session.patch(f"{_BASE_URL}{path}", json=json_body) as resp:
+            body = await resp.text()
+            if resp.status >= 400:
+                raise AttioError(resp.status, body)
+            return await resp.json()
 
 
 @lru_cache
