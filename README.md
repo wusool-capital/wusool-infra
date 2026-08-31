@@ -152,7 +152,7 @@ The current documentation covers:
 | --- | --- |
 | Attio target model | `workflows/crm-sync/scripts/dev-attio/config/target-schema.json` |
 | Attio migration mapping | `workflows/crm-sync/scripts/dev-attio/config/source-to-target-mapping.json` |
-| PostgreSQL schema | `database/wusool_db/models/` + `database/alembic/versions/` (Alembic migrations, current baseline). Historical flat SQL: `database/sql/001_extensions.sql` through `007_org_name_trgm_index.sql` — `008_bot_managed_columns.sql` was added and reverted before this table was last accurate, and never actually shipped. |
+| PostgreSQL schema | `database/wusool_db/models/` + `database/alembic/versions/` (Alembic migrations, the sole source of truth as of 2026-08-29 — the original flat SQL files that first created this schema were deleted; see git history before that date if you need them). |
 
 The generated documents describe the schema declared in this repository. They
 do not prove the current state of a live Attio workspace or PostgreSQL database.
@@ -277,11 +277,12 @@ doesn't have. `ci.yml`'s `alembic-check` job separately catches drift between
 models and migrations on every PR touching `database/**`, against a
 throwaway Postgres, before any of that.
 
-The historical flat SQL files (`database/sql/001` through `007`) are not
-deleted or superseded retroactively — `database/setup-postgres.ps1`/
-`sync-postgres.ps1` (Attio data sync, a separate concern from schema) are
-unaffected, and deleting the flat files is an explicit, separate future
-decision, not automatic — see `database/README.md` for the current Alembic workflow.
+The historical flat SQL files (`database/sql/001` through `007`) and the
+`setup-postgres.ps1` script that applied them were deleted 2026-08-29 —
+Alembic's baseline migrations fully reproduce what they created.
+`database/dev-postgres-sync/sync-postgres.ps1` (Attio data sync, a separate
+concern from schema) is unaffected — see `database/README.md` for the
+current Alembic workflow.
 
 ## n8n SMTP email
 
