@@ -200,9 +200,13 @@ list parents, a count mismatch, or connection to the wrong workspace.
   When SOURCE has more than one simultaneously-active value, the one with
   the latest `active_from` wins (`Get-NormalizedRelationshipStatus`); throws
   rather than guessing if timestamps are missing or tied. `client_type`
-  (2026-08-28) uses the same latest-wins resolution (`Get-LatestClientType`),
-  without Relationship Status's fixed Warm/Cold/Closed vocabulary remap --
-  the winning SOURCE title is used as-is.
+  used the same latest-wins resolution (`Get-LatestClientType`) from
+  2026-08-28 until 2026-08-31, when the target attribute itself was
+  converted from single-select to plain text (found dropping every value
+  past the first whenever a company had more than one, e.g. "Fundraising"
+  and "M&A" tied) -- it now comma-joins every currently-active SOURCE value
+  through the same delimited-text path `domains`/`email`/`phone` already
+  use, since Attio custom objects don't support multiselect text.
 - Deal readiness fields are optional Booleans.
 - `backfill-notes.ps1` upserts, not create-only (2026-08-28): a note whose
   `legacy_note_id` already exists gets its content (and everything else)
