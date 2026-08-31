@@ -38,11 +38,11 @@ def test_sanitize_strips_markdown_headings_but_preserves_inline_hashes() -> None
     )
 
 
-def test_web_fallback_description_renders_without_markdown_heading_markers() -> None:
+def test_web_fallback_maps_details_render_without_markdown_heading_markers() -> None:
     lead = WebSourcedLead(
         name="What are the Principles | PRI",
-        source_url="https://www.unpri.org/about-us/what-are-the-principles-for-responsible-investment",
-        snippet=(
+        source_url="https://www.google.com/maps/place/What+are+the+Principles/data=!4m7",
+        address=(
             "## Related content\n"
             "###### About PRI\n"
             "Set up with the UN's support.\n\n"

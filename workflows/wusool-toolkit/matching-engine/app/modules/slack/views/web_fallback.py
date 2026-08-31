@@ -31,7 +31,7 @@ def build_web_fallback_blocks(buyer_org_name: str, leads: list[WebSourcedLead]) 
     ]
 
     for rank, lead in enumerate(leads, start=1):
-        detail = lead.address or lead.category or lead.snippet or "No further details available."
+        detail = lead.address or lead.category or "No further details available."
         name = sanitize_mrkdwn(lead.name)
         text = f"*{rank}. {name}*\n{sanitize_mrkdwn(detail)}"
         if lead.category and lead.address:

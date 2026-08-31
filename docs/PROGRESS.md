@@ -7,7 +7,7 @@ in its own document (linked below) — this file stays a short, high-level
 index and is kept current by the `sync-project-docs` skill (or manually,
 see [Keeping this file current](#keeping-this-file-current)).
 
-Last updated: 2026-08-18
+Last updated: 2026-08-31
 
 ## Workstreams
 

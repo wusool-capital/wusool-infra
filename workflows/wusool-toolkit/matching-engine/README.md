@@ -338,11 +338,9 @@ low-scoring ranked list is shown instead of a dead end. Disabled entirely
    regexes every link for a `/maps/place/<slug>/` segment and string-matches
    it against each business name, so "View Source" opens that specific
    listing rather than re-running the search.
-4. **Fall back to a plain web search** if the Maps scrape throws or returns
-   nothing (Maps is a heavy interactive page, less reliable to scrape than
-   a plain one) — Firecrawl's `search()` API instead, weaker data
-   (title/url/description only, no address/category) but never a hard
-   failure.
+4. **Return no web leads** if the Maps scrape throws or returns nothing. The
+   existing low-scoring CRM result remains visible; arbitrary websites are
+   never substituted for Maps listings.
 5. **Never raises** — every exception at every step is caught and logged;
    a lead-finding fallback failing must never be the reason the whole
    match run fails.

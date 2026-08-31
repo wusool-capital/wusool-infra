@@ -1,16 +1,8 @@
-"""Real Firecrawl implementation of `FirecrawlClient`. Primary path scrapes
-a Google Maps search URL with a JSON extraction schema (confirmed live:
-this actually works — real business name/address/category returned for a
-"healthcare acquisition targets Saudi Arabia" query). Falls back to a plain
-Firecrawl web search (title/url/description only, no address/category) if
-the Maps scrape raises or returns nothing — never raises out of this
-client, since a lead-finding fallback must not itself become the reason a
-run fails; the caller treats an empty list as "no leads found."
-"""
+"""Real Firecrawl implementation of `FirecrawlClient` using Google Maps only."""
 
 import logging
 import re
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 
 from firecrawl import AsyncFirecrawl
 from pydantic import BaseModel
@@ -20,6 +12,13 @@ from app.modules.web_search.domain.firecrawl_client import WebSourcedLead
 logger = logging.getLogger(__name__)
 
 _PLACE_LINK_RE = re.compile(r"/maps/place/([^/]+)/")
+
+
+def _is_google_maps_url(url: str) -> bool:
+    parsed = urlsplit(url)
+    hostname = (parsed.hostname or "").lower()
+    is_google_host = hostname == "google.com" or hostname.endswith(".google.com")
+    return parsed.scheme == "https" and is_google_host and parsed.path.startswith("/maps/")
 
 
 def _normalize_name(name: str) -> str:
@@ -35,6 +34,8 @@ def _match_place_link(name: str, links: list[str]) -> str | None:
     """
     target = _normalize_name(name)
     for link in links:
+        if not _is_google_maps_url(link):
+            continue
         match = _PLACE_LINK_RE.search(link)
         if match and _normalize_name(unquote(match.group(1)).replace("+", " ")) == target:
             return link
@@ -61,11 +62,7 @@ class FirecrawlMapsClient:
         query = f"{industry} companies {geography}".strip()
 
         leads = await self._scrape_maps(query, limit)
-        if leads:
-            return leads
-
-        logger.info("firecrawl_maps_scrape_empty query=%s, falling back to search", query)
-        return await self._search_fallback(query, limit)
+        return leads
 
     async def _scrape_maps(self, query: str, limit: int) -> list[WebSourcedLead]:
         url = f"https://www.google.com/maps/search/{quote(query)}"
@@ -96,25 +93,3 @@ class FirecrawlMapsClient:
             )
             for b in extracted.businesses[:limit]
         ]
-
-    async def _search_fallback(self, query: str, limit: int) -> list[WebSourcedLead]:
-        try:
-            result = await self._client.search(query=query, limit=limit)
-        except Exception:
-            logger.warning("firecrawl_search_fallback_failed query=%s", query, exc_info=True)
-            return []
-
-        results = result.web or []
-        leads = []
-        for r in results[:limit]:
-            url = getattr(r, "url", None)
-            if not url:
-                continue
-            leads.append(
-                WebSourcedLead(
-                    name=getattr(r, "title", None) or url,
-                    source_url=url,
-                    snippet=getattr(r, "description", None),
-                )
-            )
-        return leads
