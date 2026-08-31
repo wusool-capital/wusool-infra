@@ -219,7 +219,14 @@ def _organization_params(data: dict) -> dict:
         "name": v.first(values, "name") or f"Unnamed DEV Organization [{rid}]",
         "description": v.first(values, "description"),
         "type": v.titles(values, "type"),
-        "client_type": v.first(values, "client_type"),
+        # client_type is multi-select on SOURCE Attio (e.g. a company can be
+        # both "Fundraising" and "M&A") -- v.first() silently dropped every
+        # value past the first. Postgres's client_type column is plain text
+        # (not an array like type/sector_focus/categories), so every
+        # selected value is comma-joined into it instead, matching
+        # person.role's existing join pattern. Per-manager request,
+        # 2026-08-31.
+        "client_type": ", ".join(v.titles(values, "client_type")) or None,
         "sector_focus": v.titles(values, "sector_focus"),
         # SOURCE Attio's org object uses stage_focus/connection_strength
         # directly, not DEV's stage/strongest_connection_strength -- same

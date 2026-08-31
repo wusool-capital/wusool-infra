@@ -29,6 +29,33 @@ def test_organization_params_falls_back_to_source_slugs() -> None:
     assert params["connection_strength"] == "Strong"
 
 
+def test_organization_params_joins_multiple_client_type_values() -> None:
+    """client_type is multi-select on SOURCE Attio; Postgres's column is
+    plain text (not an array), so every selected value must be comma-joined
+    rather than only the first surviving."""
+    data = {
+        "id": {"record_id": "org-1"},
+        "values": {
+            "client_type": [
+                _item(option={"title": "Fundraising"}),
+                _item(option={"title": "M&A"}),
+            ],
+        },
+    }
+
+    params = _organization_params(data)
+
+    assert params["client_type"] == "Fundraising, M&A"
+
+
+def test_organization_params_client_type_none_when_absent() -> None:
+    data = {"id": {"record_id": "org-1"}, "values": {}}
+
+    params = _organization_params(data)
+
+    assert params["client_type"] is None
+
+
 def test_organization_params_prefers_dev_slugs_when_both_present() -> None:
     data = {
         "id": {"record_id": "org-1"},
