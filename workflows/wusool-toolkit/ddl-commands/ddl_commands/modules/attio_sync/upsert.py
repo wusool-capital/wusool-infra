@@ -221,13 +221,20 @@ def _organization_params(data: dict) -> dict:
         "type": v.titles(values, "type"),
         "client_type": v.first(values, "client_type"),
         "sector_focus": v.titles(values, "sector_focus"),
-        "stage_focus": v.titles(values, "stage"),
+        # SOURCE Attio's org object uses stage_focus/connection_strength
+        # directly, not DEV's stage/strongest_connection_strength -- same
+        # class of mismatch as _deal_params' deal_name/deal_stage/deal_owner.
+        # Confirmed against a real SOURCE record's field list, 2026-08-31.
+        "stage_focus": v.titles(values, "stage") or v.titles(values, "stage_focus"),
         "geographic_focus": v.titles(values, "geographic_focus"),
         "hq_country": v.first(values, "hq_country"),
         "domains": v.domains(values),
         "categories": v.titles(values, "categories"),
         "relationship_status": v.first(values, "relationship_status"),
-        "connection_strength": v.first(values, "strongest_connection_strength"),
+        "connection_strength": (
+            v.first(values, "strongest_connection_strength")
+            or v.first(values, "connection_strength")
+        ),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.timestamp(values, "last_interaction_at"),
         "funding_raised": v.money(values, "funding_raised"),
@@ -316,14 +323,24 @@ def _person_params(data: dict) -> dict:
         "name": v.first(values, "name") or f"Unnamed DEV Person [{rid}]",
         "role": ", ".join(roles) or v.first(values, "role"),
         "company_attio_id": v.ref(values, "company"),
-        "email": [
-            x.get("email_address")
-            for x in v.raw_items(values, "email_addresses")
-            if x.get("email_address")
-        ],
+        # DEV Attio's person object has a multi-valued email_addresses field;
+        # SOURCE Attio's uses a single plain "email" field instead -- same
+        # class of mismatch as _deal_params' deal_name/deal_stage/deal_owner.
+        # Confirmed against a real SOURCE record's field list, 2026-08-31.
+        "email": (
+            [
+                x.get("email_address")
+                for x in v.raw_items(values, "email_addresses")
+                if x.get("email_address")
+            ]
+            or ([v.first(values, "email")] if v.first(values, "email") else [])
+        ),
         "linkedin": v.first(values, "linkedin"),
         "relationship_status": v.first(values, "relationship_status"),
-        "connection_strength": v.first(values, "strongest_connection_strength"),
+        "connection_strength": (
+            v.first(values, "strongest_connection_strength")
+            or v.first(values, "connection_strength")
+        ),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.timestamp(values, "last_interaction_at"),
         "job_title": v.first(values, "job_title"),
@@ -741,7 +758,13 @@ def _seller_role_params(org_id: str, entry: dict, is_active: bool) -> dict:
     return {
         "org_attio_id": org_id,
         "outreach_tier": v.first(values, "outreach_tier"),
-        "appetite_signal": v.first(values, "seller_appetite_signal"),
+        # SOURCE Attio's seller_role list uses appetite_signal directly, not
+        # DEV's seller_appetite_signal -- same class of mismatch as
+        # _deal_params' deal_name/deal_stage/deal_owner. Confirmed against a
+        # real SOURCE record's field list, 2026-08-31.
+        "appetite_signal": (
+            v.first(values, "seller_appetite_signal") or v.first(values, "appetite_signal")
+        ),
         "relationship_status": v.first(values, "relationship_status"),
         "est_revenue": (
             v.money(values, "estimated_annual_revenue_aed") or v.money(values, "est_revenue")
