@@ -28,7 +28,7 @@
         {"slug": "name", "type": "text", "ownership": "attio"},
         {"slug": "description", "type": "text", "ownership": "attio"},
         {"slug": "type", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
-        {"slug": "client_type", "type": "enum", "ownership": "attio", "options_status": "needs_approval"},
+        {"slug": "client_type", "type": "text", "ownership": "attio", "attio_serialization": "comma_delimited", "platform_constraint": "Custom objects do not support multiselect text; converted from single-select 2026-08-31 after it was found silently dropping every value past the first."},
         {"slug": "sector_focus", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
         {"slug": "stage_focus", "attio_slug": "stage", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
         {"slug": "geographic_focus", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
