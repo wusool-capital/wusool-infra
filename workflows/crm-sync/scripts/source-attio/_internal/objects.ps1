@@ -248,47 +248,6 @@ function Get-NormalizedRelationshipStatus {
   return [string]$ordered[0].Target
 }
 
-# client_type is a single-select target, but SOURCE occasionally holds more
-# than one simultaneously-active value (e.g. ["Fundraising", "M&A"]) --
-# without this, Convert-TargetValue's generic path throws "single-value but
-# SOURCE contains N values", caught as a warning and left blank. Same
-# latest-active_from-wins resolution as Get-NormalizedRelationshipStatus
-# above, minus that function's Warm/Cold/Closed vocabulary remap -- client_type
-# has no fixed target vocabulary, the winning SOURCE title is used as-is.
-function Get-LatestClientType {
-  param([object]$Values)
-
-  $candidates = @()
-  foreach ($item in @($Values.client_type)) {
-    $sourceTitle = [string](Get-ScalarValue -Item $item)
-    if ([string]::IsNullOrWhiteSpace($sourceTitle)) { continue }
-
-    $activeFrom = $null
-    if ($item.active_from) {
-      $parsed = [datetimeoffset]::MinValue
-      if ([datetimeoffset]::TryParse([string]$item.active_from, [ref]$parsed)) {
-        $activeFrom = $parsed
-      }
-    }
-    $candidates += [pscustomobject]@{ Value = $sourceTitle; ActiveFrom = $activeFrom }
-  }
-
-  if ($candidates.Count -eq 0) { return $null }
-  $distinct = @($candidates.Value | Sort-Object -Unique)
-  if ($distinct.Count -eq 1) { return [string]$distinct[0] }
-
-  if (@($candidates | Where-Object { $null -eq $_.ActiveFrom }).Count -gt 0) {
-    throw "Conflicting Client Type values have a missing active_from timestamp: $($candidates.Value -join ', ')."
-  }
-
-  $ordered = @($candidates | Sort-Object ActiveFrom -Descending)
-  if ($ordered.Count -gt 1 -and $ordered[0].ActiveFrom -eq $ordered[1].ActiveFrom -and
-      $ordered[0].Value -ne $ordered[1].Value) {
-    throw "Conflicting Client Type values have tied active_from timestamps: $($candidates.Value -join ', ')."
-  }
-  return [string]$ordered[0].Value
-}
-
 function Get-SourceReferenceIds {
   param([object]$Values, [string[]]$Slugs)
 
@@ -357,9 +316,14 @@ function Convert-TargetValue {
   }
 
   $attribute = $TargetAttributes[$TargetSlug]
-  if ($TargetSlug -eq "domains" -or $TargetSlug -eq "email" -or $TargetSlug -eq "phone") {
+  if ($TargetSlug -eq "domains" -or $TargetSlug -eq "email" -or $TargetSlug -eq "phone" -or
+      $TargetSlug -eq "client_type") {
     # Attio custom objects do not support domain/email/phone attributes or
-    # multiselect text. Store a readable delimited value.
+    # multiselect text. client_type joined the same way, 2026-08-31: it's now
+    # plain text on SOURCE (was single-select, which silently dropped every
+    # value past the first whenever a company had more than one -- see
+    # git history for Get-LatestClientType, removed in the same change).
+    # Store a readable delimited value.
     $joinArray = @($Values | ForEach-Object { [string]$_ })
     return [string]($joinArray -join ", ")
   }
@@ -629,27 +593,6 @@ foreach ($record in $sourceRecords) {
         }
       } catch {
         $recordErrors += $_.Exception.Message
-      }
-      continue
-    }
-
-    if ($mapping.Target -eq "client_type") {
-      try {
-        $latestClientType = Get-LatestClientType -Values $record.values
-        if (-not [string]::IsNullOrWhiteSpace($latestClientType)) {
-          $payload[$mapping.Target] = Convert-TargetValue `
-            -TargetSlug $mapping.Target `
-            -Values @($latestClientType) `
-            -TargetAttributes $targetAttributes `
-            -OptionMaps $optionMaps
-        }
-      } catch {
-        # Warning, not a record error, matching the severity this field had
-        # before this resolver existed (Convert-TargetValue's generic path
-        # left it blank + warned rather than failing the whole record) --
-        # only reached now when active_from is missing/tied, genuinely
-        # ambiguous.
-        $recordWarnings += "client_type: $($_.Exception.Message)"
       }
       continue
     }
