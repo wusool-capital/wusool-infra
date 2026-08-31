@@ -7,14 +7,14 @@ from pydantic import ValidationError
 
 from app.modules.buyers.domain.value_objects import BuyerContext
 from app.modules.llm.domain.bedrock_client import BedrockClient, InferenceConfig
-from app.modules.matching.domain.scoring import describe_criteria
+from app.modules.matching.domain.scoring import describe_criteria, is_monetary_criterion
 from app.modules.requirements.domain.value_objects import (
     HardRequirement,
     RequirementProfile,
     SoftPreference,
 )
 from app.modules.requirements.schemas import ExtractedRequirementProfile
-from app.shared.types import render_meeting_notes_section
+from app.shared.types import parse_usd_amount, render_meeting_notes_section
 
 
 class RequirementExtractionError(Exception):
@@ -68,8 +68,13 @@ class BuyerRequirementExtractionService:
     @staticmethod
     def _validate(raw: dict) -> tuple[ExtractedRequirementProfile | None, str | None]:
         try:
-            return ExtractedRequirementProfile.model_validate(raw), None
-        except ValidationError as exc:
+            extracted = ExtractedRequirementProfile.model_validate(raw)
+            for requirement in [*extracted.hard_requirements, *extracted.soft_preferences]:
+                if is_monetary_criterion(requirement.criterion):
+                    if requirement.value is not None:
+                        parse_usd_amount(requirement.value)
+            return extracted, None
+        except (ValidationError, ValueError) as exc:
             return None, str(exc)
 
     def _build_prompt(self, buyer: BuyerContext) -> str:
@@ -123,6 +128,8 @@ class BuyerRequirementExtractionService:
             "checked against real seller data, anything else is silently "
             "unscored:\n"
             f"{describe_criteria()}\n"
+            "Revenue and EBITDA values must be written as `USD <amount>` "
+            "(for example `USD 50M`); never emit bare numbers or another currency.\n"
             "If something in the free text below doesn't fit any of these "
             "names, do not invent a new criterion for it — fold it into "
             "`strategic_thesis` or `ideal_target_description` instead, both of "

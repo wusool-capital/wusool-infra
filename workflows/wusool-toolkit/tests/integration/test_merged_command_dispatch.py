@@ -165,6 +165,31 @@ def test_buyer_selection_modal_routes_to_matching_engine_not_ddl_commands(monkey
     assert len(task_runner_calls) == 1
 
 
+def test_duplicate_buyer_selection_submission_dispatches_once(monkeypatch) -> None:
+    from app.modules.slack.handlers import actions as matching_engine_actions
+
+    task_runner_calls: list[tuple] = []
+    monkeypatch.setattr(
+        matching_engine_actions._task_runner,
+        "run",
+        lambda fn, name: task_runner_calls.append((fn, name)),
+    )
+    view = {
+        "type": "modal",
+        "id": "V_RETRY_DEDUPLICATION",
+        "callback_id": "buyer_selection_modal",
+        "private_metadata": json.dumps({"requested_by": "U_TEST", "channel_id": "C_TEST"}),
+        "state": {"values": _view_state_with_selected_buyer("buyer-role-retry")},
+    }
+
+    first = _post_view_submission_raw(view)
+    second = _post_view_submission_raw(view)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(task_runner_calls) == 1
+
+
 def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(monkeypatch) -> None:
     """The ddl-commands side of the same fix: `/edit-buyer`'s disambiguation
     modal must fire ddl-commands' handler, never matching-engine's.

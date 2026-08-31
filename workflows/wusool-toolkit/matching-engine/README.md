@@ -203,6 +203,11 @@ and Stage 2 scoring, so they never disagree):
 `1.0`; soft preferences use whatever weight the LLM assigned per-preference
 in `scoring_rubric`.
 
+All populated buyer/seller money values are required to be USD. Revenue and
+EBITDA thresholds extracted from free text must use the explicit `USD 50M`
+format (with K/M/B suffixes); mixed, missing, or non-USD currencies fail the
+extraction/run rather than being compared as bare numbers or converted.
+
 **`data_confidence`** = weighted average of a confidence multiplier per
 criterion, using the same weights as the score:
 - `crm_field` → 1.0 (fixed, not configurable)
@@ -631,6 +636,11 @@ matches, please wait…*"), runs the full pipeline above (Stages 0-5 — this
 always happens, even when every candidate ends up scoring low), then edits
 that same message in place with the real result.
 
+Modal submissions are deduplicated by Slack `view.id`, so a retried
+submission cannot launch a second expensive match run. Any unexpected
+background exception is logged and replaces the placeholder with a generic
+failure message when Slack is still reachable.
+
 If every candidate scores below `WEB_FALLBACK_MIN_SCORE` (see "Web fallback
 (Firecrawl)" above for the exact trigger condition), the placeholder is
 updated again ("✨ *No match found, searching Google Maps for potential
@@ -663,6 +673,9 @@ Clicking **Approve Match** on HealthTrack MENA re-validates the row against
 the database (never trusts the Slack payload's claimed state), checks the
 state-machine transition (`PENDING_REVIEW → APPROVED` is legal;
 `APPROVED → *` is not), updates the row, then:
+
+The status write is an atomic compare-and-set against `PENDING_REVIEW`, so
+concurrent Approve/Reject requests cannot overwrite the first decision.
 
 1. Posts an ephemeral confirmation: `Match with HealthTrack MENA approved by @you.`
 2. Rebuilds the same message from persisted state and replaces the original
