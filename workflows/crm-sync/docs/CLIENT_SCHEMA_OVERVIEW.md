@@ -49,7 +49,7 @@ Type: object | API identifier: `organizations`
 | `name` | `text` | attio | - |
 | `description` | `text` | attio | - |
 | `type` | `enum[]` | attio | - |
-| `client_type` | `enum` | attio | - |
+| `client_type` | `text` | attio | comma-delimited when a company has more than one client type (e.g. "Fundraising, M&A") — converted from single-select 2026-08-31 after it was found silently dropping every value past the first |
 | `sector_focus` | `enum[]` | attio | - |
 | `stage_focus` | `enum[]` | attio | - |
 | `geographic_focus` | `enum[]` | attio | - |
