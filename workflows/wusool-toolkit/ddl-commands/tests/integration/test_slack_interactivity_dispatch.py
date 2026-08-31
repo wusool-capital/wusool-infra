@@ -116,6 +116,16 @@ def _fake_seller_role(role_id: str, *, org=None):
         valuation_low=None,
         valuation_mid=None,
         valuation_high=None,
+        years_active=None,
+        funding_stage=None,
+        revenue_last_full_year=None,
+        revenue_year_before=None,
+        gross_margin_pct=None,
+        ebitda_deducts_salary=None,
+        annual_rent_cost=None,
+        largest_customer_revenue_pct=None,
+        repeat_revenue_pct=None,
+        location_count=None,
     )
 
 
