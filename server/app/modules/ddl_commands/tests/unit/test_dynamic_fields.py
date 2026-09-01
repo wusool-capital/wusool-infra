@@ -35,13 +35,21 @@ def test_bool_extracts_a_real_bool_not_a_string() -> None:
     assert isinstance(result, bool)
 
 
-# `organizations.sector_focus` is `text[] NOT NULL DEFAULT '{}'` — the only
-# `multi_select_text` field. Extraction used to return `None` for a blank
-# box, which sailed through `OrganizationUpdate` (`list[str] | None`)
-# untouched and hit Postgres's real NOT NULL constraint as the very last
-# line of defense, after both an organization-fields Attio write and a role
-# entry had already been created.
+# Both `multi_select_text` fields (`organizations.sector_focus`,
+# `buyer_roles.target_geography`) are `text[] NOT NULL DEFAULT '{}'`.
+# Extraction used to return `None` for a blank box, which sailed through
+# `OrganizationUpdate` (`list[str] | None`) untouched and hit Postgres's real
+# NOT NULL constraint as the very last line of defense, after both an
+# organization-fields Attio write and a role entry had already been created.
+# That invariant has to hold on both render paths below, so it is asserted
+# on both.
+#
+# This spec carries no options on purpose: it pins the free-text fallback,
+# which is still reachable for a stored value Attio no longer offers.
 _SECTOR_FOCUS_SPEC = FieldSpec("sector_focus", "Sector focus", "multi_select_text")
+_SECTOR_FOCUS_PICKER_SPEC = FieldSpec(
+    "sector_focus", "Sector focus", "multi_select_text", options=("Fintech", "Logistics", "AI / ML")
+)
 
 
 def test_multi_select_text_renders_empty_list_as_blank() -> None:
@@ -59,6 +67,64 @@ def test_multi_select_text_extracts_comma_separated_values() -> None:
     values = {"sector_focus": {"sector_focus": {"value": "Fintech, Logistics"}}}
     result = extract_field_value(_SECTOR_FOCUS_SPEC, values)
     assert result == ["Fintech", "Logistics"]
+
+
+def test_multi_select_renders_a_picker_when_the_spec_has_options() -> None:
+    block = render_field_block(_SECTOR_FOCUS_PICKER_SPEC, None).to_dict()
+    assert block["element"]["type"] == "multi_static_select"
+    assert [o["value"] for o in block["element"]["options"]] == [
+        "Fintech",
+        "Logistics",
+        "AI / ML",
+    ]
+    # Nothing stored yet, so nothing pre-selected — Slack rejects an empty
+    # `initial_options`, it has to be absent rather than `[]`.
+    assert "initial_options" not in block["element"]
+
+
+def test_multi_select_preselects_only_the_stored_values() -> None:
+    block = render_field_block(_SECTOR_FOCUS_PICKER_SPEC, ["AI / ML", "Fintech"]).to_dict()
+    assert [o["value"] for o in block["element"]["initial_options"]] == ["Fintech", "AI / ML"]
+
+
+def test_multi_select_falls_back_to_free_text_for_a_value_not_in_the_options() -> None:
+    """The picker cannot show a stored title Attio no longer offers, and Slack
+    rejects an `initial_options` entry outside `options`. Dropping it from the
+    pre-fill would silently discard it on the next save of any other field, so
+    the whole block degrades to the free-text box instead.
+    """
+    block = render_field_block(
+        _SECTOR_FOCUS_PICKER_SPEC, ["Fintech", "Quantum Computing"]
+    ).to_dict()
+    assert block["element"]["type"] == "plain_text_input"
+    assert block["element"]["initial_value"] == "Fintech, Quantum Computing"
+    assert block["label"]["text"] == "Sector focus (comma-separated)"
+
+
+def test_multi_select_extracts_selected_options() -> None:
+    values = {
+        "sector_focus": {
+            "sector_focus": {
+                "type": "multi_static_select",
+                "selected_options": [
+                    {"text": {"type": "plain_text", "text": "Fintech"}, "value": "Fintech"},
+                    {"text": {"type": "plain_text", "text": "AI / ML"}, "value": "AI / ML"},
+                ],
+            }
+        }
+    }
+    assert extract_field_value(_SECTOR_FOCUS_PICKER_SPEC, values) == ["Fintech", "AI / ML"]
+
+
+def test_multi_select_extracts_nothing_selected_as_empty_list_not_none() -> None:
+    """`selected_options: []` is present-but-empty. Branching on truthiness
+    would fall through to the comma-split path; the NOT NULL column needs
+    `[]` either way.
+    """
+    values = {
+        "sector_focus": {"sector_focus": {"type": "multi_static_select", "selected_options": []}}
+    }
+    assert extract_field_value(_SECTOR_FOCUS_PICKER_SPEC, values) == []
 
 
 # `organizations.twitter_follower_count` is `Integer` — the only `number`

@@ -109,7 +109,12 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("estimated_aum", "Estimated AUM (USD)", "currency"),
     FieldSpec("notable_investments", "Notable investments", "multiline"),
     FieldSpec("relationship_warmth", "Relationship warmth", "select", options=("Warm", "Cold")),
-    FieldSpec("target_geography", "Target geography (comma-separated)", "multi_select_text"),
+    FieldSpec(
+        "target_geography",
+        "Target geography",
+        "multi_select_text",
+        options=("UAE", "KSA", "Kuwait", "Bahrain", "Qatar", "Oman", "GCC-wide"),
+    ),
     FieldSpec("last_mandate_briefing_date", "Last mandate briefing date", "date"),
     FieldSpec("prior_gcc_acquisition", "Prior GCC acquisition", "text"),
 )

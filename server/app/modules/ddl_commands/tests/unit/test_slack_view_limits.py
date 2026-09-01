@@ -8,15 +8,22 @@ and raise nothing — so it can only be caught here, before it's sent.
 """
 
 import json
+import uuid
+from types import SimpleNamespace
 
 import pytest
 
 from app.modules.ddl_commands.api.buyers import BUYER_ROLE_FIELDS
+from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
+from app.modules.ddl_commands.api.slack.views.buyer_add_form import build_buyer_add_form_modal
+from app.modules.ddl_commands.api.slack.views.buyer_form import build_buyer_edit_form_modal
 from app.modules.ddl_commands.api.slack.views.buyer_role_selection import (
     build_buyer_selection_modal,
 )
 from app.modules.ddl_commands.api.slack.views.field_picker import build_field_picker_modal
+from app.modules.ddl_commands.api.slack.views.seller_add_form import build_seller_add_form_modal
+from app.modules.ddl_commands.api.slack.views.seller_form import build_seller_edit_form_modal
 from app.modules.ddl_commands.api.slack.views.seller_role_selection import (
     build_seller_selection_modal,
 )
@@ -90,3 +97,66 @@ def test_selection_modal_is_within_slack_limits(build):
     # so the candidate list is what has to stay bounded, not just the options.
     candidates = [_Candidate(f"role-{i}", f"Organization Number {i}") for i in range(25)]
     assert_valid_view(build(candidates, requested_by="U1", channel_id="C1").to_dict())
+
+
+# `sector_focus` alone carries 85 of Slack's 100 permitted options, and an
+# over-limit view is rejected silently. Without these, growing that list by 16
+# would break every `/add-buyer` and `/add-seller` with nothing to catch it.
+
+
+def _row(fields, **overrides):
+    row = SimpleNamespace(**{f.name: None for f in fields})
+    for key, value in overrides.items():
+        setattr(row, key, value)
+    return row
+
+
+def _org_row(**overrides):
+    return _row(ORGANIZATION_FIELDS, attio_id="org-attio-1", name="Some Organization", **overrides)
+
+
+@pytest.mark.parametrize("build", [build_seller_add_form_modal, build_buyer_add_form_modal])
+@pytest.mark.parametrize("org", [None, _org_row()], ids=["new-org", "existing-org"])
+def test_add_form_is_within_slack_limits(build, org):
+    assert_valid_view(
+        build(
+            org=org,
+            requested_by="U1",
+            channel_id="C1",
+            prefill_name="Acme",
+            duplicate_candidates=["Acme Corp", "Acme Corporation"],
+        ).to_dict()
+    )
+
+
+@pytest.mark.parametrize(
+    ("build", "role_fields"),
+    [
+        (build_seller_edit_form_modal, SELLER_ROLE_FIELDS),
+        (build_buyer_edit_form_modal, BUYER_ROLE_FIELDS),
+    ],
+)
+def test_edit_form_is_within_slack_limits(build, role_fields):
+    # The picker can select every field at once, so that is the worst case.
+    assert_valid_view(
+        build(
+            _row(role_fields, id=uuid.uuid4(), organization=_org_row()),
+            _org_row(),
+            selected_org_fields=[f.name for f in ORGANIZATION_FIELDS],
+            selected_role_fields=[f.name for f in role_fields],
+            requested_by="U1",
+            channel_id="C1",
+        ).to_dict()
+    )
+
+
+def test_sector_focus_picker_renders_every_attio_option():
+    """A wiring check, not a limit check: if `sector_focus` lost its options it
+    would silently degrade to the free-text box that caused the original bug,
+    and every other assertion here would still pass.
+    """
+    view = build_buyer_add_form_modal(org=None, requested_by="U1", channel_id="C1").to_dict()
+    block = next(b for b in view["blocks"] if b.get("block_id") == "org_sector_focus")
+    spec = next(f for f in ORGANIZATION_FIELDS if f.name == "sector_focus")
+    assert block["element"]["type"] == "multi_static_select"
+    assert [o["value"] for o in block["element"]["options"]] == list(spec.options)

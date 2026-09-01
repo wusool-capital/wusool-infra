@@ -9,6 +9,21 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-04
+
+### Fixed
+
+- `sector_focus` and `target_geography` are multi-select enums in Attio but
+  were rendered as free-text comma-separated boxes in the `/add-*` and
+  `/edit-*` Slack forms. A typo ("Fin tech" for "Fintech") only surfaced as
+  an `OptionNotFoundError` after `ack()`, by which point the modal had closed
+  and everything else the operator had entered was discarded. Both now carry
+  their option lists like every other select field and render as real
+  multi-selects, so the invalid value can no longer be entered. Both are also
+  covered by the live Attio drift check now, and the Slack view-limit test
+  covers the four add/edit form builders (`sector_focus` sits at 85 of
+  Slack's 100-option cap, previously unguarded).
+
 ## 2026-09-03
 
 ### Fixed

@@ -18,10 +18,11 @@ from app.modules.ddl_commands.api.slack.views.form_values import (
     date_input_block,
     get_bool_select,
     get_date,
+    get_multi_static_select,
     get_number,
     get_static_select,
     get_text,
-    multi_select_text_block,
+    multi_select_block,
     number_input_block,
     select_block,
     text_input_block,
@@ -43,7 +44,7 @@ def render_field_block(
     if spec.kind == "select":
         return select_block(block_id, spec.label, current_value, spec.options)
     if spec.kind == "multi_select_text":
-        return multi_select_text_block(block_id, spec.label, current_value)
+        return multi_select_block(block_id, spec.label, current_value, spec.options)
     if spec.kind == "date":
         return date_input_block(block_id, spec.label, current_value)
     if spec.kind == "currency":
@@ -77,9 +78,13 @@ def extract_field_value(
     if spec.kind == "select":
         return get_static_select(values, block_id, block_id)
     if spec.kind == "multi_select_text":
-        # `[]`, not `None`, when blank: `organizations.sector_focus` (the only
-        # field of this kind) is `text[] NOT NULL DEFAULT '{}'` — an empty
-        # selection is a real, storable value for it, never a null one.
+        # Both columns are `text[] NOT NULL`, so a blank field must extract to
+        # `[]`, never `None`. Tested on presence rather than truthiness because
+        # an empty multi-select sends `selected_options: []`, which would
+        # otherwise fall through to the free-text branch.
+        state = values.get(block_id, {}).get(block_id, {})
+        if "selected_options" in state:
+            return get_multi_static_select(values, block_id, block_id)
         raw = get_text(values, block_id, block_id)
         if not raw:
             return []

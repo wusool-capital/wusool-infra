@@ -139,8 +139,11 @@ async def test_every_select_option_matches_attio(
     value no operator can pick (`last_attempt_channel` was missing Attio's
     "WhatsApp" this way).
 
-    Fields with no hardcoded options resolve live against Attio at write time
-    (`sector_focus`, `target_geography`) and so cannot drift — nothing to check.
+    `sector_focus` and `target_geography` used to be exempt here: they carried
+    no hardcoded options and were free-text boxes resolved live at write time,
+    so they could not drift. They now hardcode their options like every other
+    select — which is exactly why this check has to cover them, and it does,
+    automatically, since the skip below only fires on an empty `spec.options`.
     """
     problems = []
     for spec in fields:
