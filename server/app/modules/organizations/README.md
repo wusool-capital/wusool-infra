@@ -23,7 +23,20 @@ organizations/
 
 `OrganizationRepositoryPort`: `get_by_id`, `get_by_id_with_roles`,
 `search_by_name` (the shared trigram query, `ix_organizations_name_trgm`),
-`create`, `update` — all return `app.models.Organization` or `None`.
+`create`, `update` — all return `app.models.Organization` or `None` — plus
+`lock`, which returns nothing.
+
+`lock(attio_id)` takes a `SELECT ... FOR UPDATE` row lock on the
+organization for the rest of the caller's transaction. It exists because
+`ddl_commands`' `/add-buyer`//add-seller` create paths check "does this org
+already have an active role" in application code — the 2026-08-28 migration
+(`b8f4c1e93a56`) moved `UNIQUE` off `org_attio_id` on the role tables, so
+nothing in the DB rejects a second active row. Serializing on the parent
+org row is what closes that window; see
+`ddl_commands/README.md`, "Known limitation: concurrent writes to the same
+organization". The lock belongs here rather than in `ddl_commands` because
+`organizations` owns the table — a cross-module reach into this module's
+`persistence/` would be a boundary violation.
 
 Consumers import only `from app.modules.organizations import
 OrganizationRepository, OrganizationRepositoryPort` (the `__all__`).
