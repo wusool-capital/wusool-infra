@@ -8,6 +8,7 @@ on:
       - 'workflows/wusool-toolkit/**'
       - 'database/**'
       - 'workflows/**/scripts/**'
+      - '.github/scripts/**'
       - '.github/workflows/ci.yml'
 
 permissions:
@@ -79,6 +80,9 @@ jobs:
       - name: pytest (ddl-commands)
         working-directory: workflows/wusool-toolkit/ddl-commands
         run: uv run pytest
+
+      - name: nightly resync orchestration shell test
+        run: bash ../../.github/scripts/tests/test-nightly-attio-resync.sh
 
   # Catches a broken migration or a model change that forgot one, on every
   # PR, against a real (throwaway) Postgres — distinct from and complementary

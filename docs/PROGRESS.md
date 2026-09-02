@@ -7,7 +7,7 @@ in its own document (linked below) — this file stays a short, high-level
 index and is kept current by the `sync-project-docs` skill (or manually,
 see [Keeping this file current](#keeping-this-file-current)).
 
-Last updated: 2026-08-31
+Last updated: 2026-09-02
 
 ## Workstreams
 
@@ -47,6 +47,14 @@ transient races, the `gha_apply` role picked up a missing
 CloudWatch tagged by module, and the shared Docker build picked up a fix for
 copying the `shared/` workspace member correctly. All routine, all merged
 through `dev` → `prod` the normal way — no open follow-up from any of these.
+
+**Nightly Attio resync hardening (2026-09-02):** the GitHub Actions/SSM
+orchestration now performs an SSM-online preflight, streams output to
+CloudWatch, applies a 20-minute SSM execution deadline, and cancels timed-out
+commands. The remote Docker run is singleton and bounded to 384 MiB / 0.75
+CPU with its own 15-minute deadline, preventing a runaway resync from taking
+the small toolkit host offline. See `.github/scripts/nightly-attio-resync.sh`
+and `.github/workflows/nightly-attio-sync.yml`.
 
 ### 6. Database schema management (SQLAlchemy + Alembic) — Phase G landed; dev fully migrated, prod bootstrapping in progress
 
