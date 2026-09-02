@@ -37,7 +37,7 @@ if [[ "$PING" != Online ]]; then
 fi
 
 COMMANDS_JSON=$(jq -n \
-  --arg image_cmd 'CID=$(docker ps --filter "name=^/toolkit$" --format "{{.ID}}" | head -1); test -n "$CID" || { echo "toolkit container is not running" >&2; exit 1; }; IMAGE=$(docker inspect --format="{{.Image}}" "$CID"); test -n "$IMAGE"' \
+  --arg image_cmd 'CID=$(docker ps -a --filter "name=^/toolkit$" --format "{{.ID}}" | head -1); test -n "$CID" || { echo "toolkit container does not exist" >&2; exit 1; }; IMAGE=$(docker inspect --format="{{.Image}}" "$CID"); test -n "$IMAGE" || { echo "could not resolve toolkit image from container $CID" >&2; exit 1; }' \
   --arg run_cmd 'test -z "$(docker ps --filter "name=^/toolkit-nightly-attio-resync$" --format "{{.ID}}")" || { echo "nightly resync already running" >&2; exit 75; }; timeout --signal=TERM --kill-after=30s 15m docker run --rm --name toolkit-nightly-attio-resync --memory=384m --memory-swap=384m --cpus=0.75 --env-file /opt/toolkit/toolkit/.env.production "$IMAGE" python -m ddl_commands.modules.attio_sync.full_resync' \
   '["set -Eeuo pipefail", $image_cmd, $run_cmd]')
 PARAMETERS_JSON=$(jq -n --argjson commands "$COMMANDS_JSON" \
