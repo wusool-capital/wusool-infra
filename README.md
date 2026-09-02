@@ -259,9 +259,6 @@ comments a plan on every pull request; `terraform-ci.yml` runs
 `fmt`/`validate`; `ci.yml` runs `ruff`/`ty`/`pytest` for the toolkit app (run
 separately per package — matching-engine and ddl-commands each have their
 own test config) and PSScriptAnalyzer for the PowerShell scripts;
-`backmerge.yml` opens an automatic `prod → dev` PR after a successful prod
-deploy so a hotfix merged straight to `prod` isn't lost on the next
-promotion.
 
 **Phase G (Alembic) has landed** — schema changes now go through
 `database/wusool_db/models/` + `database/alembic/`, not new numbered flat SQL
@@ -324,8 +321,7 @@ deliberately switched on — until then, `stacks/toolkit` for prod only
 provisions the ECR repository and secret.
 
 There is deliberately no human approval gate between a `prod` merge and the
-apply — see `docs/RESTRUCTURE_PROGRESS.md` for the accepted-risk reasoning and
-the mitigation in place (`backmerge.yml`).
+apply — see `docs/RESTRUCTURE_PROGRESS.md` for the accepted-risk reasoning.
 
 ## Project status
 

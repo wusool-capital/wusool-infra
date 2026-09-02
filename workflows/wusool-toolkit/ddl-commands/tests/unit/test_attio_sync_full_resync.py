@@ -29,16 +29,62 @@ class _FakeAttioClient:
         pass
 
 
+async def test_page_through_yields_pages_without_collecting_the_listing() -> None:
+    client = _FakeClient({"organizations": [[{"id": 1}, {"id": 2}], [{"id": 3}]]})
+
+    pages = []
+    original_size = full_resync._PAGE_SIZE
+    full_resync._PAGE_SIZE = 2
+    try:
+        async for page in full_resync._page_through(
+            client, "/objects/organizations/records/query"
+        ):
+            pages.append(page)
+    finally:
+        full_resync._PAGE_SIZE = original_size
+
+    assert pages == [[{"id": 1}, {"id": 2}], [{"id": 3}]]
+
+
+async def test_streaming_entity_writes_each_page_before_fetching_the_next(monkeypatch) -> None:
+    events = []
+
+    async def pages(client, path):
+        events.append("fetch-1")
+        yield [{"attio_id": "a", "raw_attio": {"page": 1}}]
+        events.append("fetch-2")
+        yield [{"attio_id": "b", "raw_attio": {"page": 2}}]
+
+    async def write(model, rows):
+        events.append(f"write-{rows[0]['attio_id']}")
+        return len(rows), 0, {rows[0]["attio_id"]: rows[0]["raw_attio"]}
+
+    async def count(table):
+        return 2
+
+    monkeypatch.setattr(full_resync, "_page_through", pages)
+    monkeypatch.setattr(full_resync, "_write_batches_concurrently", write)
+    monkeypatch.setattr(full_resync, "_count", count)
+
+    result = await full_resync._sync_streaming_entity(
+        _FakeClient({}), Organization, "organizations", "ignored", lambda row: row
+    )
+
+    assert result == (2, 0)
+    assert events == ["fetch-1", "write-a", "fetch-2", "write-b"]
+
+
 async def test_safe_fetch_returns_none_and_logs_on_failure() -> None:
     async def failing():
         raise RuntimeError("Attio 500")
+        yield []
 
     assert await full_resync._safe_fetch(failing(), "organizations") is None
 
 
 async def test_safe_fetch_returns_result_on_success() -> None:
     async def ok():
-        return ["a", "b"]
+        yield ["a", "b"]
 
     assert await full_resync._safe_fetch(ok(), "organizations") == ["a", "b"]
 
@@ -176,7 +222,7 @@ async def test_run_raises_systemexit_on_any_failure(monkeypatch) -> None:
         return 0
 
     async def empty_page(client, path):
-        return []
+        yield []
 
     async def no_ids(table):
         return set()
@@ -187,8 +233,12 @@ async def test_run_raises_systemexit_on_any_failure(monkeypatch) -> None:
     async def noop_reconcile(client, list_slug, entries, build_params):
         return [], 0
 
+    async def noop_streaming(client, model, table, path, mapper):
+        return 0, 0
+
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
     monkeypatch.setattr(full_resync, "_page_through", empty_page)
+    monkeypatch.setattr(full_resync, "_sync_streaming_entity", noop_streaming)
     monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
     monkeypatch.setattr(full_resync, "_write_and_verify", noop_write)
     monkeypatch.setattr(full_resync, "_reconcile_roles", noop_reconcile)
@@ -208,7 +258,7 @@ async def test_run_raises_systemexit_when_a_table_has_failures(monkeypatch) -> N
         return 0
 
     async def one_record_page(client, path):
-        return [{"id": {"record_id": "only-one"}, "values": {}}] if "organizations" in path else []
+        yield [{"id": {"record_id": "only-one"}, "values": {}}] if "organizations" in path else []
 
     async def no_ids(table):
         return set()
@@ -243,22 +293,27 @@ async def test_run_continues_past_a_failed_entity_listing(monkeypatch) -> None:
         if "organizations" in path:
             raise RuntimeError("Attio 500")
         if "person" in path:
-            return [{"id": {"record_id": "person-1"}, "values": {}}]
-        return []
+            yield [{"id": {"record_id": "person-1"}, "values": {}}]
+        else:
+            yield []
 
     async def no_ids(table):
         return set()
 
     write_calls = []
 
-    async def recording_write(model, table, rows, expected_count):
-        write_calls.append(table)
-        return len(rows), 0
+    async def recording_batch(model, rows):
+        write_calls.append(model.__tablename__)
+        return len(rows), 0, {row["attio_id"]: row["raw_attio"] for row in rows}
+
+    async def count(table):
+        return 1
 
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
     monkeypatch.setattr(full_resync, "_page_through", flaky_page)
     monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
-    monkeypatch.setattr(full_resync, "_write_and_verify", recording_write)
+    monkeypatch.setattr(full_resync, "_write_batches_concurrently", recording_batch)
+    monkeypatch.setattr(full_resync, "_count", count)
 
     with pytest.raises(SystemExit):
         await full_resync.run()
@@ -279,7 +334,7 @@ async def test_run_reports_users_sync_failure(monkeypatch) -> None:
         raise RuntimeError("boom")
 
     async def empty_page(client, path):
-        return []
+        yield []
 
     async def no_ids(table):
         return set()

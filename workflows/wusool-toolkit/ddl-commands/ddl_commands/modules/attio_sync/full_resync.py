@@ -13,9 +13,9 @@ Unlike the webhook path (`upsert.py`'s `sync_*` functions, which each fetch
 one record by id), this reuses the full record/entry data it already has
 from its own bulk page-through directly -- no per-record re-fetch. Writes
 are batched (`upsert.upsert_batch_with_retry`, one multi-row `INSERT ... ON
-CONFLICT` per page) instead of one commit per row, and pages of the same
-entity type write concurrently (bounded) since they're disjoint by conflict
-key. Entity *types* stay strictly sequential -- users, then organizations,
+CONFLICT` per page) instead of one commit per row. Record pages are fetched,
+mapped, and written serially so only one page is retained at a time. Entity
+*types* stay strictly sequential -- users, then organizations,
 then people/deals, then buyer_role/seller_role -- because
 `buyer_roles.org_attio_id`/`seller_roles.org_attio_id` are hard, unguarded
 foreign keys into `organizations` (unlike `owner_attio_id`/
@@ -34,11 +34,11 @@ now mirrors every DEV Attio entry, `legacy_entry_id` the row key,
 `is_active` telling winner from duplicate) -- reconciliation only decides
 which entry Attio itself should flag active, not which one Postgres keeps.
 
-After each entity type's writes, two consistency checks run against data
-already in memory from this same pass -- no extra Attio calls: a row-count
-check (`sync-postgres.ps1`'s existing convention, reused as-is) and a
-content check comparing each batch's `RETURNING` result against what was
-intended to be written. Neither can catch a bug in the field-mapping layer
+After each entity type's writes, two consistency checks run against each
+page from this same pass -- no extra Attio calls: a row-count check
+(`sync-postgres.ps1`'s existing convention, reused as-is) and a content check
+comparing each batch's `RETURNING` result against what was intended to be
+written. Neither can catch a bug in the field-mapping layer
 itself (both sides of that comparison would agree while both are wrong) --
 that would require an independent re-fetch from Attio, which is exactly the
 per-record cost this file avoids. See the module's PR description / plan
@@ -47,7 +47,9 @@ doc for the tradeoff and a proposed periodic-spot-check follow-up.
 
 import asyncio
 import logging
+import resource
 import time
+from collections.abc import AsyncIterator, Callable
 
 from sqlalchemy import text
 from wusool_db.models import BuyerRole, Deal, Organization, Person, SellerRole
@@ -81,44 +83,113 @@ _ID_QUERY = {
 }
 
 
-async def _page_through(client: AttioClient, path: str) -> list[dict]:
-    # Timed per stream, not just for the fetch phase as a whole: all five
-    # page-throughs run under one `asyncio.gather` below, so the phase-level
-    # duration only ever reports the slowest one without saying which it
-    # was. Pagination here is strictly serial (offset-based, each page
-    # awaited before the next is requested), so this is the term most likely
-    # to dominate a slow run.
-    items: list[dict] = []
+def _rss_mb() -> float:
+    """Return the process's maximum resident set size in MiB on Linux."""
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+
+
+async def _page_through(client: AttioClient, path: str) -> AsyncIterator[list[dict]]:
+    # Pagination is strictly serial (offset-based, each page awaited before
+    # the next is requested), so this is the term most likely to dominate a
+    # slow run.
     offset = 0
     pages = 0
+    records = 0
     started = time.monotonic()
     while True:
         response = await post_with_retry(client, path, {"limit": _PAGE_SIZE, "offset": offset})
         page = response.get("data", [])
-        items.extend(page)
         pages += 1
+        records += len(page)
+        _logger.info(
+            "full resync: fetched %s page %d — %d records so far, rss=%.1fMiB",
+            path,
+            pages,
+            records,
+            _rss_mb(),
+        )
+        yield page
         if len(page) < _PAGE_SIZE:
             _logger.info(
                 "full resync: fetched %s — %d records over %d pages in %.1fs",
                 path,
-                len(items),
+                records,
                 pages,
                 time.monotonic() - started,
             )
-            return items
+            return
         offset += _PAGE_SIZE
 
 
-async def _safe_fetch(coro, label: str) -> list[dict] | None:
+async def _iter_source_pages(source: AsyncIterator[list[dict]]) -> AsyncIterator[list[dict]]:
+    async for page in source:
+        yield page
+
+
+async def _collect_pages(
+    source: AsyncIterator[list[dict]],
+) -> list[dict]:
+    records: list[dict] = []
+    async for page in _iter_source_pages(source):
+        records.extend(page)
+    return records
+
+
+async def _safe_fetch(
+    source: AsyncIterator[list[dict]], label: str
+) -> list[dict] | None:
     """Wraps one entity type's page-through so a listing failure (Attio 500,
     exhausted retries, malformed page) can't take down the others fetched
     alongside it -- every entity type gets its own chance to sync tonight
     regardless of what happens to its siblings."""
     try:
-        return await coro
+        return await _collect_pages(source)
     except Exception:
         _logger.error("full resync: failed to list %s records", label, exc_info=True)
         return None
+
+
+async def _sync_streaming_entity(
+    client: AttioClient,
+    model: type,
+    table: str,
+    path: str,
+    mapper: Callable[[dict], dict],
+) -> tuple[int, int]:
+    """Map and write one Attio page at a time, retaining no full listing."""
+    total_ok = total_failed = total_records = 0
+    try:
+        async for page in _iter_source_pages(_page_through(client, path)):
+            rows = [mapper(record) for record in page]
+            if not rows:
+                continue
+            ok, failed, returned = await _write_batches_concurrently(model, rows)
+            conflict_col = upsert._CONFLICT_COL[model]
+            mismatches = [
+                key
+                for key, intended in ((r[conflict_col], r["raw_attio"]) for r in rows)
+                if key in returned and returned[key] != intended
+            ]
+            total_ok += ok
+            total_failed += failed + bool(mismatches)
+            total_records += len(rows)
+            if mismatches:
+                _logger.error("full resync: %s content mismatch for keys: %s", table, mismatches)
+        actual_count = await _count(table)
+        if actual_count != total_records:
+            _logger.error(
+                "full resync: %s count mismatch: expected %d, found %d",
+                table,
+                total_records,
+                actual_count,
+            )
+            total_failed += 1
+        else:
+            _logger.info("full resync: %s count check passed (%d)", table, actual_count)
+    except Exception:
+        _logger.error("full resync: failed to sync %s", table, exc_info=True)
+        total_failed += 1
+    return total_ok, total_failed
 
 
 async def _existing_ids(table: str) -> set[str]:
@@ -252,7 +323,7 @@ async def _sync_notes_full(client: AttioClient, note_slug: str) -> tuple[int, in
     much smaller than organizations/deals, so this doesn't need the same
     performance work."""
     try:
-        records = await _page_through(client, f"/objects/{note_slug}/records/query")
+        records = await _collect_pages(_page_through(client, f"/objects/{note_slug}/records/query"))
     except Exception:
         _logger.error("full resync: failed to list note records", exc_info=True)
         return 0, 1
@@ -299,62 +370,46 @@ async def _run(client: AttioClient) -> None:
     _logger.info("full resync: users — synced=%d", users_synced)
     user_ids = await _existing_ids("users")
 
-    # Fetch phase -- pure reads, safe to run concurrently.
-    fetch_started = time.monotonic()
-    org_records, person_records, deal_records, buyer_entries, seller_entries = await asyncio.gather(
-        _safe_fetch(
-            _page_through(client, "/objects/organizations/records/query"), "organizations"
+    # organizations
+    summary["organizations"] = await _sync_streaming_entity(
+        client,
+        Organization,
+        "organizations",
+        "/objects/organizations/records/query",
+        lambda r: upsert._organization_batch_params(r, user_ids),
+    )
+    org_ids = await _existing_ids("organizations")
+
+    # People and deals have no hard foreign-key dependency on each other, so
+    # stream both concurrently after organizations are available. Each stream
+    # still retains at most one page, keeping memory bounded on the micro host.
+    person_ids = await _existing_ids("person")
+    person_result, deal_result = await asyncio.gather(
+        _sync_streaming_entity(
+            client,
+            Person,
+            "person",
+            "/objects/person/records/query",
+            lambda r: upsert._person_batch_params(r, org_ids, user_ids),
         ),
-        _safe_fetch(_page_through(client, "/objects/person/records/query"), "person"),
-        _safe_fetch(
-            _page_through(client, f"/objects/{settings.attio_deal_object_slug}/records/query"),
+        _sync_streaming_entity(
+            client,
+            Deal,
             "deals",
+            f"/objects/{settings.attio_deal_object_slug}/records/query",
+            lambda r: upsert._deal_batch_params(r, org_ids, person_ids, user_ids),
         ),
+    )
+    summary["person"] = person_result
+    summary["deals"] = deal_result
+
+    # Roles stay collected because reconciliation needs sibling entries across
+    # page boundaries; this list is deliberately small in DEV.
+    buyer_entries, seller_entries = await asyncio.gather(
         _safe_fetch(_page_through(client, "/lists/buyer_role/entries/query"), "buyer_role"),
         _safe_fetch(_page_through(client, "/lists/seller_role/entries/query"), "seller_role"),
     )
-    _logger.info(
-        "full resync: fetch phase complete in %.1fs — organizations=%s person=%s deals=%s "
-        "buyer_role=%s seller_role=%s",
-        time.monotonic() - fetch_started,
-        "FAILED" if org_records is None else len(org_records),
-        "FAILED" if person_records is None else len(person_records),
-        "FAILED" if deal_records is None else len(deal_records),
-        "FAILED" if buyer_entries is None else len(buyer_entries),
-        "FAILED" if seller_entries is None else len(seller_entries),
-    )
 
-    # organizations
-    if org_records is None:
-        summary["organizations"] = (0, 1)
-    else:
-        rows = [upsert._organization_batch_params(r, user_ids) for r in org_records]
-        summary["organizations"] = await _write_and_verify(
-            Organization, "organizations", rows, len(org_records)
-        )
-    org_ids = await _existing_ids("organizations")
-
-    # people
-    if person_records is None:
-        summary["person"] = (0, 1)
-    else:
-        rows = [upsert._person_batch_params(r, org_ids, user_ids) for r in person_records]
-        summary["person"] = await _write_and_verify(Person, "person", rows, len(person_records))
-    person_ids = await _existing_ids("person")
-
-    # deals
-    if deal_records is None:
-        summary["deals"] = (0, 1)
-    else:
-        rows = [
-            upsert._deal_batch_params(r, org_ids, person_ids, user_ids) for r in deal_records
-        ]
-        summary["deals"] = await _write_and_verify(Deal, "deals", rows, len(deal_records))
-
-    # buyer_role / seller_role -- reconcile duplicates per org concurrently
-    # (still one is_active PATCH-back per org), then one batched write for
-    # every entry (not just the winner -- see BuyerRole/SellerRole's
-    # 2026-08-28 pluralization: Postgres mirrors every DEV Attio entry now).
     if buyer_entries is None:
         summary["buyer_role"] = (0, 1)
     else:
