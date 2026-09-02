@@ -75,7 +75,6 @@ migration (`instance_type` → `toolkit_instance_type`, `ami_id` →
 | `terraform-plan.yml` | any PR touching `terraform/**` | Comments a plan per stack per environment (5 jobs: `base`/`n8n`/`toolkit`/`postgres` × the PR's **base branch** environment, plus `account`). Read-only OIDC role (`wusool-gha-plan`) |
 | `terraform-ci.yml` | any PR touching `terraform/**` | `tofu fmt -check` + `tofu validate` per stack |
 | `ci.yml` | PR touching the app/scripts | `ruff check`, `ty check` (matching-engine), `pytest` run separately for the toolkit root, `matching-engine`, and `ddl-commands` (each has its own `testpaths`, so one invocation from the root silently missed the other two — fixed in code review 2026-08-16), PSScriptAnalyzer (`Severity=Error` only) |
-| `backmerge.yml` | after a successful `Deploy prod` run | Opens an automatic `prod → dev` PR if `dev` doesn't already have everything from `prod` |
 
 **No static AWS credentials anywhere.** All auth is GitHub OIDC
 (`token.actions.githubusercontent.com`) assuming one of three branch-scoped
@@ -175,9 +174,7 @@ Per explicit scope decision, not started in this branch:
   handover contract it would need to follow to plug in.
 - **No human approval gate on prod.** A merge to `prod` applies to
   production with no confirmation click between merge and AWS changing. This
-  is an accepted risk, not an oversight — `backmerge.yml` is the chosen,
-  no-extra-click mitigation for the specific failure mode of a hotfix being
-  silently lost on the next promotion. See `RESTRUCTURE_PROGRESS.md` for the
+  is an accepted risk, not an oversight. See `RESTRUCTURE_PROGRESS.md` for the
   full accepted-risks reasoning.
 ## Per-stack change detection (2026-08-16, later same day)
 
