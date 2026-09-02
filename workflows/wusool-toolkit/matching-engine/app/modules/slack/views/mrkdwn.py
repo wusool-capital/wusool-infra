@@ -1,11 +1,15 @@
-"""Sanitization for free-form/LLM-generated text embedded in Slack `mrkdwn`
-blocks. LLM narrative commonly writes "~$2M" to mean "approximately $2M" —
-Slack's `mrkdwn` parses a `~..~` span as strikethrough, so two such tildes
-in the same message silently struck out everything between them. Swap the
-literal tilde for the actual approximation sign, which means the same
-thing and isn't `mrkdwn` syntax.
-"""
+"""Sanitization for free-form text embedded in Slack `mrkdwn` blocks."""
+
+import re
+
+_MARKDOWN_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}#{1,6}[ \t]+")
 
 
 def sanitize_mrkdwn(text: str) -> str:
-    return text.replace("~", "≈")
+    """Normalize unsupported Markdown without disturbing readable content.
+
+    Slack uses tildes for strikethrough and does not render Markdown headings,
+    so replace approximation tildes and remove heading markers at line starts.
+    """
+    normalized = _MARKDOWN_HEADING_RE.sub("", text.replace("~", "≈"))
+    return normalized.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

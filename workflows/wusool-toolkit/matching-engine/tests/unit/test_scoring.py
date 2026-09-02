@@ -61,7 +61,7 @@ def _profile(hard: list[HardRequirement] | None = None) -> RequirementProfile:
 def test_populated_field_eliminates_failing_candidate() -> None:
     requirement = HardRequirement(
         criterion="minimum_revenue",
-        value="50M",
+        value="USD 50M",
         source="crm_field",
         confidence="high",
         human_confirmed=True,
@@ -79,7 +79,7 @@ def test_null_field_never_eliminates() -> None:
     """Missing-data pass-through (§9) is mandatory: NULL is normal."""
     requirement = HardRequirement(
         criterion="minimum_revenue",
-        value="50M",
+        value="USD 50M",
         source="crm_field",
         confidence="high",
         human_confirmed=True,
@@ -99,7 +99,7 @@ def test_unconfirmed_hard_requirement_never_eliminates() -> None:
     hard-eliminate, even when a populated, failing seller field exists."""
     requirement = HardRequirement(
         criterion="minimum_revenue",
-        value="50M",
+        value="USD 50M",
         source="llm_extracted",
         confidence="low",
         human_confirmed=False,
@@ -163,7 +163,7 @@ def test_unconfirmed_hard_requirement_still_scored() -> None:
     Stage 2 scoring — this is what "strongly weighted criterion" means."""
     requirement = HardRequirement(
         criterion="minimum_revenue",
-        value="50M",
+        value="USD 50M",
         source="llm_extracted",
         confidence="low",
         human_confirmed=False,
@@ -183,7 +183,7 @@ def test_data_confidence_formula() -> None:
     counted in the denominator's multiplier weighting per §12."""
     hard = HardRequirement(
         criterion="minimum_revenue",
-        value="50M",
+        value="USD 50M",
         source="crm_field",
         confidence="high",
         human_confirmed=True,
@@ -227,7 +227,7 @@ def test_unrecognized_criterion_excluded_from_scoring() -> None:
     audit but contributes no weight at all."""
     hard = HardRequirement(
         criterion="minimum_revenue",
-        value="50M",
+        value="USD 50M",
         source="crm_field",
         confidence="high",
         human_confirmed=True,

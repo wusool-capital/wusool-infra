@@ -20,7 +20,7 @@ VALID_RESPONSE = {
     "hard_requirements": [
         {
             "criterion": "minimum_revenue",
-            "value": "50M",
+            "value": "USD 50M",
             "source": "llm_extracted",
             "confidence": "low",
             "human_confirmed": False,
@@ -72,6 +72,77 @@ async def test_valid_response_produces_requirement_profile() -> None:
     assert profile.generated_by_model == "test-model"
     assert profile.hard_requirements[0].criterion == "minimum_revenue"
     assert profile.hard_requirements[0].human_confirmed is False
+    assert len(fake.structured_calls) == 1
+
+
+async def test_non_crm_requirement_cannot_claim_human_confirmation() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "minimum_revenue",
+                "value": "USD 50M",
+                "source": "llm_extracted",
+                "confidence": "high",
+                "human_confirmed": True,
+            }
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    assert profile.hard_requirements[0].human_confirmed is False
+
+
+async def test_non_usd_monetary_requirement_retries_then_fails_closed() -> None:
+    invalid = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "minimum_revenue",
+                "value": "AED 50M",
+                "source": "llm_extracted",
+                "confidence": "high",
+                "human_confirmed": False,
+            }
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[invalid, invalid])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    with pytest.raises(RequirementExtractionError):
+        await service.extract(_buyer(), next_version=1)
+
+    assert len(fake.structured_calls) == 2
+
+
+async def test_missing_monetary_value_remains_unknown() -> None:
+    missing_value = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "minimum_revenue",
+                "value": None,
+                "source": "llm_extracted",
+                "confidence": "low",
+                "human_confirmed": False,
+            }
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[missing_value])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    assert profile.hard_requirements[0].value is None
     assert len(fake.structured_calls) == 1
 
 

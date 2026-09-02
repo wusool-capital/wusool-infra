@@ -9,16 +9,12 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class WebSourcedLead:
-    """An unverified seller lead found outside the CRM. `address`/`category`
-    populate from a Maps-scrape result; `snippet` populates from the
-    plain-search fallback — never fabricate a field the source can't back.
-    """
+    """An unverified seller lead found on Google Maps, outside the CRM."""
 
     name: str
     source_url: str
     address: str | None = None
     category: str | None = None
-    snippet: str | None = None
 
 
 class FirecrawlClient(Protocol):

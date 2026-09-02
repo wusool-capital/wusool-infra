@@ -9,6 +9,8 @@ from app.modules.matching.schemas import MatchAnalysis, MatchResultRead
 from app.modules.slack.views.full_analysis import build_full_analysis_blocks
 from app.modules.slack.views.match_result import build_match_result_blocks
 from app.modules.slack.views.mrkdwn import sanitize_mrkdwn
+from app.modules.slack.views.web_fallback import build_web_fallback_blocks
+from app.modules.web_search.domain.firecrawl_client import WebSourcedLead
 
 
 def test_sanitize_replaces_tildes_with_approximation_sign() -> None:
@@ -16,6 +18,58 @@ def test_sanitize_replaces_tildes_with_approximation_sign() -> None:
 
     assert "~" not in sanitize_mrkdwn(text)
     assert "≈" in sanitize_mrkdwn(text)
+
+
+def test_sanitize_escapes_slack_control_and_link_syntax() -> None:
+    text = "<!channel> <https://evil.example|click> & details"
+
+    rendered = sanitize_mrkdwn(text)
+
+    assert rendered == "&lt;!channel&gt; &lt;https://evil.example|click&gt; &amp; details"
+
+
+def test_sanitize_strips_markdown_headings_but_preserves_inline_hashes() -> None:
+    text = (
+        "## Related content\n"
+        "###### About PRI\n"
+        "Set up with the UN's support.\n\n"
+        "###### Become a signatory\n"
+        "Follow #responsible-investing for updates."
+    )
+
+    assert sanitize_mrkdwn(text) == (
+        "Related content\n"
+        "About PRI\n"
+        "Set up with the UN's support.\n\n"
+        "Become a signatory\n"
+        "Follow #responsible-investing for updates."
+    )
+
+
+def test_web_fallback_maps_details_render_without_markdown_heading_markers() -> None:
+    lead = WebSourcedLead(
+        name="What are the Principles | PRI",
+        source_url="https://www.google.com/maps/place/What+are+the+Principles/data=!4m7",
+        address=(
+            "## Related content\n"
+            "###### About PRI\n"
+            "Set up with the UN's support.\n\n"
+            "###### Become a signatory\n"
+            "Demonstrate your commitment to responsible investment."
+        ),
+    )
+
+    blocks = build_web_fallback_blocks("Muthmer Capital", [lead])
+    rendered = blocks[3]["text"]["text"]
+
+    assert rendered == (
+        "*1. What are the Principles | PRI*\n"
+        "Related content\n"
+        "About PRI\n"
+        "Set up with the UN's support.\n\n"
+        "Become a signatory\n"
+        "Demonstrate your commitment to responsible investment."
+    )
 
 
 def test_match_result_rationale_has_no_tildes() -> None:
