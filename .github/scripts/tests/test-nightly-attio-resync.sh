@@ -33,6 +33,7 @@ grep -q 'ssm send-command' "$AWS_CALLS_FILE"
 grep -q 'CloudWatchOutput' "$AWS_CALLS_FILE"
 grep -q 'memory' "$AWS_CALLS_FILE"
 grep -q 'toolkit-nightly-attio-resync' "$AWS_CALLS_FILE"
+grep -q 'docker ps -a' "$AWS_CALLS_FILE"
 grep -q 'executionTimeout' "$AWS_CALLS_FILE"
 grep -q 'timeout-seconds 120' "$AWS_CALLS_FILE"
 
