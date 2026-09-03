@@ -118,10 +118,7 @@ async def test_full_resync_run_end_to_end(
             row[0]: row[1]
             for row in (
                 await session.execute(
-                    text(
-                        "SELECT attio_id, name FROM organizations "
-                        "WHERE attio_id = ANY(:ids)"
-                    ),
+                    text("SELECT attio_id, name FROM organizations WHERE attio_id = ANY(:ids)"),
                     {"ids": [org_1, org_2]},
                 )
             ).all()

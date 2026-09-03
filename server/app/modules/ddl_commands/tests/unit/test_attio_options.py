@@ -48,9 +48,7 @@ async def test_get_option_id_matches_by_title() -> None:
 
 
 async def test_get_option_id_skips_archived_options() -> None:
-    client = _FakeClient(
-        [{"id": {"option_id": "opt-old"}, "title": "Legacy", "is_archived": True}]
-    )
+    client = _FakeClient([{"id": {"option_id": "opt-old"}, "title": "Legacy", "is_archived": True}])
 
     with pytest.raises(OptionNotFoundError):
         await get_option_id(

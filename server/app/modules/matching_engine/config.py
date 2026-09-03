@@ -39,6 +39,9 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
+    host: str = "0.0.0.0"
+    port: int = 8000
+    reload: bool = False
 
     database_url: str
 

@@ -11,7 +11,7 @@ to also call a domain function (`apply_structured_filters`), which is fine:
 adapters may depend on domain, domain never depends on adapters.
 """
 
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.matching_engine.application.ports.matching import CandidateRetriever
 from app.modules.matching_engine.domain.buyers import BuyerContext
@@ -22,7 +22,7 @@ from app.modules.matching_engine.persistence.repositories.sellers_repository imp
 
 
 class StructuredCandidateRetriever(CandidateRetriever):
-    def __init__(self, sessionmaker: async_sessionmaker) -> None:
+    def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
         self._sessionmaker = sessionmaker
 
     async def get_candidates(

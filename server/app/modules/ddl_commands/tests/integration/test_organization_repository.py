@@ -21,9 +21,7 @@ async def test_get_by_id_returns_none_for_missing_org(db_session: AsyncSession) 
     assert found is None
 
 
-async def test_update_applies_fields(
-    db_session: AsyncSession, throwaway_org: Organization
-) -> None:
+async def test_update_applies_fields(db_session: AsyncSession, throwaway_org: Organization) -> None:
     repo = OrganizationRepository(db_session)
     updated = await repo.update(
         throwaway_org.attio_id, description="Updated description", client_type="Buy-Side"

@@ -207,9 +207,7 @@ def test_seller_selection_opens_field_picker(monkeypatch) -> None:
             ),
             "state": {
                 "values": {
-                    "seller_role_id": {
-                        "selected_seller": {"selected_option": {"value": seller_id}}
-                    }
+                    "seller_role_id": {"selected_seller": {"selected_option": {"value": seller_id}}}
                 }
             },
         },
@@ -642,11 +640,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
                 }
             ),
             "state": {
-                "values": {
-                    "model": {
-                        "model": {"selected_option": {"value": "Model 1 (Network)"}}
-                    }
-                }
+                "values": {"model": {"model": {"selected_option": {"value": "Model 1 (Network)"}}}}
             },
         },
     }

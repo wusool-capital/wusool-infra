@@ -32,9 +32,9 @@ def _ddl_commands_unit_of_work_factory() -> DdlCommandsUnitOfWorkFactory:
 
 async def resolve_buyer(buyer_name: str) -> BuyerResolutionRead:
     async with get_sessionmaker()() as session:
-        resolution = await BuyerResolutionService(
-            build_buyer_repository(session)
-        ).resolve(buyer_name)
+        resolution = await BuyerResolutionService(build_buyer_repository(session)).resolve(
+            buyer_name
+        )
         candidates = (
             [BuyerSummary.model_validate(role) for role in resolution.candidates]
             if resolution.candidates is not None
@@ -60,9 +60,9 @@ def build_create_buyer_use_case() -> CreateBuyerUseCase:
 
 async def resolve_seller(seller_name: str) -> SellerResolutionRead:
     async with get_sessionmaker()() as session:
-        resolution = await SellerResolutionService(
-            build_seller_repository(session)
-        ).resolve(seller_name)
+        resolution = await SellerResolutionService(build_seller_repository(session)).resolve(
+            seller_name
+        )
         candidates = (
             [SellerSummary.model_validate(role) for role in resolution.candidates]
             if resolution.candidates is not None

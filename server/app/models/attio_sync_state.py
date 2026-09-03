@@ -31,9 +31,7 @@ class AttioSyncState(Base):
     sync_name: Mapped[str] = mapped_column(Text, primary_key=True)
     last_cursor: Mapped[str | None] = mapped_column(Text)
     last_synced_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    metadata_: Mapped[dict] = mapped_column(
-        "metadata", JSONB, nullable=False, server_default="{}"
-    )
+    metadata_: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, server_default="{}")
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

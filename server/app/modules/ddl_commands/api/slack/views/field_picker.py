@@ -86,11 +86,11 @@ def build_field_picker_modal(
 
 
 def extract_selected_fields(values: dict) -> tuple[list[str], list[str]]:
-    org_selected = values.get("org_fields", {}).get("selected_org_fields", {}).get(
-        "selected_options", []
+    org_selected = (
+        values.get("org_fields", {}).get("selected_org_fields", {}).get("selected_options", [])
     )
-    role_selected = values.get("role_fields", {}).get("selected_role_fields", {}).get(
-        "selected_options", []
+    role_selected = (
+        values.get("role_fields", {}).get("selected_role_fields", {}).get("selected_options", [])
     )
     return (
         [o["value"] for o in org_selected],

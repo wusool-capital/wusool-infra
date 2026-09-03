@@ -84,9 +84,7 @@ class BuyerUpdate(BaseModel):
 
 
 BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
-    FieldSpec(
-        "model", "Model", "select", options=("Model 1 (Network)", "Model 2 (Full Mandate)")
-    ),
+    FieldSpec("model", "Model", "select", options=("Model 1 (Network)", "Model 2 (Full Mandate)")),
     FieldSpec(
         "mandate_status",
         "Mandate status",
@@ -111,9 +109,7 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("estimated_aum", "Estimated AUM (USD)", "currency"),
     FieldSpec("notable_investments", "Notable investments", "multiline"),
     FieldSpec("relationship_warmth", "Relationship warmth", "select", options=("Warm", "Cold")),
-    FieldSpec(
-        "target_geography", "Target geography (comma-separated)", "multi_select_text"
-    ),
+    FieldSpec("target_geography", "Target geography (comma-separated)", "multi_select_text"),
     FieldSpec("last_mandate_briefing_date", "Last mandate briefing date", "date"),
     FieldSpec("prior_gcc_acquisition", "Prior GCC acquisition", "text"),
 )

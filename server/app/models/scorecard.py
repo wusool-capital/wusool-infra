@@ -25,15 +25,11 @@ if TYPE_CHECKING:
 
 class Scorecard(Base):
     __tablename__ = "scorecards"
-    __table_args__ = (
-        Index("idx_scorecards_week_start", literal_column("week_start DESC")),
-    )
+    __table_args__ = (Index("idx_scorecards_week_start", literal_column("week_start DESC")),)
 
     attio_id: Mapped[str] = mapped_column(Text, primary_key=True)
     week_start: Mapped[date | None] = mapped_column()
-    created_by_attio_id: Mapped[str | None] = mapped_column(
-        Text, ForeignKey("users.attio_id")
-    )
+    created_by_attio_id: Mapped[str | None] = mapped_column(Text, ForeignKey("users.attio_id"))
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

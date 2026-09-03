@@ -42,9 +42,7 @@ async def test_page_through_yields_pages_without_collecting_the_listing() -> Non
     original_size = full_resync._PAGE_SIZE
     full_resync._PAGE_SIZE = 2
     try:
-        async for page in full_resync._page_through(
-            client, "/objects/organizations/records/query"
-        ):
+        async for page in full_resync._page_through(client, "/objects/organizations/records/query"):
             pages.append(page)
     finally:
         full_resync._PAGE_SIZE = original_size

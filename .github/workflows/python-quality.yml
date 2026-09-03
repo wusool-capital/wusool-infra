@@ -1,0 +1,45 @@
+name: Python quality
+
+on:
+  pull_request:
+    branches: [dev, prod]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            python:
+              - 'server/**'
+              - 'uv.lock'
+              - '.github/workflows/python-quality.yml'
+
+  quality:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v9.0.0
+        with: { version: latest }
+      - run: ./checks.sh quality
+        working-directory: server
+
+  quality-gate:
+    name: Python quality (required)
+    if: always()
+    needs: [changes, quality]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'HARD GATE: blocks merge'
+        run: |
+          if [[ '${{ needs.changes.result }}' != 'success' || '${{ needs.quality.result }}' == 'failure' || '${{ needs.quality.result }}' == 'cancelled' ]]; then exit 1; fi

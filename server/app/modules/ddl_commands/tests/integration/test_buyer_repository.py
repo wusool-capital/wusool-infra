@@ -33,9 +33,7 @@ async def test_search_by_organization_name_excludes_inactive_role(
     assert not any(r.org_attio_id == throwaway_org.attio_id for r in results)
 
 
-async def test_update_applies_fields(
-    db_session: AsyncSession, throwaway_org: Organization
-) -> None:
+async def test_update_applies_fields(db_session: AsyncSession, throwaway_org: Organization) -> None:
     role = await _buyer(db_session, throwaway_org, model="Buy-and-build")
 
     repo = BuyerRepository(db_session)

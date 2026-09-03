@@ -24,6 +24,7 @@ from app.modules.ddl_commands.application.errors import (
 )
 from app.modules.ddl_commands.application.ports.buyers import BuyerRepositoryPort
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
+from app.modules.utilities.domain.json_types import JsonObject
 
 ResolutionStatus = Literal["none", "single", "multiple"]
 
@@ -69,10 +70,10 @@ class UpdateBuyerUseCase:
     async def execute(
         self,
         buyer_role_id: str,
-        fields: dict,
+        fields: JsonObject,
         *,
         org_attio_id: str | None = None,
-        org_fields: dict | None = None,
+        org_fields: JsonObject | None = None,
     ) -> BuyerRole:
         """Writes the role's own fields and, if `org_fields` is given, the
         parent `organizations` row's fields, in one transaction — an
@@ -102,8 +103,8 @@ class CreateBuyerUseCase:
         entry_id: str,
         is_new_org: bool,
         org_name: str | None = None,
-        org_fields: dict | None = None,
-        role_fields: dict,
+        org_fields: JsonObject | None = None,
+        role_fields: JsonObject,
     ) -> BuyerRole:
         """Mirrors `CreateSellerUseCase.execute` exactly, buyer-typed — see
         that docstring for the re-check rationale. `entry_id` is the

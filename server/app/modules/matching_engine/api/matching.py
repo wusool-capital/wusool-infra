@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from app.modules.matching_engine.domain.matching.entities import FilterSkippedReason
 from app.modules.matching_engine.domain.requirements import ConfidenceLevel, RequirementSource
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class HardRequirementRead(BaseModel):
@@ -64,9 +65,9 @@ class MatchScoreRead(BaseModel):
     score: Decimal
     # Deliberately loose/forward-compatible: no producer of these fields
     # exists yet to pin down a stricter shape.
-    dims: dict | None = None
+    dims: dict[str, float] | None = None
     reasoning: str | None = None
-    citations: list | None = None
+    citations: list[str] | None = None
     generated_at: datetime
 
 
@@ -93,7 +94,7 @@ class MatchResultRead(BaseModel):
     candidates_considered: int | None = None
     candidates_filtered: int | None = None
     filters_skipped: list[FilterSkippedRead] | None = None
-    errors: dict | None = None
+    errors: JsonObject | None = None
 
 
 class MatchAnalysis(BaseModel):

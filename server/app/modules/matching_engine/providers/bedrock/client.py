@@ -27,6 +27,7 @@ from app.modules.matching_engine.providers.bedrock.schemas import (
     ExtractedRequirementProfile,
     ReasoningResult,
 )
+from app.modules.utilities.domain.json_types import JsonObject, JsonSchema
 from app.modules.utilities.domain.money import parse_usd_amount
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ class BedrockConverseClient:
         prompt: str,
         repair_prompt_builder: RepairPromptBuilder,
         inference_config: InferenceConfig,
-    ) -> dict:
+    ) -> JsonObject:
         output_schema = ExtractedRequirementProfile.model_json_schema()
         raw = await self._invoke(
             model_id=model_id,
@@ -80,7 +81,7 @@ class BedrockConverseClient:
         return validated
 
     @staticmethod
-    def _validate_extraction(raw: dict) -> tuple[dict | None, str | None]:
+    def _validate_extraction(raw: JsonObject) -> tuple[JsonObject | None, str | None]:
         try:
             extracted = ExtractedRequirementProfile.model_validate(raw)
             for requirement in [*extracted.hard_requirements, *extracted.soft_preferences]:
@@ -97,7 +98,7 @@ class BedrockConverseClient:
         prompt: str,
         repair_prompt_builder: RepairPromptBuilder,
         inference_config: InferenceConfig,
-    ) -> dict:
+    ) -> JsonObject:
         output_schema = ReasoningResult.model_json_schema()
         raw = await self._invoke(
             model_id=model_id,
@@ -125,7 +126,7 @@ class BedrockConverseClient:
         return validated
 
     @staticmethod
-    def _validate_reasoning(raw: dict) -> tuple[dict | None, str | None]:
+    def _validate_reasoning(raw: JsonObject) -> tuple[JsonObject | None, str | None]:
         try:
             return ReasoningResult.model_validate(raw).model_dump(), None
         except ValidationError as exc:
@@ -137,9 +138,9 @@ class BedrockConverseClient:
         model_id: str,
         prompt: str,
         inference_config: InferenceConfig,
-        output_schema: dict,
+        output_schema: JsonSchema,
         operation: str,
-    ) -> dict:
+    ) -> JsonObject:
         last_error: Exception | None = None
         for attempt in range(1, _MAX_ATTEMPTS + 1):
             started = time.monotonic()
@@ -205,7 +206,7 @@ class BedrockConverseClient:
         model_id: str,
         prompt: str,
         inference_config: InferenceConfig,
-        output_schema: dict,
+        output_schema: JsonSchema,
     ) -> dict[str, Any]:
         # Anthropic models reject `temperature` and `top_p` set together
         # (confirmed live: Bedrock raises ValidationException) — Anthropic's
@@ -241,7 +242,7 @@ class BedrockConverseClient:
         )
 
     @staticmethod
-    def _extract_json(response: dict[str, Any]) -> dict:
+    def _extract_json(response: dict[str, Any]) -> JsonObject:
         """Prefers the forced tool call's already-parsed JSON input. Falls
         back to text extraction only if a model/profile ignores the forced
         tool choice (confirmed live: some models routinely wrap JSON in a

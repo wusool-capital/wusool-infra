@@ -15,9 +15,7 @@ from datetime import date
 from pydantic_core import ErrorDetails
 
 
-def text_input_block(
-    field: str, label: str, value: str | None, *, multiline: bool = False
-) -> dict:
+def text_input_block(field: str, label: str, value: str | None, *, multiline: bool = False) -> dict:
     element: dict = {"type": "plain_text_input", "action_id": field}
     if multiline:
         element["multiline"] = True

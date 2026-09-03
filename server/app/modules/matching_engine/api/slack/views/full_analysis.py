@@ -39,8 +39,7 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
     hard_reqs = profile.hard_requirements if profile else []
     hard_req_lines = (
         "\n".join(
-            f"• {r.criterion}: {r.value or 'Unknown'} "
-            f"({r.source}, confirmed={r.human_confirmed})"
+            f"• {r.criterion}: {r.value or 'Unknown'} ({r.source}, confirmed={r.human_confirmed})"
             for r in hard_reqs
         )
         or "None extracted."

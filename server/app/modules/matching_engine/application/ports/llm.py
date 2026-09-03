@@ -19,8 +19,9 @@ from collections.abc import Callable
 from typing import Protocol
 
 from app.modules.matching_engine.application.ports.llm_types import InferenceConfig
+from app.modules.utilities.domain.json_types import JsonObject
 
-RepairPromptBuilder = Callable[[dict, str], str]
+RepairPromptBuilder = Callable[[JsonObject, str], str]
 
 
 class BedrockClient(Protocol):
@@ -31,7 +32,7 @@ class BedrockClient(Protocol):
         prompt: str,
         repair_prompt_builder: RepairPromptBuilder,
         inference_config: InferenceConfig,
-    ) -> dict: ...
+    ) -> JsonObject: ...
 
     async def generate_reasoning(
         self,
@@ -40,4 +41,4 @@ class BedrockClient(Protocol):
         prompt: str,
         repair_prompt_builder: RepairPromptBuilder,
         inference_config: InferenceConfig,
-    ) -> dict: ...
+    ) -> JsonObject: ...

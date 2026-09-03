@@ -47,7 +47,7 @@ cp .env.example .env  # then fill in real values — one shared Slack token/secr
 ## Running
 
 ```bash
-uv run uvicorn main:app --reload
+RELOAD=true uv run python main.py
 ```
 
 or via Docker Compose (builds one image from the root `Dockerfile`, plus a

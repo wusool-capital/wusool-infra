@@ -66,6 +66,40 @@ ignore = ["ANN401"]
 # code is where annotation completeness actually matters.
 "**/tests/**" = ["ANN"]
 
+[tool.ruff.format]
+# Keep generated migration history stable; Ruff lint still checks these files.
+exclude = ["alembic/versions/*.py"]
+
+[tool.ty.rules]
+missing-type-argument = "error"
+
+# These specific files are documented JSON/vendor boundaries. Their payloads
+# are heterogeneous by design; structured application/domain models remain
+# fully checked below.
+[[tool.ty.overrides]]
+include = [
+    "app/models/**",
+    "app/modules/attio/application/ports/client.py",
+    "app/modules/attio/providers/attio/client.py",
+    "app/modules/attio/providers/attio/entries.py",
+    "app/modules/attio/providers/attio/money.py",
+    "app/modules/attio/providers/attio/options.py",
+    "app/modules/attio/providers/attio/retry.py",
+    "app/modules/attio/providers/attio/values.py",
+    "app/modules/ddl_commands/api/slack/**",
+    "app/modules/ddl_commands/scripts/attio_sync_full_resync.py",
+    "app/modules/matching_engine/api/slack/**",
+    "app/modules/notifications/application/ports/slack.py",
+    "app/modules/notifications/providers/slack/notifier.py",
+    "main.py",
+]
+
+[tool.ty.overrides.rules]
+missing-type-argument = "ignore"
+
+[tool.ty.src]
+exclude = ["**/tests/**", "tests/**"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 # Matches the process-wide, lru_cache'd async engine's lifetime - the default

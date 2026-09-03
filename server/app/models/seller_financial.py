@@ -32,9 +32,7 @@ class SellerFinancial(Base):
     seller_attio_id: Mapped[str] = mapped_column(
         Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False
     )
-    normalised_ebitda_sde: Mapped[dict] = mapped_column(
-        JSONB, nullable=False, server_default="{}"
-    )
+    normalised_ebitda_sde: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     add_backs: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     proxy_revenue: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     confidence: Mapped[Decimal | None] = mapped_column(Numeric)

@@ -1,0 +1,54 @@
+name: Database schema
+
+on:
+  pull_request:
+    branches: [dev, prod]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      database: "${{ steps.filter.outputs.database }}"
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            database:
+              - 'server/alembic/**'
+              - 'server/app/models/**'
+              - 'server/pyproject.toml'
+              - 'server/checks.sh'
+              - '.github/workflows/database-schema.yml'
+  schema:
+    needs: changes
+    if: needs.changes.outputs.database == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: matching, POSTGRES_PASSWORD: matching, POSTGRES_DB: wusool_crm }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U matching -d wusool_crm" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v9.0.0
+        with: { version: latest }
+      - name: Check Alembic graph, upgrade, and model drift
+        run: ./checks.sh schema
+        working-directory: server
+        env: { CHECKS_DATABASE_URL: 'postgresql://matching:matching@localhost:5432/wusool_crm' }
+  schema-gate:
+    name: Database schema (required)
+    if: always()
+    needs: [changes, schema]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'HARD GATE: blocks merge'
+        run: if [[ '${{ needs.changes.result }}' != 'success' || '${{ needs.schema.result }}' == 'failure' || '${{ needs.schema.result }}' == 'cancelled' ]]; then exit 1; fi

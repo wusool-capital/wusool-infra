@@ -37,9 +37,7 @@ class SellerRepository:
         role = (await self._session.execute(stmt)).scalar_one_or_none()
         return to_seller_candidate(role) if role else None
 
-    async def get_eligible_sellers(
-        self, limit: int = 50, offset: int = 0
-    ) -> list[SellerCandidate]:
+    async def get_eligible_sellers(self, limit: int = 50, offset: int = 0) -> list[SellerCandidate]:
         """ "Eligible" has no schema-level flag today — returns `seller_roles`
         joined to `organizations`, unfiltered. Real eligibility filtering is
         Phase 3 business logic, not a repository concern.

@@ -52,6 +52,7 @@ import time
 from collections.abc import AsyncIterator, Callable
 
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
 from app.modules.attio import AttioClient, AttioClientProtocol
@@ -134,9 +135,7 @@ async def _collect_pages(
     return records
 
 
-async def _safe_fetch(
-    source: AsyncIterator[list[dict]], label: str
-) -> list[dict] | None:
+async def _safe_fetch(source: AsyncIterator[list[dict]], label: str) -> list[dict] | None:
     """Wraps one entity type's page-through so a listing failure (Attio 500,
     exhausted retries, malformed page) can't take down the others fetched
     alongside it -- every entity type gets its own chance to sync tonight
@@ -202,8 +201,14 @@ async def _count(table: str) -> int:
         return (await session.execute(_COUNT_QUERY[table])).scalar_one()
 
 
-def _chunk(items: list, size: int) -> list[list]:
+def _chunk[T](items: list[T], size: int) -> list[list[T]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _can_run_db_tasks_concurrently() -> bool:
+    """Serialize tasks for connection-bound rollback fixtures; pool-backed
+    production engines remain concurrent."""
+    return not isinstance(get_sessionmaker().kw.get("bind"), AsyncConnection)
 
 
 async def _write_batches_concurrently(
@@ -222,8 +227,11 @@ async def _write_batches_concurrently(
         async with semaphore:
             return await upsert.upsert_batch_with_retry(model, page, page_label=label)
 
-    results = await asyncio.gather(
-        *(_write_one(page, f"page {i + 1}/{len(pages)}") for i, page in enumerate(pages))
+    writes = [_write_one(page, f"page {i + 1}/{len(pages)}") for i, page in enumerate(pages)]
+    results = (
+        await asyncio.gather(*writes)
+        if _can_run_db_tasks_concurrently()
+        else [await write for write in writes]
     )
     ok = sum(r[0] for r in results)
     failed = sum(r[1] for r in results)
@@ -295,9 +303,7 @@ async def _reconcile_roles(
         try:
             async with semaphore:
                 reconciled = await upsert._reconcile_active_entry(client, list_slug, siblings)
-            return [
-                build_params(org_id, entry, i == 0) for i, entry in enumerate(reconciled)
-            ]
+            return [build_params(org_id, entry, i == 0) for i, entry in enumerate(reconciled)]
         except Exception:
             _logger.error(
                 "full resync: failed to reconcile %s org %s", list_slug, org_id, exc_info=True
@@ -380,7 +386,7 @@ async def _run(client: AttioClientProtocol) -> None:
         Organization,
         "organizations",
         "/objects/organizations/records/query",
-        lambda r: upsert._organization_batch_params(r, user_ids),
+        lambda r: dict(upsert._organization_batch_params(r, user_ids)),
     )
     org_ids = await _existing_ids("organizations")
 
@@ -388,22 +394,25 @@ async def _run(client: AttioClientProtocol) -> None:
     # stream both concurrently after organizations are available. Each stream
     # still retains at most one page, keeping memory bounded on the micro host.
     person_ids = await _existing_ids("person")
-    person_result, deal_result = await asyncio.gather(
-        _sync_streaming_entity(
-            client,
-            Person,
-            "person",
-            "/objects/person/records/query",
-            lambda r: upsert._person_batch_params(r, org_ids, user_ids),
-        ),
-        _sync_streaming_entity(
-            client,
-            Deal,
-            "deals",
-            f"/objects/{settings.attio_deal_object_slug}/records/query",
-            lambda r: upsert._deal_batch_params(r, org_ids, person_ids, user_ids),
-        ),
+    person_task = _sync_streaming_entity(
+        client,
+        Person,
+        "person",
+        "/objects/person/records/query",
+        lambda r: dict(upsert._person_batch_params(r, org_ids, user_ids)),
     )
+    deal_task = _sync_streaming_entity(
+        client,
+        Deal,
+        "deals",
+        f"/objects/{settings.attio_deal_object_slug}/records/query",
+        lambda r: dict(upsert._deal_batch_params(r, org_ids, person_ids, user_ids)),
+    )
+    if _can_run_db_tasks_concurrently():
+        person_result, deal_result = await asyncio.gather(person_task, deal_task)
+    else:
+        person_result = await person_task
+        deal_result = await deal_task
     summary["person"] = person_result
     summary["deals"] = deal_result
 
@@ -421,8 +430,8 @@ async def _run(client: AttioClientProtocol) -> None:
             client,
             "buyer_role",
             buyer_entries,
-            lambda org_id, entry, is_active: upsert._buyer_role_batch_params(
-                org_id, entry, is_active, person_ids
+            lambda org_id, entry, is_active: dict(
+                upsert._buyer_role_batch_params(org_id, entry, is_active, person_ids)
             ),
         )
         ok, write_failed = await _write_and_verify(BuyerRole, "buyer_roles", rows, len(rows))

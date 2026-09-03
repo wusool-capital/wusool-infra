@@ -86,8 +86,7 @@ async def test_sync_organization_inserts_a_new_row(
         row = (
             await session.execute(
                 text(
-                    "SELECT name, hq_country, sector_focus FROM organizations "
-                    "WHERE attio_id = :id"
+                    "SELECT name, hq_country, sector_focus FROM organizations WHERE attio_id = :id"
                 ),
                 {"id": attio_id},
             )
