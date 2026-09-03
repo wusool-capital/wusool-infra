@@ -53,6 +53,7 @@ check_migration_graph() {
 
 integration() {
   require_database
+  uv run alembic upgrade head
   uv run pytest \
     app/modules/ddl_commands/tests/integration \
     app/modules/matching_engine/tests/integration \
