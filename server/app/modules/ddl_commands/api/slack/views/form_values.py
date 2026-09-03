@@ -82,15 +82,6 @@ def bool_select_block(field: str, label: str, value: bool | None) -> InputBlock:
     )
 
 
-def money_input_blocks(field: str, label: str, money: dict[str, Any] | None) -> list[InputBlock]:
-    amount = money.get("amount") if money else None
-    currency = money.get("currency") if money else None
-    return [
-        number_input_block(f"{field}_amount", f"{label} — amount", amount),
-        text_input_block(f"{field}_currency", f"{label} — currency (e.g. USD)", currency),
-    ]
-
-
 def select_block(field: str, label: str, value: str | None, options: tuple[str, ...]) -> InputBlock:
     """A plain single-select — unlike `bool_select_block`, options come from
     the caller's own fixed vocabulary (`FieldSpec.options`), not a hardcoded
@@ -176,14 +167,6 @@ def get_bool_select(values: dict[str, Any], block_id: str, action_id: str) -> bo
 def get_checkbox_selected(values: dict[str, Any], block_id: str, action_id: str) -> bool:
     options = values.get(block_id, {}).get(action_id, {}).get("selected_options") or []
     return len(options) > 0
-
-
-def extract_money(values: dict[str, Any], field: str) -> dict[str, Any] | None:
-    amount = get_number(values, f"{field}_amount", f"{field}_amount")
-    currency = get_text(values, f"{field}_currency", f"{field}_currency")
-    if amount is None and currency is None:
-        return None
-    return {"amount": amount, "currency": currency}
 
 
 def pydantic_errors_to_slack(errors: list[ErrorDetails]) -> dict[str, str]:
