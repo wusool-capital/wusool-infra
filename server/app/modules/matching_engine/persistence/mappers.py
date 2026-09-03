@@ -82,21 +82,6 @@ def to_seller_candidate(role: SellerRole) -> SellerCandidate:
     )
 
 
-def dims_to_dict(criteria: list[CriterionScore]) -> JsonObject:
-    return {
-        "criteria": [
-            {
-                "criterion": c.criterion,
-                "criterion_type": c.criterion_type,
-                "weight": c.weight,
-                "result": c.result,
-                "data_backing": c.data_backing,
-            }
-            for c in criteria
-        ]
-    }
-
-
 def _dims_from_dict(data: JsonObject | None) -> ScoreDims:
     if not data:
         return ScoreDims()
