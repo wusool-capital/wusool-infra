@@ -31,13 +31,14 @@ from app.modules.matching_engine.persistence.mappers import (
     to_match_result_entity,
     to_match_score_result,
 )
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class MatchScoreRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def create_many(self, rows: list[dict]) -> list[MatchScoreResult]:
+    async def create_many(self, rows: list[JsonObject]) -> list[MatchScoreResult]:
         """`rows` are plain kwargs dicts for `MatchScore` (buyer_attio_id,
         seller_attio_id, score, dims, reasoning, citations). Flushes only —
         does not commit.
@@ -154,7 +155,7 @@ class MatchResultRepository:
         status: str = "GENERATED",
         final_candidate_ids: list[str] | None = None,
         execution_duration_ms: int | None = None,
-        errors: dict | None = None,
+        errors: JsonObject | None = None,
         completed_at: datetime | None = None,
     ) -> None:
         """Single-row UPDATE marking the run finished (successfully or not)."""
@@ -168,7 +169,7 @@ class MatchResultRepository:
         run.completed_at = completed_at or datetime.now(run.started_at.tzinfo)
         await self._session.flush()
 
-    async def create_candidates(self, rows: list[dict]) -> list[MatchResultEntity]:
+    async def create_candidates(self, rows: list[JsonObject]) -> list[MatchResultEntity]:
         """`rows` are plain kwargs dicts for candidate `MatchResult` rows
         (`rank` required, `run_id`/`buyer_attio_id`/`buyer_role_id` shared
         with the run). Flushes only — does not commit; the caller commits

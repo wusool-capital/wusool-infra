@@ -71,10 +71,23 @@ ignore = ["ANN401"]
 exclude = ["alembic/versions/*.py"]
 
 [tool.ty.rules]
-# Existing Slack/Attio/JSON boundary annotations are intentionally permissive;
-# domain and application contracts are tightened explicitly where structure is
-# known. Keep ty's other diagnostics enabled without failing CI on these legacy
-# vendor-boundary generics.
+missing-type-argument = "error"
+
+# These modules are explicitly documented JSON/vendor boundaries. Their
+# payloads are heterogeneous by design; structured application/domain models
+# remain fully checked below.
+[[tool.ty.overrides]]
+include = [
+    "app/models/**",
+    "app/modules/attio/**",
+    "app/modules/ddl_commands/api/slack/**",
+    "app/modules/ddl_commands/scripts/attio_sync_full_resync.py",
+    "app/modules/matching_engine/api/slack/**",
+    "app/modules/notifications/**",
+    "main.py",
+]
+
+[tool.ty.overrides.rules]
 missing-type-argument = "ignore"
 
 [tool.ty.src]

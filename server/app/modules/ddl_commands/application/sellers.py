@@ -11,6 +11,7 @@ from app.modules.ddl_commands.application.errors import (
 )
 from app.modules.ddl_commands.application.ports.sellers import SellerRepositoryPort
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
+from app.modules.utilities.domain.json_types import JsonObject
 
 ResolutionStatus = Literal["none", "single", "multiple"]
 
@@ -47,10 +48,10 @@ class UpdateSellerUseCase:
     async def execute(
         self,
         seller_role_id: str,
-        fields: dict,
+        fields: JsonObject,
         *,
         org_attio_id: str | None = None,
-        org_fields: dict | None = None,
+        org_fields: JsonObject | None = None,
     ) -> SellerRole:
         """Writes the role's own fields and, if `org_fields` is given, the
         parent `organizations` row's fields, in one transaction — an
@@ -80,8 +81,8 @@ class CreateSellerUseCase:
         entry_id: str,
         is_new_org: bool,
         org_name: str | None = None,
-        org_fields: dict | None = None,
-        role_fields: dict,
+        org_fields: JsonObject | None = None,
+        role_fields: JsonObject,
     ) -> SellerRole:
         """Called only after the corresponding Attio write(s) already
         succeeded (see `api/slack/handlers/actions.py`) — this never talks
