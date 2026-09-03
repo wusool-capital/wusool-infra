@@ -105,6 +105,9 @@ stack. PowerShell changes: `Invoke-ScriptAnalyzer` (Warning + Error) clean.
   design rather than the test.
 - New peer module or a documented full-access exception → update the module
   `__all__` and its README, and state the exception explicitly.
+- Before finalizing a PR that touches `server/**`, run the
+  `/modular-monolith` skill and reconcile any layering or module-boundary
+  drift it flags — the passing fitness tests are the floor, not the ceiling.
 
 ### Schema, config, secrets
 
