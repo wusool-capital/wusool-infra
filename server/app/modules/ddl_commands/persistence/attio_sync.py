@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
 from app.modules.attio import AttioClientProtocol
+from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.providers.attio import values as v
 from app.modules.attio.providers.attio.retry import (
     get_with_retry,
@@ -50,7 +51,7 @@ from app.modules.ddl_commands.persistence.attio_sync_types import (
     SellerRoleParams,
 )
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
-from app.modules.utilities.domain.json_types import AttioRecord, JsonObject
+from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.retry import retry_with_backoff
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync")

@@ -3,9 +3,9 @@
 builders — one `TypedDict` per table, matching each field's actual
 constructed type (the `attio.providers.attio.values` extraction helper it comes
 from — `first`/`ref`/`actor` -> `str | None`, `titles` -> `list[str]`,
-`boolean` -> `bool | None`, `number` -> `float | None`, `money` -> `dict |
-None`, etc.), not necessarily the eventual Postgres column type after
-SQLAlchemy/asyncpg coercion.
+`boolean` -> `bool | None`, `number` -> `float | None`, `money` ->
+`MoneyJson | None`, etc.), not necessarily the eventual Postgres column type
+after SQLAlchemy/asyncpg coercion.
 
 The `_*_batch_params` wrappers (`full_resync.py`'s batch path) mutate/
 reshape a couple of these dicts field-by-field (`_deal_batch_params` even
@@ -13,15 +13,17 @@ pops `buyer_id`/`seller_id` for two different replacement keys) — genuinely
 structural changes a `TypedDict` can't express as a mutation-in-place, so
 those four stay `-> dict`, untyped.
 
-The raw Attio API input these builders parse (`data: dict`) also stays
-untyped — genuinely heterogeneous vendor JSON, already safely extracted
+The raw Attio API input these builders parse (`data: AttioRecord`) is a
+`TypedDict` for its container shape only — which leaf fields are actually
+populated is genuinely attribute-type-dependent, already safely resolved
 field-by-field via `attio.providers.attio.values`.
 """
 
 from datetime import date, datetime
 from typing import TypedDict
 
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.attio.domain.records import AttioRecord
+from app.modules.attio.providers.attio.money import MoneyJson
 
 
 class OrganizationParams(TypedDict):
@@ -40,9 +42,9 @@ class OrganizationParams(TypedDict):
     connection_strength: str | None
     owner_attio_id: str | None
     last_interaction_at: datetime | None
-    funding_raised: JsonObject | None
+    funding_raised: MoneyJson | None
     estimated_arr: str | None
-    raw_attio: JsonObject
+    raw_attio: AttioRecord
     angellist: str | None
     facebook: str | None
     instagram: str | None
@@ -76,7 +78,7 @@ class PersonParams(TypedDict):
     instagram: str | None
     twitter: str | None
     twitter_follower_count: int | None
-    raw_attio: JsonObject
+    raw_attio: AttioRecord
 
 
 class DealParams(TypedDict):
@@ -87,7 +89,7 @@ class DealParams(TypedDict):
     buyer_id: str | None
     seller_id: str | None
     owner_attio_id: str | None
-    value: JsonObject | None
+    value: MoneyJson | None
     teaser_status: str | None
     nda_count: int
     cim_ready: bool | None
@@ -110,19 +112,19 @@ class DealParams(TypedDict):
     counterparty_interested: int | None
     mandate_start_date: date | None
     mandate_expiry_date: date | None
-    retainer_amount: JsonObject | None
+    retainer_amount: MoneyJson | None
     source_mandate_entry_id: str | None
-    raw_attio: JsonObject
+    raw_attio: AttioRecord
 
 
 class BuyerRoleParams(TypedDict):
     org_attio_id: str
     model: str | None
     mandate_status: str | None
-    ebitda_floor: JsonObject | None
-    check_size_min: JsonObject | None
-    check_size_max: JsonObject | None
-    ev_ceiling: JsonObject | None
+    ebitda_floor: MoneyJson | None
+    check_size_min: MoneyJson | None
+    check_size_max: MoneyJson | None
+    ev_ceiling: MoneyJson | None
     deal_structure_tolerance: str | None
     earnout_tolerance: bool | None
     profitable_only: bool | None
@@ -132,8 +134,8 @@ class BuyerRoleParams(TypedDict):
     acquisition_enrichment: str | None
     deals_introduced: int | None
     deals_converted: int | None
-    ebitda_ceiling: JsonObject | None
-    estimated_aum: JsonObject | None
+    ebitda_ceiling: MoneyJson | None
+    estimated_aum: MoneyJson | None
     notable_investments: str | None
     key_personnel: str | None
     relationship_warmth: str | None
@@ -142,7 +144,7 @@ class BuyerRoleParams(TypedDict):
     prior_gcc_acquisition: str | None
     is_active: bool
     legacy_entry_id: str
-    raw_attio: JsonObject
+    raw_attio: AttioRecord
 
 
 class SellerRoleParams(TypedDict):
@@ -150,12 +152,12 @@ class SellerRoleParams(TypedDict):
     outreach_tier: str | None
     appetite_signal: str | None
     relationship_status: str | None
-    est_revenue: JsonObject | None
-    est_ebitda: JsonObject | None
-    owner_salary: JsonObject | None
-    valuation_low: JsonObject | None
-    valuation_mid: JsonObject | None
-    valuation_high: JsonObject | None
+    est_revenue: MoneyJson | None
+    est_ebitda: MoneyJson | None
+    owner_salary: MoneyJson | None
+    valuation_low: MoneyJson | None
+    valuation_mid: MoneyJson | None
+    valuation_high: MoneyJson | None
     sell_timeline: str | None
     readiness_score: float | None
     readiness_band: str | None
@@ -167,16 +169,16 @@ class SellerRoleParams(TypedDict):
     is_active: bool
     years_active: int | None
     funding_stage: str | None
-    revenue_last_full_year: JsonObject | None
-    revenue_year_before: JsonObject | None
+    revenue_last_full_year: MoneyJson | None
+    revenue_year_before: MoneyJson | None
     gross_margin_pct: float | None
     ebitda_deducts_salary: bool | None
-    annual_rent_cost: JsonObject | None
+    annual_rent_cost: MoneyJson | None
     largest_customer_revenue_pct: float | None
     repeat_revenue_pct: float | None
     location_count: int | None
     legacy_entry_id: str
-    raw_attio: JsonObject
+    raw_attio: AttioRecord
 
 
 class NoteParams(TypedDict):

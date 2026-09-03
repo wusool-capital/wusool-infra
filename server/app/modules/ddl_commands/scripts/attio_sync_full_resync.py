@@ -39,10 +39,12 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
 from app.modules.attio import AttioClient, AttioClientProtocol
+from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.providers.attio.retry import post_with_retry
 from app.modules.ddl_commands.config import get_settings
 from app.modules.ddl_commands.persistence import attio_sync as upsert
 from app.modules.ddl_commands.persistence.database import get_sessionmaker, import_all_models
+from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.logging import configure_logging
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync.full_resync")
@@ -72,7 +74,7 @@ def _rss_mb() -> float:
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
 
-async def _page_through(client: AttioClientProtocol, path: str) -> AsyncIterator[list[dict]]:
+async def _page_through(client: AttioClientProtocol, path: str) -> AsyncIterator[list[AttioRecord]]:
     # Pagination is strictly serial (offset-based, each page awaited before
     # the next is requested), so this is the term most likely to dominate a
     # slow run.
@@ -105,21 +107,25 @@ async def _page_through(client: AttioClientProtocol, path: str) -> AsyncIterator
         offset += _PAGE_SIZE
 
 
-async def _iter_source_pages(source: AsyncIterator[list[dict]]) -> AsyncIterator[list[dict]]:
+async def _iter_source_pages(
+    source: AsyncIterator[list[AttioRecord]],
+) -> AsyncIterator[list[AttioRecord]]:
     async for page in source:
         yield page
 
 
 async def _collect_pages(
-    source: AsyncIterator[list[dict]],
-) -> list[dict]:
-    records: list[dict] = []
+    source: AsyncIterator[list[AttioRecord]],
+) -> list[AttioRecord]:
+    records: list[AttioRecord] = []
     async for page in _iter_source_pages(source):
         records.extend(page)
     return records
 
 
-async def _safe_fetch(source: AsyncIterator[list[dict]], label: str) -> list[dict] | None:
+async def _safe_fetch(
+    source: AsyncIterator[list[AttioRecord]], label: str
+) -> list[AttioRecord] | None:
     """Wraps one entity type's page-through so a listing failure (Attio 500,
     exhausted retries, malformed page) can't take down the others fetched
     alongside it -- every entity type gets its own chance to sync tonight
@@ -136,7 +142,7 @@ async def _sync_streaming_entity(
     model: upsert.SyncModel,
     table: str,
     path: str,
-    mapper: Callable[[dict], dict],
+    mapper: Callable[[AttioRecord], JsonObject],
 ) -> tuple[int, int]:
     """Map and write one Attio page at a time, retaining no full listing."""
     total_ok = total_failed = total_records = 0
@@ -196,7 +202,7 @@ def _can_run_db_tasks_concurrently() -> bool:
 
 
 async def _write_batches_concurrently(
-    model: upsert.SyncModel, rows: list[dict]
+    model: upsert.SyncModel, rows: list[JsonObject]
 ) -> tuple[int, int, dict]:
     """Batches `rows` into pages and writes them concurrently (bounded) --
     pages are disjoint by conflict key, built from one bulk fetch, so
@@ -207,7 +213,7 @@ async def _write_batches_concurrently(
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
     pages = _chunk(rows, _PAGE_SIZE)
 
-    async def _write_one(page: list[dict], label: str) -> tuple[int, int, dict[str, dict]]:
+    async def _write_one(page: list[JsonObject], label: str) -> tuple[int, int, dict[str, dict]]:
         async with semaphore:
             return await upsert.upsert_batch_with_retry(model, page, page_label=label)
 
@@ -226,7 +232,7 @@ async def _write_batches_concurrently(
 
 
 async def _write_and_verify(
-    model: upsert.SyncModel, table: str, rows: list[dict], expected_count: int
+    model: upsert.SyncModel, table: str, rows: list[JsonObject], expected_count: int
 ) -> tuple[int, int]:
     started = time.monotonic()
     ok, failed, returned = await _write_batches_concurrently(model, rows)
@@ -266,9 +272,9 @@ async def _write_and_verify(
 async def _reconcile_roles(
     client: AttioClientProtocol,
     list_slug: str,
-    entries: list[dict],
-    build_params: Callable[[str, dict, bool], dict],
-) -> tuple[list[dict], int]:
+    entries: list[AttioRecord],
+    build_params: Callable[[str, AttioRecord, bool], JsonObject],
+) -> tuple[list[JsonObject], int]:
     """Groups `entries` by org (one pass, already in hand) and reconciles
     each org's duplicates concurrently (bounded) -- each org's sibling set
     and is_active PATCH-back is independent of every other org's. Postgres
@@ -283,7 +289,7 @@ async def _reconcile_roles(
     by_org = upsert.group_entries_by_org(entries)
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
 
-    async def _reconcile_one(org_id: str, siblings: list[dict]) -> list[dict] | None:
+    async def _reconcile_one(org_id: str, siblings: list[AttioRecord]) -> list[JsonObject] | None:
         try:
             async with semaphore:
                 reconciled = await upsert._reconcile_active_entry(client, list_slug, siblings)
