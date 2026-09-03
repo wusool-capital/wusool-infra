@@ -9,7 +9,7 @@ maps the pre-existing deterministic scoring breakdown.
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -57,6 +57,22 @@ class FilterSkippedRead(BaseModel):
     candidates_exempted: int
 
 
+class CriterionScoreRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    criterion: str
+    criterion_type: Literal["hard", "soft"]
+    weight: float | None
+    result: str
+    data_backing: RequirementSource
+
+
+class ScoreDimsRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    criteria: list[CriterionScoreRead]
+
+
 class MatchScoreRead(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -64,10 +80,7 @@ class MatchScoreRead(BaseModel):
     buyer_attio_id: str
     seller_attio_id: str
     score: Decimal
-    # Deliberately loose/forward-compatible: no producer of these fields
-    # exists yet to pin down a stricter shape. Not `dict[str, float]` — a
-    # real "criteria" key already holds a list, not a float.
-    dims: dict[str, Any] | None = None
+    dims: ScoreDimsRead | None = None
     reasoning: str | None = None
     citations: list[str] | None = None
     generated_at: datetime

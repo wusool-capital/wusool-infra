@@ -11,9 +11,11 @@ from sqlalchemy import inspect
 from app.models import BuyerRole, MatchResult, MatchScore, SellerRole
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
+    CriterionScore,
     FilterSkipped,
     MatchResultEntity,
     MatchScoreResult,
+    ScoreDims,
 )
 from app.modules.matching_engine.domain.requirements import (
     HardRequirement,
@@ -80,13 +82,34 @@ def to_seller_candidate(role: SellerRole) -> SellerCandidate:
     )
 
 
+def dims_to_dict(criteria: list[CriterionScore]) -> JsonObject:
+    return {
+        "criteria": [
+            {
+                "criterion": c.criterion,
+                "criterion_type": c.criterion_type,
+                "weight": c.weight,
+                "result": c.result,
+                "data_backing": c.data_backing,
+            }
+            for c in criteria
+        ]
+    }
+
+
+def _dims_from_dict(data: JsonObject | None) -> ScoreDims:
+    if not data:
+        return ScoreDims()
+    return ScoreDims(criteria=[CriterionScore(**c) for c in data.get("criteria", [])])
+
+
 def to_match_score_result(row: MatchScore) -> MatchScoreResult:
     return MatchScoreResult(
         id=str(row.id),
         buyer_attio_id=row.buyer_attio_id,
         seller_attio_id=row.seller_attio_id,
         score=row.score,
-        dims=row.dims,
+        dims=_dims_from_dict(row.dims),
         reasoning=row.reasoning,
         citations=row.citations,
         generated_at=row.generated_at,

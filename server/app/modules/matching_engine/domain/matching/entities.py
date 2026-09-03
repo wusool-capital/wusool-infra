@@ -17,18 +17,6 @@ from app.modules.utilities.domain.json_types import JsonObject
 
 
 @dataclass(frozen=True)
-class MatchScoreResult:
-    id: str
-    buyer_attio_id: str
-    seller_attio_id: str
-    score: Decimal
-    dims: dict[str, float]
-    reasoning: str | None
-    citations: list[str]
-    generated_at: datetime
-
-
-@dataclass(frozen=True)
 class CriterionScore:
     """One row of the deterministic Stage 2 breakdown (§9, §11) — the
     persisted equivalent lives in `match_scores.dims`.
@@ -39,6 +27,28 @@ class CriterionScore:
     weight: float | None
     result: str
     data_backing: RequirementSource
+
+
+@dataclass(frozen=True)
+class ScoreDims:
+    """Persisted equivalent of `CandidateScore.criteria` — `match_scores.dims`'s
+    real (and only) shape. Not `dict[str, float]`: every producer writes a
+    `criteria` list, never a float value.
+    """
+
+    criteria: list[CriterionScore] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class MatchScoreResult:
+    id: str
+    buyer_attio_id: str
+    seller_attio_id: str
+    score: Decimal
+    dims: ScoreDims
+    reasoning: str | None
+    citations: list[str]
+    generated_at: datetime
 
 
 @dataclass(frozen=True)
