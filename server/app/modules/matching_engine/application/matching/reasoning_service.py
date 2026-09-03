@@ -30,6 +30,7 @@ from app.modules.matching_engine.domain.matching.entities import (
 from app.modules.matching_engine.domain.meetings import render_meeting_notes_section
 from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.domain.sellers import SellerCandidate
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class MatchReasoningService:
@@ -67,9 +68,7 @@ class MatchReasoningService:
                 "validation after one repair attempt"
             ) from exc
 
-        return ReasoningOutcome(
-            candidates=[CandidateNarrative(**c) for c in result["candidates"]]
-        )
+        return ReasoningOutcome(candidates=[CandidateNarrative(**c) for c in result["candidates"]])
 
     def _build_prompt(
         self,
@@ -139,7 +138,7 @@ class MatchReasoningService:
         buyer: BuyerContext,
         profile: RequirementProfile,
         shortlist: list[tuple[SellerCandidate, CandidateScore]],
-        invalid_raw: dict,
+        invalid_raw: JsonObject,
         error: str | None,
     ) -> str:
         return (

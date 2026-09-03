@@ -18,14 +18,14 @@ class InProcessTaskRunner:
     """
 
     def __init__(self) -> None:
-        self._tasks: set[asyncio.Task] = set()
+        self._tasks: set[asyncio.Task[None]] = set()
 
     def run(self, coro_factory: CoroFactory, *, name: str) -> None:
         task = asyncio.create_task(coro_factory(), name=name)
         self._tasks.add(task)
         task.add_done_callback(self._on_done)
 
-    def _on_done(self, task: asyncio.Task) -> None:
+    def _on_done(self, task: asyncio.Task[None]) -> None:
         self._tasks.discard(task)
         if task.cancelled():
             return

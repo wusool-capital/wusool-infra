@@ -66,6 +66,16 @@ ignore = ["ANN401"]
 # code is where annotation completeness actually matters.
 "**/tests/**" = ["ANN"]
 
+[tool.ruff.format]
+# Keep generated migration history stable; Ruff lint still checks these files.
+exclude = ["alembic/versions/*.py"]
+
+[tool.ty.rules]
+missing-type-argument = "warn"
+
+[tool.ty.src]
+exclude = ["**/tests/**", "tests/**"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 # Matches the process-wide, lru_cache'd async engine's lifetime - the default

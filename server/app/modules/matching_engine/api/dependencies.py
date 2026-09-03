@@ -53,9 +53,9 @@ logger = logging.getLogger(__name__)
 
 async def resolve_buyer(buyer_name: str) -> BuyerResolutionRead:
     async with get_sessionmaker()() as session:
-        resolution = await BuyerResolutionService(
-            build_buyer_repository(session)
-        ).resolve(buyer_name)
+        resolution = await BuyerResolutionService(build_buyer_repository(session)).resolve(
+            buyer_name
+        )
         candidates = (
             [BuyerSummary.from_candidate(c) for c in resolution.candidates]
             if resolution.candidates is not None

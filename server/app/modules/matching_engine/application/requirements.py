@@ -24,6 +24,7 @@ from app.modules.matching_engine.domain.requirements import (
     RequirementProfile,
     SoftPreference,
 )
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class BuyerRequirementExtractionService:
@@ -123,7 +124,7 @@ class BuyerRequirementExtractionService:
         )
 
     def _build_repair_prompt(
-        self, buyer: BuyerContext, invalid_raw: dict, error: str | None
+        self, buyer: BuyerContext, invalid_raw: JsonObject, error: str | None
     ) -> str:
         return (
             f"{self._build_prompt(buyer)}\n\n"
@@ -134,7 +135,7 @@ class BuyerRequirementExtractionService:
         )
 
     @staticmethod
-    def _to_domain(extracted: dict, version: int, model_id: str) -> RequirementProfile:
+    def _to_domain(extracted: JsonObject, version: int, model_id: str) -> RequirementProfile:
         return RequirementProfile(
             hard_requirements=[
                 HardRequirement(

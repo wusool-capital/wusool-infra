@@ -9,7 +9,7 @@ exception info (if any), and whatever request context is active (see
 Callers MUST disable uvicorn's own logging config (`log_config=None`)
 when starting the server — otherwise uvicorn installs non-propagating
 handlers directly on the `uvicorn`/`uvicorn.access` loggers and their
-lines never reach this formatter. See `run.py`.
+lines never reach this formatter. See the executable entrypoint in `main.py`.
 """
 
 import contextvars
@@ -38,6 +38,7 @@ def _service_for(logger_name: str) -> str:
     if len(parts) >= 3 and parts[0] == "app" and parts[1] == "modules":
         return _SERVICE_BY_MODULE.get(parts[2], _UNTAGGED_SERVICE)
     return _SERVICE_BY_TOP_LEVEL_PACKAGE.get(parts[0], _UNTAGGED_SERVICE)
+
 
 # Request-scoped fields (Slack trigger, user, channel, ...), set once per
 # incoming request/event and read by every log line emitted while handling

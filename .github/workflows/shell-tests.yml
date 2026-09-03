@@ -1,0 +1,43 @@
+name: Shell tests
+
+on:
+  pull_request:
+    branches: [dev, prod]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      shell: "${{ steps.filter.outputs.shell }}"
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            shell:
+              - '.github/scripts/**'
+              - 'server/scripts/**'
+              - 'server/checks.sh'
+              - '.github/workflows/shell-tests.yml'
+  shell:
+    needs: changes
+    if: needs.changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10
+        with: { version: latest }
+      - run: ./checks.sh shell
+        working-directory: server
+  shell-gate:
+    name: Shell tests (required)
+    if: always()
+    needs: [changes, shell]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'HARD GATE: blocks merge'
+        run: if [[ '${{ needs.changes.result }}' != 'success' || '${{ needs.shell.result }}' == 'failure' || '${{ needs.shell.result }}' == 'cancelled' ]]; then exit 1; fi

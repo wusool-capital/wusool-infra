@@ -25,11 +25,7 @@ def build_buyer_selection_modal(
             }
         )
 
-    label = (
-        "Confirm this is the right buyer"
-        if len(options) == 1
-        else "Choose the right buyer"
-    )
+    label = "Confirm this is the right buyer" if len(options) == 1 else "Choose the right buyer"
 
     return {
         "type": "modal",

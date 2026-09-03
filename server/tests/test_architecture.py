@@ -136,9 +136,9 @@ def test_cross_module_root_imports_only_use_public_all() -> None:
                 imported_names = {alias.name for alias in node.names}
                 disallowed = imported_names - module_alls[target]
                 if disallowed:
-                    violations.setdefault(
-                        str(path.relative_to(MODULES_ROOT.parent)), []
-                    ).extend(sorted(disallowed))
+                    violations.setdefault(str(path.relative_to(MODULES_ROOT.parent)), []).extend(
+                        sorted(disallowed)
+                    )
     assert violations == {}
 
 

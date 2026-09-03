@@ -21,6 +21,8 @@ field-by-field via `attio.providers.attio.values`.
 from datetime import date, datetime
 from typing import TypedDict
 
+from app.modules.utilities.domain.json_types import JsonObject
+
 
 class OrganizationParams(TypedDict):
     attio_id: str
@@ -38,9 +40,9 @@ class OrganizationParams(TypedDict):
     connection_strength: str | None
     owner_attio_id: str | None
     last_interaction_at: datetime | None
-    funding_raised: dict | None
+    funding_raised: JsonObject | None
     estimated_arr: str | None
-    raw_attio: dict
+    raw_attio: JsonObject
     angellist: str | None
     facebook: str | None
     instagram: str | None
@@ -74,7 +76,7 @@ class PersonParams(TypedDict):
     instagram: str | None
     twitter: str | None
     twitter_follower_count: int | None
-    raw_attio: dict
+    raw_attio: JsonObject
 
 
 class DealParams(TypedDict):
@@ -85,7 +87,7 @@ class DealParams(TypedDict):
     buyer_id: str | None
     seller_id: str | None
     owner_attio_id: str | None
-    value: dict | None
+    value: JsonObject | None
     teaser_status: str | None
     nda_count: int
     cim_ready: bool | None
@@ -108,19 +110,19 @@ class DealParams(TypedDict):
     counterparty_interested: int | None
     mandate_start_date: date | None
     mandate_expiry_date: date | None
-    retainer_amount: dict | None
+    retainer_amount: JsonObject | None
     source_mandate_entry_id: str | None
-    raw_attio: dict
+    raw_attio: JsonObject
 
 
 class BuyerRoleParams(TypedDict):
     org_attio_id: str
     model: str | None
     mandate_status: str | None
-    ebitda_floor: dict | None
-    check_size_min: dict | None
-    check_size_max: dict | None
-    ev_ceiling: dict | None
+    ebitda_floor: JsonObject | None
+    check_size_min: JsonObject | None
+    check_size_max: JsonObject | None
+    ev_ceiling: JsonObject | None
     deal_structure_tolerance: str | None
     earnout_tolerance: bool | None
     profitable_only: bool | None
@@ -130,8 +132,8 @@ class BuyerRoleParams(TypedDict):
     acquisition_enrichment: str | None
     deals_introduced: int | None
     deals_converted: int | None
-    ebitda_ceiling: dict | None
-    estimated_aum: dict | None
+    ebitda_ceiling: JsonObject | None
+    estimated_aum: JsonObject | None
     notable_investments: str | None
     key_personnel: str | None
     relationship_warmth: str | None
@@ -140,7 +142,7 @@ class BuyerRoleParams(TypedDict):
     prior_gcc_acquisition: str | None
     is_active: bool
     legacy_entry_id: str
-    raw_attio: dict
+    raw_attio: JsonObject
 
 
 class SellerRoleParams(TypedDict):
@@ -148,12 +150,12 @@ class SellerRoleParams(TypedDict):
     outreach_tier: str | None
     appetite_signal: str | None
     relationship_status: str | None
-    est_revenue: dict | None
-    est_ebitda: dict | None
-    owner_salary: dict | None
-    valuation_low: dict | None
-    valuation_mid: dict | None
-    valuation_high: dict | None
+    est_revenue: JsonObject | None
+    est_ebitda: JsonObject | None
+    owner_salary: JsonObject | None
+    valuation_low: JsonObject | None
+    valuation_mid: JsonObject | None
+    valuation_high: JsonObject | None
     sell_timeline: str | None
     readiness_score: float | None
     readiness_band: str | None
@@ -165,16 +167,16 @@ class SellerRoleParams(TypedDict):
     is_active: bool
     years_active: int | None
     funding_stage: str | None
-    revenue_last_full_year: dict | None
-    revenue_year_before: dict | None
+    revenue_last_full_year: JsonObject | None
+    revenue_year_before: JsonObject | None
     gross_margin_pct: float | None
     ebitda_deducts_salary: bool | None
-    annual_rent_cost: dict | None
+    annual_rent_cost: JsonObject | None
     largest_customer_revenue_pct: float | None
     repeat_revenue_pct: float | None
     location_count: int | None
     legacy_entry_id: str
-    raw_attio: dict
+    raw_attio: JsonObject
 
 
 class NoteParams(TypedDict):

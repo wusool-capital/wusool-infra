@@ -29,9 +29,7 @@ if TYPE_CHECKING:
 class GraphEdge(Base):
     __tablename__ = "graph_edges"
     __table_args__ = (
-        CheckConstraint(
-            "person_a_attio_id <> person_b_attio_id", name="graph_edges_not_self"
-        ),
+        CheckConstraint("person_a_attio_id <> person_b_attio_id", name="graph_edges_not_self"),
         Index("idx_graph_edges_person", "person_a_attio_id", "person_b_attio_id"),
     )
 

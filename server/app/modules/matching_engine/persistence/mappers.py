@@ -21,10 +21,11 @@ from app.modules.matching_engine.domain.requirements import (
     SoftPreference,
 )
 from app.modules.matching_engine.domain.sellers import SellerCandidate
+from app.modules.utilities.domain.json_types import JsonArray, JsonObject
 from app.modules.utilities.domain.money import Money
 
 
-def _money(value: dict | None) -> Money | None:
+def _money(value: JsonObject | None) -> Money | None:
     return Money(**value) if value else None
 
 
@@ -106,7 +107,7 @@ def _loaded_org_name(row: MatchResult, relationship_attr: str) -> str | None:
     return organization.name if organization else None
 
 
-def profile_to_dict(profile: RequirementProfile) -> dict:
+def profile_to_dict(profile: RequirementProfile) -> JsonObject:
     """Serializes a `RequirementProfile` for the `match_results.requirement_profile`
     JSONB column. `generated_by_model`/`version` are deliberately excluded —
     `version` already has its own column (`requirement_profile_version`), and
@@ -140,7 +141,9 @@ def profile_to_dict(profile: RequirementProfile) -> dict:
     }
 
 
-def _profile_from_dict(data: dict | None, *, version: int | None) -> RequirementProfile | None:
+def _profile_from_dict(
+    data: JsonObject | None, *, version: int | None
+) -> RequirementProfile | None:
     """Inverse of `profile_to_dict`. `generated_by_model` has no persisted
     value to restore (see that function's docstring) — empty string, since
     nothing reads it back from this path."""
@@ -158,7 +161,7 @@ def _profile_from_dict(data: dict | None, *, version: int | None) -> Requirement
     )
 
 
-def filters_skipped_to_list(filters_skipped: list[FilterSkipped] | None) -> list[dict]:
+def filters_skipped_to_list(filters_skipped: list[FilterSkipped] | None) -> list[JsonObject]:
     if not filters_skipped:
         return []
     return [
@@ -171,7 +174,7 @@ def filters_skipped_to_list(filters_skipped: list[FilterSkipped] | None) -> list
     ]
 
 
-def _filters_skipped_from_list(data: list | None) -> list[FilterSkipped] | None:
+def _filters_skipped_from_list(data: JsonArray | None) -> list[FilterSkipped] | None:
     if not data:
         return None
     return [FilterSkipped(**item) for item in data]

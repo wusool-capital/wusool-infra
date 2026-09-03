@@ -19,16 +19,17 @@ from app.modules.attio.providers.attio.dates import serialize_date
 from app.modules.attio.providers.attio.money import serialize_money, to_postgres_money
 from app.modules.attio.providers.attio.options import get_option_id
 from app.modules.ddl_commands.api.schemas import FieldSpec
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 def build_postgres_values(
-    *, table: str, fields: dict[str, FieldSpec], extracted: dict
-) -> dict:
+    *, table: str, fields: dict[str, FieldSpec], extracted: JsonObject
+) -> JsonObject:
     """One kind needs reshaping from what `dynamic_fields.extract_field_value`
     returns: `currency` (a bare amount -> `{"amount", "currency"}`). Every
     other kind is already stored in Postgres exactly as extracted.
     """
-    postgres_values: dict = {}
+    postgres_values: JsonObject = {}
     for name, value in extracted.items():
         spec = fields[name]
         if spec.kind == "currency" and value is not None:
@@ -45,15 +46,15 @@ async def build_attio_values(
     target_slug: str,
     table: str,
     fields: dict[str, FieldSpec],
-    extracted: dict,
-) -> dict:
+    extracted: JsonObject,
+) -> JsonObject:
     """`fields` maps field name -> its `FieldSpec` (so kind/options are
     known); `extracted` maps field name -> the value already extracted from
     Slack, in Postgres's shape. Returns Attio's `values`/`entry_values`
     payload body (attribute slug -> Attio value) for exactly the fields
     present in `extracted`.
     """
-    attio_values: dict = {}
+    attio_values: JsonObject = {}
     for name, value in extracted.items():
         if value is None:
             continue

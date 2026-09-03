@@ -23,6 +23,7 @@ from app.modules.matching_engine.domain.matching.entities import (
     MatchScoreResult,
 )
 from app.modules.matching_engine.domain.requirements import RequirementProfile
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class CandidateRetriever(Protocol):
@@ -32,7 +33,7 @@ class CandidateRetriever(Protocol):
 
 
 class MatchScoreRepositoryPort(Protocol):
-    async def create_many(self, rows: list[dict]) -> list[MatchScoreResult]: ...
+    async def create_many(self, rows: list[JsonObject]) -> list[MatchScoreResult]: ...
     async def get_scores_for_buyer(
         self, buyer_attio_id: str, limit: int = 50
     ) -> list[MatchScoreResult]: ...
@@ -68,10 +69,10 @@ class MatchResultRepositoryPort(Protocol):
         status: str = "GENERATED",
         final_candidate_ids: list[str] | None = None,
         execution_duration_ms: int | None = None,
-        errors: dict | None = None,
+        errors: JsonObject | None = None,
         completed_at: datetime | None = None,
     ) -> None: ...
-    async def create_candidates(self, rows: list[dict]) -> list[MatchResultEntity]: ...
+    async def create_candidates(self, rows: list[JsonObject]) -> list[MatchResultEntity]: ...
     async def get_run(self, run_id: uuid.UUID) -> MatchResultEntity | None: ...
     async def get_candidates(self, run_id: uuid.UUID) -> list[MatchResultEntity]: ...
     async def get_by_id(self, match_result_id: uuid.UUID) -> MatchResultEntity | None: ...

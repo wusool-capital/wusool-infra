@@ -211,7 +211,5 @@ async def test_unrecognized_event_type_is_ignored() -> None:
 
 async def test_missing_ids_are_ignored() -> None:
     upsert = _FakeUpsert()
-    await dispatch.dispatch_event(
-        upsert, _FakeRegistry(), _FakeClient(), _event("record.created")
-    )
+    await dispatch.dispatch_event(upsert, _FakeRegistry(), _FakeClient(), _event("record.created"))
     assert upsert.calls == []

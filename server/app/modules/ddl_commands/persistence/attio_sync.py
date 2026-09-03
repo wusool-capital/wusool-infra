@@ -42,7 +42,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import TextClause, func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -66,6 +66,7 @@ from app.modules.ddl_commands.persistence.attio_sync_types import (
     SellerRoleParams,
 )
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
+from app.modules.utilities.domain.json_types import AttioRecord, JsonObject
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync")
 
@@ -221,7 +222,7 @@ _ORG_UPSERT = text(
 )
 
 
-def _organization_params(data: dict) -> OrganizationParams:
+def _organization_params(data: AttioRecord) -> OrganizationParams:
     """Pure mapping from one Attio organization record (whether from a
     single-record GET or a `/records/query` bulk page -- same `values`
     shape either way, see `values.py`'s module docstring) to Postgres
@@ -335,7 +336,7 @@ _PERSON_UPSERT = text(
 )
 
 
-def _person_params(data: dict) -> PersonParams:
+def _person_params(data: AttioRecord) -> PersonParams:
     values = v.vals(data)
     rid = v.record_id(data)
     roles = v.titles(values, "role") or v.titles(values, "job_title")
@@ -459,7 +460,7 @@ _DEAL_UPSERT = text(
 )
 
 
-def _deal_params(data: dict) -> DealParams:
+def _deal_params(data: AttioRecord) -> DealParams:
     values = v.vals(data)
     rid = v.record_id(data)
     buyer_id = v.ref(values, "buyer_id")
@@ -538,7 +539,9 @@ async def sync_deal(
 # ---------------------------------------------------------------------------
 
 
-async def _fetch_siblings(client: AttioClientProtocol, list_slug: str, org_id: str) -> list[dict]:
+async def _fetch_siblings(
+    client: AttioClientProtocol, list_slug: str, org_id: str
+) -> list[AttioRecord]:
     """Every entry in `list_slug` whose parent is `org_id`. Pages the whole
     list and filters client-side (see `dispatch.py`'s module docstring for
     why — Attio's parent-record filter syntax wasn't confirmed reliable
@@ -548,7 +551,7 @@ async def _fetch_siblings(client: AttioClientProtocol, list_slug: str, org_id: s
     its own page-through and groups siblings itself (see
     `group_entries_by_org`), so it calls `_reconcile_active_entry` directly
     with a siblings list instead of going through this."""
-    siblings: list[dict] = []
+    siblings: list[AttioRecord] = []
     offset = 0
     while True:
         response = await post_with_retry(
@@ -561,20 +564,20 @@ async def _fetch_siblings(client: AttioClientProtocol, list_slug: str, org_id: s
         offset += 500
 
 
-def group_entries_by_org(entries: list[dict]) -> dict[str, list[dict]]:
+def group_entries_by_org(entries: list[AttioRecord]) -> dict[str, list[AttioRecord]]:
     """Groups a list-wide page-through's entries by parent org id — lets
     `full_resync.py` compute every org's full sibling list from the one pass
     it already makes, instead of `_reconcile_active_entry` re-paging the
     whole list once per org."""
-    by_org: dict[str, list[dict]] = {}
+    by_org: dict[str, list[AttioRecord]] = {}
     for entry in entries:
         by_org.setdefault(v.parent_id(entry), []).append(entry)
     return by_org
 
 
 async def _reconcile_active_entry(
-    client: AttioClientProtocol, list_slug: str, siblings: list[dict]
-) -> list[dict]:
+    client: AttioClientProtocol, list_slug: str, siblings: list[AttioRecord]
+) -> list[AttioRecord]:
     """Ensures exactly one entry among `siblings` (all belonging to the same
     org) is `is_active`, flipping Attio's own flags (not just Postgres's) if
     needed — `is_active` is a real Attio field other consumers read too, so
@@ -672,7 +675,7 @@ _BUYER_ROLE_UPSERT = text(
 )
 
 
-def _buyer_role_params(org_id: str, entry: dict, is_active: bool) -> BuyerRoleParams:
+def _buyer_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> BuyerRoleParams:
     values = v.vals(entry)
     return {
         "org_attio_id": org_id,
@@ -774,7 +777,7 @@ _SELLER_ROLE_UPSERT = text(
 )
 
 
-def _seller_role_params(org_id: str, entry: dict, is_active: bool) -> SellerRoleParams:
+def _seller_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> SellerRoleParams:
     values = v.vals(entry)
     return {
         "org_attio_id": org_id,
@@ -880,7 +883,7 @@ _NOTE_UPSERT = text(
 )
 
 
-def _note_params(data: dict) -> NoteParams:
+def _note_params(data: AttioRecord) -> NoteParams:
     values = v.vals(data)
     return {
         "id": v.record_id(data),
@@ -945,7 +948,7 @@ _JSONB_FIELDS = {
 }
 
 
-def _for_text_sql(table_name: str, params: Mapping[str, Any]) -> dict:
+def _for_text_sql(table_name: str, params: Mapping[str, Any]) -> JsonObject:
     jsonb_keys = _JSONB_FIELDS[table_name]
     return {k: (_j(val) if k in jsonb_keys else val) for k, val in params.items()}
 
@@ -1004,29 +1007,29 @@ def _resolve_ref(value: str | None, valid_ids: set[str]) -> str | None:
     return value if value in valid_ids else None
 
 
-def _organization_batch_params(data: dict, user_ids: set[str]) -> dict:
-    params: dict = dict(_organization_params(data))
+def _organization_batch_params(data: AttioRecord, user_ids: set[str]) -> OrganizationParams:
+    params = cast(OrganizationParams, dict(_organization_params(data)))
     params["owner_attio_id"] = _resolve_ref(params["owner_attio_id"], user_ids)
     return params
 
 
-def _person_batch_params(data: dict, org_ids: set[str], user_ids: set[str]) -> dict:
-    params: dict = dict(_person_params(data))
+def _person_batch_params(data: AttioRecord, org_ids: set[str], user_ids: set[str]) -> PersonParams:
+    params = cast(PersonParams, dict(_person_params(data)))
     params["company_attio_id"] = _resolve_ref(params["company_attio_id"], org_ids)
     params["owner_attio_id"] = _resolve_ref(params["owner_attio_id"], user_ids)
     return params
 
 
 def _deal_batch_params(
-    data: dict, org_ids: set[str], person_ids: set[str], user_ids: set[str]
-) -> dict:
+    data: AttioRecord, org_ids: set[str], person_ids: set[str], user_ids: set[str]
+) -> DealParams:
     """Batch-path variant of `_deal_params`. `_deal_params` leaves
     `buyer_id`/`seller_id` ambiguous (could be an organization or a person)
     for the webhook path's `_DEAL_UPSERT`, which resolves each with a
     per-statement `CASE WHEN EXISTS` -- a multi-row `VALUES` list can't
     express that conditional per row generically, so the batch path
     resolves it here instead, using id sets already known this run."""
-    params: dict = dict(_deal_params(data))
+    params = cast(DealParams, dict(_deal_params(data)))
     buyer_id = params.pop("buyer_id")
     seller_id = params.pop("seller_id")
     params["buyer_organization_attio_id"] = _resolve_ref(buyer_id, org_ids)
@@ -1037,14 +1040,14 @@ def _deal_batch_params(
 
 
 def _buyer_role_batch_params(
-    org_id: str, entry: dict, is_active: bool, person_ids: set[str]
-) -> dict:
-    params: dict = dict(_buyer_role_params(org_id, entry, is_active))
+    org_id: str, entry: AttioRecord, is_active: bool, person_ids: set[str]
+) -> BuyerRoleParams:
+    params = cast(BuyerRoleParams, dict(_buyer_role_params(org_id, entry, is_active)))
     params["key_contact_attio_id"] = _resolve_ref(params["key_contact_attio_id"], person_ids)
     return params
 
 
-async def _upsert_batch(model: SyncModel, rows: list[dict]) -> dict[str, dict]:
+async def _upsert_batch(model: SyncModel, rows: list[JsonObject]) -> dict[str, JsonObject]:
     """Batch-upserts `rows` for `model` in one round trip and returns
     `{conflict_key: raw_attio_as_written}`, built from the same statement's
     `RETURNING` clause -- for the caller's content-consistency check.
@@ -1094,8 +1097,8 @@ async def _upsert_batch(model: SyncModel, rows: list[dict]) -> dict[str, dict]:
 
 
 async def upsert_batch_with_retry(
-    model: SyncModel, rows: list[dict], page_label: str = ""
-) -> tuple[int, int, dict[str, dict]]:
+    model: SyncModel, rows: list[JsonObject], page_label: str = ""
+) -> tuple[int, int, dict[str, JsonObject]]:
     """Batches `rows` for `model`; on a transient DB error, retries the
     whole batch with backoff; on any other error (e.g. one malformed row),
     falls back to the existing single-row `text()` upsert one row at a time

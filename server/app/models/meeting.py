@@ -20,13 +20,16 @@ from app.models.base import Base
 # ALEMBIC_MIGRATION_HANDOVER.md point 4) — flipping this instead would break
 # integration tests that run `metadata.create_all()` against a database that
 # already has these types.
-_MeetingSource = ENUM(
-    "in_house", "granola", "manual", name="meeting_source", create_type=False
-)
+_MeetingSource = ENUM("in_house", "granola", "manual", name="meeting_source", create_type=False)
 _CounterpartyRole = ENUM("buyer", "seller", name="counterparty_role", create_type=False)
 _MeetingType = ENUM(
-    "enrichment", "alignment", "owner_iv", "buyer_intro", "internal",
-    name="meeting_type", create_type=False,
+    "enrichment",
+    "alignment",
+    "owner_iv",
+    "buyer_intro",
+    "internal",
+    name="meeting_type",
+    create_type=False,
 )
 
 
@@ -51,9 +54,7 @@ class Meeting(Base):
     participants: Mapped[dict | None] = mapped_column(JSONB)
     transcript: Mapped[str | None] = mapped_column(Text)
     summary: Mapped[str | None] = mapped_column(Text)
-    metadata_: Mapped[dict] = mapped_column(
-        "metadata", JSONB, nullable=False, server_default="{}"
-    )
+    metadata_: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

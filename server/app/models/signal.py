@@ -23,9 +23,7 @@ if TYPE_CHECKING:
 
 class Signal(Base):
     __tablename__ = "signals"
-    __table_args__ = (
-        Index("idx_signals_buyer_ts", "buyer_attio_id", literal_column("ts DESC")),
-    )
+    __table_args__ = (Index("idx_signals_buyer_ts", "buyer_attio_id", literal_column("ts DESC")),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")

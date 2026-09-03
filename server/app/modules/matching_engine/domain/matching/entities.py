@@ -13,6 +13,7 @@ from typing import Literal
 
 from app.modules.matching_engine.domain.requirements import RequirementProfile, RequirementSource
 from app.modules.matching_engine.domain.sellers import SellerCandidate
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 @dataclass(frozen=True)
@@ -21,9 +22,9 @@ class MatchScoreResult:
     buyer_attio_id: str
     seller_attio_id: str
     score: Decimal
-    dims: dict
+    dims: dict[str, float]
     reasoning: str | None
-    citations: list
+    citations: list[str]
     generated_at: datetime
 
 
@@ -170,7 +171,7 @@ class MatchResultEntity:
     filters_skipped: list[FilterSkipped] | None
     final_candidate_ids: list[str] | None
     execution_duration_ms: int | None
-    errors: dict | None
+    errors: JsonObject | None
     started_at: datetime
     completed_at: datetime | None
 

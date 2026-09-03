@@ -35,7 +35,6 @@ WORKDIR /app
 
 COPY --from=builder --chown=app:app /app/.venv ./.venv
 COPY --from=builder --chown=app:app /app/main.py ./main.py
-COPY --chown=app:app run.py ./run.py
 
 # alembic.ini + alembic/ are plain config/data files, not part of the
 # installed package (venv install above only copies Python package
@@ -62,4 +61,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)" || exit 1
 
-CMD ["python", "run.py"]
+CMD ["python", "main.py"]

@@ -26,12 +26,8 @@ def _sign(body: str, timestamp: str, signing_secret: str) -> str:
     return f"v0={digest}"
 
 
-@pytest.mark.parametrize(
-    "command", ["/edit-seller", "/edit-buyer", "/add-seller", "/add-buyer"]
-)
-def test_command_with_no_text_posts_usage_without_touching_db(
-    command: str, monkeypatch
-) -> None:
+@pytest.mark.parametrize("command", ["/edit-seller", "/edit-buyer", "/add-seller", "/add-buyer"])
+def test_command_with_no_text_posts_usage_without_touching_db(command: str, monkeypatch) -> None:
     posted: list[dict] = []
 
     async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001

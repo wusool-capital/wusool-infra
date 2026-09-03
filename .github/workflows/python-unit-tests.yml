@@ -1,0 +1,43 @@
+name: Python unit tests
+
+on:
+  pull_request:
+    branches: [dev, prod]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            python:
+              - 'server/**'
+              - 'uv.lock'
+              - '.github/workflows/python-unit-tests.yml'
+
+  unit:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10
+        with: { version: latest }
+      - run: ./checks.sh unit
+        working-directory: server
+  unit-gate:
+    name: Python unit tests (required)
+    if: always()
+    needs: [changes, unit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'HARD GATE: blocks merge'
+        run: if [[ '${{ needs.changes.result }}' != 'success' || '${{ needs.unit.result }}' == 'failure' || '${{ needs.unit.result }}' == 'cancelled' ]]; then exit 1; fi

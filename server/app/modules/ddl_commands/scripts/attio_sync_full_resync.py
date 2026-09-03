@@ -134,9 +134,7 @@ async def _collect_pages(
     return records
 
 
-async def _safe_fetch(
-    source: AsyncIterator[list[dict]], label: str
-) -> list[dict] | None:
+async def _safe_fetch(source: AsyncIterator[list[dict]], label: str) -> list[dict] | None:
     """Wraps one entity type's page-through so a listing failure (Attio 500,
     exhausted retries, malformed page) can't take down the others fetched
     alongside it -- every entity type gets its own chance to sync tonight
@@ -202,7 +200,7 @@ async def _count(table: str) -> int:
         return (await session.execute(_COUNT_QUERY[table])).scalar_one()
 
 
-def _chunk(items: list, size: int) -> list[list]:
+def _chunk[T](items: list[T], size: int) -> list[list[T]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
@@ -295,9 +293,7 @@ async def _reconcile_roles(
         try:
             async with semaphore:
                 reconciled = await upsert._reconcile_active_entry(client, list_slug, siblings)
-            return [
-                build_params(org_id, entry, i == 0) for i, entry in enumerate(reconciled)
-            ]
+            return [build_params(org_id, entry, i == 0) for i, entry in enumerate(reconciled)]
         except Exception:
             _logger.error(
                 "full resync: failed to reconcile %s org %s", list_slug, org_id, exc_info=True

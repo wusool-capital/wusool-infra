@@ -14,6 +14,7 @@ import time
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
 
+import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
@@ -134,9 +135,7 @@ def _bolt_app() -> AsyncApp:
     register_ddl_commands_handlers(bolt_app)
 
     @bolt_app.middleware
-    async def _set_log_context(
-        body: dict, next: Callable[[], Awaitable[BoltResponse]]
-    ) -> None:
+    async def _set_log_context(body: dict, next: Callable[[], Awaitable[BoltResponse]]) -> None:
         """Tags every log line emitted while handling this request with
         which command/action triggered it and who sent it — set once here
         rather than threading it through every handler."""
@@ -193,3 +192,13 @@ async def slack_events(req: Request) -> Response:
     trust a payload without it.
     """
     return await _slack_request_handler().handle(req)
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.reload,
+        log_config=None,
+    )
