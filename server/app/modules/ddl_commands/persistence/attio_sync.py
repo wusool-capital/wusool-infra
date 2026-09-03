@@ -38,7 +38,6 @@ record individually through the wrapper -- see `upsert_batch_with_retry`
 below for the batched, retried write path it uses to do that.
 """
 
-import asyncio
 import json
 import logging
 from collections.abc import Mapping
@@ -67,6 +66,7 @@ from app.modules.ddl_commands.persistence.attio_sync_types import (
 )
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
 from app.modules.utilities.domain.json_types import AttioRecord, JsonObject
+from app.modules.utilities.domain.retry import retry_with_backoff
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync")
 
@@ -1110,25 +1110,28 @@ async def upsert_batch_with_retry(
     """
     conflict_col = _CONFLICT_COL[model]
     table_name = _MODEL_TABLE[model]
-    for attempt in range(3):
-        try:
-            returned = await _upsert_batch(model, rows)
-            return len(rows), 0, returned
-        except OperationalError:
-            if attempt == 2:
-                break
-            delay = min(30, 5 * (attempt + 1))
-            _logger.warning(
-                "full resync: %s %s batch upsert attempt %d failed (transient), retrying in %ds",
-                table_name,
-                page_label,
-                attempt + 1,
-                delay,
-                exc_info=True,
-            )
-            await asyncio.sleep(delay)
-        except Exception:
-            break  # not transient (e.g. a bad row) -- don't retry the whole batch again
+
+    def _log_retry(attempt: int, exc: Exception, delay: float) -> None:
+        _logger.warning(
+            "full resync: %s %s batch upsert attempt %d failed (transient), retrying in %ds",
+            table_name,
+            page_label,
+            attempt,
+            delay,
+            exc_info=exc,
+        )
+
+    try:
+        returned = await retry_with_backoff(
+            lambda: _upsert_batch(model, rows),
+            is_retryable=lambda exc: isinstance(exc, OperationalError),
+            max_attempts=3,
+            delay_seconds=lambda attempt: min(30, 5 * attempt),
+            on_retry=_log_retry,
+        )
+        return len(rows), 0, returned
+    except Exception:
+        pass  # not transient (e.g. a bad row), or retries exhausted -- fall back to per-row
 
     _logger.warning(
         "full resync: batch upsert failed for %s %s (%d rows), falling back to per-row",

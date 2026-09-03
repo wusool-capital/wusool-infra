@@ -60,6 +60,7 @@ from app.modules.attio.providers.attio.retry import post_with_retry
 from app.modules.ddl_commands.config import get_settings
 from app.modules.ddl_commands.persistence import attio_sync as upsert
 from app.modules.ddl_commands.persistence.database import get_sessionmaker, import_all_models
+from app.modules.utilities.domain.logging import configure_logging
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync.full_resync")
 
@@ -475,7 +476,7 @@ async def _run(client: AttioClientProtocol) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_logging(get_settings().log_level)
     asyncio.run(run())
 
 
