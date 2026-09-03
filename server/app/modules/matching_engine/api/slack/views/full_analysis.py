@@ -14,7 +14,7 @@ from app.modules.matching_engine.api.matching import (
     MatchResultRead,
     MatchScoreRead,
 )
-from app.modules.utilities.domain.text import sanitize_mrkdwn
+from app.modules.notifications import sanitize_mrkdwn
 
 _MAX_SECTION_TEXT = 2900
 

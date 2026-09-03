@@ -6,7 +6,7 @@ plainly rather than presenting them as equivalent to a CRM match.
 """
 
 from app.modules.matching_engine.domain.web_search import WebSourcedLead
-from app.modules.utilities.domain.text import sanitize_mrkdwn
+from app.modules.notifications import sanitize_mrkdwn
 
 
 def build_web_fallback_blocks(buyer_org_name: str, leads: list[WebSourcedLead]) -> list[dict]:

@@ -16,7 +16,7 @@ from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import render_field_block
 from app.modules.ddl_commands.api.slack.views.form_values import text_input_block
-from app.modules.utilities.domain.text import sanitize_mrkdwn
+from app.modules.notifications import sanitize_mrkdwn
 
 
 def build_seller_add_form_modal(

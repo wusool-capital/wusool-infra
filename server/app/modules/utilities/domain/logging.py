@@ -2,9 +2,9 @@
 ddl-commands (previously two byte-identical copies of this file).
 
 Every log line is a single JSON object carrying: timestamp, level, the
-owning service (derived from the logger name's top-level package),
-logger name, message, exception info (if any), and whatever request
-context is active (see `log_context`).
+owning service (derived from the logger name), logger name, message,
+exception info (if any), and whatever request context is active (see
+`log_context`).
 
 Callers MUST disable uvicorn's own logging config (`log_config=None`)
 when starting the server — otherwise uvicorn installs non-propagating
@@ -17,12 +17,27 @@ import json
 import logging
 from typing import Any
 
-_SERVICE_BY_TOP_LEVEL_PACKAGE: dict[str, str] = {
-    "app": "matching-engine",
+# Every module logger is named `app.modules.<module>.*` since the repo
+# restructure merged what used to be two separate top-level packages
+# (`app`/`ddl_commands`) into one. A bare top-level-package check would
+# make every logger's top-level component `"app"` regardless of which
+# module emitted it — this maps the third path segment instead.
+_SERVICE_BY_MODULE: dict[str, str] = {
+    "matching_engine": "matching-engine",
     "ddl_commands": "ddl-commands",
+}
+# Third-party loggers, which aren't under `app.modules.*` at all.
+_SERVICE_BY_TOP_LEVEL_PACKAGE: dict[str, str] = {
     "slack_bolt": "slack-bolt",
 }
 _UNTAGGED_SERVICE = "other"
+
+
+def _service_for(logger_name: str) -> str:
+    parts = logger_name.split(".")
+    if len(parts) >= 3 and parts[0] == "app" and parts[1] == "modules":
+        return _SERVICE_BY_MODULE.get(parts[2], _UNTAGGED_SERVICE)
+    return _SERVICE_BY_TOP_LEVEL_PACKAGE.get(parts[0], _UNTAGGED_SERVICE)
 
 # Request-scoped fields (Slack trigger, user, channel, ...), set once per
 # incoming request/event and read by every log line emitted while handling
@@ -37,8 +52,7 @@ class ContextFilter(logging.Filter):
     """Tags every record with its owning service and the active request context."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        top_level_package = record.name.split(".", 1)[0]
-        record.service = _SERVICE_BY_TOP_LEVEL_PACKAGE.get(top_level_package, _UNTAGGED_SERVICE)
+        record.service = _service_for(record.name)
         record.context = log_context.get() or {}
         return True
 

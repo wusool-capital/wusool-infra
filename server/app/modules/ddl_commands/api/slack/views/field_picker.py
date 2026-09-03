@@ -9,7 +9,7 @@ import json
 
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.schemas import FieldSpec
-from app.modules.utilities.domain.text import sanitize_mrkdwn
+from app.modules.notifications import sanitize_mrkdwn
 
 # Slack caps a `checkboxes` element at 10 options, and both role field lists
 # are already past it (15 seller, 11 buyer). Over the cap Slack rejects the

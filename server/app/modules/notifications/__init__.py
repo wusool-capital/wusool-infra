@@ -5,7 +5,15 @@ directly.
 """
 
 from app.modules.notifications.application.ports.slack import SlackNotifierPort
+from app.modules.notifications.domain.text import sanitize_mrkdwn
+from app.modules.notifications.providers.slack.bolt_app import build_bolt_app
 from app.modules.notifications.providers.slack.client import get_slack_client
 from app.modules.notifications.providers.slack.notifier import SlackWebClientNotifier
 
-__all__ = ["SlackNotifierPort", "SlackWebClientNotifier", "get_slack_client"]
+__all__ = [
+    "SlackNotifierPort",
+    "SlackWebClientNotifier",
+    "build_bolt_app",
+    "get_slack_client",
+    "sanitize_mrkdwn",
+]

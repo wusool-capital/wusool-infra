@@ -15,7 +15,7 @@ than silently overwriting.
 import json
 
 from app.models import Organization
-from app.modules.utilities.domain.text import sanitize_mrkdwn
+from app.modules.notifications import sanitize_mrkdwn
 
 NEW_ORGANIZATION_VALUE = "__new__"
 

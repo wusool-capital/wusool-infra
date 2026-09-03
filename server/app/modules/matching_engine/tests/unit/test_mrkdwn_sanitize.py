@@ -13,7 +13,7 @@ from app.modules.matching_engine.application.matching.use_cases import (
     ShortlistedResult,
 )
 from app.modules.matching_engine.domain.web_search import WebSourcedLead
-from app.modules.utilities.domain.text import sanitize_mrkdwn
+from app.modules.notifications import sanitize_mrkdwn
 
 
 def test_sanitize_replaces_tildes_with_approximation_sign() -> None:

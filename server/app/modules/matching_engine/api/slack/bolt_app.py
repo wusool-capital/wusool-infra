@@ -11,7 +11,7 @@ from slack_bolt.async_app import AsyncApp
 
 from app.modules.matching_engine.api.slack.handlers import register_handlers
 from app.modules.matching_engine.config import get_settings
-from app.modules.utilities.providers.slack_bolt import build_bolt_app
+from app.modules.notifications import build_bolt_app
 
 
 @lru_cache

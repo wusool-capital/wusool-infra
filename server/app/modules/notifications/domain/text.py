@@ -1,5 +1,6 @@
-"""Generic text-sanitization helpers with no Slack- or module-specific
-behavior of their own beyond the vendor format they target."""
+"""Slack `mrkdwn` text-sanitization — framework-free (no `slack_bolt`/
+`slack_sdk` import), but genuinely Slack-format-specific, not a generic
+text primitive."""
 
 import re
 
