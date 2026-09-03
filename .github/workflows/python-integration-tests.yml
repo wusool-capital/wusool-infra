@@ -36,7 +36,7 @@ jobs:
           --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v9
         with: { version: latest }
       - run: ./checks.sh integration
         working-directory: server
