@@ -2,8 +2,8 @@
 
 No `MatchRunRead`/`MatchEvidenceRead`/`ApprovalRead` as separate schemas —
 `MatchResultRead` below covers the run/candidate rows `match_results` holds
-(see the Phase 3 handover doc's row-kind invariant). `MatchScoreRead` maps
-the pre-existing deterministic scoring breakdown.
+(see `app/models/match_result.py` for the row-kind invariant). `MatchScoreRead`
+maps the pre-existing deterministic scoring breakdown.
 """
 
 import uuid

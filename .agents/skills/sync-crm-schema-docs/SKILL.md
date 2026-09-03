@@ -1,15 +1,15 @@
 ---
 name: sync-crm-schema-docs
-description: Keep every CRM schema document in sync whenever an Attio DEV attribute/list/stage or a Postgres deals/mandates/etc. column changes — the ER diagram, the published "Wusool Schema Handover" artifact, CLIENT_SCHEMA_OVERVIEW.md, CRM_MIGRATION_GUIDE.md, scripts/README.md, and database/README.md. Use immediately after any change to workflows/crm-sync/scripts/dev-attio/_internal/schema.ps1, migration-decisions.json, target-schema.json, a Postgres model in database/wusool_db/models/, or a new Alembic migration — before ending the session, not as a separate later cleanup.
+description: Keep every CRM schema document in sync whenever an Attio DEV attribute/list/stage or a Postgres deals/mandates/etc. column changes — the ER diagram, the published "Wusool Schema Handover" artifact, CLIENT_SCHEMA_OVERVIEW.md, and the crm-sync script READMEs. Use immediately after any change to the dev-attio schema scripts, migration-decisions.json, target-schema.json, a Postgres model in server/app/models/, or a new Alembic migration — before ending the session, not as a separate later cleanup.
 ---
 
 # Sync CRM Schema Docs
 
-Sibling of `sync-project-docs` (repo-wide READMEs + `docs/PROGRESS.md`) and
+Sibling of `sync-project-docs` (repo-wide READMEs + `docs/`) and
 `sync-terraform-docs` (Terraform docs). This skill owns everything that
 describes the **CRM data model itself** — Attio DEV schema and its Postgres
-mirror — across five different places that do not update themselves and
-silently drift out of sync with each other otherwise.
+mirror — across four places that do not update themselves and silently drift
+out of sync with each other otherwise.
 
 ## When to run this
 
@@ -27,7 +27,7 @@ deferred:
 - A data backfill that changes what a field means or how confidently it's
   populated (e.g. "all 58 pre-existing Deals are now `Sell-side`")
 
-## The five things to update, every time
+## The four things to update, every time
 
 1. **`workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md`** — the detailed
    field-by-field reference (Attio schema + PostgreSQL schema sections). Add
@@ -37,18 +37,14 @@ deferred:
    `retired YYYY-MM-DD` marker in the heading, one paragraph explaining why,
    table kept for historical reference).
 
-2. **`workflows/crm-sync/docs/CRM_MIGRATION_GUIDE.md`** — the coarse overview:
-   data-mapping table, scripts table, safety notes. Update only what changed
-   at this altitude; the detailed version belongs in
-   `CLIENT_SCHEMA_OVERVIEW.md`, not duplicated here.
+2. **`infrastructure/crm-sync/scripts/dev-attio/README.md`** and the
+   **`server/`** schema docs (`server/SCHEMA.md`) — whichever side changed
+   (Attio-facing scripts vs. Postgres). Check every command example, flag
+   list, and mapping-rules bullet still matches the actual script/model —
+   these are read and run literally, so a stale flag name or wrong
+   assumption (e.g. "buyer_id remains blank") actively misleads.
 
-3. **`workflows/crm-sync/scripts/dev-attio/README.md`** and **`database/README.md`** —
-   whichever side changed (Attio-facing scripts vs. Postgres). Check every
-   command example, flag list, and mapping-rules bullet still matches the
-   actual script/model — these are read and run literally, so a stale flag
-   name or wrong assumption (e.g. "buyer_id remains blank") actively misleads.
-
-4. **`workflows/crm-sync/docs/Database_Architecture_ER_Diagram_Most_Latest.drawio`**
+3. **`infrastructure/crm-sync/docs/Database_Architecture_ER_Diagram_Most_Latest.drawio`**
    — the canonical ER diagram (plain XML, hand-editable — grep for the
    entity's swimlane `value=` to find its header cell, then its child field
    rows by `parent="<that cell's id>"`). Add new field rows in the entity's
@@ -60,7 +56,7 @@ deferred:
    Never leave this file behind when the artifact or overview doc changes —
    it's the one a first-time reader opens first.
 
-5. **The published "Wusool Schema Handover" artifact** — find its URL with
+4. **The published "Wusool Schema Handover" artifact** — find its URL with
    `Artifact({action: "list"})` (do not guess or hardcode it, it can change).
    Fetch it with `WebFetch`, strip the injected frame-runtime `<head>`
    wrapper (everything up to and including `</head><body>` on line 1 — the
@@ -73,18 +69,18 @@ deferred:
 
 ## Order and consistency rules
 
-- Do (1)-(3) as a set — they're prose describing the same fields, keep their
-  wording and the "why" consistent (a rename in one and not the others is
-  the exact drift this skill exists to prevent).
-- Do (4) and (5) directly from the *already-updated* (1)-(3), not
+- Do (1) and (2) as a set — they're prose describing the same fields, keep
+  their wording and the "why" consistent (a rename in one and not the other
+  is the exact drift this skill exists to prevent).
+- Do (3) and (4) directly from the *already-updated* (1) and (2), not
   independently re-derived from code — they should read as the same content
   in a different shape, not a second opinion.
 - A retirement (an object/list no longer synced) gets the *same* marker
   language and date everywhere: heading badge, callout/paragraph explaining
   why, historical table/rows kept, never deleted outright in the same pass
   that retires them.
-- If a change is Attio-only (no Postgres model touched), skip
-  `database/README.md` and the Postgres section of `CLIENT_SCHEMA_OVERVIEW.md`
+- If a change is Attio-only (no Postgres model touched), skip the `server/`
+  schema docs and the Postgres section of `CLIENT_SCHEMA_OVERVIEW.md`
   — don't invent a Postgres-side note for something that didn't change there.
 - If unsure whether a claim is now stale, verify against the live schema
   (`ensure-schema.ps1` dry run, or a direct Attio `GET .../attributes` call)
@@ -92,7 +88,7 @@ deferred:
 
 ## After updating
 
-Report, in one short list, exactly which of the five were touched and which
+Report, in one short list, exactly which of the four were touched and which
 were skipped (and why) — the same shape as `sync-project-docs`'s reporting
 rule. If Terraform or other repo-wide docs also need `sync-project-docs` or
 `sync-terraform-docs`, say so rather than doing their job here.

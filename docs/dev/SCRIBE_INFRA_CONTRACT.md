@@ -1,11 +1,8 @@
 # wusool-scribe — infrastructure contract
 
-> **Source of truth:** this document is generated from Part 2 of
-> `Final_restructure_plan.md` in the `wusool-infra` repo. If the two disagree,
-> that plan wins. Regenerate rather than editing both.
->
+> **Source of truth:** the live `wusool-infra` Terraform and AWS account.
 > Every fact below was verified against AWS account `030179310793` on
-> 2026-08-15, not taken from documentation.
+> 2026-08-15; re-verify against the current stacks before relying on an ID.
 
 **Audience:** whoever owns the `wusool-scribe` repo. It tells you how to stand up
 **scribe dev and scribe prod** so they plug into the restructured `wusool-infra`

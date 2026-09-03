@@ -64,9 +64,8 @@ def _database_url() -> str:
 
     Mirrors matching-engine/app/config.py's own normalization: force the
     asyncpg driver regardless of input scheme, and never append `sslmode`
-    — asyncpg doesn't understand libpq's `sslmode` query parameter (see
-    Final_restructure_plan.md §D2a); adding it would likely break the
-    connection outright.
+    — asyncpg doesn't understand libpq's `sslmode` query parameter; adding
+    it would likely break the connection outright.
 
     Incident note (2026-08-23): this env var comes from the toolkit
     instance's `.env.production`, which `user_data.sh.tpl`'s bootstrap
