@@ -29,7 +29,7 @@ jobs:
 
       - name: Check OpenTofu formatting
         run: tofu fmt -check -recursive -diff
-        working-directory: terraform
+        working-directory: infrastructure/terraform
 
   validate:
     name: OpenTofu Validate (${{ matrix.root }})
@@ -39,12 +39,12 @@ jobs:
       fail-fast: false
       matrix:
         root:
-          - terraform/stacks/account
-          - terraform/stacks/base
-          - terraform/stacks/n8n
-          - terraform/stacks/toolkit
-          - terraform/stacks/postgres
-          - terraform/stacks/peering
+          - infrastructure/terraform/stacks/account
+          - infrastructure/terraform/stacks/base
+          - infrastructure/terraform/stacks/n8n
+          - infrastructure/terraform/stacks/toolkit
+          - infrastructure/terraform/stacks/postgres
+          - infrastructure/terraform/stacks/peering
 
     defaults:
       run:

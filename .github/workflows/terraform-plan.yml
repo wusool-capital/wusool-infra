@@ -13,7 +13,7 @@ name: Terraform plan
 
 on:
   pull_request:
-    paths: ['terraform/**']
+    paths: ['infrastructure/terraform/**']
 
 permissions:
   contents: read
@@ -41,7 +41,7 @@ jobs:
       - id: plan
         uses: ./.github/actions/tofu-plan-comment
         with:
-          working_directory: terraform/stacks/${{ matrix.stack }}
+          working_directory: infrastructure/terraform/stacks/${{ matrix.stack }}
           backend_key: wusool/${{ env.ENV }}/${{ matrix.stack }}/terraform.tfstate
           plan_args: -var-file=../../envs/${{ env.ENV }}.tfvars
           heading: "`${{ env.ENV }}` / `${{ matrix.stack }}` plan"
@@ -80,7 +80,7 @@ jobs:
       - id: plan
         uses: ./.github/actions/tofu-plan-comment
         with:
-          working_directory: terraform/stacks/peering
+          working_directory: infrastructure/terraform/stacks/peering
           backend_key: wusool/shared/peering/terraform.tfstate
           heading: "`peering` plan"
 
@@ -112,7 +112,7 @@ jobs:
       - id: plan
         uses: ./.github/actions/tofu-plan-comment
         with:
-          working_directory: terraform/stacks/account
+          working_directory: infrastructure/terraform/stacks/account
           backend_key: wusool/account/terraform.tfstate
           heading: "`account` plan"
 

@@ -100,23 +100,23 @@ jobs:
           # force EVERY stack - workflow logic itself changed (want every
           # apply path exercised), and we can't cheaply attribute a shared
           # tfvars edit to one stack (this repo has already hit a real
-          # shared-tfvars variable collision once - see terraform/README.md).
-          FORCE_ALL='^(\.github/workflows/|\.github/actions/|terraform/envs/)'
+          # shared-tfvars variable collision once - see infrastructure/terraform/README.md).
+          FORCE_ALL='^(\.github/workflows/|\.github/actions/|infrastructure/terraform/envs/)'
 
           deploy_base=false
-          matches "$CHANGED_BASE" "$FORCE_ALL|^terraform/stacks/base/|^terraform/modules/network/" && deploy_base=true
+          matches "$CHANGED_BASE" "$FORCE_ALL|^infrastructure/terraform/stacks/base/|^infrastructure/terraform/modules/network/" && deploy_base=true
 
           deploy_n8n=false
-          matches "$CHANGED_N8N" "$FORCE_ALL|^terraform/stacks/n8n/|^terraform/modules/n8n-ec2/|^terraform/modules/bedrock-access/" && deploy_n8n=true
+          matches "$CHANGED_N8N" "$FORCE_ALL|^infrastructure/terraform/stacks/n8n/|^infrastructure/terraform/modules/n8n-ec2/|^infrastructure/terraform/modules/bedrock-access/" && deploy_n8n=true
 
           deploy_toolkit=false
-          # database/ included: the toolkit image now depends on it as a real
-          # uv path dependency (wusool-db), so a schema/model-only change must
-          # trigger a toolkit rebuild+redeploy just like an app-code change.
-          matches "$CHANGED_TOOLKIT" "$FORCE_ALL|^terraform/stacks/toolkit/|^terraform/modules/toolkit-ec2/|^terraform/modules/bedrock-access/|^workflows/wusool-toolkit/|^database/" && deploy_toolkit=true
+          # server/ is the single project now (models, migrations, and app
+          # code all live under it) — no separate database/ path dependency
+          # to watch, a schema/model-only change is already a server/ change.
+          matches "$CHANGED_TOOLKIT" "$FORCE_ALL|^infrastructure/terraform/stacks/toolkit/|^infrastructure/terraform/modules/toolkit-ec2/|^infrastructure/terraform/modules/bedrock-access/|^server/" && deploy_toolkit=true
 
           deploy_postgres=false
-          matches "$CHANGED_POSTGRES" "$FORCE_ALL|^terraform/stacks/postgres/|^terraform/modules/postgres-rds/" && deploy_postgres=true
+          matches "$CHANGED_POSTGRES" "$FORCE_ALL|^infrastructure/terraform/stacks/postgres/|^infrastructure/terraform/modules/postgres-rds/" && deploy_postgres=true
 
           # base owns the VPC/subnets/SNS topic every other stack reads via
           # terraform_remote_state. If base's outputs changed, n8n/toolkit/
@@ -185,7 +185,7 @@ jobs:
       - name: Roll the n8n app and wait for it
         if: steps.detect.outputs.deploy_n8n == 'true'
         id: n8n_bootstrap
-        working-directory: terraform/stacks/n8n
+        working-directory: infrastructure/terraform/stacks/n8n
         run: |
           set -uo pipefail
           DOC=$(tofu output -raw bootstrap_document_name 2>/dev/null || echo "")
@@ -249,7 +249,7 @@ jobs:
 
       - name: Verify n8n actually serves
         if: steps.detect.outputs.deploy_n8n == 'true'
-        working-directory: terraform/stacks/n8n
+        working-directory: infrastructure/terraform/stacks/n8n
         run: |
           set -euo pipefail
           URL=$(tofu output -raw n8n_url 2>/dev/null || echo "")
@@ -292,7 +292,7 @@ jobs:
       - name: Run pending database migrations
         if: steps.detect.outputs.deploy_toolkit == 'true'
         id: migrate
-        working-directory: terraform/stacks/toolkit
+        working-directory: infrastructure/terraform/stacks/toolkit
         run: |
           set -uo pipefail
           IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
@@ -314,7 +314,7 @@ jobs:
           COMMANDS_JSON=$(jq -n \
             --arg login "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin $REPO_URL" \
             --arg pull "docker pull $IMAGE" \
-            --arg migrate "docker run --rm --env-file /opt/toolkit/toolkit/.env.production $IMAGE python -m alembic -c database/alembic.ini upgrade head" \
+            --arg migrate "docker run --rm --env-file /opt/toolkit/toolkit/.env.production $IMAGE python -m alembic upgrade head" \
             '["set -e", $login, $pull, $migrate]')
 
           # Retried at this outer level, same as the bootstrap-roll steps
@@ -389,7 +389,7 @@ jobs:
       - name: Roll the toolkit app and wait for it
         if: steps.detect.outputs.deploy_toolkit == 'true'
         id: bootstrap
-        working-directory: terraform/stacks/toolkit
+        working-directory: infrastructure/terraform/stacks/toolkit
         run: |
           set -uo pipefail
           DOC=$(tofu output -raw bootstrap_document_name 2>/dev/null || echo "")
@@ -453,7 +453,7 @@ jobs:
 
       - name: Verify the app actually serves
         if: steps.detect.outputs.deploy_toolkit == 'true' && steps.bootstrap.outputs.skipped != 'true'
-        working-directory: terraform/stacks/toolkit
+        working-directory: infrastructure/terraform/stacks/toolkit
         run: |
           set -euo pipefail
           URL=$(tofu output -json app_urls 2>/dev/null | jq -r '.toolkit // empty')

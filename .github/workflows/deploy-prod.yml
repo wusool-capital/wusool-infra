@@ -12,9 +12,8 @@ on:
   push:
     branches: [prod]
     paths:
-      - 'terraform/**'
-      - 'workflows/wusool-toolkit/**'
-      - 'database/**'
+      - 'infrastructure/terraform/**'
+      - 'server/**'
       - '.github/workflows/deploy-prod.yml'
       - '.github/workflows/_deploy.yml'
       - '.github/workflows/_build.yml'

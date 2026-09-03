@@ -1,0 +1,19 @@
+"""The persistence interface for the buyers concept — implemented by
+`persistence/repositories/buyers_repository.py`. This bot has no matching
+pipeline, so there's no separate domain value object/mapper layer the way
+`matching_engine` has — the Port's methods return the ORM row directly,
+same as the concrete class they abstract.
+"""
+
+from typing import Any, Protocol
+
+from app.models import BuyerRole
+
+
+class BuyerRepositoryPort(Protocol):
+    async def get_by_id(self, buyer_role_id: str) -> BuyerRole | None: ...
+    async def get_with_organization(self, buyer_role_id: str) -> BuyerRole | None: ...
+    async def get_by_org_attio_id(self, org_attio_id: str) -> BuyerRole | None: ...
+    async def create(self, org_attio_id: str, **fields: Any) -> BuyerRole: ...
+    async def search_by_organization_name(self, term: str, limit: int = 10) -> list[BuyerRole]: ...
+    async def update(self, buyer_role_id: str, **fields: Any) -> BuyerRole | None: ...

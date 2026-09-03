@@ -59,6 +59,9 @@ For multi-step tasks, state a brief plan:
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
 3. [Step] → verify: [check]
+
+For implementation plans, always use the `concise-plan` skill; plans must be short, concrete, file-oriented, and Codex-style—never verbose or essay-like.
+
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.

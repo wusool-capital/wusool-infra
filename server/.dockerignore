@@ -1,0 +1,32 @@
+# Build context for this Dockerfile is server/ itself now — one project,
+# no path dependency reaching outside it, so this no longer needs to trim a
+# repo-root-sized context down (that's what the old, much longer version of
+# this file did before database/, terraform/, and the other workflows/*
+# folders were outside the build context entirely).
+
+.git/
+
+# Python artifacts — the image builds its own venv from scratch; a
+# host-built .venv or bytecode must never leak in.
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/.pytest_cache/
+**/.ruff_cache/
+**/*.egg-info/
+
+# Test suites — not needed at runtime.
+app/modules/matching_engine/tests/
+app/modules/ddl_commands/tests/
+tests/
+
+# Ops scripts / docs generators — not needed at runtime.
+scripts/
+
+# Docs — not needed at runtime.
+**/*.md
+
+# Local-dev-only files.
+.env
+.env.*
+!.env.example

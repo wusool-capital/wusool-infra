@@ -10,7 +10,7 @@ description: >
 
 inputs:
   stack:
-    description: 'Stack directory name under terraform/stacks/, e.g. base, n8n, toolkit, postgres'
+    description: 'Stack directory name under infrastructure/terraform/stacks/, e.g. base, n8n, toolkit, postgres'
     required: true
   environment:
     description: 'dev or prod'
@@ -24,7 +24,7 @@ runs:
   using: composite
   steps:
     - shell: bash
-      working-directory: terraform/stacks/${{ inputs.stack }}
+      working-directory: infrastructure/terraform/stacks/${{ inputs.stack }}
       env:
         STACK: ${{ inputs.stack }}
         ENV: ${{ inputs.environment }}

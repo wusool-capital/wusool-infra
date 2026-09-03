@@ -15,7 +15,7 @@ inputs:
     # valid for 300s, so nothing downstream can re-mint them. A job that
     # polls AWS for longer than its session simply dies mid-poll. Only raise
     # this for such jobs, and only as far as the role's own
-    # max_session_duration (terraform/stacks/account/main.tf) allows -
+    # max_session_duration (infrastructure/terraform/stacks/account/main.tf) allows -
     # asking for more is a hard ValidationError at assume time, not a
     # silent clamp.
     description: 'Session length in seconds. Raise only for jobs that poll longer than the 1h default.'

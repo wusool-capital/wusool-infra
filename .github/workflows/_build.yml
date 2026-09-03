@@ -64,15 +64,14 @@ jobs:
           # build and vice versa) — without this every merge rebuilt every
           # layer from scratch, including the uv.lock-driven dependency
           # install, even when only application code changed.
-          # Context is the repo root, not workflows/wusool-toolkit — the
-          # Dockerfile now also needs database/ (the wusool-db path
-          # dependency), which sits outside that directory. See the
-          # Dockerfile's own comment and the root .dockerignore.
+          # Context is server/ — single project now, no separate database/
+          # package dependency outside it (alembic.ini/alembic/ both moved
+          # into server/ during the repo restructure).
           docker buildx build --platform linux/amd64 \
             --cache-from type=gha,scope=wusool-toolkit \
             --cache-to type=gha,scope=wusool-toolkit,mode=max \
-            -f workflows/wusool-toolkit/Dockerfile \
-            -t "$IMAGE" --push .
+            -f server/Dockerfile \
+            -t "$IMAGE" --push server
 
           DIGEST=$(aws ecr describe-images --repository-name wusool-${{ inputs.environment }}/toolkit \
             --image-ids imageTag="sha-$SHA" \

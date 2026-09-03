@@ -9,9 +9,8 @@ on:
   push:
     branches: [dev]
     paths:
-      - 'terraform/**'
-      - 'workflows/wusool-toolkit/**'
-      - 'database/**'
+      - 'infrastructure/terraform/**'
+      - 'server/**'
       - '.github/workflows/deploy-dev.yml'
       - '.github/workflows/_deploy.yml'
       - '.github/workflows/_build.yml'
