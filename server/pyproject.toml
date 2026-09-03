@@ -1,0 +1,73 @@
+[project]
+name = "wusool-toolkit-server"
+version = "0.1.0"
+description = "One Slack bot process: /find-match (matching_engine module) plus /edit-seller, /remove-seller, /edit-buyer, /remove-buyer (ddl_commands module). Single project - no uv workspace, no path dependencies."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.35",
+    "asyncpg>=0.30.0",
+    "greenlet>=3.1.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "slack-bolt>=1.21.0",
+    "aiohttp>=3.10.0",
+    "boto3>=1.35.0",
+    "firecrawl-py>=1.0.0",
+    # For `buyer_intel.brief_embedding`/`vertical_kb.embedding` (conditional
+    # `vector(1536)` columns - see those models' docstrings).
+    "pgvector>=0.3.6",
+    # A real runtime dependency, not a dev tool: `alembic upgrade head` runs
+    # inside the deployed container itself (RDS is private, CI has no direct
+    # network path to it - see .github/workflows/_deploy.yml's "Run pending
+    # database migrations" step).
+    "alembic>=1.13",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    "ruff>=0.7.0",
+    "ty>=0.0.1a1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic's own `--autogenerate` renderer emits one long line per column/
+# index/constraint (many kwargs each) - that's upstream's style, not ours,
+# and manually re-wrapping it would fight every future `--autogenerate` diff
+# instead of matching it. Line length is the only thing ignored here; F/I/UP/B
+# still apply.
+"alembic/versions/*.py" = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Matches the process-wide, lru_cache'd async engine's lifetime - the default
+# per-function loop scope tears down and recreates the event loop for every
+# test, which breaks a cached asyncpg engine created under a prior test's
+# now-closed loop.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests", "app"]
+# importlib resolves each test file by its own path, not by sys.path
+# insertion + package-dotted-name uniqueness - so module/matching_engine's
+# and module/ddl_commands's identically-named test files (e.g.
+# test_buyer_repository.py in both) don't need __init__.py chains to stay
+# distinct. Explicit config instead of an __init__.py-presence workaround.
+addopts = "--import-mode=importlib"

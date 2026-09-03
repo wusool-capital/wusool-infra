@@ -1,6 +1,6 @@
 # Nightly safety-net full resync of DEV Attio -> Postgres. Complements, not
-# replaces, the real-time webhook (workflows/wusool-toolkit/ddl-commands/
-# ddl_commands/modules/attio_sync/, `POST /webhooks/attio`) — catches
+# replaces, the real-time webhook (server/app/modules/ddl_commands/api/attio_sync.py,
+# `POST /webhooks/attio`) — catches
 # anything a dropped delivery, an out-of-order race, or a deliberate pause
 # (e.g. during a bulk crm-sync migration — see that runbook for the
 # pause/resume commands) left inconsistent.
@@ -10,7 +10,7 @@
 # to it" pattern _deploy.yml already uses for `alembic upgrade head`. No new
 # infrastructure, no new dependencies, and never a separate build: this reads
 # back and reuses whatever digest-pinned image is already running — this
-# repo never runs images by a mutable tag (see terraform/modules/n8n-ec2/
+# repo never runs images by a mutable tag (see infrastructure/terraform/modules/n8n-ec2/
 # variables.tf's image-pinning validation for why), so the container's own
 # image ID (via `docker inspect`, not `docker ps`'s `.Image` column — that
 # column silently drops the digest for a container started by digest
@@ -56,7 +56,7 @@ jobs:
       # applied by deploy-dev.yml's own run of stacks/toolkit.
       - name: Read toolkit stack outputs
         id: toolkit
-        working-directory: terraform/stacks/toolkit
+        working-directory: infrastructure/terraform/stacks/toolkit
         run: |
           set -euo pipefail
           tofu init -reconfigure -input=false \

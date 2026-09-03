@@ -1,0 +1,79 @@
+services:
+  db:
+    # Plain postgres:16-alpine doesn't ship pgvector, and 001_extensions.sql's
+    # `CREATE EXTENSION vector` failure is fatal to Postgres's own init-script
+    # runner (unlike a manual, non-`set -e` apply) — use an image that
+    # actually has the extension, closer to the real RDS instance anyway.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: matching
+      POSTGRES_PASSWORD: matching
+      POSTGRES_DB: wusool_crm
+    ports:
+      - "${COMPOSE_DB_PORT:-55433}:5432"
+    volumes:
+      - matching-engine-db-data:/var/lib/postgresql/data
+      # Schema setup is Alembic-based, not raw SQL applied on Postgres init
+      # — the `migrate` service below runs `alembic upgrade head` against
+      # this db once it's healthy, rather than relying on
+      # /docker-entrypoint-initdb.d.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matching -d wusool_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    # One-shot: applies every pending Alembic migration, then exits.
+    # `bot` waits for this to *succeed* (not just start) before booting —
+    # same ordering the real deploy enforces (see .github/workflows/_deploy.yml),
+    # so this compose file can't accidentally run the app against a schema
+    # it doesn't have yet.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql://matching:matching@db:5432/wusool_crm
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  bot:
+    # One process, one Slack app: /find-match (matching_engine module) and
+    # /edit-seller, /edit-buyer, /add-seller, /add-buyer (ddl_commands module)
+    # all served by the root main.py — see server/README.md. One project now
+    # (server/) — no path dependency reaching outside it, so context is just
+    # this directory.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${COMPOSE_BOT_PORT:-8080}:8000"
+    environment:
+      # Always the bundled `db` service — intentionally not overridable via
+      # .env, so a developer's real-tunnel DATABASE_URL never leaks in here.
+      DATABASE_URL: postgresql://matching:matching@db:5432/wusool_crm
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-xoxb-local-dev}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-local-dev-secret}
+      # Required (no default) by ddl_commands.Settings / attio.Settings —
+      # placeholders here just let the container boot without crashing;
+      # `/edit-*`/`/add-*`/`/webhooks/attio` won't actually reach Attio
+      # unless these are overridden with real values.
+      ATTIO_API_KEY: ${ATTIO_API_KEY:-local-dev-attio-key}
+      ATTIO_WEBHOOK_SECRET: ${ATTIO_WEBHOOK_SECRET:-local-dev-webhook-secret}
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      ENABLE_SELLER_MEETING_NOTES: ${ENABLE_SELLER_MEETING_NOTES:-true}
+      SYNC_ALERT_WEBHOOK_URL: ${SYNC_ALERT_WEBHOOK_URL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  matching-engine-db-data:
