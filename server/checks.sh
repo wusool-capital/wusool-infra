@@ -34,9 +34,21 @@ unit() {
 }
 
 schema() {
+  check_migration_graph
   require_database
   uv run alembic upgrade head
   uv run alembic check
+}
+
+check_migration_graph() {
+  local heads
+  heads="$(uv run alembic heads)"
+  if [[ "$(grep -c '(head)' <<<"$heads")" -ne 1 ]]; then
+    echo "Alembic migration graph must resolve to exactly one head:" >&2
+    echo "$heads" >&2
+    return 1
+  fi
+  uv run alembic history >/dev/null
 }
 
 integration() {
