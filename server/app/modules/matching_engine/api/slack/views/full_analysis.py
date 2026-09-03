@@ -9,6 +9,8 @@ concatenating them into one, so a single verbose LLM field can't blow the
 whole message.
 """
 
+import uuid
+
 from slack_sdk.models.blocks import Block, DividerBlock, HeaderBlock, SectionBlock
 
 from app.modules.matching_engine.api.matching import (
@@ -63,7 +65,9 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[Block]:
     return blocks
 
 
-def _candidate_blocks(candidate: MatchResultRead, scores_by_id: dict) -> list[Block]:
+def _candidate_blocks(
+    candidate: MatchResultRead, scores_by_id: dict[uuid.UUID, MatchScoreRead]
+) -> list[Block]:
     seller_name = candidate.seller_org_name or candidate.seller_attio_id or "Unknown"
     score_text = f"{candidate.match_score:.0f}" if candidate.match_score is not None else "Unknown"
     confidence_text = (

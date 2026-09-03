@@ -6,6 +6,7 @@ of what the operator actually came to change.
 """
 
 import json
+from typing import Any
 
 from slack_sdk.models.blocks import InputBlock, SectionBlock
 from slack_sdk.models.blocks.basic_components import Option
@@ -82,7 +83,7 @@ def build_field_picker_modal(
     )
 
 
-def extract_selected_fields(values: dict) -> tuple[list[str], list[str]]:
+def extract_selected_fields(values: dict[str, Any]) -> tuple[list[str], list[str]]:
     org_selected = (
         values.get("org_fields", {}).get("selected_org_fields", {}).get("selected_options", [])
     )

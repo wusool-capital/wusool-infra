@@ -86,11 +86,7 @@ include = [
     "app/modules/attio/providers/attio/options.py",
     "app/modules/attio/providers/attio/retry.py",
     "app/modules/attio/providers/attio/values.py",
-    "app/modules/ddl_commands/api/slack/**",
     "app/modules/ddl_commands/scripts/attio_sync_full_resync.py",
-    "app/modules/matching_engine/api/slack/**",
-    "app/modules/notifications/application/ports/slack.py",
-    "app/modules/notifications/providers/slack/notifier.py",
     "main.py",
 ]
 

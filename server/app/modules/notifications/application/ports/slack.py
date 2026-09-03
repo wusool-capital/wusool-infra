@@ -6,7 +6,7 @@ README for the inbound-vs-outbound-vs-in-request distinction).
 """
 
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Any, Protocol
 
 from slack_sdk.models.blocks import Block
 from slack_sdk.models.views import View
@@ -14,13 +14,18 @@ from slack_sdk.models.views import View
 
 class SlackNotifierPort(Protocol):
     async def post_message(
-        self, *, channel: str, text: str, blocks: Sequence[dict | Block] | None = None
+        self, *, channel: str, text: str, blocks: Sequence[dict[str, Any] | Block] | None = None
     ) -> str:
         """Returns the posted message's `ts`, so a caller can `update_message` it later."""
         ...
 
     async def update_message(
-        self, *, channel: str, ts: str, text: str, blocks: Sequence[dict | Block] | None = None
+        self,
+        *,
+        channel: str,
+        ts: str,
+        text: str,
+        blocks: Sequence[dict[str, Any] | Block] | None = None,
     ) -> None: ...
 
-    async def open_view(self, *, trigger_id: str, view: dict | View) -> None: ...
+    async def open_view(self, *, trigger_id: str, view: dict[str, Any] | View) -> None: ...

@@ -8,6 +8,7 @@ database — Slack payload state is never trusted on its own (§24).
 import json
 import logging
 import uuid
+from typing import Any
 
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
@@ -41,7 +42,9 @@ _submission_idempotency_store = InMemoryIdempotencyStore()
 
 def register(app: AsyncApp) -> None:
     @app.view("buyer_selection_modal")
-    async def handle_buyer_selection_submission(ack: AsyncAck, body: dict, view: dict) -> None:
+    async def handle_buyer_selection_submission(
+        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any]
+    ) -> None:
         await ack()
 
         view_id = view.get("id")
@@ -71,7 +74,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.action("view_full_analysis")
-    async def handle_view_full_analysis(ack: AsyncAck, body: dict, client: AsyncWebClient) -> None:
+    async def handle_view_full_analysis(
+        ack: AsyncAck, body: dict[str, Any], client: AsyncWebClient
+    ) -> None:
         await ack()
 
         action = body["actions"][0]
@@ -103,14 +108,14 @@ def register(app: AsyncApp) -> None:
 
     @app.action("approve_match")
     async def handle_approve_match(
-        ack: AsyncAck, body: dict, client: AsyncWebClient, respond: AsyncRespond
+        ack: AsyncAck, body: dict[str, Any], client: AsyncWebClient, respond: AsyncRespond
     ) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="approve")
 
     @app.action("reject_match")
     async def handle_reject_match(
-        ack: AsyncAck, body: dict, client: AsyncWebClient, respond: AsyncRespond
+        ack: AsyncAck, body: dict[str, Any], client: AsyncWebClient, respond: AsyncRespond
     ) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="reject")
@@ -124,7 +129,7 @@ def register(app: AsyncApp) -> None:
 
 
 async def _handle_decision(
-    body: dict, client: AsyncWebClient, respond: AsyncRespond, decision: str
+    body: dict[str, Any], client: AsyncWebClient, respond: AsyncRespond, decision: str
 ) -> None:
     action = body["actions"][0]
     match_result_id_raw = action.get("value")

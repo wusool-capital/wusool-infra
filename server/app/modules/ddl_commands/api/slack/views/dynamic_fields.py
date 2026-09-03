@@ -58,7 +58,9 @@ def render_field_block(
     raise ValueError(f"Unsupported field kind for rendering: {spec.kind!r}")
 
 
-def extract_field_value(spec: FieldSpec, values: dict, *, block_id_prefix: str = "") -> Any:
+def extract_field_value(
+    spec: FieldSpec, values: dict[str, Any], *, block_id_prefix: str = ""
+) -> Any:
     """Returns a plain value in the same shape Postgres already stores
     (title strings for selects, a bare `float | None` amount for money — the
     caller wraps it with `{"amount": ..., "currency": ...}` once it knows

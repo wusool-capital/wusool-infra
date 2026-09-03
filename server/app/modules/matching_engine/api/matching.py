@@ -9,6 +9,7 @@ maps the pre-existing deterministic scoring breakdown.
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -64,8 +65,9 @@ class MatchScoreRead(BaseModel):
     seller_attio_id: str
     score: Decimal
     # Deliberately loose/forward-compatible: no producer of these fields
-    # exists yet to pin down a stricter shape.
-    dims: dict[str, float] | None = None
+    # exists yet to pin down a stricter shape. Not `dict[str, float]` — a
+    # real "criteria" key already holds a list, not a float.
+    dims: dict[str, Any] | None = None
     reasoning: str | None = None
     citations: list[str] | None = None
     generated_at: datetime

@@ -11,6 +11,7 @@ to a block_id with no lookup table — `("est_revenue", "currency")` becomes
 """
 
 from datetime import date
+from typing import Any
 
 from pydantic_core import ErrorDetails
 from slack_sdk.models.blocks import InputBlock
@@ -81,7 +82,7 @@ def bool_select_block(field: str, label: str, value: bool | None) -> InputBlock:
     )
 
 
-def money_input_blocks(field: str, label: str, money: dict | None) -> list[InputBlock]:
+def money_input_blocks(field: str, label: str, money: dict[str, Any] | None) -> list[InputBlock]:
     amount = money.get("amount") if money else None
     currency = money.get("currency") if money else None
     return [
@@ -139,12 +140,12 @@ def confirmation_checkbox_block(
     )
 
 
-def get_text(values: dict, block_id: str, action_id: str) -> str | None:
+def get_text(values: dict[str, Any], block_id: str, action_id: str) -> str | None:
     raw = values.get(block_id, {}).get(action_id, {}).get("value")
     return raw if raw else None
 
 
-def get_number(values: dict, block_id: str, action_id: str) -> float | None:
+def get_number(values: dict[str, Any], block_id: str, action_id: str) -> float | None:
     raw = values.get(block_id, {}).get(action_id, {}).get("value")
     if not raw:
         return None
@@ -154,16 +155,16 @@ def get_number(values: dict, block_id: str, action_id: str) -> float | None:
         return None
 
 
-def get_date(values: dict, block_id: str, action_id: str) -> str | None:
+def get_date(values: dict[str, Any], block_id: str, action_id: str) -> str | None:
     return values.get(block_id, {}).get(action_id, {}).get("selected_date")
 
 
-def get_static_select(values: dict, block_id: str, action_id: str) -> str | None:
+def get_static_select(values: dict[str, Any], block_id: str, action_id: str) -> str | None:
     option = values.get(block_id, {}).get(action_id, {}).get("selected_option")
     return option["value"] if option else None
 
 
-def get_bool_select(values: dict, block_id: str, action_id: str) -> bool | None:
+def get_bool_select(values: dict[str, Any], block_id: str, action_id: str) -> bool | None:
     raw = get_static_select(values, block_id, action_id)
     if raw == "true":
         return True
@@ -172,12 +173,12 @@ def get_bool_select(values: dict, block_id: str, action_id: str) -> bool | None:
     return None
 
 
-def get_checkbox_selected(values: dict, block_id: str, action_id: str) -> bool:
+def get_checkbox_selected(values: dict[str, Any], block_id: str, action_id: str) -> bool:
     options = values.get(block_id, {}).get(action_id, {}).get("selected_options") or []
     return len(options) > 0
 
 
-def extract_money(values: dict, field: str) -> dict | None:
+def extract_money(values: dict[str, Any], field: str) -> dict[str, Any] | None:
     amount = get_number(values, f"{field}_amount", f"{field}_amount")
     currency = get_text(values, f"{field}_currency", f"{field}_currency")
     if amount is None and currency is None:
