@@ -5,6 +5,9 @@ the current row (organization fields from `org`, seller fields from `role`).
 
 import json
 
+from slack_sdk.models.blocks import Block
+from slack_sdk.models.views import View
+
 from app.models import Organization, SellerRole
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.sellers import (
@@ -23,8 +26,8 @@ def build_seller_edit_form_modal(
     selected_role_fields: list[str],
     requested_by: str,
     channel_id: str,
-) -> dict:
-    blocks: list[dict] = []
+) -> View:
+    blocks: list[Block] = []
     for name in selected_org_fields:
         spec = ORGANIZATION_FIELDS_BY_NAME[name]
         blocks.append(render_field_block(spec, getattr(org, name), block_id_prefix="org_"))
@@ -43,10 +46,10 @@ def build_seller_edit_form_modal(
             )
         )
 
-    return {
-        "type": "modal",
-        "callback_id": "seller_edit_form_modal",
-        "private_metadata": json.dumps(
+    return View(
+        type="modal",
+        callback_id="seller_edit_form_modal",
+        private_metadata=json.dumps(
             {
                 "seller_role_id": str(role.id),
                 "org_attio_id": org.attio_id,
@@ -57,8 +60,8 @@ def build_seller_edit_form_modal(
                 "selected_role_fields": selected_role_fields,
             }
         ),
-        "title": {"type": "plain_text", "text": "Edit seller"},
-        "submit": {"type": "plain_text", "text": "Save"},
-        "close": {"type": "plain_text", "text": "Cancel"},
-        "blocks": blocks,
-    }
+        title="Edit seller",
+        submit="Save",
+        close="Cancel",
+        blocks=blocks,
+    )

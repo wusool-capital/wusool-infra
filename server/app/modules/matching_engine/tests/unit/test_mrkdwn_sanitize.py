@@ -63,7 +63,7 @@ def test_web_fallback_maps_details_render_without_markdown_heading_markers() -> 
     )
 
     blocks = build_web_fallback_blocks("Muthmer Capital", [lead])
-    rendered = blocks[3]["text"]["text"]
+    rendered = blocks[3].to_dict()["text"]["text"]
 
     assert rendered == (
         "*1. What are the Principles | PRI*\n"
@@ -96,7 +96,7 @@ def test_match_result_rationale_has_no_tildes() -> None:
         ],
     )
 
-    blocks = build_match_result_blocks(result)
+    blocks = [b.to_dict() for b in build_match_result_blocks(result)]
     rendered = "\n".join(
         b["text"]["text"] for b in blocks if b.get("type") == "section" and "text" in b
     )
@@ -122,7 +122,7 @@ def test_full_analysis_narrative_has_no_tildes() -> None:
     )
     analysis = MatchAnalysis(run=run, candidates=[candidate], scores=[])
 
-    blocks = build_full_analysis_blocks(analysis)
+    blocks = [b.to_dict() for b in build_full_analysis_blocks(analysis)]
     rendered = "\n".join(b["text"]["text"] for b in blocks if b.get("type") == "section")
 
     assert "~" not in rendered

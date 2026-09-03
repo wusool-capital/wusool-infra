@@ -9,23 +9,23 @@ seller-side collision exists today, to avoid the same latent trap later.
 
 import json
 
+from slack_sdk.models.blocks import InputBlock
+from slack_sdk.models.blocks.basic_components import Option
+from slack_sdk.models.blocks.block_elements import StaticSelectElement
+from slack_sdk.models.views import View
+
 from app.modules.ddl_commands.api.sellers import SellerSummary
 
 
 def build_seller_selection_modal(
     candidates: list[SellerSummary], *, requested_by: str, channel_id: str
-) -> dict:
+) -> View:
     options = []
     for candidate in candidates:
         org = candidate.organization
         detail_bits = [b for b in (org.hq_country, ", ".join(org.sector_focus) or None) if b]
         detail = f" ({', '.join(detail_bits)})" if detail_bits else ""
-        options.append(
-            {
-                "text": {"type": "plain_text", "text": f"{org.name}{detail}"[:75]},
-                "value": str(candidate.id),
-            }
-        )
+        options.append(Option(value=str(candidate.id), text=f"{org.name}{detail}"[:75]))
 
     label = (
         "Confirm this is the right seller to edit"
@@ -33,34 +33,30 @@ def build_seller_selection_modal(
         else "Choose the right seller to edit"
     )
 
-    return {
-        "type": "modal",
-        "callback_id": "seller_role_selection_modal",
+    return View(
+        type="modal",
+        callback_id="seller_role_selection_modal",
         # `org_names` carries each candidate's organization name forward so the
         # submission handler can build the next modal without a database round
         # trip. It has only 3s to `ack()` before Slack abandons the request, and
         # the name is the only thing it needed that query for.
-        "private_metadata": json.dumps(
+        private_metadata=json.dumps(
             {
                 "requested_by": requested_by,
                 "channel_id": channel_id,
                 "org_names": {str(c.id): c.organization.name for c in candidates},
             }
         ),
-        "title": {"type": "plain_text", "text": "Confirm seller"},
-        "submit": {"type": "plain_text", "text": "Continue"},
-        "close": {"type": "plain_text", "text": "Cancel"},
-        "blocks": [
-            {
-                "type": "input",
-                "block_id": "seller_role_id",
-                "label": {"type": "plain_text", "text": label},
-                "element": {
-                    "type": "static_select",
-                    "action_id": "selected_seller",
-                    "options": options,
-                    "initial_option": options[0],
-                },
-            }
+        title="Confirm seller",
+        submit="Continue",
+        close="Cancel",
+        blocks=[
+            InputBlock(
+                block_id="seller_role_id",
+                label=label,
+                element=StaticSelectElement(
+                    action_id="selected_seller", options=options, initial_option=options[0]
+                ),
+            )
         ],
-    }
+    )

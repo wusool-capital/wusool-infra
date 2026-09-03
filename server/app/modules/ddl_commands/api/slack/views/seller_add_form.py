@@ -11,6 +11,9 @@ existing value to overwrite regardless.
 
 import json
 
+from slack_sdk.models.blocks import Block, SectionBlock
+from slack_sdk.models.views import View
+
 from app.models import Organization
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
@@ -26,37 +29,27 @@ def build_seller_add_form_modal(
     channel_id: str,
     prefill_name: str = "",
     duplicate_candidates: list[str] | None = None,
-) -> dict:
+) -> View:
     is_new_org = org is None
-    blocks: list[dict] = []
+    blocks: list[Block] = []
     if is_new_org:
         if duplicate_candidates:
             names = ", ".join(f"*{sanitize_mrkdwn(name)}*" for name in duplicate_candidates)
             blocks.append(
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": (
-                            f":warning: {len(duplicate_candidates)} similar organization(s) "
-                            f"already exist: {names}. Continuing will create a new, separate "
-                            "organization in Attio."
-                        ),
-                    },
-                }
+                SectionBlock(
+                    text=(
+                        f":warning: {len(duplicate_candidates)} similar organization(s) "
+                        f"already exist: {names}. Continuing will create a new, separate "
+                        "organization in Attio."
+                    )
+                )
             )
         name_block = text_input_block("name", "Organization name", prefill_name or None)
-        name_block["optional"] = False
+        name_block.optional = False
         blocks.append(name_block)
     else:
         blocks.append(
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"Attaching this seller role to *{sanitize_mrkdwn(org.name)}*.",
-                },
-            }
+            SectionBlock(text=f"Attaching this seller role to *{sanitize_mrkdwn(org.name)}*.")
         )
 
     for spec in ORGANIZATION_FIELDS:
@@ -66,10 +59,10 @@ def build_seller_add_form_modal(
     for spec in SELLER_ROLE_FIELDS:
         blocks.append(render_field_block(spec, None))
 
-    return {
-        "type": "modal",
-        "callback_id": "seller_add_form_modal",
-        "private_metadata": json.dumps(
+    return View(
+        type="modal",
+        callback_id="seller_add_form_modal",
+        private_metadata=json.dumps(
             {
                 "is_new_org": is_new_org,
                 "org_attio_id": None if org is None else org.attio_id,
@@ -78,8 +71,8 @@ def build_seller_add_form_modal(
                 "channel_id": channel_id,
             }
         ),
-        "title": {"type": "plain_text", "text": "Add seller"},
-        "submit": {"type": "plain_text", "text": "Save"},
-        "close": {"type": "plain_text", "text": "Cancel"},
-        "blocks": blocks,
-    }
+        title="Add seller",
+        submit="Save",
+        close="Cancel",
+        blocks=blocks,
+    )

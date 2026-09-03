@@ -10,6 +10,8 @@ that shows both can never collide.
 from datetime import date
 from typing import Any
 
+from slack_sdk.models.blocks import InputBlock
+
 from app.modules.ddl_commands.api.schemas import FieldSpec
 from app.modules.ddl_commands.api.slack.views.form_values import (
     bool_select_block,
@@ -30,7 +32,9 @@ def _block_id(spec: FieldSpec, block_id_prefix: str) -> str:
     return f"{block_id_prefix}{spec.name}"
 
 
-def render_field_block(spec: FieldSpec, current_value: Any, *, block_id_prefix: str = "") -> dict:
+def render_field_block(
+    spec: FieldSpec, current_value: Any, *, block_id_prefix: str = ""
+) -> InputBlock:
     block_id = _block_id(spec, block_id_prefix)
     if spec.kind == "text":
         return text_input_block(block_id, spec.label, current_value)

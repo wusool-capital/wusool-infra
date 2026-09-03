@@ -5,6 +5,10 @@ structural, so this one concrete class satisfies every module's own
 independently-declared `SlackNotifierPort` with no cross-module import.
 """
 
+from collections.abc import Sequence
+
+from slack_sdk.models.blocks import Block
+from slack_sdk.models.views import View
 from slack_sdk.web.async_client import AsyncWebClient
 
 
@@ -13,15 +17,15 @@ class SlackWebClientNotifier:
         self._client = client
 
     async def post_message(
-        self, *, channel: str, text: str, blocks: list[dict] | None = None
+        self, *, channel: str, text: str, blocks: Sequence[dict | Block] | None = None
     ) -> str:
         response = await self._client.chat_postMessage(channel=channel, text=text, blocks=blocks)
         return response["ts"]
 
     async def update_message(
-        self, *, channel: str, ts: str, text: str, blocks: list[dict] | None = None
+        self, *, channel: str, ts: str, text: str, blocks: Sequence[dict | Block] | None = None
     ) -> None:
         await self._client.chat_update(channel=channel, ts=ts, text=text, blocks=blocks)
 
-    async def open_view(self, *, trigger_id: str, view: dict) -> None:
+    async def open_view(self, *, trigger_id: str, view: dict | View) -> None:
         await self._client.views_open(trigger_id=trigger_id, view=view)
