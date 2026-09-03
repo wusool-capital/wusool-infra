@@ -9,6 +9,23 @@ in (`to_postgres_money`), since Postgres has no server-side default the way
 Attio's attribute config does.
 """
 
+from typing import TypedDict
+
+
+class AttioCurrencyWrite(TypedDict):
+    currency_value: float
+
+
+class MoneyJson(TypedDict):
+    """Postgres's own money shape (`{"amount", "currency"}`), matching what
+    `database/sync-postgres.ps1` already writes — read back by
+    `attio.providers.attio.values.money`, written by `to_postgres_money`.
+    """
+
+    amount: float
+    currency: str | None
+
+
 # organizations.funding_raised -> USD; every buyer_role/seller_role money
 # field -> USD. Keyed by (table, field) so identically-named fields on
 # different tables can't be confused.
@@ -47,7 +64,7 @@ def default_currency_code(table: str, field: str) -> str:
     return _CURRENCY_CODE_BY_FIELD[key]
 
 
-def serialize_money(table: str, field: str, amount: float) -> dict:
+def serialize_money(table: str, field: str, amount: float) -> AttioCurrencyWrite:
     """`default_currency_code` is still called here (not just to validate
     `(table, field)` is a known money field) — the same guard against a
     field slipping through unconfigured that every other caller of this
@@ -58,9 +75,7 @@ def serialize_money(table: str, field: str, amount: float) -> dict:
     return {"currency_value": amount}
 
 
-def to_postgres_money(table: str, field: str, amount: float) -> dict:
-    """Postgres's own money shape (`{"amount", "currency"}`, matching what
-    `database/sync-postgres.ps1` already writes) — same fixed currency code
-    as the Attio write, so the two can never disagree on currency.
-    """
+def to_postgres_money(table: str, field: str, amount: float) -> MoneyJson:
+    """Same fixed currency code as the Attio write, so the two can never
+    disagree on currency."""
     return {"amount": amount, "currency": default_currency_code(table, field)}

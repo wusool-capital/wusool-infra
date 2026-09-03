@@ -9,6 +9,10 @@ concatenating them into one, so a single verbose LLM field can't blow the
 whole message.
 """
 
+import uuid
+
+from slack_sdk.models.blocks import Block, DividerBlock, HeaderBlock, SectionBlock
+
 from app.modules.matching_engine.api.matching import (
     MatchAnalysis,
     MatchResultRead,
@@ -25,15 +29,15 @@ def _truncate(text: str) -> str:
     return text[: _MAX_SECTION_TEXT - 1] + "…"
 
 
-def _section(text: str) -> dict:
-    return {"type": "section", "text": {"type": "mrkdwn", "text": _truncate(sanitize_mrkdwn(text))}}
+def _section(text: str) -> SectionBlock:
+    return SectionBlock(text=_truncate(sanitize_mrkdwn(text)))
 
 
-def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
-    blocks: list[dict] = []
+def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[Block]:
+    blocks: list[Block] = []
     profile = analysis.run.requirement_profile
 
-    blocks.append({"type": "header", "text": {"type": "plain_text", "text": "Buyer & Mandate"}})
+    blocks.append(HeaderBlock(text="Buyer & Mandate"))
     thesis = (profile.strategic_thesis if profile else None) or "Unknown"
     ideal_target = (profile.ideal_target_description if profile else None) or "Unknown"
     hard_reqs = profile.hard_requirements if profile else []
@@ -51,9 +55,9 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
             f"*Hard requirements:*\n{hard_req_lines}"
         )
     )
-    blocks.append({"type": "divider"})
+    blocks.append(DividerBlock())
 
-    blocks.append({"type": "header", "text": {"type": "plain_text", "text": "Top Matches"}})
+    blocks.append(HeaderBlock(text="Top Matches"))
     scores_by_id = {s.id: s for s in analysis.scores}
     for candidate in sorted(analysis.candidates, key=lambda c: c.rank or 0):
         blocks.extend(_candidate_blocks(candidate, scores_by_id))
@@ -61,13 +65,15 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
     return blocks
 
 
-def _candidate_blocks(candidate: MatchResultRead, scores_by_id: dict) -> list[dict]:
+def _candidate_blocks(
+    candidate: MatchResultRead, scores_by_id: dict[uuid.UUID, MatchScoreRead]
+) -> list[Block]:
     seller_name = candidate.seller_org_name or candidate.seller_attio_id or "Unknown"
     score_text = f"{candidate.match_score:.0f}" if candidate.match_score is not None else "Unknown"
     confidence_text = (
         f"{candidate.data_confidence:.0f}" if candidate.data_confidence is not None else "Unknown"
     )
-    blocks: list[dict] = [
+    blocks: list[Block] = [
         _section(
             f"*{candidate.rank}. {seller_name}* — "
             f"Match score: {score_text}/100, Data confidence: {confidence_text}/100\n"
@@ -82,12 +88,10 @@ def _candidate_blocks(candidate: MatchResultRead, scores_by_id: dict) -> list[di
                 score = s
                 break
 
-    criteria = ((score.dims or {}).get("criteria") if score else None) or []
+    criteria = score.dims.criteria if score and score.dims else []
     if criteria:
         criteria_lines = "\n".join(
-            f"• {c.get('criterion')} ({c.get('criterion_type')}): {c.get('result')} "
-            f"[{c.get('data_backing')}]"
-            for c in criteria
+            f"• {c.criterion} ({c.criterion_type}): {c.result} [{c.data_backing}]" for c in criteria
         )
         blocks.append(_section(criteria_lines))
 
@@ -104,5 +108,5 @@ def _candidate_blocks(candidate: MatchResultRead, scores_by_id: dict) -> list[di
         if value:
             blocks.append(_section(f"*{label}:* {value}"))
 
-    blocks.append({"type": "divider"})
+    blocks.append(DividerBlock())
     return blocks

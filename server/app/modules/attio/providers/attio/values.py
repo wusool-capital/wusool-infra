@@ -10,19 +10,31 @@ from datetime import date as _date
 from datetime import datetime as _datetime
 from typing import Any
 
+from app.modules.attio.domain.records import AttioRecord, AttioValueEntry
+from app.modules.attio.providers.attio.money import MoneyJson
 
-def vals(record: dict) -> dict:
+ValuesBySlug = dict[str, list[AttioValueEntry]]
+
+
+def vals(record: AttioRecord) -> ValuesBySlug:
     return record.get("values") or record.get("entry_values") or {}
 
 
-def raw_items(v: dict, slug: str) -> list[dict]:
+def raw_items(v: ValuesBySlug, slug: str) -> list[AttioValueEntry]:
     """The active (non-superseded) raw value entries for `slug` — for
     callers that need more than `first`/`titles`/etc. extract, e.g. a
     multi-valued field's `email_address` on each item."""
     return [x for x in (v.get(slug) or []) if x.get("active_until") is None]
 
 
-def first(v: dict, slug: str) -> Any:
+def first(v: ValuesBySlug, slug: str) -> Any:
+    """The return type is genuinely attribute-type-dependent (`str` for
+    text/select/status/email/domain/date, `float`/`bool` for a number/
+    checkbox field read through here directly) — callers already know which
+    from the Attio attribute they're reading, and assign into a properly
+    typed row-builder field (see `attio_sync_types.py`), which is where the
+    real type safety lives for this value.
+    """
     xs = raw_items(v, slug)
     if not xs:
         return None
@@ -44,7 +56,7 @@ def first(v: dict, slug: str) -> Any:
     return None
 
 
-def titles(v: dict, slug: str) -> list[str]:
+def titles(v: ValuesBySlug, slug: str) -> list[str]:
     out: list[str] = []
     for x in raw_items(v, slug):
         option_title = (x.get("option") or {}).get("title")
@@ -55,12 +67,12 @@ def titles(v: dict, slug: str) -> list[str]:
     return out
 
 
-def ref(v: dict, slug: str) -> str | None:
+def ref(v: ValuesBySlug, slug: str) -> str | None:
     xs = raw_items(v, slug)
     return xs[0].get("target_record_id") if xs else None
 
 
-def refs(v: dict, slug: str) -> list[str]:
+def refs(v: ValuesBySlug, slug: str) -> list[str]:
     result: list[str] = []
     for x in raw_items(v, slug):
         target_record_id = x.get("target_record_id")
@@ -69,14 +81,14 @@ def refs(v: dict, slug: str) -> list[str]:
     return result
 
 
-def actor(v: dict, slug: str) -> str | None:
+def actor(v: ValuesBySlug, slug: str) -> str | None:
     xs = raw_items(v, slug)
     if not xs:
         return None
     return xs[0].get("referenced_actor_id") or xs[0].get("workspace_member_id")
 
 
-def boolean(v: dict, slug: str) -> bool | None:
+def boolean(v: ValuesBySlug, slug: str) -> bool | None:
     value = first(v, slug)
     if value is None:
         return None
@@ -85,7 +97,7 @@ def boolean(v: dict, slug: str) -> bool | None:
     return str(value).lower() in ("true", "yes", "1", "checked")
 
 
-def number(v: dict, slug: str) -> float | None:
+def number(v: ValuesBySlug, slug: str) -> float | None:
     value = first(v, slug)
     if value in (None, ""):
         return None
@@ -95,12 +107,12 @@ def number(v: dict, slug: str) -> float | None:
         return None
 
 
-def integer(v: dict, slug: str) -> int | None:
+def integer(v: ValuesBySlug, slug: str) -> int | None:
     value = number(v, slug)
     return None if value is None else int(value)
 
 
-def date(v: dict, slug: str) -> _date | None:
+def date(v: ValuesBySlug, slug: str) -> _date | None:
     """`first`'s raw `date`-type value is a plain `"YYYY-MM-DD"` string —
     asyncpg's binary protocol rejects a bare `str` for a `DATE` column
     (needs `datetime.date`), so every `date`-typed Postgres column must go
@@ -110,7 +122,7 @@ def date(v: dict, slug: str) -> _date | None:
     return _date.fromisoformat(raw) if raw else None
 
 
-def timestamp(v: dict, slug: str) -> _datetime | None:
+def timestamp(v: ValuesBySlug, slug: str) -> _datetime | None:
     """Same rule as `date`, for `timestamp`-type values feeding a
     `TIMESTAMP` column — asyncpg needs `datetime.datetime`, not `str`.
     """
@@ -118,7 +130,7 @@ def timestamp(v: dict, slug: str) -> _datetime | None:
     return _datetime.fromisoformat(raw) if raw else None
 
 
-def money(v: dict, slug: str) -> dict | None:
+def money(v: ValuesBySlug, slug: str) -> MoneyJson | None:
     xs = raw_items(v, slug)
     if not xs:
         return None
@@ -130,22 +142,22 @@ def money(v: dict, slug: str) -> dict | None:
     return {"amount": amount, "currency": currency}
 
 
-def domains(v: dict) -> list[str]:
+def domains(v: ValuesBySlug) -> list[str]:
     value = first(v, "domains")
     if isinstance(value, list):
         return value
     return [x.strip() for x in str(value or "").split(",") if x.strip()]
 
 
-def record_id(r: dict) -> str:
+def record_id(r: AttioRecord) -> str:
     return str((r.get("id") or {}).get("record_id") or r.get("record_id") or "")
 
 
-def entry_id(r: dict) -> str:
+def entry_id(r: AttioRecord) -> str:
     return str((r.get("id") or {}).get("entry_id") or r.get("entry_id") or "")
 
 
-def parent_id(r: dict) -> str:
+def parent_id(r: AttioRecord) -> str:
     value = r.get("parent_record_id")
     if isinstance(value, dict):
         return str(value.get("record_id") or "")

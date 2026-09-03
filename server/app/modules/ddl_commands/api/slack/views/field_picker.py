@@ -6,6 +6,12 @@ of what the operator actually came to change.
 """
 
 import json
+from typing import Any
+
+from slack_sdk.models.blocks import InputBlock, SectionBlock
+from slack_sdk.models.blocks.basic_components import Option
+from slack_sdk.models.blocks.block_elements import StaticMultiSelectElement
+from slack_sdk.models.views import View
 
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.schemas import FieldSpec
@@ -20,9 +26,9 @@ from app.modules.notifications import sanitize_mrkdwn
 _MAX_OPTIONS = 100
 
 
-def _field_options(fields: tuple[FieldSpec, ...]) -> list[dict]:
+def _field_options(fields: tuple[FieldSpec, ...]) -> list[Option]:
     assert len(fields) <= _MAX_OPTIONS, f"{len(fields)} options exceeds Slack's {_MAX_OPTIONS}"
-    return [{"text": {"type": "plain_text", "text": f.label}, "value": f.name} for f in fields]
+    return [Option(label=f.label, value=f.name) for f in fields]
 
 
 def build_field_picker_modal(
@@ -33,12 +39,12 @@ def build_field_picker_modal(
     requested_by: str,
     channel_id: str,
     role_fields: tuple[FieldSpec, ...],
-) -> dict:
+) -> View:
     role_id_key = f"{kind}_role_id"
-    return {
-        "type": "modal",
-        "callback_id": f"{kind}_field_picker_modal",
-        "private_metadata": json.dumps(
+    return View(
+        type="modal",
+        callback_id=f"{kind}_field_picker_modal",
+        private_metadata=json.dumps(
             {
                 role_id_key: role_id,
                 "org_name": org_name,
@@ -46,46 +52,38 @@ def build_field_picker_modal(
                 "channel_id": channel_id,
             }
         ),
-        "title": {"type": "plain_text", "text": f"Edit {kind}: fields"},
-        "submit": {"type": "plain_text", "text": "Continue"},
-        "close": {"type": "plain_text", "text": "Cancel"},
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"Which fields do you want to edit for *{sanitize_mrkdwn(org_name)}*?",
-                },
-            },
-            {
-                "type": "input",
-                "block_id": "org_fields",
-                "optional": True,
-                "label": {"type": "plain_text", "text": "Organization"},
-                "element": {
-                    "type": "multi_static_select",
-                    "action_id": "selected_org_fields",
-                    "placeholder": {"type": "plain_text", "text": "Pick fields to edit"},
-                    "options": _field_options(ORGANIZATION_FIELDS),
-                },
-            },
-            {
-                "type": "input",
-                "block_id": "role_fields",
-                "optional": True,
-                "label": {"type": "plain_text", "text": kind.capitalize() + " profile"},
-                "element": {
-                    "type": "multi_static_select",
-                    "action_id": "selected_role_fields",
-                    "placeholder": {"type": "plain_text", "text": "Pick fields to edit"},
-                    "options": _field_options(role_fields),
-                },
-            },
+        title=f"Edit {kind}: fields",
+        submit="Continue",
+        close="Cancel",
+        blocks=[
+            SectionBlock(
+                text=f"Which fields do you want to edit for *{sanitize_mrkdwn(org_name)}*?"
+            ),
+            InputBlock(
+                block_id="org_fields",
+                optional=True,
+                label="Organization",
+                element=StaticMultiSelectElement(
+                    action_id="selected_org_fields",
+                    placeholder="Pick fields to edit",
+                    options=_field_options(ORGANIZATION_FIELDS),
+                ),
+            ),
+            InputBlock(
+                block_id="role_fields",
+                optional=True,
+                label=kind.capitalize() + " profile",
+                element=StaticMultiSelectElement(
+                    action_id="selected_role_fields",
+                    placeholder="Pick fields to edit",
+                    options=_field_options(role_fields),
+                ),
+            ),
         ],
-    }
+    )
 
 
-def extract_selected_fields(values: dict) -> tuple[list[str], list[str]]:
+def extract_selected_fields(values: dict[str, Any]) -> tuple[list[str], list[str]]:
     org_selected = (
         values.get("org_fields", {}).get("selected_org_fields", {}).get("selected_options", [])
     )

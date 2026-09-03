@@ -25,8 +25,9 @@ def _analysis() -> MatchAnalysis:
     return MatchAnalysis(run=run, candidates=[candidate], scores=[])
 
 
-def _rendered_text(blocks: list[dict]) -> str:
-    return "\n".join(b["text"]["text"] for b in blocks if b.get("type") == "section")
+def _rendered_text(blocks) -> str:
+    dicts = [b.to_dict() for b in blocks]
+    return "\n".join(b["text"]["text"] for b in dicts if b.get("type") == "section")
 
 
 def test_candidate_header_shows_org_name_not_attio_id() -> None:

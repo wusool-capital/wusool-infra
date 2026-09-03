@@ -5,7 +5,7 @@ Implements `application.ports.sellers.SellerRepositoryPort`.
 """
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Unpack
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Organization, SellerRole
+from app.modules.ddl_commands.application.ports.sellers import SellerRoleFields
 
 # Same rationale as BuyerRepository's constant — see that file's comment.
 _TRIGRAM_SIMILARITY_THRESHOLD = 0.3
@@ -47,7 +48,7 @@ class SellerRepository:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def create(self, org_attio_id: str, **fields: Any) -> SellerRole:
+    async def create(self, org_attio_id: str, **fields: Unpack[SellerRoleFields]) -> SellerRole:
         """Upserts (`ON CONFLICT (legacy_entry_id) DO NOTHING`) rather than a
         plain insert — with the Attio webhook live, `list-entry.created` for
         the entry this same call just created in Attio can reach
@@ -104,7 +105,9 @@ class SellerRepository:
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def update(self, seller_role_id: str, **fields: Any) -> SellerRole | None:
+    async def update(
+        self, seller_role_id: str, **fields: Unpack[SellerRoleFields]
+    ) -> SellerRole | None:
         role = await self.get_by_id(seller_role_id)
         if role is None:
             return None

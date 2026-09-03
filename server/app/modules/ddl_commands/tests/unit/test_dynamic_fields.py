@@ -11,12 +11,12 @@ _EARNOUT_SPEC = FieldSpec("earnout_tolerance", "Earnout tolerance", "bool")
 
 
 def test_bool_renders_true_as_yes() -> None:
-    block = render_field_block(_EARNOUT_SPEC, True)
+    block = render_field_block(_EARNOUT_SPEC, True).to_dict()
     assert block["element"]["initial_option"]["value"] == "true"
 
 
 def test_bool_renders_false_as_no() -> None:
-    block = render_field_block(_EARNOUT_SPEC, False)
+    block = render_field_block(_EARNOUT_SPEC, False).to_dict()
     assert block["element"]["initial_option"]["value"] == "false"
 
 
@@ -24,7 +24,7 @@ def test_bool_renders_none_as_not_set() -> None:
     """`False` and "never set" are different states and must stay distinguishable
     — a falsy check here would collapse them.
     """
-    block = render_field_block(_EARNOUT_SPEC, None)
+    block = render_field_block(_EARNOUT_SPEC, None).to_dict()
     assert block["element"]["initial_option"]["value"] == "unset"
 
 
@@ -45,7 +45,7 @@ _SECTOR_FOCUS_SPEC = FieldSpec("sector_focus", "Sector focus", "multi_select_tex
 
 
 def test_multi_select_text_renders_empty_list_as_blank() -> None:
-    block = render_field_block(_SECTOR_FOCUS_SPEC, [])
+    block = render_field_block(_SECTOR_FOCUS_SPEC, []).to_dict()
     assert "initial_value" not in block["element"]
 
 
@@ -69,7 +69,7 @@ _FOLLOWER_COUNT_SPEC = FieldSpec("twitter_follower_count", "Twitter follower cou
 
 
 def test_number_renders_without_decimals_allowed() -> None:
-    block = render_field_block(_FOLLOWER_COUNT_SPEC, 42)
+    block = render_field_block(_FOLLOWER_COUNT_SPEC, 42).to_dict()
     assert block["element"]["is_decimal_allowed"] is False
     assert block["element"]["initial_value"] == "42"
 
@@ -93,7 +93,7 @@ _GROSS_MARGIN_SPEC = FieldSpec("gross_margin_pct", "Gross margin %", "percent")
 
 
 def test_percent_renders_with_decimals_allowed() -> None:
-    block = render_field_block(_GROSS_MARGIN_SPEC, 12.5)
+    block = render_field_block(_GROSS_MARGIN_SPEC, 12.5).to_dict()
     assert block["element"]["is_decimal_allowed"] is True
     assert block["element"]["initial_value"] == "12.5"
 

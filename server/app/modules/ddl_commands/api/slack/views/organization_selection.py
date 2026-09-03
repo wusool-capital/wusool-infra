@@ -14,6 +14,11 @@ than silently overwriting.
 
 import json
 
+from slack_sdk.models.blocks import InputBlock, SectionBlock
+from slack_sdk.models.blocks.basic_components import Option
+from slack_sdk.models.blocks.block_elements import StaticSelectElement
+from slack_sdk.models.views import View
+
 from app.models import Organization
 from app.modules.notifications import sanitize_mrkdwn
 
@@ -27,29 +32,21 @@ def build_organization_selection_modal(
     search_term: str,
     requested_by: str,
     channel_id: str,
-) -> dict:
+) -> View:
     options = []
     for org in candidates:
         roles = org.seller_roles if kind == "seller" else org.buyer_roles
         has_role = any(r.is_active for r in roles)
         suffix = f" (already has a {kind} role)" if has_role else ""
-        options.append(
-            {
-                "text": {"type": "plain_text", "text": f"{org.name}{suffix}"[:75]},
-                "value": org.attio_id,
-            }
-        )
+        options.append(Option(value=org.attio_id, text=f"{org.name}{suffix}"[:75]))
     options.append(
-        {
-            "text": {"type": "plain_text", "text": "None of these — create new organization"},
-            "value": NEW_ORGANIZATION_VALUE,
-        }
+        Option(value=NEW_ORGANIZATION_VALUE, text="None of these — create new organization")
     )
 
-    return {
-        "type": "modal",
-        "callback_id": "organization_selection_modal",
-        "private_metadata": json.dumps(
+    return View(
+        type="modal",
+        callback_id="organization_selection_modal",
+        private_metadata=json.dumps(
             {
                 "kind": kind,
                 "search_term": search_term,
@@ -58,29 +55,21 @@ def build_organization_selection_modal(
                 "candidate_names": [org.name for org in candidates],
             }
         ),
-        "title": {"type": "plain_text", "text": f"Add {kind}: organization"},
-        "submit": {"type": "plain_text", "text": "Continue"},
-        "close": {"type": "plain_text", "text": "Cancel"},
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"Found {len(candidates)} organization(s) matching "
-                    f"*{sanitize_mrkdwn(search_term)}*. Attach the new role to one of these, "
-                    "or create a new organization.",
-                },
-            },
-            {
-                "type": "input",
-                "block_id": "organization_id",
-                "label": {"type": "plain_text", "text": "Organization"},
-                "element": {
-                    "type": "static_select",
-                    "action_id": "selected_organization",
-                    "options": options,
-                    "initial_option": options[0],
-                },
-            },
+        title=f"Add {kind}: organization",
+        submit="Continue",
+        close="Cancel",
+        blocks=[
+            SectionBlock(
+                text=f"Found {len(candidates)} organization(s) matching "
+                f"*{sanitize_mrkdwn(search_term)}*. Attach the new role to one of these, "
+                "or create a new organization."
+            ),
+            InputBlock(
+                block_id="organization_id",
+                label="Organization",
+                element=StaticSelectElement(
+                    action_id="selected_organization", options=options, initial_option=options[0]
+                ),
+            ),
         ],
-    }
+    )

@@ -67,7 +67,7 @@ def test_field_picker_modal_is_within_slack_limits(kind, role_fields):
             requested_by="U1",
             channel_id="C1",
             role_fields=role_fields,
-        )
+        ).to_dict()
     )
 
 
@@ -89,4 +89,4 @@ def test_selection_modal_is_within_slack_limits(build):
     # `org_names` rides in private_metadata, which Slack caps at 3000 bytes —
     # so the candidate list is what has to stay bounded, not just the options.
     candidates = [_Candidate(f"role-{i}", f"Organization Number {i}") for i in range(25)]
-    assert_valid_view(build(candidates, requested_by="U1", channel_id="C1"))
+    assert_valid_view(build(candidates, requested_by="U1", channel_id="C1").to_dict())

@@ -30,6 +30,7 @@ from app.modules.matching_engine.application.approvals import (
     InvalidTransitionError,
     MatchNotFoundError,
 )
+from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
 from app.modules.utilities import InProcessTaskRunner
 from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
 
@@ -41,7 +42,9 @@ _submission_idempotency_store = InMemoryIdempotencyStore()
 
 def register(app: AsyncApp) -> None:
     @app.view("buyer_selection_modal")
-    async def handle_buyer_selection_submission(ack: AsyncAck, body: dict, view: dict) -> None:
+    async def handle_buyer_selection_submission(
+        ack: AsyncAck, body: SlackInteractionBody, view: SlackViewSubmissionPayload
+    ) -> None:
         await ack()
 
         view_id = view.get("id")
@@ -57,7 +60,7 @@ def register(app: AsyncApp) -> None:
             _submission_idempotency_store.mark(idempotency_key)
 
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata.get("channel_id")
         if not channel_id:
             return
@@ -71,7 +74,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.action("view_full_analysis")
-    async def handle_view_full_analysis(ack: AsyncAck, body: dict, client: AsyncWebClient) -> None:
+    async def handle_view_full_analysis(
+        ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient
+    ) -> None:
         await ack()
 
         action = body["actions"][0]
@@ -103,14 +108,14 @@ def register(app: AsyncApp) -> None:
 
     @app.action("approve_match")
     async def handle_approve_match(
-        ack: AsyncAck, body: dict, client: AsyncWebClient, respond: AsyncRespond
+        ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient, respond: AsyncRespond
     ) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="approve")
 
     @app.action("reject_match")
     async def handle_reject_match(
-        ack: AsyncAck, body: dict, client: AsyncWebClient, respond: AsyncRespond
+        ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient, respond: AsyncRespond
     ) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="reject")
@@ -124,7 +129,7 @@ def register(app: AsyncApp) -> None:
 
 
 async def _handle_decision(
-    body: dict, client: AsyncWebClient, respond: AsyncRespond, decision: str
+    body: SlackInteractionBody, client: AsyncWebClient, respond: AsyncRespond, decision: str
 ) -> None:
     action = body["actions"][0]
     match_result_id_raw = action.get("value")

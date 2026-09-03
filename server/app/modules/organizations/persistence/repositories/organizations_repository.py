@@ -7,7 +7,7 @@ exists — see `ddl_commands/README.md`, "Why Attio-first"). `add()`/`flush()`/
 transaction boundary.
 """
 
-from typing import Any
+from typing import Unpack
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Organization
+from app.modules.organizations.application.ports.organizations import OrganizationFields
 
 # Same rationale as SellerRepository's/BuyerRepository's constant.
 _TRIGRAM_SIMILARITY_THRESHOLD = 0.3
@@ -71,7 +72,9 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def create(self, attio_id: str, name: str, **fields: Any) -> Organization:
+    async def create(
+        self, attio_id: str, name: str, **fields: Unpack[OrganizationFields]
+    ) -> Organization:
         """`attio_id` is always Attio's own `record_id` from a create that
         already succeeded there — this method never invents one.
 
@@ -95,7 +98,9 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         assert org is not None
         return org
 
-    async def update(self, attio_id: str, **fields: Any) -> Organization | None:
+    async def update(
+        self, attio_id: str, **fields: Unpack[OrganizationFields]
+    ) -> Organization | None:
         org = await self.get_by_id(attio_id)
         if org is None:
             return None

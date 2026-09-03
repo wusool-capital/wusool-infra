@@ -17,6 +17,7 @@ from app.modules.matching_engine.api.dependencies import resolve_buyer
 from app.modules.matching_engine.api.slack.views.buyer_selection import (
     build_buyer_selection_modal,
 )
+from app.modules.notifications import SlackCommandPayload
 from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,9 @@ _idempotency_store = InMemoryIdempotencyStore()
 
 def register(app: AsyncApp) -> None:
     @app.command("/find-match")
-    async def handle_find_match(ack: AsyncAck, command: dict, client: AsyncWebClient) -> None:
+    async def handle_find_match(
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
+    ) -> None:
         await ack()
 
         # §28: Slack can retry slash-command delivery on a slow ack or

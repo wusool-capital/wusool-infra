@@ -13,6 +13,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
@@ -112,7 +113,7 @@ async def ready() -> JSONResponse:
     return await _readiness()
 
 
-def _extract_trigger(body: dict) -> str:
+def _extract_trigger(body: dict[str, Any]) -> str:
     """Best-effort: which slash command, block action, or view submission
     this payload came from. Slack's payload shape differs by interaction
     type, so check each in turn rather than assuming one key exists.
@@ -139,7 +140,9 @@ def _bolt_app() -> AsyncApp:
     )
 
     @bolt_app.middleware
-    async def _set_log_context(body: dict, next: Callable[[], Awaitable[BoltResponse]]) -> None:
+    async def _set_log_context(
+        body: dict[str, Any], next: Callable[[], Awaitable[BoltResponse]]
+    ) -> None:
         """Tags every log line emitted while handling this request with
         which command/action triggered it and who sent it — set once here
         rather than threading it through every handler."""
@@ -174,7 +177,7 @@ def _bolt_app() -> AsyncApp:
             log_context.reset(token)
 
     @bolt_app.error
-    async def _log_uncaught_listener_error(error: Exception, body: dict) -> None:
+    async def _log_uncaught_listener_error(error: Exception, body: dict[str, Any]) -> None:
         trigger = _extract_trigger(body)
         service = _SERVICE_BY_TRIGGER.get(trigger, _UNKNOWN_TRIGGER)
         _slack_dispatch_logger.error(
