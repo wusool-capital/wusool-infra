@@ -1029,14 +1029,14 @@ def _deal_batch_params(
     per-statement `CASE WHEN EXISTS` -- a multi-row `VALUES` list can't
     express that conditional per row generically, so the batch path
     resolves it here instead, using id sets already known this run."""
-    params = cast(DealParams, dict(_deal_params(data)))
+    params: dict[str, Any] = dict(_deal_params(data))
     buyer_id = params.pop("buyer_id")
     seller_id = params.pop("seller_id")
     params["buyer_organization_attio_id"] = _resolve_ref(buyer_id, org_ids)
     params["buyer_person_attio_id"] = _resolve_ref(buyer_id, person_ids)
     params["seller_organization_attio_id"] = _resolve_ref(seller_id, org_ids)
     params["owner_attio_id"] = _resolve_ref(params["owner_attio_id"], user_ids)
-    return params
+    return cast(DealParams, params)
 
 
 def _buyer_role_batch_params(

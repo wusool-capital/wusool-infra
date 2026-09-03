@@ -376,7 +376,7 @@ async def _run(client: AttioClientProtocol) -> None:
         Organization,
         "organizations",
         "/objects/organizations/records/query",
-        lambda r: upsert._organization_batch_params(r, user_ids),
+        lambda r: dict(upsert._organization_batch_params(r, user_ids)),
     )
     org_ids = await _existing_ids("organizations")
 
@@ -390,14 +390,14 @@ async def _run(client: AttioClientProtocol) -> None:
             Person,
             "person",
             "/objects/person/records/query",
-            lambda r: upsert._person_batch_params(r, org_ids, user_ids),
+            lambda r: dict(upsert._person_batch_params(r, org_ids, user_ids)),
         ),
         _sync_streaming_entity(
             client,
             Deal,
             "deals",
             f"/objects/{settings.attio_deal_object_slug}/records/query",
-            lambda r: upsert._deal_batch_params(r, org_ids, person_ids, user_ids),
+            lambda r: dict(upsert._deal_batch_params(r, org_ids, person_ids, user_ids)),
         ),
     )
     summary["person"] = person_result
@@ -417,8 +417,8 @@ async def _run(client: AttioClientProtocol) -> None:
             client,
             "buyer_role",
             buyer_entries,
-            lambda org_id, entry, is_active: upsert._buyer_role_batch_params(
-                org_id, entry, is_active, person_ids
+            lambda org_id, entry, is_active: dict(
+                upsert._buyer_role_batch_params(org_id, entry, is_active, person_ids)
             ),
         )
         ok, write_failed = await _write_and_verify(BuyerRole, "buyer_roles", rows, len(rows))

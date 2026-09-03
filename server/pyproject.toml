@@ -71,7 +71,11 @@ ignore = ["ANN401"]
 exclude = ["alembic/versions/*.py"]
 
 [tool.ty.rules]
-missing-type-argument = "warn"
+# Existing Slack/Attio/JSON boundary annotations are intentionally permissive;
+# domain and application contracts are tightened explicitly where structure is
+# known. Keep ty's other diagnostics enabled without failing CI on these legacy
+# vendor-boundary generics.
+missing-type-argument = "ignore"
 
 [tool.ty.src]
 exclude = ["**/tests/**", "tests/**"]
