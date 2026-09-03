@@ -76,19 +76,19 @@ missing-type-argument = "error"
 
 # These specific files are documented JSON/vendor boundaries. Their payloads
 # are heterogeneous by design; structured application/domain models remain
-# fully checked below.
+# fully checked below. Narrower than it once was — main.py, attio_sync's
+# scripts, and attio.providers.attio.{values,money} all now type their real
+# shapes (TypedDicts) and were dropped from here; what's left is the raw
+# HTTP client layer (client.py/retry.py/entries.py/options.py, generic
+# request/response JSON) and app/models/**'s JSONB columns.
 [[tool.ty.overrides]]
 include = [
     "app/models/**",
     "app/modules/attio/application/ports/client.py",
     "app/modules/attio/providers/attio/client.py",
     "app/modules/attio/providers/attio/entries.py",
-    "app/modules/attio/providers/attio/money.py",
     "app/modules/attio/providers/attio/options.py",
     "app/modules/attio/providers/attio/retry.py",
-    "app/modules/attio/providers/attio/values.py",
-    "app/modules/ddl_commands/scripts/attio_sync_full_resync.py",
-    "main.py",
 ]
 
 [tool.ty.overrides.rules]

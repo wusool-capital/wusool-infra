@@ -203,7 +203,7 @@ def _can_run_db_tasks_concurrently() -> bool:
 
 async def _write_batches_concurrently(
     model: upsert.SyncModel, rows: list[JsonObject]
-) -> tuple[int, int, dict]:
+) -> tuple[int, int, dict[str, JsonObject]]:
     """Batches `rows` into pages and writes them concurrently (bounded) --
     pages are disjoint by conflict key, built from one bulk fetch, so
     concurrent writes to the same table can't race each other. Returns
@@ -213,7 +213,9 @@ async def _write_batches_concurrently(
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
     pages = _chunk(rows, _PAGE_SIZE)
 
-    async def _write_one(page: list[JsonObject], label: str) -> tuple[int, int, dict[str, dict]]:
+    async def _write_one(
+        page: list[JsonObject], label: str
+    ) -> tuple[int, int, dict[str, JsonObject]]:
         async with semaphore:
             return await upsert.upsert_batch_with_retry(model, page, page_label=label)
 
@@ -225,7 +227,7 @@ async def _write_batches_concurrently(
     )
     ok = sum(r[0] for r in results)
     failed = sum(r[1] for r in results)
-    returned: dict = {}
+    returned: dict[str, JsonObject] = {}
     for r in results:
         returned.update(r[2])
     return ok, failed, returned
