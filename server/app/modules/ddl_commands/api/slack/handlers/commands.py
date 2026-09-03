@@ -30,6 +30,7 @@ from app.modules.ddl_commands.api.slack.views.seller_add_form import build_selle
 from app.modules.ddl_commands.api.slack.views.seller_role_selection import (
     build_seller_selection_modal,
 )
+from app.modules.notifications import SlackCommandPayload
 from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,10 @@ _TRIGGER_ID_BUDGET_MS = 2500
 
 
 async def _run(
-    action: str, command: dict[str, Any], client: AsyncWebClient, coro: Coroutine[Any, Any, None]
+    action: str,
+    command: SlackCommandPayload,
+    client: AsyncWebClient,
+    coro: Coroutine[Any, Any, None],
 ) -> None:
     """Everything after `ack()` runs detached from the HTTP response (Bolt is
     built with `process_before_response=False`), so nothing that happens here
@@ -79,7 +83,7 @@ async def _run(
 def register(app: AsyncApp) -> None:
     @app.command("/edit-seller")
     async def handle_edit_seller(
-        ack: AsyncAck, command: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
     ) -> None:
         await ack()
         await _run(
@@ -91,7 +95,7 @@ def register(app: AsyncApp) -> None:
 
     @app.command("/edit-buyer")
     async def handle_edit_buyer(
-        ack: AsyncAck, command: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
     ) -> None:
         await ack()
         await _run(
@@ -103,7 +107,7 @@ def register(app: AsyncApp) -> None:
 
     @app.command("/add-seller")
     async def handle_add_seller(
-        ack: AsyncAck, command: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
     ) -> None:
         await ack()
         await _run(
@@ -112,14 +116,14 @@ def register(app: AsyncApp) -> None:
 
     @app.command("/add-buyer")
     async def handle_add_buyer(
-        ack: AsyncAck, command: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
     ) -> None:
         await ack()
         await _run("add_buyer", command, client, _handle_add_command(command, client, kind="buyer"))
 
 
 async def _handle_seller_command(
-    command: dict[str, Any], client: AsyncWebClient, *, action: str
+    command: SlackCommandPayload, client: AsyncWebClient, *, action: str
 ) -> None:
     idempotency_key = f"{action}:{command.get('trigger_id')}"
     if _idempotency_store.seen(idempotency_key):
@@ -159,7 +163,7 @@ async def _handle_seller_command(
 
 
 async def _handle_buyer_command(
-    command: dict[str, Any], client: AsyncWebClient, *, action: str
+    command: SlackCommandPayload, client: AsyncWebClient, *, action: str
 ) -> None:
     idempotency_key = f"{action}:{command.get('trigger_id')}"
     if _idempotency_store.seen(idempotency_key):
@@ -199,7 +203,7 @@ async def _handle_buyer_command(
 
 
 async def _handle_add_command(
-    command: dict[str, Any], client: AsyncWebClient, *, kind: str
+    command: SlackCommandPayload, client: AsyncWebClient, *, kind: str
 ) -> None:
     action = f"add_{kind}"
     idempotency_key = f"{action}:{command.get('trigger_id')}"

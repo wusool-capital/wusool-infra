@@ -8,7 +8,6 @@ workflow itself is dispatched from the modal's submission handler
 """
 
 import logging
-from typing import Any
 
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
@@ -18,6 +17,7 @@ from app.modules.matching_engine.api.dependencies import resolve_buyer
 from app.modules.matching_engine.api.slack.views.buyer_selection import (
     build_buyer_selection_modal,
 )
+from app.modules.notifications import SlackCommandPayload
 from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ _idempotency_store = InMemoryIdempotencyStore()
 def register(app: AsyncApp) -> None:
     @app.command("/find-match")
     async def handle_find_match(
-        ack: AsyncAck, command: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
     ) -> None:
         await ack()
 

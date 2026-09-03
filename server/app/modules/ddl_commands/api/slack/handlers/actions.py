@@ -80,15 +80,19 @@ from app.modules.ddl_commands.providers.attio.write_payload import (
     build_attio_values,
     build_postgres_values,
 )
+from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
 
 
 def register(app: AsyncApp) -> None:
     @app.view("seller_role_selection_modal")
     async def handle_seller_selection_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata.get("channel_id")
         if not channel_id:
             await ack()
@@ -124,10 +128,13 @@ def register(app: AsyncApp) -> None:
 
     @app.view("buyer_role_selection_modal")
     async def handle_buyer_selection_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata.get("channel_id")
         if not channel_id:
             await ack()
@@ -158,10 +165,13 @@ def register(app: AsyncApp) -> None:
 
     @app.view("seller_field_picker_modal")
     async def handle_seller_field_picker_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata["channel_id"]
         seller_role_id = metadata["seller_role_id"]
 
@@ -194,10 +204,13 @@ def register(app: AsyncApp) -> None:
 
     @app.view("buyer_field_picker_modal")
     async def handle_buyer_field_picker_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata["channel_id"]
         buyer_role_id = metadata["buyer_role_id"]
 
@@ -230,10 +243,13 @@ def register(app: AsyncApp) -> None:
 
     @app.view("seller_edit_form_modal")
     async def handle_seller_edit_form_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata["channel_id"]
         seller_role_id = metadata["seller_role_id"]
         org_attio_id = metadata["org_attio_id"]
@@ -317,10 +333,13 @@ def register(app: AsyncApp) -> None:
 
     @app.view("buyer_edit_form_modal")
     async def handle_buyer_edit_form_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata["channel_id"]
         buyer_role_id = metadata["buyer_role_id"]
         org_attio_id = metadata["org_attio_id"]
@@ -402,10 +421,13 @@ def register(app: AsyncApp) -> None:
 
     @app.view("organization_selection_modal")
     async def handle_organization_selection_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata["channel_id"]
         kind = metadata["kind"]
         search_term = metadata["search_term"]
@@ -460,10 +482,13 @@ def register(app: AsyncApp) -> None:
 
     @app.view("seller_add_form_modal")
     async def handle_seller_add_form_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata["channel_id"]
         is_new_org: bool = metadata["is_new_org"]
         org_attio_id: str | None = metadata["org_attio_id"]
@@ -532,10 +557,13 @@ def register(app: AsyncApp) -> None:
 
     @app.view("buyer_add_form_modal")
     async def handle_buyer_add_form_submission(
-        ack: AsyncAck, body: dict[str, Any], view: dict[str, Any], client: AsyncWebClient
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
+        requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata["channel_id"]
         is_new_org: bool = metadata["is_new_org"]
         org_attio_id: str | None = metadata["org_attio_id"]
