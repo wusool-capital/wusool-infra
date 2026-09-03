@@ -15,6 +15,8 @@ verification, retry, registry lookups), not just `AttioClientProtocol`.
 
 ## Structure
 
+_New to this codebase's layering? See [the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
+
 ```
 attio/
   __init__.py                          # __all__: AttioClient, AttioClientProtocol, AttioError,

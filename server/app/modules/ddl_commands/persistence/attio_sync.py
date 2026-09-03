@@ -1,41 +1,26 @@
 """Fetches one Attio record/entry and upserts it into the matching Postgres
-table — the same field mapping and `ON CONFLICT` SQL already proven in
-`database/sync-postgres.ps1`, scoped to a single row instead of a full
-page-through. Every statement here is idempotent: re-running it with the
-same current Attio state, any number of times, from any order of events, is
-always safe.
+table. Every statement here is idempotent -- safe to re-run for the same
+Attio state, in any order, any number of times.
 
-Foreign keys that reference a row which may not have been synced yet
-(`owner_attio_id` -> users, `company_attio_id` -> organizations, etc.) are
-guarded with `CASE WHEN EXISTS (...)` so a webhook arriving slightly out of
-order degrades to a NULL reference instead of failing the whole upsert —
-`sync-postgres.ps1`'s own periodic full resync (or the next event touching
-the same row) fills it in once the referenced row exists. The one exception
-is `buyer_roles`/`seller_roles`' own `org_attio_id`: it's a `NOT NULL` FK
-with no such guard, so it can't be nulled out -- a buyer/seller-role event
-that arrives before its organization has synced is expected to fail loudly,
-get caught by the background-task handler (see `router.py`), and resolve
-itself on the next event or the nightly full resync. (`org_attio_id` is no
-longer the row's unique key either way -- `legacy_entry_id` is, since the
-2026-08-28 pluralization lets multiple entries share an org; see
-`BuyerRole`/`SellerRole`'s docstrings.)
+FK references to a row that may not have synced yet (`owner_attio_id`,
+`company_attio_id`, etc.) degrade to NULL via `CASE WHEN EXISTS (...)`
+rather than failing the whole upsert; a later event or the nightly full
+resync fills them in once the row exists. Exception:
+`buyer_roles`/`seller_roles.org_attio_id` is `NOT NULL` with no such guard,
+so an out-of-order role event fails loudly and retries via the
+background-task handler or nightly resync -- `legacy_entry_id`, not
+`org_attio_id`, is the actual uniqueness key since the 2026-08-28
+pluralization (see `BuyerRole`/`SellerRole`).
 
-`organizations` and `person` both have a deletion story (`removed_at`,
-matching the convention `sync-postgres.ps1` already established for both —
-`person` needs it too since `buyer_roles.key_contact_attio_id`/
-`deals.buyer_person_attio_id` reference it with `ON DELETE NO ACTION`).
-`record.deleted`/`list-entry.deleted` for every other table is deliberately
-out of scope here, because the existing bulk script doesn't prune those
-tables either. Closing that gap is a separate, pre-existing piece of work,
-not a regression this sync introduces.
+`organizations`/`person` support soft-delete (`removed_at`); every other
+table's `record.deleted`/`list-entry.deleted` is out of scope here, matching
+the existing bulk script's own gap -- not a regression this sync introduces.
 
-Every sync function below is split into a pure "Attio data -> Postgres
-params" mapper (`_organization_params`, etc. -- no I/O) and a thin
-fetch-then-write wrapper (`sync_organization`, etc.) that the real-time
-webhook path uses. `full_resync.py` calls the pure mappers directly on data
-it already has from its own bulk page-through, instead of re-fetching each
-record individually through the wrapper -- see `upsert_batch_with_retry`
-below for the batched, retried write path it uses to do that.
+Each entity has a pure params-mapper (`_organization_params`, etc. -- no
+I/O) and a thin fetch-then-write wrapper (`sync_organization`, etc.) for the
+real-time webhook path. `full_resync.py` calls the mappers directly against
+its own bulk page-through instead of going through the wrapper -- see
+`upsert_batch_with_retry` for the batched write path it uses to do that.
 """
 
 import json
@@ -83,16 +68,10 @@ def _j(value: Any) -> str | None:
 # activities — generic change log, one row per real-time webhook sync
 # ---------------------------------------------------------------------------
 #
-# `activities` otherwise holds curated business-interaction rows (calls,
-# emails, seller-outreach attempts) from the one-off `backfill-activities.ps1`
-# historical import. This adds a second, mechanical kind of row alongside
-# those: "this record was created/updated", with no channel/outcome/actor to
-# fill in (the webhook envelope carries only ids, never who made the change).
-# Real-time webhook path only -- full_resync.py's nightly batch pass doesn't
-# log one of these per row, or a routine resync of thousands of untouched
-# records would flood the feed. subject_uuid (not subject_attio_id) is used
-# for buyer_role/seller_role, matching backfill-activities.ps1's existing
-# convention for those two UUID-keyed tables.
+# Webhook path only -- a nightly full resync touching thousands of unchanged
+# records would flood this table if it logged one row per sync too.
+# subject_uuid (not subject_attio_id) is used for buyer_role/seller_role, to
+# match backfill-activities.ps1's existing convention for those two tables.
 
 _ACTIVITY_INSERT = text(
     """
@@ -125,13 +104,9 @@ async def _log_activity(
 # users (workspace members) -- full-refresh only, no real-time event
 # ---------------------------------------------------------------------------
 #
-# Attio does fire workspace-member.* webhook events, but they're not routed
-# anywhere by dispatch.py: workspace members aren't a generic Attio object
-# (no object_id, not reachable via /objects/...), and there's no
-# single-member GET endpoint to re-fetch just one from -- only the bulk
-# /workspace_members listing sync-postgres.ps1 already uses. Team membership
-# also changes rarely enough that this isn't worth a real-time path. This
-# function exists for full_resync.py (the nightly safety net) to call.
+# No single-member GET endpoint exists to re-fetch just one workspace member,
+# and membership changes rarely -- not worth a webhook path. Called only by
+# full_resync.py.
 
 _USER_UPSERT = text(
     """
@@ -849,13 +824,10 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
 # ---------------------------------------------------------------------------
 # note — unified notes object (SOURCE Attio only, slug "note"; see
 # `config.py`'s `attio_note_object_slug`). `notes.id` reuses the Attio
-# record's own id verbatim (already a UUID), matching
-# `sync-notes-from-source.ps1`'s convention -- upserts are ON CONFLICT(id).
-# `buyer_role_id`/`seller_role_id` on the Attio record are the SOURCE list
-# entry_id (plain text), resolved here to `buyer_roles`/`seller_roles.id` via
-# their `legacy_entry_id`, same one-hop simplification that script uses. No
-# `raw_attio` column on this table (unlike every other model here), so it
-# stays out of the generic `_upsert_batch`/`_CONFLICT_COL` batch machinery --
+# record's own id verbatim -- upserts are ON CONFLICT(id).
+# `buyer_role_id`/`seller_role_id` are resolved here from the Attio record's
+# SOURCE list entry_id via `legacy_entry_id`. No `raw_attio` column on this
+# table, so it stays out of the generic batch machinery below --
 # `full_resync.py` syncs it with a plain per-row loop instead.
 # ---------------------------------------------------------------------------
 
@@ -1058,13 +1030,9 @@ async def _upsert_batch(model: SyncModel, rows: list[JsonObject]) -> dict[str, J
         return {}
     conflict_col = _CONFLICT_COL[model]
     stmt = pg_insert(model).values(rows)
-    # Only update columns the mapper actually populated (every row shares the
-    # same keys -- one mapper produced them all). A column the model has but
-    # the mapper doesn't map yet (e.g. a field added to the schema before the
-    # sync code catches up) must never appear here: it was never in the
-    # INSERT's VALUES either, so Postgres's `excluded` row has it as NULL --
-    # blindly setting `col=excluded.col` for every model column would silently
-    # wipe that column to NULL on every existing row's conflict-update.
+    # Restrict to columns the mapper populated -- a model column the mapper
+    # doesn't map yet was never in the INSERT's VALUES, so blindly setting
+    # `col=excluded.col` for it would wipe every existing row to NULL.
     mapped_cols = set(rows[0])
     update_cols = {
         c.name: getattr(stmt.excluded, c.name)
@@ -1073,15 +1041,10 @@ async def _upsert_batch(model: SyncModel, rows: list[JsonObject]) -> dict[str, J
     }
     update_cols["updated_at"] = func.now()
     update_cols.update(_EXTRA_UPDATE_COLS.get(model, {}))
-    # Skip the write entirely when nothing actually changed (Stripe's
-    # reconciliation-blog advice: compare content, not timestamps, before
-    # writing) -- avoids rewriting all ~8,000 rows every night regardless of
-    # whether Attio's data moved, and the bump-free `updated_at` means a row
-    # genuinely untouched tonight doesn't look "just synced" to anything
-    # watching that column. `removed_at IS NOT NULL` forces the write through
-    # anyway for a soft-deleted row that reappears with byte-identical
-    # raw_attio, so its `removed_at=NULL` reset (see _EXTRA_UPDATE_COLS)
-    # still lands -- content-only comparison would otherwise skip it forever.
+    # Skip the write when content is unchanged, so a nightly resync doesn't
+    # rewrite every row regardless of whether Attio's data moved. Still force
+    # the write when `removed_at` is set, so a reappearing soft-deleted row
+    # gets its `removed_at=NULL` reset even with byte-identical raw_attio.
     where = stmt.excluded.raw_attio.is_distinct_from(model.raw_attio)
     removed_at = getattr(model, "removed_at", None)
     if removed_at is not None:

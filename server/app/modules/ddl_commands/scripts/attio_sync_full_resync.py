@@ -1,48 +1,31 @@
 """Nightly safety-net: a full page-through resync of DEV Attio into
 Postgres. Complements, not replaces, the real-time webhook — catches
-anything a missed delivery, an out-of-order race, or a paused webhook (see
-the migration-pause runbook handed over separately) left inconsistent.
+anything a missed delivery, an out-of-order race, or a paused webhook left
+inconsistent. Scheduled by `.github/workflows/nightly-attio-sync.yml`.
 
-Run via `python -m app.modules.ddl_commands.scripts.attio_sync_full_resync`, invoked on
-a schedule by `.github/workflows/nightly-attio-sync.yml` — the same
-SSM-into-the-toolkit-container pattern `_deploy.yml` already uses for
-`alembic upgrade head` (RDS is private; the toolkit EC2 instance is the only
-thing with a network path to it).
+Unlike the webhook path (one record fetched by id at a time), this reuses
+the record/entry data already in hand from its own bulk page-through, and
+writes each page as one batched `INSERT ... ON CONFLICT`
+(`upsert.upsert_batch_with_retry`) instead of one commit per row.
 
-Unlike the webhook path (`upsert.py`'s `sync_*` functions, which each fetch
-one record by id), this reuses the full record/entry data it already has
-from its own bulk page-through directly -- no per-record re-fetch. Writes
-are batched (`upsert.upsert_batch_with_retry`, one multi-row `INSERT ... ON
-CONFLICT` per page) instead of one commit per row. Record pages are fetched,
-mapped, and written serially so only one page is retained at a time. Entity
-*types* stay strictly sequential -- users, then organizations,
-then people/deals, then buyer_role/seller_role -- because
-`buyer_roles.org_attio_id`/`seller_roles.org_attio_id` are hard, unguarded
-foreign keys into `organizations` (unlike `owner_attio_id`/
-`company_attio_id`/etc., which are soft-guarded and resolved here against
-id sets queried fresh from Postgres after each prior entity type commits).
+Entity *types* stay strictly sequential — users, then organizations, then
+people/deals, then buyer_role/seller_role — because
+`buyer_roles`/`seller_roles.org_attio_id` are hard, unguarded FKs into
+`organizations` (unlike the softer-guarded `owner_attio_id`/etc., resolved
+here against ids queried fresh after each prior type commits).
 
-`buyer_role`/`seller_role` entries are reconciled per organization
-(`upsert.group_entries_by_org` + `upsert._reconcile_active_entry`, run
-concurrently across orgs, bounded) -- `_reconcile_active_entry` already
-re-corrects every duplicate for that org regardless of which one triggered
-it, so reconciling once per org (not once per raw entry) gets the same
-result without redoing that work N times. Every entry still gets its own
-Postgres row, though, not just the winner: `buyer_roles`/`seller_roles.
-org_attio_id` lost its uniqueness in the 2026-08-28 pluralization (Postgres
-now mirrors every DEV Attio entry, `legacy_entry_id` the row key,
-`is_active` telling winner from duplicate) -- reconciliation only decides
-which entry Attio itself should flag active, not which one Postgres keeps.
+`buyer_role`/`seller_role` entries are reconciled once per organization,
+not once per raw entry (`_reconcile_active_entry` already fixes every
+duplicate for an org regardless of which one triggered it). Every entry
+still gets its own Postgres row, though — `org_attio_id` lost its
+uniqueness in the 2026-08-28 pluralization, so reconciliation only decides
+which entry Attio flags active, not which one Postgres keeps.
 
-After each entity type's writes, two consistency checks run against each
-page from this same pass -- no extra Attio calls: a row-count check
-(`sync-postgres.ps1`'s existing convention, reused as-is) and a content check
-comparing each batch's `RETURNING` result against what was intended to be
-written. Neither can catch a bug in the field-mapping layer
-itself (both sides of that comparison would agree while both are wrong) --
-that would require an independent re-fetch from Attio, which is exactly the
-per-record cost this file avoids. See the module's PR description / plan
-doc for the tradeoff and a proposed periodic-spot-check follow-up.
+After each entity type, a row-count check and a content check (comparing
+each batch's `RETURNING` result against what was intended) run against data
+from this same pass, at no extra Attio-call cost. Neither can catch a bug
+in the field-mapping layer itself, since both sides of the comparison would
+agree while both are wrong — see the plan doc for that known gap.
 """
 
 import asyncio
@@ -381,7 +364,6 @@ async def _run(client: AttioClientProtocol) -> None:
     _logger.info("full resync: users — synced=%d", users_synced)
     user_ids = await _existing_ids("users")
 
-    # organizations
     summary["organizations"] = await _sync_streaming_entity(
         client,
         Organization,

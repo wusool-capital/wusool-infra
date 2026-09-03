@@ -242,7 +242,7 @@ def apply_structured_filters(
                 exempted += 1
                 survivors.append(candidate)
             elif result == "Fail":
-                continue  # eliminated
+                continue
             else:
                 survivors.append(candidate)
         if exempted:
