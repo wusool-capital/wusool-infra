@@ -9,11 +9,10 @@ param(
 # Uses the model-agnostic Converse API so one code path covers any vendor
 # -- no per-vendor request-body branching.
 #
-# claude-haiku-4-5 and qwen3-235b-a22b are already confirmed working
-# (PROGRESS.md) and were dropped from the default list below to keep this
-# script focused on claude-sonnet-4-6, which is the one still being
-# worked on -- add them back to $models if you need to re-verify all
-# three again.
+# claude-haiku-4-5 and qwen3-235b-a22b are already confirmed working and
+# were dropped from the default list below to keep this script focused on
+# claude-sonnet-4-6 -- add them back to $models if you need to re-verify
+# all three again.
 #
 # Deliberately does NOT set $ErrorActionPreference = "Stop" and does NOT
 # redirect aws.exe's stderr: in PowerShell 5.1, redirecting a native

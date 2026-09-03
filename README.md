@@ -5,9 +5,8 @@ OpenTofu configuration and application code for the Wusool AWS infrastructure.
 > Both `dev` and `prod` are real, deployed environments in one AWS account
 > (`030179310793`, `eu-central-1`), applied automatically by GitHub Actions on
 > merge to the `dev` or `prod` branch respectively. Neither is a template —
-> see [`terraform/README.md`](terraform/README.md) for the stack layout and
-> [`RESTRUCTURE_PROGRESS.md`](docs/RESTRUCTURE_PROGRESS.md) for what has been
-> verified live against AWS.
+> see [`infrastructure/terraform/README.md`](infrastructure/terraform/README.md)
+> for the stack layout and [`CHANGELOG.md`](CHANGELOG.md) for what has changed.
 
 ## Architecture
 
@@ -18,11 +17,11 @@ parameterized by environment — not two hand-maintained copies. Today that's:
 - **n8n** — Amazon Linux EC2, Docker Compose running Caddy + n8n, HTTPS
   termination in Caddy proxying to n8n on port `5678`, pinned n8n/runners/Caddy
   image digests, an explicitly pinned AMI (no more `most_recent` drift).
-- **wusool-toolkit** — one EC2 instance running the Slack bot (see
-  `workflows/wusool-toolkit/`) as a Docker container, deployed by immutable
-  ECR digest (built once in CI, never `git clone`+build on the instance).
-  Prod's instance is optional (`create_instance` flag) until a real prod
-  rollout is deliberately switched on.
+- **wusool-toolkit** — one EC2 instance running the Slack bot (see `server/`)
+  as a Docker container, deployed by immutable ECR digest (built once in CI,
+  never `git clone`+build on the instance). Prod's instance is optional
+  (`create_instance` flag) until a real prod rollout is deliberately switched
+  on.
 - **postgres** — RDS PostgreSQL, dev live, prod provisioned (seeded from a dev
   snapshot, credentials rotated afterward) but not yet the system of record
   for n8n's data plane.
@@ -35,63 +34,64 @@ Security Hub.
 `scribe` (meeting transcription) and `crm-sync`/`bedrock-ai` (operator
 PowerShell scripts with no deployable app of their own) are **not** part of
 this per-service dev/prod model yet — see
-[`SCRIBE_INFRA_CONTRACT.md`](docs/SCRIBE_INFRA_CONTRACT.md) for scribe's handover
-plan.
+[`SCRIBE_INFRA_CONTRACT.md`](docs/dev/SCRIBE_INFRA_CONTRACT.md) for scribe's
+handover plan.
 
 See:
 
-- [Project status / progress index](docs/PROGRESS.md)
-- [Terraform stacks/modules/envs layout](terraform/README.md)
-- [Infrastructure overview](workflows/n8n/docs/infrastructure-overview.md)
-- [Client schema overview](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) — Attio
+- [Documentation index](docs/README.md) — user guide, technical docs, handover
+- [Changelog](CHANGELOG.md)
+- [Terraform stacks/modules/envs layout](infrastructure/terraform/README.md)
+- [Slack bot (`server/`) overview](server/README.md)
+- [Infrastructure overview](infrastructure/n8n/docs/infrastructure-overview.md)
+- [Client schema overview](infrastructure/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) — Attio
   and PostgreSQL overview
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
-- [CD restructure progress log](docs/RESTRUCTURE_PROGRESS.md)
-- [CD restructure result (current state)](docs/CD_RESTRUCTURE_RESULT.md)
-- [Original CD restructure design plan](docs/Final_restructure_plan.md)
-- [Scribe infra contract](docs/SCRIBE_INFRA_CONTRACT.md)
-- [Scribe prod DB access runbook](docs/infra_access.md)
-- [Slack app setup](docs/SLACK_APP_SETUP.md)
+- [Scribe infra contract](docs/dev/SCRIBE_INFRA_CONTRACT.md)
+- [Scribe prod DB access runbook](docs/dev/infra_access.md)
+- [Slack app setup](docs/dev/SLACK_APP_SETUP.md)
 
 ## Repository structure
 
 ```text
 wusool-infra/
-|-- terraform/
-|   |-- .opentofu-version      # pinned OpenTofu version — this repo uses OpenTofu, not Terraform
-|   |-- modules/               # HOW each resource is built (reusable, environment-agnostic)
-|   |   |-- network/               # VPC, subnets, route tables and IGW
-|   |   |-- n8n-ec2/               # n8n EC2, Caddy, IAM, SSM and monitoring
-|   |   |-- toolkit-ec2/           # wusool-toolkit EC2 host, Caddy, IAM, SSM and monitoring
-|   |   |-- bedrock-access/        # IAM policy granting scoped Bedrock model access
-|   |   `-- postgres-rds/          # RDS PostgreSQL instance
-|   |-- stacks/                # WHAT to build per service — the roots actually applied
-|   |   |-- account/               # Account-wide singletons: GuardDuty, Security Hub, OIDC, state bucket
-|   |   |-- base/                  # Per-env VPC, CloudTrail, alerts SNS topic
-|   |   |-- n8n/                   # Per-env n8n stack
-|   |   |-- toolkit/                # Per-env wusool-toolkit stack + its ECR repo
-|   |   `-- postgres/               # Per-env RDS stack
-|   `-- envs/                   # dev.tfvars / prod.tfvars — committed, non-secret per-env config
-|-- database/                  # SQLAlchemy models + Alembic migrations (schema source of truth), Attio sync, and DB tools
-|-- docs/                      # Handover/contract/runbook docs that aren't tied to one folder's code
-|-- workflows/                 # One folder per workflow: scripts + docs together
+|-- infrastructure/
+|   |-- terraform/
+|   |   |-- .opentofu-version  # pinned OpenTofu version — this repo uses OpenTofu, not Terraform
+|   |   |-- modules/           # HOW each resource is built (reusable, environment-agnostic)
+|   |   |   |-- network/           # VPC, subnets, route tables and IGW
+|   |   |   |-- n8n-ec2/           # n8n EC2, Caddy, IAM, SSM and monitoring
+|   |   |   |-- toolkit-ec2/       # wusool-toolkit EC2 host, Caddy, IAM, SSM and monitoring
+|   |   |   |-- bedrock-access/    # IAM policy granting scoped Bedrock model access
+|   |   |   `-- postgres-rds/      # RDS PostgreSQL instance
+|   |   |-- stacks/            # WHAT to build per service — the roots actually applied
+|   |   |   |-- account/           # Account-wide singletons: GuardDuty, Security Hub, OIDC, state bucket
+|   |   |   |-- base/              # Per-env VPC, CloudTrail, alerts SNS topic
+|   |   |   |-- n8n/               # Per-env n8n stack
+|   |   |   |-- toolkit/           # Per-env wusool-toolkit stack + its ECR repo
+|   |   |   |-- postgres/          # Per-env RDS stack
+|   |   |   `-- peering/           # VPC peering (scribe dev VPC -> wusool-prod-postgres)
+|   |   `-- envs/              # dev.tfvars / prod.tfvars — committed, non-secret per-env config
 |   |-- n8n/                   # n8n scripts and infrastructure/architecture docs
 |   |-- bedrock-ai/            # AWS Bedrock model access scripts (operator PowerShell, no deploy)
-|   |-- crm-sync/              # Attio <-> PostgreSQL schema, sync scripts, and docs (operator PowerShell, no deploy)
-|   `-- wusool-toolkit/        # The one deployed Slack bot process
-|       |-- Dockerfile         # Built once in CI, pushed to ECR, deployed by digest
-|       |-- main.py            # The real entrypoint — mounts both bots' handlers on one Slack app
-|       |-- matching-engine/   # Buyer-Seller Matching functionality (FastAPI + Slack Bolt)
-|       `-- ddl-commands/      # Buyer/seller profile edit + soft-delete commands
-|-- scripts/
-|   `-- docs/                  # Cross-cutting schema documentation generators
-`-- .github/workflows/         # CI (lint/type/test) and CD (OIDC-authenticated deploy) — see below
+|   `-- crm-sync/              # Attio <-> PostgreSQL schema, sync scripts, and docs (operator PowerShell, no deploy)
+|-- server/                    # The one deployed Slack bot — modular monolith (FastAPI + Slack Bolt)
+|   |-- Dockerfile             # Built once in CI, pushed to ECR, deployed by digest
+|   |-- main.py                # The real entrypoint — one AsyncApp, all 5 slash commands
+|   |-- alembic/, alembic.ini  # SQLAlchemy schema migrations (schema source of truth)
+|   |-- app/models/            # SQLAlchemy models shared across modules
+|   |-- app/modules/           # matching_engine, ddl_commands, organizations, attio, notifications, utilities
+|   |-- scripts/docs/          # Cross-cutting schema documentation generators
+|   `-- scripts/postgres-sync/ # Attio -> PostgreSQL data sync (dev/ and prod/, operator PowerShell)
+|-- docs/dev/                  # Handover/contract/runbook docs that aren't tied to one folder's code
+`-- .github/                   # workflows/ (CI + OIDC-authenticated CD), actions/ (composite steps) — see below
 ```
 
 Each stack reads `project`, `environment`, and region-scoped values from
-`terraform/envs/<env>.tfvars` — see [`terraform/README.md`](terraform/README.md)
-for the full backend-key and `-var-file` convention, and the collision risk
-of two stacks sharing one tfvars file.
+`infrastructure/terraform/envs/<env>.tfvars` — see
+[`infrastructure/terraform/README.md`](infrastructure/terraform/README.md) for
+the full backend-key and `-var-file` convention, and the collision risk of two
+stacks sharing one tfvars file.
 
 ## CRM and data-platform schema
 
@@ -131,7 +131,7 @@ Attio CRM  <------ selected operational results ------+
 
 | Document | Audience | Contents |
 | --- | --- | --- |
-| [Client schema overview](workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) | Clients, management, engineering, and operations | Executive explanation, platform mapping, Attio and PostgreSQL schemas, functional areas, relationships, constraints, and ownership |
+| [Client schema overview](infrastructure/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) | Clients, management, engineering, and operations | Executive explanation, platform mapping, Attio and PostgreSQL schemas, functional areas, relationships, constraints, and ownership |
 
 ### Documented schema scope
 
@@ -150,9 +150,9 @@ The current documentation covers:
 
 | Schema | Source |
 | --- | --- |
-| Attio target model | `workflows/crm-sync/scripts/dev-attio/config/target-schema.json` |
-| Attio migration mapping | `workflows/crm-sync/scripts/dev-attio/config/source-to-target-mapping.json` |
-| PostgreSQL schema | `database/wusool_db/models/` + `database/alembic/versions/` (Alembic migrations, the sole source of truth as of 2026-08-29 — the original flat SQL files that first created this schema were deleted; see git history before that date if you need them). |
+| Attio target model | `infrastructure/crm-sync/scripts/dev-attio/config/target-schema.json` |
+| Attio migration mapping | `infrastructure/crm-sync/scripts/dev-attio/config/source-to-target-mapping.json` |
+| PostgreSQL schema | `server/app/models/` + `server/alembic/versions/` (Alembic migrations, the sole source of truth as of 2026-08-29 — the original flat SQL files that first created this schema were deleted; see git history before that date if you need them). |
 
 The generated documents describe the schema declared in this repository. They
 do not prove the current state of a live Attio workspace or PostgreSQL database.
@@ -166,7 +166,7 @@ PostgreSQL migrations:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
-  -File scripts/docs/generate-client-schema-overview.ps1
+  -File server/scripts/docs/generate-client-schema-overview.ps1
 ```
 
 Do not manually edit the generated Markdown file; update the schema sources or
@@ -179,12 +179,13 @@ Every stack uses a partial S3 backend (`bucket = wusool-tfstate`, region
 S3 native lock file, encrypted, versioned) keyed as
 `wusool/<env>/<stack>/terraform.tfstate`. `stacks/account` is the one
 exception: it has no `-var-file` and its own single state key, since it owns
-account-wide singletons. See [`terraform/README.md`](terraform/README.md) for
+account-wide singletons. See
+[`infrastructure/terraform/README.md`](infrastructure/terraform/README.md) for
 the exact `init -backend-config=...` invocation each stack expects.
 
 ## Prerequisites
 
-- OpenTofu version from `terraform/.opentofu-version` — this repo uses
+- OpenTofu version from `infrastructure/terraform/.opentofu-version` — this repo uses
   **OpenTofu**, not HashiCorp Terraform; do not run `terraform` against it.
 - AWS CLI v2
 - Valid AWS credentials or an active AWS SSO session
@@ -199,7 +200,7 @@ aws sts get-caller-identity
 ## Development workflow
 
 ```bash
-cd terraform/stacks/n8n   # or toolkit / postgres / base
+cd infrastructure/terraform/stacks/n8n   # or toolkit / postgres / base
 tofu init -backend-config="bucket=wusool-tfstate" \
   -backend-config="region=me-central-1" \
   -backend-config="key=wusool/dev/n8n/terraform.tfstate" \
@@ -235,8 +236,8 @@ record pointed at each environment's EC2 Elastic IP.
 ## Continuous deployment
 
 `.github/workflows/deploy-dev.yml` and `deploy-prod.yml` trigger on push to
-`dev` and `prod` respectively (path-filtered to `terraform/**`,
-`workflows/wusool-toolkit/**`, and `database/**`). Each builds the toolkit Docker image and
+`dev` and `prod` respectively (path-filtered to `infrastructure/terraform/**`
+and `server/**`). Each builds the toolkit Docker image and
 pushes it to that environment's own ECR repository by immutable digest, then
 `_deploy.yml` decides **per stack** whether it actually needs to redeploy:
 each of `base`/`n8n`/`toolkit`/`postgres` tracks its own last-deployed commit
@@ -245,8 +246,9 @@ the app) when a path relevant to that stack changed since then — a
 toolkit-only change no longer touches n8n at all. A `base` change, a
 workflow/composite-action change, or an `envs/*.tfvars` edit forces every
 stack to redeploy regardless, since those can affect (or can't be cheaply
-attributed to) more than one stack. See `terraform/README.md` and
-`docs/CD_RESTRUCTURE_RESULT.md` for the exact path-to-stack mapping.
+attributed to) more than one stack. See `infrastructure/terraform/README.md`
+and the path filters in `.github/workflows/_deploy.yml` for the exact
+path-to-stack mapping.
 
 A successful `tofu apply` only proves the bootstrap document was
 *registered*, not that the app actually deployed, so neither n8n's nor
@@ -256,30 +258,29 @@ bootstrap document and polls until the app is confirmed serving `/healthz`
 assumption (`wusool-gha-apply-dev` / `wusool-gha-apply-prod`, scoped by
 branch in their trust policy) — no static AWS keys. `terraform-plan.yml`
 comments a plan on every pull request; `terraform-ci.yml` runs
-`fmt`/`validate`; `ci.yml` runs `ruff`/`ty`/`pytest` for the toolkit app (run
-separately per package — matching-engine and ddl-commands each have their
-own test config) and PSScriptAnalyzer for the PowerShell scripts;
+`fmt`/`validate`; `ci.yml` runs `ruff`/`ty`/`pytest` for the `server/` app
+(one project — the root suite plus every module's own suite under
+`app/modules/*/tests/`) and PSScriptAnalyzer for the PowerShell scripts.
 
-**Phase G (Alembic) has landed** — schema changes now go through
-`database/wusool_db/models/` + `database/alembic/`, not new numbered flat SQL
-files (see `database/README.md` for the full workflow). `database/**` is wired
-into both deploy workflows' path filters above, and `_deploy.yml`'s "Run
-pending database migrations" step applies `alembic upgrade head` for real
-against that environment's actual RDS instance on every `toolkit` redeploy —
-via SSM against the toolkit EC2 instance, since RDS is `publicly_accessible =
-false` and GitHub Actions has no direct network path to it. This runs
-*before* the toolkit app is rolled to its new image, so a failed migration
-blocks the deploy rather than leaving new code running against a schema it
-doesn't have. `ci.yml`'s `alembic-check` job separately catches drift between
-models and migrations on every PR touching `database/**`, against a
-throwaway Postgres, before any of that.
+**Schema changes go through Alembic** — `server/app/models/` +
+`server/alembic/`, not numbered flat SQL files (see `server/README.md` and
+`server/SCHEMA.md` for the workflow). `server/**` is wired into both deploy
+workflows' path filters above, and `_deploy.yml`'s "Run pending database
+migrations" step applies `alembic upgrade head` for real against that
+environment's actual RDS instance on every `toolkit` redeploy — via SSM
+against the toolkit EC2 instance, since RDS is `publicly_accessible = false`
+and GitHub Actions has no direct network path to it. This runs *before* the
+toolkit app is rolled to its new image, so a failed migration blocks the
+deploy rather than leaving new code running against a schema it doesn't have.
+`ci.yml`'s `alembic-check` job separately catches drift between models and
+migrations on every PR touching `server/**`, against a throwaway Postgres,
+before any of that.
 
 The historical flat SQL files (`database/sql/001` through `007`) and the
 `setup-postgres.ps1` script that applied them were deleted 2026-08-29 —
 Alembic's baseline migrations fully reproduce what they created.
-`database/dev-postgres-sync/sync-postgres.ps1` (Attio data sync, a separate
-concern from schema) is unaffected — see `database/README.md` for the
-current Alembic workflow.
+`server/scripts/postgres-sync/dev/sync-postgres.ps1` (Attio data sync, a
+separate concern from schema) is unaffected.
 
 ## n8n SMTP email
 
@@ -314,33 +315,34 @@ Prod is a real, deployed environment — a `10.20.0.0/16` VPC in
 its own RDS instance seeded from a dev snapshot (credentials rotated off the
 snapshot's inherited secret afterward — restoring from a snapshot silently
 keeps the source's master credentials otherwise). It is applied exactly the
-same way as dev: merge to `prod` deploys it, via `terraform/envs/prod.tfvars`
-and the same stacks. The prod toolkit EC2 instance is optional
-(`create_instance = false` in `envs/prod.tfvars`) until a real rollout is
-deliberately switched on — until then, `stacks/toolkit` for prod only
-provisions the ECR repository and secret.
+same way as dev: merge to `prod` deploys it, via
+`infrastructure/terraform/envs/prod.tfvars` and the same stacks. The prod
+toolkit EC2 instance is live (`create_instance = true` since 2026-08-17);
+`stacks/toolkit` still supports `create_instance = false`, which provisions
+only the ECR repository and secret.
 
 There is deliberately no human approval gate between a `prod` merge and the
-apply — see `docs/RESTRUCTURE_PROGRESS.md` for the accepted-risk reasoning.
+apply — an accepted risk, given every apply is health-checked and
+per-stack change detection keeps blast radius small.
 
 ## Project status
 
-[PROGRESS.md](docs/PROGRESS.md) is the single, high-level file that tracks what
-has been done across every workstream (infrastructure, CRM/data-platform
-migration, and any new work). Read it before starting a session instead of
-reconstructing status from git history.
+See [`CHANGELOG.md`](CHANGELOG.md) for what has changed and
+[`docs/handover/README.md`](docs/handover/README.md) for the current
+delivered state and outstanding items.
 
 ## Documentation synchronization
 
-After changing Terraform, run the project documentation skill:
+After changing Terraform:
 
 ```text
 Use $sync-terraform-docs
 ```
 
-After any other change worth recording — a migration milestone, a new script,
-a new workstream — run the sibling skill to update `docs/PROGRESS.md` and the
-non-Terraform README files:
+After any other change worth recording — a migration milestone, a new
+script, a new workstream, a user-visible bot change — run the sibling skill
+to update `CHANGELOG.md`, the `docs/` pages, and the non-Terraform README
+files:
 
 ```text
 Use $sync-project-docs
@@ -348,8 +350,8 @@ Use $sync-project-docs
 
 Those phrases are agent instructions, not PowerShell commands. The Terraform
 skill compares Terraform with the README files and architecture diagrams,
-updates stale documentation, and runs formatting and validation checks. Neither
-skill runs `terraform apply`.
+updates stale documentation, and runs formatting and validation checks.
+Neither skill runs `terraform apply`.
 
 ## Safety
 

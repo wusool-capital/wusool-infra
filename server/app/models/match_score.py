@@ -1,8 +1,7 @@
 """`match_scores` — the pre-existing deterministic scoring breakdown (see
 `004_machine_layer.sql`): one row per scored buyer/seller pair (score/dims/
 reasoning/citations). Phase 3 writes one row here per STAGE3_TOP_N
-shortlisted candidate only — not for every stage-1 survivor (see
-`workflows/crm-sync/docs/PHASE3_MATCH_RESULTS_HANDOVER.md`).
+shortlisted candidate only — not for every stage-1 survivor.
 """
 
 import uuid

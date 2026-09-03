@@ -68,9 +68,8 @@ fully reproduce what those files created, and every environment that matters
 (`dev`, `prod`) already has its schema; see git history before this date if
 you need the original files for reference.
 
-As of Phase G of `docs/dev/Final_restructure_plan.md`, this folder is also a
-Python package (`app/models/`,
-`pyproject.toml`) holding the SQLAlchemy model for every table above, plus an
+The `server/` project is a Python package (`app/models/`, `pyproject.toml`)
+holding the SQLAlchemy model for every table above, plus an
 Alembic migration chain (`alembic.ini`, `alembic/`) that is now the source of
 truth for **future** schema changes:
 
