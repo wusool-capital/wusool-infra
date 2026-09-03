@@ -22,9 +22,10 @@ attio/
   config.py                            # independent Settings.attio_api_key
   application/ports/client.py          # AttioClientProtocol
   domain/
-    values.py                            # value-extraction helpers (vals, ref, money, date, ...)
-    webhook.py                             # WebhookEvent, WebhookEventId dataclasses
+    webhook.py                            # WebhookEvent, WebhookEventId dataclasses
   providers/attio/
+    values.py                            # value-extraction helpers (vals, ref, money, date, ...) —
+                                            # vendor-payload parsing, not a framework-free primitive
     client.py                            # AttioClient, get_attio_client() — HTTP client + auth
     dates.py, money.py, options.py        # payload (de)serialization helpers
     signature.py                         # verify_attio_signature — webhook signature check

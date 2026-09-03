@@ -7,8 +7,12 @@ then open the next modal in the flow. Mirrors matching-engine's
 
 import logging
 import time
+from collections.abc import Coroutine
+from typing import Any
 
 from slack_bolt.async_app import AsyncApp
+from slack_bolt.context.ack.async_ack import AsyncAck
+from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.ddl_commands.api.dependencies import (
     resolve_buyer,
@@ -37,7 +41,9 @@ _idempotency_store = InMemoryIdempotencyStore()
 _TRIGGER_ID_BUDGET_MS = 2500
 
 
-async def _run(action: str, command: dict, client, coro) -> None:  # noqa: ANN001
+async def _run(
+    action: str, command: dict, client: AsyncWebClient, coro: Coroutine[Any, Any, None]
+) -> None:
     """Everything after `ack()` runs detached from the HTTP response (Bolt is
     built with `process_before_response=False`), so nothing that happens here
     can reach Slack on its own. Two distinct failure modes get lost without
@@ -72,7 +78,7 @@ async def _run(action: str, command: dict, client, coro) -> None:  # noqa: ANN00
 
 def register(app: AsyncApp) -> None:
     @app.command("/edit-seller")
-    async def handle_edit_seller(ack, command, client):  # noqa: ANN001
+    async def handle_edit_seller(ack: AsyncAck, command: dict, client: AsyncWebClient) -> None:
         await ack()
         await _run(
             "edit_seller",
@@ -82,7 +88,7 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.command("/edit-buyer")
-    async def handle_edit_buyer(ack, command, client):  # noqa: ANN001
+    async def handle_edit_buyer(ack: AsyncAck, command: dict, client: AsyncWebClient) -> None:
         await ack()
         await _run(
             "edit_buyer",
@@ -92,19 +98,19 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.command("/add-seller")
-    async def handle_add_seller(ack, command, client):  # noqa: ANN001
+    async def handle_add_seller(ack: AsyncAck, command: dict, client: AsyncWebClient) -> None:
         await ack()
         await _run(
             "add_seller", command, client, _handle_add_command(command, client, kind="seller")
         )
 
     @app.command("/add-buyer")
-    async def handle_add_buyer(ack, command, client):  # noqa: ANN001
+    async def handle_add_buyer(ack: AsyncAck, command: dict, client: AsyncWebClient) -> None:
         await ack()
         await _run("add_buyer", command, client, _handle_add_command(command, client, kind="buyer"))
 
 
-async def _handle_seller_command(command: dict, client, *, action: str) -> None:  # noqa: ANN001
+async def _handle_seller_command(command: dict, client: AsyncWebClient, *, action: str) -> None:
     idempotency_key = f"{action}:{command.get('trigger_id')}"
     if _idempotency_store.seen(idempotency_key):
         logger.info("%s_duplicate_delivery_skipped key=%s", action, idempotency_key)
@@ -142,7 +148,7 @@ async def _handle_seller_command(command: dict, client, *, action: str) -> None:
     )
 
 
-async def _handle_buyer_command(command: dict, client, *, action: str) -> None:  # noqa: ANN001
+async def _handle_buyer_command(command: dict, client: AsyncWebClient, *, action: str) -> None:
     idempotency_key = f"{action}:{command.get('trigger_id')}"
     if _idempotency_store.seen(idempotency_key):
         logger.info("%s_duplicate_delivery_skipped key=%s", action, idempotency_key)
@@ -180,7 +186,7 @@ async def _handle_buyer_command(command: dict, client, *, action: str) -> None: 
     )
 
 
-async def _handle_add_command(command: dict, client, *, kind: str) -> None:  # noqa: ANN001
+async def _handle_add_command(command: dict, client: AsyncWebClient, *, kind: str) -> None:
     action = f"add_{kind}"
     idempotency_key = f"{action}:{command.get('trigger_id')}"
     if _idempotency_store.seen(idempotency_key):

@@ -5,6 +5,7 @@ no database, no Bedrock, no Slack.
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     DataConfidence,
+    FilterSkipped,
 )
 from app.modules.matching_engine.domain.matching.scoring import (
     ScoringEngine,
@@ -93,7 +94,9 @@ def test_null_field_never_eliminates() -> None:
 
     assert [s.seller_role_id for s in survivors] == ["no_data"]
     assert skipped == [
-        {"criterion": "minimum_revenue", "reason": "no_populated_field", "candidates_exempted": 1}
+        FilterSkipped(
+            criterion="minimum_revenue", reason="no_populated_field", candidates_exempted=1
+        )
     ]
 
 
@@ -115,11 +118,11 @@ def test_unconfirmed_hard_requirement_never_eliminates() -> None:
 
     assert [s.seller_role_id for s in survivors] == ["would_fail"]
     assert skipped == [
-        {
-            "criterion": "minimum_revenue",
-            "reason": "unconfirmed_llm_extraction",
-            "candidates_exempted": 1,
-        }
+        FilterSkipped(
+            criterion="minimum_revenue",
+            reason="unconfirmed_llm_extraction",
+            candidates_exempted=1,
+        )
     ]
 
 
@@ -137,11 +140,11 @@ def test_unmapped_criterion_never_eliminates() -> None:
 
     assert [s.seller_role_id for s in survivors] == ["s1"]
     assert skipped == [
-        {
-            "criterion": "some_unheard_of_criterion",
-            "reason": "no_mapping",
-            "candidates_exempted": 1,
-        }
+        FilterSkipped(
+            criterion="some_unheard_of_criterion",
+            reason="no_mapping",
+            candidates_exempted=1,
+        )
     ]
 
 

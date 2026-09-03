@@ -5,6 +5,7 @@ Implements `application.ports.buyers.BuyerRepositoryPort`.
 """
 
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -49,7 +50,7 @@ class BuyerRepository:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def create(self, org_attio_id: str, **fields) -> BuyerRole:
+    async def create(self, org_attio_id: str, **fields: Any) -> BuyerRole:
         """Upserts (`ON CONFLICT (legacy_entry_id) DO NOTHING`) rather than a
         plain insert — with the Attio webhook live, `list-entry.created` for
         the entry this same call just created in Attio can reach
@@ -109,7 +110,7 @@ class BuyerRepository:
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def update(self, buyer_role_id: str, **fields) -> BuyerRole | None:
+    async def update(self, buyer_role_id: str, **fields: Any) -> BuyerRole | None:
         role = await self.get_by_id(buyer_role_id)
         if role is None:
             return None

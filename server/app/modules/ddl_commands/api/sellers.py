@@ -25,11 +25,13 @@ operators had no way to record it.
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import date
 
 from pydantic import BaseModel, Field
 
 from app.modules.ddl_commands.api.schemas import FieldSpec, OrganizationSummary
+from app.modules.ddl_commands.application.sellers import ResolutionStatus
 
 
 class SellerSummary(BaseModel):
@@ -39,6 +41,12 @@ class SellerSummary(BaseModel):
     organization: OrganizationSummary
     outreach_tier: str | None = None
     relationship_status: str | None = None
+
+
+@dataclass(frozen=True)
+class SellerResolutionRead:
+    status: ResolutionStatus
+    candidates: list[SellerSummary] | None = None
 
 
 class SellerUpdate(BaseModel):

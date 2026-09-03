@@ -20,10 +20,14 @@ from sqlalchemy.orm import selectinload
 
 from app.models import MatchResult, MatchScore
 from app.modules.matching_engine.domain.matching.entities import (
+    FilterSkipped,
     MatchResultEntity,
     MatchScoreResult,
 )
+from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.persistence.mappers import (
+    filters_skipped_to_list,
+    profile_to_dict,
     to_match_result_entity,
     to_match_score_result,
 )
@@ -118,10 +122,10 @@ class MatchResultRepository:
         *,
         model_version: str | None = None,
         requirement_profile_version: int | None = None,
-        requirement_profile: dict | None = None,
+        requirement_profile: RequirementProfile | None = None,
         candidates_considered: int | None = None,
         candidates_filtered: int | None = None,
-        filters_skipped: list | None = None,
+        filters_skipped: list[FilterSkipped] | None = None,
     ) -> None:
         """Partial update of the run row's audit fields as the run progresses,
         so a mid-run failure still leaves as much audit trail as possible.
@@ -134,13 +138,13 @@ class MatchResultRepository:
         if requirement_profile_version is not None:
             run.requirement_profile_version = requirement_profile_version
         if requirement_profile is not None:
-            run.requirement_profile = requirement_profile
+            run.requirement_profile = profile_to_dict(requirement_profile)
         if candidates_considered is not None:
             run.candidates_considered = candidates_considered
         if candidates_filtered is not None:
             run.candidates_filtered = candidates_filtered
         if filters_skipped is not None:
-            run.filters_skipped = filters_skipped
+            run.filters_skipped = filters_skipped_to_list(filters_skipped)
         await self._session.flush()
 
     async def complete_run(
@@ -148,7 +152,7 @@ class MatchResultRepository:
         run_id: uuid.UUID,
         *,
         status: str = "GENERATED",
-        final_candidate_ids: list | None = None,
+        final_candidate_ids: list[str] | None = None,
         execution_duration_ms: int | None = None,
         errors: dict | None = None,
         completed_at: datetime | None = None,

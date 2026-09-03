@@ -11,7 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from app.modules.matching_engine.domain.requirements import RequirementSource
+from app.modules.matching_engine.domain.requirements import RequirementProfile, RequirementSource
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 
 
@@ -105,6 +105,20 @@ class ReasoningOutcome:
     candidates: list[CandidateNarrative] = field(default_factory=list)
 
 
+FilterSkippedReason = Literal["no_mapping", "unconfirmed_llm_extraction", "no_populated_field"]
+
+
+@dataclass(frozen=True)
+class FilterSkipped:
+    """One hard requirement that Stage 1 filtering couldn't fully enforce
+    across the candidate batch — see `apply_structured_filters`'s docstring
+    for the exemption rule."""
+
+    criterion: str
+    reason: FilterSkippedReason
+    candidates_exempted: int
+
+
 @dataclass(frozen=True)
 class CandidateBatch:
     """The §35 future-proofing seam's shared return shape — Branch 2 can add
@@ -112,7 +126,7 @@ class CandidateBatch:
     anything above it (the orchestrator, scoring, reasoning)."""
 
     passed: list[SellerCandidate]
-    filters_skipped: list[dict]
+    filters_skipped: list[FilterSkipped]
     considered: int
 
 
@@ -150,11 +164,11 @@ class MatchResultEntity:
     requested_by: str | None
     model_version: str | None
     requirement_profile_version: int | None
-    requirement_profile: dict | None
+    requirement_profile: RequirementProfile | None
     candidates_considered: int | None
     candidates_filtered: int | None
-    filters_skipped: list | None
-    final_candidate_ids: list | None
+    filters_skipped: list[FilterSkipped] | None
+    final_candidate_ids: list[str] | None
     execution_duration_ms: int | None
     errors: dict | None
     started_at: datetime

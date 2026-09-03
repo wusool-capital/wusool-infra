@@ -12,6 +12,48 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
+from app.modules.matching_engine.domain.matching.entities import FilterSkippedReason
+from app.modules.matching_engine.domain.requirements import ConfidenceLevel, RequirementSource
+
+
+class HardRequirementRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    criterion: str
+    value: str | None
+    source: RequirementSource
+    confidence: ConfidenceLevel
+    human_confirmed: bool
+
+
+class SoftPreferenceRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    criterion: str
+    value: str | None
+    weight: float
+    source: RequirementSource
+    confidence: ConfidenceLevel
+
+
+class RequirementProfileRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    hard_requirements: list[HardRequirementRead]
+    soft_preferences: list[SoftPreferenceRead]
+    strategic_thesis: str | None
+    ideal_target_description: str | None
+    scoring_rubric: dict[str, float]
+    data_confidence: float
+
+
+class FilterSkippedRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    criterion: str
+    reason: FilterSkippedReason
+    candidates_exempted: int
+
 
 class MatchScoreRead(BaseModel):
     model_config = {"from_attributes": True}
@@ -47,10 +89,10 @@ class MatchResultRead(BaseModel):
     decided_at: datetime | None = None
     # Run-row-only fields (None on candidate rows) — see the row-kind
     # invariant in `infrastructure/models.py`.
-    requirement_profile: dict | None = None
+    requirement_profile: RequirementProfileRead | None = None
     candidates_considered: int | None = None
     candidates_filtered: int | None = None
-    filters_skipped: list | None = None
+    filters_skipped: list[FilterSkippedRead] | None = None
     errors: dict | None = None
 
 

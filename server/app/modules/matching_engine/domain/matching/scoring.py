@@ -17,6 +17,7 @@ from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     CriterionScore,
     DataConfidence,
+    FilterSkipped,
 )
 from app.modules.matching_engine.domain.requirements import (
     RequirementProfile,
@@ -197,7 +198,7 @@ def _evaluate_criterion(
 
 def apply_structured_filters(
     profile: RequirementProfile, candidates: list[SellerCandidate]
-) -> tuple[list[SellerCandidate], list[dict]]:
+) -> tuple[list[SellerCandidate], list[FilterSkipped]]:
     """Stage 1 (§9-10). Missing-data pass-through is mandatory: a candidate
     is only eliminated when a mapped, populated seller field contradicts a
     human-confirmed hard requirement (§13 — an unconfirmed LLM-extracted hard
@@ -206,28 +207,28 @@ def apply_structured_filters(
     the whole candidate batch.
     """
     passed = list(candidates)
-    filters_skipped: list[dict] = []
+    filters_skipped: list[FilterSkipped] = []
 
     for requirement in profile.hard_requirements:
         key = normalize_criterion(requirement.criterion)
 
         if key not in _ALL_MAPPED_KEYS:
             filters_skipped.append(
-                {
-                    "criterion": requirement.criterion,
-                    "reason": "no_mapping",
-                    "candidates_exempted": len(passed),
-                }
+                FilterSkipped(
+                    criterion=requirement.criterion,
+                    reason="no_mapping",
+                    candidates_exempted=len(passed),
+                )
             )
             continue
 
         if not requirement.human_confirmed:
             filters_skipped.append(
-                {
-                    "criterion": requirement.criterion,
-                    "reason": "unconfirmed_llm_extraction",
-                    "candidates_exempted": len(passed),
-                }
+                FilterSkipped(
+                    criterion=requirement.criterion,
+                    reason="unconfirmed_llm_extraction",
+                    candidates_exempted=len(passed),
+                )
             )
             continue
 
@@ -246,11 +247,11 @@ def apply_structured_filters(
                 survivors.append(candidate)
         if exempted:
             filters_skipped.append(
-                {
-                    "criterion": requirement.criterion,
-                    "reason": "no_populated_field",
-                    "candidates_exempted": exempted,
-                }
+                FilterSkipped(
+                    criterion=requirement.criterion,
+                    reason="no_populated_field",
+                    candidates_exempted=exempted,
+                )
             )
         passed = survivors
 

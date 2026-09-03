@@ -4,13 +4,21 @@ application/domain code consumes the domain dataclasses below, never the
 `app.models` ORM classes directly.
 """
 
+from decimal import Decimal
+
 from sqlalchemy import inspect
 
 from app.models import BuyerRole, MatchResult, MatchScore, SellerRole
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
+    FilterSkipped,
     MatchResultEntity,
     MatchScoreResult,
+)
+from app.modules.matching_engine.domain.requirements import (
+    HardRequirement,
+    RequirementProfile,
+    SoftPreference,
 )
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 from app.modules.utilities.domain.money import Money
@@ -20,7 +28,7 @@ def _money(value: dict | None) -> Money | None:
     return Money(**value) if value else None
 
 
-def _float(value) -> float | None:
+def _float(value: Decimal | float | None) -> float | None:
     """seller_roles.readiness_score is NUMERIC in Postgres, which SQLAlchemy
     maps to Decimal — the domain/API layer wants plain float (see
     SellerCandidate/schemas.py), so convert at this ORM-to-domain boundary
@@ -98,6 +106,77 @@ def _loaded_org_name(row: MatchResult, relationship_attr: str) -> str | None:
     return organization.name if organization else None
 
 
+def profile_to_dict(profile: RequirementProfile) -> dict:
+    """Serializes a `RequirementProfile` for the `match_results.requirement_profile`
+    JSONB column. `generated_by_model`/`version` are deliberately excluded —
+    `version` already has its own column (`requirement_profile_version`), and
+    `generated_by_model` has never been persisted here; neither is read back
+    by any consumer of this column."""
+    return {
+        "hard_requirements": [
+            {
+                "criterion": h.criterion,
+                "value": h.value,
+                "source": h.source,
+                "confidence": h.confidence,
+                "human_confirmed": h.human_confirmed,
+            }
+            for h in profile.hard_requirements
+        ],
+        "soft_preferences": [
+            {
+                "criterion": s.criterion,
+                "value": s.value,
+                "weight": s.weight,
+                "source": s.source,
+                "confidence": s.confidence,
+            }
+            for s in profile.soft_preferences
+        ],
+        "strategic_thesis": profile.strategic_thesis,
+        "ideal_target_description": profile.ideal_target_description,
+        "scoring_rubric": profile.scoring_rubric,
+        "data_confidence": profile.data_confidence,
+    }
+
+
+def _profile_from_dict(data: dict | None, *, version: int | None) -> RequirementProfile | None:
+    """Inverse of `profile_to_dict`. `generated_by_model` has no persisted
+    value to restore (see that function's docstring) — empty string, since
+    nothing reads it back from this path."""
+    if data is None:
+        return None
+    return RequirementProfile(
+        hard_requirements=[HardRequirement(**h) for h in data["hard_requirements"]],
+        soft_preferences=[SoftPreference(**s) for s in data["soft_preferences"]],
+        strategic_thesis=data["strategic_thesis"],
+        ideal_target_description=data["ideal_target_description"],
+        scoring_rubric=data["scoring_rubric"],
+        data_confidence=data["data_confidence"],
+        generated_by_model="",
+        version=version or 0,
+    )
+
+
+def filters_skipped_to_list(filters_skipped: list[FilterSkipped] | None) -> list[dict]:
+    if not filters_skipped:
+        return []
+    return [
+        {
+            "criterion": f.criterion,
+            "reason": f.reason,
+            "candidates_exempted": f.candidates_exempted,
+        }
+        for f in filters_skipped
+    ]
+
+
+def _filters_skipped_from_list(data: list | None) -> list[FilterSkipped] | None:
+    if not data:
+        return None
+    return [FilterSkipped(**item) for item in data]
+
+
 def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
     return MatchResultEntity(
         id=str(row.id),
@@ -123,10 +202,12 @@ def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
         requested_by=row.requested_by,
         model_version=row.model_version,
         requirement_profile_version=row.requirement_profile_version,
-        requirement_profile=row.requirement_profile,
+        requirement_profile=_profile_from_dict(
+            row.requirement_profile, version=row.requirement_profile_version
+        ),
         candidates_considered=row.candidates_considered,
         candidates_filtered=row.candidates_filtered,
-        filters_skipped=row.filters_skipped,
+        filters_skipped=_filters_skipped_from_list(row.filters_skipped),
         final_candidate_ids=row.final_candidate_ids,
         execution_duration_ms=row.execution_duration_ms,
         errors=row.errors,

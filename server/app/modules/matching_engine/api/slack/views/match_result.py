@@ -8,11 +8,11 @@ a static "Approved/Rejected by ..." line instead of buttons, so the
 original message doesn't keep looking actionable once it's been acted on.
 """
 
-from app.modules.matching_engine.api.slack.views.mrkdwn import sanitize_mrkdwn
 from app.modules.matching_engine.application.matching.use_cases import (
     MatchRunResult,
     MatchRunView,
 )
+from app.modules.utilities.domain.text import sanitize_mrkdwn
 
 
 def build_match_result_blocks(result: MatchRunResult) -> list[dict]:

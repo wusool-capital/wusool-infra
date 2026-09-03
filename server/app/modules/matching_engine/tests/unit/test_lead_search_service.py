@@ -5,24 +5,49 @@ Firecrawl web-fallback query. No database, no Firecrawl.
 from app.modules.matching_engine.application.web_search import (
     _extract_query_terms,
 )
+from app.modules.matching_engine.domain.requirements import (
+    HardRequirement,
+    RequirementProfile,
+    SoftPreference,
+)
 
 
-def _profile(**overrides: object) -> dict:
-    base = {
+def _profile(**overrides: object) -> RequirementProfile:
+    base: dict = {
         "hard_requirements": [],
         "soft_preferences": [],
-        "ideal_target_description": None,
         "strategic_thesis": None,
+        "ideal_target_description": None,
+        "scoring_rubric": {},
+        "data_confidence": 1.0,
+        "generated_by_model": "test-model",
+        "version": 1,
     }
     base.update(overrides)
-    return base
+    return RequirementProfile(**base)
+
+
+def _hard(criterion: str, value: str) -> HardRequirement:
+    return HardRequirement(
+        criterion=criterion,
+        value=value,
+        source="crm_field",
+        confidence="high",
+        human_confirmed=True,
+    )
+
+
+def _soft(criterion: str, value: str, weight: float = 0.5) -> SoftPreference:
+    return SoftPreference(
+        criterion=criterion, value=value, weight=weight, source="crm_field", confidence="high"
+    )
 
 
 def test_prefers_sector_and_geography_hard_requirements() -> None:
     profile = _profile(
         hard_requirements=[
-            {"criterion": "sector", "value": "healthcare"},
-            {"criterion": "geography", "value": "Saudi Arabia"},
+            _hard("sector", "healthcare"),
+            _hard("geography", "Saudi Arabia"),
         ]
     )
 
@@ -36,8 +61,8 @@ def test_matches_criterion_synonyms() -> None:
     """`industry` is a recognized synonym for the `sector` canonical name,
     `geographic_focus` for `geography` — same registry scoring.py uses."""
     profile = _profile(
-        hard_requirements=[{"criterion": "industry", "value": "fintech"}],
-        soft_preferences=[{"criterion": "geographic_focus", "value": "UAE", "weight": 0.5}],
+        hard_requirements=[_hard("industry", "fintech")],
+        soft_preferences=[_soft("geographic_focus", "UAE")],
     )
 
     industry, geography = _extract_query_terms(profile)

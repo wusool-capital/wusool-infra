@@ -10,6 +10,7 @@ traffic — retry on 429/5xx with backoff instead of dropping the event.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 
 from app.modules.attio.application.ports.client import AttioClientProtocol
 from app.modules.attio.providers.attio.client import AttioError
@@ -39,7 +40,7 @@ def _log_retry(attempt: int, exc: Exception, delay: float) -> None:
     )
 
 
-async def _with_retry(call):
+async def _with_retry(call: Callable[[], Awaitable[dict]]) -> dict:
     return await retry_with_backoff(
         call,
         is_retryable=_is_retryable,

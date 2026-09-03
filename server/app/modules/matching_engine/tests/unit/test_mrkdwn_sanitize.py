@@ -7,13 +7,13 @@ fix: swap tildes for the actual approximation sign before rendering.
 from app.modules.matching_engine.api.matching import MatchAnalysis, MatchResultRead
 from app.modules.matching_engine.api.slack.views.full_analysis import build_full_analysis_blocks
 from app.modules.matching_engine.api.slack.views.match_result import build_match_result_blocks
-from app.modules.matching_engine.api.slack.views.mrkdwn import sanitize_mrkdwn
 from app.modules.matching_engine.api.slack.views.web_fallback import build_web_fallback_blocks
 from app.modules.matching_engine.application.matching.use_cases import (
     MatchRunResult,
     ShortlistedResult,
 )
 from app.modules.matching_engine.domain.web_search import WebSourcedLead
+from app.modules.utilities.domain.text import sanitize_mrkdwn
 
 
 def test_sanitize_replaces_tildes_with_approximation_sign() -> None:

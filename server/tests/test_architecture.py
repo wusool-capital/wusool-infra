@@ -10,10 +10,13 @@ Three checks:
    logic), or into its bare root (`app.modules.<other>`, checked separately
    against `__all__` below). Reaching into another module's `persistence/`,
    `providers/`, `api/`, or `temporal/` is forbidden UNLESS the target is one
-   of `_FULL_ACCESS_MODULES` — `utilities` and `attio` are both documented,
-   deliberate exceptions (see their own `__init__.py` docstrings): generic
-   infra/vendor-integration modules whose entire surface is legitimately
-   consumed directly, unlike business modules. `application/ports/` imports
+   of `_FULL_ACCESS_MODULES` — `utilities`, `attio`, and `organizations` are
+   all documented, deliberate exceptions (see their own `__init__.py`
+   docstrings): modules with no domain layer whose entire surface (a single
+   concrete repository, for `organizations`) is legitimately constructed
+   directly by consumers, unlike business modules that must go through
+   `domain/`-only or allowlisted `application/ports/` imports.
+   `application/ports/` imports
    across modules are the risky exception the skill calls out — allowed only
    via the explicit `_APPLICATION_PORTS_ALLOWLIST` below; currently empty,
    since every existing cross-module Port-typed reference in this repo
@@ -32,7 +35,7 @@ from pathlib import Path
 
 MODULES_ROOT = Path(__file__).parent.parent / "app" / "modules"
 
-_FULL_ACCESS_MODULES = {"utilities", "attio"}
+_FULL_ACCESS_MODULES = {"utilities", "attio", "organizations"}
 _APPLICATION_PORTS_ALLOWLIST: set[tuple[str, str]] = set()
 _FORBIDDEN_LAYERS = ("persistence", "providers", "api", "temporal")
 

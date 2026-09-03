@@ -11,14 +11,12 @@ from slack_bolt.async_app import AsyncApp
 
 from app.modules.matching_engine.api.slack.handlers import register_handlers
 from app.modules.matching_engine.config import get_settings
+from app.modules.utilities.providers.slack_bolt import build_bolt_app
 
 
 @lru_cache
 def get_bolt_app() -> AsyncApp:
     settings = get_settings()
-    app = AsyncApp(
-        token=settings.slack_bot_token,
-        signing_secret=settings.slack_signing_secret,
+    return build_bolt_app(
+        settings.slack_bot_token, settings.slack_signing_secret, register_handlers
     )
-    register_handlers(app)
-    return app

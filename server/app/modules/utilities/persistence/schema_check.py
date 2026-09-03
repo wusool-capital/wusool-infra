@@ -12,10 +12,11 @@ boot without a live DB (e.g. no SSM tunnel in local dev).
 """
 
 from sqlalchemy import inspect
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
-def _reflect_sync(sync_conn) -> dict[str, set[str]]:
+def _reflect_sync(sync_conn: Connection) -> dict[str, set[str]]:
     inspector = inspect(sync_conn)
     return {
         table: {column["name"] for column in inspector.get_columns(table)}

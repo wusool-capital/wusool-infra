@@ -9,6 +9,7 @@ import json
 
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.schemas import FieldSpec
+from app.modules.utilities.domain.text import sanitize_mrkdwn
 
 # Slack caps a `checkboxes` element at 10 options, and both role field lists
 # are already past it (15 seller, 11 buyer). Over the cap Slack rejects the
@@ -53,7 +54,7 @@ def build_field_picker_modal(
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"Which fields do you want to edit for *{org_name}*?",
+                    "text": f"Which fields do you want to edit for *{sanitize_mrkdwn(org_name)}*?",
                 },
             },
             {

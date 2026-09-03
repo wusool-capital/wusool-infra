@@ -15,6 +15,7 @@ than silently overwriting.
 import json
 
 from app.models import Organization
+from app.modules.utilities.domain.text import sanitize_mrkdwn
 
 NEW_ORGANIZATION_VALUE = "__new__"
 
@@ -65,8 +66,9 @@ def build_organization_selection_modal(
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"Found {len(candidates)} organization(s) matching *{search_term}*. "
-                    "Attach the new role to one of these, or create a new organization.",
+                    "text": f"Found {len(candidates)} organization(s) matching "
+                    f"*{sanitize_mrkdwn(search_term)}*. Attach the new role to one of these, "
+                    "or create a new organization.",
                 },
             },
             {

@@ -14,7 +14,7 @@ from app.modules.matching_engine.api.matching import (
     MatchResultRead,
     MatchScoreRead,
 )
-from app.modules.matching_engine.api.slack.views.mrkdwn import sanitize_mrkdwn
+from app.modules.utilities.domain.text import sanitize_mrkdwn
 
 _MAX_SECTION_TEXT = 2900
 
@@ -34,13 +34,13 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[dict]:
     profile = analysis.run.requirement_profile
 
     blocks.append({"type": "header", "text": {"type": "plain_text", "text": "Buyer & Mandate"}})
-    thesis = (profile or {}).get("strategic_thesis") or "Unknown"
-    ideal_target = (profile or {}).get("ideal_target_description") or "Unknown"
-    hard_reqs = (profile or {}).get("hard_requirements") or []
+    thesis = (profile.strategic_thesis if profile else None) or "Unknown"
+    ideal_target = (profile.ideal_target_description if profile else None) or "Unknown"
+    hard_reqs = profile.hard_requirements if profile else []
     hard_req_lines = (
         "\n".join(
-            f"• {r.get('criterion')}: {r.get('value') or 'Unknown'} "
-            f"({r.get('source')}, confirmed={r.get('human_confirmed')})"
+            f"• {r.criterion}: {r.value or 'Unknown'} "
+            f"({r.source}, confirmed={r.human_confirmed})"
             for r in hard_reqs
         )
         or "None extracted."

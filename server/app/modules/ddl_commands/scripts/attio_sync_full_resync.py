@@ -206,7 +206,9 @@ def _chunk(items: list, size: int) -> list[list]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-async def _write_batches_concurrently(model, rows: list[dict]) -> tuple[int, int, dict]:
+async def _write_batches_concurrently(
+    model: upsert.SyncModel, rows: list[dict]
+) -> tuple[int, int, dict]:
     """Batches `rows` into pages and writes them concurrently (bounded) --
     pages are disjoint by conflict key, built from one bulk fetch, so
     concurrent writes to the same table can't race each other. Returns
@@ -216,7 +218,7 @@ async def _write_batches_concurrently(model, rows: list[dict]) -> tuple[int, int
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
     pages = _chunk(rows, _PAGE_SIZE)
 
-    async def _write_one(page: list[dict], label: str):
+    async def _write_one(page: list[dict], label: str) -> tuple[int, int, dict[str, dict]]:
         async with semaphore:
             return await upsert.upsert_batch_with_retry(model, page, page_label=label)
 
@@ -232,7 +234,7 @@ async def _write_batches_concurrently(model, rows: list[dict]) -> tuple[int, int
 
 
 async def _write_and_verify(
-    model, table: str, rows: list[dict], expected_count: int
+    model: upsert.SyncModel, table: str, rows: list[dict], expected_count: int
 ) -> tuple[int, int]:
     started = time.monotonic()
     ok, failed, returned = await _write_batches_concurrently(model, rows)
@@ -270,7 +272,10 @@ async def _write_and_verify(
 
 
 async def _reconcile_roles(
-    client: AttioClientProtocol, list_slug: str, entries: list[dict], build_params
+    client: AttioClientProtocol,
+    list_slug: str,
+    entries: list[dict],
+    build_params: Callable[[str, dict, bool], dict],
 ) -> tuple[list[dict], int]:
     """Groups `entries` by org (one pass, already in hand) and reconciles
     each org's duplicates concurrently (bounded) -- each org's sibling set
@@ -430,7 +435,9 @@ async def _run(client: AttioClientProtocol) -> None:
             client,
             "seller_role",
             seller_entries,
-            lambda org_id, entry, is_active: upsert._seller_role_params(org_id, entry, is_active),
+            lambda org_id, entry, is_active: dict(
+                upsert._seller_role_params(org_id, entry, is_active)
+            ),
         )
         ok, write_failed = await _write_and_verify(SellerRole, "seller_roles", rows, len(rows))
         summary["seller_role"] = (ok, reconcile_failed + write_failed)

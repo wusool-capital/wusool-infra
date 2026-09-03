@@ -11,6 +11,8 @@ import json
 
 from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
+from slack_bolt.context.ack.async_ack import AsyncAck
+from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.attio import AttioError, get_attio_client
 from app.modules.attio.providers.attio.entries import (
@@ -81,7 +83,9 @@ from app.modules.ddl_commands.providers.attio.write_payload import (
 
 def register(app: AsyncApp) -> None:
     @app.view("seller_role_selection_modal")
-    async def handle_seller_selection_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_seller_selection_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata.get("channel_id")
@@ -118,7 +122,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.view("buyer_role_selection_modal")
-    async def handle_buyer_selection_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_buyer_selection_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata.get("channel_id")
@@ -150,7 +156,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.view("seller_field_picker_modal")
-    async def handle_seller_field_picker_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_seller_field_picker_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata["channel_id"]
@@ -184,7 +192,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.view("buyer_field_picker_modal")
-    async def handle_buyer_field_picker_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_buyer_field_picker_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata["channel_id"]
@@ -218,7 +228,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.view("seller_edit_form_modal")
-    async def handle_seller_edit_form_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_seller_edit_form_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata["channel_id"]
@@ -241,13 +253,15 @@ def register(app: AsyncApp) -> None:
         }
 
         errors: dict[str, str] = {}
+        org_validated: OrganizationUpdate | None = None
+        role_validated: SellerUpdate | None = None
         try:
-            OrganizationUpdate.model_validate(org_extracted)
+            org_validated = OrganizationUpdate.model_validate(org_extracted)
         except ValidationError as exc:
             for block_id, msg in pydantic_errors_to_slack(exc.errors()).items():
                 errors[f"org_{block_id}"] = msg
         try:
-            SellerUpdate.model_validate(role_extracted)
+            role_validated = SellerUpdate.model_validate(role_extracted)
         except ValidationError as exc:
             errors.update(pydantic_errors_to_slack(exc.errors()))
 
@@ -262,6 +276,11 @@ def register(app: AsyncApp) -> None:
         if errors:
             await ack(response_action="errors", errors=errors)
             return
+
+        assert org_validated is not None
+        assert role_validated is not None
+        org_extracted = org_validated.model_dump(exclude_unset=True)
+        role_extracted = role_validated.model_dump(exclude_unset=True)
 
         await ack()
         try:
@@ -296,7 +315,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.view("buyer_edit_form_modal")
-    async def handle_buyer_edit_form_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_buyer_edit_form_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata["channel_id"]
@@ -319,13 +340,15 @@ def register(app: AsyncApp) -> None:
         }
 
         errors: dict[str, str] = {}
+        org_validated: OrganizationUpdate | None = None
+        role_validated: BuyerUpdate | None = None
         try:
-            OrganizationUpdate.model_validate(org_extracted)
+            org_validated = OrganizationUpdate.model_validate(org_extracted)
         except ValidationError as exc:
             for block_id, msg in pydantic_errors_to_slack(exc.errors()).items():
                 errors[f"org_{block_id}"] = msg
         try:
-            BuyerUpdate.model_validate(role_extracted)
+            role_validated = BuyerUpdate.model_validate(role_extracted)
         except ValidationError as exc:
             errors.update(pydantic_errors_to_slack(exc.errors()))
 
@@ -340,6 +363,11 @@ def register(app: AsyncApp) -> None:
         if errors:
             await ack(response_action="errors", errors=errors)
             return
+
+        assert org_validated is not None
+        assert role_validated is not None
+        org_extracted = org_validated.model_dump(exclude_unset=True)
+        role_extracted = role_validated.model_dump(exclude_unset=True)
 
         await ack()
         try:
@@ -372,7 +400,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.view("organization_selection_modal")
-    async def handle_organization_selection_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_organization_selection_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata["channel_id"]
@@ -428,7 +458,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.view("seller_add_form_modal")
-    async def handle_seller_add_form_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_seller_add_form_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata["channel_id"]
@@ -449,19 +481,26 @@ def register(app: AsyncApp) -> None:
         org_name = get_text(values, "name", "name") if is_new_org else existing_org_name
         if is_new_org and not org_name:
             errors["name"] = "Organization name is required."
+        org_validated: OrganizationUpdate | None = None
+        role_validated: SellerUpdate | None = None
         try:
-            OrganizationUpdate.model_validate(org_extracted)
+            org_validated = OrganizationUpdate.model_validate(org_extracted)
         except ValidationError as exc:
             for block_id, msg in pydantic_errors_to_slack(exc.errors()).items():
                 errors[f"org_{block_id}"] = msg
         try:
-            SellerUpdate.model_validate(role_extracted)
+            role_validated = SellerUpdate.model_validate(role_extracted)
         except ValidationError as exc:
             errors.update(pydantic_errors_to_slack(exc.errors()))
 
         if errors:
             await ack(response_action="errors", errors=errors)
             return
+
+        assert org_validated is not None
+        assert role_validated is not None
+        org_extracted = org_validated.model_dump(exclude_unset=True)
+        role_extracted = role_validated.model_dump(exclude_unset=True)
 
         await ack()
         try:
@@ -491,7 +530,9 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.view("buyer_add_form_modal")
-    async def handle_buyer_add_form_submission(ack, body, view, client):  # noqa: ANN001
+    async def handle_buyer_add_form_submission(
+        ack: AsyncAck, body: dict, view: dict, client: AsyncWebClient
+    ) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body.get("user", {}).get("id")
         channel_id = metadata["channel_id"]
@@ -512,19 +553,26 @@ def register(app: AsyncApp) -> None:
         org_name = get_text(values, "name", "name") if is_new_org else existing_org_name
         if is_new_org and not org_name:
             errors["name"] = "Organization name is required."
+        org_validated: OrganizationUpdate | None = None
+        role_validated: BuyerUpdate | None = None
         try:
-            OrganizationUpdate.model_validate(org_extracted)
+            org_validated = OrganizationUpdate.model_validate(org_extracted)
         except ValidationError as exc:
             for block_id, msg in pydantic_errors_to_slack(exc.errors()).items():
                 errors[f"org_{block_id}"] = msg
         try:
-            BuyerUpdate.model_validate(role_extracted)
+            role_validated = BuyerUpdate.model_validate(role_extracted)
         except ValidationError as exc:
             errors.update(pydantic_errors_to_slack(exc.errors()))
 
         if errors:
             await ack(response_action="errors", errors=errors)
             return
+
+        assert org_validated is not None
+        assert role_validated is not None
+        org_extracted = org_validated.model_dump(exclude_unset=True)
+        role_extracted = role_validated.model_dump(exclude_unset=True)
 
         await ack()
         try:

@@ -10,6 +10,8 @@ workflow itself is dispatched from the modal's submission handler
 import logging
 
 from slack_bolt.async_app import AsyncApp
+from slack_bolt.context.ack.async_ack import AsyncAck
+from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.matching_engine.api.dependencies import resolve_buyer
 from app.modules.matching_engine.api.slack.views.buyer_selection import (
@@ -24,7 +26,7 @@ _idempotency_store = InMemoryIdempotencyStore()
 
 def register(app: AsyncApp) -> None:
     @app.command("/find-match")
-    async def handle_find_match(ack, command, client):  # noqa: ANN001
+    async def handle_find_match(ack: AsyncAck, command: dict, client: AsyncWebClient) -> None:
         await ack()
 
         # §28: Slack can retry slash-command delivery on a slow ack or

@@ -46,7 +46,13 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "ANN"]
+# ANN401 (no `Any`) is deliberately off repo-wide, not per-file: several
+# genuinely dynamic shapes have no more honest type — boto3's untyped
+# runtime client, JSON values parsed from an external API, and `**fields`
+# kwargs whose keys are allowlisted upstream (FieldSpec) but whose values
+# span str/bool/float/list/date depending on which field was picked.
+ignore = ["ANN401"]
 
 [tool.ruff.lint.per-file-ignores]
 # Alembic's own `--autogenerate` renderer emits one long line per column/
@@ -55,6 +61,10 @@ select = ["E", "F", "I", "UP", "B"]
 # instead of matching it. Line length is the only thing ignored here; F/I/UP/B
 # still apply.
 "alembic/versions/*.py" = ["E501"]
+# Test fakes/mocks intentionally leave fixture/kwarg parameters unannotated
+# (e.g. `**kwargs` stand-ins for a real client's signature) — production
+# code is where annotation completeness actually matters.
+"**/tests/**" = ["ANN"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

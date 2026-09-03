@@ -3,17 +3,15 @@ sessions/repositories/services and calls application-layer commands. No data
 definitions here; those live in each concept's own `api/<concept>.py`.
 """
 
-from dataclasses import dataclass
-
 from app.models import BuyerRole, Organization, SellerRole
-from app.modules.ddl_commands.api.buyers import BuyerSummary
-from app.modules.ddl_commands.api.sellers import SellerSummary
+from app.modules.ddl_commands.api.buyers import BuyerResolutionRead, BuyerSummary
+from app.modules.ddl_commands.api.sellers import SellerResolutionRead, SellerSummary
 from app.modules.ddl_commands.application.buyers import (
     BuyerResolutionService,
     CreateBuyerUseCase,
-    ResolutionStatus,
     UpdateBuyerUseCase,
 )
+from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
 from app.modules.ddl_commands.application.sellers import (
     CreateSellerUseCase,
     SellerResolutionService,
@@ -28,14 +26,8 @@ from app.modules.ddl_commands.bootstrap import (
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
 
 
-def _ddl_commands_unit_of_work_factory():
+def _ddl_commands_unit_of_work_factory() -> DdlCommandsUnitOfWorkFactory:
     return build_ddl_commands_unit_of_work_factory(get_sessionmaker())
-
-
-@dataclass(frozen=True)
-class BuyerResolutionRead:
-    status: ResolutionStatus
-    candidates: list[BuyerSummary] | None = None
 
 
 async def resolve_buyer(buyer_name: str) -> BuyerResolutionRead:
@@ -64,12 +56,6 @@ def build_update_buyer_use_case() -> UpdateBuyerUseCase:
 
 def build_create_buyer_use_case() -> CreateBuyerUseCase:
     return CreateBuyerUseCase(_ddl_commands_unit_of_work_factory())
-
-
-@dataclass(frozen=True)
-class SellerResolutionRead:
-    status: ResolutionStatus
-    candidates: list[SellerSummary] | None = None
 
 
 async def resolve_seller(seller_name: str) -> SellerResolutionRead:

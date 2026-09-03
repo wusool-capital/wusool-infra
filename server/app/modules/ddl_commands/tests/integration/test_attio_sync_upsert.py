@@ -149,8 +149,10 @@ async def test_upsert_batch_inserts_multiple_organizations(
     monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
     ids = [f"test-org-{uuid.uuid4()}" for _ in range(3)]
     rows = [
-        upsert._organization_params(
-            {"id": {"record_id": oid}, "values": {"name": [_item(value=f"Batch Org {i}")]}}
+        dict(
+            upsert._organization_params(
+                {"id": {"record_id": oid}, "values": {"name": [_item(value=f"Batch Org {i}")]}}
+            )
         )
         for i, oid in enumerate(ids)
     ]
@@ -176,13 +178,17 @@ async def test_upsert_batch_on_conflict_updates_existing_row(
 ) -> None:
     monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
     oid = f"test-org-{uuid.uuid4()}"
-    original = upsert._organization_params(
-        {"id": {"record_id": oid}, "values": {"name": [_item(value="Original")]}}
+    original = dict(
+        upsert._organization_params(
+            {"id": {"record_id": oid}, "values": {"name": [_item(value="Original")]}}
+        )
     )
     await upsert.upsert_batch_with_retry(Organization, [original])
 
-    changed = upsert._organization_params(
-        {"id": {"record_id": oid}, "values": {"name": [_item(value="Updated")]}}
+    changed = dict(
+        upsert._organization_params(
+            {"id": {"record_id": oid}, "values": {"name": [_item(value="Updated")]}}
+        )
     )
     ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [changed])
 
@@ -205,7 +211,7 @@ async def test_upsert_batch_skips_the_write_when_content_is_unchanged(
     row = upsert._organization_params(
         {"id": {"record_id": oid}, "values": {"name": [_item(value="Stable Org")]}}
     )
-    await upsert.upsert_batch_with_retry(Organization, [row])
+    await upsert.upsert_batch_with_retry(Organization, [dict(row)])
     async with db_sessionmaker() as session:
         first_updated_at = (
             await session.execute(
@@ -214,7 +220,7 @@ async def test_upsert_batch_skips_the_write_when_content_is_unchanged(
         ).scalar_one()
 
     # Re-upsert with byte-identical raw_attio -- nothing changed in Attio.
-    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [row])
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [dict(row)])
 
     assert (ok, failed) == (1, 0)
     assert returned == {}  # skipped: no RETURNING row for an unwritten conflict
@@ -235,7 +241,7 @@ async def test_upsert_batch_still_clears_removed_at_when_content_is_unchanged(
     row = upsert._organization_params(
         {"id": {"record_id": oid}, "values": {"name": [_item(value="Reappearing Org")]}}
     )
-    await upsert.upsert_batch_with_retry(Organization, [row])
+    await upsert.upsert_batch_with_retry(Organization, [dict(row)])
     await upsert.delete_organization(oid)
     async with db_sessionmaker() as session:
         removed_at = (
@@ -248,7 +254,7 @@ async def test_upsert_batch_still_clears_removed_at_when_content_is_unchanged(
     # Org reappears in Attio with byte-identical raw_attio to before deletion
     # -- content comparison alone would see "no change" and skip the write,
     # leaving removed_at stuck forever.
-    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [row])
+    ok, failed, returned = await upsert.upsert_batch_with_retry(Organization, [dict(row)])
 
     assert (ok, failed) == (1, 0)
     assert oid in returned  # forced through despite unchanged content
@@ -267,11 +273,15 @@ async def test_upsert_batch_with_retry_falls_back_to_per_row_on_a_bad_row(
     monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
     good_id = f"test-org-{uuid.uuid4()}"
     bad_id = f"test-org-{uuid.uuid4()}"
-    good_row = upsert._organization_params(
-        {"id": {"record_id": good_id}, "values": {"name": [_item(value="Good Org")]}}
+    good_row = dict(
+        upsert._organization_params(
+            {"id": {"record_id": good_id}, "values": {"name": [_item(value="Good Org")]}}
+        )
     )
-    bad_row = upsert._organization_params(
-        {"id": {"record_id": bad_id}, "values": {"name": [_item(value="Bad Org")]}}
+    bad_row: dict = dict(
+        upsert._organization_params(
+            {"id": {"record_id": bad_id}, "values": {"name": [_item(value="Bad Org")]}}
+        )
     )
     bad_row["name"] = None  # violates organizations.name's NOT NULL constraint
 

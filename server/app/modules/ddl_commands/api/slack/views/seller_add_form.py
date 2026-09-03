@@ -16,6 +16,7 @@ from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import render_field_block
 from app.modules.ddl_commands.api.slack.views.form_values import text_input_block
+from app.modules.utilities.domain.text import sanitize_mrkdwn
 
 
 def build_seller_add_form_modal(
@@ -30,7 +31,7 @@ def build_seller_add_form_modal(
     blocks: list[dict] = []
     if is_new_org:
         if duplicate_candidates:
-            names = ", ".join(f"*{name}*" for name in duplicate_candidates)
+            names = ", ".join(f"*{sanitize_mrkdwn(name)}*" for name in duplicate_candidates)
             blocks.append(
                 {
                     "type": "section",
@@ -51,7 +52,10 @@ def build_seller_add_form_modal(
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": f"Attaching this seller role to *{org.name}*."},
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"Attaching this seller role to *{sanitize_mrkdwn(org.name)}*.",
+                },
             }
         )
 

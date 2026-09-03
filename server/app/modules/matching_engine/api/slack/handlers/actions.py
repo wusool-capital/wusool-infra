@@ -10,6 +10,9 @@ import logging
 import uuid
 
 from slack_bolt.async_app import AsyncApp
+from slack_bolt.context.ack.async_ack import AsyncAck
+from slack_bolt.context.respond.async_respond import AsyncRespond
+from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.matching_engine.api.dependencies import (
     build_approve_match_use_case,
@@ -38,7 +41,7 @@ _submission_idempotency_store = InMemoryIdempotencyStore()
 
 def register(app: AsyncApp) -> None:
     @app.view("buyer_selection_modal")
-    async def handle_buyer_selection_submission(ack, body, view):  # noqa: ANN001
+    async def handle_buyer_selection_submission(ack: AsyncAck, body: dict, view: dict) -> None:
         await ack()
 
         view_id = view.get("id")
@@ -68,7 +71,7 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.action("view_full_analysis")
-    async def handle_view_full_analysis(ack, body, client):  # noqa: ANN001
+    async def handle_view_full_analysis(ack: AsyncAck, body: dict, client: AsyncWebClient) -> None:
         await ack()
 
         action = body["actions"][0]
@@ -99,24 +102,30 @@ def register(app: AsyncApp) -> None:
         )
 
     @app.action("approve_match")
-    async def handle_approve_match(ack, body, client, respond):  # noqa: ANN001
+    async def handle_approve_match(
+        ack: AsyncAck, body: dict, client: AsyncWebClient, respond: AsyncRespond
+    ) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="approve")
 
     @app.action("reject_match")
-    async def handle_reject_match(ack, body, client, respond):  # noqa: ANN001
+    async def handle_reject_match(
+        ack: AsyncAck, body: dict, client: AsyncWebClient, respond: AsyncRespond
+    ) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="reject")
 
     @app.action("view_web_lead_source")
-    async def handle_view_web_lead_source(ack):  # noqa: ANN001
+    async def handle_view_web_lead_source(ack: AsyncAck) -> None:
         # A `url` button still sends an interaction payload Slack requires
         # this app to acknowledge, even though the browser opens the link
         # independently — no server-side action needed beyond the ack.
         await ack()
 
 
-async def _handle_decision(body: dict, client, respond, decision: str) -> None:  # noqa: ANN001
+async def _handle_decision(
+    body: dict, client: AsyncWebClient, respond: AsyncRespond, decision: str
+) -> None:
     action = body["actions"][0]
     match_result_id_raw = action.get("value")
     channel_id = body["channel"]["id"]

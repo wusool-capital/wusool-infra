@@ -37,7 +37,6 @@ from app.modules.matching_engine.domain.matching.entities import (
     MatchAnalysisData,
 )
 from app.modules.matching_engine.domain.matching.scoring import ScoringEngine, select_top_n
-from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 
 logger = logging.getLogger(__name__)
@@ -64,35 +63,6 @@ class MatchRunResult:
     buyer_org_name: str
     results: list[ShortlistedResult] = field(default_factory=list)
     error: str | None = None
-
-
-def _profile_to_dict(profile: RequirementProfile) -> dict:
-    return {
-        "hard_requirements": [
-            {
-                "criterion": h.criterion,
-                "value": h.value,
-                "source": h.source,
-                "confidence": h.confidence,
-                "human_confirmed": h.human_confirmed,
-            }
-            for h in profile.hard_requirements
-        ],
-        "soft_preferences": [
-            {
-                "criterion": s.criterion,
-                "value": s.value,
-                "weight": s.weight,
-                "source": s.source,
-                "confidence": s.confidence,
-            }
-            for s in profile.soft_preferences
-        ],
-        "strategic_thesis": profile.strategic_thesis,
-        "ideal_target_description": profile.ideal_target_description,
-        "scoring_rubric": profile.scoring_rubric,
-        "data_confidence": profile.data_confidence,
-    }
 
 
 class RunBuyerSellerMatchUseCase:
@@ -172,7 +142,7 @@ class RunBuyerSellerMatchUseCase:
                 run_id,
                 model_version=profile.generated_by_model,
                 requirement_profile_version=profile.version,
-                requirement_profile=_profile_to_dict(profile),
+                requirement_profile=profile,
             )
 
         batch = await self._candidate_retriever.get_candidates(buyer, profile)

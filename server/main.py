@@ -11,12 +11,14 @@ suite) — this file is what actually gets deployed.
 
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from functools import lru_cache
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from slack_bolt.async_app import AsyncApp
+from slack_bolt.response import BoltResponse
 
 from app.modules.ddl_commands.api.attio_sync import router as attio_sync_router
 from app.modules.ddl_commands.api.slack.handlers import (
@@ -132,7 +134,9 @@ def _bolt_app() -> AsyncApp:
     register_ddl_commands_handlers(bolt_app)
 
     @bolt_app.middleware
-    async def _set_log_context(body: dict, next) -> None:
+    async def _set_log_context(
+        body: dict, next: Callable[[], Awaitable[BoltResponse]]
+    ) -> None:
         """Tags every log line emitted while handling this request with
         which command/action triggered it and who sent it — set once here
         rather than threading it through every handler."""

@@ -18,6 +18,7 @@ from typing import Protocol
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateBatch,
+    FilterSkipped,
     MatchResultEntity,
     MatchScoreResult,
 )
@@ -55,17 +56,17 @@ class MatchResultRepositoryPort(Protocol):
         *,
         model_version: str | None = None,
         requirement_profile_version: int | None = None,
-        requirement_profile: dict | None = None,
+        requirement_profile: RequirementProfile | None = None,
         candidates_considered: int | None = None,
         candidates_filtered: int | None = None,
-        filters_skipped: list | None = None,
+        filters_skipped: list[FilterSkipped] | None = None,
     ) -> None: ...
     async def complete_run(
         self,
         run_id: uuid.UUID,
         *,
         status: str = "GENERATED",
-        final_candidate_ids: list | None = None,
+        final_candidate_ids: list[str] | None = None,
         execution_duration_ms: int | None = None,
         errors: dict | None = None,
         completed_at: datetime | None = None,

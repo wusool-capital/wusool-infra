@@ -41,18 +41,29 @@ below for the batched, retried write path it uses to do that.
 import asyncio
 import json
 import logging
+from collections.abc import Mapping
+from typing import Any
 
 from sqlalchemy import TextClause, func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
 from app.modules.attio import AttioClientProtocol
-from app.modules.attio.domain import values as v
+from app.modules.attio.providers.attio import values as v
 from app.modules.attio.providers.attio.retry import (
     get_with_retry,
     patch_with_retry,
     post_with_retry,
+)
+from app.modules.ddl_commands.persistence.attio_sync_types import (
+    BuyerRoleParams,
+    DealParams,
+    NoteParams,
+    OrganizationParams,
+    PersonParams,
+    SellerRoleParams,
 )
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
 
@@ -63,7 +74,7 @@ _logger = logging.getLogger("app.modules.ddl_commands.attio_sync")
 SyncModel = type[Organization] | type[Person] | type[Deal] | type[BuyerRole] | type[SellerRole]
 
 
-def _j(value):
+def _j(value: Any) -> str | None:
     return None if value is None else json.dumps(value)
 
 
@@ -91,7 +102,7 @@ _ACTIVITY_INSERT = text(
 
 
 async def _log_activity(
-    session,
+    session: AsyncSession,
     subject_type: str,
     *,
     subject_attio_id: str | None = None,
@@ -210,7 +221,7 @@ _ORG_UPSERT = text(
 )
 
 
-def _organization_params(data: dict) -> dict:
+def _organization_params(data: dict) -> OrganizationParams:
     """Pure mapping from one Attio organization record (whether from a
     single-record GET or a `/records/query` bulk page -- same `values`
     shape either way, see `values.py`'s module docstring) to Postgres
@@ -222,7 +233,7 @@ def _organization_params(data: dict) -> dict:
     """
     values = v.vals(data)
     rid = v.record_id(data)
-    params = {
+    return {
         "attio_id": rid,
         "name": v.first(values, "name") or f"Unnamed DEV Organization [{rid}]",
         "description": v.first(values, "description"),
@@ -255,23 +266,18 @@ def _organization_params(data: dict) -> dict:
         "funding_raised": v.money(values, "funding_raised"),
         "estimated_arr": v.first(values, "estimated_arr"),
         "raw_attio": data,
+        "angellist": v.first(values, "angellist"),
+        "facebook": v.first(values, "facebook"),
+        "instagram": v.first(values, "instagram"),
+        "twitter": v.first(values, "twitter"),
+        "twitter_follower_count": v.integer(values, "twitter_follower_count"),
+        "foundation_date": v.date(values, "foundation_date"),
+        "ticket_size": v.first(values, "ticket_size"),
+        "lead_source": v.first(values, "lead_source"),
+        "employee_range": v.first(values, "employee_range"),
+        "linkedin": v.first(values, "linkedin"),
+        "logo_url": v.first(values, "logo_url"),
     }
-    params.update(
-        {
-            "angellist": v.first(values, "angellist"),
-            "facebook": v.first(values, "facebook"),
-            "instagram": v.first(values, "instagram"),
-            "twitter": v.first(values, "twitter"),
-            "twitter_follower_count": v.integer(values, "twitter_follower_count"),
-            "foundation_date": v.date(values, "foundation_date"),
-            "ticket_size": v.first(values, "ticket_size"),
-            "lead_source": v.first(values, "lead_source"),
-            "employee_range": v.first(values, "employee_range"),
-            "linkedin": v.first(values, "linkedin"),
-            "logo_url": v.first(values, "logo_url"),
-        }
-    )
-    return params
 
 
 async def sync_organization(client: AttioClientProtocol, record_id: str) -> None:
@@ -329,7 +335,7 @@ _PERSON_UPSERT = text(
 )
 
 
-def _person_params(data: dict) -> dict:
+def _person_params(data: dict) -> PersonParams:
     values = v.vals(data)
     rid = v.record_id(data)
     roles = v.titles(values, "role") or v.titles(values, "job_title")
@@ -344,11 +350,11 @@ def _person_params(data: dict) -> dict:
         # Confirmed against a real SOURCE record's field list, 2026-08-31.
         "email": (
             [
-                x.get("email_address")
+                str(x.get("email_address"))
                 for x in v.raw_items(values, "email_addresses")
                 if x.get("email_address")
             ]
-            or ([v.first(values, "email")] if v.first(values, "email") else [])
+            or ([str(v.first(values, "email"))] if v.first(values, "email") else [])
         ),
         "linkedin": v.first(values, "linkedin"),
         "relationship_status": v.first(values, "relationship_status"),
@@ -453,7 +459,7 @@ _DEAL_UPSERT = text(
 )
 
 
-def _deal_params(data: dict) -> dict:
+def _deal_params(data: dict) -> DealParams:
     values = v.vals(data)
     rid = v.record_id(data)
     buyer_id = v.ref(values, "buyer_id")
@@ -666,7 +672,7 @@ _BUYER_ROLE_UPSERT = text(
 )
 
 
-def _buyer_role_params(org_id: str, entry: dict, is_active: bool) -> dict:
+def _buyer_role_params(org_id: str, entry: dict, is_active: bool) -> BuyerRoleParams:
     values = v.vals(entry)
     return {
         "org_attio_id": org_id,
@@ -768,7 +774,7 @@ _SELLER_ROLE_UPSERT = text(
 )
 
 
-def _seller_role_params(org_id: str, entry: dict, is_active: bool) -> dict:
+def _seller_role_params(org_id: str, entry: dict, is_active: bool) -> SellerRoleParams:
     values = v.vals(entry)
     return {
         "org_attio_id": org_id,
@@ -874,7 +880,7 @@ _NOTE_UPSERT = text(
 )
 
 
-def _note_params(data: dict) -> dict:
+def _note_params(data: dict) -> NoteParams:
     values = v.vals(data)
     return {
         "id": v.record_id(data),
@@ -939,12 +945,12 @@ _JSONB_FIELDS = {
 }
 
 
-def _for_text_sql(table_name: str, params: dict) -> dict:
+def _for_text_sql(table_name: str, params: Mapping[str, Any]) -> dict:
     jsonb_keys = _JSONB_FIELDS[table_name]
     return {k: (_j(val) if k in jsonb_keys else val) for k, val in params.items()}
 
 
-_MODEL_TABLE = {
+_MODEL_TABLE: dict[SyncModel, str] = {
     Organization: "organizations",
     Person: "person",
     Deal: "deals",
@@ -999,13 +1005,13 @@ def _resolve_ref(value: str | None, valid_ids: set[str]) -> str | None:
 
 
 def _organization_batch_params(data: dict, user_ids: set[str]) -> dict:
-    params = _organization_params(data)
+    params: dict = dict(_organization_params(data))
     params["owner_attio_id"] = _resolve_ref(params["owner_attio_id"], user_ids)
     return params
 
 
 def _person_batch_params(data: dict, org_ids: set[str], user_ids: set[str]) -> dict:
-    params = _person_params(data)
+    params: dict = dict(_person_params(data))
     params["company_attio_id"] = _resolve_ref(params["company_attio_id"], org_ids)
     params["owner_attio_id"] = _resolve_ref(params["owner_attio_id"], user_ids)
     return params
@@ -1020,7 +1026,7 @@ def _deal_batch_params(
     per-statement `CASE WHEN EXISTS` -- a multi-row `VALUES` list can't
     express that conditional per row generically, so the batch path
     resolves it here instead, using id sets already known this run."""
-    params = _deal_params(data)
+    params: dict = dict(_deal_params(data))
     buyer_id = params.pop("buyer_id")
     seller_id = params.pop("seller_id")
     params["buyer_organization_attio_id"] = _resolve_ref(buyer_id, org_ids)
@@ -1033,7 +1039,7 @@ def _deal_batch_params(
 def _buyer_role_batch_params(
     org_id: str, entry: dict, is_active: bool, person_ids: set[str]
 ) -> dict:
-    params = _buyer_role_params(org_id, entry, is_active)
+    params: dict = dict(_buyer_role_params(org_id, entry, is_active))
     params["key_contact_attio_id"] = _resolve_ref(params["key_contact_attio_id"], person_ids)
     return params
 
@@ -1088,7 +1094,7 @@ async def _upsert_batch(model: SyncModel, rows: list[dict]) -> dict[str, dict]:
 
 
 async def upsert_batch_with_retry(
-    model, rows: list[dict], page_label: str = ""
+    model: SyncModel, rows: list[dict], page_label: str = ""
 ) -> tuple[int, int, dict[str, dict]]:
     """Batches `rows` for `model`; on a transient DB error, retries the
     whole batch with backoff; on any other error (e.g. one malformed row),

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from app.modules.attio.domain import values as v
+from app.modules.attio.providers.attio import values as v
 
 
 def _item(**kwargs) -> dict:

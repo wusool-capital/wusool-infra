@@ -1,7 +1,7 @@
 """Server entrypoint. Not the plain `uvicorn main:app` CLI invocation:
 uvicorn's CLI configures its own logging (dictConfig) before importing the
 app, giving `uvicorn`/`uvicorn.access` their own non-propagating handlers.
-That silently defeats `app.shared.logging.configure_logging()` — those
+That silently defeats `app.modules.utilities.domain.logging.configure_logging()` — those
 two loggers' lines never reach our JSON formatter. `log_config=None` skips
 uvicorn's dictConfig entirely, so those loggers fall through to root's
 handler like everything else.

@@ -21,11 +21,13 @@ the Attio write with a 400 once an operator fills it in.
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import date
 
 from pydantic import BaseModel, Field
 
 from app.modules.ddl_commands.api.schemas import FieldSpec, OrganizationSummary
+from app.modules.ddl_commands.application.buyers import ResolutionStatus
 
 
 class BuyerSummary(BaseModel):
@@ -35,6 +37,12 @@ class BuyerSummary(BaseModel):
     organization: OrganizationSummary
     model: str | None = None
     mandate_status: str | None = None
+
+
+@dataclass(frozen=True)
+class BuyerResolutionRead:
+    status: ResolutionStatus
+    candidates: list[BuyerSummary] | None = None
 
 
 class BuyerUpdate(BaseModel):

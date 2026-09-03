@@ -14,25 +14,25 @@ from app.modules.matching_engine.domain.matching.scoring import (
     CRITERION_REGISTRY,
     normalize_criterion,
 )
+from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.domain.web_search import WebSourcedLead
 
 
-def _extract_query_terms(profile: dict) -> tuple[str, str]:
+def _extract_query_terms(profile: RequirementProfile) -> tuple[str, str]:
     """Returns `(industry, geography)`, preferring a `sector`/`geography`
     hard requirement or soft preference (matching the scoring engine's own
     canonical criterion names) and falling back to the free-text
     `ideal_target_description`/`strategic_thesis` when neither is present —
     never an empty query.
     """
-    requirements = [*profile.get("hard_requirements", []), *profile.get("soft_preferences", [])]
+    requirements = [*profile.hard_requirements, *profile.soft_preferences]
 
     def _value_for(canonical: str) -> str | None:
         synonyms = CRITERION_REGISTRY[canonical].synonyms
         for requirement in requirements:
-            if normalize_criterion(requirement.get("criterion", "")) in synonyms:
-                value = requirement.get("value")
-                if value:
-                    return value
+            if normalize_criterion(requirement.criterion) in synonyms:
+                if requirement.value:
+                    return requirement.value
         return None
 
     industry = _value_for("sector")
@@ -41,7 +41,7 @@ def _extract_query_terms(profile: dict) -> tuple[str, str]:
     if industry and geography:
         return industry, geography
 
-    fallback = profile.get("ideal_target_description") or profile.get("strategic_thesis") or ""
+    fallback = profile.ideal_target_description or profile.strategic_thesis or ""
     return industry or fallback, geography or ""
 
 
