@@ -11,6 +11,8 @@ same documented exception `attio` gets.
 
 ## Structure
 
+_New to this codebase's layering? See [the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
+
 ```
 utilities/
   __init__.py                  # __all__ facade — deliberately excludes register_exception_handlers

@@ -81,6 +81,11 @@ while writing, not after a failed pipeline.
 - Ports are `typing.Protocol`s at the `application/` boundary and **never
   expose ORM types** — map to/from domain objects in `persistence/`.
 
+### Comments
+
+Any comment added in code should only explain "why", not "how" — keep
+comments clean, clear, and concise, and only add ones that add value.
+
 ### Run the checks before every commit and PR
 
 From `server/` (any change under `server/**`):

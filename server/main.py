@@ -36,6 +36,7 @@ from app.modules.matching_engine.persistence.database import check_database_conn
 from app.modules.matching_engine.persistence.database import (
     import_all_models as import_matching_engine_models,
 )
+from app.modules.notifications import build_bolt_app
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging, log_context
 
@@ -126,13 +127,16 @@ def _extract_trigger(body: dict) -> str:
     return _UNKNOWN_TRIGGER
 
 
-@lru_cache
-def _bolt_app() -> AsyncApp:
-    bolt_app = AsyncApp(
-        token=settings.slack_bot_token, signing_secret=settings.slack_signing_secret
-    )
+def _register_all_handlers(bolt_app: AsyncApp) -> None:
     register_matching_engine_handlers(bolt_app)
     register_ddl_commands_handlers(bolt_app)
+
+
+@lru_cache
+def _bolt_app() -> AsyncApp:
+    bolt_app = build_bolt_app(
+        settings.slack_bot_token, settings.slack_signing_secret, _register_all_handlers
+    )
 
     @bolt_app.middleware
     async def _set_log_context(body: dict, next: Callable[[], Awaitable[BoltResponse]]) -> None:

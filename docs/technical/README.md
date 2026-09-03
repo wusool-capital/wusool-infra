@@ -32,6 +32,9 @@ persistence → providers → api`, with Ports (Protocols) at the application
 boundary that never expose ORM types. Architecture fitness tests
 (`tests/test_architecture.py`, per module and repo-wide) enforce this.
 
+New to this pattern? [`../dev/MODULAR_MONOLITH_GUIDE.md`](../dev/MODULAR_MONOLITH_GUIDE.md)
+explains the mental model and walks through reading a module end to end.
+
 | Module | Responsibility |
 | --- | --- |
 | `matching_engine` | `/find-match` — requirement extraction, filtering, scoring, reasoning, persistence, Slack delivery. |

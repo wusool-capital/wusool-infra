@@ -4,30 +4,21 @@ This table IS the buyer's requirement profile: there is no separate
 `buyer_requirement_profiles` table (PRD.md §3.3 describes one, but it was
 never implemented — see the schema-gap note in the Phase 2 plan).
 
-`org_attio_id` was `UNIQUE` (one row per organization) until 2026-08-28: DEV
-Attio's `buyer_role` list can hold more than one entry per org (duplicate
-SOURCE submissions), and `sync-postgres.ps1` used to silently drop every
-inactive one before it ever reached Postgres so the one-row-per-org
-constraint would hold. Per explicit product decision, every DEV Attio entry
-should exist in Postgres, `is_active` distinguishing them, not the sync
-script quietly dropping rows -- so the unique constraint moved from
-`org_attio_id` to `legacy_entry_id` (one row per DEV entry instead of per
-org), and `org_attio_id` is now a plain indexed FK. Consumers that used to
-assume a single buyer role per organization (`Organization.buyer_role`,
-this repo's own matching-engine/ddl-commands, `/edit-buyer` etc.) need to
-filter to `is_active=true` explicitly now -- see
-`ALEMBIC_MIGRATION_HANDOVER.md`-style follow-up note in
-`workflows/wusool-toolkit/`.
+`org_attio_id` was `UNIQUE` until 2026-08-28: DEV Attio's `buyer_role` list
+can hold more than one entry per org (duplicate SOURCE submissions), and
+`sync-postgres.ps1` used to silently drop inactive ones to preserve
+one-row-per-org. By explicit product decision every DEV Attio entry now
+exists in Postgres instead, `is_active` distinguishing them — the unique
+constraint moved to `legacy_entry_id` (one row per DEV entry) and
+`org_attio_id` is now a plain indexed FK. Any consumer assuming a single
+buyer role per organization must filter to `is_active=true` explicitly.
 
-matching-engine and ddl-commands each had their own copy of this class before
-Stage 1 of the Alembic migration (see `ALEMBIC_MIGRATION_HANDOVER.md`);
-they differed only in `key_contact_attio_id` — matching-engine declared it as
-a real `ForeignKey("person.attio_id")` with a `key_contact` relationship
-(matching-engine also maps `person`), ddl-commands declared it as a plain
-column (ddl-commands never mapped `person`, so it couldn't reference it).
-This is matching-engine's version — a real FK object here doesn't change any
-behavior for ddl-commands (it never traverses `key_contact`), and this repo
-maps `person` regardless.
+matching-engine and ddl-commands each had their own copy of this class
+before Stage 1 of the Alembic migration; they differed only in
+`key_contact_attio_id` (a real FK+relationship in matching-engine, a plain
+column in ddl-commands, since ddl-commands never mapped `person`). This is
+matching-engine's version — harmless for ddl-commands since it never
+traverses `key_contact`, and this repo maps `person` regardless.
 """
 
 import uuid

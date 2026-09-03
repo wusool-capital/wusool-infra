@@ -119,16 +119,12 @@ class CreateBuyerUseCase:
             elif org_fields:
                 await uow.organizations.update(org_attio_id, **org_fields)
 
-            # `org_attio_id` is no longer unique (2026-08-28 migration —
-            # see `BuyerRole`'s docstring) — an org can hold several
-            # role rows, so "already exists" is now an explicit check
-            # for an *active* one, not a DB constraint rejecting a
-            # second insert. A matching `legacy_entry_id` means this is
-            # the very entry this call is about to create, arriving
-            # first via the Attio webhook (`sync_buyer_role`) racing
-            # this same submission — tolerate that and hand back the
-            # existing row, rather than raising for what isn't actually
-            # a different, pre-existing role.
+            # `org_attio_id` is no longer unique (2026-08-28 migration — see
+            # `BuyerRole`'s docstring), so "already exists" is an explicit
+            # check for an active role, not a DB constraint. A matching
+            # `legacy_entry_id` means the Attio webhook (`sync_buyer_role`)
+            # raced this same submission and already created this entry --
+            # tolerate that and return the existing row instead of raising.
             existing = await uow.buyers.get_by_org_attio_id(org_attio_id)
             if existing is not None and existing.legacy_entry_id != entry_id:
                 raise BuyerAlreadyExistsError(org_attio_id)
@@ -136,23 +132,18 @@ class CreateBuyerUseCase:
             if existing is not None:
                 role = existing
             else:
-                # `is_active`/`legacy_entry_id` are bot-owned
-                # reconciliation state, not operator-editable — set
-                # explicitly here, never via `role_fields` (built from
-                # `BUYER_ROLE_FIELDS`, the Slack form's editable set).
+                # `is_active`/`legacy_entry_id` are bot-owned reconciliation
+                # state, not operator-editable -- set explicitly, never via
+                # `role_fields` (the Slack form's editable set).
                 role = await uow.buyers.create(
                     org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
                 )
                 if role.legacy_entry_id != entry_id:
-                    # ponytail: no DB constraint enforces "one active
-                    # role per org" post-migration (UNIQUE moved to
-                    # legacy_entry_id) — the check above plus this
-                    # post-insert re-check together close a narrow
-                    # TOCTOU window (a role for this org, with a
-                    # different entry, created concurrently between
-                    # them), not an atomic guarantee. Add a partial
-                    # unique index (`org_attio_id` WHERE `is_active`) if
-                    # concurrent `/add-buyer` submissions on the same
-                    # org become a real problem.
+                    # No DB constraint enforces one active role per org
+                    # post-migration -- this re-check plus the one above
+                    # only narrow, not close, the TOCTOU window between two
+                    # concurrent /add-buyer submissions for the same org.
+                    # A partial unique index (org_attio_id WHERE is_active)
+                    # would close it fully if that race becomes a real problem.
                     raise BuyerAlreadyExistsError(org_attio_id)
         return role

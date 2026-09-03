@@ -13,6 +13,8 @@ finishing a match run and posting the result).
 
 ## Structure
 
+_New to this codebase's layering? See [the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
+
 ```
 notifications/
   __init__.py                        # __all__: SlackNotifierPort, SlackWebClientNotifier,

@@ -82,27 +82,21 @@ class Deal(Base):
         ARRAY(Text), nullable=False, server_default="{}"
     )
     # Merged in from the retired Mandates list, 2026-08-23 (see
-    # migration-decisions.json and the Wusool Schema Handover artifact): the
-    # one-mandate-to-many-deals model Mandate was built for was never
-    # actually used (neither of the 2 real DEV Mandate entries had a linked
-    # Deal), so every Mandate entry became its own Deal record instead.
-    # `deal_type` replaces Mandate's `side`. `phase` was deliberately not
-    # carried over -- a manually-typed label that only restates
-    # universe_constructed/universe_size/shortlist_approved/shortlist_size/
-    # tier1_contacted/responses, and can drift out of sync with those
-    # numbers. `counterparty_interested` renames Mandate's
-    # `sellers_interested`, which only read correctly on a buy-side mandate.
-    # `mandate_start_date`/`mandate_expiry_date` are named for disambiguation
-    # against `contract_signed_date`/`exclusivity_date`/`expected_close_date`
-    # above -- the DEV Attio attributes are still slugged start_date/
-    # expiry_date, only the display titles changed. `assigned_advisor` above
-    # is reused as-is, not replaced with Mandate's `user-reference[]`-typed
-    # version: Attio can't change a field's type in place, and a second
-    # parallel "who's the advisor" field would be worse than reusing this
-    # one. All 58 pre-existing Deals were backfilled to deal_type=Sell-side:
-    # confirmed directly from SOURCE's `deals` attribute list, which has no
-    # buyer-referencing field at all (only `associated_company` -> seller),
-    # so every Deal ever migrated from SOURCE is sell-side by construction.
+    # migration-decisions.json): its one-mandate-to-many-deals model was
+    # never actually used, so every Mandate entry became its own Deal.
+    # `deal_type` replaces Mandate's `side`; `phase` wasn't carried over
+    # since it only restated other counted fields and could drift from them.
+    # `counterparty_interested` renames Mandate's `sellers_interested`, which
+    # only read correctly for a buy-side mandate. `mandate_start_date`/
+    # `mandate_expiry_date` below are renamed only for disambiguation against
+    # `contract_signed_date`/`exclusivity_date`/`expected_close_date` -- the
+    # Attio attributes are still slugged start_date/expiry_date.
+    # `assigned_advisor` above is reused as-is rather than replaced with
+    # Mandate's differently-typed version, since Attio can't change a
+    # field's type in place. All 58 pre-existing Deals backfilled to
+    # deal_type=Sell-side -- SOURCE's `deals` attributes have no
+    # buyer-referencing field, so every migrated Deal is sell-side by
+    # construction.
     deal_type: Mapped[str | None] = mapped_column(Text)
     universe_constructed: Mapped[bool] = mapped_column(nullable=False, server_default="false")
     universe_size: Mapped[int | None] = mapped_column()

@@ -15,6 +15,8 @@ here exists only for running this module standalone (its own test suite).
 
 ## Structure
 
+_New to this codebase's layering? See [the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
+
 ```
 ddl_commands/
   bootstrap.py       # composition root — build_* factories, standalone create_app()
