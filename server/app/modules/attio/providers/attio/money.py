@@ -25,6 +25,7 @@ class MoneyJson(TypedDict):
     amount: float
     currency: str | None
 
+
 # organizations.funding_raised -> USD; every buyer_role/seller_role money
 # field -> USD. Keyed by (table, field) so identically-named fields on
 # different tables can't be confused.

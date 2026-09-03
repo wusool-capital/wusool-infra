@@ -162,8 +162,6 @@ def _candidate_block(
     else:
         emoji = {"APPROVED": "✅", "REJECTED": "❌"}.get(decision or "", "•")
         who = f" by <@{approved_by}>" if approved_by else ""
-        blocks.append(
-            ContextBlock(elements=[MarkdownTextObject(text=f"{emoji} *{status}*{who}")])
-        )
+        blocks.append(ContextBlock(elements=[MarkdownTextObject(text=f"{emoji} *{status}*{who}")]))
 
     return blocks

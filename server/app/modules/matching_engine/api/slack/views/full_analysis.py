@@ -91,8 +91,7 @@ def _candidate_blocks(
     criteria = score.dims.criteria if score and score.dims else []
     if criteria:
         criteria_lines = "\n".join(
-            f"• {c.criterion} ({c.criterion_type}): {c.result} [{c.data_backing}]"
-            for c in criteria
+            f"• {c.criterion} ({c.criterion_type}): {c.result} [{c.data_backing}]" for c in criteria
         )
         blocks.append(_section(criteria_lines))
 

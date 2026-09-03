@@ -68,8 +68,11 @@ def bool_select_block(field: str, label: str, value: bool | None) -> InputBlock:
     """A tri-state Yes/No/Not-set select — a checkbox can't represent "unset"
     distinctly from "false", but this field is a real `bool | None` column.
     """
-    options = [Option(label="Yes", value="true"), Option(label="No", value="false"),
-               Option(label="Not set", value="unset")]
+    options = [
+        Option(label="Yes", value="true"),
+        Option(label="No", value="false"),
+        Option(label="Not set", value="unset"),
+    ]
     initial_value = "true" if value is True else "false" if value is False else "unset"
     initial_option = next(o for o in options if o.value == initial_value)
     return InputBlock(
