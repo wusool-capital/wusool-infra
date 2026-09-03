@@ -13,7 +13,6 @@ import json
 import logging
 import re
 import time
-from typing import Any
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 from pydantic import ValidationError
@@ -23,6 +22,10 @@ from app.modules.matching_engine.application.ports.llm_types import InferenceCon
 from app.modules.matching_engine.application.provider_errors import BedrockInvocationError
 from app.modules.matching_engine.domain.matching.scoring import is_monetary_criterion
 from app.modules.matching_engine.providers.bedrock.boto_client import get_bedrock_runtime_client
+from app.modules.matching_engine.providers.bedrock.converse_types import (
+    BedrockRuntimeClient,
+    ConverseResponse,
+)
 from app.modules.matching_engine.providers.bedrock.schemas import (
     ExtractedRequirementProfile,
     ReasoningResult,
@@ -44,7 +47,7 @@ _BASE_DELAY_SECONDS = 1.0
 
 class BedrockConverseClient:
     def __init__(self) -> None:
-        self._client = get_bedrock_runtime_client()
+        self._client: BedrockRuntimeClient = get_bedrock_runtime_client()
 
     async def extract_requirements(
         self,
@@ -207,7 +210,7 @@ class BedrockConverseClient:
         prompt: str,
         inference_config: InferenceConfig,
         output_schema: JsonSchema,
-    ) -> dict[str, Any]:
+    ) -> ConverseResponse:
         # Anthropic models reject `temperature` and `top_p` set together
         # (confirmed live: Bedrock raises ValidationException) — Anthropic's
         # own guidance is to tune one or the other, never both. `temperature`
@@ -242,7 +245,7 @@ class BedrockConverseClient:
         )
 
     @staticmethod
-    def _extract_json(response: dict[str, Any]) -> JsonObject:
+    def _extract_json(response: ConverseResponse) -> JsonObject:
         """Prefers the forced tool call's already-parsed JSON input. Falls
         back to text extraction only if a model/profile ignores the forced
         tool choice (confirmed live: some models routinely wrap JSON in a
