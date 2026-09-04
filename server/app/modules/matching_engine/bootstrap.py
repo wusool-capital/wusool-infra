@@ -19,8 +19,20 @@ from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.modules.matching_engine.application.matching.reasoning_service import (
+    MatchReasoningService,
+)
+from app.modules.matching_engine.application.ports.llm import InferenceConfig
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
+from app.modules.matching_engine.application.requirements import (
+    BuyerRequirementExtractionService,
+)
+from app.modules.matching_engine.application.service import MatchingEngineService
 from app.modules.matching_engine.config import get_settings
+from app.modules.matching_engine.domain.matching.scoring import ScoringEngine
+from app.modules.matching_engine.persistence.candidate_retriever import (
+    StructuredCandidateRetriever,
+)
 from app.modules.matching_engine.persistence.database import (
     check_database_connectivity,
     import_all_models,
@@ -70,6 +82,57 @@ def build_matching_unit_of_work_factory(
         )
 
     return _factory
+
+
+def build_matching_engine_service(
+    session: AsyncSession,
+    *,
+    uow_factory: MatchingUnitOfWorkFactory,
+    sessionmaker: async_sessionmaker[AsyncSession],
+    bedrock_client: BedrockConverseClient,
+    firecrawl_client: FirecrawlMapsClient | None,
+) -> MatchingEngineService:
+    """`session` backs `buyer_repository`/`meeting_repository` — every
+    method call this service makes must happen before that session closes,
+    even the ones (`approve_match`, `run_match`, ...) that never touch
+    those two repositories (see `application/base.py`'s docstring for why
+    one shared constructor means every caller pays for this).
+    """
+    settings = get_settings()
+    inference_config = InferenceConfig(
+        temperature=settings.llm_temperature,
+        max_tokens=settings.llm_max_tokens,
+        top_p=settings.llm_top_p,
+    )
+    return MatchingEngineService(
+        uow_factory,
+        buyer_repository=build_buyer_repository(session),
+        meeting_repository=build_meeting_repository(
+            session, max_chars=settings.meeting_notes_max_chars
+        ),
+        extraction_service=BuyerRequirementExtractionService(
+            bedrock_client,
+            model_id=settings.aws_bedrock_model_id_extraction,
+            inference_config=inference_config,
+            meeting_notes_char_budget=settings.meeting_notes_max_total_chars,
+        ),
+        reasoning_service=MatchReasoningService(
+            bedrock_client,
+            model_id=settings.aws_bedrock_model_id_reasoning,
+            inference_config=inference_config,
+            meeting_notes_char_budget=settings.meeting_notes_max_total_chars,
+        ),
+        candidate_retriever=StructuredCandidateRetriever(sessionmaker),
+        scoring_engine=ScoringEngine(
+            {
+                "llm_extracted": settings.confidence.llm_extracted,
+                "llm_inferred": settings.confidence.llm_inferred,
+            }
+        ),
+        top_n=settings.stage3_top_n,
+        enable_seller_meeting_notes=settings.enable_seller_meeting_notes,
+        firecrawl_client=firecrawl_client,
+    )
 
 
 def create_app() -> FastAPI:

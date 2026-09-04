@@ -2,7 +2,7 @@
 builds the three repositories bound to it, commits on clean exit or rolls
 back on exception — the same commit-on-success/rollback-on-exception
 semantics `async with session.begin():` gave the one block of
-`RunBuyerSellerMatchUseCase` that used it, now uniform across every block
+`run_match` that used it, now uniform across every block
 (a plain commit on a session with no pending writes, for the read-only
 blocks, is a no-op).
 """

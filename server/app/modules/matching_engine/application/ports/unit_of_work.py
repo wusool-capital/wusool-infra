@@ -1,12 +1,13 @@
 """Unit-of-Work seam for write use cases that need several repositories
-together within one transaction (`RunBuyerSellerMatchUseCase`,
-`ApproveMatchUseCase`/`RejectMatchUseCase`) — replaces each one constructing
-`MatchResultRepository`/`MatchScoreRepository`/`MeetingRepository` directly
-off a raw `sessionmaker`, which was a documented, deliberate exception to
-"application never imports persistence directly." `MatchingUnitOfWorkFactory`
-is what a use case actually takes as a constructor argument, since
-`RunBuyerSellerMatchUseCase` specifically needs to open several independent
-short-lived transactions within one method, not just one.
+together within one transaction (`MatchingMixin.run_match`,
+`ApprovalsMixin.approve_match`/`reject_match`) — replaces each one
+constructing `MatchResultRepository`/`MatchScoreRepository`/
+`MeetingRepository` directly off a raw `sessionmaker`, which was a
+documented, deliberate exception to "application never imports persistence
+directly." `MatchingUnitOfWorkFactory` is what `ServiceBase` actually takes
+as a constructor argument, since `run_match` specifically needs to open
+several independent short-lived transactions within one method, not just
+one.
 """
 
 from types import TracebackType

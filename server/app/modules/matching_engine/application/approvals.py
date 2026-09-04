@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
 
-from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
+from app.modules.matching_engine.application.base import ServiceBase
 from app.modules.matching_engine.domain.matching.lifecycle import MatchStatus, can_transition
 
 
@@ -31,11 +31,8 @@ class ApprovalResult:
     status: str
 
 
-class ApproveMatchUseCase:
-    def __init__(self, uow_factory: MatchingUnitOfWorkFactory) -> None:
-        self._uow_factory = uow_factory
-
-    async def execute(self, match_result_id: uuid.UUID, approved_by: str) -> ApprovalResult:
+class ApprovalsMixin(ServiceBase):
+    async def approve_match(self, match_result_id: uuid.UUID, approved_by: str) -> ApprovalResult:
         async with self._uow_factory() as uow:
             candidate = await uow.match_results.get_by_id(match_result_id)
             if candidate is None:
@@ -65,12 +62,7 @@ class ApproveMatchUseCase:
             status=updated.status,
         )
 
-
-class RejectMatchUseCase:
-    def __init__(self, uow_factory: MatchingUnitOfWorkFactory) -> None:
-        self._uow_factory = uow_factory
-
-    async def execute(
+    async def reject_match(
         self, match_result_id: uuid.UUID, approved_by: str, *, notes: str | None = None
     ) -> ApprovalResult:
         async with self._uow_factory() as uow:

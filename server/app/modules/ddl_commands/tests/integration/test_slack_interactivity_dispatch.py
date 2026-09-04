@@ -411,8 +411,8 @@ def test_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_cli
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_update_seller_use_case",
-        lambda: SimpleNamespace(execute=fake_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(update_seller=fake_execute),
     )
 
     values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
@@ -461,8 +461,8 @@ def test_edit_form_attio_failure_prevents_postgres_write(
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_update_seller_use_case",
-        lambda: SimpleNamespace(execute=fake_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(update_seller=fake_execute),
     )
 
     values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
@@ -512,8 +512,8 @@ def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_update_seller_use_case",
-        lambda: SimpleNamespace(execute=fake_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(update_seller=fake_execute),
     )
 
     values = {
@@ -617,8 +617,8 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_update_buyer_use_case",
-        lambda: SimpleNamespace(execute=fake_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(update_buyer=fake_execute),
     )
 
     payload = {
@@ -824,8 +824,8 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_create_seller_use_case",
-        lambda: SimpleNamespace(execute=fake_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(create_seller=fake_execute),
     )
 
     values = {"name": {"name": {"value": "New Seller Co"}}}
@@ -873,8 +873,8 @@ def test_seller_add_form_attio_failure_prevents_postgres_write(
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_create_seller_use_case",
-        lambda: SimpleNamespace(execute=fake_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(create_seller=fake_execute),
     )
 
     values = {"name": {"name": {"value": "New Seller Co"}}}
@@ -918,8 +918,8 @@ def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_create_seller_use_case",
-        lambda: SimpleNamespace(execute=fake_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(create_seller=fake_execute),
     )
 
     values = {"name": {"name": {"value": "New Seller Co"}}}
@@ -963,8 +963,8 @@ def test_seller_add_form_postgres_failure_after_attio_success_reports_what_lande
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_create_seller_use_case",
-        lambda: SimpleNamespace(execute=failing_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(create_seller=failing_execute),
     )
 
     values = {"name": {"name": {"value": "New Seller Co"}}}
@@ -1009,8 +1009,8 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(
         actions_module,
-        "build_create_buyer_use_case",
-        lambda: SimpleNamespace(execute=fake_execute),
+        "ddl_commands_service",
+        lambda: SimpleNamespace(create_buyer=fake_execute),
     )
 
     values = {"model": {"model": {"selected_option": {"value": "Model 1 (Network)"}}}}

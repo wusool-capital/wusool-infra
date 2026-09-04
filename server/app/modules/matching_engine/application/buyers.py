@@ -12,8 +12,7 @@ distinguishes single vs. multiple for callers that care.
 from dataclasses import dataclass, replace
 from typing import Literal
 
-from app.modules.matching_engine.application.ports.buyers import BuyerRepositoryPort
-from app.modules.matching_engine.application.ports.meetings import MeetingRepositoryPort
+from app.modules.matching_engine.application.base import ServiceBase
 from app.modules.matching_engine.domain.buyers import BuyerContext
 
 ResolutionStatus = Literal["none", "single", "multiple"]
@@ -41,16 +40,8 @@ class BuyerResolution:
     candidates: list[BuyerCandidate] | None = None
 
 
-class BuyerResolutionService:
-    def __init__(
-        self,
-        buyer_repository: BuyerRepositoryPort,
-        meeting_repository: MeetingRepositoryPort | None = None,
-    ) -> None:
-        self._buyers = buyer_repository
-        self._meetings = meeting_repository
-
-    async def resolve(self, buyer_name: str) -> BuyerResolution:
+class BuyersMixin(ServiceBase):
+    async def resolve_buyer(self, buyer_name: str) -> BuyerResolution:
         matches = await self._buyers.search_by_organization_name(buyer_name)
 
         if not matches:
@@ -73,7 +64,7 @@ class BuyerResolutionService:
             ],
         )
 
-    async def resolve_by_id(self, buyer_role_id: str) -> BuyerContext | None:
+    async def resolve_buyer_by_id(self, buyer_role_id: str) -> BuyerContext | None:
         """Used after a Slack buyer-selection modal submission."""
         context = await self._buyers.get_with_organization(buyer_role_id)
         if context is None:

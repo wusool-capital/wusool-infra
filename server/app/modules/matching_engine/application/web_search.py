@@ -8,8 +8,7 @@ FK constraints without a schema change nobody asked for).
 
 import uuid
 
-from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
-from app.modules.matching_engine.application.ports.web_search import FirecrawlClient
+from app.modules.matching_engine.application.base import ServiceBase
 from app.modules.matching_engine.domain.matching.scoring import (
     CRITERION_REGISTRY,
     normalize_criterion,
@@ -45,14 +44,11 @@ def _extract_query_terms(profile: RequirementProfile) -> tuple[str, str]:
     return industry or fallback, geography or ""
 
 
-class WebLeadSearchService:
-    def __init__(
-        self, uow_factory: MatchingUnitOfWorkFactory, firecrawl_client: FirecrawlClient
-    ) -> None:
-        self._uow_factory = uow_factory
-        self._client = firecrawl_client
+class WebSearchMixin(ServiceBase):
+    async def search_web_leads(self, run_id: uuid.UUID, *, limit: int = 3) -> list[WebSourcedLead]:
+        if self._firecrawl_client is None:
+            return []
 
-    async def search(self, run_id: uuid.UUID, *, limit: int = 3) -> list[WebSourcedLead]:
         async with self._uow_factory() as uow:
             run = await uow.match_results.get_run(run_id)
 
@@ -63,6 +59,6 @@ class WebLeadSearchService:
         if not industry and not geography:
             return []
 
-        return await self._client.find_potential_sellers(
+        return await self._firecrawl_client.find_potential_sellers(
             industry=industry, geography=geography, limit=limit
         )

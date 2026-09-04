@@ -15,8 +15,8 @@ async def test_unexpected_background_failure_replaces_placeholder(monkeypatch) -
         async def update_message(self, **kwargs):  # noqa: ANN001
             updates.append(kwargs)
 
-    class FakeRunUseCase:
-        async def execute(self, buyer, *, requested_by):  # noqa: ANN001
+    class FakeService:
+        async def run_match(self, buyer, *, requested_by):  # noqa: ANN001
             return MatchRunResult(run_id="run-1", status="GENERATED", buyer_org_name=buyer.org_name)
 
     class Buyer:
@@ -28,8 +28,8 @@ async def test_unexpected_background_failure_replaces_placeholder(monkeypatch) -
     monkeypatch.setattr(dependencies, "_build_slack_notifier", lambda: FakeNotifier())
     monkeypatch.setattr(dependencies, "resolve_buyer_by_id", fake_buyer_lookup)
     monkeypatch.setattr(
-        "app.modules.matching_engine.api.dependencies.build_run_match_use_case",
-        lambda: FakeRunUseCase(),
+        "app.modules.matching_engine.api.dependencies.matching_engine_service",
+        lambda _session: FakeService(),
     )
     monkeypatch.setattr(
         "app.modules.matching_engine.api.slack.views.match_result.build_match_result_blocks",

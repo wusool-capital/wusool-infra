@@ -38,7 +38,7 @@ class BuyerRepository:
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def get_by_org_attio_id(self, org_attio_id: str) -> BuyerRole | None:
-        """Used by `CreateBuyerUseCase` to check, inside the write
+        """Used by `DdlCommandsService.create_buyer` to check, inside the write
         transaction, whether this organization already has an *active*
         buyer role — `org_attio_id` stopped being unique in the 2026-08-28
         migration (an org can hold stale/duplicate rows too), so this

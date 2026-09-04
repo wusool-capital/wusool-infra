@@ -14,7 +14,7 @@ Deliberately excluded (see plan.md Part C): `connection_strength`
 org fields other than `sector_focus` (`type`, `stage_focus`,
 `geographic_focus`, `domains`, `categories`) — deferred, not built this pass.
 `is_active` — bot-managed reconciliation state, set `True` explicitly by
-`CreateSellerUseCase`/`CreateBuyerUseCase` on create, never
+`DdlCommandsService.create_seller`/`create_buyer` on create, never
 operator-editable. `name` is shown as read-only context (the modal title),
 never editable here.
 

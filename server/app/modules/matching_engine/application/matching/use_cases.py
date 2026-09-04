@@ -1,4 +1,4 @@
-"""§31 orchestrator: `RunBuyerSellerMatchUseCase` ties buyer resolution,
+"""§31 orchestrator: `MatchingMixin.run_match` ties buyer resolution,
 requirement extraction, candidate retrieval/filtering, deterministic
 scoring, Bedrock reasoning, and persistence together. Independent of Slack —
 callable from a test, or from a background task dispatched by a Slack
@@ -12,8 +12,8 @@ rows, and the run's completion are one atomic transaction. Any failure along
 the way marks the run `FAILED` with a safe error message in its own short
 transaction — never left half-persisted, never reported as success.
 
-Uses `MatchingUnitOfWorkFactory` for every transaction — `RunBuyerSellerMatchUseCase`
-opens several independent short-lived ones within one method (see the
+Uses `MatchingUnitOfWorkFactory` for every transaction — `run_match` opens
+several independent short-lived ones within one method (see the
 transaction-shape note above), so it needs a factory it can call repeatedly,
 not a single request-scoped Unit of Work.
 """
@@ -23,20 +23,13 @@ import uuid
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
-from app.modules.matching_engine.application.matching.reasoning_service import (
-    MatchReasoningService,
-)
-from app.modules.matching_engine.application.ports.matching import CandidateRetriever
-from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
-from app.modules.matching_engine.application.requirements import (
-    BuyerRequirementExtractionService,
-)
+from app.modules.matching_engine.application.base import ServiceBase
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     MatchAnalysisData,
 )
-from app.modules.matching_engine.domain.matching.scoring import ScoringEngine, select_top_n
+from app.modules.matching_engine.domain.matching.scoring import select_top_n
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 
 logger = logging.getLogger(__name__)
@@ -65,27 +58,28 @@ class MatchRunResult:
     error: str | None = None
 
 
-class RunBuyerSellerMatchUseCase:
-    def __init__(
-        self,
-        uow_factory: MatchingUnitOfWorkFactory,
-        *,
-        extraction_service: BuyerRequirementExtractionService,
-        candidate_retriever: CandidateRetriever,
-        scoring_engine: ScoringEngine,
-        reasoning_service: MatchReasoningService,
-        top_n: int,
-        enable_seller_meeting_notes: bool = False,
-    ) -> None:
-        self._uow_factory = uow_factory
-        self._extraction_service = extraction_service
-        self._candidate_retriever = candidate_retriever
-        self._scoring_engine = scoring_engine
-        self._reasoning_service = reasoning_service
-        self._top_n = top_n
-        self._enable_seller_meeting_notes = enable_seller_meeting_notes
+@dataclass(frozen=True)
+class MatchResultView:
+    match_result_id: str
+    rank: int
+    seller_org_name: str
+    match_score: float
+    data_confidence: float
+    why_it_matches: str | None
+    status: str
+    approved_by: str | None
+    decision: str | None
 
-    async def execute(self, buyer: BuyerContext, requested_by: str | None) -> MatchRunResult:
+
+@dataclass(frozen=True)
+class MatchRunView:
+    run_id: str
+    buyer_org_name: str
+    results: list[MatchResultView]
+
+
+class MatchingMixin(ServiceBase):
+    async def run_match(self, buyer: BuyerContext, requested_by: str | None) -> MatchRunResult:
         run_id = uuid.uuid4()
         buyer_role_id = uuid.UUID(buyer.buyer_role_id)
         started_at = datetime.now(UTC)
@@ -278,16 +272,10 @@ class RunBuyerSellerMatchUseCase:
             run_id=str(run_id), status="GENERATED", buyer_org_name=buyer.org_name, results=results
         )
 
-
-class GetMatchAnalysisUseCase:
-    """View Full Analysis (§21) — built entirely from persisted data, never
-    re-running Bedrock.
-    """
-
-    def __init__(self, uow_factory: MatchingUnitOfWorkFactory) -> None:
-        self._uow_factory = uow_factory
-
-    async def execute(self, run_id: uuid.UUID) -> MatchAnalysisData | None:
+    async def get_match_analysis(self, run_id: uuid.UUID) -> MatchAnalysisData | None:
+        """View Full Analysis (§21) — built entirely from persisted data,
+        never re-running Bedrock.
+        """
         async with self._uow_factory() as uow:
             run = await uow.match_results.get_run(run_id)
             if run is None:
@@ -297,37 +285,12 @@ class GetMatchAnalysisUseCase:
 
         return MatchAnalysisData(run=run, candidates=candidates, scores=scores)
 
-
-@dataclass(frozen=True)
-class MatchResultView:
-    match_result_id: str
-    rank: int
-    seller_org_name: str
-    match_score: float
-    data_confidence: float
-    why_it_matches: str | None
-    status: str
-    approved_by: str | None
-    decision: str | None
-
-
-@dataclass(frozen=True)
-class MatchRunView:
-    run_id: str
-    buyer_org_name: str
-    results: list[MatchResultView]
-
-
-class GetMatchRunViewUseCase:
-    """Rebuilds the compact Slack result-message state from persisted data —
-    used to refresh the original message in place after an Approve/Reject
-    action, so a decided candidate's buttons don't keep looking clickable.
-    """
-
-    def __init__(self, uow_factory: MatchingUnitOfWorkFactory) -> None:
-        self._uow_factory = uow_factory
-
-    async def execute(self, run_id: uuid.UUID) -> MatchRunView | None:
+    async def get_match_run_view(self, run_id: uuid.UUID) -> MatchRunView | None:
+        """Rebuilds the compact Slack result-message state from persisted
+        data — used to refresh the original message in place after an
+        Approve/Reject action, so a decided candidate's buttons don't keep
+        looking clickable.
+        """
         async with self._uow_factory() as uow:
             run = await uow.match_results.get_run(run_id)
             if run is None:

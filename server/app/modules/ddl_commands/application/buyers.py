@@ -12,18 +12,20 @@ uow: ...`, which commits on clean exit / rolls back on exception; the
 repository only does `add`/mutate-attributes/`flush`, never
 `commit`/`rollback`. Every write re-loads and re-validates current DB state
 inside the transaction — never trusts a Slack payload's claimed state.
+Resolution goes through the same `uow_factory` (a commit on a read-only
+session is a harmless no-op) rather than a separate raw session, so every
+method here shares the one constructor `ServiceBase` provides.
 """
 
 from dataclasses import dataclass
 from typing import Literal
 
 from app.models import BuyerRole
+from app.modules.ddl_commands.application.base import ServiceBase
 from app.modules.ddl_commands.application.errors import (
     BuyerAlreadyExistsError,
     BuyerNotFoundError,
 )
-from app.modules.ddl_commands.application.ports.buyers import BuyerRepositoryPort
-from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
 from app.modules.utilities.domain.json_types import JsonObject
 
 ResolutionStatus = Literal["none", "single", "multiple"]
@@ -32,8 +34,8 @@ ResolutionStatus = Literal["none", "single", "multiple"]
 @dataclass(frozen=True)
 class BuyerResolution:
     """`candidates` are raw ORM rows, not `BuyerSummary` — this bot has no
-    domain layer (see `resolve_by_id`'s docstring), and application code
-    must not import the api-layer Pydantic schema; the ORM->schema
+    domain layer (see `resolve_buyer_by_id`'s docstring), and application
+    code must not import the api-layer Pydantic schema; the ORM->schema
     conversion happens in `api/dependencies.py`, right where the schema is
     actually used.
     """
@@ -42,32 +44,26 @@ class BuyerResolution:
     candidates: list[BuyerRole] | None = None
 
 
-class BuyerResolutionService:
-    def __init__(self, buyer_repository: BuyerRepositoryPort) -> None:
-        self._buyers = buyer_repository
-
-    async def resolve(self, buyer_name: str) -> BuyerResolution:
-        matches = await self._buyers.search_by_organization_name(buyer_name)
+class BuyerService(ServiceBase):
+    async def resolve_buyer(self, buyer_name: str) -> BuyerResolution:
+        async with self._uow_factory() as uow:
+            matches = await uow.buyers.search_by_organization_name(buyer_name)
         if not matches:
             return BuyerResolution(status="none")
 
         status: ResolutionStatus = "single" if len(matches) == 1 else "multiple"
         return BuyerResolution(status=status, candidates=matches)
 
-    async def resolve_by_id(self, buyer_role_id: str) -> BuyerRole | None:
+    async def resolve_buyer_by_id(self, buyer_role_id: str) -> BuyerRole | None:
         """Used after a Slack buyer-selection modal submission. Returns the
         ORM row directly (organization eager-loaded) — this bot has no
         matching pipeline, so there's no need for a separate domain value
         object/mapper layer the way matching-engine has.
         """
-        return await self._buyers.get_with_organization(buyer_role_id)
+        async with self._uow_factory() as uow:
+            return await uow.buyers.get_with_organization(buyer_role_id)
 
-
-class UpdateBuyerUseCase:
-    def __init__(self, uow_factory: DdlCommandsUnitOfWorkFactory) -> None:
-        self._uow_factory = uow_factory
-
-    async def execute(
+    async def update_buyer(
         self,
         buyer_role_id: str,
         fields: JsonObject,
@@ -91,12 +87,7 @@ class UpdateBuyerUseCase:
         assert updated is not None
         return updated
 
-
-class CreateBuyerUseCase:
-    def __init__(self, uow_factory: DdlCommandsUnitOfWorkFactory) -> None:
-        self._uow_factory = uow_factory
-
-    async def execute(
+    async def create_buyer(
         self,
         *,
         org_attio_id: str,
@@ -106,7 +97,7 @@ class CreateBuyerUseCase:
         org_fields: JsonObject | None = None,
         role_fields: JsonObject,
     ) -> BuyerRole:
-        """Mirrors `CreateSellerUseCase.execute` exactly, buyer-typed — see
+        """Mirrors `SellerService.create_seller` exactly, buyer-typed — see
         that docstring for the re-check rationale. `entry_id` is the
         just-created buyer_role list entry's own id.
         """

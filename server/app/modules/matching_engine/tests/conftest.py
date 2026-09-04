@@ -52,7 +52,7 @@ async def db_session():
 @pytest.fixture
 async def db_sessionmaker():
     """Like `db_session`, but yields a sessionmaker rather than a single
-    session — for code (e.g. `RunBuyerSellerMatchUseCase`) that opens
+    session — for code (e.g. `MatchingMixin.run_match`) that opens
     several short-lived sessions itself. Each session it creates joins the
     same outer transaction via a savepoint, so everything still rolls back
     together at teardown.

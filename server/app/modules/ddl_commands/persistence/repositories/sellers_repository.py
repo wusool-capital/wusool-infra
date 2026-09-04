@@ -35,7 +35,7 @@ class SellerRepository:
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def get_by_org_attio_id(self, org_attio_id: str) -> SellerRole | None:
-        """Used by `CreateSellerUseCase` to check, inside the write
+        """Used by `DdlCommandsService.create_seller` to check, inside the write
         transaction, whether this organization already has an *active*
         seller role — `org_attio_id` stopped being unique in the 2026-08-28
         migration (an org can hold stale/duplicate rows too), so this

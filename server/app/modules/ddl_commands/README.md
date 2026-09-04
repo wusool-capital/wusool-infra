@@ -142,7 +142,7 @@ is now handled by writing to Attio first instead (see above).
 
 ## Known limitation: concurrent writes to the same organization
 
-`CreateSellerUseCase`/`CreateBuyerUseCase` re-check for an existing
+`DdlCommandsService.create_seller`/`create_buyer` re-check for an existing
 *active* role immediately before the Postgres insert. That check used to be
 backed by `UNIQUE(org_attio_id)` on `seller_roles`/`buyer_roles`; the
 2026-08-28 migration (`b8f4c1e93a56`) moved that constraint to

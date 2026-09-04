@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.ddl_commands.application.ports.attio_sync import AttioRegistryPort
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
+from app.modules.ddl_commands.application.service import DdlCommandsService
 from app.modules.ddl_commands.config import get_settings
 from app.modules.ddl_commands.persistence.attio_sync import AttioSyncRepository
 from app.modules.ddl_commands.persistence.database import (
@@ -56,6 +57,12 @@ def build_ddl_commands_unit_of_work_factory(
         return SqlAlchemyDdlCommandsUnitOfWork(sessionmaker)
 
     return _factory
+
+
+def build_ddl_commands_service(
+    uow_factory: DdlCommandsUnitOfWorkFactory,
+) -> DdlCommandsService:
+    return DdlCommandsService(uow_factory)
 
 
 def build_attio_sync_repository() -> AttioSyncRepository:

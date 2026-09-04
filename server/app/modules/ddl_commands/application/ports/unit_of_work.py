@@ -1,6 +1,6 @@
 """Unit-of-Work seam for write use cases that touch more than one repository
-in one transaction (`UpdateBuyerUseCase`/`CreateBuyerUseCase`,
-`UpdateSellerUseCase`/`CreateSellerUseCase` — each also writes the parent
+in one transaction (`DdlCommandsService`'s `update_buyer`/`create_buyer`,
+`update_seller`/`create_seller` — each also writes the parent
 `organizations` row) — replaces each one constructing `BuyerRepository`/
 `SellerRepository`/`OrganizationRepository` directly off a raw
 `sessionmaker`, mirroring `matching_engine`'s own `MatchingUnitOfWork`.

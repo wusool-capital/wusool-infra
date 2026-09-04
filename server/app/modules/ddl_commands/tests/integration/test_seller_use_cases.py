@@ -8,10 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.models import Organization, SellerRole
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
 from app.modules.ddl_commands.application.sellers import (
-    CreateSellerUseCase,
     SellerAlreadyExistsError,
     SellerNotFoundError,
-    UpdateSellerUseCase,
+    SellerService,
 )
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
 from app.modules.ddl_commands.persistence.unit_of_work import SqlAlchemyDdlCommandsUnitOfWork
@@ -40,9 +39,9 @@ async def _seed_seller(db_sessionmaker: async_sessionmaker[AsyncSession]) -> str
 async def test_update_not_found_raises(
     db_sessionmaker: async_sessionmaker[AsyncSession],
 ) -> None:
-    use_case = UpdateSellerUseCase(_uow_factory(db_sessionmaker))
+    service = SellerService(_uow_factory(db_sessionmaker))
     with pytest.raises(SellerNotFoundError):
-        await use_case.execute(str(uuid.uuid4()), {"outreach_tier": "warm"})
+        await service.update_seller(str(uuid.uuid4()), {"outreach_tier": "warm"})
 
 
 async def test_update_applies_fields(
@@ -50,7 +49,7 @@ async def test_update_applies_fields(
 ) -> None:
     seller_id = await _seed_seller(db_sessionmaker)
 
-    updated = await UpdateSellerUseCase(_uow_factory(db_sessionmaker)).execute(
+    updated = await SellerService(_uow_factory(db_sessionmaker)).update_seller(
         seller_id, {"outreach_tier": "warm"}
     )
 
@@ -62,7 +61,7 @@ async def test_create_with_new_org_inserts_org_and_role(
 ) -> None:
     attio_id = f"test-org-{uuid.uuid4()}"
 
-    role = await CreateSellerUseCase(_uow_factory(db_sessionmaker)).execute(
+    role = await SellerService(_uow_factory(db_sessionmaker)).create_seller(
         org_attio_id=attio_id,
         entry_id="entry-1",
         is_new_org=True,
@@ -94,7 +93,7 @@ async def test_create_attaches_to_existing_org(
         await session.commit()
         attio_id = org.attio_id
 
-    role = await CreateSellerUseCase(_uow_factory(db_sessionmaker)).execute(
+    role = await SellerService(_uow_factory(db_sessionmaker)).create_seller(
         org_attio_id=attio_id,
         entry_id="entry-2",
         is_new_org=False,
@@ -122,7 +121,7 @@ async def test_create_raises_when_role_already_exists(
         attio_id = org.attio_id
 
     with pytest.raises(SellerAlreadyExistsError):
-        await CreateSellerUseCase(_uow_factory(db_sessionmaker)).execute(
+        await SellerService(_uow_factory(db_sessionmaker)).create_seller(
             org_attio_id=attio_id,
             entry_id="entry-3",
             is_new_org=False,
@@ -148,7 +147,7 @@ async def test_create_succeeds_when_existing_role_is_inactive(
         await session.commit()
         attio_id = org.attio_id
 
-    role = await CreateSellerUseCase(_uow_factory(db_sessionmaker)).execute(
+    role = await SellerService(_uow_factory(db_sessionmaker)).create_seller(
         org_attio_id=attio_id,
         entry_id="entry-5",
         is_new_org=False,
@@ -178,7 +177,7 @@ async def test_create_does_not_raise_when_webhook_already_wrote_this_same_entry(
         await session.commit()
         attio_id = org.attio_id
 
-    role = await CreateSellerUseCase(_uow_factory(db_sessionmaker)).execute(
+    role = await SellerService(_uow_factory(db_sessionmaker)).create_seller(
         org_attio_id=attio_id,
         entry_id="entry-4",
         is_new_org=False,
@@ -210,7 +209,7 @@ async def test_concurrent_create_yields_one_active_role() -> None:
         pytest.skip(f"database not reachable: {exc}")
 
     async def _create(entry_id: str) -> SellerRole:
-        return await CreateSellerUseCase(_uow_factory(sessionmaker)).execute(
+        return await SellerService(_uow_factory(sessionmaker)).create_seller(
             org_attio_id=attio_id,
             entry_id=entry_id,
             is_new_org=False,
