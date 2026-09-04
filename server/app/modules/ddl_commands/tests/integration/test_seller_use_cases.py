@@ -1,6 +1,8 @@
+import asyncio
 import uuid
 
 import pytest
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import Organization, SellerRole
@@ -11,6 +13,7 @@ from app.modules.ddl_commands.application.sellers import (
     SellerNotFoundError,
     UpdateSellerUseCase,
 )
+from app.modules.ddl_commands.persistence.database import get_sessionmaker
 from app.modules.ddl_commands.persistence.unit_of_work import SqlAlchemyDdlCommandsUnitOfWork
 from app.modules.organizations import OrganizationRepository
 
@@ -185,3 +188,57 @@ async def test_create_does_not_raise_when_webhook_already_wrote_this_same_entry(
 
     assert role.org_attio_id == attio_id
     assert role.legacy_entry_id == "entry-4"
+
+
+async def test_concurrent_create_yields_one_active_role() -> None:
+    """Two `/add-seller` submissions for the same org, landing inside the
+    same window with *different* Attio entries: exactly one must win.
+
+    Deliberately does not use the `db_sessionmaker` fixture — that binds
+    every session to one connection via savepoints, so two gathered calls
+    serialize on that connection and `FOR UPDATE` never blocks, which would
+    make this pass with or without `OrganizationRepository.lock`. This needs
+    two real connections and real commits, hence the manual cleanup.
+    """
+    sessionmaker = get_sessionmaker()
+    attio_id = f"test-org-{uuid.uuid4()}"
+    try:
+        async with sessionmaker() as session:
+            session.add(Organization(attio_id=attio_id, name="Concurrent Seller Co"))
+            await session.commit()
+    except Exception as exc:  # no SSM tunnel open
+        pytest.skip(f"database not reachable: {exc}")
+
+    async def _create(entry_id: str) -> SellerRole:
+        return await CreateSellerUseCase(_uow_factory(sessionmaker)).execute(
+            org_attio_id=attio_id,
+            entry_id=entry_id,
+            is_new_org=False,
+            org_fields=None,
+            role_fields={"outreach_tier": "Tier 1"},
+        )
+
+    try:
+        results = await asyncio.gather(
+            _create("entry-concurrent-a"),
+            _create("entry-concurrent-b"),
+            return_exceptions=True,
+        )
+
+        winners = [r for r in results if isinstance(r, SellerRole)]
+        losers = [r for r in results if isinstance(r, SellerAlreadyExistsError)]
+        assert len(winners) == 1, results
+        assert len(losers) == 1, results
+
+        async with sessionmaker() as session:
+            active = await session.scalar(
+                select(func.count())
+                .select_from(SellerRole)
+                .where(SellerRole.org_attio_id == attio_id, SellerRole.is_active.is_(True))
+            )
+        assert active == 1
+    finally:
+        async with sessionmaker() as session:
+            await session.execute(delete(SellerRole).where(SellerRole.org_attio_id == attio_id))
+            await session.execute(delete(Organization).where(Organization.attio_id == attio_id))
+            await session.commit()

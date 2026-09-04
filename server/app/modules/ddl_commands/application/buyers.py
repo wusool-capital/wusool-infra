@@ -119,6 +119,10 @@ class CreateBuyerUseCase:
             elif org_fields:
                 await uow.organizations.update(org_attio_id, **org_fields)
 
+            # Serializes concurrent /add-buyer for this org: the check below
+            # is application-level, so without this both could pass it.
+            await uow.organizations.lock(org_attio_id)
+
             # `org_attio_id` is no longer unique (2026-08-28 migration — see
             # `BuyerRole`'s docstring), so "already exists" is an explicit
             # check for an active role, not a DB constraint. A matching
@@ -139,11 +143,15 @@ class CreateBuyerUseCase:
                     org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
                 )
                 if role.legacy_entry_id != entry_id:
-                    # No DB constraint enforces one active role per org
-                    # post-migration -- this re-check plus the one above
-                    # only narrow, not close, the TOCTOU window between two
-                    # concurrent /add-buyer submissions for the same org.
-                    # A partial unique index (org_attio_id WHERE is_active)
-                    # would close it fully if that race becomes a real problem.
+                    # Backstop for writers that don't take the org lock --
+                    # `sync_buyer_role` can land a row for this org between
+                    # the check above and this insert.
+                    #
+                    # ponytail: a partial unique index (org_attio_id WHERE
+                    # is_active) would cover those too, but Postgres can't
+                    # defer a partial unique index and `sync_buyer_role`
+                    # promotes an org's new winner before demoting the old
+                    # one in one transaction -- it needs that loop reordered
+                    # losers-first first.
                     raise BuyerAlreadyExistsError(org_attio_id)
         return role
