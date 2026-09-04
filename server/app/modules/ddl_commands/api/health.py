@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from app.modules.ddl_commands.persistence.database import check_database_connectivity
 
 router = APIRouter()
-_logger = logging.getLogger("app.modules.ddl_commands.bootstrap")
+_logger = logging.getLogger(__name__)
 
 
 async def _readiness() -> JSONResponse:

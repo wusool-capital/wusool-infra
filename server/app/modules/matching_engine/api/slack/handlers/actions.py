@@ -90,8 +90,12 @@ def register(app: AsyncApp) -> None:
             )
             return
 
+        # The session backs buyer_repository/meeting_repository only —
+        # get_match_analysis never touches either — so it's closed right
+        # after construction rather than held open across the call.
         async with get_sessionmaker()() as session:
-            analysis = await matching_engine_service(session).get_match_analysis(run_id)
+            service = matching_engine_service(session)
+        analysis = await service.get_match_analysis(run_id)
         if analysis is None:
             await client.chat_postEphemeral(
                 channel=channel_id, user=user_id, text="No analysis found for this run."
@@ -143,36 +147,42 @@ async def _handle_decision(
         )
         return
 
+    # The session backs buyer_repository/meeting_repository only —
+    # approve_match/reject_match/get_match_run_view never touch either (they
+    # use their own short-lived uow_factory transactions) — so it's closed
+    # right after construction rather than held open across this hot path.
     async with get_sessionmaker()() as session:
         service = matching_engine_service(session)
-        try:
-            result = (
-                await service.approve_match(match_result_id, user_id)
-                if decision == "approve"
-                else await service.reject_match(match_result_id, user_id)
-            )
-        except MatchNotFoundError:
-            await client.chat_postEphemeral(
-                channel=channel_id, user=user_id, text="This match could not be found."
-            )
-            return
-        except InvalidTransitionError:
-            await client.chat_postEphemeral(
-                channel=channel_id, user=user_id, text="This match has already been reviewed."
-            )
-            return
 
-        # Update the original message in place so a decided candidate's
-        # buttons stop looking clickable (§23 — a repeat action must not
-        # appear possible).
-        view = await service.get_match_run_view(uuid.UUID(result.run_id))
+    try:
+        result = (
+            await service.approve_match(match_result_id, user_id)
+            if decision == "approve"
+            else await service.reject_match(match_result_id, user_id)
+        )
+    except MatchNotFoundError:
+        await client.chat_postEphemeral(
+            channel=channel_id, user=user_id, text="This match could not be found."
+        )
+        return
+    except InvalidTransitionError:
+        await client.chat_postEphemeral(
+            channel=channel_id, user=user_id, text="This match has already been reviewed."
+        )
+        return
 
+    # Confirm the decision before rebuilding the view — the decision is
+    # already committed at this point, so the operator must see this even
+    # if the view rebuild below raises.
     await client.chat_postEphemeral(
         channel=channel_id,
         user=user_id,
         text=f"Match with {result.seller_org_name} {result.status.lower()} by <@{user_id}>.",
     )
 
+    # Update the original message in place so a decided candidate's buttons
+    # stop looking clickable (§23 — a repeat action must not appear possible).
+    view = await service.get_match_run_view(uuid.UUID(result.run_id))
     if view is not None:
         await respond(
             replace_original=True,

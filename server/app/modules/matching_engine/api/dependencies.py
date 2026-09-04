@@ -133,30 +133,37 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
             )
             return
 
+        # The session backs buyer_repository/meeting_repository only —
+        # run_match/search_web_leads never touch either (they use their own
+        # short-lived uow_factory transactions), so it's closed right after
+        # construction rather than held open for the full multi-second match
+        # run. Both modules share one connection pool; holding it idle here
+        # was starving concurrent runs and flapping /readiness.
         async with get_sessionmaker()() as session:
             service = matching_engine_service(session)
-            result = await service.run_match(buyer, requested_by=requested_by)
 
-            blocks = build_match_result_blocks(result)
-            scores = [c.match_score for c in result.results]
-            if result.status == "GENERATED" and needs_web_fallback(
-                scores, get_settings().web_fallback_min_score
-            ):
-                await notifier.update_message(
-                    channel=channel_id,
-                    ts=placeholder_ts,
-                    text="✨ *_No match found, searching Google Maps for potential sellers…_*",
-                )
+        result = await service.run_match(buyer, requested_by=requested_by)
 
-                leads = await service.search_web_leads(uuid.UUID(result.run_id))
-                logger.info(
-                    "web_fallback_triggered run_id=%s leads_found=%d",
-                    result.run_id,
-                    len(leads),
-                    extra={"run_id": result.run_id, "leads_found": len(leads)},
-                )
-                if leads:
-                    blocks = build_web_fallback_blocks(result.buyer_org_name, leads)
+        blocks = build_match_result_blocks(result)
+        scores = [c.match_score for c in result.results]
+        if result.status == "GENERATED" and needs_web_fallback(
+            scores, get_settings().web_fallback_min_score
+        ):
+            await notifier.update_message(
+                channel=channel_id,
+                ts=placeholder_ts,
+                text="✨ *_No match found, searching Google Maps for potential sellers…_*",
+            )
+
+            leads = await service.search_web_leads(uuid.UUID(result.run_id))
+            logger.info(
+                "web_fallback_triggered run_id=%s leads_found=%d",
+                result.run_id,
+                len(leads),
+                extra={"run_id": result.run_id, "leads_found": len(leads)},
+            )
+            if leads:
+                blocks = build_web_fallback_blocks(result.buyer_org_name, leads)
 
         await notifier.update_message(
             channel=channel_id,
