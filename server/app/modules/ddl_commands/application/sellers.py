@@ -91,12 +91,15 @@ class CreateSellerUseCase:
         existing org the operator attached to. `entry_id` is the
         just-created seller_role list entry's own id.
 
-        Re-checks for an existing seller role on `org_attio_id` inside this
-        same transaction rather than trusting the Slack payload's claim that
-        none exists yet — the org-selection step and this submission are two
-        separate round trips, and another `/add-seller` could land between
-        them. `UNIQUE(org_attio_id)` on `seller_roles` is the final backstop
-        either way.
+        Re-checks for an existing *active* seller role on `org_attio_id`
+        inside this same transaction rather than trusting the Slack
+        payload's claim that none exists yet — the org-selection step and
+        this submission are two separate round trips, and another
+        `/add-seller` could land between them. `UNIQUE(org_attio_id)` on
+        `seller_roles` used to be the backstop for that; the 2026-08-28
+        migration (`b8f4c1e93a56`) moved that constraint to
+        `legacy_entry_id`, so the org row lock taken below is what
+        serializes concurrent submissions now.
         """
         async with self._uow_factory() as uow:
             if is_new_org:
@@ -106,6 +109,10 @@ class CreateSellerUseCase:
                 )
             elif org_fields:
                 await uow.organizations.update(org_attio_id, **org_fields)
+
+            # Serializes concurrent /add-seller for this org: the check below
+            # is application-level, so without this both could pass it.
+            await uow.organizations.lock(org_attio_id)
 
             # `org_attio_id` is no longer unique (2026-08-28 migration — see
             # `SellerRole`'s docstring), so "already exists" is an explicit
@@ -127,11 +134,15 @@ class CreateSellerUseCase:
                     org_attio_id, is_active=True, legacy_entry_id=entry_id, **role_fields
                 )
                 if role.legacy_entry_id != entry_id:
-                    # No DB constraint enforces one active role per org
-                    # post-migration -- this re-check plus the one above
-                    # only narrow, not close, the TOCTOU window between two
-                    # concurrent /add-seller submissions for the same org.
-                    # A partial unique index (org_attio_id WHERE is_active)
-                    # would close it fully if that race becomes a real problem.
+                    # Backstop for writers that don't take the org lock --
+                    # `sync_seller_role` can land a row for this org between
+                    # the check above and this insert.
+                    #
+                    # ponytail: a partial unique index (org_attio_id WHERE
+                    # is_active) would cover those too, but Postgres can't
+                    # defer a partial unique index and `sync_seller_role`
+                    # promotes an org's new winner before demoting the old
+                    # one in one transaction -- it needs that loop reordered
+                    # losers-first first.
                     raise SellerAlreadyExistsError(org_attio_id)
         return role

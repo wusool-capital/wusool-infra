@@ -98,6 +98,25 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         assert org is not None
         return org
 
+    async def lock(self, attio_id: str) -> None:
+        """Row-locks the organization for the rest of the caller's
+        transaction, serializing concurrent `/add-buyer`/`/add-seller`
+        submissions for the same org.
+
+        Since the 2026-08-28 migration (`b8f4c1e93a56`) `org_attio_id` is no
+        longer unique on the role tables, so "this org already has an active
+        role" is an application-level check with a TOCTOU window rather than
+        something the DB rejects outright. Holding this lock across that
+        check and the insert that follows is what closes it — see
+        `CreateBuyerUseCase.execute`.
+
+        A missing org is a no-op (no row to lock): the role insert's FK to
+        `organizations.attio_id` is still the error path for that, unchanged.
+        """
+        await self._session.execute(
+            select(Organization.attio_id).where(Organization.attio_id == attio_id).with_for_update()
+        )
+
     async def update(
         self, attio_id: str, **fields: Unpack[OrganizationFields]
     ) -> Organization | None:

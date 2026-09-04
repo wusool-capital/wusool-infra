@@ -11,6 +11,18 @@ delivered state and outstanding items see
 
 ## 2026-09-03
 
+### Fixed
+
+- Duplicate active buyer/seller role rows on concurrent `/add-buyer` /
+  `/add-seller` for the same organization. Migration `b8f4c1e93a56` moved
+  `UNIQUE` from `org_attio_id` to `legacy_entry_id` on the role tables, which
+  left the create path's "does this org already have an active role" check
+  unbacked by any constraint — two submissions could both pass it before
+  either committed. `CreateBuyerUseCase`/`CreateSellerUseCase` now take a
+  `SELECT ... FOR UPDATE` row lock on the parent organization
+  (`OrganizationRepository.lock`) before that check, serializing same-org
+  submissions.
+
 ### Changed
 
 - Repo restructured into one `server/` modular-monolith project (#91):

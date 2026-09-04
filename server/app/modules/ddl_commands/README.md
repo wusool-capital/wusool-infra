@@ -142,14 +142,35 @@ is now handled by writing to Attio first instead (see above).
 
 ## Known limitation: concurrent writes to the same organization
 
-Two `/add-seller`/`/add-buyer` submissions for the same org landing close
-together can both succeed and create a duplicate — nothing holds a lock
-across the Attio round-trip. `CreateSellerUseCase`/`CreateBuyerUseCase`
-re-check for an existing role immediately before the Postgres insert,
-backed by `UNIQUE(org_attio_id)` on `seller_roles`/`buyer_roles` as a
-backstop, but this doesn't close the true race (two submissions passing the
-pre-insert check before either commits). A Postgres advisory lock, keyed
-per org identity, would close it properly — discussed, not yet built.
+`CreateSellerUseCase`/`CreateBuyerUseCase` re-check for an existing
+*active* role immediately before the Postgres insert. That check used to be
+backed by `UNIQUE(org_attio_id)` on `seller_roles`/`buyer_roles`; the
+2026-08-28 migration (`b8f4c1e93a56`) moved that constraint to
+`legacy_entry_id` so an org can hold one row per DEV Attio entry, which
+left the check unbacked — two submissions could both pass it before either
+committed and both write `is_active=true`.
+
+It is now serialized by a row lock on the parent `organizations` row
+(`OrganizationRepository.lock`), taken inside the same transaction before
+the check: a second `/add-seller` for the same org blocks there and only
+reads once the first has committed, so it sees the new role and raises
+`SellerAlreadyExistsError`. Two things that deliberately does not do:
+
+- It doesn't stop the losing submission from having already created a
+  duplicate *Attio* entry, since the lock is taken after the Attio writes
+  (see "Why Attio-first"). `_reconcile_active_entry` demotes that entry on
+  the next sync — that's what `is_active` is for. Closing this too would
+  mean holding the lock across the Attio round-trip: the per-org advisory
+  lock discussed here previously, still not built.
+- It's a use-case-level guarantee, not a DB constraint, so it doesn't
+  constrain the webhook sync path or a future direct writer. A partial
+  unique index (`org_attio_id` WHERE `is_active`) would, but Postgres can't
+  defer a partial unique index and `sync_buyer_role`/`sync_seller_role`
+  promote an org's new winner before demoting the old one inside a single
+  transaction — so that index would reject every duplicate-entry promotion
+  unless those loops are reordered losers-first first. Note also the
+  pre-existing duplicate `org_attio_id` rows in production, predating this
+  bot: such an index would need a dedupe before it could be built.
 
 ## Out of scope (for now)
 
