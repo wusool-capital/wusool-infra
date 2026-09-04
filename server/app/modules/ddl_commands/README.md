@@ -21,12 +21,18 @@ _New to this codebase's layering? See [the modular monolith guide](../../../../d
 ddl_commands/
   bootstrap.py       # composition root — build_* factories, standalone create_app()
   config.py          # Settings (pydantic-settings)
-  application/       # use cases + application/ports/ Protocols (no domain/ layer —
-                       # every consumer works with app.models ORM rows directly)
+  application/       # base.py (ServiceBase) + buyers.py/sellers.py (BuyerService/
+                       # SellerService mixins) + service.py (DdlCommandsService facade,
+                       # composes both by multiple inheritance) + application/ports/
+                       # Protocols. No domain/ layer — every consumer works with
+                       # app.models ORM rows directly. attio_sync.py's webhook
+                       # dispatcher stays outside the facade — a stateless per-event
+                       # dispatcher, not a service with dependencies injected once.
   persistence/       # SQLAlchemy repositories, Unit-of-Work, attio_sync writeback
   providers/attio/   # write_payload.py — this module's own field-to-Attio-payload mapping
                        # (the vendor client/helpers themselves live in app.modules.attio)
-  api/                # FastAPI routes, Slack handlers, dependencies.py
+  api/                # router.py (aggregates health.py + attio_sync.py's routers),
+                       # Slack handlers, dependencies.py
   scripts/            # attio_sync_full_resync.py — standalone nightly batch job
   tests/
 ```
