@@ -1,6 +1,6 @@
-"""Composition root for this module's own FastAPI app: health/readiness,
-exception handling, logging, and the Slack ASGI mount (§29 — Slack is the
-only product interface; no public REST endpoints for
+"""Composition root for this module's own FastAPI app: mounts `api/router.py`
+(health/readiness), exception handling, logging, and the Slack ASGI mount
+(§29 — Slack is the only product interface; no public REST endpoints for
 matching/buyer/seller/approval data). Also holds the `build_*` factory
 functions `api/dependencies.py` calls instead of constructing concrete
 persistence/provider classes inline.
@@ -11,14 +11,13 @@ actually-deployed process is `server/main.py`, which merges both modules'
 Slack handlers onto one `AsyncApp` instead of calling this.
 """
 
-import logging
 from functools import lru_cache
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.modules.matching_engine.api.router import router as api_router
 from app.modules.matching_engine.application.matching.reasoning_service import (
     MatchReasoningService,
 )
@@ -33,10 +32,7 @@ from app.modules.matching_engine.domain.matching.scoring import ScoringEngine
 from app.modules.matching_engine.persistence.candidate_retriever import (
     StructuredCandidateRetriever,
 )
-from app.modules.matching_engine.persistence.database import (
-    check_database_connectivity,
-    import_all_models,
-)
+from app.modules.matching_engine.persistence.database import import_all_models
 from app.modules.matching_engine.persistence.repositories.buyers_repository import (
     BuyerRepository,
 )
@@ -49,8 +45,6 @@ from app.modules.matching_engine.providers.firecrawl.client import FirecrawlMaps
 from app.modules.notifications import SlackWebClientNotifier, get_slack_client
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging
-
-_logger = logging.getLogger("app.modules.matching_engine.bootstrap")
 
 
 def build_buyer_repository(session: AsyncSession) -> BuyerRepository:
@@ -149,29 +143,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Buyer-Seller Matching & Intelligence Platform")
     register_exception_handlers(app)
-
-    @app.get("/health")
-    async def health() -> dict[str, str]:
-        """Liveness check. Does not touch the database."""
-        return {"status": "ok"}
-
-    async def _readiness() -> JSONResponse:
-        """Readiness check. Confirms database connectivity via `SELECT 1`."""
-        try:
-            await check_database_connectivity()
-        except Exception:
-            _logger.error("Readiness check failed", exc_info=True)
-            return JSONResponse(status_code=503, content={"status": "unavailable"})
-        return JSONResponse(status_code=200, content={"status": "ready"})
-
-    @app.get("/readiness")
-    async def readiness() -> JSONResponse:
-        return await _readiness()
-
-    @app.get("/ready")
-    async def ready() -> JSONResponse:
-        """Alias for `/readiness` (§29's naming)."""
-        return await _readiness()
+    app.include_router(api_router)
 
     @lru_cache
     def _slack_request_handler() -> AsyncSlackRequestHandler:
