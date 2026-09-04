@@ -8,14 +8,16 @@ usage if available, success/failure — never raw prompt/response content or
 credentials.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import re
 import time
+from typing import TYPE_CHECKING
 
 from botocore.exceptions import ClientError, EndpointConnectionError
-from mypy_boto3_bedrock_runtime.type_defs import ConverseResponseTypeDef
 from pydantic import ValidationError
 
 from app.modules.matching_engine.application.ports.llm import RepairPromptBuilder
@@ -29,6 +31,13 @@ from app.modules.matching_engine.providers.bedrock.schemas import (
 )
 from app.modules.utilities.domain.json_types import JsonObject, JsonSchema
 from app.modules.utilities.domain.money import parse_usd_amount
+
+if TYPE_CHECKING:
+    # boto3-stubs is a dev-only type-checking dependency (see pyproject.toml)
+    # — never installed in the production image, so this import must stay
+    # inside TYPE_CHECKING (and `from __future__ import annotations` above
+    # keeps the annotations below from being evaluated at runtime).
+    from mypy_boto3_bedrock_runtime.type_defs import ConverseResponseTypeDef
 
 logger = logging.getLogger(__name__)
 

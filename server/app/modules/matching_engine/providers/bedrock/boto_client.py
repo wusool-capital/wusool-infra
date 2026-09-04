@@ -1,9 +1,18 @@
+from __future__ import annotations
+
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
 import boto3
-from mypy_boto3_bedrock_runtime import BedrockRuntimeClient
 
 from app.modules.matching_engine.config import get_settings
+
+if TYPE_CHECKING:
+    # boto3-stubs is a dev-only type-checking dependency (see pyproject.toml)
+    # — never installed in the production image, so this import must stay
+    # inside TYPE_CHECKING (and `from __future__ import annotations` above
+    # keeps the return annotation below from being evaluated at runtime).
+    from mypy_boto3_bedrock_runtime import BedrockRuntimeClient
 
 
 @lru_cache
