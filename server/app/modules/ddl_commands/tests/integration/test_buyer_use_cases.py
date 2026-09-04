@@ -9,8 +9,7 @@ from app.models import BuyerRole, Organization
 from app.modules.ddl_commands.application.buyers import (
     BuyerAlreadyExistsError,
     BuyerNotFoundError,
-    CreateBuyerUseCase,
-    UpdateBuyerUseCase,
+    BuyerService,
 )
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
@@ -40,9 +39,9 @@ async def _seed_buyer(db_sessionmaker: async_sessionmaker[AsyncSession]) -> str:
 async def test_update_not_found_raises(
     db_sessionmaker: async_sessionmaker[AsyncSession],
 ) -> None:
-    use_case = UpdateBuyerUseCase(_uow_factory(db_sessionmaker))
+    service = BuyerService(_uow_factory(db_sessionmaker))
     with pytest.raises(BuyerNotFoundError):
-        await use_case.execute(str(uuid.uuid4()), {"model": "Roll-up"})
+        await service.update_buyer(str(uuid.uuid4()), {"model": "Roll-up"})
 
 
 async def test_update_applies_fields(
@@ -50,7 +49,7 @@ async def test_update_applies_fields(
 ) -> None:
     buyer_id = await _seed_buyer(db_sessionmaker)
 
-    updated = await UpdateBuyerUseCase(_uow_factory(db_sessionmaker)).execute(
+    updated = await BuyerService(_uow_factory(db_sessionmaker)).update_buyer(
         buyer_id, {"model": "Roll-up"}
     )
 
@@ -62,7 +61,7 @@ async def test_create_with_new_org_inserts_org_and_role(
 ) -> None:
     attio_id = f"test-org-{uuid.uuid4()}"
 
-    role = await CreateBuyerUseCase(_uow_factory(db_sessionmaker)).execute(
+    role = await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
         org_attio_id=attio_id,
         entry_id="entry-1",
         is_new_org=True,
@@ -94,7 +93,7 @@ async def test_create_attaches_to_existing_org(
         await session.commit()
         attio_id = org.attio_id
 
-    role = await CreateBuyerUseCase(_uow_factory(db_sessionmaker)).execute(
+    role = await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
         org_attio_id=attio_id,
         entry_id="entry-2",
         is_new_org=False,
@@ -122,7 +121,7 @@ async def test_create_raises_when_role_already_exists(
         attio_id = org.attio_id
 
     with pytest.raises(BuyerAlreadyExistsError):
-        await CreateBuyerUseCase(_uow_factory(db_sessionmaker)).execute(
+        await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
             org_attio_id=attio_id,
             entry_id="entry-3",
             is_new_org=False,
@@ -148,7 +147,7 @@ async def test_create_succeeds_when_existing_role_is_inactive(
         await session.commit()
         attio_id = org.attio_id
 
-    role = await CreateBuyerUseCase(_uow_factory(db_sessionmaker)).execute(
+    role = await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
         org_attio_id=attio_id,
         entry_id="entry-5",
         is_new_org=False,
@@ -178,7 +177,7 @@ async def test_create_does_not_raise_when_webhook_already_wrote_this_same_entry(
         await session.commit()
         attio_id = org.attio_id
 
-    role = await CreateBuyerUseCase(_uow_factory(db_sessionmaker)).execute(
+    role = await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
         org_attio_id=attio_id,
         entry_id="entry-4",
         is_new_org=False,
@@ -210,7 +209,7 @@ async def test_concurrent_create_yields_one_active_role() -> None:
         pytest.skip(f"database not reachable: {exc}")
 
     async def _create(entry_id: str) -> BuyerRole:
-        return await CreateBuyerUseCase(_uow_factory(sessionmaker)).execute(
+        return await BuyerService(_uow_factory(sessionmaker)).create_buyer(
             org_attio_id=attio_id,
             entry_id=entry_id,
             is_new_org=False,

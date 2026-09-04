@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from app.modules.matching_engine.application.approvals import (
-    ApproveMatchUseCase,
+    ApprovalsMixin,
     InvalidTransitionError,
 )
 
@@ -22,8 +22,22 @@ async def test_approval_race_loser_raises_invalid_transition() -> None:
     def uow_factory():
         return _AsyncContextManager(uow)
 
+    # Only approve_match/reject_match are exercised here — the other
+    # ServiceBase dependencies are unused by this mixin's methods, so
+    # SimpleNamespace() stand-ins are enough (no Protocol conformance
+    # needed at runtime).
+    service = ApprovalsMixin(
+        uow_factory,
+        buyer_repository=SimpleNamespace(),
+        extraction_service=SimpleNamespace(),
+        reasoning_service=SimpleNamespace(),
+        candidate_retriever=SimpleNamespace(),
+        scoring_engine=SimpleNamespace(),
+        top_n=0,
+    )
+
     with pytest.raises(InvalidTransitionError):
-        await ApproveMatchUseCase(uow_factory).execute(uuid4(), "U_TEST")
+        await service.approve_match(uuid4(), "U_TEST")
 
 
 class _AsyncContextManager:

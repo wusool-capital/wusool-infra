@@ -11,6 +11,7 @@ so persistence's FK to `seller_roles.id` is still genuine. The real
 """
 
 import uuid
+from types import SimpleNamespace
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -18,9 +19,7 @@ from app.models import BuyerRole, SellerRole
 from app.modules.matching_engine.application.matching.reasoning_service import (
     MatchReasoningService,
 )
-from app.modules.matching_engine.application.matching.use_cases import (
-    RunBuyerSellerMatchUseCase,
-)
+from app.modules.matching_engine.application.matching.use_cases import MatchingMixin
 from app.modules.matching_engine.application.ports.llm import InferenceConfig
 from app.modules.matching_engine.application.requirements import (
     BuyerRequirementExtractionService,
@@ -117,8 +116,11 @@ async def test_deterministic_match_run_end_to_end(
         model_id="test-reasoning-model",
         inference_config=_inference_config(),
     )
-    use_case = RunBuyerSellerMatchUseCase(
+    # buyer_repository is unused by run_match — a SimpleNamespace() stand-in
+    # is enough (no Protocol conformance needed at runtime).
+    service = MatchingMixin(
         lambda: SqlAlchemyMatchingUnitOfWork(db_sessionmaker),
+        buyer_repository=SimpleNamespace(),
         extraction_service=extraction_service,
         candidate_retriever=_FixtureCandidateRetriever([seller_candidate]),
         scoring_engine=ScoringEngine({"llm_extracted": 0.6, "llm_inferred": 0.4}),
@@ -126,7 +128,7 @@ async def test_deterministic_match_run_end_to_end(
         top_n=3,
     )
 
-    result = await use_case.execute(buyer, requested_by="U_TEST_SLACK_USER")
+    result = await service.run_match(buyer, requested_by="U_TEST_SLACK_USER")
 
     assert result.status == "GENERATED"
     assert len(result.results) == 1

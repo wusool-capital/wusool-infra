@@ -15,10 +15,7 @@ from slack_bolt.context.respond.async_respond import AsyncRespond
 from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.matching_engine.api.dependencies import (
-    build_approve_match_use_case,
-    build_match_analysis_use_case,
-    build_match_run_view_use_case,
-    build_reject_match_use_case,
+    matching_engine_service,
     run_match_and_post,
     to_match_analysis_schema,
 )
@@ -30,6 +27,7 @@ from app.modules.matching_engine.application.approvals import (
     InvalidTransitionError,
     MatchNotFoundError,
 )
+from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
 from app.modules.utilities import InProcessTaskRunner
 from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
@@ -92,7 +90,12 @@ def register(app: AsyncApp) -> None:
             )
             return
 
-        analysis = await build_match_analysis_use_case().execute(run_id)
+        # The session backs buyer_repository/meeting_repository only —
+        # get_match_analysis never touches either — so it's closed right
+        # after construction rather than held open across the call.
+        async with get_sessionmaker()() as session:
+            service = matching_engine_service(session)
+        analysis = await service.get_match_analysis(run_id)
         if analysis is None:
             await client.chat_postEphemeral(
                 channel=channel_id, user=user_id, text="No analysis found for this run."
@@ -144,12 +147,19 @@ async def _handle_decision(
         )
         return
 
-    use_case = (
-        build_approve_match_use_case() if decision == "approve" else build_reject_match_use_case()
-    )
+    # The session backs buyer_repository/meeting_repository only —
+    # approve_match/reject_match/get_match_run_view never touch either (they
+    # use their own short-lived uow_factory transactions) — so it's closed
+    # right after construction rather than held open across this hot path.
+    async with get_sessionmaker()() as session:
+        service = matching_engine_service(session)
 
     try:
-        result = await use_case.execute(match_result_id, user_id)
+        result = (
+            await service.approve_match(match_result_id, user_id)
+            if decision == "approve"
+            else await service.reject_match(match_result_id, user_id)
+        )
     except MatchNotFoundError:
         await client.chat_postEphemeral(
             channel=channel_id, user=user_id, text="This match could not be found."
@@ -161,6 +171,9 @@ async def _handle_decision(
         )
         return
 
+    # Confirm the decision before rebuilding the view — the decision is
+    # already committed at this point, so the operator must see this even
+    # if the view rebuild below raises.
     await client.chat_postEphemeral(
         channel=channel_id,
         user=user_id,
@@ -169,7 +182,7 @@ async def _handle_decision(
 
     # Update the original message in place so a decided candidate's buttons
     # stop looking clickable (§23 — a repeat action must not appear possible).
-    view = await build_match_run_view_use_case().execute(uuid.UUID(result.run_id))
+    view = await service.get_match_run_view(uuid.UUID(result.run_id))
     if view is not None:
         await respond(
             replace_original=True,

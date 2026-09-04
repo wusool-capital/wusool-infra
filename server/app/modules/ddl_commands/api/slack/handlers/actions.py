@@ -32,10 +32,7 @@ from app.modules.ddl_commands.api.buyers import (
     BuyerUpdate,
 )
 from app.modules.ddl_commands.api.dependencies import (
-    build_create_buyer_use_case,
-    build_create_seller_use_case,
-    build_update_buyer_use_case,
-    build_update_seller_use_case,
+    ddl_commands_service,
     resolve_buyer_by_id,
     resolve_organization,
     resolve_seller_by_id,
@@ -721,7 +718,7 @@ async def _write_seller_edit(
         else {}
     )
     try:
-        await build_update_seller_use_case().execute(
+        await ddl_commands_service().update_seller(
             seller_role_id,
             role_postgres_fields,
             org_attio_id=org_attio_id,
@@ -790,7 +787,7 @@ async def _write_buyer_edit(
         else {}
     )
     try:
-        await build_update_buyer_use_case().execute(
+        await ddl_commands_service().update_buyer(
             buyer_role_id,
             role_postgres_fields,
             org_attio_id=org_attio_id,
@@ -872,7 +869,7 @@ async def _write_seller_add(
         table="seller_role", fields=SELLER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
     )
     try:
-        await build_create_seller_use_case().execute(
+        await ddl_commands_service().create_seller(
             org_attio_id=org_attio_id,
             entry_id=entry_id,
             is_new_org=is_new_org,
@@ -953,7 +950,7 @@ async def _write_buyer_add(
         table="buyer_role", fields=BUYER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
     )
     try:
-        await build_create_buyer_use_case().execute(
+        await ddl_commands_service().create_buyer(
             org_attio_id=org_attio_id,
             entry_id=entry_id,
             is_new_org=is_new_org,

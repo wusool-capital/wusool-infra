@@ -1,8 +1,8 @@
+from types import SimpleNamespace
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.matching_engine.application.buyers import (
-    BuyerResolutionService,
-)
+from app.modules.matching_engine.application.buyers import BuyersMixin
 from app.modules.matching_engine.persistence.repositories.buyers_repository import BuyerRepository
 from app.modules.matching_engine.persistence.repositories.meetings_repository import (
     MeetingRepository,
@@ -51,9 +51,20 @@ async def test_resolve_by_id_populates_buyer_context_meeting_notes(
     await db_session.flush()
 
     meetings = MeetingRepository(db_session, max_chars=600)
-    service = BuyerResolutionService(BuyerRepository(db_session), meetings)
+    # Only resolve_buyer_by_id is exercised — the other ServiceBase
+    # dependencies are unused by this mixin's methods.
+    service = BuyersMixin(
+        lambda: SimpleNamespace(),
+        buyer_repository=BuyerRepository(db_session),
+        meeting_repository=meetings,
+        extraction_service=SimpleNamespace(),
+        reasoning_service=SimpleNamespace(),
+        candidate_retriever=SimpleNamespace(),
+        scoring_engine=SimpleNamespace(),
+        top_n=0,
+    )
 
-    context = await service.resolve_by_id(str(any_buyer_role.id))
+    context = await service.resolve_buyer_by_id(str(any_buyer_role.id))
 
     assert context is not None
     assert len(context.meeting_notes) == 3

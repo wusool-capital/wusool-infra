@@ -20,10 +20,17 @@ matching_engine/
   bootstrap.py       # composition root — build_* factories, standalone create_app()
   config.py          # Settings (pydantic-settings)
   domain/            # entities, scoring, requirements — framework-free
-  application/       # use cases + application/ports/ Protocols
+  application/       # base.py (ServiceBase) + approvals.py/buyers.py/matching/
+                       # use_cases.py/web_search.py (mixins) + service.py
+                       # (MatchingEngineService facade) + application/ports/ Protocols.
+                       # requirements.py/matching/reasoning_service.py stay standalone
+                       # collaborator classes, not mixins — only MatchingMixin.run_match
+                       # calls them. See base.py's docstring for why this module's
+                       # ServiceBase constructor isn't as uniform as ddl_commands'.
   persistence/       # SQLAlchemy repositories + mappers, Unit-of-Work
   providers/         # bedrock/ (LLM), firecrawl/ (web fallback)
-  api/                # FastAPI routes, Slack handlers, dependencies.py
+  api/                # router.py (aggregates health.py's router), Slack handlers,
+                       # dependencies.py
   tests/
 ```
 

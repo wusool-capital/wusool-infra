@@ -3,7 +3,7 @@ Stage 1 structured filter. Branch 2's `HybridCandidateRetriever` (semantic
 retrieval) implements the same Protocol without changing anything upstream.
 
 Owns a `sessionmaker`, not a bound repository/session — like
-`RunBuyerSellerMatchUseCase`, it opens its own short-lived session per call
+`MatchingMixin.run_match`, it opens its own short-lived session per call
 rather than depending on the caller to manage one for it. Lives in
 `persistence/`, not `providers/`, since it queries our own database, not a
 third-party API — the `CandidateRetriever` Port it implements just happens

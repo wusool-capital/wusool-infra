@@ -5,12 +5,11 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.models import SellerRole
+from app.modules.ddl_commands.application.base import ServiceBase
 from app.modules.ddl_commands.application.errors import (
     SellerAlreadyExistsError,
     SellerNotFoundError,
 )
-from app.modules.ddl_commands.application.ports.sellers import SellerRepositoryPort
-from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
 from app.modules.utilities.domain.json_types import JsonObject
 
 ResolutionStatus = Literal["none", "single", "multiple"]
@@ -25,27 +24,21 @@ class SellerResolution:
     candidates: list[SellerRole] | None = None
 
 
-class SellerResolutionService:
-    def __init__(self, seller_repository: SellerRepositoryPort) -> None:
-        self._sellers = seller_repository
-
-    async def resolve(self, seller_name: str) -> SellerResolution:
-        matches = await self._sellers.search_by_organization_name(seller_name)
+class SellerService(ServiceBase):
+    async def resolve_seller(self, seller_name: str) -> SellerResolution:
+        async with self._uow_factory() as uow:
+            matches = await uow.sellers.search_by_organization_name(seller_name)
         if not matches:
             return SellerResolution(status="none")
 
         status: ResolutionStatus = "single" if len(matches) == 1 else "multiple"
         return SellerResolution(status=status, candidates=matches)
 
-    async def resolve_by_id(self, seller_role_id: str) -> SellerRole | None:
-        return await self._sellers.get_with_organization(seller_role_id)
+    async def resolve_seller_by_id(self, seller_role_id: str) -> SellerRole | None:
+        async with self._uow_factory() as uow:
+            return await uow.sellers.get_with_organization(seller_role_id)
 
-
-class UpdateSellerUseCase:
-    def __init__(self, uow_factory: DdlCommandsUnitOfWorkFactory) -> None:
-        self._uow_factory = uow_factory
-
-    async def execute(
+    async def update_seller(
         self,
         seller_role_id: str,
         fields: JsonObject,
@@ -69,12 +62,7 @@ class UpdateSellerUseCase:
         assert updated is not None
         return updated
 
-
-class CreateSellerUseCase:
-    def __init__(self, uow_factory: DdlCommandsUnitOfWorkFactory) -> None:
-        self._uow_factory = uow_factory
-
-    async def execute(
+    async def create_seller(
         self,
         *,
         org_attio_id: str,

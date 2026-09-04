@@ -21,12 +21,18 @@ _New to this codebase's layering? See [the modular monolith guide](../../../../d
 ddl_commands/
   bootstrap.py       # composition root — build_* factories, standalone create_app()
   config.py          # Settings (pydantic-settings)
-  application/       # use cases + application/ports/ Protocols (no domain/ layer —
-                       # every consumer works with app.models ORM rows directly)
+  application/       # base.py (ServiceBase) + buyers.py/sellers.py (BuyerService/
+                       # SellerService mixins) + service.py (DdlCommandsService facade,
+                       # composes both by multiple inheritance) + application/ports/
+                       # Protocols. No domain/ layer — every consumer works with
+                       # app.models ORM rows directly. attio_sync.py's webhook
+                       # dispatcher stays outside the facade — a stateless per-event
+                       # dispatcher, not a service with dependencies injected once.
   persistence/       # SQLAlchemy repositories, Unit-of-Work, attio_sync writeback
   providers/attio/   # write_payload.py — this module's own field-to-Attio-payload mapping
                        # (the vendor client/helpers themselves live in app.modules.attio)
-  api/                # FastAPI routes, Slack handlers, dependencies.py
+  api/                # router.py (aggregates health.py + attio_sync.py's routers),
+                       # Slack handlers, dependencies.py
   scripts/            # attio_sync_full_resync.py — standalone nightly batch job
   tests/
 ```
@@ -142,7 +148,7 @@ is now handled by writing to Attio first instead (see above).
 
 ## Known limitation: concurrent writes to the same organization
 
-`CreateSellerUseCase`/`CreateBuyerUseCase` re-check for an existing
+`DdlCommandsService.create_seller`/`create_buyer` re-check for an existing
 *active* role immediately before the Postgres insert. That check used to be
 backed by `UNIQUE(org_attio_id)` on `seller_roles`/`buyer_roles`; the
 2026-08-28 migration (`b8f4c1e93a56`) moved that constraint to
