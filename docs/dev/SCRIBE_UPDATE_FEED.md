@@ -57,11 +57,10 @@ intended fail-closed behavior, not a bug.
 ## Cutting a release (macOS aarch64, first pass)
 
 1. In a PR, bump the version in all three places by hand — there is no sync
-   script:
-   - `scribe-desktop/frontend/src-tauri/tauri.conf.json` (`version`)
-   - `scribe-desktop/frontend/package.json` (`version`)
-   - `scribe-desktop/frontend/src-tauri/Cargo.toml` (`version`), and its
-     `Cargo.lock` entry
+   script. See
+   [`scribe-desktop/docs/VERSIONING.md`](../../scribe-desktop/docs/VERSIONING.md)
+   for the exact files/keys and when to bump (ideally in the same PR as the
+   feature/fix it ships, not speculatively on every PR).
 2. Merge, then run `scribe-release.yml` manually (Actions → Scribe release →
    Run workflow), choosing `channel: stable`. It always builds whatever
    version is currently in `tauri.conf.json` on the branch it's run from.
