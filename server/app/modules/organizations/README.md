@@ -45,9 +45,6 @@ OrganizationRepository, OrganizationRepositoryPort` (the `__all__`).
 backed by it, since buyer/seller writes touch both a role repository and
 this one in the same transaction.
 
-## Testing
+## Where to go next
 
-No integration tests of its own — exercised indirectly through
-`ddl_commands`'s buyer/seller use-case tests. `tests/test_architecture.py`
-enforces this module's own `application/` never imports `persistence/`/
-`fastapi`/`pydantic`/`sqlalchemy` directly.
+New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).
