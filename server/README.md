@@ -63,6 +63,10 @@ docker compose up --build
 - `GET /readiness` (alias `GET /ready`) — confirms database connectivity.
 - `POST /slack/events` — the one Slack callback endpoint for all 5 commands.
   Signature-verified by Bolt.
+- `/desktop/*` — the `meetings` module's REST surface for the WusoolScribe
+  desktop app (transcript ingestion, summarization, status polling), a
+  separate Bearer-token-authenticated surface with no Slack command of its
+  own. See `app/modules/meetings/README.md`.
 
 ### Configuring the Slack app
 
@@ -71,20 +75,6 @@ repo root for the full checklist (Slash Commands table, Interactivity URL,
 OAuth scopes, signing secret). `ddl_commands` also needs `ATTIO_API_KEY`/
 `ATTIO_WEBHOOK_SECRET` (DEV Attio write access + webhook signing) alongside
 the shared Slack credentials.
-
-## Testing
-
-```bash
-uv run pytest
-```
-
-Runs this root's own merged-dispatch suite
-(`tests/integration/test_merged_command_dispatch.py` — proves both modules'
-handlers route correctly through the one shared Slack app) plus every
-module's own business-logic/wiring suite under `app/modules/*/tests/`, plus
-`tests/test_architecture.py` (cross-module layering fitness tests) and
-`tests/test_env_example.py` (`.env.example` stays in sync with every
-module's `Settings`).
 
 ## Layout
 
@@ -100,10 +90,11 @@ server/
 │   └── modules/
 │       ├── matching_engine/   # /find-match
 │       ├── ddl_commands/        # /edit-seller, /edit-buyer, /add-seller, /add-buyer
-│       ├── organizations/         # shared Organization persistence
-│       ├── attio/                   # Attio vendor integration
-│       ├── notifications/             # cross-module Slack notifier Port
-│       └── utilities/                   # cross-cutting infra (logging, retry, Money, DB wiring)
+│       ├── meetings/              # /desktop/* — desktop-app transcript summarization
+│       ├── organizations/           # shared Organization persistence
+│       ├── attio/                     # Attio vendor integration
+│       ├── notifications/               # cross-module Slack notifier Port
+│       └── utilities/                     # cross-cutting infra (logging, retry, Money, DB wiring)
 └── tests/                 # merged-app dispatch + cross-module architecture tests
 ```
 
