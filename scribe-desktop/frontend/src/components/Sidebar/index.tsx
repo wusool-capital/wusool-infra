@@ -11,6 +11,7 @@ import { SettingTabs } from '../SettingTabs';
 import { TranscriptModelProps } from '@/components/TranscriptSettings';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
@@ -70,6 +71,12 @@ function formatMeetingDate(createdAt?: string | null): string | null {
 const Sidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
+  const [appVersion, setAppVersion] = useState<string>('0.4.0');
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(console.error);
+  }, []);
+
   const {
     currentMeeting,
     setCurrentMeeting,
@@ -886,7 +893,7 @@ const Sidebar: React.FC = () => {
               <span>Settings</span>
             </Button>
             <div className="w-full flex items-center justify-center pt-0.5 text-[11px] text-muted-foreground/70">
-              v0.4.0
+              v{appVersion}
             </div>
           </div>
         )}
