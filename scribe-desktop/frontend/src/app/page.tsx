@@ -38,7 +38,7 @@ export default function Home() {
 
   // Hooks
   const { hasMicrophone } = usePermissionCheck();
-  const { setIsMeetingActive, isCollapsed: sidebarCollapsed, refetchMeetings } = useSidebar();
+  const { setIsMeetingActive, refetchMeetings } = useSidebar();
   const { modals, messages, showModal, hideModal } = useModalState(transcriptModelConfig);
   const { isRecordingDisabled, setIsRecordingDisabled } = useRecordingStateSync(isRecording, setIsRecordingState, setIsMeetingActive);
   const { handleRecordingStart } = useRecordingStart(isRecording, setIsRecordingState, showModal);
@@ -212,7 +212,7 @@ export default function Home() {
         onDelete={deleteRecoverableMeeting}
         onLoadPreview={loadMeetingTranscripts}
       />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         <TranscriptPanel
           isProcessingStop={isProcessingStop}
           isStopping={isStopping}
@@ -223,13 +223,17 @@ export default function Home() {
         {(hasMicrophone || isRecording) &&
           status !== RecordingStatus.PROCESSING_TRANSCRIPTS &&
           status !== RecordingStatus.SAVING && (
-            <div className="fixed bottom-12 left-0 right-0 z-10 pointer-events-none">
-              <div
-                className="flex justify-center pl-8 transition-[margin] duration-300"
-                style={{
-                  marginLeft: sidebarCollapsed ? '4rem' : '16rem'
-                }}
-              >
+            // absolute (not fixed) within this flex row, which already
+            // excludes the sidebar's own width - centers correctly against
+            // whatever the sidebar's real rendered width is, with no need
+            // to track/guess it via sidebarCollapsed. The previous fixed +
+            // marginLeft(sidebarCollapsed ? ... : ...) approach re-guessed
+            // that width in JS, which could render one frame behind the
+            // actual layout on remount (visible as the button flashing to
+            // the wrong spot before settling) and would always be wrong if
+            // the sidebar's width ever changed independent of this file.
+            <div className="absolute bottom-12 left-0 right-0 z-10 pointer-events-none">
+              <div className="flex justify-center pl-8">
                 <div className="w-2/3 max-w-[750px] flex justify-center">
                   <div className="bg-card rounded-full shadow-lg flex items-center pointer-events-auto">
                     <RecordingControls
@@ -257,7 +261,6 @@ export default function Home() {
         <StatusOverlays
           isProcessing={status === RecordingStatus.PROCESSING_TRANSCRIPTS && !recordingState.isRecording}
           isSaving={status === RecordingStatus.SAVING}
-          sidebarCollapsed={sidebarCollapsed}
         />
       </div>
     </motion.div>

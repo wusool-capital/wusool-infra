@@ -77,7 +77,7 @@ export function PushDestinationSettings() {
         <h3 className="text-lg font-semibold mb-4">Push Destination</h3>
         <p className="text-sm text-muted-foreground mb-6">
           Where a pushed meeting is sent for server-side summarization. Summaries are
-          generated remotely, delivered to Slack, and sent back here.
+          generated remotely and sent back here.
         </p>
       </div>
 

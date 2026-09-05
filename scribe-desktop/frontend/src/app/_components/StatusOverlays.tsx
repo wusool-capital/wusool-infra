@@ -4,29 +4,24 @@ interface StatusOverlaysProps {
   // Status flags
   isProcessing: boolean;      // Processing transcription after recording stops
   isSaving: boolean;          // Saving transcript to database
-
-  // Layout
-  sidebarCollapsed: boolean;  // For responsive margin calculation
 }
 
 // Internal reusable component for individual status overlays
 interface StatusOverlayProps {
   show: boolean;
   message: string;
-  sidebarCollapsed: boolean;
 }
 
-function StatusOverlay({ show, message, sidebarCollapsed }: StatusOverlayProps) {
+function StatusOverlay({ show, message }: StatusOverlayProps) {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-4 left-0 right-0 z-10 pointer-events-none">
-      <div
-        className="flex justify-center pl-8 transition-[margin] duration-300"
-        style={{
-          marginLeft: sidebarCollapsed ? '4rem' : '16rem'
-        }}
-      >
+    // absolute within the parent flex row (page.tsx), which already
+    // excludes the sidebar's own width - see the recording-controls
+    // overlay in page.tsx for why this replaced fixed + a JS-guessed
+    // marginLeft(sidebarCollapsed ? ... : ...).
+    <div className="absolute bottom-4 left-0 right-0 z-10 pointer-events-none">
+      <div className="flex justify-center pl-8">
         <div className="w-2/3 max-w-[750px] flex justify-center">
           <div className="bg-card rounded-lg shadow-lg px-4 py-2 flex items-center space-x-2 pointer-events-auto">
             <Spinner className="text-foreground" />
@@ -42,7 +37,6 @@ function StatusOverlay({ show, message, sidebarCollapsed }: StatusOverlayProps) 
 export function StatusOverlays({
   isProcessing,
   isSaving,
-  sidebarCollapsed
 }: StatusOverlaysProps) {
   return (
     <>
@@ -50,14 +44,12 @@ export function StatusOverlays({
       <StatusOverlay
         show={isProcessing}
         message="Finalizing transcription..."
-        sidebarCollapsed={sidebarCollapsed}
       />
 
       {/* Saving status overlay - shown while saving transcript to database */}
       <StatusOverlay
         show={isSaving}
         message="Saving transcript..."
-        sidebarCollapsed={sidebarCollapsed}
       />
     </>
   );
