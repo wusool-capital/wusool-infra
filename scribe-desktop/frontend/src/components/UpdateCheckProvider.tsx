@@ -10,7 +10,7 @@ import { setUpdateDialogCallback, showUpdateNotification } from './UpdateNotific
 interface UpdateCheckContextType {
   updateInfo: UpdateInfo | null;
   isChecking: boolean;
-  checkForUpdates: (force?: boolean) => Promise<void>;
+  checkForUpdates: (force?: boolean) => Promise<UpdateInfo | null>;
   showUpdateDialog: () => void;
 }
 
