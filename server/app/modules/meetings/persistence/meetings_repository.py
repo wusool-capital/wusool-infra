@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Meeting
 from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
+from app.modules.meetings.persistence.mappers import to_meeting_record
 
 
 class MeetingsRepository:
@@ -28,7 +29,7 @@ class MeetingsRepository:
             Meeting.install_id == install_id, Meeting.local_recording_id == local_recording_id
         )
         meeting = (await self._session.execute(stmt)).scalar_one_or_none()
-        return self._to_record(meeting) if meeting is not None else None
+        return to_meeting_record(meeting) if meeting is not None else None
 
     async def create(
         self,
@@ -66,7 +67,7 @@ class MeetingsRepository:
         )
         self._session.add(meeting)
         await self._session.flush()
-        return self._to_record(meeting)
+        return to_meeting_record(meeting)
 
     async def mark_completed(
         self,
@@ -119,7 +120,7 @@ class MeetingsRepository:
 
     async def get_by_id(self, meeting_id: UUID) -> MeetingRecord | None:
         meeting = await self._session.get(Meeting, meeting_id)
-        return self._to_record(meeting) if meeting is not None else None
+        return to_meeting_record(meeting) if meeting is not None else None
 
     async def list_by_install_id(self, install_id: str, *, limit: int) -> list[MeetingSyncStatus]:
         """Column-scoped select — never loads full `Meeting` rows (with their
@@ -146,29 +147,3 @@ class MeetingsRepository:
             )
             for row in rows
         ]
-
-    def _to_record(self, meeting: Meeting) -> MeetingRecord:
-        return MeetingRecord(
-            id=meeting.id,
-            org_id=meeting.org_id,
-            org_name_raw=meeting.org_name_raw,
-            counterparty_role=meeting.counterparty_role,
-            meeting_type=meeting.meeting_type,
-            occurred_at=meeting.occurred_at,
-            title=meeting.title,
-            source=meeting.source,
-            audio_ref=meeting.audio_ref,
-            duration_s=meeting.duration_s,
-            created_by_ref=meeting.created_by_ref,
-            participants=meeting.participants,
-            transcript=meeting.transcript,
-            summary=meeting.summary,
-            metadata=meeting.metadata_,
-            created_at=meeting.created_at,
-            scribe_meeting_id=meeting.scribe_meeting_id,
-            status=meeting.status,
-            install_id=meeting.install_id,
-            local_recording_id=meeting.local_recording_id,
-            summary_json=meeting.summary_json,
-            summary_started_at=meeting.summary_started_at,
-        )

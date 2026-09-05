@@ -6,8 +6,8 @@ by wrapping the shared `organizations.OrganizationRepository` — allowed since
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Organization
 from app.modules.meetings.domain.organization_ref import OrganizationRef
+from app.modules.meetings.persistence.mappers import to_organization_ref
 from app.modules.organizations import OrganizationRepository
 
 
@@ -17,11 +17,8 @@ class OrganizationLookup:
 
     async def get_by_id(self, attio_id: str) -> OrganizationRef | None:
         org = await self._repo.get_by_id(attio_id)
-        return self._to_ref(org) if org is not None else None
+        return to_organization_ref(org) if org is not None else None
 
     async def search_by_name(self, term: str, limit: int) -> list[OrganizationRef]:
         orgs = await self._repo.search_by_name(term, limit)
-        return [self._to_ref(org) for org in orgs]
-
-    def _to_ref(self, org: Organization) -> OrganizationRef:
-        return OrganizationRef(attio_id=org.attio_id, name=org.name)
+        return [to_organization_ref(org) for org in orgs]
