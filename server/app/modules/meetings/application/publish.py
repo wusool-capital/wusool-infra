@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
-from typing import Any
 from uuid import UUID
 
 from app.modules.meetings.application.base import ServiceBase
 from app.modules.meetings.domain.meeting_record import MeetingRecord
 from app.modules.meetings.domain.rendering import render_summary_text
-from app.modules.meetings.domain.roles import MeetingRole, decode_role_metadata
+from app.modules.meetings.domain.roles import MeetingRole, decode_role_metadata, try_role
+from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +28,19 @@ class PublishMixin(ServiceBase):
             logger.warning("summarize_and_publish_meeting_not_found meeting_id=%s", meeting_id)
             return
 
-        companies = self._reconstruct_companies(
-            counterparty_role=meeting.counterparty_role,
-            org_id=meeting.org_id,
-            org_name_raw=meeting.org_name_raw,
-            metadata=meeting.metadata,
-        )
-
         try:
+            # `_reconstruct_companies` is inside this `try` too, not just
+            # the summarize call — `decode_role_metadata` is defensive by
+            # contract, but this method runs detached from any request
+            # with no caller to hand an exception to, so anything before
+            # `mark_failed` below must degrade to it rather than strand
+            # the row in `summarizing` forever.
+            companies = self._reconstruct_companies(
+                counterparty_role=meeting.counterparty_role,
+                org_id=meeting.org_id,
+                org_name_raw=meeting.org_name_raw,
+                metadata=meeting.metadata,
+            )
             async with self._summary_semaphore:
                 summary = await self._summarization_service.summarize(
                     meeting.transcript or "",
@@ -112,7 +117,7 @@ class PublishMixin(ServiceBase):
         counterparty_role: str | None,
         org_id: str | None,
         org_name_raw: str | None,
-        metadata: dict[str, Any],
+        metadata: JsonObject,
     ) -> dict[MeetingRole, str]:
         """Best-effort reconstruction of the original 5-role {role: name}
         mapping from what `IngestMixin` persisted — used only for prompt
@@ -125,7 +130,12 @@ class PublishMixin(ServiceBase):
         """
         primary_role, other_side = decode_role_metadata(metadata)
         if primary_role is None and counterparty_role:
-            primary_role = MeetingRole(counterparty_role)
+            # `counterparty_role` is DB-constrained to 'seller'/'buyer' by a
+            # native Postgres enum, so this should always resolve — `try_role`
+            # rather than `MeetingRole(...)` anyway, since "should always"
+            # is not "cannot fail", and this whole function's contract is
+            # never to raise.
+            primary_role = try_role(counterparty_role)
 
         companies: dict[MeetingRole, str] = {}
         if primary_role is not None:

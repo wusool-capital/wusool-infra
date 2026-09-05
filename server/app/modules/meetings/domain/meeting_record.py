@@ -16,11 +16,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from app.modules.utilities.domain.json_types import JsonObject
 
-__all__ = ["MeetingRecord", "MeetingSyncStatus"]
+__all__ = ["MeetingRecord", "MeetingStatus", "MeetingSyncStatus"]
+
+# Mirrors the `ck_meetings_status` CHECK constraint on `meetings.status`
+# (see the migration that added it) — the three values that column can
+# ever hold. A bare `str` here would let a typo like "summarising" compile,
+# pass every type check, and only surface at runtime as a meeting silently
+# excluded from every `status == "summarizing"` comparison
+# (`recover_stalled`'s own WHERE clause included).
+MeetingStatus = Literal["summarizing", "completed", "failed"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +51,7 @@ class MeetingRecord:
     metadata: JsonObject
     created_at: datetime
     scribe_meeting_id: UUID | None
-    status: str
+    status: MeetingStatus
     install_id: str | None
     local_recording_id: str | None
     summary_json: JsonObject | None
@@ -53,5 +62,5 @@ class MeetingRecord:
 class MeetingSyncStatus:
     id: UUID
     local_recording_id: str | None
-    status: str
+    status: MeetingStatus
     summary_available: bool

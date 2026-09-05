@@ -24,6 +24,7 @@ __all__ = [
     "counterparty_role_column",
     "decode_role_metadata",
     "encode_role_metadata",
+    "try_role",
     "meeting_type_column",
     "momentum_applies",
     "other_roles",
@@ -137,20 +138,33 @@ def encode_role_metadata(*, primary: MeetingRole | None, other: list[RoleTag]) -
     }
 
 
+def try_role(value: object) -> MeetingRole | None:
+    """`MeetingRole(value)` without the `ValueError` — a row written by a
+    future migration/schema change (or hand-edited) is untrusted input by
+    the time it comes back out of `metadata_`, and this function's whole
+    contract is that it never raises on that."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return MeetingRole(value)
+    except ValueError:
+        return None
+
+
 def decode_role_metadata(metadata: JsonObject | None) -> tuple[MeetingRole | None, list[RoleTag]]:
     """Inverse of `encode_role_metadata`. Never raises on a missing/
-    malformed blob — an older row, or one with no roles tagged at all,
-    decodes to `(None, [])`."""
+    malformed blob — an older row, one with no roles tagged at all, or one
+    whose `primary_role`/`other_side.role` values don't match a current
+    `MeetingRole` (a value from a future migration/schema change, or one
+    hand-edited in the database) all decode without raising: an
+    unrecognized `primary_role` is dropped to `None`, an unrecognized
+    `other_side` entry is dropped from the list entirely.
+    """
     data = metadata or {}
-    primary_value = data.get("primary_role")
-    primary = MeetingRole(primary_value) if primary_value else None
+    primary = try_role(data.get("primary_role"))
     other = [
-        RoleTag(
-            role=MeetingRole(entry["role"]),
-            org_id=entry.get("org_id"),
-            org_name_raw=entry.get("org_name_raw"),
-        )
+        RoleTag(role=role, org_id=entry.get("org_id"), org_name_raw=entry.get("org_name_raw"))
         for entry in data.get("other_side") or []
-        if isinstance(entry, dict) and "role" in entry
+        if isinstance(entry, dict) and (role := try_role(entry.get("role"))) is not None
     ]
     return primary, other

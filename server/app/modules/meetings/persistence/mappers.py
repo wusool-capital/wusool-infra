@@ -6,8 +6,23 @@ application/domain code consumes the domain dataclasses below, never the
 """
 
 from app.models import Meeting, Organization
-from app.modules.meetings.domain.meeting_record import MeetingRecord
+from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingStatus
 from app.modules.meetings.domain.organization_ref import OrganizationRef
+
+_VALID_STATUSES = frozenset(("summarizing", "completed", "failed"))
+
+
+def to_meeting_status(value: str) -> MeetingStatus:
+    """Narrows the ORM's plain `str` column to `MeetingStatus`. Raising
+    here rather than casting blindly: the `ck_meetings_status` CHECK
+    constraint should make this unreachable, but a real violation (a
+    manual `UPDATE`, a constraint that gets dropped in a future migration)
+    should surface as a loud, specific error here — not a `MeetingRecord`
+    silently claiming a status the type system says is impossible.
+    """
+    if value not in _VALID_STATUSES:
+        raise ValueError(f"meetings.status has an unexpected value: {value!r}")
+    return value  # type: ignore[return-value]  # narrowed by the check above
 
 
 def to_meeting_record(meeting: Meeting) -> MeetingRecord:
@@ -29,7 +44,7 @@ def to_meeting_record(meeting: Meeting) -> MeetingRecord:
         metadata=meeting.metadata_,
         created_at=meeting.created_at,
         scribe_meeting_id=meeting.scribe_meeting_id,
-        status=meeting.status,
+        status=to_meeting_status(meeting.status),
         install_id=meeting.install_id,
         local_recording_id=meeting.local_recording_id,
         summary_json=meeting.summary_json,

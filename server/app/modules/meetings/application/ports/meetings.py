@@ -8,7 +8,11 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
+from app.modules.meetings.domain.meeting_record import (
+    MeetingRecord,
+    MeetingStatus,
+    MeetingSyncStatus,
+)
 from app.modules.utilities.domain.json_types import JsonObject
 
 
@@ -32,7 +36,7 @@ class MeetingsRepositoryPort(Protocol):
         transcript: str | None,
         install_id: str | None,
         local_recording_id: str | None,
-        status: str,
+        status: MeetingStatus,
         metadata_: JsonObject | None,
     ) -> MeetingRecord: ...
 

@@ -14,8 +14,12 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Meeting
-from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
-from app.modules.meetings.persistence.mappers import to_meeting_record
+from app.modules.meetings.domain.meeting_record import (
+    MeetingRecord,
+    MeetingStatus,
+    MeetingSyncStatus,
+)
+from app.modules.meetings.persistence.mappers import to_meeting_record, to_meeting_status
 from app.modules.utilities.domain.json_types import JsonObject
 
 
@@ -47,7 +51,7 @@ class MeetingsRepository:
         transcript: str | None,
         install_id: str | None,
         local_recording_id: str | None,
-        status: str = "summarizing",
+        status: MeetingStatus = "summarizing",
         metadata_: JsonObject | None = None,
     ) -> MeetingRecord:
         meeting = Meeting(
@@ -152,7 +156,7 @@ class MeetingsRepository:
             MeetingSyncStatus(
                 id=row.id,
                 local_recording_id=row.local_recording_id,
-                status=row.status,
+                status=to_meeting_status(row.status),
                 summary_available=row.summary_available,
             )
             for row in rows
