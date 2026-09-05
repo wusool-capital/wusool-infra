@@ -70,8 +70,7 @@ standard AWS credential provider chain), `AWS_BEDROCK_MODEL_ID`,
 `MAX_CONCURRENT_SUMMARIES`, `MAX_TRANSCRIPT_CHARS`,
 `ATTIO_NOTE_OBJECT_SLUG` (optional — omit to skip pushing notes to Attio).
 
-## Testing
+## Where to go next
 
-```bash
-uv run pytest
-```
+New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md). Running or
+testing it? See [`HOW-TO-TEST.md`](HOW-TO-TEST.md).
