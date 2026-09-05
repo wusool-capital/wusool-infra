@@ -4,6 +4,16 @@
 > Every fact below was verified against AWS account `030179310793` on
 > 2026-08-15; re-verify against the current stacks before relying on an ID.
 
+> **2026-09-05 — partially superseded.** `wusool-infra` now owns writes to
+> `meetings` itself, via the new `server/app/modules/meetings/` module (the
+> desktop app pushes transcripts to it directly; see that module's README).
+> Scribe's server-side summarization pipeline this contract describes
+> standing up (SQS, worker containers, the `scribe_pub` write role) is no
+> longer needed for that purpose. Decommissioning Scribe's EC2/SQS
+> infrastructure and the `scribe_pub` grant is a separate follow-up — this
+> document is left as-is below since that teardown hasn't happened yet, but
+> do not use it to justify granting Scribe a NEW write path to `meetings`.
+
 **Audience:** whoever owns the `wusool-scribe` repo. It tells you how to stand up
 **scribe dev and scribe prod** so they plug into the restructured `wusool-infra`
 conventions.
