@@ -27,11 +27,15 @@ n8n_timezone     = "Asia/Dubai"
 n8n_image        = "docker.n8n.io/n8nio/n8n@sha256:d53243d06c7f7de81910ac922ff55ed4b58c9c3c761d7f2f8443d0567990def3"
 runners_image    = "n8nio/runners@sha256:dd8531c425cd2c60481cafcb145a8c810f628f176bcb8d41f4c75d79272f7d2a"
 caddy_image      = "caddy@sha256:af5fdcd76f2db5e4e974ee92f96ee8c0fc3edb55bd4ba5032547cbf3f65e486d"
-enable_bedrock   = true
-# For the upcoming "meetings" summarization module (Claude entries only).
+# Toolkit's matching-engine invokes these models for extraction; n8n prod
+# gets the same IAM grant since it shares this flag with stacks/toolkit
+# below (n8n prod does not currently call Bedrock itself). Also covers the
+# meetings module's summarization calls (Claude entries).
+enable_bedrock = true
 bedrock_models = [
   { model_id = "anthropic.claude-sonnet-4-6", region = "eu-central-1", inference_profile_id = "eu.anthropic.claude-sonnet-4-6" },
   { model_id = "anthropic.claude-haiku-4-5-20251001-v1:0", region = "eu-central-1", inference_profile_id = "eu.anthropic.claude-haiku-4-5-20251001-v1:0" },
+  { model_id = "qwen.qwen3-235b-a22b-2507-v1:0", region = "eu-central-1" },
 ]
 
 # stacks/toolkit — prod
