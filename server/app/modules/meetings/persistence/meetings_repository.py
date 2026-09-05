@@ -6,7 +6,7 @@ recovery, sync-status listing). `add()`/`flush()`/`execute()` only — never
 Implements `application.ports.meetings.MeetingsRepositoryPort`.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -74,7 +74,17 @@ class MeetingsRepository:
             # `recover_stalled` — `NULL < cutoff` is unknown, not true, in
             # SQL, so its `WHERE` clause would silently never match. Set
             # it at creation whenever the row starts in that state.
-            summary_started_at=func.now() if status == "summarizing" else None,
+            #
+            # A Python value, NOT func.now(): assigning a server-side SQL
+            # expression to an ORM instance attribute leaves it "expired"
+            # after flush() — reading it back (to_meeting_record does,
+            # right below) triggers an implicit refresh-from-DB, which
+            # raises sqlalchemy.exc.MissingGreenlet under AsyncSession
+            # (confirmed live: this crashed every desktop push with a 500).
+            # recover_stalled's own func.now() is fine — it's a Core
+            # UPDATE...RETURNING(Meeting.id), never rereads this column
+            # off an ORM instance.
+            summary_started_at=datetime.now(UTC) if status == "summarizing" else None,
             metadata_=metadata_ or {},
         )
         self._session.add(meeting)
