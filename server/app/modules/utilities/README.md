@@ -55,9 +55,6 @@ baked in, keeping every existing caller's no-arg
 `get_engine()`/`get_sessionmaker()`/`check_database_connectivity()` call
 signature unchanged.
 
-## Testing
+## Where to go next
 
-`tests/test_architecture.py` enforces this module's own `domain/`/
-`application/` never import its own `persistence/`/`api/`/`fastapi`/
-`pydantic`/`sqlalchemy` directly — unaffected by other modules' full-access
-exception to reach into `persistence/`/`api/` themselves.
+New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).
