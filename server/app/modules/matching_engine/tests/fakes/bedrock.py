@@ -10,13 +10,13 @@ Bedrock-backed client would, without any AWS call.
 from pydantic import ValidationError
 
 from app.modules.matching_engine.application.ports.llm import InferenceConfig, RepairPromptBuilder
-from app.modules.matching_engine.application.provider_errors import BedrockInvocationError
 from app.modules.matching_engine.domain.matching.scoring import is_monetary_criterion
 from app.modules.matching_engine.providers.bedrock.schemas import (
     ExtractedRequirementProfile,
     ReasoningResult,
 )
 from app.modules.utilities.domain.money import parse_usd_amount
+from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 
 class FakeBedrockClient:

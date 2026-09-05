@@ -29,7 +29,8 @@ runners_image    = "n8nio/runners@sha256:dd8531c425cd2c60481cafcb145a8c810f628f1
 caddy_image      = "caddy@sha256:af5fdcd76f2db5e4e974ee92f96ee8c0fc3edb55bd4ba5032547cbf3f65e486d"
 # Toolkit's matching-engine invokes these models for extraction; n8n prod
 # gets the same IAM grant since it shares this flag with stacks/toolkit
-# below (n8n prod does not currently call Bedrock itself).
+# below (n8n prod does not currently call Bedrock itself). Also covers the
+# meetings module's summarization calls (Claude entries).
 enable_bedrock = true
 bedrock_models = [
   { model_id = "anthropic.claude-sonnet-4-6", region = "eu-central-1", inference_profile_id = "eu.anthropic.claude-sonnet-4-6" },

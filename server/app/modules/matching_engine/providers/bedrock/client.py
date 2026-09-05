@@ -22,7 +22,6 @@ from pydantic import ValidationError
 
 from app.modules.matching_engine.application.ports.llm import RepairPromptBuilder
 from app.modules.matching_engine.application.ports.llm_types import InferenceConfig
-from app.modules.matching_engine.application.provider_errors import BedrockInvocationError
 from app.modules.matching_engine.domain.matching.scoring import is_monetary_criterion
 from app.modules.matching_engine.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.matching_engine.providers.bedrock.schemas import (
@@ -31,6 +30,7 @@ from app.modules.matching_engine.providers.bedrock.schemas import (
 )
 from app.modules.utilities.domain.json_types import JsonObject, JsonSchema
 from app.modules.utilities.domain.money import parse_usd_amount
+from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 if TYPE_CHECKING:
     # boto3-stubs is a dev-only type-checking dependency (see pyproject.toml)

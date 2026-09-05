@@ -1,12 +1,14 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
 all 5 commands: `/find-match` (matching_engine module) and `/edit-seller`,
-`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl_commands module).
+`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl_commands module) — plus the
+`meetings` module's `/desktop/*` REST surface for the WusoolScribe desktop
+app (transcript ingestion, summarization, status polling; no Slack command).
 
-Builds **one** `AsyncApp` and registers both modules' handlers against it, so
-Slack's one-interactivity-URL-per-app requirement is satisfied by
-construction, not by convention. Neither module's own `bootstrap.create_app()`
-is used here — each exists for running that module standalone (its own test
-suite) — this file is what actually gets deployed.
+Builds **one** `AsyncApp` and registers both Slack modules' handlers against
+it, so Slack's one-interactivity-URL-per-app requirement is satisfied by
+construction, not by convention. Neither Slack module's own
+`bootstrap.create_app()` is used here — each exists for running that module
+standalone (its own test suite) — this file is what actually gets deployed.
 """
 
 import logging
@@ -37,6 +39,10 @@ from app.modules.matching_engine.persistence.database import check_database_conn
 from app.modules.matching_engine.persistence.database import (
     import_all_models as import_matching_engine_models,
 )
+from app.modules.meetings.api.router import router as meetings_router
+from app.modules.meetings.persistence.database import (
+    import_all_models as import_meetings_models,
+)
 from app.modules.notifications import build_bolt_app
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging, log_context
@@ -45,6 +51,7 @@ settings = get_settings()
 configure_logging(settings.log_level)
 import_matching_engine_models()
 import_ddl_commands_models()
+import_meetings_models()
 
 # Which service owns each command/interaction trigger Slack can send. Bolt's
 # own global error handler always logs a caught exception under its own
@@ -68,6 +75,7 @@ _ACK_BUDGET_MS = 2500
 app = FastAPI(title="Wusool Toolkit Bot")
 register_exception_handlers(app)
 app.include_router(attio_sync_router)
+app.include_router(meetings_router)
 
 
 @app.exception_handler(Exception)

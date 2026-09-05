@@ -57,6 +57,7 @@ integration() {
   uv run pytest \
     app/modules/ddl_commands/tests/integration \
     app/modules/matching_engine/tests/integration \
+    app/modules/meetings/tests/integration \
     tests/integration
 }
 

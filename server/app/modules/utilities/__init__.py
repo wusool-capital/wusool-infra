@@ -19,6 +19,7 @@ from app.modules.utilities.application.ports.task_runner import TaskRunner
 from app.modules.utilities.domain.errors import AppError, NotFoundError, ValidationFailedError
 from app.modules.utilities.domain.logging import configure_logging, log_context
 from app.modules.utilities.domain.money import Money, parse_usd_amount
+from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 from app.modules.utilities.domain.retry import retry_with_backoff
 from app.modules.utilities.persistence.engine import get_engine, get_sessionmaker
 from app.modules.utilities.persistence.health import check_database_connectivity
@@ -29,6 +30,7 @@ from app.modules.utilities.persistence.task_runner import InProcessTaskRunner
 
 __all__ = [
     "AppError",
+    "BedrockInvocationError",
     "IdempotencyStore",
     "InMemoryIdempotencyStore",
     "InProcessTaskRunner",

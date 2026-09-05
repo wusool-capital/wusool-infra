@@ -9,6 +9,29 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-05
+
+### Added
+
+- New `meetings` module: ingests transcripts pushed by the WusoolScribe
+  desktop app, summarizes them via AWS Bedrock (forced-tool-call Converse,
+  its own 300s-timeout client — a system-prompt capability
+  `matching_engine`'s shared Bedrock client doesn't have), and writes the
+  existing `meetings`/`notes` tables, optionally pushing the note to Attio
+  when `ATTIO_NOTE_OBJECT_SLUG` is set. Async POST-then-poll contract
+  preserved so the desktop app's Rust client is unchanged; runs as a
+  `BackgroundTask` in the existing toolkit process — no SQS, no worker
+  containers. This replaces Scribe's entire server-side summarization
+  pipeline; the desktop app's own recording/local transcription is
+  unaffected and out of scope, as is Slack delivery. `meetings` gains 5
+  additive columns (`status`, `install_id`, `local_recording_id`,
+  `summary_json`, `summary_started_at`) via one migration; this repo is now
+  the writer of that table (previously Scribe, via the `scribe_pub` role —
+  see `docs/dev/SCRIBE_INFRA_CONTRACT.md`, decommissioning that role and
+  Scribe's EC2/SQS infrastructure is a separate follow-up). Prod's toolkit
+  Terraform now enables Bedrock access (`enable_bedrock = true` +
+  `bedrock_models`), previously dev-only.
+
 ## 2026-09-04
 
 ### Fixed

@@ -121,3 +121,7 @@ the buyer side only).
 Not implemented, by design: pgvector/semantic retrieval, document
 ingestion, general-purpose web scraping beyond the one Firecrawl fallback,
 structured seller-financial enrichment, PDF generation, outreach/email.
+
+## Where to go next
+
+New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).
