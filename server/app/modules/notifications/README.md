@@ -17,8 +17,12 @@ _New to this codebase's layering? See [the modular monolith guide](../../../../d
 
 ```
 notifications/
-  __init__.py                        # __all__: SlackNotifierPort, SlackWebClientNotifier,
-                                        # build_bolt_app, get_slack_client
+  __init__.py                        # __all__ — see "Public contract" below
+  domain/
+    slack_payloads.py                  # TypedDicts for Bolt's inbound command/interaction
+                                          # payloads — every handler narrows Bolt's untyped
+                                          # dict to these at the boundary
+    text.py                             # sanitize_mrkdwn — Slack mrkdwn text escaping
   application/ports/slack.py         # SlackNotifierPort Protocol
   providers/slack/
     client.py                          # get_slack_client(bot_token) — one shared AsyncWebClient, lru_cached
@@ -30,19 +34,18 @@ notifications/
 
 ## Public contract
 
-Consumers (`matching_engine`, `ddl_commands`) import only `from
-app.modules.notifications import SlackNotifierPort, SlackWebClientNotifier,
-build_bolt_app, get_slack_client` — the module's `__all__`.
+Consumers (`matching_engine`, `ddl_commands`) import only from
+`app.modules.notifications` — the module's `__all__`:
+`SlackNotifierPort`, `SlackWebClientNotifier`, `build_bolt_app`,
+`get_slack_client`, `sanitize_mrkdwn`, `SlackCommandPayload`,
+`SlackInteractionBody`, `SlackViewSubmissionPayload`. Nobody reaches into
+`.providers`/`.application`/`.domain` directly.
 `matching_engine/bootstrap.py` constructs the concrete notifier once
 (`SlackWebClientNotifier(get_slack_client(bot_token))`) and injects
 `SlackNotifierPort` into whatever use case needs to post. Each module's own
 `api/slack/bolt_app.py` calls `build_bolt_app` with its own settings and
 `register_handlers`.
 
-## Testing
+## Where to go next
 
-No integration tests of its own — `providers/slack/notifier.py` is
-exercised indirectly through `matching_engine`'s own tests (fakes implement
-`SlackNotifierPort` there). `tests/test_architecture.py` enforces this
-module's own `application/` never imports `providers/`/`fastapi`/
-`pydantic`/`sqlalchemy` directly.
+New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).
