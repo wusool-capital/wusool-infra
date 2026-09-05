@@ -121,11 +121,14 @@ constructed?", the answer is always `bootstrap.py`.
   that holds "here are the repositories/clients this service needs."
   You'll never call `IngestMixin` directly; you always go through
   `MeetingsService`.
-- **`errors.py`** / **`provider_errors.py`** — the exceptions this module
-  raises. `errors.py` is domain-facing (409 duplicate push, 404 not
-  found, 422 bad company reference) and gets turned into the right HTTP
-  status automatically. `provider_errors.py` is just the one
-  Bedrock-specific failure.
+- **`errors.py`** — the domain-facing exceptions this module raises (409
+  duplicate push, 404 not found, 422 bad company reference); each gets
+  turned into the right HTTP status automatically. The one
+  Bedrock-invocation failure (`BedrockInvocationError`) isn't defined
+  here — it's shared with `matching_engine` via
+  `utilities/domain/provider_errors.py`, since both modules' Bedrock
+  clients raised an identical class independently until it was
+  extracted.
 - **`ports/`** — the abstract interfaces described above. Skim these to
   learn the *shape* of what each dependency can do, without caring how.
 

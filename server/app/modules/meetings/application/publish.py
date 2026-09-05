@@ -57,6 +57,10 @@ class PublishMixin(ServiceBase):
             await self._meetings_repository.mark_failed(meeting_id, reason=str(exc))
             return
 
+        # The meetings row itself is ALWAYS written here, org_id or not —
+        # an internal/general meeting (no company tagged at all) still
+        # gets its full transcript+summary persisted. Only the CRM side
+        # write below (notes table, optionally Attio) is gated on org_id.
         rendered = render_summary_text(summary)
         await self._meetings_repository.mark_completed(
             meeting_id,
@@ -69,6 +73,8 @@ class PublishMixin(ServiceBase):
         if org_id is None:
             # An unanchored note is unreadable in Attio and unqueryable in
             # Postgres — skip entirely rather than write a dangling row.
+            # This meeting's summary is still fully available above; it
+            # just has nowhere to file a CRM note without a company.
             return
 
         await self._write_note(org_id=org_id, content=rendered, meeting=meeting)

@@ -42,6 +42,20 @@ independent of FastAPI: raise an `AppError` subclass from anywhere, and
 into the right HTTP response automatically, with zero FastAPI import at
 the raise site.
 
+### Provider errors — `domain/provider_errors.py`
+
+`BedrockInvocationError` — the one exception every Bedrock-calling
+provider client raises, shared by `matching_engine` and `meetings`
+(each owns its own Bedrock client, but both clients fail the same way:
+retries exhausted, or a non-transient error — see either module's
+`HOW-TO-READ.md` for why the clients themselves aren't shared).
+Deliberately NOT an `AppError` subclass: a provider-invocation failure
+must never reach `register_exception_handlers` and become an HTTP
+response un-translated — the calling application service catches this
+and decides what it actually means (re-raise as its own domain error, or,
+for a background task with no request to answer, record the failure on
+its own row and log it).
+
 ### Retry — `domain/retry.py`
 
 `retry_with_backoff` factors out ONLY the retry-loop mechanic (try, check

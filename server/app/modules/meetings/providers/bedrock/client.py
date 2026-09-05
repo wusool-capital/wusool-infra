@@ -38,11 +38,11 @@ from typing import TYPE_CHECKING, Any
 from botocore.exceptions import ClientError, EndpointConnectionError
 from pydantic import ValidationError
 
-from app.modules.meetings.application.provider_errors import BedrockInvocationError
 from app.modules.meetings.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.meetings.providers.bedrock.schemas import MeetingSummarySchema
 from app.modules.utilities import retry_with_backoff
 from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 if TYPE_CHECKING:
     # boto3-stubs is a dev-only type-checking dependency (see pyproject.toml)
