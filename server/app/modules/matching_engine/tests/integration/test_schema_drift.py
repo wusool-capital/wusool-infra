@@ -1,0 +1,22 @@
+"""Schema-drift detection: this application expects a schema; the database
+must already satisfy it. If not, fail clearly here — never modify the
+database to "fix" it (see `app/utilities/db/schema_check.py`).
+"""
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.base import Base
+from app.modules.matching_engine.persistence.database import get_engine, import_all_models
+from app.modules.utilities.persistence.schema_check import find_schema_drift
+
+
+async def test_declared_models_match_live_schema(db_session: AsyncSession) -> None:
+    import_all_models()
+    expected = {
+        table.name: {column.name for column in table.columns}
+        for table in Base.metadata.tables.values()
+    }
+
+    drift = await find_schema_drift(get_engine(), expected)
+
+    assert drift == [], f"schema drift detected: {drift}"

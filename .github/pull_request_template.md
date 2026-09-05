@@ -1,27 +1,31 @@
-## Summary
+## Linear
 
-Describe the infrastructure change and why it is needed.
+<!-- Link related Linear issues, one per bullet. -->
+-
 
-## Target environment
+## Issue
 
-- [ ] Development
-- [ ] Production template
-- [ ] Shared module or bootstrap
-- [ ] Documentation only
+<!-- What problem does this PR solve? -->
 
-## Validation
+## Root Cause
 
-- [ ] `terraform fmt -check -recursive`
-- [ ] `terraform validate` passed for every affected root module
-- [ ] Terraform plan reviewed when AWS access was required
-- [ ] Architecture documentation synchronized with `$sync-terraform-docs`
-- [ ] No credentials, state files, plan files, private keys, or local
-      `terraform.tfvars` are included
+<!-- What caused the issue? -->
 
-## Risk and rollback
+## Fix
 
-Describe replacements, deletions, downtime, cost impact, and rollback steps.
+<!-- What changed and how does it address the root cause? -->
 
-## Reviewer notes
+## Verification
 
-Call out the files and plan changes that require particular attention.
+<!-- List checks, tests, and any known unrelated failures. -->
+-
+
+## Risk
+
+<!-- Describe deployment risk, affected areas, compatibility, and rollback considerations. -->
+
+<!-- This is an auto-generated comment: release notes by coderabbit.ai -->
+## Summary by CodeRabbit
+
+<!-- CodeRabbit populates this section automatically. -->
+<!-- end of auto-generated comment: release notes by coderabbit.ai -->

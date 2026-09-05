@@ -9,7 +9,7 @@ description: >
 
 inputs:
   working_directory:
-    description: 'Stack directory, e.g. terraform/stacks/base'
+    description: 'Stack directory, e.g. infrastructure/terraform/stacks/base'
     required: true
   backend_key:
     description: 'S3 state key, e.g. wusool/dev/base/terraform.tfstate or wusool/account/terraform.tfstate'

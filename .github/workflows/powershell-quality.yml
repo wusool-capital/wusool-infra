@@ -1,0 +1,23 @@
+name: PowerShell quality
+
+on:
+  pull_request:
+    branches: [dev, prod]
+
+permissions:
+  contents: read
+
+jobs:
+  powershell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          $files = Get-ChildItem -Recurse -Include *.ps1 -Path server/scripts, infrastructure |
+            Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' }
+          $results = $files | ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Severity Warning,Error }
+          $results | Format-Table -AutoSize
+          if ($results | Where-Object Severity -eq 'Error') { throw 'PSScriptAnalyzer found errors.' }

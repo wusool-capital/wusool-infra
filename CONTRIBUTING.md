@@ -52,14 +52,14 @@ another contributor's tooling cannot read.
 ```powershell
 git status
 git diff
-Set-Location terraform
+Set-Location infrastructure/terraform
 tofu fmt -check -recursive
-Set-Location ..
+Set-Location ../..
 
-Set-Location terraform/stacks/base   # repeat per changed stack: n8n, toolkit, postgres, account
+Set-Location infrastructure/terraform/stacks/base   # repeat per changed stack: n8n, toolkit, postgres, peering, account
 tofu init -backend=false
 tofu validate
-Set-Location ../../..
+Set-Location ../../../..
 ```
 
 When Terraform architecture changed:
@@ -139,11 +139,12 @@ for `dev` in GitHub:
 7. Enable **Require status checks to pass**.
 8. Select these required checks:
    - `OpenTofu Format`
-   - `OpenTofu Validate (terraform/stacks/account)`
-   - `OpenTofu Validate (terraform/stacks/base)`
-   - `OpenTofu Validate (terraform/stacks/n8n)`
-   - `OpenTofu Validate (terraform/stacks/toolkit)`
-   - `OpenTofu Validate (terraform/stacks/postgres)`
+   - `OpenTofu Validate (infrastructure/terraform/stacks/account)`
+   - `OpenTofu Validate (infrastructure/terraform/stacks/base)`
+   - `OpenTofu Validate (infrastructure/terraform/stacks/n8n)`
+   - `OpenTofu Validate (infrastructure/terraform/stacks/toolkit)`
+   - `OpenTofu Validate (infrastructure/terraform/stacks/postgres)`
+   - `OpenTofu Validate (infrastructure/terraform/stacks/peering)`
 9. Enable **Require branches to be up to date before merging**.
 10. Enable **Require conversation resolution before merging**.
 11. Enable **Block force pushes** and **Block deletions**.

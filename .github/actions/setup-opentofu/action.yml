@@ -1,6 +1,6 @@
 name: Set up OpenTofu
 description: >
-  Reads terraform/.opentofu-version and installs that exact OpenTofu version.
+  Reads infrastructure/terraform/.opentofu-version and installs that exact OpenTofu version.
   Caller must check out the repo first. Extracted 2026-08-16 (code review) -
   this exact three-step sequence was duplicated across terraform-ci.yml (2
   jobs), terraform-plan.yml (2 jobs), and _deploy.yml (1 job); a version-pin
@@ -17,7 +17,7 @@ runs:
       # later `tofu` steps to their stack directory), which would otherwise
       # break this relative path.
       working-directory: ${{ github.workspace }}
-      run: echo "version=$(tr -d '[:space:]' < terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
+      run: echo "version=$(tr -d '[:space:]' < infrastructure/terraform/.opentofu-version)" >> "$GITHUB_OUTPUT"
 
     - uses: opentofu/setup-opentofu@v1
       with:

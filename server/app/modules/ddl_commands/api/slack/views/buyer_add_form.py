@@ -1,0 +1,69 @@
+"""`/add-buyer`'s form — mirrors `seller_add_form.py` exactly, buyer-typed."""
+
+import json
+
+from slack_sdk.models.blocks import Block, SectionBlock
+from slack_sdk.models.views import View
+
+from app.models import Organization
+from app.modules.ddl_commands.api.buyers import BUYER_ROLE_FIELDS
+from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
+from app.modules.ddl_commands.api.slack.views.dynamic_fields import render_field_block
+from app.modules.ddl_commands.api.slack.views.form_values import text_input_block
+from app.modules.notifications import sanitize_mrkdwn
+
+
+def build_buyer_add_form_modal(
+    *,
+    org: Organization | None,
+    requested_by: str,
+    channel_id: str,
+    prefill_name: str = "",
+    duplicate_candidates: list[str] | None = None,
+) -> View:
+    is_new_org = org is None
+    blocks: list[Block] = []
+    if is_new_org:
+        if duplicate_candidates:
+            names = ", ".join(f"*{sanitize_mrkdwn(name)}*" for name in duplicate_candidates)
+            blocks.append(
+                SectionBlock(
+                    text=(
+                        f":warning: {len(duplicate_candidates)} similar organization(s) "
+                        f"already exist: {names}. Continuing will create a new, separate "
+                        "organization in Attio."
+                    )
+                )
+            )
+        name_block = text_input_block("name", "Organization name", prefill_name or None)
+        name_block.optional = False
+        blocks.append(name_block)
+    else:
+        blocks.append(
+            SectionBlock(text=f"Attaching this buyer role to *{sanitize_mrkdwn(org.name)}*.")
+        )
+
+    for spec in ORGANIZATION_FIELDS:
+        current = getattr(org, spec.name) if org is not None else None
+        blocks.append(render_field_block(spec, current, block_id_prefix="org_"))
+
+    for spec in BUYER_ROLE_FIELDS:
+        blocks.append(render_field_block(spec, None))
+
+    return View(
+        type="modal",
+        callback_id="buyer_add_form_modal",
+        private_metadata=json.dumps(
+            {
+                "is_new_org": is_new_org,
+                "org_attio_id": None if org is None else org.attio_id,
+                "org_name": None if org is None else org.name,
+                "requested_by": requested_by,
+                "channel_id": channel_id,
+            }
+        ),
+        title="Add buyer",
+        submit="Save",
+        close="Cancel",
+        blocks=blocks,
+    )
