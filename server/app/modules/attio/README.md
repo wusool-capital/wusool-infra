@@ -25,6 +25,8 @@ attio/
   application/ports/client.py          # AttioClientProtocol
   domain/
     webhook.py                            # WebhookEvent, WebhookEventId dataclasses
+    records.py                            # AttioRecord/AttioValueEntry TypedDicts — the generic
+                                            # record/list-entry envelope shape, confirmed against docs
   providers/attio/
     values.py                            # value-extraction helpers (vals, ref, money, date, ...) —
                                             # vendor-payload parsing, not a framework-free primitive
@@ -32,7 +34,7 @@ attio/
     dates.py, money.py, options.py        # payload (de)serialization helpers
     signature.py                         # verify_attio_signature — webhook signature check
     registry.py                          # object/list id -> api_slug lookups
-    retry.py                             # retry policy for Attio API calls
+    retry.py                             # retry policy for the webhook-sync path only
     entries.py                           # create/patch organization + list-entry helpers
 ```
 
@@ -56,11 +58,6 @@ Attio write shape, coupled to `ddl_commands`'s own `FieldSpec`) and
 **not** part of this module — both are genuinely `ddl_commands`-owned
 business logic that happens to call into this module's vendor helpers.
 
-## Testing
+## Where to go next
 
-No integration tests against real Attio in this module — `providers/attio/`
-is unit-tested against a mocked HTTP layer, exercised both here and
-indirectly through `ddl_commands`'s own Attio-sync tests.
-`tests/test_architecture.py` enforces this module's own `domain/`/
-`application/` never import `providers/`/`fastapi`/`pydantic`/`sqlalchemy`
-directly.
+New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).
