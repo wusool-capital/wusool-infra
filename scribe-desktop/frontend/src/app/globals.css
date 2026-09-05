@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes vibrate {
+  0% {
+    transform: translate(0);
+  }
+
+  20% {
+    transform: translate(-2px, 2px);
+  }
+
+  40% {
+    transform: translate(-2px, -2px);
+  }
+
+  60% {
+    transform: translate(2px, 2px);
+  }
+
+  80% {
+    transform: translate(2px, -2px);
+  }
+
+  100% {
+    transform: translate(0);
+  }
+}
+
+.animate-vibrate {
+  animation: vibrate 0.3s linear;
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out forwards;
+}
+
+.anim-delay-75 {
+  animation-delay: 75ms;
+}
+
+.anim-delay-100 {
+  animation-delay: 100ms;
+}
+
+.anim-delay-150 {
+  animation-delay: 150ms;
+}
+
+@layer base {
+  :root {
+    --background: 228 20% 98%;
+    --foreground: 228 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 228 25% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 228 25% 12%;
+    --primary: 228 47% 45%;
+    --primary-foreground: 228 30% 98%;
+    --secondary: 228 18% 95%;
+    --secondary-foreground: 228 25% 15%;
+    --muted: 228 18% 95%;
+    --muted-foreground: 228 12% 42%;
+    --accent: 228 60% 94%;
+    --accent-foreground: 228 45% 30%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 152 55% 36%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 45%;
+    --warning-foreground: 38 40% 12%;
+    --info: 210 80% 50%;
+    --info-foreground: 0 0% 98%;
+    --border: 228 16% 90%;
+    --input: 228 16% 90%;
+    --ring: 228 55% 58%;
+    --radius: 0.625rem;
+    --chart-1: 228 55% 55%;
+    --chart-2: 200 60% 45%;
+    --chart-3: 260 45% 55%;
+    --chart-4: 38 80% 55%;
+    --chart-5: 340 55% 55%;
+    --scrollbar-thumb: 228 16% 78%;
+    --scrollbar-thumb-hover: 228 14% 65%;
+  }
+
+  .dark {
+    --background: 228 30% 7%;
+    --foreground: 228 15% 94%;
+    --card: 228 26% 10%;
+    --card-foreground: 228 15% 94%;
+    --popover: 228 26% 10%;
+    --popover-foreground: 228 15% 94%;
+    --primary: 226 72% 67%;
+    --primary-foreground: 228 40% 10%;
+    --secondary: 228 22% 16%;
+    --secondary-foreground: 228 15% 94%;
+    --muted: 228 22% 16%;
+    --muted-foreground: 228 12% 65%;
+    --accent: 228 24% 20%;
+    --accent-foreground: 228 40% 88%;
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 152 45% 48%;
+    --success-foreground: 152 30% 10%;
+    --warning: 38 85% 58%;
+    --warning-foreground: 38 40% 12%;
+    --info: 210 75% 62%;
+    --info-foreground: 210 40% 10%;
+    --border: 228 20% 18%;
+    --input: 228 20% 18%;
+    --ring: 226 60% 60%;
+    --chart-1: 226 65% 65%;
+    --chart-2: 200 55% 55%;
+    --chart-3: 260 50% 65%;
+    --chart-4: 38 75% 60%;
+    --chart-5: 340 55% 62%;
+    --scrollbar-thumb: 228 18% 26%;
+    --scrollbar-thumb-hover: 228 16% 36%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  /* html, */
+  body {
+    @apply bg-background text-foreground;
+    overflow: hidden;
+    height: 100%;
+  }
+
+  /* Make the window draggable */
+  .titlebar {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  /* Custom scrollbar styles */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--scrollbar-thumb));
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--scrollbar-thumb-hover));
+  }
+
+  /* Firefox scrollbar */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) transparent;
+  }
+
+  /* BlockNote Editor - Override fixed dimensions for responsive layout */
+  .bn-container {
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  .bn-editor {
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  /* Disable internal scrolling - let parent handle all scrolling */
+  .ProseMirror {
+    overflow: visible !important;
+  }
+
+  /* Ensure BlockNote content area is responsive */
+  .bn-block-outer {
+    max-width: 100% !important;
+  }
+
+  .bn-default-styles {
+    max-width: none !important;
+  }
+
+  /* Disable scrolling on any BlockNote wrapper elements */
+  [data-node-type] {
+    overflow: visible !important;
+  }
+}
