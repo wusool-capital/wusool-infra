@@ -62,8 +62,13 @@ intended fail-closed behavior, not a bug.
    for the exact files/keys and when to bump (ideally in the same PR as the
    feature/fix it ships, not speculatively on every PR).
 2. Merge, then run `scribe-release.yml` manually (Actions → Scribe release →
-   Run workflow), choosing `channel: stable`. It always builds whatever
-   version is currently in `tauri.conf.json` on the branch it's run from.
+   Run workflow), choosing `channel: stable` and filling in `release_notes` —
+   this is the changelog text; it becomes both the GitHub release body and
+   the `notes` field in `latest.json`, which is exactly what the in-app
+   update dialog shows the user. Leaving it blank ships a release with no
+   visible changelog (harmless, just not very informative). It always builds
+   whatever version is currently in `tauri.conf.json` on the branch it's run
+   from.
 3. It runs on `macos-14`, builds the app (ad-hoc signed, no Apple Developer
    account — see below), tags the commit `scribe-v<version>` and creates the
    GitHub release from it (DMG = first-install download), then publishes the

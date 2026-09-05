@@ -1,5 +1,3 @@
-import React from 'react';
-import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { UpdateInfo } from '@/services/updateService';
 
@@ -18,30 +16,16 @@ export function showUpdateNotification(updateInfo: UpdateInfo, onUpdateClick?: (
     }
   };
 
-  toast.info(
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex items-center gap-2">
-        <Download className="h-4 w-4" />
-        <div>
-          <p className="font-medium">Update Available</p>
-          <p className="text-sm text-muted-foreground">
-            Version {updateInfo.version} is now available
-          </p>
-        </div>
-      </div>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          handleClick();
-        }}
-        className="text-sm font-medium text-primary hover:text-primary underline"
-      >
-        View Details
-      </button>
-    </div>,
-    {
-      duration: 10000,
-      position: 'bottom-center',
-    }
-  );
+  // Plain title/description/action, not custom JSX: this is the only way
+  // the app's global ThemedToaster (src/app/layout.tsx) styling - its
+  // themed info icon, classNames, and bottom-right placement - actually
+  // applies. Custom JSX bypasses all of that and doubles up the icon.
+  toast.info('Update Available', {
+    description: `Version ${updateInfo.version} is now available`,
+    duration: 10000,
+    action: {
+      label: 'View Details',
+      onClick: handleClick,
+    },
+  });
 }

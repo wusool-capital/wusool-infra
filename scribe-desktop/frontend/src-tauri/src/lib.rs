@@ -422,6 +422,15 @@ pub fn run() {
         .setup(|_app| {
             log::info!("Application setup complete");
 
+            // A relaunch via the updater (tauri_plugin_process::relaunch, used
+            // by the update-install flow) spawns the new process without
+            // going through the usual Launch Services activation a Finder
+            // double-click gets, so the window can come up in the background
+            // with no visible way to bring it forward. Force focus explicitly
+            // on every startup - harmless on a normal launch, load-bearing
+            // after an update relaunch.
+            tray::focus_main_window(_app.handle());
+
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
                 log::error!("Failed to create system tray: {}", e);
