@@ -2,7 +2,7 @@
 name = "wusoolscribe"
 version = "0.4.1"
 description = "Desktop companion app for Wusool Scribe"
-authors = ["Sujith S"]
+authors = ["Azmora"]
 license = "MIT"
 edition = "2021"
 rust-version = "1.77"
