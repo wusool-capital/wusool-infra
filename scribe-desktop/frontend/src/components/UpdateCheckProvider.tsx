@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useUpdateCheck } from '@/hooks/useUpdateCheck';
 import { UpdateInfo } from '@/services/updateService';
 import { UpdateDialog } from './UpdateDialog';
@@ -22,14 +23,17 @@ export function UpdateCheckProvider({ children }: { children: React.ReactNode })
     setShowDialog(true);
   }, []);
 
-  // Auto-check disabled: no update feed is configured for WusoolScribe
-  // (the updater plugin isn't registered -- see src-tauri/src/lib.rs).
-  const { updateInfo, isChecking, checkForUpdates } = useUpdateCheck({
-    checkOnMount: false,
-    showNotification: false,
-    onUpdateAvailable: (info) => {
+  const handleUpdateAvailable = useCallback(
+    (info: UpdateInfo) => {
       showUpdateNotification(info, handleShowDialog);
     },
+    [handleShowDialog]
+  );
+
+  const { updateInfo, isChecking, checkForUpdates } = useUpdateCheck({
+    checkOnMount: true,
+    showNotification: false,
+    onUpdateAvailable: handleUpdateAvailable,
   });
 
   useEffect(() => {
@@ -42,9 +46,15 @@ export function UpdateCheckProvider({ children }: { children: React.ReactNode })
 
   // Listen for tray menu events
   useEffect(() => {
-    const handleTrayCheck = () => {
-      checkForUpdates(true); // Force check from tray
-      setShowDialog(true);
+    const handleTrayCheck = async () => {
+      const info = await checkForUpdates(true); // Force check from tray
+      if (info?.available) {
+        setShowDialog(true);
+      } else if (info) {
+        toast.success(`WusoolScribe is up to date (v${info.currentVersion})`);
+      } else {
+        toast.error('Could not check for updates');
+      }
     };
 
     window.addEventListener('check-updates-from-tray', handleTrayCheck);

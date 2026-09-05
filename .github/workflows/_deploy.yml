@@ -138,6 +138,9 @@ jobs:
       # not per-environment, and is applied out of band (no -var-file, no
       # environment concurrency group of its own). stacks/peering is the same
       # shape (spans both dev and prod VPCs) and is applied out of band too.
+      # stacks/scribe-updates (the desktop app's update feed) is the same
+      # shape again — one public feed, not per-environment — and is also
+      # applied out of band.
       #
       # ONE-TIME MIGRATION GATE (2026-08-17, dev-prod peering): the PR that
       # moved the public route table's default route from an inline `route`

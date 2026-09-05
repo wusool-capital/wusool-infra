@@ -28,35 +28,20 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
   const [update, setUpdate] = useState<Update | null>(null);
 
   useEffect(() => {
-    if (open && updateInfo?.available) {
-      // Reset state when dialog opens
-      setIsDownloading(false);
-      setProgress(null);
-      setError(null);
-
-      // Get the update object when dialog opens
-      check().then((updateResult) => {
-        if (updateResult?.available) {
-          setUpdate(updateResult);
-        } else {
-          setError('Update no longer available');
-        }
-      }).catch((err) => {
-        console.error('Failed to get update object:', err);
-        setError('Failed to prepare update: ' + (err.message || 'Unknown error'));
-      });
-    } else {
-      // Reset state when dialog closes
-      setIsDownloading(false);
-      setProgress(null);
-      setError(null);
-      setUpdate(null);
-    }
+    // Reset state whenever the dialog opens or closes. The Update handle
+    // itself is obtained lazily in handleDownloadAndInstall (from the
+    // service's cached check(), or a fresh check() only if that's gone) -
+    // no need to check() again just to open the dialog.
+    setIsDownloading(false);
+    setProgress(null);
+    setError(null);
+    setUpdate(null);
   }, [open, updateInfo]);
 
   const handleDownloadAndInstall = async () => {
-    // Get update object if not already available
-    let updateToUse: Update | null = update;
+    // Reuse the handle from the service's last check() rather than
+    // re-checking; only fall back to a fresh check() if it's gone.
+    let updateToUse: Update | null = update ?? updateService.getPendingUpdate();
     if (!updateToUse) {
       try {
         const updateResult = await check();

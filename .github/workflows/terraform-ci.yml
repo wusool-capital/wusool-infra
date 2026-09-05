@@ -45,6 +45,7 @@ jobs:
           - infrastructure/terraform/stacks/toolkit
           - infrastructure/terraform/stacks/postgres
           - infrastructure/terraform/stacks/peering
+          - infrastructure/terraform/stacks/scribe-updates
 
     defaults:
       run:

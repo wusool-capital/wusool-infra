@@ -97,6 +97,39 @@ jobs:
               body: process.env.PLAN_BODY
             })
 
+  plan-scribe-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-opentofu
+
+      - uses: ./.github/actions/aws-oidc
+        with:
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-plan
+
+      # No -var-file: stacks/scribe-updates is a single public update feed,
+      # not per-environment.
+      - id: plan
+        uses: ./.github/actions/tofu-plan-comment
+        with:
+          working_directory: infrastructure/terraform/stacks/scribe-updates
+          backend_key: wusool/shared/scribe-updates/terraform.tfstate
+          heading: "`scribe-updates` plan"
+
+      - if: always() && steps.plan.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        env:
+          PLAN_BODY: ${{ steps.plan.outputs.body }}
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: process.env.PLAN_BODY
+            })
+
   plan-account:
     runs-on: ubuntu-latest
     steps:

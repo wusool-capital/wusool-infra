@@ -6,7 +6,6 @@
  */
 
 import { check, Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
 
 export interface UpdateInfo {
@@ -31,6 +30,7 @@ export interface UpdateProgress {
 export class UpdateService {
   private updateCheckInProgress = false;
   private lastCheckTime: number | null = null;
+  private pendingUpdate: Update | null = null;
   private readonly CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
   /**
@@ -64,6 +64,7 @@ export class UpdateService {
       const update = await check();
 
       if (update?.available) {
+        this.pendingUpdate = update;
         return {
           available: true,
           currentVersion,
@@ -73,6 +74,7 @@ export class UpdateService {
         };
       }
 
+      this.pendingUpdate = null;
       return {
         available: false,
         currentVersion,
@@ -86,31 +88,11 @@ export class UpdateService {
   }
 
   /**
-   * Download and install the available update
-   * @param update The update object from checkForUpdates
-   * @param onProgress Optional progress callback
-   * @returns Promise that resolves when download completes
+   * The `Update` handle from the most recent successful `checkForUpdates()`
+   * call, if one is available. Lets callers act on it without re-checking.
    */
-  async downloadAndInstall(
-    update: Update,
-    onProgress?: (progress: UpdateProgress) => void
-  ): Promise<void> {
-    try {
-      // Download the update
-      await update.download();
-
-      // Notify progress if callback provided
-      if (onProgress) {
-        onProgress({ downloaded: 100, total: 100, percentage: 100 });
-      }
-
-      // Install and relaunch
-      await update.install();
-      await relaunch();
-    } catch (error) {
-      console.error('Failed to download/install update:', error);
-      throw error;
-    }
+  getPendingUpdate(): Update | null {
+    return this.pendingUpdate;
   }
 
   /**

@@ -31,6 +31,24 @@ delivered state and outstanding items see
   Scribe's EC2/SQS infrastructure is a separate follow-up). Prod's toolkit
   Terraform now enables Bedrock access (`enable_bedrock = true` +
   `bedrock_models`), previously dev-only.
+- WusoolScribe desktop app: enabled the in-app auto-updater end to end. New
+  `stacks/scribe-updates` Terraform stack (S3 + CloudFront, no custom domain
+  yet) hosts a per-channel `latest.json` manifest and signed macOS
+  `.app.tar.gz` payloads, published by a new manual-dispatch-only
+  `scribe-release.yml` workflow restricted to a `scribe-release` GitHub
+  Environment (**create it by hand, no protection rules needed, before the
+  first run — the release role is unassumable without it**; the environment
+  is purely an OIDC-trust label, `workflow_dispatch` itself is the human
+  gate). The Tauri updater plugin, previously unregistered because its only
+  configured feed was upstream Meetily's GitHub releases, now points at this
+  feed; several dead/duplicate update-check code paths in the frontend were
+  also fixed. Builds stay ad-hoc signed, unnotarized (no Apple Developer
+  account) — accepted tradeoff is that macOS TCC will likely revoke and
+  re-prompt for microphone/screen-recording access after most updates, since
+  ad-hoc signing has no stable Team Identifier for TCC to key the grant on;
+  Gatekeeper's quarantine prompt is unaffected either way, since the updater
+  never downloads through a quarantine-setting API. macOS aarch64 only in
+  this pass. See `docs/dev/SCRIBE_UPDATE_FEED.md`.
 
 ## 2026-09-04
 
