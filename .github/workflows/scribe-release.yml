@@ -86,9 +86,16 @@ jobs:
           test "$PKG_VERSION" = "$CONF_VERSION" || { echo "::error::package.json version mismatch"; exit 1; }
           test "$CARGO_VERSION" = "$CONF_VERSION" || { echo "::error::Cargo.toml version mismatch"; exit 1; }
 
+      # Must match the pnpm major that produced the committed lockfile
+      # (lockfileVersion '9.0'). The inherited workflow pinned v8, which
+      # can't read that format - it silently re-resolves every semver
+      # range fresh instead of honoring the pinned versions, which is how
+      # a build passed locally (real pnpm v10) but failed in CI with
+      # tauri-plugin-updater/@tauri-apps/plugin-updater on different
+      # minor versions ("Found version mismatched Tauri packages").
       - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
           run_install: false
 
       - uses: actions/setup-node@v4
