@@ -7,6 +7,21 @@ dance: the forced tool call already eliminates most malformed-JSON failure
 modes, so the extra repair-prompt round trip matching_engine's extraction/
 reasoning methods need for their own vendor schemas isn't needed here.
 
+Deliberately its OWN client, not a shared one with `matching_engine`'s
+`providers/bedrock/client.py` — two concrete differences forced that: this
+module needs a `system` prompt block (matching_engine's `_converse` never
+sends one) and a 300s `read_timeout` (matching_engine's
+`get_bedrock_runtime_client` is `@lru_cache`d with no `Config`, i.e.
+botocore's 60s default — too short for a whole-meeting summarization call,
+per Scribe's own production incident this port is fixing). `_extract_json`
+below and the transient-error-code set in this file are near-duplicates of
+matching_engine's as a result. Extracting that shared plumbing into
+`utilities/providers/` is a deliberate follow-up, not an oversight —
+refactoring a live, tested `matching_engine` path for a module that hadn't
+shipped yet was judged the wrong order for this PR (see the module README).
+If you're fixing a bug in `_extract_json`/the retry policy here, check
+whether `matching_engine`'s copy has the same bug.
+
 Logs metadata only: model id, operation, latency, token usage if available,
 success/failure — never raw prompt/response content or credentials.
 """

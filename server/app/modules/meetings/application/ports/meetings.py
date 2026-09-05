@@ -5,10 +5,11 @@ SQLAlchemy type — implemented by
 """
 
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Protocol
 from uuid import UUID
 
 from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class MeetingsRepositoryPort(Protocol):
@@ -32,7 +33,7 @@ class MeetingsRepositoryPort(Protocol):
         install_id: str | None,
         local_recording_id: str | None,
         status: str,
-        metadata_: dict[str, Any] | None,
+        metadata_: JsonObject | None,
     ) -> MeetingRecord: ...
 
     async def mark_completed(
@@ -40,7 +41,7 @@ class MeetingsRepositoryPort(Protocol):
         meeting_id: UUID,
         *,
         summary_text: str,
-        summary_json: dict[str, Any],
+        summary_json: JsonObject,
         title: str | None,
     ) -> None: ...
 

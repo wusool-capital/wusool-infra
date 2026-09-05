@@ -12,12 +12,18 @@ external counterparty" predicate.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from enum import StrEnum
+
+from app.modules.utilities.domain.json_types import JsonObject
 
 __all__ = [
     "ROLE_PRECEDENCE",
     "MeetingRole",
+    "RoleTag",
     "counterparty_role_column",
+    "decode_role_metadata",
+    "encode_role_metadata",
     "meeting_type_column",
     "momentum_applies",
     "other_roles",
@@ -101,3 +107,50 @@ def momentum_applies(roles: set[MeetingRole] | Mapping[MeetingRole, str]) -> boo
     """True only if an external counterparty role (seller/buyer/investor)
     is actually present — mirrors Scribe's `_momentum_applies`."""
     return any(role in roles for role in _MOMENTUM_ROLES)
+
+
+@dataclass(frozen=True, slots=True)
+class RoleTag:
+    """One resolved role's org reference — a single, framework-free type
+    for the "other side" roles that don't reach a `meetings` column
+    (`counterparty_role`/`meeting_type` only ever distinguish seller/buyer/
+    internal; see the two column-mapping functions above)."""
+
+    role: MeetingRole
+    org_id: str | None
+    org_name_raw: str | None
+
+
+def encode_role_metadata(*, primary: MeetingRole | None, other: list[RoleTag]) -> JsonObject:
+    """The one place `meetings.metadata`'s `primary_role`/`other_side` shape
+    is defined — `IngestMixin.ingest_meeting` (write) and
+    `PublishMixin._reconstruct_companies` (read) both go through this pair
+    of functions instead of each hand-rolling the same dict literal, so the
+    two can no longer silently drift apart.
+    """
+    return {
+        "primary_role": primary.value if primary is not None else None,
+        "other_side": [
+            {"role": tag.role.value, "org_id": tag.org_id, "org_name_raw": tag.org_name_raw}
+            for tag in other
+        ],
+    }
+
+
+def decode_role_metadata(metadata: JsonObject | None) -> tuple[MeetingRole | None, list[RoleTag]]:
+    """Inverse of `encode_role_metadata`. Never raises on a missing/
+    malformed blob — an older row, or one with no roles tagged at all,
+    decodes to `(None, [])`."""
+    data = metadata or {}
+    primary_value = data.get("primary_role")
+    primary = MeetingRole(primary_value) if primary_value else None
+    other = [
+        RoleTag(
+            role=MeetingRole(entry["role"]),
+            org_id=entry.get("org_id"),
+            org_name_raw=entry.get("org_name_raw"),
+        )
+        for entry in data.get("other_side") or []
+        if isinstance(entry, dict) and "role" in entry
+    ]
+    return primary, other

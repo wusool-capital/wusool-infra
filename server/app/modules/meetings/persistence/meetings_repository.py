@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Meeting
 from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
 from app.modules.meetings.persistence.mappers import to_meeting_record
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class MeetingsRepository:
@@ -47,7 +48,7 @@ class MeetingsRepository:
         install_id: str | None,
         local_recording_id: str | None,
         status: str = "summarizing",
-        metadata_: dict[str, Any] | None = None,
+        metadata_: JsonObject | None = None,
     ) -> MeetingRecord:
         meeting = Meeting(
             id=id,
@@ -63,6 +64,12 @@ class MeetingsRepository:
             install_id=install_id,
             local_recording_id=local_recording_id,
             status=status,
+            # A row created `summarizing` and left with a NULL
+            # `summary_started_at` could NEVER be recovered by
+            # `recover_stalled` — `NULL < cutoff` is unknown, not true, in
+            # SQL, so its `WHERE` clause would silently never match. Set
+            # it at creation whenever the row starts in that state.
+            summary_started_at=func.now() if status == "summarizing" else None,
             metadata_=metadata_ or {},
         )
         self._session.add(meeting)
@@ -74,9 +81,12 @@ class MeetingsRepository:
         meeting_id: UUID,
         *,
         summary_text: str,
-        summary_json: dict[str, Any],
+        summary_json: JsonObject,
         title: str | None,
     ) -> None:
+        # `values` mixes str/JsonObject column values for one SQLAlchemy
+        # `.values(**values)` call — an internal implementation detail,
+        # not a public boundary type, so `dict[str, Any]` stays here.
         values: dict[str, Any] = {
             "status": "completed",
             "summary": summary_text,

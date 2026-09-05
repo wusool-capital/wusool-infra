@@ -15,7 +15,7 @@ from uuid import UUID
 from app.modules.meetings.application.base import ServiceBase
 from app.modules.meetings.domain.meeting_record import MeetingRecord
 from app.modules.meetings.domain.rendering import render_summary_text
-from app.modules.meetings.domain.roles import MeetingRole
+from app.modules.meetings.domain.roles import MeetingRole, decode_role_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -117,27 +117,25 @@ class PublishMixin(ServiceBase):
         """Best-effort reconstruction of the original 5-role {role: name}
         mapping from what `IngestMixin` persisted — used only for prompt
         framing (title bracket, role attribution, deal_momentum
-        applicability), never for persistence. `primary_role`/`other_side`
-        are the metadata keys `IngestMixin.ingest_meeting` writes; keep
-        this in sync with that shape.
+        applicability), never for persistence. Decodes via
+        `decode_role_metadata`, the inverse of `encode_role_metadata`
+        (`IngestMixin.ingest_meeting`'s own encoder) — the two stay in sync
+        through that shared pair of functions, not independent dict
+        literals.
         """
-        companies: dict[MeetingRole, str] = {}
+        primary_role, other_side = decode_role_metadata(metadata)
+        if primary_role is None and counterparty_role:
+            primary_role = MeetingRole(counterparty_role)
 
-        primary_role_value = (metadata or {}).get("primary_role")
-        primary_role = (
-            MeetingRole(primary_role_value)
-            if primary_role_value
-            else (MeetingRole(counterparty_role) if counterparty_role else None)
-        )
+        companies: dict[MeetingRole, str] = {}
         if primary_role is not None:
             name = org_name_raw or org_id
             if name:
                 companies[primary_role] = name
 
-        for entry in (metadata or {}).get("other_side") or []:
-            role = MeetingRole(entry["role"])
-            name = entry.get("org_name_raw") or entry.get("org_id")
+        for tag in other_side:
+            name = tag.org_name_raw or tag.org_id
             if name:
-                companies[role] = name
+                companies[tag.role] = name
 
         return companies

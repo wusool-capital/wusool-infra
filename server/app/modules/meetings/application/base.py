@@ -37,7 +37,7 @@ class ServiceBase:
         summarization_service: SummarizationService,
         note_writer: NoteWriterPort | None,
         attio_note_object_slug: str | None,
-        max_concurrent_summaries: int,
+        summary_semaphore: asyncio.Semaphore,
     ) -> None:
         self._meetings_repository = meetings_repository
         self._notes_repository = notes_repository
@@ -45,8 +45,14 @@ class ServiceBase:
         self._summarization_service = summarization_service
         self._note_writer = note_writer
         self._attio_note_object_slug = attio_note_object_slug
-        self._max_concurrent_summaries = max_concurrent_summaries
-        # Constructed once and reused across calls — gates only the
-        # expensive LLM call in `PublishMixin.summarize_and_publish`, never
-        # the row-creation/dedup path in `IngestMixin`.
-        self._summary_semaphore = asyncio.Semaphore(max_concurrent_summaries)
+        # Gates only the expensive LLM call in
+        # `PublishMixin.summarize_and_publish`, never the row-creation/
+        # dedup path in `IngestMixin`. Injected rather than built here:
+        # `MeetingsService` is constructed fresh per request
+        # (`bootstrap.build_meetings_service`), so a semaphore built in this
+        # constructor would cap concurrency only within one request's own
+        # single summarize call, not across simultaneous requests — the
+        # actual point of `MAX_CONCURRENT_SUMMARIES`. `bootstrap.py` builds
+        # this once, process-wide, via `@lru_cache`, and passes the same
+        # instance into every `MeetingsService` it constructs.
+        self._summary_semaphore = summary_semaphore

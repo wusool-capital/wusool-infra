@@ -19,6 +19,7 @@ from app.modules.meetings.api.schemas import (
     DesktopMeetingSubmitRequest,
     DesktopMeetingSubmitResponse,
 )
+from app.modules.meetings.bootstrap import run_summarize_and_publish
 from app.modules.meetings.config import get_settings
 from app.modules.meetings.domain.rendering import TranscriptTurn
 from app.modules.meetings.domain.roles import MeetingRole
@@ -72,7 +73,11 @@ async def submit_meeting(
         role_selections=role_selections,
         role_queries=role_queries,
     )
-    background_tasks.add_task(service.summarize_and_publish, meeting.id)
+    # Not `service.summarize_and_publish` — that service's session is
+    # committed/closed once this endpoint returns, before a background
+    # task is guaranteed to run. `run_summarize_and_publish` opens its own
+    # session (see its docstring).
+    background_tasks.add_task(run_summarize_and_publish, meeting.id)
     return DesktopMeetingSubmitResponse(
         meeting_id=meeting.id, status=meeting.status, already_existed=False
     )

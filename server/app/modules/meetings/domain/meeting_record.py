@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 from uuid import UUID
+
+from app.modules.utilities.domain.json_types import JsonObject
 
 __all__ = ["MeetingRecord", "MeetingSyncStatus"]
 
@@ -35,16 +36,16 @@ class MeetingRecord:
     audio_ref: str | None
     duration_s: int | None
     created_by_ref: str | None
-    participants: dict[str, Any] | None
+    participants: JsonObject | None
     transcript: str | None
     summary: str | None
-    metadata: dict[str, Any]
+    metadata: JsonObject
     created_at: datetime
     scribe_meeting_id: UUID | None
     status: str
     install_id: str | None
     local_recording_id: str | None
-    summary_json: dict[str, Any] | None
+    summary_json: JsonObject | None
     summary_started_at: datetime | None
 
 

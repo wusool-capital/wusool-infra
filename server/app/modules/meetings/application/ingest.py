@@ -22,7 +22,9 @@ from app.modules.meetings.domain.meeting_record import MeetingRecord
 from app.modules.meetings.domain.rendering import TranscriptTurn, render_transcript_text
 from app.modules.meetings.domain.roles import (
     MeetingRole,
+    RoleTag,
     counterparty_role_column,
+    encode_role_metadata,
     meeting_type_column,
     other_roles,
     select_primary_role,
@@ -92,25 +94,25 @@ class IngestMixin(ServiceBase):
 
         primary_resolved = resolved.get(primary) if primary is not None else None
         other_side = [
-            {
-                "role": role.value,
-                "org_id": resolved[role].org_id,
-                "org_name_raw": resolved[role].org_name_raw,
-            }
+            RoleTag(
+                role=role,
+                org_id=resolved[role].org_id,
+                org_name_raw=resolved[role].org_name_raw,
+            )
             for role in other
         ]
         # `counterparty_role`/`meeting_type` only ever distinguish
         # seller/buyer/internal — an investor or general primary role is
         # otherwise indistinguishable from the other on those two columns
-        # alone. Stashing it here too (rather than guessing later) is what
-        # lets PublishMixin reconstruct the original 5-role mapping for
-        # prompt framing.
+        # alone. Stashing it here too (via `encode_role_metadata` — read
+        # back by `PublishMixin._reconstruct_companies` via its inverse,
+        # `decode_role_metadata`; keep both call sites in sync through that
+        # pair of functions rather than each hand-rolling the same dict
+        # shape) is what lets PublishMixin reconstruct the original 5-role
+        # mapping for prompt framing.
         metadata_: dict[str, object] | None = None
         if primary is not None or other_side:
-            metadata_ = {
-                "primary_role": primary.value if primary else None,
-                "other_side": other_side,
-            }
+            metadata_ = encode_role_metadata(primary=primary, other=other_side)
 
         # Rendered once, reused both as the stored transcript column and
         # (in PublishMixin) as the summarization prompt's input — never
@@ -147,10 +149,16 @@ class IngestMixin(ServiceBase):
             org = await self._organization_lookup.get_by_id(attio_id)
             if org is not None:
                 return _ResolvedRole(org_id=org.attio_id, org_name_raw=org.name)
-            # Reference is well-formed but the lookup came back empty —
-            # still trust the id (it was resolved through Attio at
-            # selection time), just without a name to show.
-            return _ResolvedRole(org_id=attio_id, org_name_raw=(query or "").strip() or None)
+            # Reference is well-formed but the lookup came back empty (org
+            # deleted, or an Attio cache desync since the desktop app's own
+            # search offered this candidate) — do NOT still trust the id:
+            # `Meeting.org_id` is a real FK to `organizations.attio_id`,
+            # and writing an id that doesn't exist there raises an
+            # unhandled IntegrityError at flush, surfacing as a raw 500
+            # instead of this push degrading gracefully. Fall back to
+            # org_name_raw only, exactly like the free-text/create-new
+            # case below.
+            return _ResolvedRole(org_id=None, org_name_raw=(query or "").strip() or None)
         try:
             uuid.UUID(selection)
         except ValueError:
