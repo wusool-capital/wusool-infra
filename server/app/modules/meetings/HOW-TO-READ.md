@@ -1,9 +1,9 @@
 # How to read `meetings`
 
 This is a walkthrough for someone who has never seen this module before.
-It doesn't cover everything — see `README.md` for scope and
-`HOW-TO-TEST.md` for running it — it just gets you to the point where the
-file tree stops looking like a maze.
+It doesn't cover everything — see `README.md` for scope and how to run
+it — it just gets you to the point where the file tree stops looking
+like a maze.
 
 ## The one-sentence version
 
@@ -241,4 +241,4 @@ find where they're enforced.
 - Adding a new field to the summary → `domain/summary.py`,
   `providers/bedrock/schemas.py`, `api/schemas.py`, `domain/rendering.py`
   — in that order, since each one depends on the shape of the last.
-- Running/testing any of this → `HOW-TO-TEST.md`.
+- Running/testing any of this → `README.md`'s "Testing" section.

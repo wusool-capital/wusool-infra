@@ -76,9 +76,6 @@ standard AWS credential provider chain), `AWS_BEDROCK_MODEL_ID`,
 uv run pytest
 ```
 
-See [`HOW-TO-TEST.md`](HOW-TO-TEST.md) for the full check suite, a manual
-end-to-end smoke test, and what's still worth covering.
-
 ## Where to go next
 
 New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).
