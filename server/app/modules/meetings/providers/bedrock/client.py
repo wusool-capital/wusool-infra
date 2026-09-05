@@ -157,7 +157,21 @@ class BedrockConverseClient:
         try:
             return MeetingSummarySchema.model_validate(raw).model_dump()
         except ValidationError as exc:
-            raise BedrockInvocationError(f"{_OPERATION} output failed validation: {exc}") from exc
+            # NOT f"...: {exc}" — pydantic's ValidationError.__str__ embeds
+            # each failing field's `input_value`, which here is the LLM's
+            # own (transcript-derived) raw output. That would leak into
+            # this exception's message, and from there into a log line and
+            # `meetings.metadata_.failure_reason` (see mark_failed) —
+            # exactly the raw-response content this file's own docstring
+            # promises never to log. Report the field path and error type
+            # only, never the value.
+            field_errors = "; ".join(
+                f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}"
+                for err in exc.errors()
+            )
+            raise BedrockInvocationError(
+                f"{_OPERATION} output failed validation: {field_errors}"
+            ) from exc
 
     def _converse(
         self,

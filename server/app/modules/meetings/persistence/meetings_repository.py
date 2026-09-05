@@ -10,7 +10,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import cast, func, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Meeting
@@ -103,14 +104,19 @@ class MeetingsRepository:
         )
 
     async def mark_failed(self, meeting_id: UUID, *, reason: str) -> None:
-        meeting = await self._session.get(Meeting, meeting_id)
-        if meeting is None:
-            return
-        metadata = {**meeting.metadata_, "failure_reason": reason}
+        """Merges `failure_reason` into `metadata_` via Postgres's JSONB
+        `||` concatenation operator in the UPDATE statement itself, rather
+        than a `get()` + Python-side merge + separate `UPDATE` — the
+        earlier read-then-write shape had a lost-update race if anything
+        else touched this row's `metadata_` between the two steps.
+        """
         await self._session.execute(
             update(Meeting)
             .where(Meeting.id == meeting_id)
-            .values(status="failed", metadata_=metadata)
+            .values(
+                status="failed",
+                metadata_=Meeting.metadata_.op("||")(cast({"failure_reason": reason}, JSONB)),
+            )
         )
 
     async def recover_stalled(self, meeting_id: UUID, *, cutoff: datetime) -> bool:

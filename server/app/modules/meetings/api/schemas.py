@@ -34,9 +34,9 @@ class DesktopMeetingSubmitRequest(BaseModel):
     tagging a locally recorded/transcribed meeting."""
 
     install_id: str = Field(..., min_length=1, max_length=64)
-    local_recording_id: str
+    local_recording_id: str = Field(..., min_length=1)
     transcript: list[DesktopTranscriptTurn]
-    duration_seconds: float
+    duration_seconds: float = Field(..., ge=0)
     buyer_query: str | None = None
     buyer_selection: str | None = None
     seller_query: str | None = None

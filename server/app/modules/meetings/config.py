@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,8 +18,11 @@ class Settings(BaseSettings):
 
     # Desktop app authenticates its transcript pushes with this shared key —
     # required, so a misconfigured deploy fails fast rather than accepting
-    # unauthenticated writes.
-    desktop_api_key: str
+    # unauthenticated writes. min_length=1 closes a real bypass: a bare
+    # `str` accepts DESKTOP_API_KEY="" (set-but-empty, e.g. a blank
+    # Secrets Manager value), and `hmac.compare_digest("", "")` is True —
+    # an empty Authorization: Bearer  header would then authenticate.
+    desktop_api_key: str = Field(..., min_length=1)
 
     # AWS Bedrock. Access key/secret are optional: the standard AWS
     # credential provider chain (IAM role, ECS/EC2 task role, local profile,

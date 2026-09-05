@@ -19,6 +19,11 @@ from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
 
+# Placeholder for a role that's genuinely tagged (present in
+# counterparty_role/metadata) but was resolved with no organization name at
+# all — see `_reconstruct_companies`.
+_UNKNOWN_COMPANY_NAME = "(name not provided)"
+
 
 class PublishMixin(ServiceBase):
     async def summarize_and_publish(self, meeting_id: UUID) -> None:
@@ -143,15 +148,19 @@ class PublishMixin(ServiceBase):
             # never to raise.
             primary_role = try_role(counterparty_role)
 
+        # A role can be tagged (present as counterparty_role/metadata) with
+        # NO name at all — e.g. "create new organization" picked without
+        # typing a name (`IngestMixin._resolve_role_selection`'s
+        # _CREATE_NEW_VALUE branch allows org_name_raw=None). Dropping such
+        # a role from `companies` when its name is empty would make
+        # `momentum_applies`/the title-bracket logic treat a genuinely
+        # tagged meeting as untagged — fall back to a placeholder instead
+        # of skipping the role.
         companies: dict[MeetingRole, str] = {}
         if primary_role is not None:
-            name = org_name_raw or org_id
-            if name:
-                companies[primary_role] = name
+            companies[primary_role] = org_name_raw or org_id or _UNKNOWN_COMPANY_NAME
 
         for tag in other_side:
-            name = tag.org_name_raw or tag.org_id
-            if name:
-                companies[tag.role] = name
+            companies[tag.role] = tag.org_name_raw or tag.org_id or _UNKNOWN_COMPANY_NAME
 
         return companies
