@@ -14,7 +14,7 @@ route never returns `already_existed=True` because a true duplicate raises
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.modules.meetings.api.auth import require_desktop_api_key
-from app.modules.meetings.api.dependencies import MeetingsServiceDep
+from app.modules.meetings.api.dependencies import MeetingsServiceDep, SessionDep
 from app.modules.meetings.api.schemas import (
     DesktopMeetingSubmitRequest,
     DesktopMeetingSubmitResponse,
@@ -57,6 +57,7 @@ async def submit_meeting(
     request: DesktopMeetingSubmitRequest,
     background_tasks: BackgroundTasks,
     service: MeetingsServiceDep,
+    session: SessionDep,
 ) -> DesktopMeetingSubmitResponse:
     transcript_chars = sum(len(turn.text) for turn in request.transcript)
     if transcript_chars > get_settings().max_transcript_chars:
@@ -73,10 +74,17 @@ async def submit_meeting(
         role_selections=role_selections,
         role_queries=role_queries,
     )
+    # Commit explicitly, here, before scheduling the background task: this
+    # FastAPI version runs BackgroundTasks BEFORE a yield-dependency's
+    # post-yield cleanup (confirmed live — `get_session`'s own commit
+    # otherwise runs strictly after `run_summarize_and_publish` has already
+    # started, so its independent session couldn't see this row at all,
+    # yielding `summarize_and_publish_meeting_not_found` on every push).
     # Not `service.summarize_and_publish` — that service's session is
     # committed/closed once this endpoint returns, before a background
     # task is guaranteed to run. `run_summarize_and_publish` opens its own
     # session (see its docstring).
+    await session.commit()
     background_tasks.add_task(run_summarize_and_publish, meeting.id)
     return DesktopMeetingSubmitResponse(
         meeting_id=meeting.id, status=meeting.status, already_existed=False
