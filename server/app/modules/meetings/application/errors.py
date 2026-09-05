@@ -33,3 +33,10 @@ class UnknownCompanyReferenceError(AppError):
     """
 
     status_code = 422
+
+
+class InvalidDesktopApiKeyError(AppError):
+    """Raised when a desktop push's `Authorization` header is missing or
+    doesn't match `Settings.desktop_api_key`."""
+
+    status_code = 401
