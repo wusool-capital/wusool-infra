@@ -197,8 +197,9 @@ scattered across `organizations`/`person`/`buyer_roles`.
 
 ### `meetings` (`meeting.py`)
 
-Owned by Scribe (its own standalone Postgres/Alembic chain) — read-only from
-this repo's perspective. DDL: `database/sql/005_meetings.sql`.
+Written by Scribe (its own standalone Postgres/Alembic chain) and, for the
+desktop-push columns below, by this repo's own (forthcoming) `meetings`
+module. DDL: `database/sql/005_meetings.sql`.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
@@ -218,6 +219,11 @@ this repo's perspective. DDL: `database/sql/005_meetings.sql`.
 | metadata (attr: `metadata_`) | jsonb | no | `{}` | |
 | created_at | timestamptz | no | `now()` | |
 | scribe_meeting_id | uuid | yes | unique | |
+| status | text | no | `completed` | check: `summarizing`\|`completed`\|`failed` |
+| install_id | text | yes | | unique with `local_recording_id` when set |
+| local_recording_id | text | yes | | unique with `install_id` when set |
+| summary_json | jsonb | yes | | |
+| summary_started_at | timestamptz | yes | | indexed while `status = 'summarizing'` |
 
 ### `match_scores` (`match_score.py`)
 
