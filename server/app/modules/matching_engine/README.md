@@ -74,6 +74,16 @@ uv run uvicorn --factory app.modules.matching_engine.bootstrap:create_app --relo
 The actually-deployed process is `server/main.py`, one Slack app serving
 this module's `/find-match` plus `ddl_commands`' 4 commands together.
 
+## Testing
+
+```bash
+uv run pytest
+```
+
+Runs with dummy config, no live database/Slack/AWS credentials required.
+DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
+(no SSM tunnel open) rather than failing.
+
 ## Matching pipeline, in brief
 
 1. **Buyer resolution** — fuzzy search by name; 0/1/many results branch to

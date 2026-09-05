@@ -58,6 +58,15 @@ Attio write shape, coupled to `ddl_commands`'s own `FieldSpec`) and
 **not** part of this module — both are genuinely `ddl_commands`-owned
 business logic that happens to call into this module's vendor helpers.
 
+## Testing
+
+No integration tests against real Attio in this module — `providers/attio/`
+is unit-tested against a mocked HTTP layer, exercised both here and
+indirectly through `ddl_commands`'s own Attio-sync tests.
+`tests/test_architecture.py` enforces this module's own `domain/`/
+`application/` never import `providers/`/`fastapi`/`pydantic`/`sqlalchemy`
+directly.
+
 ## Where to go next
 
 New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).

@@ -76,6 +76,20 @@ OAuth scopes, signing secret). `ddl_commands` also needs `ATTIO_API_KEY`/
 `ATTIO_WEBHOOK_SECRET` (DEV Attio write access + webhook signing) alongside
 the shared Slack credentials.
 
+## Testing
+
+```bash
+uv run pytest
+```
+
+Runs this root's own merged-dispatch suite
+(`tests/integration/test_merged_command_dispatch.py` — proves both modules'
+handlers route correctly through the one shared Slack app) plus every
+module's own business-logic/wiring suite under `app/modules/*/tests/`, plus
+`tests/test_architecture.py` (cross-module layering fitness tests) and
+`tests/test_env_example.py` (`.env.example` stays in sync with every
+module's `Settings`).
+
 ## Layout
 
 ```

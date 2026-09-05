@@ -46,6 +46,14 @@ Consumers (`matching_engine`, `ddl_commands`) import only from
 `api/slack/bolt_app.py` calls `build_bolt_app` with its own settings and
 `register_handlers`.
 
+## Testing
+
+No integration tests of its own — `providers/slack/notifier.py` is
+exercised indirectly through `matching_engine`'s own tests (fakes implement
+`SlackNotifierPort` there). `tests/test_architecture.py` enforces this
+module's own `application/` never imports `providers/`/`fastapi`/
+`pydantic`/`sqlalchemy` directly.
+
 ## Where to go next
 
 New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).

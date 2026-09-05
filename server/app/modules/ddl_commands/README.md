@@ -124,6 +124,19 @@ uv run uvicorn --factory app.modules.ddl_commands.bootstrap:create_app --reload
   same shape as `matching_engine`'s. `POST /webhooks/attio` — inbound Attio
   webhook sync, signature-verified.
 
+## Testing
+
+```bash
+uv run pytest
+```
+
+DB-backed integration tests insert their own throwaway rows inside a
+rolled-back transaction — nothing is ever persisted, and the suite never
+needs a real `wusool_crm`. Attio-touching code is unit-tested against a
+mocked HTTP layer only — **nothing in this suite talks to real DEV Attio**;
+smoke-test at least one real `/edit-seller` and one real `/add-seller`
+against a low-stakes DEV org before deploying a change to the create path.
+
 ## Where to go next
 
 New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).
