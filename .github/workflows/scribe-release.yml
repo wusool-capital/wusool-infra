@@ -1,0 +1,186 @@
+# Builds and publishes a WusoolScribe desktop release: macOS aarch64 only,
+# first pass. Ported from scribe-desktop/.github/workflows/build.yml +
+# release.yml, which GitHub never runs from that nested path — only
+# <repo-root>/.github/workflows/ executes. Paths below are rewritten for
+# that: the app lives at scribe-desktop/frontend, not frontend/.
+#
+# Version is bumped by a human in a PR across tauri.conf.json,
+# frontend/package.json and src-tauri/Cargo.toml (Cargo.lock too) — the old
+# inherited auto-increment scheme (0.4.0 -> 0.4.0.1) never wrote back into
+# tauri.conf.json, so the shipped binary kept reporting the old version and
+# would have re-offered the same update forever. A release is cut by running
+# this workflow manually (workflow_dispatch is itself the human gate — no
+# separate approval step); it always builds whatever version is currently in
+# tauri.conf.json, and the version-guard step below enforces that
+# package.json and Cargo.toml agree with it before anything is built.
+#
+# No Apple Developer account -> ad-hoc signed (tauri.conf.json's
+# signingIdentity: "-"), not notarized, same as the current 0.4.0 build.
+# First install still needs the existing manual `xattr -d
+# com.apple.quarantine` workaround; that's unaffected by any of this. Because
+# there's no stable Developer ID Team Identifier for macOS TCC to key
+# permission grants on, an ad-hoc rebuild's signature hash changes on every
+# release, and mic/screen-recording access is expected to be revoked and
+# re-prompted after every update - accepted tradeoff, not a bug to fix here.
+name: Scribe release
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel (which S3/CloudFront prefix to publish to)
+        required: true
+        type: choice
+        options: [stable, beta]
+        default: stable
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: scribe-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Terraform (stacks/scribe-updates) owns these; paste the current values
+  # from `tofu output` after that stack is applied.
+  SCRIBE_UPDATES_BUCKET: wusool-scribe-updates-030179310793
+  SCRIBE_UPDATES_CF_DOMAIN: dpxt3buny146q.cloudfront.net
+  SCRIBE_UPDATES_CF_DISTRIBUTION_ID: E1U4H8VMQ3022F
+
+jobs:
+  release:
+    runs-on: macos-14 # pinned arm64
+    environment: scribe-release
+    defaults:
+      run:
+        working-directory: scribe-desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine channel, version and tag
+        id: meta
+        run: |
+          VERSION=$(grep -o '"version": "[^"]*"' frontend/src-tauri/tauri.conf.json | cut -d'"' -f4)
+          TAG="scribe-v${VERSION}"
+          CHANNEL="${{ inputs.channel }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+
+      # tauri.conf.json is the source of truth; package.json and Cargo.toml
+      # must agree with it. A release built from mismatched versions is
+      # exactly how the old scheme broke the updater - the app would report
+      # a version that never matches what latest.json advertises next time.
+      - name: Version guard
+        run: |
+          CONF_VERSION=$(grep -o '"version": "[^"]*"' frontend/src-tauri/tauri.conf.json | cut -d'"' -f4)
+          PKG_VERSION=$(grep -m1 '"version"' frontend/package.json | cut -d'"' -f4)
+          CARGO_VERSION=$(grep -m1 '^version' frontend/src-tauri/Cargo.toml | cut -d'"' -f2)
+          echo "tauri.conf.json: $CONF_VERSION"
+          echo "package.json:    $PKG_VERSION"
+          echo "Cargo.toml:      $CARGO_VERSION"
+          test "$PKG_VERSION" = "$CONF_VERSION" || { echo "::error::package.json version mismatch"; exit 1; }
+          test "$CARGO_VERSION" = "$CONF_VERSION" || { echo "::error::Cargo.toml version mismatch"; exit 1; }
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get pnpm store directory
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-scribe-pnpm-store-${{ hashFiles('scribe-desktop/frontend/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-scribe-pnpm-store-
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: scribe-desktop -> target
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          pnpm install
+
+      - name: Build llama-helper sidecar (Metal)
+        run: |
+          cargo build --release -p llama-helper --features metal
+          mkdir -p frontend/src-tauri/binaries
+          cp target/release/llama-helper frontend/src-tauri/binaries/llama-helper-aarch64-apple-darwin
+
+      - name: Cache FFmpeg binary
+        uses: actions/cache@v4
+        with:
+          path: scribe-desktop/frontend/src-tauri/binaries/ffmpeg-*
+          key: ${{ runner.os }}-scribe-ffmpeg-${{ hashFiles('scribe-desktop/frontend/src-tauri/build.rs', 'scribe-desktop/frontend/src-tauri/build/ffmpeg.rs') }}
+
+      - name: Build with Tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No Apple signing/notarization env vars: no Developer ID account.
+          # tauri.conf.json's signingIdentity: "-" produces the same ad-hoc
+          # signed build as the current 0.4.0 process.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: scribe-desktop/frontend
+          args: --target aarch64-apple-darwin
+          tagName: ${{ steps.meta.outputs.tag }}
+          releaseName: WusoolScribe v${{ steps.meta.outputs.version }}
+          releaseDraft: false
+          includeUpdaterJson: false # we publish our own manifest to CloudFront, not GitHub asset URLs
+
+      - uses: ./.github/actions/aws-oidc
+        with:
+          # infrastructure/terraform/stacks/scribe-updates -> release_role_arn
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-scribe-release
+
+      - name: Publish updater payload, then the manifest
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          CHANNEL: ${{ steps.meta.outputs.channel }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BUNDLE_DIR="target/aarch64-apple-darwin/release/bundle/macos"
+          TARBALL="WusoolScribe_${VERSION}_aarch64.app.tar.gz"
+          KEY_PREFIX="scribe/${CHANNEL}/${VERSION}/darwin-aarch64"
+
+          # Payload first - never advertise a manifest URL that isn't live yet.
+          aws s3 cp "${BUNDLE_DIR}/${TARBALL}" "s3://${SCRIBE_UPDATES_BUCKET}/${KEY_PREFIX}/${TARBALL}" \
+            --cache-control "public, max-age=31536000, immutable"
+
+          NOTES=$(gh release view "${{ steps.meta.outputs.tag }}" --json body -q .body)
+          SIGNATURE=$(cat "${BUNDLE_DIR}/${TARBALL}.sig")
+          PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          URL="https://${SCRIBE_UPDATES_CF_DOMAIN}/${KEY_PREFIX}/${TARBALL}"
+
+          jq -n \
+            --arg version "$VERSION" --arg notes "$NOTES" --arg pub_date "$PUB_DATE" \
+            --arg signature "$SIGNATURE" --arg url "$URL" \
+            '{version: $version, notes: $notes, pub_date: $pub_date,
+              platforms: {"darwin-aarch64": {signature: $signature, url: $url}}}' \
+            > latest.json
+
+          aws s3 cp latest.json "s3://${SCRIBE_UPDATES_BUCKET}/scribe/${CHANNEL}/latest.json" \
+            --content-type application/json --cache-control "public, max-age=60"
+
+          # Single path only - never invalidate /* (first 1,000/month are free).
+          aws cloudfront create-invalidation \
+            --distribution-id "${SCRIBE_UPDATES_CF_DISTRIBUTION_ID}" \
+            --paths "/scribe/${CHANNEL}/latest.json"

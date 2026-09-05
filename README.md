@@ -70,7 +70,8 @@ wusool-infra/
 |   |   |   |-- n8n/               # Per-env n8n stack
 |   |   |   |-- toolkit/           # Per-env wusool-toolkit stack + its ECR repo
 |   |   |   |-- postgres/          # Per-env RDS stack
-|   |   |   `-- peering/           # VPC peering (scribe dev VPC -> wusool-prod-postgres)
+|   |   |   |-- peering/           # VPC peering (scribe dev VPC -> wusool-prod-postgres)
+|   |   |   `-- scribe-updates/    # S3 + CloudFront update feed for the WusoolScribe desktop app
 |   |   `-- envs/              # dev.tfvars / prod.tfvars — committed, non-secret per-env config
 |   |-- n8n/                   # n8n scripts and infrastructure/architecture docs
 |   |-- bedrock-ai/            # AWS Bedrock model access scripts (operator PowerShell, no deploy)

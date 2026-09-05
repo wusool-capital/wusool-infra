@@ -46,6 +46,20 @@ pnpm run tauri:dev:vulkan   # AMD/Intel Vulkan
 pnpm run tauri:dev:cpu      # CPU-only (no GPU)
 ```
 
+**Updater signing**: `bundle.createUpdaterArtifacts` is `true`, so any production
+build (`pnpm run tauri:build`, `clean_build.sh`) needs `TAURI_SIGNING_PRIVATE_KEY`
+(and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has a passphrase) exported, or
+the build fails. For a local build that will never be distributed, generate a
+throwaway key once and export it:
+```bash
+pnpm tauri signer generate -w ~/.tauri/scribe_local.key -p ''
+export TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/scribe_local.key)
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=''
+```
+`tauri:dev` / `clean_run.sh` are unaffected — dev mode doesn't bundle. The real
+release key lives in GitHub Actions secrets and 1Password/AWS Secrets Manager, never
+in a local `.key` file committed to the repo.
+
 ### Legacy Backend Archive
 
 **Location**: `/backend`

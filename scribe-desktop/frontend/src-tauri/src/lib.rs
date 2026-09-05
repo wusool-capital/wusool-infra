@@ -410,12 +410,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
-        // Updater plugin intentionally not registered: its only configured
-        // feed was Zackriya's upstream Meetily GitHub releases, which is
-        // wrong for WusoolScribe (a different signed build) and unrelated
-        // to it going forward. `check()` calls from the frontend now fail
-        // cleanly (command not found), already handled by their existing
-        // try/catch. Re-add once WusoolScribe has its own release feed.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())

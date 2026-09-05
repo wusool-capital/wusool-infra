@@ -65,6 +65,7 @@
                         "notification:allow-is-permission-granted",
                         "process:default",
                         "shell:allow-open",
+                        "updater:default",
                         {
                             "identifier": "fs:scope",
                             "allow": [
@@ -90,6 +91,14 @@
             ]
         }
     },
+    "plugins": {
+        "updater": {
+            "endpoints": [
+                "https://dpxt3buny146q.cloudfront.net/scribe/stable/latest.json"
+            ],
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExMUE2QTY4MkU3QzQ5NzkKUldSNVNYd3VhR29hb1JzaVpseS9pT0FIcmdCRnBZU2g2OTdSdG5CL0RENjBCL2J2RkZDMzJxUXQK"
+        }
+    },
     "bundle": {
         "active": true,
         "targets": [
@@ -100,7 +109,7 @@
             "app",
             "dmg"
         ],
-        "createUpdaterArtifacts": false,
+        "createUpdaterArtifacts": true,
         "icon": [
             "icons/icon.png",
             "icons/icon.icns",
