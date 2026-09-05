@@ -16,8 +16,8 @@ which lives in the S3 key prefix, not in a dev/prod split. It follows the same
 
 ```
 scribe/<channel>/latest.json
-scribe/<channel>/<version>/darwin-aarch64/WusoolScribe_<version>_aarch64.app.tar.gz
-scribe/<channel>/<version>/darwin-aarch64/WusoolScribe_<version>_aarch64.app.tar.gz.sig
+scribe/<channel>/<version>/darwin-aarch64/WusoolScribe.app.tar.gz
+scribe/<channel>/<version>/darwin-aarch64/WusoolScribe.app.tar.gz.sig
 ```
 
 Only `stable` is used today. `beta` is a new prefix with **zero** Terraform

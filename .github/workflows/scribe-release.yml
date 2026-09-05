@@ -165,7 +165,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           BUNDLE_DIR="target/aarch64-apple-darwin/release/bundle/macos"
-          TARBALL="WusoolScribe_${VERSION}_aarch64.app.tar.gz"
+          # Tauri names the updater tarball after productName only - no
+          # version or arch suffix (unlike the DMG). The version/arch are
+          # already encoded in KEY_PREFIX below, so no renaming needed.
+          TARBALL="WusoolScribe.app.tar.gz"
           KEY_PREFIX="scribe/${CHANNEL}/${VERSION}/darwin-aarch64"
 
           # Payload first - never advertise a manifest URL that isn't live yet.
