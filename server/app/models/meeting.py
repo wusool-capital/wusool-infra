@@ -41,6 +41,22 @@ class Meeting(Base):
         CheckConstraint(
             "status IN ('summarizing','completed','failed')", name="ck_meetings_status"
         ),
+        # Partial indexes — must match the migration
+        # (2565f7950641_add_desktop_push_status_columns_to_.py) exactly, or
+        # `alembic check` reports drift and reverts them on the next
+        # autogenerate.
+        Index(
+            "uq_meetings_desktop_push",
+            "install_id",
+            "local_recording_id",
+            unique=True,
+            postgresql_where=text("install_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_meetings_summarizing",
+            "summary_started_at",
+            postgresql_where=text("status = 'summarizing'"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
