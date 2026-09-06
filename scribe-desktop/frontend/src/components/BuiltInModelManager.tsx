@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { Download, RefreshCw, BadgeAlert, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatSummaryModelSizeLabelFromMb } from '@/lib/onboarding-summary-model';
+import { ScrollArea } from './ui/scroll-area';
 
 interface ModelInfo {
   name: string;
@@ -282,12 +283,8 @@ export function BuiltInModelManager({
         <h4 className="text-sm font-bold">Built-in AI Models</h4>
       </div>
 
-      <div
-        className={cn(
-          'grid gap-4',
-          layout === 'dialog' && 'max-h-[50vh] overflow-y-auto pr-2 pb-2'
-        )}
-      >
+      <ScrollArea className={cn(layout === 'dialog' && 'max-h-[50vh] pr-2')}>
+        <div className="grid gap-4 pb-2">
         {models.map((model) => {
           const progress = downloadProgress[model.name];
           const progressInfo = downloadProgressInfo[model.name];
@@ -486,7 +483,8 @@ export function BuiltInModelManager({
             </div>
           );
         })}
-      </div>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

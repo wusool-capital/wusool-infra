@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Check, Loader2, Plus } from 'lucide-react';
 import { useCompanySearch, CompanyCandidate } from '@/hooks/meeting-details/useCompanySearch';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export const CREATE_NEW_VALUE = '__create_new__';
 
@@ -82,7 +83,8 @@ export function CompanyAutocomplete({
       </div>
 
       {isOpen && value.query.trim() && (
-        <div className="absolute z-10 mt-1 w-full bg-card border border-border rounded-md shadow-lg max-h-56 overflow-y-auto">
+        <ScrollArea className="absolute z-10 mt-1 w-full bg-card border border-border rounded-md shadow-lg max-h-56">
+          <div>
           {isSearching && (
             <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground ">
               <Loader2 size={14} className="animate-spin" /> Searching...
@@ -110,7 +112,8 @@ export function CompanyAutocomplete({
             <Plus size={14} />
             Create new: &ldquo;{value.query}&rdquo;
           </button>
-        </div>
+          </div>
+        </ScrollArea>
       )}
     </div>
   );

@@ -48,7 +48,6 @@ export function PushDestinationSettings() {
       const trimmedUrl = serverUrl.trim();
       const trimmedKey = apiKey.trim();
       await invoke('verify_push_config', { serverUrl: trimmedUrl, apiKey: trimmedKey });
-      toast.success('Connection successful');
 
       const config = await invoke<PushConfig>('set_push_config', {
         serverUrl: trimmedUrl,

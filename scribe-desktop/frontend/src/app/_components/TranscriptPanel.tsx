@@ -11,6 +11,7 @@ import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { ModalType } from '@/hooks/useModalState';
 import { useIsLinux } from '@/hooks/usePlatform';
 import { useMemo } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**
  * TranscriptPanel Component
@@ -51,7 +52,7 @@ export function TranscriptPanel({
   );
 
   return (
-    <div ref={transcriptContainerRef} className="w-full border-r border-border bg-background flex flex-col overflow-y-auto">
+    <ScrollArea viewportRef={transcriptContainerRef} className="w-full h-full border-r border-border bg-background flex flex-col min-h-0">
       {/* Title area - Sticky header */}
       <div className="sticky top-0 z-10 bg-background p-4 border-border">
         <div className="flex flex-col space-y-3">
@@ -126,6 +127,6 @@ export function TranscriptPanel({
           </div>
         </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }

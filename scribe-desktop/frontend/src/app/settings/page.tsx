@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, Send, FlaskConical } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Settings2, Mic, Database as DatabaseIcon, Send, FlaskConical } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
 import { TranscriptSettings } from '@/components/TranscriptSettings';
@@ -12,6 +11,7 @@ import { PushDestinationSettings } from '@/components/PushDestinationSettings';
 import { BetaSettings } from '@/components/BetaSettings';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Tabs configuration (constant). No local-summary tab: summaries are
 // generated server-side by Scribe after a push, not by a local LLM.
@@ -24,7 +24,6 @@ const TABS = [
 ] as const;
 
 export default function SettingsPage() {
-  const router = useRouter();
   const { transcriptModelConfig, setTranscriptModelConfig } = useConfig();
 
   // Animation state for tabs
@@ -69,20 +68,13 @@ export default function SettingsPage() {
       <div className="sticky top-0 z-10 bg-muted border-b border-border ">
         <div className="px-8 py-5">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back</span>
-            </button>
             <h1 className="text-3xl font-bold text-foreground ">Settings</h1>
           </div>
         </div>
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-8 pt-3">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -130,7 +122,7 @@ export default function SettingsPage() {
             </TabsContent>
           </Tabs>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 };

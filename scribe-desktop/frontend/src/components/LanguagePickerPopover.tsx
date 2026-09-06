@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LANGUAGE_OPTIONS } from "@/lib/summary-languages";
 import { useRecentLanguages } from "@/hooks/useRecentLanguages";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface LanguagePickerPopoverProps {
   value: string | null;
@@ -97,7 +98,8 @@ export function LanguagePickerPopover({
         />
       </div>
 
-      <div className="max-h-80 overflow-y-auto py-1">
+      <ScrollArea className="max-h-80">
+        <div className="py-1">
         {showRecents && (
           <>
             <div className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -170,7 +172,8 @@ export function LanguagePickerPopover({
         {hasNoResults && (
           <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
         )}
-      </div>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

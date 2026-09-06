@@ -14,6 +14,7 @@ import { updateService, UpdateInfo, UpdateProgress } from '@/services/updateServ
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { toast } from 'sonner';
+import { ScrollArea } from './ui/scroll-area';
 
 interface UpdateDialogProps {
   open: boolean;
@@ -220,11 +221,13 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
               </div>
 
               {updateInfo.body && (
-                <div className="bg-muted rounded-lg p-3 max-h-40 overflow-y-auto">
-                  <p className="text-sm text-foreground/90 whitespace-pre-wrap">
-                    {updateInfo.body}
-                  </p>
-                </div>
+                <ScrollArea className="bg-muted rounded-lg max-h-40">
+                  <div className="p-3">
+                    <p className="text-sm text-foreground/90 whitespace-pre-wrap">
+                      {updateInfo.body}
+                    </p>
+                  </div>
+                </ScrollArea>
               )}
             </>
           )}
