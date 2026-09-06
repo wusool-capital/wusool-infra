@@ -151,7 +151,12 @@ pub async fn verify_push_config(server_url: String, api_key: String) -> Result<(
         .header("Authorization", format!("Bearer {}", api_key))
         .send()
         .await
-        .map_err(|e| format!("Could not reach {}: {}", url, e))?;
+        .map_err(|e| {
+            // The reqwest chain (dns error: nodename nor servname provided...)
+            // means nothing to the user -- keep it in the log, not the toast.
+            warn!("verify_push_config: request to {} failed: {}", url, e);
+            "Could not reach the server. Check the URL and your connection.".to_string()
+        })?;
 
     let status = response.status();
     if status == reqwest::StatusCode::UNAUTHORIZED {
@@ -168,9 +173,9 @@ pub async fn verify_push_config(server_url: String, api_key: String) -> Result<(
     let body: DesktopVerifyResponse = response
         .json()
         .await
-        .map_err(|_| format!("{} doesn't look like a Scribe backend.", server_url))?;
+        .map_err(|_| "That URL doesn't look like a Scribe backend.".to_string())?;
     if body.status != "ok" {
-        return Err(format!("{} doesn't look like a Scribe backend.", server_url));
+        return Err("That URL doesn't look like a Scribe backend.".to_string());
     }
     Ok(())
 }

@@ -13,6 +13,7 @@ import { usePush, CompanyRole } from '@/hooks/meeting-details/usePush';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { CompanyAutocomplete, CompanySelection } from './CompanyAutocomplete';
 import { SummaryView } from './SummaryView';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import Analytics from '@/lib/analytics';
 
 const EMPTY_SELECTION: CompanySelection = { query: '', selection: null };
@@ -158,9 +159,11 @@ export function PushSummaryDialog({ open, onOpenChange, meetingId, initialTag }:
           )}
 
           {remoteSummary && (
-            <div className="bg-card border border-border rounded-md p-4 max-h-[50vh] overflow-y-auto">
-              <SummaryView summary={remoteSummary} />
-            </div>
+            <ScrollArea className="bg-card border border-border rounded-md max-h-[50vh]">
+              <div className="p-4">
+                <SummaryView summary={remoteSummary} />
+              </div>
+            </ScrollArea>
           )}
 
           {pushState === 'error' && error && (

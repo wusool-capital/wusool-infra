@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { ScrollArea } from "./ui/scroll-area";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -251,8 +252,10 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     // Use simple rendering for small lists, virtualization for large lists
     const useVirtualization = segments.length >= VIRTUALIZATION_THRESHOLD;
 
+    // See TranscriptPanel: display:block keeps the sticky status bar pinned.
     return (
-        <div ref={scrollRef} className="flex flex-col h-full overflow-y-auto px-4 py-2">
+        <ScrollArea viewportRef={scrollRef} className="h-full min-h-0 [&>div>div]:!block">
+            <div className="flex flex-col px-4 py-2">
             {/* Recording Status Bar - Sticky at top, always visible when recording */}
             <AnimatePresence>
                 {isRecording && (
@@ -421,6 +424,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                 </>
             )}
             </div>
-        </div>
+            </div>
+        </ScrollArea>
     );
 };

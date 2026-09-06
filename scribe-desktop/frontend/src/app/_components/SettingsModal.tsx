@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useConfig } from "@/contexts/ConfigContext";
 import { useRecordingState } from "@/contexts/RecordingStateContext";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type modalType = "modelSettings" | "deviceSettings" | "languageSettings" | "modelSelector" | "errorAlert" | "chunkDropWarning";
 
@@ -83,7 +84,8 @@ export function SettingsModals({
         </DialogHeader>
 
         {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-6 space-y-8">
           {/* General Preferences Section */}
           <PreferenceSettings />
 
@@ -144,7 +146,8 @@ export function SettingsModals({
                       <AlertDescription>{error}</AlertDescription>
                     </Alert>
                   )}
-                  <div className="grid gap-4 max-h-[400px] overflow-y-auto pr-2">
+                  <ScrollArea className="max-h-[400px] pr-2">
+                    <div className="grid gap-4">
                     {models.map((model) => (
                       <div
                         key={model.id}
@@ -157,12 +160,14 @@ export function SettingsModals({
                         <p className="text-muted-foreground">Modified: {model.modified}</p>
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </ScrollArea>
 
         <DialogFooter className="p-6 pt-4 border-t border-border">
           <Button onClick={() => onClose('modelSettings')}>
@@ -234,13 +239,15 @@ export function SettingsModals({
         </DialogHeader>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 pt-4">
-          <TranscriptSettings
-            transcriptModelConfig={transcriptModelConfig}
-            setTranscriptModelConfig={setTranscriptModelConfig}
-            onModelSelect={() => onClose('modelSelector')}
-          />
-        </div>
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-6 pt-4">
+            <TranscriptSettings
+              transcriptModelConfig={transcriptModelConfig}
+              setTranscriptModelConfig={setTranscriptModelConfig}
+              onModelSelect={() => onClose('modelSelector')}
+            />
+          </div>
+        </ScrollArea>
 
         {/* Fixed Footer */}
         <DialogFooter className="p-6 pt-4 border-t border-border sm:justify-between">

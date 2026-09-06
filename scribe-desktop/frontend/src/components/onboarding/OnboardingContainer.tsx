@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { ProgressIndicator } from './shared/ProgressIndicator';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import type { OnboardingContainerProps } from '@/types/onboarding';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function OnboardingContainer({
   title,
@@ -95,9 +96,9 @@ export function OnboardingContainer({
         </div>
 
         {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto pr-2">
+        <ScrollArea className="flex-1 min-h-0 pr-2">
           <div className="space-y-6">{children}</div>
-        </div>
+        </ScrollArea>
       </div>
     </div>
   );

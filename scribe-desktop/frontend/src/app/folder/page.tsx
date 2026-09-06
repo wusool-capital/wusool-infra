@@ -2,9 +2,10 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, File, Folder, LoaderIcon, SearchIcon, X } from 'lucide-react';
+import { File, Folder, LoaderIcon, SearchIcon, X } from 'lucide-react';
 import { useSidebar, slugifyTag } from '@/components/Sidebar/SidebarProvider';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Mirrors Sidebar/index.tsx's formatDuration/formatMeetingDate (not
 // shared: these are a few lines each, not worth extracting).
@@ -31,9 +32,9 @@ function formatMeetingDate(createdAt?: string | null): string | null {
 
 function FolderContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tagSlug = searchParams.get('tag') ?? '';
   const folderName = searchParams.get('name') ?? 'Folder';
-  const router = useRouter();
   const { meetings, setCurrentMeeting } = useSidebar();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -58,15 +59,6 @@ function FolderContent() {
     <div className="h-screen bg-muted flex flex-col">
       <div className="sticky top-0 z-10 bg-muted border-b border-border ">
         <div className="px-8 py-6">
-          <div className="flex items-center gap-4 mb-2">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back</span>
-            </button>
-          </div>
           <div className="flex items-center gap-3">
             <Folder className="w-6 h-6 text-muted-foreground " />
             <h1 className="text-2xl font-bold text-foreground ">{folderName}</h1>
@@ -97,7 +89,7 @@ function FolderContent() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-8 pt-4">
           {folderMeetings.length === 0 ? (
             <p className="text-sm text-muted-foreground ">No meetings in this folder.</p>
@@ -132,7 +124,7 @@ function FolderContent() {
             </div>
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

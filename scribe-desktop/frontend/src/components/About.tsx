@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-shell';
 import Image from 'next/image';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function About() {
     const [currentVersion, setCurrentVersion] = useState<string>('0.4.0');
@@ -11,7 +12,8 @@ export function About() {
     }, []);
 
     return (
-        <div className="p-4 space-y-4 h-[80vh] overflow-y-auto">
+        <ScrollArea className="h-[80vh]">
+          <div className="p-4 space-y-4">
             {/* Compact Header */}
             <div className="text-center">
                 <div className="mb-3">
@@ -61,6 +63,7 @@ export function About() {
                     Azmora
                 </button>
             </p>
-        </div>
+          </div>
+        </ScrollArea>
     )
 }

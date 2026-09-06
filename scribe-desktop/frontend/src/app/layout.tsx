@@ -1,5 +1,8 @@
 'use client'
 
+// Bundle Sonner's base styles as a stylesheet; packaged WebViews cannot rely
+// on the library's runtime inline-style injection.
+import 'sonner/dist/styles.css'
 import './globals.css'
 import { Source_Sans_3 } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
