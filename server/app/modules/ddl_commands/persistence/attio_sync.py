@@ -74,10 +74,14 @@ def _j(value: Any) -> str | None:
 # subject_uuid (not subject_attio_id) is used for buyer_role/seller_role, to
 # match backfill-activities.ps1's existing convention for those two tables.
 
+# tool_run_id is named explicitly and written as a literal NULL: this row is
+# the webhook change-log, not a tool invocation, so there is no run behind it
+# (added 2026-09-07). Naming it keeps the statement honest about the full
+# activities schema rather than silently relying on the column default.
 _ACTIVITY_INSERT = text(
     """
-    INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, source)
-    VALUES (:subject_type, :subject_attio_id, :subject_uuid, :source)
+    INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, source, tool_run_id)
+    VALUES (:subject_type, :subject_attio_id, :subject_uuid, :source, NULL)
     """
 )
 
@@ -712,6 +716,14 @@ _SELLER_ROLE_UPSERT = text(
         years_active, funding_stage, revenue_last_full_year, revenue_year_before,
         gross_margin_pct, ebitda_deducts_salary, annual_rent_cost,
         largest_customer_revenue_pct, repeat_revenue_pct, location_count,
+        benchmark_score, benchmark_band, benchmark_quartile,
+        pct_ebitda_margin, pct_revenue_growth, pct_revenue_per_employee,
+        pct_concentration, pct_gross_margin, pct_premises_cost,
+        pct_recurring_revenue, pct_capital_efficiency, pct_revenue_scale,
+        implied_ev_low, implied_ev_high, ebitda_adjusted,
+        headcount, days_to_get_paid, data_consent,
+        lead_priority, routing_reason, quality_check, benchmark_review,
+        include_in_benchmark, review_note, headline_flag, recommended_referral,
         legacy_entry_id, raw_attio
     ) VALUES (
         :org_attio_id, :outreach_tier, :appetite_signal, :relationship_status,
@@ -723,7 +735,17 @@ _SELLER_ROLE_UPSERT = text(
         :years_active, :funding_stage, CAST(:revenue_last_full_year AS jsonb),
         CAST(:revenue_year_before AS jsonb), :gross_margin_pct, :ebitda_deducts_salary,
         CAST(:annual_rent_cost AS jsonb), :largest_customer_revenue_pct, :repeat_revenue_pct,
-        :location_count, :legacy_entry_id,
+        :location_count,
+        :benchmark_score, :benchmark_band, :benchmark_quartile,
+        :pct_ebitda_margin, :pct_revenue_growth, :pct_revenue_per_employee,
+        :pct_concentration, :pct_gross_margin, :pct_premises_cost,
+        :pct_recurring_revenue, :pct_capital_efficiency, :pct_revenue_scale,
+        CAST(:implied_ev_low AS jsonb), CAST(:implied_ev_high AS jsonb),
+        CAST(:ebitda_adjusted AS jsonb),
+        :headcount, :days_to_get_paid, :data_consent,
+        :lead_priority, :routing_reason, :quality_check, :benchmark_review,
+        :include_in_benchmark, :review_note, :headline_flag, :recommended_referral,
+        :legacy_entry_id,
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (legacy_entry_id) DO UPDATE SET
@@ -747,6 +769,26 @@ _SELLER_ROLE_UPSERT = text(
         annual_rent_cost=excluded.annual_rent_cost,
         largest_customer_revenue_pct=excluded.largest_customer_revenue_pct,
         repeat_revenue_pct=excluded.repeat_revenue_pct, location_count=excluded.location_count,
+        benchmark_score=excluded.benchmark_score, benchmark_band=excluded.benchmark_band,
+        benchmark_quartile=excluded.benchmark_quartile,
+        pct_ebitda_margin=excluded.pct_ebitda_margin,
+        pct_revenue_growth=excluded.pct_revenue_growth,
+        pct_revenue_per_employee=excluded.pct_revenue_per_employee,
+        pct_concentration=excluded.pct_concentration,
+        pct_gross_margin=excluded.pct_gross_margin,
+        pct_premises_cost=excluded.pct_premises_cost,
+        pct_recurring_revenue=excluded.pct_recurring_revenue,
+        pct_capital_efficiency=excluded.pct_capital_efficiency,
+        pct_revenue_scale=excluded.pct_revenue_scale,
+        implied_ev_low=excluded.implied_ev_low, implied_ev_high=excluded.implied_ev_high,
+        ebitda_adjusted=excluded.ebitda_adjusted,
+        headcount=excluded.headcount, days_to_get_paid=excluded.days_to_get_paid,
+        data_consent=excluded.data_consent,
+        lead_priority=excluded.lead_priority, routing_reason=excluded.routing_reason,
+        quality_check=excluded.quality_check, benchmark_review=excluded.benchmark_review,
+        include_in_benchmark=excluded.include_in_benchmark,
+        review_note=excluded.review_note, headline_flag=excluded.headline_flag,
+        recommended_referral=excluded.recommended_referral,
         raw_attio=excluded.raw_attio, updated_at=now()
     RETURNING id
     """
@@ -798,6 +840,34 @@ def _seller_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Sel
         "largest_customer_revenue_pct": v.number(values, "largest_customer_revenue_pct"),
         "repeat_revenue_pct": v.number(values, "repeat_revenue_pct"),
         "location_count": v.integer(values, "location_count"),
+        # Lead-magnet tool output (2026-09-06). Money fields are USD, matching
+        # the currency attributes they mirror.
+        "benchmark_score": v.number(values, "benchmark_score"),
+        "benchmark_band": v.first(values, "benchmark_band"),
+        "benchmark_quartile": v.first(values, "benchmark_quartile"),
+        "pct_ebitda_margin": v.number(values, "pct_ebitda_margin"),
+        "pct_revenue_growth": v.number(values, "pct_revenue_growth"),
+        "pct_revenue_per_employee": v.number(values, "pct_revenue_per_employee"),
+        "pct_concentration": v.number(values, "pct_concentration"),
+        "pct_gross_margin": v.number(values, "pct_gross_margin"),
+        "pct_premises_cost": v.number(values, "pct_premises_cost"),
+        "pct_recurring_revenue": v.number(values, "pct_recurring_revenue"),
+        "pct_capital_efficiency": v.number(values, "pct_capital_efficiency"),
+        "pct_revenue_scale": v.number(values, "pct_revenue_scale"),
+        "implied_ev_low": v.money(values, "implied_ev_low"),
+        "implied_ev_high": v.money(values, "implied_ev_high"),
+        "ebitda_adjusted": v.money(values, "ebitda_adjusted"),
+        "headcount": v.integer(values, "headcount"),
+        "days_to_get_paid": v.integer(values, "days_to_get_paid"),
+        "data_consent": v.boolean(values, "data_consent"),
+        "lead_priority": v.first(values, "lead_priority"),
+        "routing_reason": v.first(values, "routing_reason"),
+        "quality_check": v.first(values, "quality_check"),
+        "benchmark_review": v.first(values, "benchmark_review"),
+        "include_in_benchmark": v.boolean(values, "include_in_benchmark"),
+        "review_note": v.first(values, "review_note"),
+        "headline_flag": v.first(values, "headline_flag"),
+        "recommended_referral": v.first(values, "recommended_referral"),
         "legacy_entry_id": v.entry_id(entry),
         "raw_attio": entry,
     }
@@ -916,6 +986,9 @@ _JSONB_FIELDS = {
         "revenue_last_full_year",
         "revenue_year_before",
         "annual_rent_cost",
+        "implied_ev_low",
+        "implied_ev_high",
+        "ebitda_adjusted",
         "raw_attio",
     ),
 }

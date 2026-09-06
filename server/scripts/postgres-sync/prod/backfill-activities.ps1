@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DatabaseUrl = $env:DATABASE_URL,
   [switch]$Apply
@@ -189,9 +189,14 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
                 "DELETE FROM activities WHERE subject_type=%s AND source=%s AND subject_uuid = ANY(%s::uuid[])",
                 (subject_type, source, uuids),
             )
+    # tool_run_id is listed explicitly and written as a literal NULL: every
+    # row this script creates is a historical human interaction backfilled
+    # from SOURCE, so there is no tool invocation behind it. Naming the
+    # column keeps the statement honest about the full activities schema
+    # (added 2026-09-07) rather than silently relying on the default.
     c.executemany(
-        """INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, ts, channel, direction, outcome, source)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+        """INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, ts, channel, direction, outcome, source, tool_run_id)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NULL)""",
         rows,
     )
     inserted = len(rows)

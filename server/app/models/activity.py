@@ -39,6 +39,7 @@ class Activity(Base):
         ),
         Index("idx_activities_subject", "subject_type", "subject_attio_id"),
         Index("idx_activities_ts", literal_column("ts DESC")),
+        Index("idx_activities_tool_run", "tool_run_id"),
     )
 
     id: Mapped[uuid_.UUID] = mapped_column(
@@ -58,6 +59,11 @@ class Activity(Base):
     outcome: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # Links a timeline row back to the tool invocation that produced it
+    # (2026-09-06). Nullable: most activities are human interactions with no
+    # run behind them. See app/models/tool_run.py for why runs live in their
+    # own table rather than here.
+    tool_run_id: Mapped[uuid_.UUID | None] = mapped_column(UUID, ForeignKey("tool_runs.id"))
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

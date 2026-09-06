@@ -50,7 +50,8 @@
         {"slug": "foundation_date", "type": "date", "ownership": "attio"},
         {"slug": "employee_range", "type": "enum", "ownership": "attio", "options_status": "needs_decision", "purpose": "Requested target bands (5-10, 10-20, 20-50, 50-100, 100+) do not align with SOURCE's actual bands (1-10, 11-50, 51-250, 251-1K, 1K-5K, 5K-10K, 10K-50K, 50K-100K, 100K+) - SOURCE is coarser at the low end, so some SOURCE bands would need to split across multiple target bands. Blocked on a confirmed band definition."},
         {"slug": "ticket_size", "type": "text", "ownership": "attio"},
-        {"slug": "lead_source", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Direct Referral", "Valuation Tool", "M&A Readiness Tool", "Buyer Form"], "purpose": "SOURCE options (Valuation Tool, M&A Readiness Tool, Buyer Form) carried as-is; Direct Referral added as a DEV-only manual-entry option for organizations with no SOURCE record"}
+        {"slug": "lead_source", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Direct Referral", "Valuation Tool", "M&A Readiness Tool", "Buyer Form"], "purpose": "SOURCE options (Valuation Tool, M&A Readiness Tool, Buyer Form) carried as-is; Direct Referral added as a DEV-only manual-entry option for organizations with no SOURCE record"},
+        {"slug": "is_test", "type": "boolean", "ownership": "attio", "purpose": "Environment discriminator: true = dev/test, false = prod. One SOURCE workspace serves both"}
       ]
     },
     {
@@ -81,7 +82,8 @@
         {"slug": "facebook", "type": "text", "ownership": "attio"},
         {"slug": "instagram", "type": "text", "ownership": "attio"},
         {"slug": "twitter", "type": "text", "ownership": "attio"},
-        {"slug": "twitter_follower_count", "type": "number", "ownership": "attio"}
+        {"slug": "twitter_follower_count", "type": "number", "ownership": "attio"},
+        {"slug": "is_test", "type": "boolean", "ownership": "attio", "purpose": "Environment discriminator: true = dev/test, false = prod. One SOURCE workspace serves both"}
       ]
     },
     {
@@ -128,7 +130,8 @@
         {"slug": "relationship_warmth", "type": "enum", "ownership": "attio", "options_status": "source_preserved"},
         {"slug": "target_geography", "type": "enum", "ownership": "attio", "options_status": "source_preserved"},
         {"slug": "last_mandate_briefing_date", "type": "date", "ownership": "attio"},
-        {"slug": "prior_gcc_acquisition", "type": "text", "ownership": "attio"}
+        {"slug": "prior_gcc_acquisition", "type": "text", "ownership": "attio"},
+        {"slug": "is_test", "type": "boolean", "ownership": "attio", "purpose": "Environment discriminator: true = dev/test, false = prod. One SOURCE workspace serves both"}
       ]
     },
     {
@@ -156,7 +159,34 @@
         {"slug": "last_attempt_channel", "type": "enum", "ownership": "both", "options_status": "needs_approval"},
         {"slug": "last_attempt_outcome", "type": "enum", "ownership": "both", "options_status": "needs_approval"},
         {"slug": "lead_quality_score", "type": "numeric", "ownership": "both"},
-        {"slug": "re_engage_date", "type": "date", "ownership": "both"}
+        {"slug": "re_engage_date", "type": "date", "ownership": "both"},
+        {"slug": "benchmark_score", "type": "numeric", "ownership": "attio", "purpose": "GCC SME Benchmark overall score 0-100"},
+        {"slug": "benchmark_band", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Top decile operator", "Above the pack", "Solidly in the middle", "Below the peer median", "Early or under pressure"]},
+        {"slug": "benchmark_quartile", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Bottom 25%", "Below Average", "Above Average", "Top 25%"]},
+        {"slug": "pct_ebitda_margin", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for EBITDA margin"},
+        {"slug": "pct_revenue_growth", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for revenue growth"},
+        {"slug": "pct_revenue_per_employee", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for revenue per employee"},
+        {"slug": "pct_concentration", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for customer concentration"},
+        {"slug": "pct_gross_margin", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for gross margin"},
+        {"slug": "pct_premises_cost", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for premises cost"},
+        {"slug": "pct_recurring_revenue", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for recurring revenue"},
+        {"slug": "pct_capital_efficiency", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for capital efficiency"},
+        {"slug": "pct_revenue_scale", "type": "numeric", "ownership": "attio", "unit": "percentile", "purpose": "Benchmark percentile ranking for revenue scale"},
+        {"slug": "implied_ev_low", "type": "money", "ownership": "attio", "currency": "USD"},
+        {"slug": "implied_ev_high", "type": "money", "ownership": "attio", "currency": "USD"},
+        {"slug": "ebitda_adjusted", "type": "money", "ownership": "attio", "currency": "USD", "purpose": "Owner-salary-adjusted EBITDA, distinct from est_ebitda which is the figure the founder reported"},
+        {"slug": "headcount", "type": "integer", "ownership": "attio", "purpose": "Raw headcount; organizations.employee_range holds only a band, lossy for revenue-per-employee scoring"},
+        {"slug": "days_to_get_paid", "type": "integer", "ownership": "attio"},
+        {"slug": "data_consent", "type": "boolean", "ownership": "attio"},
+        {"slug": "lead_priority", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Hot - partner call", "Warm - nurture", "Cold", "Disqualified"]},
+        {"slug": "routing_reason", "type": "text", "ownership": "attio"},
+        {"slug": "quality_check", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Passed", "Flagged - implausible", "Flagged - free email at scale", "Rejected"]},
+        {"slug": "benchmark_review", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Needs review", "Approved for dataset", "Rejected", "Auto-flagged"]},
+        {"slug": "include_in_benchmark", "type": "boolean", "ownership": "attio", "purpose": "Set by a human in Attio, never by the tool"},
+        {"slug": "review_note", "type": "text", "ownership": "attio"},
+        {"slug": "headline_flag", "type": "text", "ownership": "attio"},
+        {"slug": "recommended_referral", "type": "text", "ownership": "attio", "purpose": "M&A Readiness AI referral suggestion; its companion internal_advisory_note goes to the note object"},
+        {"slug": "is_test", "type": "boolean", "ownership": "attio", "purpose": "Environment discriminator: true = dev/test, false = prod. One SOURCE workspace serves both"}
       ]
     },
     {
@@ -204,7 +234,8 @@
         {"slug": "contract_signed_date", "type": "date", "ownership": "attio"},
         {"slug": "exclusivity_date", "type": "date", "ownership": "attio"},
         {"slug": "data_room_substatus", "type": "enum", "ownership": "both", "options_status": "needs_approval"},
-        {"slug": "comparables", "type": "jsonb", "ownership": "postgres"}
+        {"slug": "comparables", "type": "jsonb", "ownership": "postgres"},
+        {"slug": "is_test", "type": "boolean", "ownership": "attio", "purpose": "Environment discriminator: true = dev/test, false = prod. One SOURCE workspace serves both"}
       ]
     },
     {
@@ -225,7 +256,8 @@
         {"slug": "seller_role_id", "type": "record-reference", "ownership": "key", "target": "SellerRole", "nullable": true, "purpose": "Set when the organization/person is on the sell side."},
         {"slug": "note_type", "type": "enum", "ownership": "both", "options": ["Manual", "Meeting"], "purpose": "Manual = historical/hand-entered note; Meeting = generated from a meeting transcript summary."},
         {"slug": "content", "type": "text", "ownership": "both"},
-        {"slug": "created_at", "type": "timestamp", "ownership": "both"}
+        {"slug": "created_at", "type": "timestamp", "ownership": "both"},
+        {"slug": "is_test", "type": "boolean", "ownership": "attio", "purpose": "Environment discriminator: true = dev/test, false = prod. One SOURCE workspace serves both"}
       ],
       "population": {
         "historical_backfill": "One row per existing note on Organization.notes, Person.notes, and Buyer Role notes/additional_notes, all as note_type=Manual. organization_id is set directly for org-level notes; for person-level notes, organization_id is derived via the person's company, left blank if the person has no company at all. buyer_role_id/seller_role_id are set when that organization has an active Buyer Role / Seller Role entry.",
@@ -238,7 +270,7 @@
     },
     {
       "name": "Activities",
-      "status": "proposed_not_yet_implemented",
+      "status": "live",
       "postgres_table": "activities",
       "postgres_only": true,
       "purpose": "Append-only touch/interaction log. Replaces the scattered first/last/next_*_interaction summary fields on Organization and Person, with real per-event rows - those become computed queries (MIN/MAX(occurred_at)) against this table instead of separately-maintained columns.",
@@ -266,6 +298,29 @@
       "open_questions": [
         "Seller Role's attempt_1/2/3 date+channel+outcome already tracks per-touch data but only keeps the latest as flat columns (last_attempt_date/channel/outcome) - worth feeding into Activities too so that history isn't lost, but not changed here since it's an already-confirmed mapping.",
         "channel/outcome option lists need real approval, not just the placeholder values listed here."
+      ]
+    },
+    {
+      "name": "ToolRuns",
+      "status": "migration_written_not_yet_applied",
+      "postgres_table": "tool_runs",
+      "postgres_only": true,
+      "purpose": "Ledger of lead-magnet tool invocations. Complements Activities rather than replacing it: Activities is the human-readable CRM timeline, ToolRuns is the machine record of what an invocation did. Every subject reference is nullable and there is deliberately no CHECK requiring one - activities_subject_present makes it impossible to record a submission that failed before its Attio write, which is the lead-loss case this table exists to catch. Joined to Activities by activities.tool_run_id.",
+      "fields": [
+        {"slug": "id", "type": "uuid", "ownership": "postgres"},
+        {"slug": "tool", "type": "text", "ownership": "postgres", "purpose": "valuation | readiness | benchmark | buyer_network | attio_webhook"},
+        {"slug": "status", "type": "text", "ownership": "postgres", "options": ["running", "succeeded", "failed", "abandoned"], "purpose": "CHECK-constrained"},
+        {"slug": "idempotency_key", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "UNIQUE. Dedups a retried submission or a replayed Attio webhook."},
+        {"slug": "started_at", "type": "timestamptz", "ownership": "postgres"},
+        {"slug": "finished_at", "type": "timestamptz", "ownership": "postgres", "nullable": true, "purpose": "With started_at, gives per-run latency."},
+        {"slug": "attempt_count", "type": "integer", "ownership": "postgres", "purpose": "Default 1. What a retry sweeper queries on."},
+        {"slug": "error", "type": "text", "ownership": "postgres", "nullable": true},
+        {"slug": "payload", "type": "jsonb", "ownership": "postgres", "purpose": "Submission plus run metadata, intermediary AI output, and the raw M&A Readiness Q1-Q15 answers, which have no columns of their own by decision."},
+        {"slug": "organization_attio_id", "type": "record-reference", "ownership": "postgres", "target": "Organization", "nullable": true},
+        {"slug": "person_attio_id", "type": "record-reference", "ownership": "postgres", "target": "Person", "nullable": true},
+        {"slug": "seller_role_id", "type": "uuid", "ownership": "postgres", "nullable": true},
+        {"slug": "buyer_role_id", "type": "uuid", "ownership": "postgres", "nullable": true},
+        {"slug": "created_at", "type": "timestamptz", "ownership": "postgres"}
       ]
     }
   ],

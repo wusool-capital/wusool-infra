@@ -555,7 +555,12 @@ $stats = [ordered]@{
 foreach ($record in $sourceRecords) {
   $stats.inspected++
   $sourceId = Get-RecordId -Record $record
-  $payload = @{ legacy_attio_id = $sourceId }
+  # is_test = false on everything this migration brings over: it is all real
+  # SOURCE data. Dev/test records are added manually with is_test = true.
+  # Stamped explicitly rather than left unset because Attio's checkbox filter
+  # offers only "is true"/"is false" -- an unset record matches neither and
+  # would disappear from the prod view entirely.
+  $payload = @{ legacy_attio_id = $sourceId; is_test = $false }
   if (-not $isPerson) {
     # Every migrated Organization is historic-by-definition for this
     # migration, regardless of whether SOURCE had a real lead_source tool
@@ -1177,7 +1182,9 @@ foreach($s in $source){
   $existing=if($byLegacy.ContainsKey($sid)){$byLegacy[$sid]}else{$null}
   $action=if($null-ne$existing){"update"}else{"create"}
   $name=Value $s.values "name";if([string]::IsNullOrWhiteSpace([string]$name)){$name="Unknown Source Deal $sid"}
-  $values=@{legacy_attio_id=$sid;deal_name=[string]$name}
+  # is_test = false: real SOURCE data. See the same stamp on organizations/
+  # person above -- an unset Attio checkbox matches neither filter.
+  $values=@{legacy_attio_id=$sid;deal_name=[string]$name;is_test=$false}
   $sourceOwnerItem=ActiveValue $s.values "owner"
   $sourceOwnerId=if($sourceOwnerItem){[string]$sourceOwnerItem.referenced_actor_id}else{$null}
   # SOURCE Deal owner isn't always a real workspace-member -- the n8n

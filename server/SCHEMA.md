@@ -3,7 +3,7 @@
 Generated from `wusool_db/models/*.py` (2026-08-29) — that package is the
 source Alembic's `--autogenerate` diffs against, so it is the closest thing
 this repo has to a single source of truth for the schema. Current Alembic
-head: **`d5080e26bfc2`** (`drop_deals_next_task`).
+head: **`f7a2c9e14b83`** (`add_lead_magnet_columns_and_tool_runs`).
 
 **Two tiers of confidence — read this before trusting any table below:**
 
@@ -174,8 +174,47 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 | ebitda_deducts_salary | boolean | yes | | Lead Magnet |
 | largest_customer_revenue_pct / repeat_revenue_pct | numeric | yes | | Lead Magnet |
 | location_count | integer | yes | | Lead Magnet |
+| benchmark_score | numeric | yes | | Benchmark score 0-100 |
+| benchmark_band / benchmark_quartile | text | yes | | Benchmark banding |
+| pct_ebitda_margin / pct_revenue_growth / pct_revenue_per_employee / pct_concentration / pct_gross_margin / pct_premises_cost / pct_recurring_revenue / pct_capital_efficiency / pct_revenue_scale | numeric | yes | | Benchmark percentile rankings; discrete columns so each stays filterable |
+| implied_ev_low / implied_ev_high / ebitda_adjusted | jsonb | yes | | money-shaped USD, Benchmark. `ebitda_adjusted` is owner-salary-adjusted, distinct from `est_ebitda` |
+| headcount / days_to_get_paid | integer | yes | | Benchmark. `headcount` is raw; `organizations.employee_range` is only a band |
+| data_consent / include_in_benchmark | boolean | yes | | `include_in_benchmark` is set by a human in Attio, never by the tool |
+| lead_priority / routing_reason / quality_check / benchmark_review / review_note / headline_flag | text | yes | | Benchmark routing and dataset governance |
+| recommended_referral | text | yes | | M&A Readiness AI referral; its companion `internal_advisory_note` goes to `notes` |
 | raw_attio | jsonb | no | `{}` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
+
+### `tool_runs` (`tool_run.py`) — new, 2026-09-06
+
+Postgres-only ledger of lead-magnet tool invocations. Complements
+`activities` rather than replacing it: `activities` is the human-readable
+CRM timeline, `tool_runs` is the machine record of what an invocation did.
+
+Every subject reference is nullable and there is deliberately **no** CHECK
+requiring one — `activities_subject_present` makes it impossible to record a
+submission that failed before its Attio write, which is exactly the
+lead-loss case this table exists to catch.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| tool | text | no | | `valuation` / `readiness` / `benchmark` / `buyer_network` / `attio_webhook` |
+| status | text | no | | CHECK: `running`, `succeeded`, `failed`, `abandoned` |
+| idempotency_key | text | yes | unique | dedups a retried submission or a replayed webhook |
+| started_at | timestamptz | no | `now()` | |
+| finished_at | timestamptz | yes | | with `started_at`, gives per-run latency |
+| attempt_count | integer | no | `1` | what a retry sweeper queries on |
+| error | text | yes | | |
+| payload | jsonb | no | `{}` | submission + run metadata + intermediary AI output + raw Q1-Q15 answers |
+| organization_attio_id | text | yes | | FK → organizations.attio_id; indexed |
+| person_attio_id | text | yes | | FK → person.attio_id |
+| seller_role_id | uuid | yes | | FK → seller_roles.id |
+| buyer_role_id | uuid | yes | | FK → buyer_roles.id |
+| created_at | timestamptz | no | `now()` | |
+
+Indexes: `idx_tool_runs_tool`, `idx_tool_runs_status`,
+`idx_tool_runs_started_at` (DESC), `idx_tool_runs_organization`.
 
 ### `notes` (`note.py`) — new, 2026-08-28/29
 
@@ -320,6 +359,7 @@ Derived from `database/sql/00*.sql` end-to-end, not a live reflection — see
 | ts | timestamptz | no | `now()` | indexed DESC |
 | channel / direction / outcome / source | text | yes | | |
 | payload | jsonb | no | `{}` | |
+| tool_run_id | uuid | yes | | FK → tool_runs.id; indexed. Links a timeline row to the invocation that produced it (2026-09-06). Nullable — most activities are human interactions with no run behind them |
 | created_at | timestamptz | no | `now()` | |
 
 Constraint: `activities_subject_present` — `subject_attio_id IS NOT NULL OR subject_uuid IS NOT NULL`. Indexed on `(subject_type, subject_attio_id)`.
