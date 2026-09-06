@@ -40,9 +40,12 @@ class DesktopMeetingSubmitRequest(BaseModel):
     duration_seconds: float = Field(..., ge=0)
     # The meeting's actual start time, computed client-side from the local
     # recording (not the push time) -- a meeting can be pushed long after
-    # it happened, so the server must never derive this from its own
-    # now().
-    occurred_at: datetime
+    # it happened, so the server should never derive this from its own
+    # now() when it doesn't have to. Optional (not every desktop install
+    # updates the moment the server does): a client still on the previous
+    # release that omits this field falls back to the old approximation
+    # in IngestMixin.ingest_meeting rather than getting a 422.
+    occurred_at: datetime | None = None
     buyer_query: str | None = None
     buyer_selection: str | None = None
     seller_query: str | None = None
