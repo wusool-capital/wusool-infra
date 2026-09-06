@@ -75,9 +75,7 @@ class ToolRun(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    organization: Mapped["Organization | None"] = relationship(
-        foreign_keys=[organization_attio_id]
-    )
+    organization: Mapped["Organization | None"] = relationship(foreign_keys=[organization_attio_id])
     person: Mapped["Person | None"] = relationship(foreign_keys=[person_attio_id])
     seller_role: Mapped["SellerRole | None"] = relationship(foreign_keys=[seller_role_id])
     buyer_role: Mapped["BuyerRole | None"] = relationship(foreign_keys=[buyer_role_id])
