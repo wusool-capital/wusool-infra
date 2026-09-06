@@ -1,6 +1,7 @@
 import React from 'react';
 import { Progress } from './ui/progress';
 import { Spinner } from './ui/spinner';
+import { ScrollArea } from './ui/scroll-area';
 
 export interface ChunkStatus {
   chunk_id: number;
@@ -194,7 +195,8 @@ export function ChunkProgressDisplay({
           Recent Chunks ({Math.min(progress.chunks.length, 10)} of {progress.total_chunks})
         </h4>
 
-        <div className="max-h-48 overflow-y-auto space-y-1">
+        <ScrollArea className="max-h-48">
+          <div className="space-y-1">
           {progress.chunks
             .slice(-10) // Show last 10 chunks
             .reverse() // Most recent first
@@ -236,7 +238,8 @@ export function ChunkProgressDisplay({
                 )}
               </div>
             ))}
-        </div>
+          </div>
+        </ScrollArea>
       </div>
 
       {/* Processing Complete */}

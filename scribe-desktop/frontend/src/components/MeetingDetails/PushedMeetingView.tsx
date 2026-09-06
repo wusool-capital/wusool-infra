@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Transcript, TranscriptSegmentData } from '@/types';
 import { TranscriptPanel } from './TranscriptPanel';
 import { SummaryView, summaryToPlainText } from './SummaryView';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface PushedMeetingViewProps {
   meetingId: string;
@@ -116,8 +117,10 @@ export function PushedMeetingView({
           </TabsList>
         </div>
 
-        <TabsContent value="summary" className="flex-1 overflow-y-auto p-6 mt-0">
-          {isLoadingSummary ? (
+        <TabsContent value="summary" className="flex-1 min-h-0 mt-0">
+          <ScrollArea className="h-full">
+            <div className="p-6">
+            {isLoadingSummary ? (
             <p className="text-sm text-muted-foreground ">Loading summary...</p>
           ) : summary ? (
             <div className="space-y-4">
@@ -147,7 +150,9 @@ export function PushedMeetingView({
                 <span>{isChecking ? 'Checking...' : 'Check now'}</span>
               </Button>
             </div>
-          )}
+            )}
+            </div>
+          </ScrollArea>
         </TabsContent>
 
         <TabsContent value="transcript" className="flex-1 overflow-hidden mt-0">
@@ -171,8 +176,10 @@ export function PushedMeetingView({
           />
         </TabsContent>
 
-        <TabsContent value="recording" className="flex-1 overflow-y-auto p-6 mt-0">
-          <div className="space-y-4">
+        <TabsContent value="recording" className="flex-1 min-h-0 mt-0">
+          <ScrollArea className="h-full">
+            <div className="p-6">
+              <div className="space-y-4">
             <div>
               <h3 className="text-sm font-medium text-foreground mb-1">Recording folder</h3>
               <p className="text-sm text-muted-foreground break-all font-mono text-xs">
@@ -188,7 +195,9 @@ export function PushedMeetingView({
               <FolderOpen size={16} />
               Open Recording Folder
             </Button>
-          </div>
+              </div>
+            </div>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
     </div>

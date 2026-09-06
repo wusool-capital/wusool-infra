@@ -32,6 +32,24 @@ delivered state and outstanding items see
 
 ### Fixed
 
+- WusoolScribe desktop app: Scribe Push save failures now show a short,
+  non-technical toast ("Could not reach the server. Check the URL and your
+  connection.") with no endpoint hostname or raw reqwest/DNS chain; the full
+  error goes to the log instead of the UI.
+- WusoolScribe 0.4.7: bundle Sonner's base stylesheet explicitly so Settings
+  feedback remains visible in packaged builds. Successful Scribe Push saves
+  now show one "Push destination saved" toast after verification and persistence.
+- WusoolScribe desktop app: `ScrollArea` viewports now inherit the Root's
+  max-height, so scroll surfaces bounded only by `max-h-*` (language picker,
+  company autocomplete, release notes, pushed summary, chunk progress, and the
+  Ollama model lists) scroll instead of silently clipping their overflow.
+  Sticky transcript headers keep Radix's content wrapper as `display: block`.
+- WusoolScribe desktop app: standardized application scroll surfaces on the
+  shared shadcn/Radix `ScrollArea`, including the transcript viewport, dialogs,
+  settings, onboarding, and pickers, so the scrollbar thumb follows light and
+  dark themes consistently.
+- WusoolScribe desktop app: removed redundant in-page Back buttons from the
+  Settings and folder pages; navigation remains available through the sidebar.
 - `meetings` module: the pushed meeting's `occurred_at` was computed
   server-side as `now() - duration_seconds`, which is wrong whenever a
   push happens well after the meeting itself (e.g. the next day) — the
