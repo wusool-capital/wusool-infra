@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type Theme = 'light' | 'dark';
 
@@ -16,6 +17,14 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark');
+  // tauri.conf.json's window `theme` only sets the initial native title
+  // bar/traffic-lights appearance -- without this, the OS-drawn chrome
+  // stays on that initial value forever and never follows the app's own
+  // light/dark toggle. Swallow failures: this call only matters inside a
+  // real Tauri window (e.g. not `next dev` in a plain browser tab).
+  getCurrentWindow()
+    .setTheme(theme)
+    .catch((err) => console.error('Failed to sync native window theme:', err));
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

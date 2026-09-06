@@ -71,6 +71,7 @@ async def submit_meeting(
             TranscriptTurn(speaker=turn.speaker, text=turn.text) for turn in request.transcript
         ],
         duration_seconds=request.duration_seconds,
+        occurred_at=request.occurred_at,
         role_selections=role_selections,
         role_queries=role_queries,
     )

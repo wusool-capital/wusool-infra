@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke as invokeTauri } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { CompanySelection, CREATE_NEW_VALUE } from '@/components/MeetingDetails/CompanyAutocomplete';
@@ -27,6 +27,12 @@ interface DesktopMeetingStatusResponse {
   summary: Record<string, unknown> | null;
 }
 
+// Background polling cadence once a meeting is pushed -- fast enough that
+// the summary appears without the user having to click "Check", capped by
+// the in-flight guard in checkStatus so a slow response never piles up
+// concurrent requests.
+const POLL_INTERVAL_MS = 1000;
+
 /**
  * Push flow: sends the finished, edited transcript to the Scribe EC2
  * backend once the user tags the meeting and clicks Push. Push is
@@ -40,6 +46,7 @@ export function usePush(meetingId: string) {
   const [remoteMeetingId, setRemoteMeetingId] = useState<string | null>(null);
   const [remoteSummary, setRemoteSummary] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isCheckingRef = useRef(false);
 
   const saveTag = useCallback(async (tag: string) => {
     try {
@@ -91,8 +98,11 @@ export function usePush(meetingId: string) {
     }
   }, [meetingId]);
 
-  const checkStatus = useCallback(async () => {
-    if (!remoteMeetingId) return;
+  const checkStatus = useCallback(async (opts?: { silent?: boolean }) => {
+    // Guards against overlapping requests: the auto-poll effect below fires
+    // on a fixed interval regardless of how long the previous check took.
+    if (!remoteMeetingId || isCheckingRef.current) return;
+    isCheckingRef.current = true;
     try {
       // meetingId (local) lets the backend command file the summary into
       // this meeting's existing recording folder alongside its audio and
@@ -110,9 +120,26 @@ export function usePush(meetingId: string) {
       }
     } catch (err) {
       console.error('Failed to check push status:', err);
-      toast.error('Failed to check push status');
+      // Silenced for the background poll -- a transient failure every
+      // second would otherwise spam toasts until the summary lands. A
+      // manual "Check" click still reports the failure.
+      if (!opts?.silent) {
+        toast.error('Failed to check push status');
+      }
+    } finally {
+      isCheckingRef.current = false;
     }
   }, [meetingId, remoteMeetingId]);
+
+  // Auto-poll once pushed, until a summary shows up -- the user no longer
+  // has to click "Check" themselves for the common case.
+  useEffect(() => {
+    if (pushState !== 'pushed' || remoteSummary) return;
+    const interval = setInterval(() => {
+      checkStatus({ silent: true });
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [pushState, remoteSummary, checkStatus]);
 
   return {
     pushState,

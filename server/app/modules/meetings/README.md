@@ -13,6 +13,11 @@ unchanged — it still records and transcribes locally and only pushes a
 finished transcript here; recording/audio storage (S3) is out of scope, and
 so is Slack delivery (the desktop app displays the summary itself).
 
+`GET /desktop/verify` lets the desktop app's Push Destination settings
+check a server URL + API key before saving them — the route body does
+nothing but return `{"status": "ok"}`; reaching it at all already proves
+`require_desktop_api_key` accepted the Bearer token.
+
 Async contract, no queue: `POST /desktop/meetings` acks fast (row created,
 `status=summarizing`) and schedules the actual Bedrock call as a FastAPI
 `BackgroundTask` — no SQS, no separate worker process. The desktop app's

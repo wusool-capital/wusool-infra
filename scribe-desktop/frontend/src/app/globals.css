@@ -109,8 +109,6 @@
     --chart-3: 260 45% 55%;
     --chart-4: 38 80% 55%;
     --chart-5: 340 55% 55%;
-    --scrollbar-thumb: 228 16% 78%;
-    --scrollbar-thumb-hover: 228 14% 65%;
   }
 
   .dark {
@@ -144,8 +142,6 @@
     --chart-3: 260 50% 65%;
     --chart-4: 38 75% 60%;
     --chart-5: 340 55% 62%;
-    --scrollbar-thumb: 228 18% 26%;
-    --scrollbar-thumb-hover: 228 16% 36%;
   }
 }
 
@@ -170,30 +166,6 @@
   .no-drag {
     -webkit-app-region: no-drag;
     app-region: no-drag;
-  }
-
-  /* Custom scrollbar styles */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: hsl(var(--scrollbar-thumb));
-    border-radius: 3px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--scrollbar-thumb-hover));
-  }
-
-  /* Firefox scrollbar */
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--scrollbar-thumb)) transparent;
   }
 
   /* BlockNote Editor - Override fixed dimensions for responsive layout */

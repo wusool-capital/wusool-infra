@@ -20,7 +20,7 @@ export function About() {
                         alt="WusoolScribe Logo"
                         width={64}
                         height={64}
-                        className="mx-auto"
+                        className="mx-auto rounded-xl"
                     />
                 </div>
                 <h1 className="text-xl font-bold text-foreground">WusoolScribe</h1>

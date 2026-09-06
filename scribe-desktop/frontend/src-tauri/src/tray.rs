@@ -21,10 +21,15 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     // Pass can_record=true initially, will be updated by update_tray_menu immediately
     let menu = build_menu(app, RecordingState::Stopped, true)?;
 
+    // Embedded at compile time so the tray icon doesn't depend on the
+    // Next.js `public/` dir being present at runtime (it's dev-server/build
+    // output, not a bundled resource).
+    let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../../public/tray-icon.png"))?;
+
     TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
         .tooltip("WusoolScribe")
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(tray_icon)
         .on_menu_event(|app, event| handle_menu_event(app, event.id.as_ref()))
         .build(app)?;
 

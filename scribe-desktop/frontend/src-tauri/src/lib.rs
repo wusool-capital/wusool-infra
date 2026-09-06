@@ -740,6 +740,7 @@ pub fn run() {
             // Push-to-Scribe-backend commands
             push::get_push_config,
             push::set_push_config,
+            push::verify_push_config,
             push::push_meeting,
             push::get_push_status,
             push::update_meeting_tag,
