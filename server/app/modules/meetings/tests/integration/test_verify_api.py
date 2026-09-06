@@ -35,9 +35,7 @@ def test_valid_key_returns_ok() -> None:
 
 
 def test_wrong_key_is_rejected() -> None:
-    response = _make_client().get(
-        "/desktop/verify", headers={"Authorization": "Bearer wrong-key"}
-    )
+    response = _make_client().get("/desktop/verify", headers={"Authorization": "Bearer wrong-key"})
 
     assert response.status_code == 401
 
