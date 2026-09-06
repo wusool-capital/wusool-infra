@@ -20,7 +20,6 @@ from app.modules.matching_engine.application.ports.llm import (
     BedrockClient,
     InferenceConfig,
 )
-from app.modules.matching_engine.application.provider_errors import BedrockInvocationError
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateNarrative,
@@ -31,6 +30,7 @@ from app.modules.matching_engine.domain.meetings import render_meeting_notes_sec
 from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 
 class MatchReasoningService:

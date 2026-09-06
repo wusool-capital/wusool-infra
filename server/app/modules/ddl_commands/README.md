@@ -137,6 +137,10 @@ mocked HTTP layer only — **nothing in this suite talks to real DEV Attio**;
 smoke-test at least one real `/edit-seller` and one real `/add-seller`
 against a low-stakes DEV org before deploying a change to the create path.
 
+## Where to go next
+
+New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).
+
 ## History: the schema-authority correction
 
 An earlier version of this bot added a `bot_managed_at`/`bot_managed_by`/

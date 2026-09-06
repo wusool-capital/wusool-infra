@@ -28,7 +28,7 @@ delete `modules/` and inline everything into `stacks/`: every stack's
 `source = "../../modules/..."` line depends on it, and dev/prod would drift
 out of sync with each other without it.
 
-## The five stacks
+## The stacks
 
 | Stack | Owns | Per-environment? |
 |---|---|---|
@@ -37,6 +37,8 @@ out of sync with each other without it.
 | `n8n` | The n8n EC2 instance, its secret, optional Bedrock access | Yes |
 | `toolkit` | The wusool-toolkit EC2 instance, its secret, its own ECR repo | Yes |
 | `postgres` | The RDS instance, seeded from a snapshot if `snapshot_identifier` is set | Yes |
+| `peering` | The dev↔prod VPC peering connection and its routes | **No** — spans both environments |
+| `scribe-updates` | S3 + CloudFront update feed for the WusoolScribe desktop app, and the GitHub OIDC role that publishes to it | **No** — one public feed, not per-environment (see [`docs/dev/SCRIBE_UPDATE_FEED.md`](../../docs/dev/SCRIBE_UPDATE_FEED.md)) |
 
 Every per-environment stack reads `stacks/base`'s network/alarm outputs via
 `terraform_remote_state`; `postgres` also reads `n8n` and `toolkit`'s security

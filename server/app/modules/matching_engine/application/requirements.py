@@ -15,7 +15,6 @@ from app.modules.matching_engine.application.ports.llm import (
     BedrockClient,
     InferenceConfig,
 )
-from app.modules.matching_engine.application.provider_errors import BedrockInvocationError
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.scoring import describe_criteria
 from app.modules.matching_engine.domain.meetings import render_meeting_notes_section
@@ -25,6 +24,7 @@ from app.modules.matching_engine.domain.requirements import (
     SoftPreference,
 )
 from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 
 class BuyerRequirementExtractionService:

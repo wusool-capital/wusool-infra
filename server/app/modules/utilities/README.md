@@ -19,6 +19,7 @@ utilities/
                                   # (fastapi-dependent) to avoid pulling fastapi into domain/ consumers
   domain/
     errors.py                    # AppError, NotFoundError, ValidationFailedError
+    provider_errors.py             # BedrockInvocationError — shared by matching_engine/meetings
     money.py                       # Money — plain frozen dataclass, not pydantic (domain-purity)
     retry.py                         # retry_with_backoff
     logging.py                         # configure_logging, log_context
@@ -37,11 +38,12 @@ utilities/
 
 ## Public contract
 
-`__all__`: `AppError`, `NotFoundError`, `ValidationFailedError`, `Money`,
-`parse_usd_amount`, `retry_with_backoff`, `configure_logging`,
-`log_context`, `IdempotencyStore`, `InMemoryIdempotencyStore`, `TaskRunner`,
-`InProcessTaskRunner`, `check_database_connectivity`, `find_schema_drift`,
-`get_engine`, `get_sessionmaker`, `import_all_models`.
+`__all__`: `AppError`, `BedrockInvocationError`, `NotFoundError`,
+`ValidationFailedError`, `Money`, `parse_usd_amount`, `retry_with_backoff`,
+`configure_logging`, `log_context`, `IdempotencyStore`,
+`InMemoryIdempotencyStore`, `TaskRunner`, `InProcessTaskRunner`,
+`check_database_connectivity`, `find_schema_drift`, `get_engine`,
+`get_sessionmaker`, `import_all_models`.
 
 `register_exception_handlers` is deliberately **not** in `__all__` — a
 `bootstrap.py`-level consumer (which already imports `fastapi` itself)
@@ -61,3 +63,7 @@ signature unchanged.
 `application/` never import its own `persistence/`/`api/`/`fastapi`/
 `pydantic`/`sqlalchemy` directly — unaffected by other modules' full-access
 exception to reach into `persistence/`/`api/` themselves.
+
+## Where to go next
+
+New to this module? See [`HOW-TO-READ.md`](HOW-TO-READ.md).

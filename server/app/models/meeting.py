@@ -1,25 +1,25 @@
-"""`meetings` — read-only from matching-engine's perspective. Owned and
-written by Scribe (its own standalone Postgres/Alembic chain) and by the
-one-time Attio notes migration. DDL lives in `(historical, removed) database/sql/005_meetings.sql`.
+"""`meetings` — written by Scribe (its own standalone Postgres/Alembic chain)
+and by the one-time Attio notes migration; also written by this repo's own
+`meetings` module (landing in a later phase), which owns the desktop-push
+columns added below. DDL lives in `(historical, removed) database/sql/005_meetings.sql`.
 """
 
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, Integer, Text, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ENUM, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 
-# Native Postgres enums (005_meetings.sql) — create_type=False since no app in
-# this repo creates this schema, only reads it; values must match the DDL
-# exactly. Do not flip this to create_type=True: an `alembic upgrade head`
-# against an empty database needs a hand-written revision to CREATE TYPE
-# before the revision that reaches `meetings` (see
-# ALEMBIC_MIGRATION_HANDOVER.md point 4) — flipping this instead would break
-# integration tests that run `metadata.create_all()` against a database that
-# already has these types.
+# Native Postgres enums (005_meetings.sql) — create_type=False is kept because
+# the baseline revision d982478fc6e3 already owns CREATE TYPE for these three
+# enums (they must exist before this table does); autogenerate must not try
+# to re-emit them here. Values must match the DDL exactly. Do not flip this
+# to create_type=True: an `alembic upgrade head` against an empty database
+# needs d982478fc6e3's hand-written CREATE TYPE to run first (see
+# ALEMBIC_MIGRATION_HANDOVER.md point 4).
 _MeetingSource = ENUM("in_house", "granola", "manual", name="meeting_source", create_type=False)
 _CounterpartyRole = ENUM("buyer", "seller", name="counterparty_role", create_type=False)
 _MeetingType = ENUM(
@@ -38,6 +38,25 @@ class Meeting(Base):
     __table_args__ = (
         Index("ix_meetings_org_id", "org_id"),
         Index("ix_meetings_occurred_at", "occurred_at"),
+        CheckConstraint(
+            "status IN ('summarizing','completed','failed')", name="ck_meetings_status"
+        ),
+        # Partial indexes — must match the migration
+        # (2565f7950641_add_desktop_push_status_columns_to_.py) exactly, or
+        # `alembic check` reports drift and reverts them on the next
+        # autogenerate.
+        Index(
+            "uq_meetings_desktop_push",
+            "install_id",
+            "local_recording_id",
+            unique=True,
+            postgresql_where=text("install_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_meetings_summarizing",
+            "summary_started_at",
+            postgresql_where=text("status = 'summarizing'"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -59,3 +78,8 @@ class Meeting(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
     scribe_meeting_id: Mapped[UUID | None] = mapped_column(unique=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="completed")
+    install_id: Mapped[str | None] = mapped_column(Text)
+    local_recording_id: Mapped[str | None] = mapped_column(Text)
+    summary_json: Mapped[dict | None] = mapped_column(JSONB)
+    summary_started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
