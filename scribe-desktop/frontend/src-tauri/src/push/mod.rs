@@ -160,7 +160,24 @@ pub async fn verify_push_config(server_url: String, api_key: String) -> Result<(
     if !status.is_success() {
         return Err(format!("Server returned {}.", status));
     }
+
+    // A 2xx status alone isn't proof this is a Scribe backend -- a wrong
+    // but still-live URL (a typo'd domain someone else owns, a catch-all
+    // homepage, a load balancer's default page) can return 200 for any
+    // path. Confirm the body actually matches DesktopVerifyResponse.
+    let body: DesktopVerifyResponse = response
+        .json()
+        .await
+        .map_err(|_| format!("{} doesn't look like a Scribe backend.", server_url))?;
+    if body.status != "ok" {
+        return Err(format!("{} doesn't look like a Scribe backend.", server_url));
+    }
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct DesktopVerifyResponse {
+    status: String,
 }
 
 // ---------------------------------------------------------------------------

@@ -34,7 +34,12 @@ on:
         options: [stable, beta]
         default: stable
       release_notes:
-        description: Changelog for this release - shown in the GitHub release AND the app's in-app update dialog
+        description: >-
+          Changelog for this release - shown in the GitHub release AND the
+          app's in-app update dialog. workflow_dispatch's web form is a
+          single-line box that can't hold real line breaks, so type a
+          literal \n where you want one; it's converted to a real newline
+          before publishing (see the "Normalize release notes" step).
         required: false
         type: string
         default: ''
@@ -75,6 +80,27 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+
+      # workflow_dispatch's web-UI input is a single-line text box: pasting
+      # or typing a real line break into it either does nothing or gets
+      # dropped by the browser, so a manually-triggered release's notes
+      # always arrived as one unbroken line (confirmed live - the in-app
+      # update dialog and the GitHub release both rendered it that way,
+      # `whitespace-pre-wrap` notwithstanding, since there was never a
+      # newline character to preserve). `printf '%b'` expands a literal
+      # `\n` (backslash-n, two characters, easy to type into that box)
+      # into a real newline; every other consumer reads this output
+      # instead of `inputs.release_notes` directly.
+      - name: Normalize release notes
+        id: notes
+        env:
+          RAW: ${{ inputs.release_notes }}
+        run: |
+          {
+            echo 'text<<RELEASE_NOTES_EOF'
+            printf '%b\n' "$RAW"
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       # tauri.conf.json is the source of truth; package.json and Cargo.toml
       # must agree with it. A release built from mismatched versions is
@@ -155,7 +181,7 @@ jobs:
           args: --target aarch64-apple-darwin
           tagName: ${{ steps.meta.outputs.tag }}
           releaseName: WusoolScribe v${{ steps.meta.outputs.version }}
-          releaseBody: ${{ inputs.release_notes }}
+          releaseBody: ${{ steps.notes.outputs.text }}
           releaseDraft: false
           includeUpdaterJson: false # we publish our own manifest to CloudFront, not GitHub asset URLs
 
@@ -168,7 +194,7 @@ jobs:
         env:
           VERSION: ${{ steps.meta.outputs.version }}
           CHANNEL: ${{ steps.meta.outputs.channel }}
-          NOTES: ${{ inputs.release_notes }}
+          NOTES: ${{ steps.notes.outputs.text }}
         run: |
           BUNDLE_DIR="target/aarch64-apple-darwin/release/bundle/macos"
           # Tauri names the updater tarball after productName only - no
