@@ -283,7 +283,11 @@ export function BuiltInModelManager({
         <h4 className="text-sm font-bold">Built-in AI Models</h4>
       </div>
 
-      <ScrollArea className={cn(layout === 'dialog' && 'max-h-[50vh] pr-2')}>
+      {/* Outside a dialog the list has no height bound, so cancel the Root's
+          overflow-hidden -- otherwise it clips focus rings and inline popovers. */}
+      <ScrollArea
+        className={cn(layout === 'dialog' ? 'max-h-[50vh] pr-2' : 'overflow-visible')}
+      >
         <div className="grid gap-4 pb-2">
         {models.map((model) => {
           const progress = downloadProgress[model.name];
