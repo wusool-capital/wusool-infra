@@ -11,7 +11,7 @@ a raw, unassociated name — this module never creates an organization.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from app.modules.meetings.application.base import ServiceBase
 from app.modules.meetings.application.errors import (
@@ -55,7 +55,7 @@ class IngestMixin(ServiceBase):
         local_recording_id: str,
         transcript: list[TranscriptTurn],
         duration_seconds: float,
-        occurred_at: datetime,
+        occurred_at: datetime | None,
         role_selections: dict[MeetingRole, str],
         role_queries: dict[MeetingRole, str],
     ) -> MeetingRecord:
@@ -119,6 +119,12 @@ class IngestMixin(ServiceBase):
         # (in PublishMixin) as the summarization prompt's input — never
         # re-derived from the typed turns a second time.
         transcript_text = render_transcript_text(transcript)
+
+        # Only a desktop build still on the previous release omits this --
+        # fall back to the old approximation rather than a 422, so a
+        # not-yet-updated install's push still succeeds during rollout.
+        if occurred_at is None:
+            occurred_at = datetime.now(UTC) - timedelta(seconds=duration_seconds)
 
         return await self._meetings_repository.create(
             id=uuid.uuid4(),
