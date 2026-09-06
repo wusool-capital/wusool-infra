@@ -42,6 +42,7 @@ from app.models.scorecard import Scorecard
 from app.models.seller_financial import SellerFinancial
 from app.models.seller_role import SellerRole
 from app.models.signal import Signal
+from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.vertical_kb import VerticalKb
 
@@ -66,6 +67,7 @@ __all__ = [
     "SellerFinancial",
     "SellerRole",
     "Signal",
+    "ToolRun",
     "User",
     "VerticalKb",
 ]

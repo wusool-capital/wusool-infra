@@ -9,6 +9,58 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-07
+
+### Added
+
+- Lead-magnet schema across SOURCE Attio and PostgreSQL, so the four tools
+  (Valuation, M&A Readiness, GCC SME Benchmark, Buyer Network) have a real
+  destination for what they compute. Until now those fields were written
+  only to the legacy `lead_magnet_inbound*` Attio lists, which the Postgres
+  mirror does not read — none of it reached the database.
+  - 26 attributes on the `seller_role` list and matching `seller_roles`
+    columns: benchmark score/band/quartile, nine `pct_*` percentile
+    rankings, `implied_ev_low`/`_high`, `ebitda_adjusted`, `headcount`,
+    `days_to_get_paid`, `data_consent`, the routing and dataset-governance
+    fields, and `recommended_referral`.
+  - The nine percentiles are discrete columns, not one JSONB blob, so each
+    stays filterable — the reason they are real columns rather than
+    `raw_attio`, which the nightly resync overwrites wholesale.
+- `is_test` (checkbox) on all six Attio entities — `organizations`,
+  `person`, `deal`, `note`, `seller_role`, `buyer_role`. One SOURCE
+  workspace now serves both environments: `true` is dev/test, `false` is
+  production. **Attio-only, with no PostgreSQL column** — the split is a
+  read-side filter at sync time. Every write path sets it explicitly,
+  because Attio's checkbox filter offers only "is true"/"is false": an
+  unset record matches neither and disappears from both environments.
+- `tool_runs` table (`tool_run.py`, Postgres-only) and
+  `activities.tool_run_id`. Complements `activities` rather than replacing
+  it. Every subject reference is nullable with no CHECK requiring one —
+  `activities_subject_present` makes it impossible to record a submission
+  that failed before its Attio write, which is the lead-loss case the
+  ledger exists to catch.
+- Missing picklist options: `seller_role.readiness_band` (Early,
+  Developing, Sale Ready, Market Ready), `buyer_role.target_geography`
+  (Egypt, Global), `organizations.type` (Search Fund, HNWI).
+
+### Fixed
+
+- `seller_role.readiness_band` shipped as a select with **zero options**, so
+  every write to it failed outright. Any readiness band written before now
+  was silently lost.
+- `server/scripts/postgres-sync/dev/sync-postgres.ps1` declared 31
+  `seller_roles` columns against 30 `%s` placeholders — that insert could
+  never have executed. Pre-existing and unrelated to the work above, but it
+  sat in the block being edited.
+
+### Notes
+
+- Schema only: the tools are **not** repointed. `dopamine-relay` and
+  `wusool-benchmark` are untouched, so Valuation and Readiness still run
+  `toAed()` and write AED into USD-declared attributes. Deleting that
+  conversion belongs with the repointing work.
+- Alembic `f7a2c9e14b83`, revises `2565f7950641`.
+
 ## 2026-09-06
 
 ### Added

@@ -154,7 +154,18 @@ $fields = @(
   # actually runs, never backdatable. This field holds the note's REAL
   # original timestamp instead.
   [pscustomobject]@{ Title = "Note Created At"; Slug = "note_created_at"; Type = "timestamp"; Unique = $false; Config = @{} },
-  [pscustomobject]@{ Title = "Legacy Note ID"; Slug = "legacy_note_id"; Type = "text"; Unique = $true; Config = @{} }
+  [pscustomobject]@{ Title = "Legacy Note ID"; Slug = "legacy_note_id"; Type = "text"; Unique = $true; Config = @{} },
+  # Environment discriminator, added 2026-09-06: one SOURCE workspace now
+  # serves both dev and prod, true = dev/test, false = prod. An unset checkbox
+  # matches neither of Attio's "is true"/"is false" filters, so every write
+  # path must set this explicitly.
+  #
+  # Declared here rather than in _internal/schema.ps1 because `note` is absent
+  # from ensure-schema.ps1's ValidateSet entirely -- this backfill script owns
+  # the note object's schema. Promoting `note` into ensure-schema.ps1 with its
+  # own Invoke-NoteSchema would be the cleaner structure and is worth doing,
+  # but it is a larger refactor than this change warrants.
+  [pscustomobject]@{ Title = "Is Test"; Slug = "is_test"; Type = "checkbox"; Unique = $false; Config = @{} }
 )
 
 $attrs = Get-Attributes
@@ -542,6 +553,10 @@ $created = 0
 foreach ($item in $toCreate) {
   $values = Build-NoteValues -Item $item -HasNameAttribute $hasNameAttribute
   $values.legacy_note_id = $item.LegacyNoteId
+  # Real SOURCE data, so is_test = false. Dev/test notes are added manually
+  # with is_test = true. Stamped explicitly: an unset Attio checkbox matches
+  # neither the "is true" nor the "is false" filter.
+  $values.is_test = $false
   try {
     Request Post "/objects/note/records" @{ data = @{ values = $values } } | Out-Null
     $created++

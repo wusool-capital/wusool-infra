@@ -107,7 +107,14 @@ if ($targetObject.data.api_slug -ne "organizations") {
 $fields = @(
   [pscustomobject]@{ Title = "Name"; Slug = "name"; Type = "text"; Multi = $false; Required = $true; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Description"; Slug = "description"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
-  [pscustomobject]@{ Title = "Type"; Slug = "type"; Type = "select"; Multi = $true; Required = $false; Unique = $false; SourceOption = "type" },
+  # FixedOptions sits alongside SourceOption deliberately: the two seeding
+  # passes below are independent and both additive, so SOURCE's own titles
+  # still flow through. "Search Fund" and "HNWI" added 2026-09-06 -- the Buyer
+  # Network form's organisation_type has six values and only four had an
+  # equivalent here. Mapped onto this attribute rather than a parallel one,
+  # since buyer_role.model means the Wusool engagement model, not the
+  # applicant's firm type.
+  [pscustomobject]@{ Title = "Type"; Slug = "type"; Type = "select"; Multi = $true; Required = $false; Unique = $false; SourceOption = "type"; FixedOptions = @("Search Fund", "HNWI") },
   # Text, not select -- SOURCE occasionally holds more than one simultaneously-
   # active client_type (e.g. "Fundraising" and "M&A"), and Attio custom
   # objects don't support multiselect text; a single-select silently dropped
@@ -155,7 +162,14 @@ $fields = @(
   # in DEV only because it was created directly via the API at some point,
   # never tracked here until now (same class of gap noted elsewhere in this
   # file for other fields).
-  [pscustomobject]@{ Title = "Lead Source"; Slug = "lead_source"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @("Inbound", "Outbound") }
+  [pscustomobject]@{ Title = "Lead Source"; Slug = "lead_source"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @("Inbound", "Outbound") },
+  # Environment discriminator, added 2026-09-06: one SOURCE workspace now
+  # serves both dev and prod, true = dev/test, false = prod. Attio cannot
+  # enforce NOT NULL on a checkbox and its filter offers only "is true"/"is
+  # false" -- an unset record matches neither and vanishes from both
+  # environments' views, so every write path must set this explicitly and
+  # validate-attio.ps1 asserts no record is left unset.
+  [pscustomobject]@{ Title = "Is Test"; Slug = "is_test"; Type = "checkbox"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; Config = @{} }
 )
 
 $targetAttributes = Get-Attributes -Headers $devHeaders -ObjectSlug "organizations"
@@ -469,7 +483,13 @@ $fields = @(
   [pscustomobject]@{ Title = "Facebook"; Slug = "facebook"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
   [pscustomobject]@{ Title = "Instagram"; Slug = "instagram"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
   [pscustomobject]@{ Title = "Twitter"; Slug = "twitter"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
-  [pscustomobject]@{ Title = "Twitter Follower Count"; Slug = "twitter_follower_count"; Type = "number"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null }
+  [pscustomobject]@{ Title = "Twitter Follower Count"; Slug = "twitter_follower_count"; Type = "number"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  # Environment discriminator, added 2026-09-06: one SOURCE workspace now
+  # serves both dev and prod, true = dev/test, false = prod. Attio cannot
+  # enforce NOT NULL on a checkbox and its filter offers only "is true"/"is
+  # false" -- an unset record matches neither and vanishes from both
+  # environments' views, so every write path must set this explicitly.
+  [pscustomobject]@{ Title = "Is Test"; Slug = "is_test"; Type = "checkbox"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null; Config = @{} }
 )
 
 $targetAttributes = Get-Attributes -Headers $devHeaders -ObjectSlug "person"
@@ -721,7 +741,12 @@ $fields=@(
   [pscustomobject]@{Title="Fee %";Slug="fee";Type="number";Config=@{};RenameFrom=$null},
   # Only known multiselect among these custom Deal fields -- Multi=$true is
   # load-bearing, the drift check and create body below both key off it.
-  [pscustomobject]@{Title="Assigned Advisor";Slug="assigned_advisor";Type="select";Multi=$true;Config=@{};RenameFrom=$null}
+  [pscustomobject]@{Title="Assigned Advisor";Slug="assigned_advisor";Type="select";Multi=$true;Config=@{};RenameFrom=$null},
+  # Environment discriminator, added 2026-09-06: one SOURCE workspace now
+  # serves both dev and prod, true = dev/test, false = prod. An unset checkbox
+  # matches neither of Attio's "is true"/"is false" filters, so every write
+  # path must set this explicitly.
+  [pscustomobject]@{Title="Is Test";Slug="is_test";Type="checkbox";Config=@{};RenameFrom=$null}
 )
 $actions=[Collections.Generic.List[string]]::new()
 foreach($field in $fields){
@@ -987,11 +1012,20 @@ $fields = @(
   [pscustomobject]@{ Title="Notable Investments"; Slug="notable_investments"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Key Personnel"; Slug="key_personnel"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Relationship Warmth"; Slug="relationship_warmth"; Type="select"; Multi=$false; SourceOption="relationship_warmth"; Config=@{} },
-  [pscustomobject]@{ Title="Target Geography"; Slug="target_geography"; Type="select"; Multi=$true; SourceOption="target_geography"; Config=@{} },
+  # FixedOptions added 2026-09-06 alongside the existing SourceOption: the two
+  # seeding passes are independent and both additive. The Buyer Network form
+  # offers UAE / Saudi Arabia / GCC / Egypt / Global, and Egypt and Global had
+  # no option here -- two of its five answers were unstorable.
+  [pscustomobject]@{ Title="Target Geography"; Slug="target_geography"; Type="select"; Multi=$true; SourceOption="target_geography"; FixedOptions=@("Egypt","Global"); Config=@{} },
   [pscustomobject]@{ Title="Last Mandate Briefing Date"; Slug="last_mandate_briefing_date"; Type="date"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Prior GCC Acquisition"; Slug="prior_gcc_acquisition"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Is Active"; Slug="is_active"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} },
-  [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} }
+  [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  # Environment discriminator, added 2026-09-06: one SOURCE workspace now
+  # serves both dev and prod, true = dev/test, false = prod. An unset checkbox
+  # matches neither of Attio's "is true"/"is false" filters, so every write
+  # path must set this explicitly.
+  [pscustomobject]@{ Title="Is Test"; Slug="is_test"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} }
 )
 
 if ($Apply -and -not $devListMap.ContainsKey("buyer_role")) {
@@ -1279,7 +1313,12 @@ $fields = @(
   [pscustomobject]@{ Title="Valuation High"; Slug="valuation_high"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
   [pscustomobject]@{ Title="Sell Timeline"; Slug="sell_timeline"; Type="select"; SourceOptions=@(); TargetOptions=@("Immediate","Within 6 Months","6-12 Months","12-24 Months","Not Selling"); Config=@{} },
   [pscustomobject]@{ Title="Readiness Score"; Slug="readiness_score"; Type="number"; SourceOptions=@(); Config=@{} },
-  [pscustomobject]@{ Title="Readiness Band"; Slug="readiness_band"; Type="select"; SourceOptions=@(); Config=@{} },
+  # TargetOptions added 2026-09-06: this select shipped with zero options, so
+  # every write to it failed outright. Titles are the M&A Readiness tool's own
+  # normalised bands (dopamine-relay/index.js BAND_MAP). Safe to declare as a
+  # closed set -- TargetOptions archives anything outside it, and there was
+  # nothing here to archive.
+  [pscustomobject]@{ Title="Readiness Band"; Slug="readiness_band"; Type="select"; SourceOptions=@(); TargetOptions=@("Early","Developing","Sale Ready","Market Ready"); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Date"; Slug="last_attempt_date"; Type="date"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Channel"; Slug="last_attempt_channel"; Type="select"; SourceOptions=@("attempt_1_channel","attempt_2_channel","attempt_2_channel_6"); Config=@{} },
   [pscustomobject]@{ Title="Last Attempt Outcome"; Slug="last_attempt_outcome"; Type="select"; SourceOptions=@("attempt_1_outcome","attempt_2_outcome","attempt_2_outcome_6"); Config=@{} },
@@ -1302,7 +1341,66 @@ $fields = @(
   [pscustomobject]@{ Title="Annual Rent Cost"; Slug="annual_rent_cost"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
   [pscustomobject]@{ Title="Largest Customer Revenue %"; Slug="largest_customer_revenue_pct"; Type="number"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Repeat Revenue %"; Slug="repeat_revenue_pct"; Type="number"; SourceOptions=@(); Config=@{} },
-  [pscustomobject]@{ Title="Location Count"; Slug="location_count"; Type="number"; SourceOptions=@(); Config=@{} }
+  [pscustomobject]@{ Title="Location Count"; Slug="location_count"; Type="number"; SourceOptions=@(); Config=@{} },
+
+  # ---------------------------------------------------------------------
+  # Lead-magnet tool output (2026-09-06). Every field below is written by one
+  # of the four tools and previously had nowhere to land on this list -- the
+  # tools wrote them to the legacy `lead_magnet_inbound_benchmark` /
+  # `lead_magnet_inbound` lists, which the Postgres mirror does not read.
+  #
+  # Currency fields are USD, matching every other currency attribute here.
+  # Note the Valuation and Readiness tools still convert to AED before writing
+  # (dopamine-relay's toAed()); that conversion has to be dropped when those
+  # tools are repointed, or converted at ingest as lists.ps1 already does.
+  #
+  # The nine pct_* rankings are discrete number attributes rather than one
+  # JSON blob so they stay filterable and keep the slug == column == FieldSpec
+  # invariant this repo relies on. Titles for every select come verbatim from
+  # wusool-benchmark (relay-benchmark.js SCORE_BANDS/QLABEL, attio-setup.js)
+  # so they match what the tool actually posts.
+  # ---------------------------------------------------------------------
+  [pscustomobject]@{ Title="Benchmark Score"; Slug="benchmark_score"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Benchmark Band"; Slug="benchmark_band"; Type="select"; SourceOptions=@(); TargetOptions=@("Top decile operator","Above the pack","Solidly in the middle","Below the peer median","Early or under pressure"); Config=@{} },
+  [pscustomobject]@{ Title="Benchmark Quartile"; Slug="benchmark_quartile"; Type="select"; SourceOptions=@(); TargetOptions=@("Bottom 25%","Below Average","Above Average","Top 25%"); Config=@{} },
+  [pscustomobject]@{ Title="Pct EBITDA Margin"; Slug="pct_ebitda_margin"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Pct Revenue Growth"; Slug="pct_revenue_growth"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Pct Revenue Per Employee"; Slug="pct_revenue_per_employee"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Pct Concentration"; Slug="pct_concentration"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Pct Gross Margin"; Slug="pct_gross_margin"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Pct Premises Cost"; Slug="pct_premises_cost"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Pct Recurring Revenue"; Slug="pct_recurring_revenue"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Pct Capital Efficiency"; Slug="pct_capital_efficiency"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Pct Revenue Scale"; Slug="pct_revenue_scale"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Implied EV Low"; Slug="implied_ev_low"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  [pscustomobject]@{ Title="Implied EV High"; Slug="implied_ev_high"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  # The benchmark's owner-salary-adjusted EBITDA, distinct from est_ebitda
+  # (which is the figure the founder reported).
+  [pscustomobject]@{ Title="EBITDA Adjusted"; Slug="ebitda_adjusted"; Type="currency"; SourceOptions=@(); Config=@{ currency=@{ default_currency_code="USD"; display_type="symbol"} } },
+  # Raw headcount. organizations.employee_range holds only a band, which is
+  # lossy for revenue-per-employee -- one of the benchmark's scored metrics.
+  [pscustomobject]@{ Title="Headcount"; Slug="headcount"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Days To Get Paid"; Slug="days_to_get_paid"; Type="number"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Data Consent"; Slug="data_consent"; Type="checkbox"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Lead Priority"; Slug="lead_priority"; Type="select"; SourceOptions=@(); TargetOptions=@("Hot - partner call","Warm - nurture","Cold","Disqualified"); Config=@{} },
+  [pscustomobject]@{ Title="Routing Reason"; Slug="routing_reason"; Type="text"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Quality Check"; Slug="quality_check"; Type="select"; SourceOptions=@(); TargetOptions=@("Passed","Flagged - implausible","Flagged - free email at scale","Rejected"); Config=@{} },
+  # Dataset governance: the benchmark's own recalibration reads only entries a
+  # human has set to "Approved for dataset". See wusool-benchmark/DATA-WORKFLOW.md.
+  [pscustomobject]@{ Title="Benchmark Review"; Slug="benchmark_review"; Type="select"; SourceOptions=@(); TargetOptions=@("Needs review","Approved for dataset","Rejected","Auto-flagged"); Config=@{} },
+  [pscustomobject]@{ Title="Include In Benchmark"; Slug="include_in_benchmark"; Type="checkbox"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Review Note"; Slug="review_note"; Type="text"; SourceOptions=@(); Config=@{} },
+  [pscustomobject]@{ Title="Headline Flag"; Slug="headline_flag"; Type="text"; SourceOptions=@(); Config=@{} },
+  # M&A Readiness tool's AI-generated referral suggestion. Confirmed 2026-09-06
+  # to exist nowhere in Attio or Postgres before now -- the only near-match,
+  # matching_results.recommended_pitch, is Postgres-only and unrelated. The
+  # tool's companion internal_advisory_note goes to the `note` object instead.
+  [pscustomobject]@{ Title="Recommended Referral"; Slug="recommended_referral"; Type="text"; SourceOptions=@(); Config=@{} },
+  # Environment discriminator, added 2026-09-06: one SOURCE workspace now
+  # serves both dev and prod, true = dev/test, false = prod. An unset checkbox
+  # matches neither of Attio's "is true"/"is false" filters, so every write
+  # path must set this explicitly.
+  [pscustomobject]@{ Title="Is Test"; Slug="is_test"; Type="checkbox"; SourceOptions=@(); Config=@{} }
 )
 
 if ($Apply -and -not $devListMap.ContainsKey("seller_role")) {
