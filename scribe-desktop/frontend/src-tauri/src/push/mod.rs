@@ -21,6 +21,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use chrono::{DateTime, Duration, Utc};
 use log::{error, info, warn};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -124,6 +125,44 @@ pub async fn set_push_config<R: Runtime>(
     Ok(config)
 }
 
+/// Checks a candidate server_url/api_key pair against the backend's
+/// `GET /desktop/verify` before the Settings UI persists them — takes
+/// the values directly rather than reading `load_push_config`, since the
+/// whole point is to validate before saving.
+#[tauri::command]
+pub async fn verify_push_config(server_url: String, api_key: String) -> Result<(), String> {
+    let server_url = server_url.trim();
+    let api_key = api_key.trim();
+    if server_url.is_empty() {
+        return Err("Server URL is required.".to_string());
+    }
+    if api_key.is_empty() {
+        return Err("API key is required.".to_string());
+    }
+
+    let url = format!("{}/desktop/verify", server_url.trim_end_matches('/'));
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach {}: {}", url, e))?;
+
+    let status = response.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return Err("API key was rejected by the server.".to_string());
+    }
+    if !status.is_success() {
+        return Err(format!("Server returned {}.", status));
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Push payload — must match app.desktop.schemas.DesktopMeetingSubmitRequest
 // ---------------------------------------------------------------------------
@@ -142,6 +181,10 @@ struct DesktopMeetingSubmitRequest {
     local_recording_id: String,
     transcript: Vec<DesktopTranscriptTurn>,
     duration_seconds: f64,
+    /// The meeting's actual start time -- sent explicitly so the server
+    /// never has to derive it from its own now(), which is wrong for a
+    /// meeting pushed long after it happened (see occurred_at below).
+    occurred_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     buyer_query: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -304,11 +347,28 @@ pub async fn push_meeting<R: Runtime>(
         .filter_map(|t| t.audio_end_time)
         .fold(0.0_f64, f64::max);
 
+    // meeting.created_at is stamped when the finished transcript is saved
+    // (i.e. right after recording stops, not when it's pushed -- a push
+    // can happen hours or days later), so subtracting the duration back
+    // off it approximates the meeting's actual start time. Falls back to
+    // "now minus duration" only if created_at somehow fails to parse.
+    let occurred_at = DateTime::parse_from_rfc3339(&meeting.created_at)
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|e| {
+            warn!(
+                "Failed to parse meeting {} created_at '{}': {} -- falling back to now",
+                meeting_id, meeting.created_at, e
+            );
+            Utc::now()
+        })
+        - Duration::milliseconds((duration_seconds * 1000.0) as i64);
+
     let request_body = DesktopMeetingSubmitRequest {
         install_id: config.install_id.clone(),
         local_recording_id: meeting_id.clone(),
         transcript: turns,
         duration_seconds,
+        occurred_at: occurred_at.to_rfc3339(),
         buyer_query: buyer_query.filter(|s| !s.trim().is_empty()),
         buyer_selection,
         seller_query: seller_query.filter(|s| !s.trim().is_empty()),

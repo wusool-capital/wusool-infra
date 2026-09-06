@@ -10,11 +10,13 @@ from app.modules.meetings.api.companies import router as companies_router
 from app.modules.meetings.api.ingest import router as ingest_router
 from app.modules.meetings.api.status import router as status_router
 from app.modules.meetings.api.sync import router as sync_router
+from app.modules.meetings.api.verify import router as verify_router
 
 router = APIRouter()
 router.include_router(ingest_router)
 router.include_router(status_router)
 router.include_router(sync_router)
 router.include_router(companies_router)
+router.include_router(verify_router)
 
 __all__ = ["router"]

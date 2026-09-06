@@ -9,6 +9,54 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-06
+
+### Added
+
+- `GET /desktop/verify` on the `meetings` module's desktop API surface, so
+  the WusoolScribe desktop app's Scribe Push settings tab can check a
+  server URL + API key against the backend before saving them, instead of
+  only surfacing a bad config the next time the user pushes a meeting.
+  Reuses the existing `require_desktop_api_key` dependency — the route
+  body just confirms the Bearer token was accepted. New
+  `verify_push_config` Tauri command in the desktop app calls it and
+  blocks `set_push_config` from persisting on a rejected key or
+  unreachable server.
+- WusoolScribe desktop app: the "Summarize meeting" dialog now auto-polls
+  `GET /desktop/meetings/{id}` every second after a push instead of
+  requiring a manual "Check" click, stopping once the summary arrives. An
+  in-flight guard keeps a slow response from ever piling up overlapping
+  requests, and background-poll failures are silenced (a manual click
+  still surfaces one) so a transient error doesn't spam a toast every
+  second.
+
+### Fixed
+
+- `meetings` module: the pushed meeting's `occurred_at` was computed
+  server-side as `now() - duration_seconds`, which is wrong whenever a
+  push happens well after the meeting itself (e.g. the next day) — the
+  desktop app now computes and sends the actual `occurred_at` itself
+  (derived from the local recording's saved timestamp minus its
+  duration), and the server uses that value verbatim instead of guessing
+  from its own clock.
+- WusoolScribe desktop app: a meeting folder's list (and the main
+  sidebar) relied implicitly on the SQLite query's `ORDER BY created_at
+  DESC` surviving unchanged through every consumer with no sort of its
+  own; now explicitly sorted latest-first once, at the single shared
+  source (`SidebarProvider.fetchMeetings`), so it can't silently break if
+  that array is ever touched elsewhere.
+- WusoolScribe desktop app: the native macOS title bar and the sidebar's
+  scrollbar both stayed in light mode regardless of the app's own
+  dark-mode toggle. `tauri.conf.json`'s window `theme` only set the
+  chrome once at launch, so it never followed later toggles — now synced
+  via the Tauri window API on every theme change. The scrollbar's
+  `::-webkit-scrollbar` CSS was silently ignored (WKWebView/Safari
+  doesn't reliably support it) — switched to the shadcn `ScrollArea`
+  (Radix, DOM-drawn), which isn't subject to that WebKit limitation.
+- WusoolScribe desktop app: the tray/menu-bar icon reused the app's
+  window icon instead of the dedicated `tray-icon.png`; the About
+  dialog's logo now has rounded corners.
+
 ## 2026-09-05
 
 ### Added
@@ -49,6 +97,46 @@ delivered state and outstanding items see
   Gatekeeper's quarantine prompt is unaffected either way, since the updater
   never downloads through a quarantine-setting API. macOS aarch64 only in
   this pass. See `docs/dev/SCRIBE_UPDATE_FEED.md`.
+
+### Fixed
+
+- `meetings` module: avoided a `MissingGreenlet` error by no longer
+  re-reading a column that was just assigned via `func.now()` on an ORM
+  instance under `AsyncSession` — assigning a server-side SQL expression
+  leaves the attribute "expired" post-flush, and a later read
+  (`to_meeting_record`) triggered an implicit async refresh that isn't
+  safe there.
+- `meetings` module: the desktop push's session is now committed before
+  scheduling the summarization `BackgroundTask`, not after — this FastAPI
+  version runs `BackgroundTasks` before a yield-dependency's own
+  post-commit cleanup, so the background task's independent session
+  couldn't see the just-created row yet, and every push was failing
+  summarization with "meeting not found".
+- WusoolScribe desktop app: release workflow's `pnpm` pinned to v10 to
+  match the lockfile, and the updater tarball filename corrected — both
+  were silently breaking `scribe-release.yml`'s ability to produce a
+  working auto-update artifact.
+- WusoolScribe desktop app: the main window now explicitly focuses on
+  relaunch after an update — a relaunch via the updater spawns the new
+  process without the Launch Services activation a normal double-click
+  gets, so it was silently landing in the background with no way to
+  bring it forward. The update toast was restyled onto sonner's native
+  title/description/action API (fixing a doubled icon and cramped
+  layout), and `scribe-release.yml` gained a `release_notes` input wired
+  into both the GitHub release body and `latest.json`'s `notes` field —
+  previously nothing set that field, so the in-app changelog dialog
+  always showed an empty body.
+- WusoolScribe desktop app: the sidebar footer's version was a hardcoded
+  `"v0.4.0"` literal, never updated across three released versions —
+  now reads the real `getVersion()`, matching how the About dialog
+  already did it. Removed stale "delivered to Slack" copy from the push
+  destination description (the meetings-module rewrite above already
+  dropped Slack delivery from this pipeline). Fixed the recording-controls
+  button and processing/saving overlays flashing right-of-center for one
+  frame when navigating back to Home — both used a JS-computed
+  `marginLeft` guess to fake centering against the sidebar's width
+  instead of `position: absolute` inside the content row that already
+  excludes it.
 
 ## 2026-09-04
 

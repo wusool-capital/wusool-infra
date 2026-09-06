@@ -45,9 +45,13 @@ export function PushDestinationSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const trimmedUrl = serverUrl.trim();
+      const trimmedKey = apiKey.trim();
+      await invoke('verify_push_config', { serverUrl: trimmedUrl, apiKey: trimmedKey });
+
       const config = await invoke<PushConfig>('set_push_config', {
-        serverUrl: serverUrl.trim(),
-        apiKey: apiKey.trim(),
+        serverUrl: trimmedUrl,
+        apiKey: trimmedKey,
       });
       setServerUrl(config.server_url);
       setApiKey(config.api_key);
@@ -114,7 +118,7 @@ export function PushDestinationSettings() {
 
         <Button onClick={handleSave} disabled={saving} size="sm">
           <Send className="w-4 h-4 mr-1" />
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? 'Verifying...' : 'Save'}
         </Button>
       </div>
 

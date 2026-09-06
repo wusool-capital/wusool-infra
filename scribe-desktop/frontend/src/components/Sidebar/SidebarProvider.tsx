@@ -138,6 +138,12 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
           durationSeconds: meeting.duration_seconds ?? null,
           createdAt: meeting.created_at ?? null,
         }));
+        // Latest first, explicitly -- every consumer of `meetings` (sidebar,
+        // folder view, meeting-details) relies on this array's order rather
+        // than re-sorting itself, so this is the one place it must hold.
+        transformedMeetings.sort(
+          (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+        );
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
       } catch (error) {

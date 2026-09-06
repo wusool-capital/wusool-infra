@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -55,6 +55,15 @@ export function PushSummaryDialog({ open, onOpenChange, meetingId, initialTag }:
   const disabled = pushState === 'pushing' || pushState === 'pushed';
   const companyRequired = ROLES_REQUIRING_COMPANY.includes(role);
   const companyMissing = companyRequired && !company.query.trim();
+
+  // Picks up the AI-generated title usePush's checkStatus may have just
+  // saved (over a still-placeholder title), whether the summary arrived
+  // from the background poll or a manual "Check" click.
+  useEffect(() => {
+    if (remoteSummary) {
+      refetchMeetings();
+    }
+  }, [remoteSummary, refetchMeetings]);
 
   const handlePush = async () => {
     if (companyMissing) return;
@@ -140,13 +149,7 @@ export function PushSummaryDialog({ open, onOpenChange, meetingId, initialTag }:
               <Button
                 size="sm"
                 variant="outline"
-                onClick={async () => {
-                  await checkStatus();
-                  // Picks up the AI-generated title checkStatus may have
-                  // just saved, so the sidebar's placeholder timestamp
-                  // title updates without needing a manual refresh.
-                  await refetchMeetings();
-                }}
+                onClick={() => checkStatus()}
               >
                 <RefreshCw size={14} />
                 <span className="hidden lg:inline">Check</span>

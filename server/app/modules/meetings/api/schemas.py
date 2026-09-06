@@ -14,6 +14,7 @@ doesn't otherwise use them.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +38,11 @@ class DesktopMeetingSubmitRequest(BaseModel):
     local_recording_id: str = Field(..., min_length=1)
     transcript: list[DesktopTranscriptTurn]
     duration_seconds: float = Field(..., ge=0)
+    # The meeting's actual start time, computed client-side from the local
+    # recording (not the push time) -- a meeting can be pushed long after
+    # it happened, so the server must never derive this from its own
+    # now().
+    occurred_at: datetime
     buyer_query: str | None = None
     buyer_selection: str | None = None
     seller_query: str | None = None
@@ -58,6 +64,14 @@ class DesktopMeetingSubmitResponse(BaseModel):
     meeting_id: uuid.UUID
     status: str
     already_existed: bool
+
+
+class DesktopVerifyResponse(BaseModel):
+    """Backs the desktop app's Save-time config check — reaching this
+    route at all already proves the server URL and API key are both
+    correct, since `require_desktop_api_key` runs first."""
+
+    status: str = "ok"
 
 
 class SummaryNoteSchema(BaseModel):

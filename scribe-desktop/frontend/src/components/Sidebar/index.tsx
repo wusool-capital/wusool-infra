@@ -32,6 +32,7 @@ import Logo from '../Logo';
 import { ComplianceNotification } from '../ComplianceNotification';
 import { Input } from '../ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
+import { ScrollArea } from '../ui/scroll-area';
 
 interface SidebarItem {
   id: string;
@@ -837,7 +838,7 @@ const Sidebar: React.FC = () => {
 
             {/* Scrollable meeting items */}
             {!isCollapsed && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+              <ScrollArea className="flex-1 min-h-0">
                 {filteredSidebarItems
                   .filter(item => item.type === 'folder' && expandedFolders.has(item.id) && item.children)
                   .map(item => (
@@ -845,7 +846,7 @@ const Sidebar: React.FC = () => {
                       {item.children!.map(child => renderItem(child, 1))}
                     </div>
                   ))}
-              </div>
+              </ScrollArea>
             )}
           </div>
         </div>
