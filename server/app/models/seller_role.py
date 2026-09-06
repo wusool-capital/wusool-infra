@@ -84,6 +84,47 @@ class SellerRole(Base):
     largest_customer_revenue_pct: Mapped[Decimal | None] = mapped_column(Numeric)
     repeat_revenue_pct: Mapped[Decimal | None] = mapped_column(Numeric)
     location_count: Mapped[int | None] = mapped_column()
+    # Lead-magnet tool output (2026-09-06). Previously written only to the
+    # legacy lead_magnet_inbound_benchmark/lead_magnet_inbound Attio lists,
+    # which this mirror does not read -- so none of it reached Postgres.
+    # Money columns are USD, matching est_revenue/est_ebitda above.
+    benchmark_score: Mapped[Decimal | None] = mapped_column(Numeric)
+    benchmark_band: Mapped[str | None] = mapped_column(Text)
+    benchmark_quartile: Mapped[str | None] = mapped_column(Text)
+    # Discrete columns rather than one JSONB blob so a percentile stays
+    # filterable -- being queryable is why these are real columns and not
+    # raw_attio, which the nightly resync overwrites wholesale anyway.
+    pct_ebitda_margin: Mapped[Decimal | None] = mapped_column(Numeric)
+    pct_revenue_growth: Mapped[Decimal | None] = mapped_column(Numeric)
+    pct_revenue_per_employee: Mapped[Decimal | None] = mapped_column(Numeric)
+    pct_concentration: Mapped[Decimal | None] = mapped_column(Numeric)
+    pct_gross_margin: Mapped[Decimal | None] = mapped_column(Numeric)
+    pct_premises_cost: Mapped[Decimal | None] = mapped_column(Numeric)
+    pct_recurring_revenue: Mapped[Decimal | None] = mapped_column(Numeric)
+    pct_capital_efficiency: Mapped[Decimal | None] = mapped_column(Numeric)
+    pct_revenue_scale: Mapped[Decimal | None] = mapped_column(Numeric)
+    implied_ev_low: Mapped[dict | None] = mapped_column(JSONB)
+    implied_ev_high: Mapped[dict | None] = mapped_column(JSONB)
+    # Owner-salary-adjusted, so distinct from est_ebitda -- that is the figure
+    # the founder reported, this is what the benchmark actually scores on.
+    ebitda_adjusted: Mapped[dict | None] = mapped_column(JSONB)
+    # Raw count. organizations.employee_range is only a band, too coarse for
+    # revenue-per-employee, one of the benchmark's scored metrics.
+    headcount: Mapped[int | None] = mapped_column()
+    days_to_get_paid: Mapped[int | None] = mapped_column()
+    data_consent: Mapped[bool | None] = mapped_column()
+    lead_priority: Mapped[str | None] = mapped_column(Text)
+    routing_reason: Mapped[str | None] = mapped_column(Text)
+    quality_check: Mapped[str | None] = mapped_column(Text)
+    # Dataset governance: the benchmark's recalibration reads only rows a
+    # human set to "Approved for dataset" (wusool-benchmark/DATA-WORKFLOW.md).
+    benchmark_review: Mapped[str | None] = mapped_column(Text)
+    include_in_benchmark: Mapped[bool | None] = mapped_column()
+    review_note: Mapped[str | None] = mapped_column(Text)
+    headline_flag: Mapped[str | None] = mapped_column(Text)
+    # The Readiness tool's companion internal_advisory_note is not here -- it
+    # goes to the note object instead.
+    recommended_referral: Mapped[str | None] = mapped_column(Text)
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

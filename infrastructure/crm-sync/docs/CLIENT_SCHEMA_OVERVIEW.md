@@ -73,6 +73,7 @@ Type: object | API identifier: `organizations`
 | `linkedin` | `text` | attio | - |
 | `ticket_size` | `text` | attio | - |
 | `lead_source` | `enum` (Inbound / Outbound) | attio | - |
+| `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
 | `is_active` | `boolean` | attio | - |
 
 ### Person
@@ -103,6 +104,7 @@ Type: object | API identifier: `person`
 | `facebook` | `text` | attio | - |
 | `instagram` | `text` | attio | - |
 | `twitter` | `text` | attio | - |
+| `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
 | `twitter_follower_count` | `integer` | attio | - |
 
 ### User
@@ -151,6 +153,7 @@ Type: list | API identifier: `buyer_role` | Parent: `organizations`
 | `last_mandate_briefing_date` | `date` | attio | - |
 | `prior_gcc_acquisition` | `text` | attio | - |
 
+| `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
 `typical_check_size` dropped 2026-08-23 (see `migration-decisions.json`'s `dropped_fields`) — redundant with `check_size_min`/`check_size_max` above.
 
 ### seller_role
@@ -180,6 +183,42 @@ Type: list | API identifier: `seller_role` | Parent: `organizations`
 | `re_engage_date` | `date` | both | - |
 | `is_active` | `boolean` | both | - |
 | `legacy_entry_id` | `text` | key | - |
+| `benchmark_score` | `numeric` | attio | Benchmark, 0-100 |
+| `benchmark_band` | `enum` | attio | Benchmark, 5 options |
+| `benchmark_quartile` | `enum` | attio | Benchmark, 4 options |
+| `pct_ebitda_margin` | `numeric` | attio | Benchmark percentile |
+| `pct_revenue_growth` | `numeric` | attio | Benchmark percentile |
+| `pct_revenue_per_employee` | `numeric` | attio | Benchmark percentile |
+| `pct_concentration` | `numeric` | attio | Benchmark percentile |
+| `pct_gross_margin` | `numeric` | attio | Benchmark percentile |
+| `pct_premises_cost` | `numeric` | attio | Benchmark percentile |
+| `pct_recurring_revenue` | `numeric` | attio | Benchmark percentile |
+| `pct_capital_efficiency` | `numeric` | attio | Benchmark percentile, startup mode |
+| `pct_revenue_scale` | `numeric` | attio | Benchmark percentile, startup mode |
+| `implied_ev_low` | `money` | attio | USD, startup mode |
+| `implied_ev_high` | `money` | attio | USD, startup mode |
+| `ebitda_adjusted` | `money` | attio | USD, owner-salary-adjusted; distinct from `est_ebitda` |
+| `headcount` | `integer` | attio | raw count; `organizations.employee_range` is a band |
+| `days_to_get_paid` | `integer` | attio | - |
+| `data_consent` | `boolean` | attio | - |
+| `lead_priority` | `enum` | attio | Benchmark routing, 4 options |
+| `routing_reason` | `text` | attio | - |
+| `quality_check` | `enum` | attio | automatic checks, 4 options |
+| `benchmark_review` | `enum` | attio | tool sets Needs review / Auto-flagged; a human sets the rest |
+| `include_in_benchmark` | `boolean` | attio | **human only** — never written by the tool |
+| `review_note` | `text` | attio | human only |
+| `headline_flag` | `text` | attio | weakest metric and its percentile |
+| `recommended_referral` | `text` | attio | M&A Readiness AI referral |
+| `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — see the note below |
+
+> **Drift note (2026-09-07).** This table is still missing twelve fields
+> added on 2026-08-25 that do exist in `_internal/schema.ps1` and in
+> `seller_roles`: `years_active`, `funding_stage`,
+> `revenue_last_full_year`, `revenue_year_before`, `gross_margin_pct`,
+> `ebitda_deducts_salary`, `annual_rent_cost`,
+> `largest_customer_revenue_pct`, `repeat_revenue_pct`, `location_count`,
+> and the `sell_timeline` option set. Pre-existing; left alone here rather
+> than folded into an unrelated change.
 
 ### investor_lender_role
 
@@ -234,6 +273,7 @@ Type: object | API identifier: `deals`
 | `retainer_amount` | `money` (USD) | attio | - |
 | `source_mandate_entry_id` | `text` | key | Idempotency key for the one-time Mandate migration below — not a real business field. |
 
+| `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
 `stage` includes a `Mandate Active` status: a signed mandate still sourcing
 candidates, no specific counterparty locked in yet. Distinct from
 `Mandate Signed`, which already implies a specific counterparty and signed
@@ -548,11 +588,52 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `outcome` | `text` | Yes | - | - | - |
 | `source` | `text` | Yes | - | - | - |
 | `payload` | `jsonb` | No | - | - | `'{}'::jsonb` |
+| `tool_run_id` | `uuid` | Yes | - | `tool_runs.id` | - |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 
 **Table constraints**
 
 - `CONSTRAINT activities_subject_present CHECK (`
+
+### tool_runs
+
+Added 2026-09-07. Postgres-only ledger of lead-magnet tool invocations,
+never written to Attio. Complements `activities` rather than replacing it:
+`activities` is the human-readable CRM timeline, `tool_runs` is the machine
+record of what an invocation did, including the intermediary output that
+never reaches an entity.
+
+Every subject reference is nullable and there is deliberately **no** CHECK
+requiring one. `activities_subject_present` makes it impossible to record a
+submission that failed *before* its Attio write — precisely the lead-loss
+case this table exists to catch.
+
+| Column | Type | Nullable | Key | References | Default |
+|---|---|---:|---|---|---|
+| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
+| `tool` | `text` | No | - | - | - |
+| `status` | `text` | No | - | - | - |
+| `idempotency_key` | `text` | Yes | unique | - | - |
+| `started_at` | `timestamptz` | No | - | - | `now()` |
+| `finished_at` | `timestamptz` | Yes | - | - | - |
+| `attempt_count` | `integer` | No | - | - | `1` |
+| `error` | `text` | Yes | - | - | - |
+| `payload` | `jsonb` | No | - | - | `'{}'::jsonb` |
+| `organization_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
+| `person_attio_id` | `text` | Yes | - | `person.attio_id` | - |
+| `seller_role_id` | `uuid` | Yes | - | `seller_roles.id` | - |
+| `buyer_role_id` | `uuid` | Yes | - | `buyer_roles.id` | - |
+| `created_at` | `timestamptz` | No | - | - | `now()` |
+
+**Table constraints**
+
+- `CONSTRAINT tool_runs_status_check CHECK (status IN ('running','succeeded','failed','abandoned'))`
+
+**Indexes** — `idx_tool_runs_tool`, `idx_tool_runs_status`,
+`idx_tool_runs_started_at` (DESC), `idx_tool_runs_organization`.
+
+`tool` values: `valuation`, `readiness`, `benchmark`, `buyer_network`,
+`attio_webhook`.
 
 ### deal_stage_events
 

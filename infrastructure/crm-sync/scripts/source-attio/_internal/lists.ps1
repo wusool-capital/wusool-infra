@@ -417,6 +417,10 @@ foreach ($group in $groups) {
     }
     $values["is_active"] = $isActive
     $values["legacy_entry_id"] = $sourceEntryId
+    # Real SOURCE data, so is_test = false. Dev/test entries are added
+    # manually with is_test = true. Stamped explicitly: an unset Attio
+    # checkbox matches neither the "is true" nor the "is false" filter.
+    $values["is_test"] = $false
 
     $keyContactName = Get-Value -Values $entry.entry_values -Slug "key_personnel_email"
     $hasKeyContactName = -not [string]::IsNullOrWhiteSpace([string]$keyContactName)
@@ -908,6 +912,10 @@ foreach ($group in $groups) {
     }
     $values["is_active"] = $isActive
     $values["legacy_entry_id"] = $sourceEntryId
+    # Real SOURCE data, so is_test = false. Dev/test entries are added
+    # manually with is_test = true. Stamped explicitly: an unset Attio
+    # checkbox matches neither the "is true" nor the "is false" filter.
+    $values["is_test"] = $false
 
     $plans.Add([pscustomobject]@{
       source_parent_id = $sourceParentId

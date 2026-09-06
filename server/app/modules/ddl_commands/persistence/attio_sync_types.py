@@ -177,6 +177,33 @@ class SellerRoleParams(TypedDict):
     largest_customer_revenue_pct: float | None
     repeat_revenue_pct: float | None
     location_count: int | None
+    # Lead-magnet tool output (2026-09-06)
+    benchmark_score: float | None
+    benchmark_band: str | None
+    benchmark_quartile: str | None
+    pct_ebitda_margin: float | None
+    pct_revenue_growth: float | None
+    pct_revenue_per_employee: float | None
+    pct_concentration: float | None
+    pct_gross_margin: float | None
+    pct_premises_cost: float | None
+    pct_recurring_revenue: float | None
+    pct_capital_efficiency: float | None
+    pct_revenue_scale: float | None
+    implied_ev_low: MoneyJson | None
+    implied_ev_high: MoneyJson | None
+    ebitda_adjusted: MoneyJson | None
+    headcount: int | None
+    days_to_get_paid: int | None
+    data_consent: bool | None
+    lead_priority: str | None
+    routing_reason: str | None
+    quality_check: str | None
+    benchmark_review: str | None
+    include_in_benchmark: bool | None
+    review_note: str | None
+    headline_flag: str | None
+    recommended_referral: str | None
     legacy_entry_id: str
     raw_attio: AttioRecord
 
