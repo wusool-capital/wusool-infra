@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "dev_workspace_id": "176eb4b0-40a9-419b-b363-784b596a6bbc",
+  "workspace_id": "176eb4b0-40a9-419b-b363-784b596a6bbc",
   "objects": {
     "organization": {
       "kind": "custom",

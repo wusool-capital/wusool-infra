@@ -1,24 +1,22 @@
 param(
-  [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
-  [string]$DevApiKey = $env:SOURCE_ATTIO_API_KEY
+  [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY
 )
 
+# Both sides of every comparison below live in the same workspace -- native
+# objects/lists vs the V2 objects/lists migrated from them -- so one key
+# serves both. This used to take a second `-DevApiKey` for the DEV workspace;
+# that workspace is retired.
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($SourceApiKey)) {
   $SourceApiKey = [Environment]::GetEnvironmentVariable("SOURCE_ATTIO_API_KEY", "User")
 }
-if ([string]::IsNullOrWhiteSpace($DevApiKey)) {
-  $DevApiKey = [Environment]::GetEnvironmentVariable("SOURCE_ATTIO_API_KEY", "User")
-}
 if ([string]::IsNullOrWhiteSpace($SourceApiKey)) { throw "Missing SOURCE_ATTIO_API_KEY." }
-if ([string]::IsNullOrWhiteSpace($DevApiKey)) { throw "Missing SOURCE_ATTIO_API_KEY." }
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) { throw "Python launcher 'py' was not found." }
 
 $decisions = Get-Content (Join-Path $PSScriptRoot "config\migration-decisions.json") -Raw |
   ConvertFrom-Json
 $env:WUSOOL_VALIDATE_SOURCE_KEY = $SourceApiKey.Trim()
-$env:WUSOOL_VALIDATE_DEV_KEY = $DevApiKey.Trim()
-$env:WUSOOL_VALIDATE_DEV_WORKSPACE = [string]$decisions.dev_workspace_id
+$env:WUSOOL_VALIDATE_WORKSPACE = [string]$decisions.workspace_id
 $env:WUSOOL_VALIDATE_MAPPING = Join-Path $PSScriptRoot "config\source-to-target-mapping.json"
 
 try {
@@ -65,14 +63,13 @@ def parent_id(entry):
   return None
 
 source_key = os.environ["WUSOOL_VALIDATE_SOURCE_KEY"]
-dev_key = os.environ["WUSOOL_VALIDATE_DEV_KEY"]
-expected_workspace = os.environ["WUSOOL_VALIDATE_DEV_WORKSPACE"]
+expected_workspace = os.environ["WUSOOL_VALIDATE_WORKSPACE"]
 with open(os.environ["WUSOOL_VALIDATE_MAPPING"], encoding="utf-8-sig") as stream:
   mapping = json.load(stream)
 
-workspace = request(dev_key, "GET", "/objects/organizations").get("data", {}).get("id", {}).get("workspace_id")
+workspace = request(source_key, "GET", "/objects/organizations").get("data", {}).get("id", {}).get("workspace_id")
 if workspace != expected_workspace:
-  raise RuntimeError(f"DEV workspace mismatch. Expected {expected_workspace}, connected to {workspace}")
+  raise RuntimeError(f"Workspace mismatch. Expected {expected_workspace}, connected to {workspace}")
 
 object_routes = []
 for source_name, definition in mapping["objects"].items():
@@ -84,54 +81,53 @@ for target_name in ("buyer_role", "seller_role"):
   list_routes.append((definition["source"], definition["target"]))
 
 failures = []
-print("\nSOURCE to DEV Attio object count validation")
+print("\nSOURCE native to V2 object count validation")
 print("-" * 78)
-print(f"{'Route':32} {'SOURCE':>10} {'DEV':>10} {'Status':>10}")
+print(f"{'Route':32} {'SOURCE':>10} {'V2':>10} {'Status':>10}")
 print("-" * 78)
-for source_object, dev_object in object_routes:
+for source_object, target_object in object_routes:
   source_rows = pages(source_key, f"/objects/{source_object}/records/query")
-  dev_rows = pages(dev_key, f"/objects/{dev_object}/records/query")
-  source_count, dev_count = len(source_rows), len(dev_rows)
-  status = "PASS" if source_count == dev_count else "FAIL"
-  route = f"{source_object} -> {dev_object}"
-  print(f"{route:32} {source_count:10} {dev_count:10} {status:>10}")
-  if source_count != dev_count:
-    failures.append(f"{route}: SOURCE={source_count}, DEV={dev_count}")
+  target_rows = pages(source_key, f"/objects/{target_object}/records/query")
+  source_count, target_count = len(source_rows), len(target_rows)
+  status = "PASS" if source_count == target_count else "FAIL"
+  route = f"{source_object} -> {target_object}"
+  print(f"{route:32} {source_count:10} {target_count:10} {status:>10}")
+  if source_count != target_count:
+    failures.append(f"{route}: SOURCE={source_count}, V2={target_count}")
 
-print("\nSOURCE to DEV Attio list count validation")
+print("\nSOURCE native to V2 list count validation")
 print("-" * 92)
-print(f"{'Route':34} {'SOURCE raw':>12} {'canonical':>12} {'DEV':>10} {'Status':>10}")
+print(f"{'Route':34} {'SOURCE raw':>12} {'canonical':>12} {'V2':>10} {'Status':>10}")
 print("-" * 92)
-for source_list, dev_list in list_routes:
+for source_list, target_list in list_routes:
   source_rows = pages(source_key, f"/lists/{source_list}/entries/query")
-  dev_rows = pages(dev_key, f"/lists/{dev_list}/entries/query")
+  target_rows = pages(source_key, f"/lists/{target_list}/entries/query")
   source_parents = [parent_id(row) for row in source_rows]
   canonical_count = len({value for value in source_parents if value})
   missing_source_parents = sum(value is None for value in source_parents)
-  dev_parents = [parent_id(row) for row in dev_rows]
-  duplicate_dev_parents = len([value for value in dev_parents if value]) - len({value for value in dev_parents if value})
-  dev_count = len(dev_rows)
-  status = "PASS" if canonical_count == dev_count and missing_source_parents == 0 and duplicate_dev_parents == 0 else "FAIL"
-  route = f"{source_list} -> {dev_list}"
-  print(f"{route:34} {len(source_rows):12} {canonical_count:12} {dev_count:10} {status:>10}")
-  if canonical_count != dev_count:
-    failures.append(f"{route}: canonical SOURCE={canonical_count}, DEV={dev_count}")
+  target_parents = [parent_id(row) for row in target_rows]
+  duplicate_target_parents = len([value for value in target_parents if value]) - len({value for value in target_parents if value})
+  target_count = len(target_rows)
+  status = "PASS" if canonical_count == target_count and missing_source_parents == 0 and duplicate_target_parents == 0 else "FAIL"
+  route = f"{source_list} -> {target_list}"
+  print(f"{route:34} {len(source_rows):12} {canonical_count:12} {target_count:10} {status:>10}")
+  if canonical_count != target_count:
+    failures.append(f"{route}: canonical SOURCE={canonical_count}, V2={target_count}")
   if missing_source_parents:
     failures.append(f"{source_list}: {missing_source_parents} SOURCE entries have no parent")
-  if duplicate_dev_parents:
-    failures.append(f"{dev_list}: {duplicate_dev_parents} duplicate DEV parent entries")
+  if duplicate_target_parents:
+    failures.append(f"{target_list}: {duplicate_target_parents} duplicate V2 parent entries")
 
 if failures:
   print("\nVALIDATION FAILED")
   for failure in failures:
     print(f"- {failure}")
   sys.exit(1)
-print("\nVALIDATION PASSED: DEV counts match canonical SOURCE counts.")
+print("\nVALIDATION PASSED: V2 counts match canonical SOURCE counts.")
 '@ | py -
 if ($LASTEXITCODE -ne 0) { throw "Attio validation failed with exit code $LASTEXITCODE." }
 } finally {
   Remove-Item Env:\WUSOOL_VALIDATE_SOURCE_KEY -ErrorAction SilentlyContinue
-  Remove-Item Env:\WUSOOL_VALIDATE_DEV_KEY -ErrorAction SilentlyContinue
-  Remove-Item Env:\WUSOOL_VALIDATE_DEV_WORKSPACE -ErrorAction SilentlyContinue
+  Remove-Item Env:\WUSOOL_VALIDATE_WORKSPACE -ErrorAction SilentlyContinue
   Remove-Item Env:\WUSOOL_VALIDATE_MAPPING -ErrorAction SilentlyContinue
 }

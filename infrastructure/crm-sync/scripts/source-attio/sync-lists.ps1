@@ -24,7 +24,7 @@ if ([string]::IsNullOrWhiteSpace($DevApiKey)) { throw "Missing SOURCE_ATTIO_API_
 
 $decisions = Get-Content (Join-Path $PSScriptRoot "config\migration-decisions.json") -Raw |
   ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
+$expectedWorkspaceId = [string]$decisions.workspace_id
 
 function Invoke-AttioRequest {
   param(
@@ -55,7 +55,7 @@ $devOrganization = Invoke-AttioRequest -Method Get -Headers $devHeaders `
   -Path "/objects/organizations"
 $connectedWorkspaceId = [string]$devOrganization.data.id.workspace_id
 if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
-  throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
+  throw "Workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
 }
 
 $workerPaths = @{

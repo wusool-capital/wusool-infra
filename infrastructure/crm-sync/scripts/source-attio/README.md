@@ -69,9 +69,10 @@ $env:SOURCE_ATTIO_API_KEY = "<source-key-with-write-access>"
 ```
 
 Every apply verifies the connected workspace ID matches
-`config/migration-decisions.json`'s `dev_workspace_id`
+`config/migration-decisions.json`'s `workspace_id`
 (`176eb4b0-40a9-419b-b363-784b596a6bbc` -- the SOURCE workspace's own id,
-used here as a same-workspace self-consistency check). Never place
+used here as a same-workspace self-consistency check; the key was called
+`dev_workspace_id` until the DEV workspace was retired). Never place
 credentials in Git, screenshots, logs, or documentation.
 
 ## Migration order

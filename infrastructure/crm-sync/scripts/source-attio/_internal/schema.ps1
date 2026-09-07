@@ -35,7 +35,7 @@ $devHeaders = @{
 
 $decisionsPath = Join-Path $PSScriptRoot "..\config\migration-decisions.json"
 $decisions = Get-Content $decisionsPath -Raw | ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
+$expectedWorkspaceId = [string]$decisions.workspace_id
 
 function Invoke-AttioRequest {
   param(
@@ -98,7 +98,7 @@ $targetObject = Invoke-AttioRequest -Method Get -Headers $devHeaders `
 $connectedWorkspaceId = [string]$targetObject.data.id.workspace_id
 
 if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
-  throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
+  throw "Workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
 }
 if ($targetObject.data.api_slug -ne "organizations") {
   throw "The DEV custom object slug is not organizations."
@@ -448,12 +448,12 @@ function Get-OptionTitles {
 
 $decisionsPath = Join-Path $PSScriptRoot "..\config\migration-decisions.json"
 $decisions = Get-Content $decisionsPath -Raw | ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
+$expectedWorkspaceId = [string]$decisions.workspace_id
 
 $targetObject = Invoke-AttioRequest -Method Get -Headers $devHeaders `
   -Path "/objects/person"
 if ([string]$targetObject.data.id.workspace_id -ne $expectedWorkspaceId) {
-  throw "DEV workspace mismatch."
+  throw "Workspace mismatch."
 }
 if ([string]$targetObject.data.api_slug -ne "person") {
   throw "The DEV custom object slug must be person."
@@ -661,7 +661,7 @@ if([string]::IsNullOrWhiteSpace($DevApiKey)){$DevApiKey=[Environment]::GetEnviro
 if([string]::IsNullOrWhiteSpace($DevApiKey)){throw "Missing SOURCE_ATTIO_API_KEY."}
 $headers=@{Authorization="Bearer $($DevApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
 $decisions=Get-Content (Join-Path $PSScriptRoot "..\config\migration-decisions.json") -Raw|ConvertFrom-Json
-$expectedWorkspaceId=[string]$decisions.dev_workspace_id
+$expectedWorkspaceId=[string]$decisions.workspace_id
 function Request{
   param([ValidateSet("Get","Post","Patch")][string]$Method,[string]$Path,[object]$Body)
   $p=@{Method=$Method;Uri="https://api.attio.com/v2$Path";Headers=$headers}
@@ -902,7 +902,7 @@ $devHeaders = @{
 
 $decisions = Get-Content (Join-Path $PSScriptRoot "..\config\migration-decisions.json") -Raw |
   ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
+$expectedWorkspaceId = [string]$decisions.workspace_id
 
 function Invoke-AttioRequest {
   param(
@@ -947,7 +947,7 @@ $devOrganization = Invoke-AttioRequest -Method Get -Headers $devHeaders `
 
 $connectedWorkspaceId = [string]$devOrganization.data.id.workspace_id
 if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
-  throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
+  throw "Workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
 }
 $devPerson = Invoke-AttioRequest -Method Get -Headers $devHeaders -Path "/objects/person"
 if ([string]$devPerson.data.api_slug -ne "person") {
@@ -1219,7 +1219,7 @@ $devHeaders = @{
 
 $decisions = Get-Content (Join-Path $PSScriptRoot "..\config\migration-decisions.json") -Raw |
   ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
+$expectedWorkspaceId = [string]$decisions.workspace_id
 
 function Invoke-AttioRequest {
   param(
@@ -1263,7 +1263,7 @@ $devOrganization = Invoke-AttioRequest -Method Get -Headers $devHeaders `
   -Path "/objects/organizations"
 $connectedWorkspaceId = [string]$devOrganization.data.id.workspace_id
 if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
-  throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
+  throw "Workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
 }
 
 $sourceList = Invoke-AttioRequest -Method Get -Headers $sourceHeaders `
