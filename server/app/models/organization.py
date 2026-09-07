@@ -69,11 +69,11 @@ class Organization(Base):
     # ddl-commands-originated columns (see module docstring) — Attio-mirrored,
     # editable via `/edit-seller`/`/edit-buyer`'s organization-level fields.
     estimated_arr: Mapped[str | None] = mapped_column(Text)
-    # Money shape per postgres-sync/dev/sync-postgres.ps1: {"amount": ..., "currency": ...}
+    # Money shape per postgres-sync/prod/sync-source-to-prod.ps1: {"amount": ..., "currency": ...}
     # or the column is NULL entirely — never fabricated when absent.
     funding_raised: Mapped[dict | None] = mapped_column(JSONB)
     # Attio-owned (historical, removed database/sql/002_core_attio_mirror.sql;
-    # set/cleared by postgres-sync/dev/sync-postgres.ps1) — read-only from the apps' perspective,
+    # set/cleared by postgres-sync/prod/sync-source-to-prod.ps1) — read-only from the apps' perspective,
     # checked before any Attio write so a bot never PATCHes a record Attio no
     # longer has.
     removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

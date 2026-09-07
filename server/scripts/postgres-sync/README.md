@@ -1,41 +1,72 @@
-# DEV Attio to PostgreSQL
+# SOURCE Attio to PostgreSQL
 
-This folder defines the `wusool_crm` PostgreSQL schema and the transactional
-sync from canonical DEV Attio. Attio owns human-facing CRM state; PostgreSQL
-stores a relational mirror plus automation, history, analytics, and AI data.
+The `wusool_crm` PostgreSQL schema, and the transactional sync into it from
+SOURCE Attio. Attio owns human-facing CRM state; PostgreSQL stores a
+relational mirror plus automation, history, analytics, and AI data.
+
+## One workspace, two environments
+
+Since 2026-09-07 a single SOURCE Attio workspace serves both environments,
+separated by an Attio-only `is_test` checkbox: `true` is dev/test, `false` is
+production. There is no `is_test` PostgreSQL column — the split is applied as
+a read-side filter here, at sync time.
+
+**The sync runs SOURCE Attio -> the production database only.** Every fetch in
+[`prod/`](prod) drops records flagged `is_test`.
+
+## Dev is a sandbox, not a mirror
+
+The dev database is deliberately **not** synced from Attio, and there is no
+`dev/` script directory any more. A developer creates their own test data with
+the Slack `/add-seller` / `/add-buyer` commands against the dev instance: each
+writes to SOURCE Attio with `is_test = true` **and** to the dev database in the
+same request (Attio first — see
+[`ddl_commands/README.md`](../../app/modules/ddl_commands/README.md)), and
+further `/edit-*` and `/find-match` commands then run against that org.
+
+Two consequences worth knowing before you hit them:
+
+- **A fresh dev database is empty.** `/find-match` has nothing to match
+  against until someone has created a pool of buyer roles by hand. That is by
+  design, not a bug.
+- **Dev instances only see their own records.** The webhook route ignores
+  inbound Attio deliveries entirely when `ATTIO_IS_TEST=true`, and an
+  `/edit-*` against a production record is refused rather than executed.
+
+If seeding ever becomes worth automating, the right shape is production
+PostgreSQL -> dev PostgreSQL. Never a second Attio consumer.
 
 ## Command surface
 
-All scripts below live in [`dev/`](dev) (paths
-below are relative to it). Despite the folder name they're environment-
-agnostic -- driven entirely by whatever `DATABASE_URL`/Attio key is in the
-environment -- see [`prod/README.md`](../prod/README.md)
-for running the same scripts against prod.
+All scripts live in [`prod/`](prod); see [`prod/README.md`](prod/README.md) for
+the details and the order they run in.
 
 | Script | Responsibility |
 | --- | --- |
-| `sync-postgres.ps1` | Read canonical DEV Attio, map values, and dry-run or transactionally upsert PostgreSQL rows. As of 2026-08-28, writes every `buyer_role`/`seller_role` list entry (not just the active one per org -- see the "Mirroring every Attio record" note below). |
-| `sync-notes-from-source.ps1` | The one exception to "DEV Attio -> PostgreSQL": populates `notes` directly from **SOURCE** Attio's `note` custom object (`infrastructure/crm-sync/scripts/source-attio/backfill-notes.ps1`), since DEV has no notes object yet. Bridges SOURCE record ids to Postgres's existing DEV-keyed rows via `organizations.raw_attio`/`person.raw_attio`'s `legacy_attio_id`. |
-| `validate-postgres.ps1` | Independently compare DEV/PostgreSQL counts and validate key relationships. Read-only. |
-| `backfill-activities.ps1` | One-off backfill for the `activities` table. |
+| `sync-all-to-prod.ps1` | The entry point: `sync-source-to-prod.ps1` then `sync-notes-from-source.ps1`, in that order. |
+| `sync-source-to-prod.ps1` | Read SOURCE Attio's custom objects and role lists, drop `is_test` records, then dry-run or transactionally upsert. Reconciles: anything not fetched is removed. |
+| `sync-notes-from-source.ps1` | Populates `notes` from SOURCE's `note` object. Pure upsert, no reconciliation pass. |
+| `sync-meetings-from-source.ps1` | Meeting/interaction history. Runs on its own schedule, not part of the wrapper. |
+| `validate-postgres.ps1` | Compare SOURCE/PostgreSQL counts and validate key relationships. Read-only, and `is_test`-aware so its counts agree with the sync's. |
+| `backfill-activities.ps1` | One-off `activities` backfill. Reads SOURCE's *native* `companies`/`people`/`valuation_tool_leads`, which are the only place the boundary-interaction timestamps survive, and crosswalks them to V2 ids via `legacy_attio_id`. |
 
-Schema setup/validation is now `alembic upgrade head`/`alembic current` (see
-"Schema changes now go through Alembic" below) -- there is no longer a
-separate setup script; it was retired 2026-08-29 once its only remaining job
-(a manual table/column existence check) became redundant with Alembic's own
-migration bookkeeping.
+A nightly safety net also runs the server's own
+`app.modules.ddl_commands.scripts.attio_sync_full_resync` against production —
+see [`.github/workflows/nightly-attio-sync.yml`](../../../.github/workflows/nightly-attio-sync.yml).
+It complements the real-time webhook (`POST /webhooks/attio`) rather than
+replacing it.
 
 ### Mirroring every Attio record (2026-08-28)
 
 `buyer_roles`/`seller_roles` used to be one row per organization
-(`UNIQUE(org_attio_id)`), with `sync-postgres.ps1` silently dropping every
-DEV Attio list entry except the active one before writing, specifically to
-keep that constraint satisfiable. Per explicit product decision, Postgres
+(`UNIQUE(org_attio_id)`), with the sync silently dropping every Attio list
+entry except the active one before writing, specifically to keep that
+constraint satisfiable. Per explicit product decision, Postgres
 should mirror every Attio record that exists, full stop -- `is_active`
 (already a column on both tables) is how a caller distinguishes the current
 entry from stale duplicates, not something the sync script pre-filters on.
 
-The unique constraint moved to `legacy_entry_id` (one row per DEV entry
+The unique constraint moved to `legacy_entry_id` (one row per SOURCE entry
 instead of per org) via Alembic migration `b8f4c1e93a56`; `org_attio_id` is
 now a plain indexed FK, so an org can have more than one `buyer_roles`/
 `seller_roles` row. `Organization.buyer_role`/`.seller_role` became the
@@ -53,9 +84,9 @@ there.
 - Python with `psycopg[binary]`.
 - Active AWS SSM port-forwarding tunnel to private RDS.
 - `DATABASE_URL` for `wusool_crm` through `localhost:15432`.
-- `DEV_ATTIO_API_KEY` for synchronization.
+- `SOURCE_ATTIO_API_KEY` for synchronization.
 
-See `dev/rds-tunnel-runbook.md` for tunnel and credential
+See [`rds-tunnel-runbook.md`](rds-tunnel-runbook.md) for tunnel and credential
 retrieval commands. Never share the RDS master password, complete admin
 `DATABASE_URL`, AWS keys, or Attio keys.
 
@@ -154,106 +185,45 @@ uv run alembic -c .\alembic.ini upgrade head
 Not required for every routine data sync -- only when the schema itself
 changed.
 
-## DEV extraction dry-run
+## Running the sync
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\postgres-sync\dev\sync-postgres.ps1
-```
-
-This reads, paginates, and maps:
+Always dry-run first. The dry run prints, per entity, how many records were
+fetched, how many were excluded as `is_test`, and how many are still unstamped:
 
 ```text
-/workspace_members
-/objects/organizations/records/query
-/objects/person/records/query
-/objects/deals/records/query
-/lists/buyer_role/entries/query
-/lists/seller_role/entries/query
-/lists/mandates/entries/query
+organizations    fetched=3225 test_excluded=1 unstamped=3224
 ```
 
-Raw API records and mapped rows exist temporarily in RAM. No CSV or staging
-database is used. The dry-run prints counts and exits before connecting to
-PostgreSQL.
-
-## Apply DEV to PostgreSQL
+**Read those numbers before adding `-Apply`.** `sync-source-to-prod.ps1`
+reconciles — `organizations` and `person` are soft-deleted via `removed_at`,
+but `deals`, `buyer_roles` and `seller_roles` are **hard deletes with no
+`removed_at` column**, so a record wrongly flagged `is_test` loses its row and
+its `raw_attio` permanently. Recovery is an RDS point-in-time restore. A
+greater-than-10% exclusion rate aborts the run rather than purging.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\postgres-sync\dev\sync-postgres.ps1 `
-  -Apply
+./prod/sync-all-to-prod.ps1            # dry run
+./prod/sync-all-to-prod.ps1 -Apply
+./prod/validate-postgres.ps1
 ```
 
-Sync order preserves foreign keys:
-
-```text
-Users -> Organizations -> People -> Deals -> Mandates -> Buyer Roles -> Seller Roles
-```
-
-**2026-08-23 Mandate/Deal merge:** `deals` gained 12 columns merged in from
-`mandates` (`deal_type`, `universe_constructed`/`_size`,
-`shortlist_approved`/`_size`, `tier1_contacted`, `responses`,
-`counterparty_interested`, `mandate_start_date`/`mandate_expiry_date`,
-`retainer_amount`, `source_mandate_entry_id`) via Alembic migration
-`9c4d71ea2b56`. `mandates` itself is untouched, kept only for its 2
-historical rows — nothing writes new rows there going forward. Run `alembic
-upgrade head` (see "Schema changes now go through Alembic" below) before the
-next `sync-postgres.ps1 -Apply`, or the new columns won't exist yet to sync
-into.
-
-The script uses parameterized `INSERT ... ON CONFLICT ... DO UPDATE` queries.
-Core tables conflict on DEV `attio_id`; role tables conflict on
-`org_attio_id`. The complete original Attio payload is also preserved in each
-row's `raw_attio` JSONB column.
-
-PostgreSQL identity rule:
-
-```text
-PostgreSQL attio_id = DEV Attio record ID
-```
-
-SOURCE identity remains inside DEV `legacy_attio_id` and `raw_attio`; it does
-not replace the DEV key in PostgreSQL.
-
-Before commit, the script verifies exact row counts. Any SQL, relationship, or
-count failure rolls back the transaction.
-
-## Last successful counts
-
-| Table | Rows |
-| --- | ---: |
-| users | 1 |
-| organizations | 3,040 |
-| person | 4,329 |
-| deals | 48 |
-| buyer_roles | 264 |
-| seller_roles | 172 |
-| mandates | 2 |
-
-## Routine synchronization
-
-After DEV Attio is canonical, routine execution normally requires only:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\postgres-sync\dev\sync-postgres.ps1
-
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\postgres-sync\dev\sync-postgres.ps1 -Apply
-
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\postgres-sync\dev\validate-postgres.ps1
-```
+Once every existing SOURCE record has been stamped `is_test = false`, add
+`-StrictIsTest` to make a nonzero `unstamped` count a failure — that turns a
+write path which forgot to stamp into a loud error instead of a silent leak.
 
 The sync is idempotent: existing rows update and missing rows insert without
-creating duplicate DEV identities. PostgreSQL-owned intelligence fields are
-not replaced by Attio projections.
+creating duplicate identities. PostgreSQL-owned intelligence fields are not
+replaced by Attio projections. Before commit the script verifies exact row
+counts; any SQL, relationship, or count failure rolls back the transaction.
 
-The final validation command reads both systems, compares Users,
-Organizations, People, Deals, Buyer Roles, Seller Roles, and Mandates, checks
-critical foreign-key relationships, and returns a failing exit code on any
-mismatch. It never writes to Attio or PostgreSQL.
+### Identity
+
+```text
+PostgreSQL attio_id = SOURCE Attio record ID
+```
+
+The legacy native-object ids remain available in `legacy_attio_id` and
+`raw_attio`; they do not replace the key.
 
 ## Manager read-only access
 

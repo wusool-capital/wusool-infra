@@ -44,7 +44,7 @@ class SellerRole(Base):
     outreach_tier: Mapped[str | None] = mapped_column(Text)
     appetite_signal: Mapped[str | None] = mapped_column(Text)
     relationship_status: Mapped[str | None] = mapped_column(Text)
-    # Money shape per postgres-sync/dev/sync-postgres.ps1: {"amount": ..., "currency": ...}
+    # Money shape per postgres-sync/prod/sync-source-to-prod.ps1: {"amount": ..., "currency": ...}
     # or the column is NULL entirely — never fabricated when absent.
     est_revenue: Mapped[dict | None] = mapped_column(JSONB)
     est_ebitda: Mapped[dict | None] = mapped_column(JSONB)

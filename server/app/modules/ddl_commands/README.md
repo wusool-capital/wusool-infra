@@ -80,7 +80,7 @@ beyond the `AttioClientProtocol` Port.
 
 ## Why Attio-first, not a Postgres-only write
 
-`scripts/postgres-sync/dev/sync-postgres.ps1` runs on its own schedule and
+`scripts/postgres-sync/prod/sync-source-to-prod.ps1` runs on its own schedule and
 does a full-column UPSERT from Attio into `seller_roles`/`buyer_roles`/
 `organizations`. A Slack-originated Postgres write with no further
 protection would get silently overwritten by the next sync cycle. Writing
