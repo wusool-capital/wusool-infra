@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [int]$Limit = 0,
   [ValidateRange(1, 16)]
@@ -146,11 +146,12 @@ $fields = @(
   [pscustomobject]@{ Title = "Buyer Role ID"; Slug = "buyer_role_id"; Type = "text"; Unique = $false; Config = @{} },
   [pscustomobject]@{ Title = "Seller Role ID"; Slug = "seller_role_id"; Type = "text"; Unique = $false; Config = @{} },
   [pscustomobject]@{ Title = "Note Type"; Slug = "note_type"; Type = "select"; Unique = $false; Config = @{}; FixedOptions = @("Manual", "Meeting") },
-  # Meeting role tag (seller/buyer/investor/internal/general), mirroring
-  # `meetings.primary_role`/`notes.primary_role` -- lowercase option
-  # titles matching those columns' CHECK values exactly, deliberately
-  # unlike Note Type's capitalized options above, since the meetings
-  # pipeline writes this one straight through from `MeetingRole.value`.
+  # Options are LOWERCASE on purpose: they are the MeetingRole StrEnum values
+  # (meetings/domain/roles.py), and the server sends the enum's string
+  # straight through. Attio select values are case-sensitive, so title-casing
+  # them here would either fail the write or silently create a second set of
+  # options. Deliberately NOT patterned on note_type above, whose
+  # Manual/Meeting are capitalised.
   [pscustomobject]@{ Title = "Primary Role"; Slug = "primary_role"; Type = "select"; Unique = $false; Config = @{}; FixedOptions = @("seller", "buyer", "investor", "internal", "general") },
   [pscustomobject]@{ Title = "Content"; Slug = "content"; Type = "text"; Unique = $false; Config = @{} },
   # Slug is `note_created_at`, NOT `created_at`: every Attio custom object

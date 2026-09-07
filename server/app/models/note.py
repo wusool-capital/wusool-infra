@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, Text, text
-from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
+from sqlalchemy.dialects.postgresql import ENUM, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -36,18 +36,28 @@ if TYPE_CHECKING:
     from app.models.seller_role import SellerRole
 
 
+# Values are the MeetingRole StrEnum's (meetings/domain/roles.py), lowercase,
+# and the Attio `note.primary_role` select carries the identical five titles --
+# Attio select values are case-sensitive and the server passes the enum's
+# string straight through, so the two sides must not drift in casing.
+#
+# create_type=False for the same reason as meeting.py's three enums: the
+# migration owns CREATE TYPE, so autogenerate must never re-emit it.
+_MeetingRole = ENUM(
+    "seller",
+    "buyer",
+    "investor",
+    "internal",
+    "general",
+    name="meeting_role",
+    create_type=False,
+)
+
+
 class Note(Base):
     __tablename__ = "notes"
     __table_args__ = (
         CheckConstraint("note_type IN ('Manual', 'Meeting')", name="notes_note_type_check"),
-        # Text + CHECK, matching note_type's own rationale immediately below:
-        # no external service needs this type to exist independently of this
-        # table. Same five values as `meetings.primary_role`; different
-        # storage per each table's own convention.
-        CheckConstraint(
-            "primary_role IN ('seller','buyer','investor','internal','general')",
-            name="ck_notes_primary_role",
-        ),
         Index("idx_notes_organization", "organization_id"),
         Index("idx_notes_person", "person_id"),
     )
@@ -61,15 +71,14 @@ class Note(Base):
     person_id: Mapped[str | None] = mapped_column(Text, ForeignKey("person.attio_id"))
     buyer_role_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("buyer_roles.id"))
     seller_role_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("seller_roles.id"))
-    # Role the meeting concerned, mirroring meetings.primary_role -- the
-    # buyer/seller/investor/internal/general tag, not to be confused with
-    # note_type (Manual vs Meeting).
-    primary_role: Mapped[str | None] = mapped_column(Text)
     # Manual = historical/hand-entered. Meeting = generated from a meeting
     # transcript summary. Plain Text + CheckConstraint, not a native Postgres
     # enum -- no external service (unlike `meetings`' Scribe-owned enums)
     # needs this type to exist independently of this table.
     note_type: Mapped[str] = mapped_column(Text, nullable=False)
+    # Which side the meeting this note came from was about. Nullable: a
+    # manual note, and any note backfilled before 2026-09-07, has no role.
+    primary_role: Mapped[str | None] = mapped_column(_MeetingRole)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

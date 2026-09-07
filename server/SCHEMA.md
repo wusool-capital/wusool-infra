@@ -225,8 +225,8 @@ Indexes: `idx_tool_runs_tool`, `idx_tool_runs_status`,
 | person_id | text | yes | | FK → person.attio_id; indexed |
 | buyer_role_id | uuid | yes | | FK → buyer_roles.id. Set by the meetings pipeline only when the meeting's primary role is buyer, matched to an active row |
 | seller_role_id | uuid | yes | | FK → seller_roles.id. Same, for a seller-primary meeting |
-| primary_role | text | yes (2026-09-07) | | CHECK: `seller`\|`buyer`\|`investor`\|`internal`\|`general` — the meeting's role tag, mirroring `meetings.primary_role`. Text + CHECK, not the native enum used on `meetings`, matching `note_type`'s own rationale (no external service needs the type independently of this table) |
 | note_type | text | no | | CHECK: `Manual` or `Meeting` |
+| primary_role | enum(`seller`,`buyer`,`investor`,`internal`,`general`) | yes | | Native Postgres enum `meeting_role` (migration `b4e1d7c0f3a2`) — the `MeetingRole` values (`meetings/domain/roles.py`), lowercase, matching the Attio select's option titles exactly and shared with `meetings.primary_role`. Set by the meeting-summary pipeline from the meeting's own `primary_role`; null on manual notes and on anything backfilled before 2026-09-07 |
 | content | text | no | | |
 | created_at | timestamptz | no | `now()` | |
 
@@ -264,7 +264,7 @@ module. DDL: `database/sql/005_meetings.sql`.
 | local_recording_id | text | yes | | unique with `install_id` when set |
 | summary_json | jsonb | yes | | |
 | summary_started_at | timestamptz | yes | | indexed while `status = 'summarizing'` |
-| primary_role | text | yes (2026-09-07) | | CHECK: `seller`\|`buyer`\|`investor`\|`internal`\|`general` — written at ingest from `select_primary_role()`; not a native enum (only Scribe-owned enums are, per `note.py`'s rationale — this is written only by this repo's own ingest path) |
+| primary_role | enum(`seller`,`buyer`,`investor`,`internal`,`general`) | yes (2026-09-07) | | Native Postgres enum `meeting_role`, shared with `notes.primary_role` — written at ingest from `select_primary_role()`, promoted out of `metadata` jsonb into a queryable column |
 | note_id | uuid | yes (2026-09-07) | | FK → notes.id, written back once the meeting's note exists (Postgres-only — Attio has no meeting object) |
 
 ### `match_scores` (`match_score.py`)

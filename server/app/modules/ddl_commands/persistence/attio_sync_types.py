@@ -215,5 +215,6 @@ class NoteParams(TypedDict):
     buyer_role_entry_id: str | None
     seller_role_entry_id: str | None
     note_type: str | None
+    primary_role: str | None
     content: str | None
     created_at: datetime | None

@@ -926,7 +926,7 @@ _NOTE_UPSERT = text(
     """
     INSERT INTO notes(
         id, organization_id, person_id, buyer_role_id, seller_role_id,
-        note_type, content, created_at
+        note_type, primary_role, content, created_at
     ) VALUES (
         :id,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :organization_id)
@@ -935,12 +935,14 @@ _NOTE_UPSERT = text(
              THEN :person_id ELSE NULL END,
         (SELECT id FROM buyer_roles WHERE legacy_entry_id = :buyer_role_entry_id),
         (SELECT id FROM seller_roles WHERE legacy_entry_id = :seller_role_entry_id),
-        :note_type, :content, COALESCE(:created_at, now())
+        :note_type, CAST(:primary_role AS meeting_role), :content,
+        COALESCE(:created_at, now())
     )
     ON CONFLICT (id) DO UPDATE SET
         organization_id=excluded.organization_id, person_id=excluded.person_id,
         buyer_role_id=excluded.buyer_role_id, seller_role_id=excluded.seller_role_id,
-        note_type=excluded.note_type, content=excluded.content,
+        note_type=excluded.note_type, primary_role=excluded.primary_role,
+        content=excluded.content,
         created_at=COALESCE(excluded.created_at, notes.created_at)
     """
 )
@@ -955,6 +957,10 @@ def _note_params(data: AttioRecord) -> NoteParams:
         "buyer_role_entry_id": v.first(values, "buyer_role_id"),
         "seller_role_entry_id": v.first(values, "seller_role_id"),
         "note_type": v.first(values, "note_type"),
+        # Passed straight through: the Attio select's option titles are the
+        # MeetingRole enum's own lowercase values, which are exactly the
+        # meeting_role labels, so no mapping is needed on either side.
+        "primary_role": v.first(values, "primary_role"),
         "content": v.first(values, "content"),
         # Slug is note_created_at, not created_at -- Attio reserves
         # created_at as a protected system attribute on every custom object.

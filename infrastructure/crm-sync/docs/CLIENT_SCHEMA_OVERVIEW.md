@@ -298,7 +298,7 @@ two-way sync. Mastered in PostgreSQL going forward.
 | `buyer_role_id` | `text` | key | - (list entry id, not a record-reference — Attio's record-reference type targets Objects, not List entries) |
 | `seller_role_id` | `text` | key | - |
 | `note_type` | `enum` (`Manual` / `Meeting`) | attio | - |
-| `primary_role` | `enum` (`seller`/`buyer`/`investor`/`internal`/`general`) | postgres | - (mirrors `meetings.primary_role`/`notes.primary_role`; only the meeting-summary pipeline writes it, never the historical backfill) |
+| `primary_role` | `enum` (`seller` / `buyer` / `investor` / `internal` / `general`) | both | - (mirrors `meetings.primary_role`; written by the meeting-summary pipeline going forward, never by the historical backfill) |
 | `content` | `text` | attio | - |
 | `note_created_at` | `timestamp` | attio | - |
 
@@ -309,7 +309,12 @@ meeting-summary pipeline resolved no company for the meeting at all.
 `note_type` is inferred from content for the historical backfill: a
 `notes.granola.ai` transcript link or "Chat with meeting transcript" phrase
 means `Meeting`, everything else is `Manual`. Meeting-summary-pipeline notes
-set it directly.
+set it directly. `primary_role` (2026-09-07) records which side the meeting
+was about, so internal meetings can be filtered out in the Attio UI. Its
+option titles are lowercase, unlike `note_type`'s: they are the
+`MeetingRole` values the server sends straight through, and Attio select
+values are case-sensitive. Blank on manual notes and on everything
+backfilled before it existed.
 
 ### Mandate — retired 2026-08-23, merged into Deal
 
@@ -720,8 +725,8 @@ mirrored into PostgreSQL by
 | `person_id` | `text` | Yes | - | `person.attio_id` | - |
 | `buyer_role_id` | `uuid` | Yes | - | `buyer_roles.id` | - |
 | `seller_role_id` | `uuid` | Yes | - | `seller_roles.id` | - |
-| `primary_role` | `text` | Yes | - | - | - |
 | `note_type` | `text` | No | - | - | - |
+| `primary_role` | `meeting_role` | Yes | - | - | - |
 | `content` | `text` | No | - | - | - |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 
@@ -730,10 +735,9 @@ person or role with no associated organization at all still needs a home —
 `person_id`/`buyer_role_id`/`seller_role_id` are set only when the note is
 about that more specific thing rather than the organization generally.
 `note_type` is constrained to `Manual`/`Meeting` (`notes_note_type_check`).
-`primary_role` (2026-09-07) mirrors `meetings.primary_role` — the meeting's
-seller/buyer/investor/internal/general tag — and is constrained to those
-five values (`ck_notes_primary_role`); Text + CHECK, not the native enum
-used on `meetings`, matching `note_type`'s own rationale.
+`primary_role` (2026-09-07) is the native enum `meeting_role`
+(`seller`/`buyer`/`investor`/`internal`/`general`), mirroring the Attio
+select of the same name and shared with `meetings.primary_role`.
 
 ### match_results
 
@@ -887,12 +891,14 @@ definition: `database/sql/005_meetings.sql`.
 | `metadata` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `scribe_meeting_id` | `uuid` | Yes | Unique | - | - |
-| `primary_role` | `text` | Yes | - | - | - |
+| `primary_role` | `meeting_role` | Yes | - | - | - |
 | `note_id` | `uuid` | Yes | - | `notes.id` | - |
 
-`primary_role` (2026-09-07) and `note_id` (2026-09-07) are written by this
-repo's own `meetings` module, not scribe — see `server/SCHEMA.md` for the
-full desktop-push column set (`status`, `install_id`,
+`primary_role` (2026-09-07) is the native enum `meeting_role`, shared with
+`notes.primary_role` (see the `notes` section above), and `note_id`
+(2026-09-07) is a plain FK to `notes.id` — both written by this repo's own
+`meetings` module, not scribe. See `server/SCHEMA.md` for the full
+desktop-push column set (`status`, `install_id`,
 `local_recording_id`, `summary_json`, `summary_started_at`), not
 duplicated here.
 

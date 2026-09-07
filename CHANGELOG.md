@@ -34,17 +34,17 @@ delivered state and outstanding items see
   holds on every `note.created`/`note.updated` webhook, so sending a
   Postgres id with nothing on the Attio side would let the next webhook
   silently overwrite it back to NULL.
-- **New `primary_role` column on `meetings` and `notes`.** The
-  seller/buyer/investor/internal/general tag a meeting was submitted
-  with, promoted out of `meetings.metadata` jsonb into a real column (and
-  mirrored onto its note) so internal/general meetings can be filtered
-  out of a notes listing — something `metadata` alone made impossible.
-  Text + CHECK on both tables, deliberately not a native Postgres enum
-  even on `meetings`: that table's other three enums are Scribe-owned (an
-  external writer needs the type to exist independently of the table),
-  which doesn't apply here, and a CHECK is easier to evolve. Added to the
-  Attio `note` object as a new `primary_role` select attribute
-  (`backfill-notes.ps1` owns that object's schema).
+- **`AttioNoteWriter.push_note` now actually writes `notes.primary_role`**
+  (schema added the same day by `b4e1d7c0f3a2`, but nothing wrote it yet)
+  — the meeting's seller/buyer/investor/internal/general tag, sent to
+  Attio's existing `note.primary_role` select and to the Postgres column,
+  both via the shared native `meeting_role` enum.
+- **New `meetings.primary_role`**, reusing the same `meeting_role` enum —
+  promotes the role tag out of `meetings.metadata` jsonb (where
+  `encode_role_metadata` already stashed it) into a queryable column, so
+  internal/general meetings can be filtered out of a notes listing without
+  needing an org to anchor them. `notes.primary_role` is set from this
+  column at publish time.
 - **New `meetings.note_id`**, written back once a meeting's note exists,
   so a meeting can be traced to the CRM note it produced. Postgres-only —
   Attio has no meeting object.
@@ -53,9 +53,36 @@ delivered state and outstanding items see
   org-having ones, as before) meant a failed insert could otherwise poison
   the whole session and silently roll back the `mark_completed` a few
   statements earlier, stranding the meeting in `summarizing` forever.
-- Migration `f5cd5212e82e`: `meetings.primary_role`, `notes.primary_role`,
-  `meetings.note_id` + `fk_meetings_note_id`. No backfill — both databases
-  were cleared before this change.
+- Migration `f5cd5212e82e` (on top of `b4e1d7c0f3a2`): `meetings.primary_role`
+  (reusing the `meeting_role` type), `meetings.note_id` + `fk_meetings_note_id`.
+  No backfill — both databases were cleared before this change.
+
+## 2026-09-07 (later still)
+
+### Added
+
+- **`notes.primary_role`** — which side the meeting a note came from was
+  about, so internal meetings can be filtered out of the Attio UI. A Select
+  on Attio's `note` object and the native Postgres enum `meeting_role`
+  (migration `b4e1d7c0f3a2`), so both sides can filter rather than only
+  string-match.
+  - The five option titles are **lowercase** (`seller`, `buyer`, `investor`,
+    `internal`, `general`): they are the `MeetingRole` `StrEnum` values
+    (`meetings/domain/roles.py`) and the server sends the enum's string
+    straight through. Attio select values are case-sensitive, so title-casing
+    them there would fail the write or silently create a second set of
+    options. Deliberately *not* patterned on the neighbouring `note_type`,
+    whose `Manual`/`Meeting` are capitalised.
+  - Nullable, with no backfill: a manual note has no role, and neither does
+    anything written before today.
+  - Wired through both read paths — the webhook upsert
+    (`persistence/attio_sync.py`) and the nightly
+    `sync-notes-from-source.ps1` — plus the attribute declaration in
+    `backfill-notes.ps1`, which owns the `note` object's schema.
+  - Nothing writes it yet. `AttioNoteWriter.push_note` would have to take the
+    role, which means widening `NoteWriterPort`, and choosing *which* of a
+    meeting's reconstructed roles is the primary one — a product decision,
+    not a schema one.
 
 ## 2026-09-07 (later)
 

@@ -31,6 +31,20 @@ _MeetingType = ENUM(
     name="meeting_type",
     create_type=False,
 )
+# Shared with `notes.primary_role` (app/models/note.py's own `_MeetingRole`)
+# -- both reference the same `meeting_role` type, created once by migration
+# b4e1d7c0f3a2. Redeclared privately here rather than imported from note.py,
+# matching how this file already redeclares its own enum objects rather than
+# sharing Python references across model files.
+_MeetingRole = ENUM(
+    "seller",
+    "buyer",
+    "investor",
+    "internal",
+    "general",
+    name="meeting_role",
+    create_type=False,
+)
 
 
 class Meeting(Base):
@@ -40,18 +54,6 @@ class Meeting(Base):
         Index("ix_meetings_occurred_at", "occurred_at"),
         CheckConstraint(
             "status IN ('summarizing','completed','failed')", name="ck_meetings_status"
-        ),
-        # Text + CHECK, not a native enum, deliberately unlike this table's
-        # other three enums above -- those are Scribe-owned (an external
-        # writer needs the type to exist independently of this table; see
-        # eec9dde1cfbb's scribe_pub GRANTs). `primary_role` is written only
-        # by this repo's own ingest path, so that rationale doesn't apply,
-        # and a CHECK is the easier thing to evolve later (ALTER TYPE ADD
-        # VALUE can't run in a transaction; a value can never be removed).
-        # Matches `notes.primary_role`'s storage exactly.
-        CheckConstraint(
-            "primary_role IN ('seller','buyer','investor','internal','general')",
-            name="ck_meetings_primary_role",
         ),
         # Partial indexes — must match the migration
         # (2565f7950641_add_desktop_push_status_columns_to_.py) exactly, or
@@ -76,7 +78,7 @@ class Meeting(Base):
     org_name_raw: Mapped[str | None] = mapped_column(Text)
     counterparty_role: Mapped[str | None] = mapped_column(_CounterpartyRole)
     meeting_type: Mapped[str | None] = mapped_column(_MeetingType)
-    primary_role: Mapped[str | None] = mapped_column(Text)
+    primary_role: Mapped[str | None] = mapped_column(_MeetingRole)
     occurred_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     title: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(_MeetingSource, nullable=False, server_default="in_house")
