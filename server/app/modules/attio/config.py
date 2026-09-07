@@ -10,6 +10,8 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.modules.attio.domain.scope import record_scope
+
 
 class Settings(BaseSettings):
     """Attio settings. Instantiate via `get_settings()`."""
@@ -57,20 +59,6 @@ def attio_workspace_id() -> str | None:
     """The SOURCE workspace id inbound webhooks are expected to carry, or
     `None` to skip the check."""
     return get_settings().attio_workspace_id
-
-
-def record_scope(record_is_test: bool | None) -> bool:
-    """Normalise a record's raw `is_test` value to the half it belongs to.
-
-    The one statement of the null policy: an unset checkbox (`None`) reads
-    as production. Every record migrated before 2026-09-07 has `is_test`
-    absent from its payload entirely, so requiring an explicit `False` would
-    stop the prod sync writing anything until a stamping run had walked
-    every entity — a self-inflicted outage in exchange for nothing, since
-    every write path now stamps explicitly and an Attio rejection of that
-    key is a loud 4xx rather than a silent omission.
-    """
-    return bool(record_is_test)
 
 
 def owns_record(record_is_test: bool | None) -> bool:

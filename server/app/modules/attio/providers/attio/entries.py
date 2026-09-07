@@ -41,8 +41,8 @@ docs alone.
 """
 
 from app.modules.attio.application.ports.client import AttioClientProtocol
-from app.modules.attio.config import record_scope
 from app.modules.attio.domain.records import AttioRecord
+from app.modules.attio.domain.scope import record_scope
 from app.modules.attio.providers.attio import values as v
 
 _PAGE_SIZE = 500

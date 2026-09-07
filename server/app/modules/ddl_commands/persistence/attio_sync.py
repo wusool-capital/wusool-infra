@@ -65,9 +65,13 @@ def _j(value: Any) -> str | None:
     return None if value is None else json.dumps(value)
 
 
-def _in_scope(record: AttioRecord) -> bool:
+def in_scope(record: AttioRecord) -> bool:
     """Whether this record belongs to this process's half of the single
     shared SOURCE workspace.
+
+    Public rather than underscore-private: the nightly resync
+    (`scripts/attio_sync_full_resync.py`) filters its own pages with this
+    too, so it is a shared part of this module's surface, not an internal.
 
     `owns_record` is imported unqualified rather than reached through
     `attio.config` so a test can monkeypatch it on this module in one line,
@@ -273,7 +277,7 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
 
 async def sync_organization(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/organizations/records/{record_id}")
-    if not _in_scope(fetched["data"]):
+    if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope organization %s", record_id)
         return
     params = _organization_params(fetched["data"])
@@ -363,7 +367,7 @@ def _person_params(data: AttioRecord) -> PersonParams:
 
 async def sync_person(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/person/records/{record_id}")
-    if not _in_scope(fetched["data"]):
+    if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope person %s", record_id)
         return
     params = _person_params(fetched["data"])
@@ -508,7 +512,7 @@ async def sync_deal(client: AttioClientProtocol, record_id: str) -> None:
     cannot be assigned to an environment at all. The Postgres table this
     writes to is still named `deals`; that is unrelated to the Attio slug."""
     fetched = await get_with_retry(client, f"/objects/deal/records/{record_id}")
-    if not _in_scope(fetched["data"]):
+    if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope deal %s", record_id)
         return
     params = _deal_params(fetched["data"])
@@ -697,7 +701,7 @@ async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
     # Before `_fetch_siblings`, not after: `_reconcile_active_entry` PATCHes
     # `is_active` back to Attio, and a process must never write to the other
     # half of the shared workspace.
-    if not _in_scope(fetched["data"]):
+    if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope buyer_role entry %s", entry_id)
         return
     org_id = v.parent_id(fetched["data"])
@@ -706,7 +710,7 @@ async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
     # newer test entry win and demote the production entry to
     # `is_active=False` in Attio -- corrupting the exact flag
     # `resolve_role_entry_id` and the matching engine read.
-    siblings = [e for e in await _fetch_siblings(client, "buyer_role", org_id) if _in_scope(e)]
+    siblings = [e for e in await _fetch_siblings(client, "buyer_role", org_id) if in_scope(e)]
     reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
@@ -883,7 +887,7 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
     # Before `_fetch_siblings`, not after: `_reconcile_active_entry` PATCHes
     # `is_active` back to Attio, and a process must never write to the other
     # half of the shared workspace.
-    if not _in_scope(fetched["data"]):
+    if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope seller_role entry %s", entry_id)
         return
     org_id = v.parent_id(fetched["data"])
@@ -892,7 +896,7 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
     # newer test entry win and demote the production entry to
     # `is_active=False` in Attio -- corrupting the exact flag
     # `resolve_role_entry_id` and the matching engine read.
-    siblings = [e for e in await _fetch_siblings(client, "seller_role", org_id) if _in_scope(e)]
+    siblings = [e for e in await _fetch_siblings(client, "seller_role", org_id) if in_scope(e)]
     reconciled = await _reconcile_active_entry(client, "seller_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
@@ -960,7 +964,7 @@ def _note_params(data: AttioRecord) -> NoteParams:
 
 async def sync_note(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/note/records/{record_id}")
-    if not _in_scope(fetched["data"]):
+    if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope note %s", record_id)
         return
     params = _note_params(fetched["data"])

@@ -148,7 +148,7 @@ async def _sync_streaming_entity(
     total_ok = total_failed = total_records = 0
     try:
         async for page in _iter_source_pages(_page_through(client, path)):
-            in_scope = [record for record in page if upsert._in_scope(record)]
+            in_scope = [record for record in page if upsert.in_scope(record)]
             if len(in_scope) != len(page):
                 _logger.info(
                     "full resync: %s skipped %d out-of-scope records",
@@ -336,7 +336,7 @@ async def _sync_notes_full(client: AttioClientProtocol, note_slug: str) -> tuple
     except Exception:
         _logger.error("full resync: failed to list note records", exc_info=True)
         return 0, 1
-    records = [record for record in fetched if upsert._in_scope(record)]
+    records = [record for record in fetched if upsert.in_scope(record)]
     ok = failed = 0
     async with get_sessionmaker()() as session:
         for record in records:
@@ -433,9 +433,9 @@ async def _run(client: AttioClientProtocol) -> None:
     # reconciling across scopes would let a newer test entry demote a
     # production one. Same rule as the webhook path's `sync_*_role`.
     if buyer_entries is not None:
-        buyer_entries = [e for e in buyer_entries if upsert._in_scope(e)]
+        buyer_entries = [e for e in buyer_entries if upsert.in_scope(e)]
     if seller_entries is not None:
-        seller_entries = [e for e in seller_entries if upsert._in_scope(e)]
+        seller_entries = [e for e in seller_entries if upsert.in_scope(e)]
 
     if buyer_entries is None:
         summary["buyer_role"] = (0, 1)
