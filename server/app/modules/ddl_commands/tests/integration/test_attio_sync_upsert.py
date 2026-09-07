@@ -437,6 +437,10 @@ async def test_sync_note_resolves_org_and_role_references(
                     "values": {
                         "organization_id": [_item(target_record_id=org_id)],
                         "note_type": [_item(value="Manual")],
+                        # Lowercase, as the Attio select's own option titles
+                        # are -- they are the MeetingRole values, and the
+                        # meeting_role cast rejects anything else.
+                        "primary_role": [_item(value="seller")],
                         "content": [_item(value="Called the seller, went well.")],
                     },
                 }
@@ -450,8 +454,8 @@ async def test_sync_note_resolves_org_and_role_references(
         row = (
             await session.execute(
                 text(
-                    "SELECT organization_id, person_id, note_type, content "
-                    "FROM notes WHERE id = :id"
+                    "SELECT organization_id, person_id, note_type, primary_role, "
+                    "content FROM notes WHERE id = :id"
                 ),
                 {"id": note_id},
             )
@@ -459,6 +463,7 @@ async def test_sync_note_resolves_org_and_role_references(
     assert row.organization_id == org_id
     assert row.person_id is None
     assert row.note_type == "Manual"
+    assert row.primary_role == "seller"
     assert row.content == "Called the seller, went well."
     assert await _activity_count(db_sessionmaker, "Note", note_id) == 1
 

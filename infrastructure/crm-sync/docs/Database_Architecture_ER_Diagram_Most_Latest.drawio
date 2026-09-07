@@ -28,7 +28,7 @@
         <mxCell id="RgGBnucupUyAWn9DcVHZ-8" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="type[] : enum (PE/FO/VC/Target/Client:*)" vertex="1">
           <mxGeometry height="18" width="300" y="96" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-9" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="client_type : enum" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-9" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="client_type : text (comma-joined)" vertex="1">
           <mxGeometry height="18" width="300" y="114" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-10" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="sector_focus[] / stage_focus[] : enum[]" vertex="1">
@@ -40,7 +40,7 @@
         <mxCell id="RgGBnucupUyAWn9DcVHZ-12" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="hq_country : text" vertex="1">
           <mxGeometry height="18" width="300" y="168" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-13" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="domains : text[]" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-13" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="domains : text (Attio) / text[] (PG)" vertex="1">
           <mxGeometry height="18" width="300" y="186" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-14" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="categories[] : enum[]" vertex="1">
@@ -832,7 +832,7 @@
           <mxGeometry height="262" width="360" x="220" y="1646" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-400" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#5B7FB9;swimlaneFillColor=#FFFFFF;strokeColor=#5B7FB9;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="notes&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;LIVE &#183; Postgres + SOURCE Attio note object&lt;/font&gt;" vertex="1">
-          <mxGeometry height="204" width="300" x="2204" y="1360" as="geometry" />
+          <mxGeometry height="222" width="300" x="2204" y="1360" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-401" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK  id : uuid" vertex="1">
           <mxGeometry height="18" width="300" y="42" as="geometry" />
@@ -852,14 +852,17 @@
         <mxCell id="RgGBnucupUyAWn9DcVHZ-406" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="note_type : enum (Manual, Meeting)" vertex="1">
           <mxGeometry height="18" width="300" y="132" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-407" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="content : text  (Manual = hand-entered; Meeting = transcript summary)" vertex="1">
+        <mxCell id="primaryRole_notes" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="primary_role : enum (seller, buyer, investor, internal, general)  (nullable)" vertex="1">
           <mxGeometry height="18" width="300" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-408" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at : timestamptz" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-407" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="content : text  (Manual = hand-entered; Meeting = transcript summary)" vertex="1">
           <mxGeometry height="18" width="300" y="168" as="geometry" />
         </mxCell>
-        <mxCell id="isTest_notes" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFE6CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="is_test : bool  (ATTIO ONLY, no PG column)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-408" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at : timestamptz" vertex="1">
           <mxGeometry height="18" width="300" y="186" as="geometry" />
+        </mxCell>
+        <mxCell id="isTest_notes" parent="RgGBnucupUyAWn9DcVHZ-400" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFE6CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="is_test : bool  (ATTIO ONLY, no PG column)" vertex="1">
+          <mxGeometry height="18" width="300" y="204" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-409" edge="1" parent="1" source="RgGBnucupUyAWn9DcVHZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=ERone;endArrow=ERmany;startFill=0;endFill=0;strokeColor=#5A5A5A;strokeWidth=1.4;fontSize=9;labelBackgroundColor=#F7F5F0;dashed=1;" target="RgGBnucupUyAWn9DcVHZ-400" value="1..*">
           <mxGeometry relative="1" as="geometry" />
