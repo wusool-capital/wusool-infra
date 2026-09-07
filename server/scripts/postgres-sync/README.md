@@ -36,6 +36,35 @@ Two consequences worth knowing before you hit them:
 If seeding ever becomes worth automating, the right shape is production
 PostgreSQL -> dev PostgreSQL. Never a second Attio consumer.
 
+### Clearing the dev database at cutover
+
+[`truncate-dev.ps1`](truncate-dev.ps1) empties the Attio-mirrored tables.
+Run it once, at the switch to the single SOURCE workspace.
+
+It is not housekeeping. Every `attio_id` currently in the dev database is a
+**DEV-workspace** record id, and the dev bot now talks to SOURCE — so those
+rows are broken pointers, not stale data, and an `/edit-*` against one fails
+on the scope guard's read-before-write in a way that looks like a bot bug.
+
+```powershell
+./truncate-dev.ps1                     # survey: prints every table it would empty, and its row count
+./truncate-dev.ps1 -Apply -Confirmation <the token the dry run printed>
+```
+
+`TRUNCATE ... CASCADE` from `organizations`/`person`/`deals`/`users` reaches
+every table with a foreign key into them — **including `meetings`**, since
+`meeting.org_id` references `organizations.attio_id` and Postgres's `CASCADE`
+ignores `ondelete`. Scribe's dev meeting data goes with it, deliberately: a
+sandbox full of meetings pointing at dead organization ids is not worth
+keeping. The dry run lists the full closure before anything is written, and
+the script refuses outright if `alembic_version` is ever caught in it.
+
+The confirmation token is derived from the connected server's own address, not
+a fixed string, because through the SSM tunnel dev and prod are both
+`localhost:15432/wusool_crm` and at cutover dev still holds ~3,000
+organizations — so neither the connection string nor a row-count threshold can
+tell them apart. A token from the dev tunnel will not apply against prod.
+
 ## Command surface
 
 All scripts live in [`prod/`](prod); see [`prod/README.md`](prod/README.md) for
