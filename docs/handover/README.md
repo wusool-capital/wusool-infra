@@ -91,26 +91,29 @@ Everything runs in a single AWS account (`030179310793`) in `eu-central-1`
 
 ### Cutover runbook: one SOURCE Attio workspace
 
-None of this is in git. **The order is load-bearing**, and two steps in
-particular are: `tofu apply` must precede each environment's code deploy, and
-dev's Attio key must not be swapped until dev is already running the new code.
-There is one SOURCE key, shared by both deployments — `ATTIO_IS_TEST` is what
-separates them, not a second credential.
-The failure mode of getting each wrong is stated.
+`_deploy.yml` already applies the `toolkit` stack (it triggers on
+`infrastructure/terraform/modules/toolkit-ec2/**` and `server/**`, both of
+which this change touches), runs `alembic upgrade head`, regenerates
+`/opt/toolkit/toolkit/.env.production` from Secrets Manager, and rolls the
+container. So a merge does the terraform apply and the code deploy together —
+there is no manual `tofu apply` in this sequence.
 
-| # | Step | Why here and not later |
+**The one thing that must not be reordered: prod is deployed before dev's
+Attio key is swapped.** Everything else is tidy-up.
+
+| # | Step | Why here |
 | --- | --- | --- |
-| P0 | Merge, and confirm whoever runs the prod sync scripts has pulled. | Those scripts run by hand, so merging is not enough. If dev starts writing test records to SOURCE before the operator's checkout has the `is_test` filters, the next `sync-all-to-prod.ps1 -Apply` writes them into production. |
-| P1 | `GET /v2/webhooks` on SOURCE; confirm exactly one exists, targeting prod. | `sync-all-within-source.ps1`'s `Get-DevWebhook` silently skips its pause/resume safety if it finds anything other than exactly one — including `stamp-is-test.ps1`, which reuses that block. |
-| P2 | `tofu apply` `stacks/toolkit` with `envs/prod.tfvars`. Confirm `/wusool/prod/toolkit` holds the SOURCE key. | **Must precede P3.** `ATTIO_IS_TEST` defaults to `true`, so prod running the new code without this templated in would ignore every inbound webhook, refuse the nightly resync, and stamp `is_test = true` on real records. Safe against the currently-deployed image, which does not read the variable. |
-| P3 | Deploy the server code to **prod**. | From here prod filters `is_test` out of its ingest, stamps `false` on its own writes, and the nightly resync refuses to run in test scope. This is what makes P6 safe. |
-| P4 | `tofu apply` `stacks/toolkit` with `envs/dev.tfvars`. | Sets `ATTIO_IS_TEST=true` explicitly. The code defaults to `true` anyway, so this is belt-and-braces rather than load-bearing. |
-| P5 | Deploy the server code to **dev**. | Dev now stamps `is_test = true`, ignores Attio webhooks, and refuses cross-scope edits — but is still pointed at the DEV workspace, so none of it touches SOURCE yet. |
-| P6 | **Only now** update `/wusool/dev/toolkit`'s `env`: `ATTIO_API_KEY` → the SOURCE key (the same one prod uses), drop `ATTIO_DEAL_OBJECT_SLUG`. Record the previous values first. | **Must follow P5.** This is the first moment dev writes to SOURCE. Done any earlier, the old dev image writes records with *no* `is_test` value — which reads as production — and prod ingests them as real CRM data. That is the one silent, hard-to-undo failure in this whole change. Value updates have no recovery window; the 30-day window is for secret *deletion*. |
-| P7 | Delete the DEV-workspace webhook. Announce the local `.env` change: `ATTIO_API_KEY` becomes the SOURCE key, and `ATTIO_DEAL_OBJECT_SLUG` / `ATTIO_NOTE_OBJECT_SLUG` are both deleted. Clear the persisted user-scoped `DEV_ATTIO_API_KEY`. | `.env.example` is updated in the repo but existing `.env` files are untracked. Leaving the two deleted vars in a local `.env` is harmless (`extra="ignore"`), so this is tidy-up rather than a hard break. A stale user-scoped `DEV_ATTIO_API_KEY` invites a muscle-memory run against a dead workspace. |
-| P8 | Run `server/scripts/postgres-sync/truncate-dev.ps1` (dry run, then `-Apply`). | After P5/P6, so devs are not creating test data into a database that is about to be emptied. |
-| P9 | Run `infrastructure/crm-sync/scripts/source-attio/stamp-is-test.ps1` (dry run, then `-Apply`). | Order-independent — nothing depends on it, since the REST API's `eq false` filter matches unset records. Do it at leisure; it unblocks the Attio UI filters and `-StrictIsTest`. |
-| P10 | Retire the DEV Attio workspace. | Last, and irreversible. Only after dev has been observed writing to SOURCE for a full working day. |
+| 1 | Merge to `dev`. | Sets `ATTIO_IS_TEST=true`, deploys the new code. Dev's secret still holds the **DEV** key, so dev is still writing to the old workspace and nothing touches SOURCE yet. Safe to sit here indefinitely. |
+| 2 | Merge to `prod`. | Sets `ATTIO_IS_TEST=false` and puts the ingest filter live, so prod now drops `is_test = true` records and the nightly resync is allowed to run. **This is what makes step 3 safe.** |
+| 3 | Swap `/wusool/dev/toolkit`'s `env.ATTIO_API_KEY` to the SOURCE key, then re-run **Deploy dev** via `workflow_dispatch`. | **Must follow step 2.** This is the first moment dev writes to SOURCE. Do it before prod is deployed and the old prod image — which has no filter — ingests dev's test records as real CRM data. Silent, and exactly what this change exists to prevent. The redeploy is required: editing the secret alone does nothing to a running container, since `.env.production` is only rewritten by the bootstrap script. Record the previous value first; secret *value* updates have no recovery window. |
+| 4 | `server/scripts/postgres-sync/truncate-dev.ps1` — dry run, then `-Apply -Confirmation <token the dry run prints>`. | Every `attio_id` in the dev database is a DEV-workspace id, so after step 3 they are broken pointers: an `/edit-*` against one fails its scope read in a way that looks like a bot bug. Takes `meetings` with it (Scribe's dev data) — by decision. |
+| 5 | `infrastructure/crm-sync/scripts/source-attio/stamp-is-test.ps1` — dry run, then `-Apply -Confirmation STAMP_IS_TEST_FALSE_IN_SOURCE`. | Order-independent; nothing depends on it. Hand to the data team. Unblocks the Attio UI's "Is Test" filter and `-StrictIsTest` on the prod sync. |
+| 6 | Delete the DEV-workspace webhook. Tell developers to point their local `.env`'s `ATTIO_API_KEY` at the SOURCE key. Clear the persisted user-scoped `DEV_ATTIO_API_KEY`. | Left alone, the DEV webhook keeps retrying against the dev toolkit. `ATTIO_DEAL_OBJECT_SLUG` and `ATTIO_NOTE_OBJECT_SLUG` are both deleted settings now — leaving them in a local `.env` is inert under `extra="ignore"`, so that part is tidy-up. |
+| 7 | Retire the DEV Attio workspace. | Last, and irreversible. Only after a full working day of dev writing to SOURCE. |
+
+Before step 1, confirm whoever runs the prod sync scripts by hand has pulled:
+those are not deployed, so an operator on a stale checkout would run a
+`sync-all-to-prod.ps1 -Apply` with no `is_test` filter.
 
 Never register a second SOURCE webhook pointing at dev, and never remove
 `ATTIO_WEBHOOK_SECRET` from `/wusool/dev/toolkit`: `ddl_commands`' settings
@@ -118,14 +121,12 @@ require it unconditionally, so removing it fails `Settings()` on the first
 request for *every* command, not just the Attio-writing ones. The dev route
 ignores deliveries regardless.
 
-Note that `tofu apply` on `stacks/toolkit` **stops and starts** the toolkit
-instance and re-runs the SSM bootstrap, which is why P2 and P4 are separated per
-environment rather than done as one apply. The Elastic IP association
-survives, so the Slack request URL is unaffected.
+There is one SOURCE key, shared by both deployments. `ATTIO_IS_TEST` is what
+separates them, not a second credential.
 
 Expect the nightly resync's per-table count check to fire **once** on its
-first run after P3, for any test rows a dev instance leaked into production
-before this change. That is the check doing its job, not a regression.
+first run after step 2, for any test rows a dev instance leaked into
+production before this change. That is the check doing its job.
 
 ## 6. Known limitations
 
