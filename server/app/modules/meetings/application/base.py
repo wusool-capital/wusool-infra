@@ -24,6 +24,7 @@ from app.modules.meetings.application.ports.meetings import MeetingsRepositoryPo
 from app.modules.meetings.application.ports.note_writer import NoteWriterPort
 from app.modules.meetings.application.ports.notes import NotesRepositoryPort
 from app.modules.meetings.application.ports.organizations import OrganizationLookupPort
+from app.modules.meetings.application.ports.roles import RoleLookupPort
 from app.modules.meetings.application.summarize import SummarizationService
 
 
@@ -34,6 +35,7 @@ class ServiceBase:
         meetings_repository: MeetingsRepositoryPort,
         notes_repository: NotesRepositoryPort,
         organization_lookup: OrganizationLookupPort,
+        role_lookup: RoleLookupPort,
         summarization_service: SummarizationService,
         note_writer: NoteWriterPort,
         summary_semaphore: asyncio.Semaphore,
@@ -41,6 +43,7 @@ class ServiceBase:
         self._meetings_repository = meetings_repository
         self._notes_repository = notes_repository
         self._organization_lookup = organization_lookup
+        self._role_lookup = role_lookup
         self._summarization_service = summarization_service
         self._note_writer = note_writer
         # Gates only the expensive LLM call in

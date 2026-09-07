@@ -146,6 +146,12 @@ $fields = @(
   [pscustomobject]@{ Title = "Buyer Role ID"; Slug = "buyer_role_id"; Type = "text"; Unique = $false; Config = @{} },
   [pscustomobject]@{ Title = "Seller Role ID"; Slug = "seller_role_id"; Type = "text"; Unique = $false; Config = @{} },
   [pscustomobject]@{ Title = "Note Type"; Slug = "note_type"; Type = "select"; Unique = $false; Config = @{}; FixedOptions = @("Manual", "Meeting") },
+  # Meeting role tag (seller/buyer/investor/internal/general), mirroring
+  # `meetings.primary_role`/`notes.primary_role` -- lowercase option
+  # titles matching those columns' CHECK values exactly, deliberately
+  # unlike Note Type's capitalized options above, since the meetings
+  # pipeline writes this one straight through from `MeetingRole.value`.
+  [pscustomobject]@{ Title = "Primary Role"; Slug = "primary_role"; Type = "select"; Unique = $false; Config = @{}; FixedOptions = @("seller", "buyer", "investor", "internal", "general") },
   [pscustomobject]@{ Title = "Content"; Slug = "content"; Type = "text"; Unique = $false; Config = @{} },
   # Slug is `note_created_at`, NOT `created_at`: every Attio custom object
   # auto-provisions its own protected, system-owned "Created At" timestamp

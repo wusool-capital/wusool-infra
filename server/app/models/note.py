@@ -40,6 +40,14 @@ class Note(Base):
     __tablename__ = "notes"
     __table_args__ = (
         CheckConstraint("note_type IN ('Manual', 'Meeting')", name="notes_note_type_check"),
+        # Text + CHECK, matching note_type's own rationale immediately below:
+        # no external service needs this type to exist independently of this
+        # table. Same five values as `meetings.primary_role`; different
+        # storage per each table's own convention.
+        CheckConstraint(
+            "primary_role IN ('seller','buyer','investor','internal','general')",
+            name="ck_notes_primary_role",
+        ),
         Index("idx_notes_organization", "organization_id"),
         Index("idx_notes_person", "person_id"),
     )
@@ -53,6 +61,10 @@ class Note(Base):
     person_id: Mapped[str | None] = mapped_column(Text, ForeignKey("person.attio_id"))
     buyer_role_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("buyer_roles.id"))
     seller_role_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("seller_roles.id"))
+    # Role the meeting concerned, mirroring meetings.primary_role -- the
+    # buyer/seller/investor/internal/general tag, not to be confused with
+    # note_type (Manual vs Meeting).
+    primary_role: Mapped[str | None] = mapped_column(Text)
     # Manual = historical/hand-entered. Meeting = generated from a meeting
     # transcript summary. Plain Text + CheckConstraint, not a native Postgres
     # enum -- no external service (unlike `meetings`' Scribe-owned enums)

@@ -45,6 +45,7 @@ class MeetingsRepository:
         org_name_raw: str | None,
         counterparty_role: str | None,
         meeting_type: str | None,
+        primary_role: str | None,
         occurred_at: datetime,
         title: str | None,
         source: str = "in_house",
@@ -61,6 +62,7 @@ class MeetingsRepository:
             org_name_raw=org_name_raw,
             counterparty_role=counterparty_role,
             meeting_type=meeting_type,
+            primary_role=primary_role,
             occurred_at=occurred_at,
             title=title,
             source=source,
@@ -127,6 +129,11 @@ class MeetingsRepository:
                 status="failed",
                 metadata_=Meeting.metadata_.op("||")(cast({"failure_reason": reason}, JSONB)),
             )
+        )
+
+    async def set_note_id(self, meeting_id: UUID, *, note_id: UUID) -> None:
+        await self._session.execute(
+            update(Meeting).where(Meeting.id == meeting_id).values(note_id=note_id)
         )
 
     async def recover_stalled(self, meeting_id: UUID, *, cutoff: datetime) -> bool:

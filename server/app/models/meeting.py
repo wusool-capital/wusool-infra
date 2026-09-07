@@ -41,6 +41,18 @@ class Meeting(Base):
         CheckConstraint(
             "status IN ('summarizing','completed','failed')", name="ck_meetings_status"
         ),
+        # Text + CHECK, not a native enum, deliberately unlike this table's
+        # other three enums above -- those are Scribe-owned (an external
+        # writer needs the type to exist independently of this table; see
+        # eec9dde1cfbb's scribe_pub GRANTs). `primary_role` is written only
+        # by this repo's own ingest path, so that rationale doesn't apply,
+        # and a CHECK is the easier thing to evolve later (ALTER TYPE ADD
+        # VALUE can't run in a transaction; a value can never be removed).
+        # Matches `notes.primary_role`'s storage exactly.
+        CheckConstraint(
+            "primary_role IN ('seller','buyer','investor','internal','general')",
+            name="ck_meetings_primary_role",
+        ),
         # Partial indexes — must match the migration
         # (2565f7950641_add_desktop_push_status_columns_to_.py) exactly, or
         # `alembic check` reports drift and reverts them on the next
@@ -64,6 +76,7 @@ class Meeting(Base):
     org_name_raw: Mapped[str | None] = mapped_column(Text)
     counterparty_role: Mapped[str | None] = mapped_column(_CounterpartyRole)
     meeting_type: Mapped[str | None] = mapped_column(_MeetingType)
+    primary_role: Mapped[str | None] = mapped_column(Text)
     occurred_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     title: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(_MeetingSource, nullable=False, server_default="in_house")
@@ -83,3 +96,4 @@ class Meeting(Base):
     local_recording_id: Mapped[str | None] = mapped_column(Text)
     summary_json: Mapped[dict | None] = mapped_column(JSONB)
     summary_started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    note_id: Mapped[UUID | None] = mapped_column(ForeignKey("notes.id"))

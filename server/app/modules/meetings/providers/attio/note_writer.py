@@ -37,9 +37,12 @@ class AttioNoteWriter:
     async def push_note(
         self,
         *,
-        organization_attio_id: str,
+        organization_attio_id: str | None,
         content: str,
         created_at: datetime,
+        primary_role: str | None,
+        buyer_role_entry_id: str | None,
+        seller_role_entry_id: str | None,
     ) -> UUID | None:
         """POST a "Meeting" note to Attio's `note` object, linked to
         `organization_attio_id`. Attribute slugs (`organization_id`,
@@ -48,19 +51,26 @@ class AttioNoteWriter:
         back -- `note_created_at`, not `created_at`, since Attio reserves
         `created_at` as a protected system attribute on every custom object.
 
+        `organization_attio_id` is `None` for a meeting with no resolved
+        company (internal/general/investor, or a company that never
+        resolved to an Attio org) — the `organization_id` key is omitted
+        entirely rather than sent as an empty/null reference, matching how
+        `buyer_role_id`/`seller_role_id` are also omitted when there is no
+        role to link.
+
+        `buyer_role_entry_id`/`seller_role_entry_id` are the target role
+        row's `legacy_entry_id` (Attio's list *entry* id — record-reference
+        targets Objects, not List entries, so these attributes are plain
+        text, matching `ddl_commands.persistence.attio_sync._note_params`'s
+        read side). Never send both: the caller resolves at most one, from
+        the meeting's primary role.
+
         Returns the created record's id so the caller can reuse it verbatim
         as `notes.id` (`ddl_commands`' `_NOTE_UPSERT` is `ON CONFLICT (id)`
         against this same Attio-assigned id), or `None` on any Attio
         failure.
         """
-        values = {
-            # Record-reference attribute: Attio's write shape needs
-            # target_object alongside target_record_id -- the read-side
-            # shape (domain/records.py's AttioValueEntry.target_record_id)
-            # only carries the id back, not the object it points to.
-            "organization_id": [
-                {"target_object": "organizations", "target_record_id": organization_attio_id}
-            ],
+        values: dict[str, object] = {
             "note_type": "Meeting",
             "content": content,
             "note_created_at": created_at.isoformat(),
@@ -69,6 +79,20 @@ class AttioNoteWriter:
             # filter has no "is empty").
             "is_test": self._is_test,
         }
+        if organization_attio_id is not None:
+            # Record-reference attribute: Attio's write shape needs
+            # target_object alongside target_record_id -- the read-side
+            # shape (domain/records.py's AttioValueEntry.target_record_id)
+            # only carries the id back, not the object it points to.
+            values["organization_id"] = [
+                {"target_object": "organizations", "target_record_id": organization_attio_id}
+            ]
+        if primary_role is not None:
+            values["primary_role"] = primary_role
+        if buyer_role_entry_id is not None:
+            values["buyer_role_id"] = buyer_role_entry_id
+        if seller_role_entry_id is not None:
+            values["seller_role_id"] = seller_role_entry_id
         try:
             response = await self._client.post(
                 f"/objects/{_NOTE_OBJECT_SLUG}/records", {"data": {"values": values}}
