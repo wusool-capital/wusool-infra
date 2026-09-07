@@ -20,9 +20,10 @@
 # templated from var.environment in modules/toolkit-ec2 rather than living
 # here, so it cannot be forgotten; a key of the same name in `env: {}` still
 # overrides it, since the passthrough is appended after the templated block.
-# Give dev its own SOURCE key rather than reusing prod's: every dev-originated
-# record then also carries a distinct created_by.actor_id in Attio, which is a
-# second discriminator that survives a missed is_test.
+# One SOURCE key serves both environments -- ATTIO_IS_TEST is the only thing
+# separating them, and a second credential would not change what gets written.
+# Blast radius is the one reason to revisit that: a leaked dev key is a leaked
+# prod key, so rotating it rotates prod's CRM write access too.
 resource "aws_secretsmanager_secret" "wusool_toolkit" {
   name                    = "/${var.project}/${var.environment}/toolkit"
   description             = "Environment-specific wusool-toolkit secrets for ${var.project} ${var.environment}"

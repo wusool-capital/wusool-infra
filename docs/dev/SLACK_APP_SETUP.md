@@ -86,10 +86,8 @@ One SOURCE workspace serves both environments, so also set `ATTIO_IS_TEST`:
 `true` for anything that is not production. It defaults to `true`, and the
 deployed environments get it from Terraform — but a local `.env` that sets a
 real key and forgets this flag would write test records indistinguishable
-from real CRM data, so set it explicitly. Prefer a separate dev API key over
-reusing prod's: every dev-originated record then also carries a distinct
-`created_by.actor_id` in Attio, a second discriminator that survives a
-missed `is_test`.
+from real CRM data, so set it explicitly. There is one SOURCE key across both
+environments — `ATTIO_IS_TEST` is the only thing separating them.
 
 ## Before enabling for real users
 
