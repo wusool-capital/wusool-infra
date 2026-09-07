@@ -56,7 +56,7 @@ Everything runs in a single AWS account (`030179310793`) in `eu-central-1`
 | Service | Used for | Ownership |
 | --- | --- | --- |
 | AWS | All compute, database, AI, secrets, monitoring | Wusool AWS account `030179310793` |
-| Attio | Business CRM of record; matching source data | Wusool Attio (DEV + SOURCE workspaces) |
+| Attio | Business CRM of record; matching source data | Wusool Capital workspace ("SOURCE") — one workspace serves both environments, split by the `is_test` checkbox |
 | Slack | The toolkit bot's only interface | One Slack app, one bot token (see `docs/dev/SLACK_APP_SETUP.md`) |
 | Cloudflare | DNS for `*.wusoolcapital.com` | Wusool |
 | GitHub / GitHub Actions | Source control and CI/CD; OIDC into AWS | `wusool-capital` org |
@@ -88,6 +88,32 @@ Everything runs in a single AWS account (`030179310793`) in `eu-central-1`
 - The database is **not publicly reachable**; reach it from the toolkit EC2
   instance (that is how CD runs migrations) or via an SSM port-forward
   tunnel.
+
+### Cutover runbook: one SOURCE Attio workspace
+
+None of this is in git, and everything before **R7** must happen before the
+new server image is deployed. Ordering matters — the failure mode of each
+wrong order is noted.
+
+| # | Step | Why the order matters |
+| --- | --- | --- |
+| R0 | Confirm whoever runs the prod sync scripts has pulled the `is_test` filters. | These run by hand, so merging is not enough. If the dev key is switched first, the first dev `/add-seller` creates a test org in SOURCE and the next `sync-all-to-prod.ps1 -Apply` writes it into production. |
+| R1 | Mint a **second** SOURCE API key, named for dev. Do not reuse prod's. | Every dev-originated record then also carries a distinct `created_by.actor_id` in Attio — a free second discriminator that survives a missed `is_test`. |
+| R2 | `GET /v2/webhooks` on SOURCE and confirm exactly one exists, targeting prod. | `sync-all-within-source.ps1`'s `Get-DevWebhook` silently skips its pause/resume safety if it finds anything other than exactly one. |
+| R3 | Delete the DEV-workspace webhook. | Webhooks run SOURCE → prod only. Left alone it keeps retrying against the dev toolkit. |
+| R4 | Do **not** register a second SOURCE webhook pointing at dev, and do **not** remove `ATTIO_WEBHOOK_SECRET` from `/wusool/dev/toolkit`. | `ddl_commands`' settings require that secret unconditionally, so removing it fails `Settings()` on the first request for *every* command, not just Attio ones. The dev route ignores deliveries anyway. |
+| R5 | Update `/wusool/dev/toolkit`'s `env`: `ATTIO_API_KEY` → the R1 SOURCE key, `ATTIO_NOTE_OBJECT_SLUG` → `note`, drop `ATTIO_DEAL_OBJECT_SLUG`. Record the previous values first. | Value updates have no recovery window (the 30-day window is for secret *deletion*). Safe against the currently-running image, which already reads both slugs from the environment. |
+| R6 | Confirm `/wusool/prod/toolkit` holds the SOURCE key, and add `ATTIO_NOTE_OBJECT_SLUG`. | — |
+| R7 | Announce the local `.env` change: every developer's `ATTIO_API_KEY`, `ATTIO_DEAL_OBJECT_SLUG` and `ATTIO_NOTE_OBJECT_SLUG` change. | `.env.example` is updated in the repo, but existing `.env` files are untracked and will not update themselves. |
+| R8 | Clear the persisted user-scoped `DEV_ATTIO_API_KEY` on operator machines. | `sync-all-within-source.ps1` reads user-scoped environment variables; a stale DEV key invites a muscle-memory run against a dead workspace. |
+| R9 | `tofu apply` `stacks/toolkit`. | Sets `ATTIO_IS_TEST` from `var.environment`. Note this **stops and starts** the toolkit instance and re-runs the SSM bootstrap, in *both* environments — the module is shared. Fold it into the normal deploy window. The EIP association survives, so the Slack request URL is unaffected. |
+| R10 | Deploy the server code, then truncate the dev database (see Outstanding). | The code must follow R5, or it writes SOURCE-shaped payloads with a DEV key. |
+| R11 | Retire the DEV Attio workspace. | Last, and irreversible. Only after dev has been observed writing to SOURCE for a full working day. |
+
+Expect the nightly resync's per-table count check to fire **once** on its
+first run after deploy, for any test rows a dev instance leaked into
+production before this change. That is the check doing its job, not a
+regression.
 
 ## 6. Known limitations
 
@@ -130,9 +156,15 @@ Everything runs in a single AWS account (`030179310793`) in `eu-central-1`
 | Area | Item |
 | --- | --- |
 | Schema | Confirm prod reached Alembic `head` with the orphaned `removed_at` / `bot_managed_*` columns dropped after the migration step ran for real. |
-| CRM migration | Investor/lender scope; scorecards scope; final owner/advisor backfill (currently `tech@wusoolcapital.com` as an approved stopgap); re-run the PostgreSQL sync against DEV Attio's current state and complete the Attio ↔ Postgres reconciliation audit. |
+| CRM migration | Investor/lender scope; scorecards scope; final owner/advisor backfill (currently `tech@wusoolcapital.com` as an approved stopgap); re-run the PostgreSQL sync against SOURCE Attio's current state and complete the Attio ↔ Postgres reconciliation audit. |
 | Scribe (prod) | Create the real `scribe_pub` LOGIN role with a generated password on prod and hand the DSN to scribe as `WUSOOL_DATABASE_URL_PROD`. Until then scribe cannot publish prod meetings. |
 | n8n | Update the registered prod `wusool-prod-n8n-bootstrap` SSM document to match the current template so re-runs stop reverting live fixes. |
+| `is_test` stamping | Every SOURCE record created before 2026-09-07 has `is_test` unset. Not a blocker — the API's `eq false` filter matches unset records and the sync skips only an explicit `true` — but the Attio **UI** filter chips do not, so a human filtering on "Is Test" sees nothing from either environment until the records are stamped. Needs a purpose-built `source-attio/stamp-is-test.ps1` that PATCHes only that one field: do **not** use `sync-all-within-source.ps1 -Apply`, which re-runs the whole migration, layers every mapped field back over each record, and re-fires the webhook thousands of times. Once done, add `-StrictIsTest` to the routine prod sync. |
+| Dev database | Truncate the dev database at cutover. Every `attio_id` in it is a **DEV-workspace** record id, and the dev bot now talks to SOURCE — so those rows are broken pointers, not merely stale, and an `/edit-*` against one will fail its scope read. Note `TRUNCATE organizations CASCADE` also reaches `meetings` (`meeting.org_id` FKs `organizations.attio_id`), so decide deliberately whether Scribe's dev meeting data goes too. Preserve `alembic_version`. |
+| Dev seeding | A fresh dev database is empty, so `/find-match` has nothing to match against until someone creates a pool of buyer roles with `/add-buyer` — and each of those also creates an `is_test` org in the shared SOURCE workspace. If that becomes too slow, the right shape is a bounded sample copied **prod PostgreSQL → dev PostgreSQL**, never a second Attio consumer. |
+| CRM data (unresolved) | `source-attio/config/migration-decisions.json`'s `duplicate_source_company_ids.mapping` disagrees with the deleted `dev-attio` copy on 3 of its 5 pairs — the key/value are swapped. Both files carried the same "blank duplicate → real" note and both are consumed identically, so one direction is wrong and may already have mismapped records. Verified against live SOURCE: for **Aikho** (`c609e6ed` is name-only, `9a836550` has the full record) and **Al Faisal Holding** the `dev-attio` direction was correct. **Alea Global Group** (`1359792d` / `90a879bf`) is genuinely ambiguous — both records are substantial with *different* domains, so neither is the "blank duplicate" the note describes and they may not be duplicates at all. Left untouched pending a decision; the correct direction is recoverable from git history before the `dev-attio` deletion. |
+| Nightly resync | Now writes the production database unattended, and a failure is only visible in the Actions tab. It deserves an `if: failure()` notification, but no workflow in this repo has one yet, so the mechanism (SNS via `stacks/base`'s `alarm_topic_arn`, or a Slack webhook) still needs choosing. |
+| Docs tooling | `server/scripts/docs/generate-client-schema-overview.ps1` cannot run: its `database/sql` input was deleted 2026-08-29. Its two Attio paths were repointed when `dev-attio` was deleted, but fixing the rest means rewriting it to read the SQLAlchemy models in `server/app/models/` instead of `CREATE TABLE` text. |
 | Docs | Refresh `infrastructure/n8n/docs/infrastructure-overview.md` (predates both restructures); clear the stale "no prod toolkit instance yet" comment in `infrastructure/terraform/envs/prod.tfvars`; commit the `ATTIO_POSTGRES_REALTIME_SYNC.md` write-up if still wanted. |
 
 ## 8. Support and where to look

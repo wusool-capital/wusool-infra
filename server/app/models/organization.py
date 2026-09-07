@@ -73,9 +73,9 @@ class Organization(Base):
     # or the column is NULL entirely — never fabricated when absent.
     funding_raised: Mapped[dict | None] = mapped_column(JSONB)
     # Attio-owned (historical, removed database/sql/002_core_attio_mirror.sql;
-    # set/cleared by postgres-sync/prod/sync-source-to-prod.ps1) — read-only from the apps' perspective,
-    # checked before any Attio write so a bot never PATCHes a record Attio no
-    # longer has.
+    # set/cleared by postgres-sync/prod/sync-source-to-prod.ps1) — read-only
+    # from the apps' perspective, checked before any Attio write so a bot never
+    # PATCHes a record Attio no longer has.
     removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     # Added 2026-08-19 alongside the DEV Attio attributes of the same names
     # (Wusool Schema Handover artifact) — all plain text/number/date, no

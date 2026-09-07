@@ -32,7 +32,7 @@ The two platforms have different responsibilities but share common record identi
 | seller_role | Seller profile, valuation indicators, and outreach progress | list | `seller_roles` |
 | investor_lender_role | Investor or lender preferences and areas of focus | list | `investor_lender_roles` |
 | Deal | Transaction opportunities and pipeline progression, including buy-side and sell-side mandates (see retired Mandate note below) | object | `deals` |
-| note | Unified notes on organizations, people, and buyer/seller roles (SOURCE Attio only — no DEV Attio object yet) | object | `notes` |
+| note | Unified notes on organizations, people, and buyer/seller roles | object | `notes` |
 
 ## Attio schema
 
@@ -283,8 +283,7 @@ Mandate section below).
 ### note
 
 Type: object | API identifier: `note` (plural noun "Unified Notes" — `notes`
-is reserved by Attio itself for its own native per-record Notes feature) |
-SOURCE Attio only, no DEV Attio object yet
+is reserved by Attio itself for its own native per-record Notes feature)
 
 Backfilled once from SOURCE's native per-record Notes (Companies, People) and
 the `buyer_role` list's own `notes` text field
@@ -481,7 +480,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 
 `mandates` table dropped 2026-08-23, same day as the Attio-side Mandate retirement above — its 2 historical rows carried no data that isn't already on the corresponding `deals` rows via the merge. `mandate_targets` was dropped alongside it (was never populated). See `database/alembic/versions/2e8a6c14f7b9_drop_mandates_and_mandate_targets.py`.
 
-`next_task` dropped 2026-08-29 — confirmed dead by checking DEV Attio's live `deals` object directly: no `next_task`/`next_due_task` attribute exists there, active or archived, so the column was always written as `NULL`. Dead references removed from `sync-postgres.ps1` and `ddl_commands/modules/attio_sync/upsert.py` in the same change. See `database/alembic/versions/d5080e26bfc2_drop_deals_next_task.py`.
+`next_task` dropped 2026-08-29 — confirmed dead by checking Attio's live `deals` object directly: no `next_task`/`next_due_task` attribute exists there, active or archived, so the column was always written as `NULL`. Dead references removed from the sync script and `ddl_commands`' upsert path in the same change. See `server/alembic/versions/d5080e26bfc2_drop_deals_next_task.py`.
 
 ### buyer_roles
 
@@ -705,10 +704,10 @@ case this table exists to catch.
 
 Unified notes on organizations, people, and buyer/seller roles, replacing the
 fields formerly scattered across `organizations`, `person`, and `buyer_roles`.
-Populated by `workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`
-from SOURCE Attio's `note` custom object (via a not-yet-built
-`database/sync-notes-from-source.ps1`), not through DEV Attio, which has no
-notes object yet.
+Populated by
+`infrastructure/crm-sync/scripts/source-attio/backfill-notes.ps1`, then
+mirrored into PostgreSQL by
+`server/scripts/postgres-sync/prod/sync-notes-from-source.ps1`.
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|

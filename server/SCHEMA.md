@@ -146,7 +146,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 | last_mandate_briefing_date | date | yes | | |
 | prior_gcc_acquisition | text | yes | | |
 | is_active | boolean | yes | | current vs. stale duplicate |
-| legacy_entry_id | text | yes | unique | one row per DEV Attio entry |
+| legacy_entry_id | text | yes | unique | one row per SOURCE Attio entry |
 | raw_attio | jsonb | no | `{}` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
 
@@ -166,7 +166,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 | lead_quality_score | numeric | yes | | |
 | re_engage_date | date | yes | | |
 | is_active | boolean | yes | | current vs. stale duplicate |
-| legacy_entry_id | text | yes | unique | one row per DEV Attio entry |
+| legacy_entry_id | text | yes | unique | one row per SOURCE Attio entry |
 | years_active | integer | yes | | Lead Magnet field |
 | funding_stage | text | yes | | Lead Magnet field |
 | revenue_last_full_year / revenue_year_before / annual_rent_cost | jsonb | yes | | money-shaped, Lead Magnet |

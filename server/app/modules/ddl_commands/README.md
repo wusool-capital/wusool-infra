@@ -1,7 +1,7 @@
 # ddl_commands
 
 `/edit-seller`, `/edit-buyer` — edit buyer/seller profiles (and, for fields
-the operator picks, their organization) in DEV Attio first, then
+the operator picks, their organization) in SOURCE Attio first, then
 `wusool_crm` Postgres. `/add-seller`, `/add-buyer` — the same Attio-first
 principle for creates: search for an existing organization first, attach
 the new role to it, or create a brand new organization if nothing matched.
@@ -55,7 +55,7 @@ beyond the `AttioClientProtocol` Port.
    "Excluded fields" below).
 3. **Edit form** — only the fields picked in step 2, pre-filled with current
    values.
-4. **Submit** — writes to **DEV Attio first**, then Postgres, in the same
+4. **Submit** — writes to **SOURCE Attio first**, then Postgres, in the same
    request. If the Attio write fails before anything landed, nothing is
    written to Postgres. If a partial write already landed (e.g. org fields
    in Attio before a role-field write failed), the ephemeral message names
@@ -73,7 +73,7 @@ beyond the `AttioClientProtocol` Port.
 3. **Add form** — every eligible field at once, all optional except a new
    organization's `name`. If similar orgs were found and the user still
    picks "create new", the form warns about the duplicate but doesn't block.
-4. **Submit** — writes to **DEV Attio first** (organization, if new, then
+4. **Submit** — writes to **SOURCE Attio first** (organization, if new, then
    the role entry), then Postgres in one transaction. If the role-entry
    write fails after the org-create succeeded, the org is *not* rolled
    back — the next `/add-*` attempt finds it via search.
@@ -93,7 +93,9 @@ Not every column on `organizations`/`seller_roles`/`buyer_roles` is
 writable from Slack (same eligibility list for both edit and add):
 
 - `organizations.connection_strength` — Attio-system-managed, never writable.
-- `seller_roles.readiness_band` — zero options defined in DEV Attio yet.
+- `seller_roles.readiness_band` — was unwritable while its Attio select had
+  zero options; the four (Early, Developing, Sale Ready, Market Ready) were
+  added 2026-09-07, so this is now only a Slack-form gap.
 - `readiness_score`, `lead_quality_score`, `acquisition_enrichment`,
   `deals_introduced`, `deals_converted` — both manual- and pipeline-written;
   editing from Slack risks the same silent-overwrite problem this design
@@ -110,9 +112,12 @@ writable from Slack (same eligibility list for both edit and add):
 
 Config comes from the repo-root `server/.env` (see `.env.example` there).
 Relevant variables: `DATABASE_URL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`,
-`ATTIO_API_KEY`, `ATTIO_WEBHOOK_SECRET`, `ATTIO_DEAL_OBJECT_SLUG` (defaults
-to DEV's `"deals"`; SOURCE's custom object is singular `"deal"`),
-`ATTIO_NOTE_OBJECT_SLUG` (unset in dev — DEV Attio has no notes object yet).
+`ATTIO_API_KEY`, `ATTIO_WEBHOOK_SECRET`, `ATTIO_NOTE_OBJECT_SLUG`, and
+`ATTIO_IS_TEST` — which half of the single shared SOURCE workspace this
+instance owns. `true` (the default) stamps every record it creates
+`is_test = true`, refuses to edit production records, and ignores inbound
+Attio webhooks entirely; `false` is the inverse. In the deployed
+environments it is templated from Terraform's `var.environment`.
 
 ## Running standalone (dev/testing only)
 
@@ -133,7 +138,7 @@ uv run pytest
 DB-backed integration tests insert their own throwaway rows inside a
 rolled-back transaction — nothing is ever persisted, and the suite never
 needs a real `wusool_crm`. Attio-touching code is unit-tested against a
-mocked HTTP layer only — **nothing in this suite talks to real DEV Attio**;
+mocked HTTP layer only — **nothing in this suite talks to real Attio**;
 smoke-test at least one real `/edit-seller` and one real `/add-seller`
 against a low-stakes DEV org before deploying a change to the create path.
 
@@ -156,7 +161,7 @@ is now handled by writing to Attio first instead (see above).
 *active* role immediately before the Postgres insert. That check used to be
 backed by `UNIQUE(org_attio_id)` on `seller_roles`/`buyer_roles`; the
 2026-08-28 migration (`b8f4c1e93a56`) moved that constraint to
-`legacy_entry_id` so an org can hold one row per DEV Attio entry, which
+`legacy_entry_id` so an org can hold one row per SOURCE Attio entry, which
 left the check unbacked — two submissions could both pass it before either
 committed and both write `is_active=true`.
 

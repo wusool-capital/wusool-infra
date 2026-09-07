@@ -1,4 +1,4 @@
-"""Thin async wrapper over DEV Attio's REST API (`https://api.attio.com/v2`).
+"""Thin async wrapper over SOURCE Attio's REST API (`https://api.attio.com/v2`).
 No retries, no rate-limit handling — this is a synchronous, human-triggered
 write inside a single Slack interaction, not a batch job; a failure here
 should surface immediately, not be silently retried.

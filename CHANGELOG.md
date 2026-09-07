@@ -9,6 +9,71 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-07 (later)
+
+### Changed
+
+- **One SOURCE Attio workspace now serves both environments.** The separate
+  DEV workspace is retired; `ATTIO_IS_TEST` says which half a process owns.
+  Every server-side Attio create stamps `is_test`, and every ingest path
+  skips the other half.
+  - `ATTIO_IS_TEST` is a new setting on the `attio` module, deliberately
+    independent of `APP_ENV` — Terraform says `dev`/`prod` while
+    `.env.example` said `development`, and binding CRM-data correctness to
+    environment-name spelling across two vocabularies is the ambiguity to
+    avoid. It defaults to `true`, because the two failure directions are not
+    symmetric: a prod deploy that forgets it hides new records (loud,
+    bounded, reversible), whereas a dev deploy that forgets it writes test
+    data into production (silent, unbounded). The deployed environments get
+    it from `var.environment` in `modules/toolkit-ec2`, so it cannot be
+    forgotten.
+  - **Patches never re-assert `is_test`.** It describes where a record came
+    from, not who is editing it. A read-before-write guard refuses a
+    cross-scope edit instead, and `resolve_role_entry_id` filters by scope
+    inside its existing page-through, so the role side costs no extra calls.
+  - Role syncs filter the trigger *before* `_fetch_siblings` and filter the
+    siblings too. `_reconcile_active_entry` writes back to Attio, so an
+    unfiltered reconciliation would let a newer test entry demote a real
+    production entry to `is_active=false` — corrupting the flag
+    `resolve_role_entry_id` and the matching engine both read.
+  - The webhook route ignores deliveries entirely in test scope, and now
+    validates `workspace_id`, which was already parsed and thrown away.
+  - The nightly full resync refuses to start in test scope rather than
+    overwriting the dev sandbox, and moved from the dev environment to prod.
+  - `/find-match` needed no change: `matching_engine` never calls Attio.
+
+### Removed
+
+- `infrastructure/crm-sync/scripts/dev-attio/` (~6.5k lines) and
+  `server/scripts/postgres-sync/dev/`. The dev database is no longer synced
+  from Attio at all — it is a sandbox that developers fill with `/add-*`.
+  A fresh dev database is therefore empty, and `/find-match` has nothing to
+  match against until someone creates buyer roles by hand; that is by
+  design. `rds-tunnel-runbook.md` moved up out of `dev/` (prod's README
+  links to it) and now covers both environments.
+- The legacy standard `deals` object is out of the webhook's scope. It has
+  **no `is_test` attribute**, so its records could never be assigned to an
+  environment — a hole straight through the new filter. The nightly prod
+  sync already deleted any row it produced, since that only fetches `deal`.
+  The `deals` *PostgreSQL table* is unrelated and unchanged.
+- `ATTIO_DEAL_OBJECT_SLUG`, and the per-workspace attribute-slug fallbacks
+  in every params-mapper. Each first branch was verified absent from
+  SOURCE's live attribute lists before deletion, enumerating each object in
+  full rather than keyword-searching — a fuzzy query for "role title"
+  returned only `job_title` and would have led to deleting `person.role`,
+  which is live and stayed.
+- `build_note_writer()`'s availability gate, which made note pushes silently
+  optional. `ATTIO_NOTE_OBJECT_SLUG` is a constant now, so
+  **`ATTIO_API_KEY` is effectively required for the `meetings` module** —
+  safe today because the toolkit deploys one app in one container whose
+  `ddl_commands` settings already require it.
+
+### Fixed
+
+- `source-attio/config/target-schema.json` said `person.postgres_table` was
+  `"people"`; the model is `"person"`. The retired `dev-attio` copy had it
+  right, so it was corrected before that directory was deleted.
+
 ## 2026-09-07
 
 ### Added
@@ -30,9 +95,13 @@ delivered state and outstanding items see
   `person`, `deal`, `note`, `seller_role`, `buyer_role`. One SOURCE
   workspace now serves both environments: `true` is dev/test, `false` is
   production. **Attio-only, with no PostgreSQL column** — the split is a
-  read-side filter at sync time. Every write path sets it explicitly,
-  because Attio's checkbox filter offers only "is true"/"is false": an
-  unset record matches neither and disappears from both environments.
+  read-side filter at sync time. Every write path sets it explicitly.
+  (Corrected 2026-09-07: this entry originally said an unset record "matches
+  neither filter and disappears from both environments". That is true of
+  Attio's UI filter chips but **not** of the REST API, where `is_test eq
+  false` does match records with no value — verified against a real record.
+  It is why the sync can skip only an explicit `true` and does not depend on
+  a stamping run having happened.)
 - `tool_runs` table (`tool_run.py`, Postgres-only) and
   `activities.tool_run_id`. Complements `activities` rather than replacing
   it. Every subject reference is nullable with no CHECK requiring one —

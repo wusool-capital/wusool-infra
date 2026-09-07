@@ -13,7 +13,7 @@ type, not a plain field. `key_personnel` — intentionally not exposed. No
 gated fields on the buyer side — nor on the seller side any more, since
 `intake_source` was dropped in #53.
 
-Attribute types verified live against the DEV Attio workspace (2026-08-30)
+Attribute types verified live against the SOURCE Attio workspace (2026-08-30)
 via `GET /v2/lists/buyer_role/attributes`: `prior_gcc_acquisition` is
 genuinely free text, while `relationship_warmth` is a `select` and carries
 Attio's own two options below. It had been guessed as `"text"`, which fails

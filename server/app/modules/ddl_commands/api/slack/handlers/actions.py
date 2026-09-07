@@ -1,5 +1,5 @@
 """Selection-modal, field-picker, edit-form, and add-form submissions for
-sellers and buyers. Every write goes to DEV Attio *first*, then Postgres, in
+sellers and buyers. Every write goes to SOURCE Attio *first*, then Postgres, in
 the same submission — if the Attio write fails, nothing is written to
 Postgres at all (see `_write_seller_edit`/`_write_buyer_edit` and
 `_write_seller_add`/`_write_buyer_add`). Slack payload state is never

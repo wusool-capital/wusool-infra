@@ -18,7 +18,7 @@ org fields other than `sector_focus` (`type`, `stage_focus`,
 operator-editable. `name` is shown as read-only context (the modal title),
 never editable here.
 
-Attribute types below were verified live against the DEV Attio workspace
+Attribute types below were verified live against the SOURCE Attio workspace
 (2026-08-30) via `GET /v2/objects/organizations/attributes`, not inferred:
 `ticket_size` is genuinely free text, while `lead_source` and
 `employee_range` are `select` and carry the option lists below verbatim from

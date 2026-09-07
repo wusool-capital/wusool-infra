@@ -1,4 +1,4 @@
-"""Nightly safety-net: a full page-through resync of DEV Attio into
+"""Nightly safety-net: a full page-through resync of SOURCE Attio into
 Postgres. Complements, not replaces, the real-time webhook — catches
 anything a missed delivery, an out-of-order race, or a paused webhook left
 inconsistent. Scheduled by `.github/workflows/nightly-attio-sync.yml`.
@@ -287,7 +287,7 @@ async def _reconcile_roles(
     """Groups `entries` by org (one pass, already in hand) and reconciles
     each org's duplicates concurrently (bounded) -- each org's sibling set
     and is_active PATCH-back is independent of every other org's. Postgres
-    mirrors every DEV Attio entry now, one row each keyed by legacy_entry_id
+    mirrors every SOURCE Attio entry now, one row each keyed by legacy_entry_id
     (see BuyerRole/SellerRole's 2026-08-28 pluralization), so this returns
     one row per *entry*, not per org -- `build_params(org_id, entry,
     is_active)` is called once per sibling, `is_active` set explicitly from
