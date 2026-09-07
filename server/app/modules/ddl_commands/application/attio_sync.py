@@ -24,15 +24,6 @@ from app.modules.ddl_commands.application.ports.attio_sync import (
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync")
 
 
-async def _sync_source_deal(
-    upsert: AttioSyncRepositoryPort, client: AttioClientProtocol, record_id: str
-) -> None:
-    """SOURCE Attio's custom deal object is slug "deal" (singular) -- see
-    `config.py`'s `attio_deal_object_slug` and `sync_deal`'s docstring. Both
-    slugs land in the same `deals` Postgres table."""
-    await upsert.sync_deal(client, record_id, object_slug="deal")
-
-
 _LIST_SYNC_METHODS = {
     "buyer_role": "sync_buyer_role",
     "seller_role": "sync_seller_role",
@@ -84,10 +75,8 @@ async def _dispatch_record_event(
         await upsert.sync_organization(client, record_id)
     elif slug == "person":
         await upsert.sync_person(client, record_id)
-    elif slug == "deals":
-        await upsert.sync_deal(client, record_id)
     elif slug == "deal":
-        await _sync_source_deal(upsert, client, record_id)
+        await upsert.sync_deal(client, record_id)
     elif slug == "note":
         await upsert.sync_note(client, record_id)
 

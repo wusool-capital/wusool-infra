@@ -357,3 +357,65 @@ async def test_run_reports_users_sync_failure(monkeypatch) -> None:
 
     with pytest.raises(SystemExit):
         await full_resync.run()
+
+
+# ---------------------------------------------------------------------------
+# One SOURCE workspace, two environments
+# ---------------------------------------------------------------------------
+
+
+async def test_run_refuses_to_run_in_test_scope(monkeypatch) -> None:
+    """The nightly resync writes the production database wholesale. Pointed
+    at the dev sandbox it would overwrite thousands of rows and wipe the
+    test data devs had just created — worse than a skipped night, so this is
+    the one place a hard stop beats failing safe."""
+    monkeypatch.setattr(full_resync, "attio_is_test", lambda: True)
+
+    def _unreachable(*_args, **_kwargs):
+        raise AssertionError("nothing should run once the scope check has tripped")
+
+    monkeypatch.setattr(full_resync.upsert, "sync_all_users", _unreachable)
+
+    with pytest.raises(SystemExit):
+        await full_resync._run(_FakeClient({}))
+
+
+async def test_streaming_entity_skips_out_of_scope_records(monkeypatch) -> None:
+    """Out-of-scope records must not be mapped, written, or counted — the
+    count check compares against the in-scope total."""
+    page = [
+        {"id": {"record_id": "prod-1"}, "values": {}},
+        {
+            "id": {"record_id": "test-1"},
+            "values": {"is_test": [{"active_until": None, "value": True}]},
+        },
+    ]
+    mapped: list[str] = []
+
+    async def pages(client, path):
+        yield page
+
+    async def write(model, rows):
+        return len(rows), 0, {}
+
+    async def count(table):
+        return 1
+
+    def mapper(record):
+        mapped.append(record["id"]["record_id"])
+        return {"attio_id": record["id"]["record_id"], "raw_attio": record}
+
+    monkeypatch.setattr(full_resync, "_page_through", pages)
+    monkeypatch.setattr(full_resync, "_write_batches_concurrently", write)
+    monkeypatch.setattr(full_resync, "_count", count)
+
+    ok, failed = await full_resync._sync_streaming_entity(
+        _FakeClient({}),
+        Organization,
+        "organizations",
+        "/objects/organizations/records/query",
+        mapper,
+    )
+
+    assert mapped == ["prod-1"]
+    assert (ok, failed) == (1, 0)

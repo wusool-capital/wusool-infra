@@ -25,7 +25,8 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Request, Response
 from pydantic import BaseModel, Field, ValidationError
 
-from app.modules.attio import WebhookEvent, WebhookEventId, get_attio_client
+from app.modules.attio import WebhookEvent, WebhookEventId, attio_is_test, get_attio_client
+from app.modules.attio.config import get_settings as get_attio_settings
 from app.modules.attio.providers.attio.signature import verify_attio_signature
 from app.modules.ddl_commands.application.attio_sync import dispatch_event
 from app.modules.ddl_commands.bootstrap import build_attio_registry, build_attio_sync_repository
@@ -119,6 +120,33 @@ async def attio_webhook(request: Request, background_tasks: BackgroundTasks) -> 
         )
         return Response(status_code=400)
 
-    for event in envelope.events:
+    # One SOURCE workspace serves both environments, and the sync runs only
+    # SOURCE -> the prod database. A dev instance therefore ingests nothing:
+    # a single check here enforces that structurally, whatever the
+    # per-record filter downstream does, and guarantees a dev process can
+    # never PATCH `is_active` back into Attio via role reconciliation.
+    # 200, not 4xx -- a rejection status would have Attio disable the
+    # subscription.
+    if attio_is_test():
+        _logger.info("ignoring attio webhook: ATTIO_IS_TEST=true, this instance does not ingest")
+        return Response(status_code=200)
+
+    # Object and list UUIDs are shared between environments now, so an event
+    # from the wrong workspace would no longer fail on an unknown UUID -- it
+    # would sync happily. The crm-sync PowerShell scripts already throw on a
+    # workspace mismatch; this is the same guard. Unset skips the check.
+    expected_workspace_id = get_attio_settings().attio_workspace_id
+    events = envelope.events
+    if expected_workspace_id is not None:
+        events = [
+            event for event in events if event.id.workspace_id in (None, expected_workspace_id)
+        ]
+        if len(events) != len(envelope.events):
+            _logger.warning(
+                "dropped %d attio webhook event(s) from an unexpected workspace",
+                len(envelope.events) - len(events),
+            )
+
+    for event in events:
         background_tasks.add_task(_process, event)
     return Response(status_code=200)

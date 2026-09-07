@@ -2,6 +2,8 @@ import pytest
 
 from app.modules.attio.providers.attio.entries import (
     RoleEntryNotFoundError,
+    ScopeMismatchError,
+    assert_organization_in_scope,
     create_organization,
     create_role_entry,
     patch_organization,
@@ -36,6 +38,7 @@ def _entry(
     parent_record_id: str,
     *,
     is_active: bool | None = None,
+    is_test: bool | None = None,
     created_at: str = "",
 ) -> dict:
     entry: dict = {
@@ -43,15 +46,27 @@ def _entry(
         "parent_record_id": {"record_id": parent_record_id},
         "created_at": created_at,
     }
+    entry_values: dict = {}
     if is_active is not None:
-        entry["entry_values"] = {"is_active": [{"active_until": None, "value": is_active}]}
+        entry_values["is_active"] = [{"active_until": None, "value": is_active}]
+    if is_test is not None:
+        entry_values["is_test"] = [{"active_until": None, "value": is_test}]
+    if entry_values:
+        entry["entry_values"] = entry_values
     return entry
+
+
+def _org_record(*, is_test: bool | None = None) -> dict:
+    values: dict = {}
+    if is_test is not None:
+        values["is_test"] = [{"active_until": None, "value": is_test}]
+    return {"data": {"values": values}}
 
 
 async def test_resolve_role_entry_id_finds_matching_parent() -> None:
     client = _FakeClient(entry_pages=[[_entry("entry-1", "org-a"), _entry("entry-2", "org-b")]])
 
-    entry_id = await resolve_role_entry_id(client, "seller_role", "org-b")
+    entry_id = await resolve_role_entry_id(client, "seller_role", "org-b", is_test=False)
 
     assert entry_id == "entry-2"
     assert client.post_calls[0][0] == "/lists/seller_role/entries/query"
@@ -62,7 +77,7 @@ async def test_resolve_role_entry_id_pages_through_multiple_pages() -> None:
     page_2 = [_entry("entry-target", "org-target")]
     client = _FakeClient(entry_pages=[page_1, page_2])
 
-    entry_id = await resolve_role_entry_id(client, "seller_role", "org-target")
+    entry_id = await resolve_role_entry_id(client, "seller_role", "org-target", is_test=False)
 
     assert entry_id == "entry-target"
     assert len(client.post_calls) == 2
@@ -72,7 +87,7 @@ async def test_resolve_role_entry_id_raises_when_not_found() -> None:
     client = _FakeClient(entry_pages=[[_entry("entry-1", "org-a")]])
 
     with pytest.raises(RoleEntryNotFoundError):
-        await resolve_role_entry_id(client, "seller_role", "org-missing")
+        await resolve_role_entry_id(client, "seller_role", "org-missing", is_test=False)
 
 
 async def test_resolve_role_entry_id_prefers_active_entry_over_an_earlier_stale_match() -> None:
@@ -88,7 +103,7 @@ async def test_resolve_role_entry_id_prefers_active_entry_over_an_earlier_stale_
         ]
     )
 
-    entry_id = await resolve_role_entry_id(client, "seller_role", "org-a")
+    entry_id = await resolve_role_entry_id(client, "seller_role", "org-a", is_test=False)
 
     assert entry_id == "entry-active"
 
@@ -101,7 +116,7 @@ async def test_resolve_role_entry_id_short_circuits_on_first_active_match() -> N
     page_2 = [_entry("entry-other", "org-other", is_active=True, created_at="2024-01-01")]
     client = _FakeClient(entry_pages=[page_1, page_2])
 
-    entry_id = await resolve_role_entry_id(client, "seller_role", "org-target")
+    entry_id = await resolve_role_entry_id(client, "seller_role", "org-target", is_test=False)
 
     assert entry_id == "entry-target"
     assert len(client.post_calls) == 1
@@ -121,7 +136,7 @@ async def test_resolve_role_entry_id_falls_back_to_newest_when_none_active() -> 
         ]
     )
 
-    entry_id = await resolve_role_entry_id(client, "seller_role", "org-a")
+    entry_id = await resolve_role_entry_id(client, "seller_role", "org-a", is_test=False)
 
     assert entry_id == "entry-new"
 
@@ -165,11 +180,11 @@ class _FakeCreateClient:
 async def test_create_organization_targets_records_endpoint_and_returns_record_id() -> None:
     client = _FakeCreateClient({"data": {"id": {"record_id": "org-new-1"}}})
 
-    record_id = await create_organization(client, {"name": "New Co"})
+    record_id = await create_organization(client, is_test=False, values={"name": "New Co"})
 
     path, body = client.post_calls[0]
     assert path == "/objects/organizations/records"
-    assert body == {"data": {"values": {"name": "New Co"}}}
+    assert body == {"data": {"values": {"name": "New Co", "is_test": False}}}
     assert record_id == "org-new-1"
 
 
@@ -177,7 +192,7 @@ async def test_create_role_entry_targets_entries_endpoint_and_returns_entry_id()
     client = _FakeCreateClient({"data": {"id": {"entry_id": "entry-new-1"}}})
 
     entry_id = await create_role_entry(
-        client, "seller_role", "org-new-1", {"outreach_tier": "opt-1"}
+        client, "seller_role", "org-new-1", {"outreach_tier": "opt-1"}, is_test=False
     )
 
     path, body = client.post_calls[0]
@@ -186,7 +201,7 @@ async def test_create_role_entry_targets_entries_endpoint_and_returns_entry_id()
         "data": {
             "parent_record_id": "org-new-1",
             "parent_object": "organizations",
-            "entry_values": {"outreach_tier": "opt-1", "is_active": True},
+            "entry_values": {"outreach_tier": "opt-1", "is_active": True, "is_test": False},
         }
     }
     assert entry_id == "entry-new-1"
@@ -200,7 +215,132 @@ async def test_create_role_entry_always_sets_is_active_true() -> None:
     """
     client = _FakeCreateClient({"data": {"id": {"entry_id": "entry-new-2"}}})
 
-    await create_role_entry(client, "buyer_role", "org-new-2", {})
+    await create_role_entry(client, "buyer_role", "org-new-2", {}, is_test=False)
 
     _, body = client.post_calls[0]
     assert body["data"]["entry_values"]["is_active"] is True
+
+
+# ---------------------------------------------------------------------------
+# is_test — one SOURCE workspace, two environments
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("is_test", [True, False])
+async def test_create_organization_stamps_the_scope(is_test: bool) -> None:
+    client = _FakeCreateClient({"data": {"id": {"record_id": "org-new-3"}}})
+
+    await create_organization(client, {"name": "New Co"}, is_test=is_test)
+
+    _, body = client.post_calls[0]
+    assert body["data"]["values"]["is_test"] is is_test
+
+
+@pytest.mark.parametrize("is_test", [True, False])
+async def test_create_role_entry_stamps_the_scope(is_test: bool) -> None:
+    client = _FakeCreateClient({"data": {"id": {"entry_id": "entry-new-3"}}})
+
+    await create_role_entry(client, "seller_role", "org-new-3", {}, is_test=is_test)
+
+    _, body = client.post_calls[0]
+    assert body["data"]["entry_values"]["is_test"] is is_test
+
+
+async def test_creates_do_not_mutate_the_callers_values() -> None:
+    """The caller reuses `values` to build the Postgres write; stamping into
+    it in place would leak `is_test` into a table that has no such column."""
+    client = _FakeCreateClient({"data": {"id": {"record_id": "org-new-4"}}})
+    values = {"name": "New Co"}
+
+    await create_organization(client, values, is_test=True)
+
+    assert values == {"name": "New Co"}
+
+
+async def test_patch_organization_does_not_send_is_test() -> None:
+    """`is_test` says where a record came from, not who is editing it.
+    Re-asserting it on a patch is the exact corruption the scope guard
+    exists to prevent: a dev edit would make a production record vanish."""
+    client = _FakeClient()
+
+    await patch_organization(client, "org-1", {"name": "Renamed"})
+
+    _, body = client.patch_calls[0]
+    assert "is_test" not in body["data"]["values"]
+
+
+async def test_patch_role_entry_does_not_send_is_test() -> None:
+    client = _FakeClient()
+
+    await patch_role_entry(client, "seller_role", "entry-1", {"outreach_tier": "opt-1"})
+
+    _, body = client.patch_calls[0]
+    assert "is_test" not in body["data"]["entry_values"]
+
+
+async def test_resolve_role_entry_id_ignores_entries_from_the_other_scope() -> None:
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("entry-test", "org-a", is_active=True, is_test=True),
+                _entry("entry-prod", "org-a", is_active=True, is_test=False),
+            ]
+        ]
+    )
+
+    prod = await resolve_role_entry_id(client, "seller_role", "org-a", is_test=False)
+    test = await resolve_role_entry_id(client, "seller_role", "org-a", is_test=True)
+
+    assert (prod, test) == ("entry-prod", "entry-test")
+
+
+async def test_resolve_role_entry_id_raises_when_only_the_other_scope_matches() -> None:
+    client = _FakeClient(entry_pages=[[_entry("entry-prod", "org-a", is_active=True)]])
+
+    with pytest.raises(RoleEntryNotFoundError):
+        await resolve_role_entry_id(client, "seller_role", "org-a", is_test=True)
+
+
+class _FakeGetClient:
+    def __init__(self, response: dict) -> None:
+        self._response = response
+        self.get_calls: list[str] = []
+
+    async def get(self, path: str) -> dict:
+        self.get_calls.append(path)
+        return self._response
+
+    async def post(self, path: str, json_body: dict) -> dict:
+        raise AssertionError("not used by this test")
+
+    async def patch(self, path: str, json_body: dict) -> dict:
+        raise AssertionError("not used by this test")
+
+
+@pytest.mark.parametrize("is_test", [True, False])
+async def test_assert_organization_in_scope_allows_a_matching_record(is_test: bool) -> None:
+    client = _FakeGetClient(_org_record(is_test=is_test))
+
+    await assert_organization_in_scope(client, "org-1", is_test=is_test)
+
+    assert client.get_calls == ["/objects/organizations/records/org-1"]
+
+
+@pytest.mark.parametrize("is_test", [True, False])
+async def test_assert_organization_in_scope_raises_on_mismatch(is_test: bool) -> None:
+    client = _FakeGetClient(_org_record(is_test=not is_test))
+
+    with pytest.raises(ScopeMismatchError):
+        await assert_organization_in_scope(client, "org-1", is_test=is_test)
+
+
+async def test_assert_organization_in_scope_reads_unset_is_test_as_production() -> None:
+    """Every record migrated before 2026-09-07 has no `is_test` value at
+    all. Treating those as test would lock production out of editing its own
+    records."""
+    client = _FakeGetClient(_org_record())
+
+    await assert_organization_in_scope(client, "org-1", is_test=False)
+
+    with pytest.raises(ScopeMismatchError):
+        await assert_organization_in_scope(client, "org-1", is_test=True)

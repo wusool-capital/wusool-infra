@@ -19,8 +19,15 @@ logger = logging.getLogger(__name__)
 
 
 class AttioNoteWriter:
-    def __init__(self, client: AttioClient | None = None) -> None:
+    def __init__(self, client: AttioClient | None = None, *, is_test: bool) -> None:
+        """`is_test` is which half of the single shared SOURCE workspace this
+        process owns. Taken here rather than as a `push_note` argument: that
+        method is the `NoteWriterPort` surface, and threading the flag
+        through it would put an Attio-workspace concept into
+        `meetings/application/`, which has no business knowing about one.
+        """
         self._client = client or get_attio_client()
+        self._is_test = is_test
 
     async def push_note(
         self,
@@ -53,6 +60,10 @@ class AttioNoteWriter:
             "note_type": "Meeting",
             "content": content,
             "note_created_at": created_at.isoformat(),
+            # One SOURCE workspace serves both environments; a note written
+            # without this is invisible in the UI of both (Attio's checkbox
+            # filter has no "is empty").
+            "is_test": self._is_test,
         }
         try:
             response = await self._client.post(

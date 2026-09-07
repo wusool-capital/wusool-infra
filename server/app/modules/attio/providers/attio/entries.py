@@ -41,6 +41,9 @@ docs alone.
 """
 
 from app.modules.attio.application.ports.client import AttioClientProtocol
+from app.modules.attio.config import record_scope
+from app.modules.attio.domain.records import AttioRecord
+from app.modules.attio.providers.attio import values as v
 
 _PAGE_SIZE = 500
 
@@ -51,6 +54,26 @@ class OrgRecordNotFoundError(Exception):
 
 class RoleEntryNotFoundError(Exception):
     pass
+
+
+class ScopeMismatchError(Exception):
+    """A write targeted a record belonging to the other half of the shared
+    SOURCE workspace — a dev process reaching a production record, or the
+    reverse. Raised instead of issuing the PATCH."""
+
+    def __init__(self, target: str, *, record_is_test: bool, is_test: bool) -> None:
+        super().__init__(
+            f"Refusing to write to {target}: it is a "
+            f"{'test' if record_is_test else 'production'} record and this instance owns "
+            f"{'test' if is_test else 'production'} records."
+        )
+        self.target = target
+        self.record_is_test = record_is_test
+        self.is_test = is_test
+
+
+def _record_is_test(record: AttioRecord) -> bool:
+    return record_scope(v.boolean(v.vals(record), "is_test"))
 
 
 def _entry_parent_record_id(entry: dict) -> str | None:
@@ -66,10 +89,10 @@ def _entry_id(entry: dict) -> str:
 
 
 def _entry_is_active(entry: dict) -> bool | None:
-    # Mirrors `attio_sync/values.py`'s `boolean(first(vals(e), "is_active"))`
-    # — reimplemented locally rather than imported: `shared/` doesn't depend
-    # on `modules/attio_sync/` anywhere, and it's small enough that keeping
-    # it that way costs nothing.
+    # Kept as its own implementation rather than `v.boolean(v.vals(e),
+    # "is_active")`: this one deliberately omits "checked" from the truthy
+    # set, and `is_active` is bot-owned reconciliation state whose coercion
+    # shouldn't drift with the generic extractor's.
     items = [
         item
         for item in entry.get("entry_values", {}).get("is_active") or []
@@ -82,8 +105,14 @@ def _entry_is_active(entry: dict) -> bool | None:
 
 
 async def resolve_role_entry_id(
-    client: AttioClientProtocol, list_slug: str, org_attio_id: str
+    client: AttioClientProtocol, list_slug: str, org_attio_id: str, *, is_test: bool
 ) -> str:
+    """`is_test` is this process's half of the shared SOURCE workspace.
+    Entries belonging to the other half are skipped, so a dev instance can
+    only ever resolve — and therefore only ever PATCH — its own test
+    entries. Filtering here rather than in a separate pre-check keeps the
+    guard free: this already pages every entry in the list.
+    """
     offset = 0
     matches: list[dict] = []
     while True:
@@ -93,6 +122,8 @@ async def resolve_role_entry_id(
         page = response.get("data", [])
         for entry in page:
             if _entry_parent_record_id(entry) != org_attio_id:
+                continue
+            if _record_is_test(entry) is not is_test:
                 continue
             if _entry_is_active(entry) is True:
                 return _entry_id(entry)
@@ -106,6 +137,31 @@ async def resolve_role_entry_id(
             f"No {list_slug} entry found in Attio for organization {org_attio_id}"
         )
     return _entry_id(max(matches, key=lambda entry: entry.get("created_at") or ""))
+
+
+async def assert_organization_in_scope(
+    client: AttioClientProtocol, attio_id: str, *, is_test: bool
+) -> None:
+    """Refuse a write to an organization belonging to the other half of the
+    shared workspace, before any of it lands.
+
+    One SOURCE workspace now serves both environments, so a dev instance is
+    physically able to PATCH a real production record. `is_test` is not
+    re-asserted on patches — it describes where a record came from, not who
+    is editing it, and rewriting it would be the very corruption this
+    prevents — so a read-before-write is what stops it instead.
+
+    Costs one extra GET per edit, against the several round-trips `/edit-*`
+    already makes. Deliberately not atomic with the PATCH that follows: a
+    single-writer bot at human speed has no interleaving to lose to.
+    """
+    fetched = await client.get(f"/objects/organizations/records/{attio_id}")
+    record: AttioRecord = fetched.get("data") or {}
+    record_is_test = _record_is_test(record)
+    if record_is_test is not is_test:
+        raise ScopeMismatchError(
+            f"organization {attio_id}", record_is_test=record_is_test, is_test=is_test
+        )
 
 
 async def patch_organization(client: AttioClientProtocol, attio_id: str, values: dict) -> None:
@@ -124,18 +180,30 @@ async def patch_role_entry(
     )
 
 
-async def create_organization(client: AttioClientProtocol, values: dict) -> str:
+async def create_organization(client: AttioClientProtocol, values: dict, *, is_test: bool) -> str:
     """`values` is already Attio's own per-attribute write shape (see
     `write_payload.build_attio_values`), same as `patch_organization` — the
     only difference from an edit is this is a `POST` with no existing
     `attio_id` to target, and the new one comes back in the response.
+
+    `is_test` is stamped here rather than by the caller, for the same reason
+    `create_role_entry` stamps `is_active`: it is bot-owned, every create
+    must carry it, and Attio's checkbox filter has no "is empty" — a record
+    written without it is invisible in the UI of both environments.
     """
-    response = await client.post("/objects/organizations/records", {"data": {"values": values}})
+    response = await client.post(
+        "/objects/organizations/records", {"data": {"values": {**values, "is_test": is_test}}}
+    )
     return response["data"]["id"]["record_id"]
 
 
 async def create_role_entry(
-    client: AttioClientProtocol, list_slug: str, org_attio_id: str, entry_values: dict
+    client: AttioClientProtocol,
+    list_slug: str,
+    org_attio_id: str,
+    entry_values: dict,
+    *,
+    is_test: bool,
 ) -> str:
     # Every entry created here is, by definition, the only one this bot knows
     # of for this org — `is_active: True` is what the dedup reconciliation
@@ -148,7 +216,7 @@ async def create_role_entry(
             "data": {
                 "parent_record_id": org_attio_id,
                 "parent_object": "organizations",
-                "entry_values": {**entry_values, "is_active": True},
+                "entry_values": {**entry_values, "is_active": True, "is_test": is_test},
             }
         },
     )

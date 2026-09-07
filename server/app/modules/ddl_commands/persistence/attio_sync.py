@@ -34,7 +34,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
-from app.modules.attio import AttioClientProtocol
+from app.modules.attio import AttioClientProtocol, owns_record
 from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.providers.attio import values as v
 from app.modules.attio.providers.attio.retry import (
@@ -63,6 +63,23 @@ SyncModel = type[Organization] | type[Person] | type[Deal] | type[BuyerRole] | t
 
 def _j(value: Any) -> str | None:
     return None if value is None else json.dumps(value)
+
+
+def _in_scope(record: AttioRecord) -> bool:
+    """Whether this record belongs to this process's half of the single
+    shared SOURCE workspace.
+
+    `owns_record` is imported unqualified rather than reached through
+    `attio.config` so a test can monkeypatch it on this module in one line,
+    the same way the existing tests patch `get_sessionmaker` -- the settings
+    object behind it is `lru_cache`d and awkward to swap otherwise.
+
+    A webhook delivery carries only IDs, never values, so every wrapper
+    below already re-fetches the record before it can write anything; this
+    reads `is_test` out of a response that was being made regardless. No
+    extra Attio call, no webhook reconfiguration.
+    """
+    return owns_record(v.boolean(v.vals(record), "is_test"))
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +280,9 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
 
 async def sync_organization(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/organizations/records/{record_id}")
+    if not _in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope organization %s", record_id)
+        return
     params = _organization_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_ORG_UPSERT, _for_text_sql("organizations", params))
@@ -360,6 +380,9 @@ def _person_params(data: AttioRecord) -> PersonParams:
 
 async def sync_person(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/person/records/{record_id}")
+    if not _in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope person %s", record_id)
+        return
     params = _person_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_PERSON_UPSERT, _for_text_sql("person", params))
@@ -499,14 +522,16 @@ def _deal_params(data: AttioRecord) -> DealParams:
     }
 
 
-async def sync_deal(
-    client: AttioClientProtocol, record_id: str, *, object_slug: str = "deals"
-) -> None:
-    """`object_slug` is the actual Attio object api_slug to fetch from --
-    "deals" (DEV's native object, the default) or "deal" (SOURCE's custom
-    object, singular -- see `config.py`'s `attio_deal_object_slug`). Both map
-    to the same `deals` Postgres table either way."""
-    fetched = await get_with_retry(client, f"/objects/{object_slug}/records/{record_id}")
+async def sync_deal(client: AttioClientProtocol, record_id: str) -> None:
+    """Fetches from SOURCE's custom Deal_V2 object, api_slug "deal"
+    (singular). The standard plural "deals" object also exists in SOURCE but
+    is legacy and out of scope -- it carries no `is_test` attribute, so it
+    cannot be assigned to an environment at all. The Postgres table this
+    writes to is still named `deals`; that is unrelated to the Attio slug."""
+    fetched = await get_with_retry(client, f"/objects/deal/records/{record_id}")
+    if not _in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope deal %s", record_id)
+        return
     params = _deal_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_DEAL_UPSERT, _for_text_sql("deals", params))
@@ -690,8 +715,19 @@ def _buyer_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Buye
 
 async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
     fetched = await get_with_retry(client, f"/lists/buyer_role/entries/{entry_id}")
+    # Before `_fetch_siblings`, not after: `_reconcile_active_entry` PATCHes
+    # `is_active` back to Attio, and a process must never write to the other
+    # half of the shared workspace.
+    if not _in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope buyer_role entry %s", entry_id)
+        return
     org_id = v.parent_id(fetched["data"])
-    siblings = await _fetch_siblings(client, "buyer_role", org_id)
+    # `is_active` is reconciled *within* a scope. An org can carry both a
+    # real entry and a dev test one; reconciling them together would let the
+    # newer test entry win and demote the production entry to
+    # `is_active=False` in Attio -- corrupting the exact flag
+    # `resolve_role_entry_id` and the matching engine read.
+    siblings = [e for e in await _fetch_siblings(client, "buyer_role", org_id) if _in_scope(e)]
     reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
@@ -875,8 +911,19 @@ def _seller_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Sel
 
 async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
     fetched = await get_with_retry(client, f"/lists/seller_role/entries/{entry_id}")
+    # Before `_fetch_siblings`, not after: `_reconcile_active_entry` PATCHes
+    # `is_active` back to Attio, and a process must never write to the other
+    # half of the shared workspace.
+    if not _in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope seller_role entry %s", entry_id)
+        return
     org_id = v.parent_id(fetched["data"])
-    siblings = await _fetch_siblings(client, "seller_role", org_id)
+    # `is_active` is reconciled *within* a scope. An org can carry both a
+    # real entry and a dev test one; reconciling them together would let the
+    # newer test entry win and demote the production entry to
+    # `is_active=False` in Attio -- corrupting the exact flag
+    # `resolve_role_entry_id` and the matching engine read.
+    siblings = [e for e in await _fetch_siblings(client, "seller_role", org_id) if _in_scope(e)]
     reconciled = await _reconcile_active_entry(client, "seller_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
@@ -944,6 +991,9 @@ def _note_params(data: AttioRecord) -> NoteParams:
 
 async def sync_note(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/note/records/{record_id}")
+    if not _in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope note %s", record_id)
+        return
     params = _note_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_NOTE_UPSERT, params)
@@ -1207,10 +1257,8 @@ class AttioSyncRepository:
     async def sync_person(self, client: AttioClientProtocol, record_id: str) -> None:
         await sync_person(client, record_id)
 
-    async def sync_deal(
-        self, client: AttioClientProtocol, record_id: str, *, object_slug: str = "deals"
-    ) -> None:
-        await sync_deal(client, record_id, object_slug=object_slug)
+    async def sync_deal(self, client: AttioClientProtocol, record_id: str) -> None:
+        await sync_deal(client, record_id)
 
     async def sync_note(self, client: AttioClientProtocol, record_id: str) -> None:
         await sync_note(client, record_id)

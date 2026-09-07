@@ -17,6 +17,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.attio import attio_is_test
 from app.modules.meetings.application.ports.note_writer import NoteWriterPort
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
@@ -47,18 +48,16 @@ def build_bedrock_client() -> BedrockConverseClient:
     return BedrockConverseClient()
 
 
-def build_note_writer() -> NoteWriterPort | None:
-    """`None` when `ATTIO_NOTE_OBJECT_SLUG` is unset — matching this
-    module's documented "Attio push is optional" behavior. Constructing
-    `AttioNoteWriter()` eagerly calls `app.modules.attio.get_attio_client()`,
-    which requires `ATTIO_API_KEY` at construction time; a deployment that
-    only sets this module's own env vars (no Attio workspace configured at
-    all) must not fail every request just because a writer nothing will
-    ever call got built anyway.
+def build_note_writer() -> NoteWriterPort:
+    """Always a writer now. The gate this used to have returned `None` when
+    `ATTIO_NOTE_OBJECT_SLUG` was unset, because the unified `note` object
+    existed only in SOURCE and DEV Attio had no equivalent. With one SOURCE
+    workspace serving both environments there is no deployment left without
+    it, and keeping the gate would mean note pushes silently stopping if
+    someone left the slug blank in a secrets map — the exact
+    silent-misconfiguration failure the `is_test` work exists to remove.
     """
-    if not get_settings().attio_note_object_slug:
-        return None
-    return AttioNoteWriter()
+    return AttioNoteWriter(is_test=attio_is_test())
 
 
 def build_summarization_service() -> SummarizationService:

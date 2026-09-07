@@ -11,6 +11,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # Read by nothing. The dev/prod split that actually matters is
+    # `attio.config.ATTIO_IS_TEST`, which is deliberately independent of
+    # environment naming — don't wire CRM behaviour to this.
     app_env: str = "development"
     log_level: str = "INFO"
 
@@ -19,8 +22,8 @@ class Settings(BaseSettings):
     slack_bot_token: str
     slack_signing_secret: str
 
-    # DEV Attio workspace write access — same value crm-sync's PowerShell
-    # scripts already use (DEV_ATTIO_API_KEY), confirmed write-capable.
+    # SOURCE Attio workspace write access. One workspace serves both
+    # environments; `attio.config.ATTIO_IS_TEST` is what separates them.
     # `/edit-seller`/`/edit-buyer` write to Attio first, then Postgres, in
     # the same request — see `ddl_commands/shared/attio/`.
     attio_api_key: str
@@ -30,18 +33,10 @@ class Settings(BaseSettings):
     # retrievable again after that. See `ddl_commands/shared/attio/signature.py`.
     attio_webhook_secret: str
 
-    # The "deals" native object's api_slug differs by workspace: DEV Attio
-    # calls it "deals" (plural); SOURCE Attio's custom object is "deal"
-    # (singular, see prod-postgres-sync/sync-source-to-prod.ps1). Same code,
-    # different workspace per environment — so this is env-configurable
-    # rather than hardcoded. Defaults to DEV's shape.
-    attio_deal_object_slug: str = "deals"
-
-    # The unified "note" object exists only in SOURCE Attio today (DEV Attio
-    # doesn't have it yet — see target-schema.json's
-    # "proposed_not_yet_implemented" status). None means "not available in
-    # this workspace, skip it" (dev); prod sets ATTIO_NOTE_OBJECT_SLUG=note.
-    attio_note_object_slug: str | None = None
+    # The unified "note" object's api_slug in SOURCE Attio. Constant since
+    # one SOURCE workspace began serving both environments; kept
+    # configurable only so a slug rename doesn't need a code change.
+    attio_note_object_slug: str = "note"
 
     @field_validator("database_url")
     @classmethod

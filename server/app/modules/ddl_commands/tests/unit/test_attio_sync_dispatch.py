@@ -30,7 +30,10 @@ class _FakeRegistry:
     _OBJECTS = {
         "org-object-uuid": "organizations",
         "person-object-uuid": "person",
-        "deals-object-uuid": "deals",
+        # The legacy standard "deals" object still exists in SOURCE but is
+        # deliberately out of the registry: it has no `is_test` attribute, so
+        # its records could never be assigned to an environment.
+        "deals-object-uuid": None,
         "deal-object-uuid": "deal",
         "note-object-uuid": "note",
         "tasks-object-uuid": "tasks",  # a real, known slug outside this sync's scope
@@ -61,8 +64,8 @@ class _FakeUpsert:
     async def sync_person(self, client, record_id: str) -> None:
         self.calls.append(("sync_person", record_id))
 
-    async def sync_deal(self, client, record_id: str, *, object_slug: str = "deals") -> None:
-        self.calls.append((f"sync_deal[{object_slug}]", record_id))
+    async def sync_deal(self, client, record_id: str) -> None:
+        self.calls.append(("sync_deal", record_id))
 
     async def sync_note(self, client, record_id: str) -> None:
         self.calls.append(("sync_note", record_id))
@@ -94,9 +97,8 @@ async def test_record_created_dispatches_to_matching_sync_fn() -> None:
 
 
 async def test_source_deal_record_dispatches_to_matching_sync_fn() -> None:
-    """SOURCE Attio's custom deal object (slug "deal", singular) must route
-    just like DEV's native "deals" object — see `config.py`'s
-    `attio_deal_object_slug`."""
+    """SOURCE's custom Deal_V2 object, api_slug "deal" (singular), is the
+    only deal object this sync covers."""
     upsert = _FakeUpsert()
 
     await dispatch.dispatch_event(
@@ -106,7 +108,24 @@ async def test_source_deal_record_dispatches_to_matching_sync_fn() -> None:
         _event("record.created", object_id="deal-object-uuid", record_id="deal-1"),
     )
 
-    assert upsert.calls == [("sync_deal[deal]", "deal-1")]
+    assert upsert.calls == [("sync_deal", "deal-1")]
+
+
+async def test_legacy_deals_object_is_not_dispatched() -> None:
+    """The standard plural "deals" object carries no `is_test` attribute, so
+    a record on it cannot be assigned to an environment. Ingesting it would
+    be a hole through the scope filter -- and the nightly prod sync already
+    deletes any row it produced, since that only fetches `deal`."""
+    upsert = _FakeUpsert()
+
+    await dispatch.dispatch_event(
+        upsert,
+        _FakeRegistry(),
+        _FakeClient(),
+        _event("record.created", object_id="deals-object-uuid", record_id="legacy-deal-1"),
+    )
+
+    assert upsert.calls == []
 
 
 async def test_note_record_dispatches_to_matching_sync_fn() -> None:

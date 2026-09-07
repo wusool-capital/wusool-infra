@@ -63,6 +63,8 @@ services:
       # unless these are overridden with real values.
       ATTIO_API_KEY: ${ATTIO_API_KEY:-local-dev-attio-key}
       ATTIO_WEBHOOK_SECRET: ${ATTIO_WEBHOOK_SECRET:-local-dev-webhook-secret}
+      ATTIO_IS_TEST: ${ATTIO_IS_TEST:-true}
+      ATTIO_NOTE_OBJECT_SLUG: ${ATTIO_NOTE_OBJECT_SLUG:-note}
       AWS_REGION: ${AWS_REGION:-eu-central-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}

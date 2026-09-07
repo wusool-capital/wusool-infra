@@ -37,11 +37,12 @@ class Settings(BaseSettings):
     max_concurrent_summaries: int = 1
     max_transcript_chars: int = 1_500_000
 
-    # The unified "note" object exists only in SOURCE Attio today (mirrors
+    # The unified "note" object's api_slug in SOURCE Attio (mirrors
     # ddl_commands' ATTIO_NOTE_OBJECT_SLUG — same env var, both classes use
-    # extra="ignore" so reading it in two Settings classes is safe). Leave
-    # unset to skip pushing notes to Attio entirely.
-    attio_note_object_slug: str | None = None
+    # extra="ignore" so reading it in two Settings classes is safe).
+    # Constant since one SOURCE workspace began serving both environments;
+    # kept configurable only so a slug rename doesn't need a code change.
+    attio_note_object_slug: str = "note"
 
     @field_validator("database_url")
     @classmethod

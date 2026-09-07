@@ -15,9 +15,11 @@ from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_sdk.web.async_client import AsyncWebClient
 
-from app.modules.attio import AttioError, get_attio_client
+from app.modules.attio import AttioError, attio_is_test, get_attio_client
 from app.modules.attio.providers.attio.entries import (
     RoleEntryNotFoundError,
+    ScopeMismatchError,
+    assert_organization_in_scope,
     create_organization,
     create_role_entry,
     patch_organization,
@@ -674,7 +676,9 @@ async def _write_seller_edit(
 
     landed: list[str] = []
     attio_client = get_attio_client()
+    is_test = attio_is_test()
     try:
+        await assert_organization_in_scope(attio_client, org_attio_id, is_test=is_test)
         if org_extracted:
             org_attio_values = await build_attio_values(
                 attio_client,
@@ -697,10 +701,12 @@ async def _write_seller_edit(
                 extracted=role_extracted,
             )
             if role_attio_values:
-                entry_id = await resolve_role_entry_id(attio_client, "seller_role", org_attio_id)
+                entry_id = await resolve_role_entry_id(
+                    attio_client, "seller_role", org_attio_id, is_test=is_test
+                )
                 await patch_role_entry(attio_client, "seller_role", entry_id, role_attio_values)
                 landed.append("seller profile fields (Attio)")
-    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError) as exc:
+    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError, ScopeMismatchError) as exc:
         raise PartialWriteError(landed, exc) from exc
 
     org_postgres_fields = (
@@ -743,7 +749,9 @@ async def _write_buyer_edit(
 
     landed: list[str] = []
     attio_client = get_attio_client()
+    is_test = attio_is_test()
     try:
+        await assert_organization_in_scope(attio_client, org_attio_id, is_test=is_test)
         if org_extracted:
             org_attio_values = await build_attio_values(
                 attio_client,
@@ -766,10 +774,12 @@ async def _write_buyer_edit(
                 extracted=role_extracted,
             )
             if role_attio_values:
-                entry_id = await resolve_role_entry_id(attio_client, "buyer_role", org_attio_id)
+                entry_id = await resolve_role_entry_id(
+                    attio_client, "buyer_role", org_attio_id, is_test=is_test
+                )
                 await patch_role_entry(attio_client, "buyer_role", entry_id, role_attio_values)
                 landed.append("buyer profile fields (Attio)")
-    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError) as exc:
+    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError, ScopeMismatchError) as exc:
         raise PartialWriteError(landed, exc) from exc
 
     org_postgres_fields = (
@@ -813,8 +823,12 @@ async def _write_seller_add(
     """
     landed: list[str] = []
     attio_client = get_attio_client()
+    is_test = attio_is_test()
 
     try:
+        if not is_new_org:
+            assert org_attio_id is not None  # caller supplies it when not creating one
+            await assert_organization_in_scope(attio_client, org_attio_id, is_test=is_test)
         if is_new_org:
             org_attio_values = await build_attio_values(
                 attio_client,
@@ -826,7 +840,9 @@ async def _write_seller_add(
             )
             org_attio_values["name"] = org_name
             org_attio_values["is_active"] = True
-            org_attio_id = await create_organization(attio_client, org_attio_values)
+            org_attio_id = await create_organization(
+                attio_client, org_attio_values, is_test=is_test
+            )
             landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
         elif org_extracted:
             org_attio_values = await build_attio_values(
@@ -852,10 +868,10 @@ async def _write_seller_add(
             extracted=role_extracted,
         )
         entry_id = await create_role_entry(
-            attio_client, "seller_role", org_attio_id, role_attio_values
+            attio_client, "seller_role", org_attio_id, role_attio_values, is_test=is_test
         )
         landed.append("seller role entry (Attio)")
-    except (AttioError, OptionNotFoundError) as exc:
+    except (AttioError, OptionNotFoundError, ScopeMismatchError) as exc:
         raise PartialWriteError(landed, exc) from exc
 
     org_postgres_fields = (
@@ -894,8 +910,12 @@ async def _write_buyer_add(
     """Mirrors `_write_seller_add` exactly, buyer-typed."""
     landed: list[str] = []
     attio_client = get_attio_client()
+    is_test = attio_is_test()
 
     try:
+        if not is_new_org:
+            assert org_attio_id is not None  # caller supplies it when not creating one
+            await assert_organization_in_scope(attio_client, org_attio_id, is_test=is_test)
         if is_new_org:
             org_attio_values = await build_attio_values(
                 attio_client,
@@ -907,7 +927,9 @@ async def _write_buyer_add(
             )
             org_attio_values["name"] = org_name
             org_attio_values["is_active"] = True
-            org_attio_id = await create_organization(attio_client, org_attio_values)
+            org_attio_id = await create_organization(
+                attio_client, org_attio_values, is_test=is_test
+            )
             landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
         elif org_extracted:
             org_attio_values = await build_attio_values(
@@ -933,10 +955,10 @@ async def _write_buyer_add(
             extracted=role_extracted,
         )
         entry_id = await create_role_entry(
-            attio_client, "buyer_role", org_attio_id, role_attio_values
+            attio_client, "buyer_role", org_attio_id, role_attio_values, is_test=is_test
         )
         landed.append("buyer role entry (Attio)")
-    except (AttioError, OptionNotFoundError) as exc:
+    except (AttioError, OptionNotFoundError, ScopeMismatchError) as exc:
         raise PartialWriteError(landed, exc) from exc
 
     org_postgres_fields = (
