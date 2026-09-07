@@ -25,8 +25,13 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Request, Response
 from pydantic import BaseModel, Field, ValidationError
 
-from app.modules.attio import WebhookEvent, WebhookEventId, attio_is_test, get_attio_client
-from app.modules.attio.config import get_settings as get_attio_settings
+from app.modules.attio import (
+    WebhookEvent,
+    WebhookEventId,
+    attio_is_test,
+    attio_workspace_id,
+    get_attio_client,
+)
 from app.modules.attio.providers.attio.signature import verify_attio_signature
 from app.modules.ddl_commands.application.attio_sync import dispatch_event
 from app.modules.ddl_commands.bootstrap import build_attio_registry, build_attio_sync_repository
@@ -135,7 +140,7 @@ async def attio_webhook(request: Request, background_tasks: BackgroundTasks) -> 
     # from the wrong workspace would no longer fail on an unknown UUID -- it
     # would sync happily. The crm-sync PowerShell scripts already throw on a
     # workspace mismatch; this is the same guard. Unset skips the check.
-    expected_workspace_id = get_attio_settings().attio_workspace_id
+    expected_workspace_id = attio_workspace_id()
     events = envelope.events
     if expected_workspace_id is not None:
         events = [

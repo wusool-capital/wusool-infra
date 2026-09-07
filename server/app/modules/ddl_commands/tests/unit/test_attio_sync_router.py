@@ -225,9 +225,7 @@ def test_event_from_an_unexpected_workspace_is_dropped(monkeypatch) -> None:
         calls.append(event)
 
     monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
-    monkeypatch.setattr(
-        router_module, "get_attio_settings", lambda: _FakeAttioSettings("ws-expected")
-    )
+    monkeypatch.setattr(router_module, "attio_workspace_id", lambda: "ws-expected")
 
     assert _post(_envelope("ws-other")) == 200
     assert calls == []
@@ -240,9 +238,7 @@ def test_event_from_the_expected_workspace_is_dispatched(monkeypatch) -> None:
         calls.append(event)
 
     monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
-    monkeypatch.setattr(
-        router_module, "get_attio_settings", lambda: _FakeAttioSettings("ws-expected")
-    )
+    monkeypatch.setattr(router_module, "attio_workspace_id", lambda: "ws-expected")
 
     assert _post(_envelope("ws-expected")) == 200
     assert len(calls) == 1
@@ -256,12 +252,7 @@ def test_workspace_check_is_skipped_when_unset(monkeypatch) -> None:
         calls.append(event)
 
     monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
-    monkeypatch.setattr(router_module, "get_attio_settings", lambda: _FakeAttioSettings(None))
+    monkeypatch.setattr(router_module, "attio_workspace_id", lambda: None)
 
     assert _post(_envelope("ws-anything")) == 200
     assert len(calls) == 1
-
-
-class _FakeAttioSettings:
-    def __init__(self, attio_workspace_id: str | None) -> None:
-        self.attio_workspace_id = attio_workspace_id

@@ -53,6 +53,12 @@ def attio_is_test() -> bool:
     return get_settings().attio_is_test
 
 
+def attio_workspace_id() -> str | None:
+    """The SOURCE workspace id inbound webhooks are expected to carry, or
+    `None` to skip the check."""
+    return get_settings().attio_workspace_id
+
+
 def record_scope(record_is_test: bool | None) -> bool:
     """Normalise a record's raw `is_test` value to the half it belongs to.
 
