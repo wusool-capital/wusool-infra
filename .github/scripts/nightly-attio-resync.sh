@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Run the DEV toolkit nightly resync through SSM with bounded resources and
-# observable, cancellable execution.
+# Run the toolkit's nightly Attio resync through SSM with bounded resources
+# and observable, cancellable execution. The third argument is the CloudWatch
+# log group to stream the SSM command's output into -- not a Secrets Manager
+# path, despite both being named /<project>/<env>/toolkit.
 set -Eeuo pipefail
 
 if [[ $# -ne 3 ]]; then

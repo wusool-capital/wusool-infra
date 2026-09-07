@@ -45,6 +45,12 @@ aws ecr get-login-password --region "${aws_region}" \
 # slack_signing_secret, database_url, and optionally env: {} for extra
 # overrides. github_token is no longer read here - nothing on this instance
 # clones a repository.
+#
+# Note the ordering below: this block writes Terraform-derived defaults, then
+# the `env: {}` passthrough is appended after it. Docker Compose's env_file is
+# last-wins, so an operator can override any of these (ATTIO_IS_TEST included)
+# via the secret without a `tofu apply` - while the default still comes from
+# var.environment rather than from someone remembering to set it.
 %{ for app in apps }
 # --- ${app.name} ---
 mkdir -p /opt/toolkit/${app.name}
@@ -55,6 +61,7 @@ DATABASE_URL=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.database_url // empty')
 SLACK_BOT_TOKEN=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.slack_bot_token // empty')
 SLACK_SIGNING_SECRET=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.slack_signing_secret // empty')
 AWS_REGION=${aws_region}
+ATTIO_IS_TEST=${attio_is_test}
 ENVEOF
 chmod 600 "/opt/toolkit/${app.name}/.env.production"
 

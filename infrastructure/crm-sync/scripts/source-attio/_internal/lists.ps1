@@ -55,7 +55,7 @@ $devHeaders = @{
 $migrationRoot = Split-Path $PSScriptRoot -Parent
 $decisions = Get-Content (Join-Path $migrationRoot "config\migration-decisions.json") -Raw |
   ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
+$expectedWorkspaceId = [string]$decisions.workspace_id
 # Blank-duplicate SOURCE companies (a second lead-magnet submission for a
 # company that already exists) that were never migrated into DEV
 # Organizations and so block parent resolution below. SOURCE is read-only
@@ -249,7 +249,7 @@ $devOrganization = Invoke-AttioRequest -Method Get -Headers $devHeaders `
   -Path "/objects/organizations"
 $connectedWorkspaceId = [string]$devOrganization.data.id.workspace_id
 if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
-  throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
+  throw "Workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
 }
 
 $devBuyerRole = Invoke-AttioRequest -Method Get -Headers $devHeaders `
@@ -684,7 +684,7 @@ $devHeaders = @{
 $migrationRoot = Split-Path $PSScriptRoot -Parent
 $decisions = Get-Content (Join-Path $migrationRoot "config\migration-decisions.json") -Raw |
   ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
+$expectedWorkspaceId = [string]$decisions.workspace_id
 # Blank-duplicate SOURCE companies (a second lead-magnet submission for a
 # company that already exists) that were never migrated into DEV
 # Organizations and so block parent resolution below. SOURCE is read-only
@@ -838,7 +838,7 @@ $devOrganization = Invoke-AttioRequest -Method Get -Headers $devHeaders `
   -Path "/objects/organizations"
 $connectedWorkspaceId = [string]$devOrganization.data.id.workspace_id
 if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
-  throw "DEV workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
+  throw "Workspace mismatch. Expected $expectedWorkspaceId but connected to $connectedWorkspaceId."
 }
 $devSellerRole = Invoke-AttioRequest -Method Get -Headers $devHeaders `
   -Path "/lists/seller_role"

@@ -48,7 +48,7 @@ class BuyerRole(Base):
     )
     model: Mapped[str | None] = mapped_column(Text)
     mandate_status: Mapped[str | None] = mapped_column(Text)
-    # Money shape per postgres-sync/dev/sync-postgres.ps1: {"amount": ..., "currency": ...}
+    # Money shape per postgres-sync/prod/sync-source-to-prod.ps1: {"amount": ..., "currency": ...}
     # or the column is NULL entirely — never fabricated when absent.
     ebitda_floor: Mapped[dict | None] = mapped_column(JSONB)
     check_size_min: Mapped[dict | None] = mapped_column(JSONB)

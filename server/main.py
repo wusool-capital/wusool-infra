@@ -13,7 +13,8 @@ standalone (its own test suite) — this file is what actually gets deployed.
 
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Any
 
@@ -24,6 +25,7 @@ from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.response import BoltResponse
 
+from app.modules.attio import attio_is_test
 from app.modules.ddl_commands.api.attio_sync import router as attio_sync_router
 from app.modules.ddl_commands.api.slack.handlers import (
     register_handlers as register_ddl_commands_handlers,
@@ -72,7 +74,30 @@ _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
 # merely close to the edge still shows up before it starts failing outright.
 _ACK_BUDGET_MS = 2500
 
-app = FastAPI(title="Wusool Toolkit Bot")
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """One SOURCE Attio workspace serves both environments and ATTIO_IS_TEST
+    is the only thing separating them, so state it in the first lines of
+    every boot rather than leaving it to be discovered in a later data
+    audit. It defaults to test, so a prod deploy that never set it says so
+    loudly here.
+
+    Read at startup, not at import: `attio.get_settings()` is `lru_cache`d,
+    and reading it while this module is merely being imported would freeze
+    the value before a caller (a test, a script) could configure it.
+    """
+    if attio_is_test():
+        logging.getLogger("app").warning(
+            "ATTIO_IS_TEST=true — Attio writes are stamped is_test, and inbound Attio "
+            "webhooks are ignored: this instance does not mirror Attio into Postgres"
+        )
+    else:
+        logging.getLogger("app").info("ATTIO_IS_TEST=false — this instance owns production records")
+    yield
+
+
+app = FastAPI(title="Wusool Toolkit Bot", lifespan=_lifespan)
 register_exception_handlers(app)
 app.include_router(attio_sync_router)
 app.include_router(meetings_router)

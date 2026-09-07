@@ -409,6 +409,7 @@ def test_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_cli
     monkeypatch.setattr(actions_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
     monkeypatch.setattr(actions_module, "patch_role_entry", fake_patch_role_entry)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
@@ -459,6 +460,7 @@ def test_edit_form_attio_failure_prevents_postgres_write(
 
     monkeypatch.setattr(actions_module, "build_attio_values", failing_build_attio_values)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
@@ -510,6 +512,7 @@ def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
     monkeypatch.setattr(actions_module, "patch_organization", fake_patch_organization)
     monkeypatch.setattr(actions_module, "resolve_role_entry_id", failing_resolve_role_entry_id)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
@@ -554,6 +557,7 @@ def test_edit_form_removed_org_is_rejected_before_any_write(
 
     monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
 
     values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
     payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["outreach_tier"], values)
@@ -615,6 +619,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
     monkeypatch.setattr(actions_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
     monkeypatch.setattr(actions_module, "patch_role_entry", fake_patch_role_entry)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
@@ -822,6 +827,7 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
     monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
     monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
@@ -871,6 +877,7 @@ def test_seller_add_form_attio_failure_prevents_postgres_write(
     monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
     monkeypatch.setattr(actions_module, "create_organization", failing_create_organization)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
@@ -916,6 +923,7 @@ def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed
     monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
     monkeypatch.setattr(actions_module, "create_role_entry", failing_create_role_entry)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
@@ -961,6 +969,7 @@ def test_seller_add_form_postgres_failure_after_attio_success_reports_what_lande
     monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
     monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
@@ -1007,6 +1016,7 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
     monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",

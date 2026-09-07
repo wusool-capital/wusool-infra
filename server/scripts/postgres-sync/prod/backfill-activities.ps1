@@ -76,14 +76,23 @@ def parent_id(r):
     if isinstance(value, dict): return str(value.get("record_id") or "")
     return str(value or (r.get("id") or {}).get("record_id") or "")
 
+# A no-op today: a record created by /add-* has no legacy_attio_id (it was
+# never migrated), so it can never enter the crosswalk below. Kept so this
+# stays correct if legacy_attio_id ever starts being written on new records.
+def is_test(r):
+    xs = items(vals(r), "is_test")
+    return bool(xs) and xs[0].get("value") is True
+
+# The native objects below carry no is_test attribute at all, so they are not
+# and cannot be filtered -- only the V2 reads are.
 print("Reading SOURCE native companies/people/valuation_tool_leads...")
 native_companies = pages("/objects/companies/records/query")
 native_people = pages("/objects/people/records/query")
 native_sellers = pages("/lists/valuation_tool_leads/entries/query")
 
 print("Reading SOURCE custom organizations/person (to bridge native id -> custom record id via legacy_attio_id)...")
-custom_orgs = pages("/objects/organizations/records/query")
-custom_people = pages("/objects/person/records/query")
+custom_orgs = [r for r in pages("/objects/organizations/records/query") if not is_test(r)]
+custom_people = [r for r in pages("/objects/person/records/query") if not is_test(r)]
 
 org_by_legacy, person_by_legacy = {}, {}
 for r in custom_orgs:

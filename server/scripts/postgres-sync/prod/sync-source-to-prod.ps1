@@ -1,7 +1,8 @@
 ﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DatabaseUrl = $env:DATABASE_URL,
-  [switch]$Apply
+  [switch]$Apply,
+  [switch]$StrictIsTest
 )
 
 # Prod's equivalent of ../dev/sync-postgres.ps1, but sourced
@@ -23,6 +24,15 @@
 #   against SOURCE, 2026-08-29): organizations.connection_strength (not
 #   "strongest_connection_strength"), people.email (single text, not
 #   "email_addresses"), people.role (already multiselect there).
+#
+# One SOURCE workspace serves both environments since 2026-09-07, so every
+# fetch below drops records flagged is_test. Only an explicit true is
+# dropped: an unset checkbox reads as production, which is the state of every
+# record migrated before that date -- requiring an explicit false would make
+# this script fetch almost nothing and then have the reconciliation below
+# delete the production database. Each entity prints how many it excluded and
+# how many are still unstamped; -StrictIsTest turns a nonzero unstamped count
+# into a failure, for once the stamping run has been done.
 
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($SourceApiKey)) { throw "Missing SOURCE_ATTIO_API_KEY." }
@@ -32,12 +42,14 @@ if (-not (Get-Command py -ErrorAction SilentlyContinue)) { throw "Python launche
 $env:WUSOOL_SOURCE_ATTIO_API_KEY = $SourceApiKey.Trim()
 $env:WUSOOL_DATABASE_URL = $DatabaseUrl
 $env:WUSOOL_SYNC_APPLY = if ($Apply) { "1" } else { "0" }
+$env:WUSOOL_STRICT_IS_TEST = if ($StrictIsTest) { "1" } else { "0" }
 
 try {
 @'
 import json, os, sys, time, urllib.error, urllib.request
 
 APPLY = os.environ.get("WUSOOL_SYNC_APPLY") == "1"
+STRICT = os.environ.get("WUSOOL_STRICT_IS_TEST") == "1"
 KEY = os.environ["WUSOOL_SOURCE_ATTIO_API_KEY"]
 BASE = "https://api.attio.com/v2"
 HEADERS = {"Authorization": f"Bearer {KEY}", "Accept": "application/json", "Content-Type": "application/json"}
@@ -120,12 +132,27 @@ def emails(v):
     value=first(v,"email")
     return [value] if value else []
 
+def prod_only(records, label):
+    kept=[r for r in records if boolean(vals(r),"is_test") is not True]
+    unstamped=sum(1 for r in kept if boolean(vals(r),"is_test") is None)
+    excluded=len(records)-len(kept)
+    print(f"{label:16} fetched={len(records)} test_excluded={excluded} unstamped={unstamped}")
+    # Same shape as the "SOURCE returned zero X" guards further down: the
+    # reconciliation deletes whatever is not fetched, and deals/buyer_roles/
+    # seller_roles are hard deletes with no removed_at, so an implausible
+    # exclusion rate must stop the run rather than purge production rows.
+    if records and excluded/len(records) > 0.10:
+        raise RuntimeError(f"{label}: excluding {excluded}/{len(records)} as is_test -- refusing.")
+    if STRICT and unstamped:
+        raise RuntimeError(f"{label}: {unstamped} record(s) have no explicit is_test value.")
+    return kept
+
 print("Reading SOURCE Attio custom objects...")
-organizations=pages("/objects/organizations/records/query")
-people=pages("/objects/person/records/query")
-deals=pages("/objects/deal/records/query")
-buyer_entries=pages("/lists/buyer_role/entries/query")
-seller_entries=pages("/lists/seller_role/entries/query")
+organizations=prod_only(pages("/objects/organizations/records/query"),"organizations")
+people=prod_only(pages("/objects/person/records/query"),"person")
+deals=prod_only(pages("/objects/deal/records/query"),"deals")
+buyer_entries=prod_only(pages("/lists/buyer_role/entries/query"),"buyer_roles")
+seller_entries=prod_only(pages("/lists/seller_role/entries/query"),"seller_roles")
 
 # /workspace_members is a core workspace endpoint, not a custom object --
 # available on SOURCE the same as anywhere else. Populates `users` and
@@ -233,4 +260,5 @@ if ($LASTEXITCODE -ne 0) { throw "SOURCE Attio to PostgreSQL sync failed with ex
   Remove-Item Env:\WUSOOL_SOURCE_ATTIO_API_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:\WUSOOL_DATABASE_URL -ErrorAction SilentlyContinue
   Remove-Item Env:\WUSOOL_SYNC_APPLY -ErrorAction SilentlyContinue
+  Remove-Item Env:\WUSOOL_STRICT_IS_TEST -ErrorAction SilentlyContinue
 }

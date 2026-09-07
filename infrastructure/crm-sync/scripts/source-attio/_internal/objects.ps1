@@ -1016,7 +1016,7 @@ if($Apply){
 $sh=@{Authorization="Bearer $($SourceApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
 $dh=@{Authorization="Bearer $($DevApiKey.Trim())";Accept="application/json";"Content-Type"="application/json"}
 $decisions=Get-Content (Join-Path $PSScriptRoot "..\config\migration-decisions.json") -Raw|ConvertFrom-Json
-$expectedWorkspaceId=[string]$decisions.dev_workspace_id
+$expectedWorkspaceId=[string]$decisions.workspace_id
 # Same-workspace migration -- SOURCE Deal.owner is already a real
 # actor-reference (a genuine workspace-member id, unlike Organization/
 # Person's relationship_owner which is a plain text name field), and since

@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DatabaseUrl = $env:DATABASE_URL,
   [switch]$Apply
@@ -76,6 +76,13 @@ def first(v, slug):
         if cur is not None: return cur
     return None
 
+# `is True` matches sync-source-to-prod.ps1's prod_only() exactly -- an
+# unset checkbox reads as production, the state of every record migrated
+# before 2026-09-07.
+def is_test(r):
+    xs = items(r.get("values") or {}, "is_test")
+    return bool(xs) and xs[0].get("value") is True
+
 def ref(v, slug):
     xs = items(v, slug)
     return xs[0].get("target_record_id") if xs else None
@@ -106,7 +113,14 @@ print(f"SOURCE note records: {len(notes)}.")
 
 to_upsert = []
 skipped_no_org_and_no_person = 0
+skipped_is_test = 0
 for r in notes:
+    # A test note on a test org is already dropped below, because that org
+    # never reached the prod database. This catches the case that matters:
+    # a test note filed against a real production org.
+    if is_test(r):
+        skipped_is_test += 1
+        continue
     v = r.get("values") or {}
     note_id = record_id(r)
     org_attio_id = ref(v, "organization_id")
@@ -136,7 +150,7 @@ for r in notes:
     })
 
 new_count = sum(1 for n in to_upsert if n["id"] not in existing_note_ids)
-print(f"Notes to upsert: {len(to_upsert)} ({new_count} new, {len(to_upsert) - new_count} already present). Skipped (neither org nor person resolved): {skipped_no_org_and_no_person}.")
+print(f"Notes to upsert: {len(to_upsert)} ({new_count} new, {len(to_upsert) - new_count} already present). Skipped (neither org nor person resolved): {skipped_no_org_and_no_person}. Skipped (is_test): {skipped_is_test}.")
 for sample in to_upsert[:5]:
     preview = (sample["content"] or "")[:80]
     print(f"  SAMPLE: {sample['id']} [{sample['note_type']}] org={sample['organization_id']} person={sample['person_id']} content=\"{preview}\"")

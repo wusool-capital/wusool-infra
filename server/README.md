@@ -5,7 +5,7 @@ One Slack bot, one process, one token — five commands:
 - `/find-match <buyer name>` — the buyer-seller matching workflow
   (`app/modules/matching_engine/`).
 - `/edit-seller <name>`, `/edit-buyer <name>` — edit buyer/seller (and their
-  organization's) profile fields. Writes to DEV Attio first, then Postgres —
+  organization's) profile fields. Writes to SOURCE Attio first, then Postgres —
   see `app/modules/ddl_commands/README.md` for the full flow and why.
   `/remove-seller`/`/remove-buyer` don't exist (see that README's "History").
 - `/add-seller <org name>`, `/add-buyer <org name>` — create a new
@@ -73,7 +73,7 @@ docker compose up --build
 One Slack app for all 5 commands — see `docs/dev/SLACK_APP_SETUP.md` at the
 repo root for the full checklist (Slash Commands table, Interactivity URL,
 OAuth scopes, signing secret). `ddl_commands` also needs `ATTIO_API_KEY`/
-`ATTIO_WEBHOOK_SECRET` (DEV Attio write access + webhook signing) alongside
+`ATTIO_WEBHOOK_SECRET` (SOURCE Attio write access + webhook signing) alongside
 the shared Slack credentials.
 
 ## Testing

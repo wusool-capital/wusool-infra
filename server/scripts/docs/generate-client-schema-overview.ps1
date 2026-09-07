@@ -1,10 +1,16 @@
 param(
-  [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")),
-  [string]$OutputPath = (Join-Path $RepoRoot "workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md")
+  [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")),
+  [string]$OutputPath = (Join-Path $RepoRoot "infrastructure/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md")
 )
 
 $ErrorActionPreference = "Stop"
-$attioPath = Join-Path $RepoRoot "workflows/crm-sync/scripts/dev-attio/config/target-schema.json"
+$attioPath = Join-Path $RepoRoot "infrastructure/crm-sync/scripts/source-attio/config/target-schema.json"
+# TODO: still broken. `database/sql` was removed on 2026-08-29 (see
+# server/scripts/postgres-sync/README.md), so this script cannot run. Fixing
+# it means reading the SQLAlchemy models in server/app/models/ instead of
+# CREATE TABLE text -- a rewrite, not a path change. The two Attio paths
+# above were repointed when dev-attio was deleted so at least they are not
+# also wrong. Tracked in docs/handover/README.md.
 $sqlDir = Join-Path $RepoRoot "database/sql"
 $attio = Get-Content -Raw -LiteralPath $attioPath | ConvertFrom-Json
 

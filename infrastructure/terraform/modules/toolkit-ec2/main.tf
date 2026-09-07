@@ -182,10 +182,17 @@ locals {
     logs = { logs_collected = { files = { collect_list = local.cloudwatch_log_entries } } }
   })
 
+  # One SOURCE Attio workspace serves both environments; ATTIO_IS_TEST is the
+  # only thing separating them, so it is derived from the environment rather
+  # than being a second knob that can disagree with it. Only prod owns
+  # production records.
+  attio_is_test = var.environment == "prod" ? "false" : "true"
+
   user_data_rendered = replace(templatefile("${path.module}/user_data.sh.tpl", {
     apps                    = local.apps_resolved
     ecr_registry            = local.ecr_registry
     aws_region              = var.aws_region
+    attio_is_test           = local.attio_is_test
     cloudwatch_agent_config = local.cloudwatch_agent_config
     cloudwatch_log_group    = aws_cloudwatch_log_group.wusool_toolkit.name
   }), "\r\n", "\n")

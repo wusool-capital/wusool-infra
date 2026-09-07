@@ -3,7 +3,7 @@
 Ingests meeting transcripts pushed by the WusoolScribe desktop app,
 summarizes them via AWS Bedrock, and writes the existing `meetings`/`notes`
 tables. Optionally pushes the resulting note to Attio when
-`ATTIO_NOTE_OBJECT_SLUG` is set.
+Attio is reachable.
 
 This replaces Scribe's entire server-side pipeline (SQS, worker containers,
 faster-whisper, its own Postgres) for the one thing the desktop app still
@@ -73,7 +73,7 @@ Relevant variables: `DATABASE_URL`, `DESKTOP_API_KEY`, `AWS_REGION`,
 standard AWS credential provider chain), `AWS_BEDROCK_MODEL_ID`,
 `SUMMARY_MAX_TOKENS`/`SUMMARY_MAX_TOKENS_PER_CHUNK`,
 `MAX_CONCURRENT_SUMMARIES`, `MAX_TRANSCRIPT_CHARS`,
-`ATTIO_NOTE_OBJECT_SLUG` (optional — omit to skip pushing notes to Attio).
+`ATTIO_API_KEY` (notes are pushed to Attio's `note` object unconditionally).
 
 ## Testing
 

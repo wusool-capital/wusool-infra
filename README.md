@@ -151,8 +151,8 @@ The current documentation covers:
 
 | Schema | Source |
 | --- | --- |
-| Attio target model | `infrastructure/crm-sync/scripts/dev-attio/config/target-schema.json` |
-| Attio migration mapping | `infrastructure/crm-sync/scripts/dev-attio/config/source-to-target-mapping.json` |
+| Attio target model | `infrastructure/crm-sync/scripts/source-attio/config/target-schema.json` |
+| Attio migration mapping | `infrastructure/crm-sync/scripts/source-attio/config/source-to-target-mapping.json` |
 | PostgreSQL schema | `server/app/models/` + `server/alembic/versions/` (Alembic migrations, the sole source of truth as of 2026-08-29 — the original flat SQL files that first created this schema were deleted; see git history before that date if you need them). |
 
 The generated documents describe the schema declared in this repository. They
@@ -280,7 +280,7 @@ before any of that.
 The historical flat SQL files (`database/sql/001` through `007`) and the
 `setup-postgres.ps1` script that applied them were deleted 2026-08-29 —
 Alembic's baseline migrations fully reproduce what they created.
-`server/scripts/postgres-sync/dev/sync-postgres.ps1` (Attio data sync, a
+`server/scripts/postgres-sync/prod/sync-source-to-prod.ps1` (Attio data sync, a
 separate concern from schema) is unaffected.
 
 ## n8n SMTP email

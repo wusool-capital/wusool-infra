@@ -1,10 +1,14 @@
-param(
+﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DatabaseUrl = $env:DATABASE_URL
 )
 
-# Prod's equivalent of ../dev/validate-postgres.ps1, comparing
-# against SOURCE Attio's custom objects instead of DEV Attio. Read-only.
+# Compares SOURCE Attio's custom objects against the prod database.
+# Read-only.
+#
+# Counts exclude records flagged is_test, matching sync-source-to-prod.ps1 --
+# one SOURCE workspace serves both environments, and the prod database only
+# ever holds the production half.
 
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($SourceApiKey)) { throw "Missing SOURCE_ATTIO_API_KEY." }
@@ -34,11 +38,19 @@ def request(method,path,body=None):
       if (exc.code!=429 and exc.code<500) or attempt==7:raise
       time.sleep(min(90,15*(attempt+1)))
 
+# Deliberately `is True`, matching sync-source-to-prod.ps1's prod_only()
+# exactly: if the two predicates ever disagree about what counts as a test
+# record, every run of this validator reports a spurious count mismatch.
+def is_test(r):
+  v=r.get("values") or r.get("entry_values") or {}
+  xs=[x for x in (v.get("is_test") or []) if x.get("active_until") is None]
+  return bool(xs) and xs[0].get("value") is True
+
 def count_pages(path):
   total=offset=0
   while True:
     page=request("POST",path,{"limit":500,"offset":offset}).get("data",[])
-    total+=len(page)
+    total+=sum(1 for r in page if not is_test(r))
     if len(page)<500:return total
     offset+=500
 

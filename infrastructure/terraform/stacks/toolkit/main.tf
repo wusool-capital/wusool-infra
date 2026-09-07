@@ -3,8 +3,8 @@
 
 # Populate the secret value out of band with JSON: {"slack_bot_token": "...",
 # "slack_signing_secret": "...", "database_url": "postgresql://...",
-# "github_token": "...", "env": {"ATTIO_API_KEY": "...",
-# "ATTIO_WEBHOOK_SECRET": "..."}}. ddl_commands' Settings requires both
+# "env": {"ATTIO_API_KEY": "...", "ATTIO_WEBHOOK_SECRET": "..."}}.
+# ddl_commands' Settings requires
 # ATTIO_API_KEY and ATTIO_WEBHOOK_SECRET unconditionally (see
 # server/app/modules/ddl_commands/config.py) — omitting either fails Settings()
 # construction on the very first request that touches the database, for
@@ -14,6 +14,16 @@
 # value Attio returns exactly once, in the response to `POST /v2/webhooks` —
 # see the webhook-registration runbook handed over separately. Never put
 # real secrets in a .tf file or state diff.
+#
+# ATTIO_API_KEY is the SOURCE workspace's key in BOTH environments now — one
+# workspace serves both, and ATTIO_IS_TEST separates them. That flag is
+# templated from var.environment in modules/toolkit-ec2 rather than living
+# here, so it cannot be forgotten; a key of the same name in `env: {}` still
+# overrides it, since the passthrough is appended after the templated block.
+# One SOURCE key serves both environments -- ATTIO_IS_TEST is the only thing
+# separating them, and a second credential would not change what gets written.
+# Blast radius is the one reason to revisit that: a leaked dev key is a leaked
+# prod key, so rotating it rotates prod's CRM write access too.
 resource "aws_secretsmanager_secret" "wusool_toolkit" {
   name                    = "/${var.project}/${var.environment}/toolkit"
   description             = "Environment-specific wusool-toolkit secrets for ${var.project} ${var.environment}"
