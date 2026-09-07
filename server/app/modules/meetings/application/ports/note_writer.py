@@ -15,7 +15,10 @@ class NoteWriterPort(Protocol):
     async def push_note(
         self,
         *,
-        organization_attio_id: str,
+        organization_attio_id: str | None,
         content: str,
         created_at: datetime,
+        primary_role: str | None,
+        buyer_role_entry_id: str | None,
+        seller_role_entry_id: str | None,
     ) -> UUID | None: ...

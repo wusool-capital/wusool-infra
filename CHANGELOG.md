@@ -9,6 +9,54 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-07 (even later)
+
+### Changed
+
+- **`meetings` now files a note for every meeting, not just the ones with
+  a resolved organization.** The early return that skipped org-less
+  meetings entirely (internal/general/investor, or a company that never
+  resolved to an Attio org) is removed — `notes.organization_id` was made
+  nullable specifically for this case back on 2026-08-29, but the
+  meeting-summary pipeline never started using it. Both Postgres and Attio
+  now get the note; an org-less Attio note omits the `organization_id`
+  key rather than sending an empty reference.
+- **Meeting notes now link to the org's active buyer/seller-role row.**
+  When a note's meeting is buyer-primary or seller-primary,
+  `notes.buyer_role_id`/`seller_role_id` are set to that org's
+  most-recently-created *active* `buyer_roles`/`seller_roles` row (never
+  both) — new `RoleLookupPort`/`RoleLookup` in `meetings/persistence/`,
+  since `buyer_roles`/`seller_roles` have no owning module to wrap. The
+  same row's `legacy_entry_id` is sent to Attio's `buyer_role_id`/
+  `seller_role_id` text attributes. The link is skipped on both sides
+  when the row has no `legacy_entry_id` — `ddl_commands`' inbound note
+  sync (`_NOTE_UPSERT`) re-resolves those columns from whatever Attio
+  holds on every `note.created`/`note.updated` webhook, so sending a
+  Postgres id with nothing on the Attio side would let the next webhook
+  silently overwrite it back to NULL.
+- **`AttioNoteWriter.push_note` now actually writes `notes.primary_role`**
+  (schema added the same day by `b4e1d7c0f3a2`, but nothing wrote it yet)
+  — the meeting's seller/buyer/investor/internal/general tag, sent to
+  Attio's existing `note.primary_role` select and to the Postgres column,
+  both via the shared native `meeting_role` enum.
+- **New `meetings.primary_role`**, reusing the same `meeting_role` enum —
+  promotes the role tag out of `meetings.metadata` jsonb (where
+  `encode_role_metadata` already stashed it) into a queryable column, so
+  internal/general meetings can be filtered out of a notes listing without
+  needing an org to anchor them. `notes.primary_role` is set from this
+  column at publish time.
+- **New `meetings.note_id`**, written back once a meeting's note exists,
+  so a meeting can be traced to the CRM note it produced. Postgres-only —
+  Attio has no meeting object.
+- `NotesRepository.create` now runs inside its own savepoint
+  (`begin_nested()`). Every meeting reaching the notes insert (not just
+  org-having ones, as before) meant a failed insert could otherwise poison
+  the whole session and silently roll back the `mark_completed` a few
+  statements earlier, stranding the meeting in `summarizing` forever.
+- Migration `f5cd5212e82e` (on top of `b4e1d7c0f3a2`): `meetings.primary_role`
+  (reusing the `meeting_role` type), `meetings.note_id` + `fk_meetings_note_id`.
+  No backfill — both databases were cleared before this change.
+
 ## 2026-09-07 (later still)
 
 ### Added

@@ -31,6 +31,9 @@ async def _push(writer: AttioNoteWriter) -> UUID | None:
         organization_attio_id="org-1",
         content="Met the founder.",
         created_at=datetime(2026, 9, 7, tzinfo=UTC),
+        primary_role=None,
+        buyer_role_entry_id=None,
+        seller_role_entry_id=None,
     )
 
 
@@ -61,3 +64,46 @@ def test_build_note_writer_always_returns_a_writer() -> None:
     serving both environments there is no such deployment left, and keeping
     the gate would mean note pushes silently stopping on a blank setting."""
     assert isinstance(bootstrap.build_note_writer(), AttioNoteWriter)
+
+
+async def test_push_note_omits_organization_id_when_none() -> None:
+    """An org-less meeting (internal/general/investor, or a company that
+    never resolved to an Attio org) must not send an empty/null
+    `organization_id` reference — the key is omitted entirely."""
+    client = _FakeClient()
+
+    await AttioNoteWriter(client, is_test=False).push_note(
+        organization_attio_id=None,
+        content="Internal sync.",
+        created_at=datetime(2026, 9, 7, tzinfo=UTC),
+        primary_role="internal",
+        buyer_role_entry_id=None,
+        seller_role_entry_id=None,
+    )
+
+    _, body = client.post_calls[0]
+    values = body["data"]["values"]
+    assert "organization_id" not in values
+    assert values["primary_role"] == "internal"
+    assert "buyer_role_id" not in values
+    assert "seller_role_id" not in values
+
+
+async def test_push_note_sends_only_the_matching_role_id() -> None:
+    """A buyer-primary meeting attaches `buyer_role_id` only -- never
+    `seller_role_id`, and vice versa (`PublishMixin` never resolves both)."""
+    client = _FakeClient()
+
+    await AttioNoteWriter(client, is_test=False).push_note(
+        organization_attio_id="org-1",
+        content="Buyer call.",
+        created_at=datetime(2026, 9, 7, tzinfo=UTC),
+        primary_role="buyer",
+        buyer_role_entry_id="entry-42",
+        seller_role_entry_id=None,
+    )
+
+    _, body = client.post_calls[0]
+    values = body["data"]["values"]
+    assert values["buyer_role_id"] == "entry-42"
+    assert "seller_role_id" not in values

@@ -26,6 +26,7 @@ from app.modules.meetings.persistence.database import get_sessionmaker
 from app.modules.meetings.persistence.meetings_repository import MeetingsRepository
 from app.modules.meetings.persistence.notes_repository import NotesRepository
 from app.modules.meetings.persistence.organization_lookup import OrganizationLookup
+from app.modules.meetings.persistence.role_lookup import RoleLookup
 from app.modules.meetings.providers.attio.note_writer import AttioNoteWriter
 from app.modules.meetings.providers.bedrock.client import BedrockConverseClient
 
@@ -42,6 +43,10 @@ def build_notes_repository(session: AsyncSession) -> NotesRepository:
 
 def build_organization_lookup(session: AsyncSession) -> OrganizationLookup:
     return OrganizationLookup(session)
+
+
+def build_role_lookup(session: AsyncSession) -> RoleLookup:
+    return RoleLookup(session)
 
 
 def build_bedrock_client() -> BedrockConverseClient:
@@ -89,6 +94,7 @@ def build_meetings_service(session: AsyncSession) -> MeetingsService:
         meetings_repository=build_meetings_repository(session),
         notes_repository=build_notes_repository(session),
         organization_lookup=build_organization_lookup(session),
+        role_lookup=build_role_lookup(session),
         summarization_service=build_summarization_service(),
         note_writer=build_note_writer(),
         summary_semaphore=_summary_semaphore(),

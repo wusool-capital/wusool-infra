@@ -9,9 +9,9 @@ like a maze.
 
 The WusoolScribe desktop app records and transcribes a meeting **locally**,
 then pushes the transcript here. This module turns that transcript into a
-structured summary (via AWS Bedrock), stores it, and optionally files a
-note in Attio. That's the whole job — no recording, no transcription, no
-Slack.
+structured summary (via AWS Bedrock), stores it, and files a note in
+Postgres and Attio — for every meeting, whether or not a company was
+resolved. That's the whole job — no recording, no transcription, no Slack.
 
 ## Start here: follow one request, not the folders
 
@@ -57,8 +57,13 @@ one to trace: **the desktop app pushes a transcript.**
         -> calls the Bedrock client                     <- providers/bedrock/client.py
       - renders the result to plain text                <- domain/rendering.py
       - writes it back to the `meetings` row (status="completed")
-      - if there's a resolved org, files a note in Postges and,
-        if configured, in Attio too                     <- providers/attio/note_writer.py
+      - files a note in Postgres and Attio -- ALWAYS, org or not; when
+        the meeting's primary role is buyer or seller, the note also
+        links to that org's active buyer/seller-role row
+                                                          <- persistence/role_lookup.py
+                                                          <- providers/attio/note_writer.py
+      - writes the note's id back onto the `meetings` row
+                                                          <- persistence/meetings_repository.py
 
 6. The desktop app polls GET /desktop/meetings/{id} until status
    isn't "summarizing" anymore, and gets the summary back.
@@ -158,10 +163,17 @@ constructed?", the answer is always `bootstrap.py`.
 - **`meetings_repository.py`** — every read/write against the `meetings`
   table this module needs: create, mark completed/failed, the stalled-
   recovery query, the cheap "just give me statuses" listing.
-- **`notes_repository.py`** — writes to the `notes` table.
+- **`notes_repository.py`** — writes to the `notes` table. Its `create()`
+  runs inside its own savepoint (`begin_nested()`), so a bad insert can't
+  poison the outer transaction and silently discard the `mark_completed`
+  that already ran earlier in the same background task.
 - **`organization_lookup.py`** — looks up/searches Attio organizations
   (via the shared `organizations` module — this module doesn't own that
   table, it just borrows the search).
+- **`role_lookup.py`** — the most-recently-created *active*
+  `buyer_roles`/`seller_roles` row for an org (`app.models.BuyerRole`/
+  `SellerRole` directly — no owning module to borrow from, unlike
+  `organization_lookup.py`).
 - **`mappers.py`** — converts a raw database row into the typed
   dataclasses from `domain/`. This is the one place a database row and a
   Python type actually meet.

@@ -29,6 +29,7 @@ class MeetingsRepositoryPort(Protocol):
         org_name_raw: str | None,
         counterparty_role: str | None,
         meeting_type: str | None,
+        primary_role: str | None,
         occurred_at: datetime,
         title: str | None,
         source: str,
@@ -50,6 +51,8 @@ class MeetingsRepositoryPort(Protocol):
     ) -> None: ...
 
     async def mark_failed(self, meeting_id: UUID, *, reason: str) -> None: ...
+
+    async def set_note_id(self, meeting_id: UUID, *, note_id: UUID) -> None: ...
 
     async def recover_stalled(self, meeting_id: UUID, *, cutoff: datetime) -> bool: ...
 

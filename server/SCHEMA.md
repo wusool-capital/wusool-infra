@@ -3,7 +3,7 @@
 Generated from `wusool_db/models/*.py` (2026-08-29) — that package is the
 source Alembic's `--autogenerate` diffs against, so it is the closest thing
 this repo has to a single source of truth for the schema. Current Alembic
-head: **`b4e1d7c0f3a2`** (`add_notes_primary_role`).
+head: **`f5cd5212e82e`** (`add_primary_role_and_meetings_note_id`).
 
 **Two tiers of confidence — read this before trusting any table below:**
 
@@ -221,12 +221,12 @@ Indexes: `idx_tool_runs_tool`, `idx_tool_runs_status`,
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
-| organization_id | text | **yes** (2026-08-29) | | FK → organizations.attio_id; indexed. Blank only when the note's sole anchor (a person or role) has no org at all |
+| organization_id | text | **yes** (2026-08-29) | | FK → organizations.attio_id; indexed. Blank when the meetings pipeline resolved no org, or the note's sole anchor (a person or role) has no org at all |
 | person_id | text | yes | | FK → person.attio_id; indexed |
-| buyer_role_id | uuid | yes | | FK → buyer_roles.id |
-| seller_role_id | uuid | yes | | FK → seller_roles.id |
+| buyer_role_id | uuid | yes | | FK → buyer_roles.id. Set by the meetings pipeline only when the meeting's primary role is buyer, matched to an active row |
+| seller_role_id | uuid | yes | | FK → seller_roles.id. Same, for a seller-primary meeting |
 | note_type | text | no | | CHECK: `Manual` or `Meeting` |
-| primary_role | enum(`seller`,`buyer`,`investor`,`internal`,`general`) | yes | | Native Postgres enum `meeting_role` — the `MeetingRole` values (`meetings/domain/roles.py`), lowercase, matching the Attio select's option titles exactly. Which side the meeting was about, so internal meetings can be filtered out. Null on manual notes and on anything backfilled before 2026-09-07 |
+| primary_role | enum(`seller`,`buyer`,`investor`,`internal`,`general`) | yes | | Native Postgres enum `meeting_role` (migration `b4e1d7c0f3a2`) — the `MeetingRole` values (`meetings/domain/roles.py`), lowercase, matching the Attio select's option titles exactly and shared with `meetings.primary_role`. Set by the meeting-summary pipeline from the meeting's own `primary_role`; null on manual notes and on anything backfilled before 2026-09-07 |
 | content | text | no | | |
 | created_at | timestamptz | no | `now()` | |
 
@@ -264,6 +264,8 @@ module. DDL: `database/sql/005_meetings.sql`.
 | local_recording_id | text | yes | | unique with `install_id` when set |
 | summary_json | jsonb | yes | | |
 | summary_started_at | timestamptz | yes | | indexed while `status = 'summarizing'` |
+| primary_role | enum(`seller`,`buyer`,`investor`,`internal`,`general`) | yes (2026-09-07) | | Native Postgres enum `meeting_role`, shared with `notes.primary_role` — written at ingest from `select_primary_role()`, promoted out of `metadata` jsonb into a queryable column |
+| note_id | uuid | yes (2026-09-07) | | FK → notes.id, written back once the meeting's note exists (Postgres-only — Attio has no meeting object) |
 
 ### `match_scores` (`match_score.py`)
 

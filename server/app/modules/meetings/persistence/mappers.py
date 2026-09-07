@@ -5,9 +5,11 @@ application/domain code consumes the domain dataclasses below, never the
 `persistence/mappers.py` convention.
 """
 
-from app.models import Meeting, Organization
+from app.models import BuyerRole, Meeting, Organization, SellerRole
 from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingStatus
 from app.modules.meetings.domain.organization_ref import OrganizationRef
+from app.modules.meetings.domain.role_ref import ActiveRoleRef
+from app.modules.meetings.domain.roles import try_role
 
 _VALID_STATUSES = frozenset(("summarizing", "completed", "failed"))
 
@@ -32,6 +34,7 @@ def to_meeting_record(meeting: Meeting) -> MeetingRecord:
         org_name_raw=meeting.org_name_raw,
         counterparty_role=meeting.counterparty_role,
         meeting_type=meeting.meeting_type,
+        primary_role=try_role(meeting.primary_role),
         occurred_at=meeting.occurred_at,
         title=meeting.title,
         source=meeting.source,
@@ -49,8 +52,17 @@ def to_meeting_record(meeting: Meeting) -> MeetingRecord:
         local_recording_id=meeting.local_recording_id,
         summary_json=meeting.summary_json,
         summary_started_at=meeting.summary_started_at,
+        note_id=meeting.note_id,
     )
 
 
 def to_organization_ref(org: Organization) -> OrganizationRef:
     return OrganizationRef(attio_id=org.attio_id, name=org.name)
+
+
+def to_active_buyer_role_ref(role: BuyerRole) -> ActiveRoleRef:
+    return ActiveRoleRef(id=role.id, legacy_entry_id=role.legacy_entry_id)
+
+
+def to_active_seller_role_ref(role: SellerRole) -> ActiveRoleRef:
+    return ActiveRoleRef(id=role.id, legacy_entry_id=role.legacy_entry_id)

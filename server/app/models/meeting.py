@@ -31,6 +31,20 @@ _MeetingType = ENUM(
     name="meeting_type",
     create_type=False,
 )
+# Shared with `notes.primary_role` (app/models/note.py's own `_MeetingRole`)
+# -- both reference the same `meeting_role` type, created once by migration
+# b4e1d7c0f3a2. Redeclared privately here rather than imported from note.py,
+# matching how this file already redeclares its own enum objects rather than
+# sharing Python references across model files.
+_MeetingRole = ENUM(
+    "seller",
+    "buyer",
+    "investor",
+    "internal",
+    "general",
+    name="meeting_role",
+    create_type=False,
+)
 
 
 class Meeting(Base):
@@ -64,6 +78,7 @@ class Meeting(Base):
     org_name_raw: Mapped[str | None] = mapped_column(Text)
     counterparty_role: Mapped[str | None] = mapped_column(_CounterpartyRole)
     meeting_type: Mapped[str | None] = mapped_column(_MeetingType)
+    primary_role: Mapped[str | None] = mapped_column(_MeetingRole)
     occurred_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     title: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(_MeetingSource, nullable=False, server_default="in_house")
@@ -83,3 +98,4 @@ class Meeting(Base):
     local_recording_id: Mapped[str | None] = mapped_column(Text)
     summary_json: Mapped[dict | None] = mapped_column(JSONB)
     summary_started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    note_id: Mapped[UUID | None] = mapped_column(ForeignKey("notes.id"))

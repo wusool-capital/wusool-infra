@@ -132,6 +132,7 @@ class IngestMixin(ServiceBase):
             org_name_raw=primary_resolved.org_name_raw if primary_resolved else None,
             counterparty_role=counterparty_role_column(primary),
             meeting_type=meeting_type_column(primary),
+            primary_role=primary.value if primary is not None else None,
             occurred_at=occurred_at,
             title=None,
             source="in_house",
