@@ -14,6 +14,7 @@ from uuid import UUID
 from app.modules.meetings.application.base import ServiceBase
 from app.modules.meetings.domain.meeting_record import MeetingRecord
 from app.modules.meetings.domain.rendering import render_summary_text
+from app.modules.meetings.domain.role_ref import ActiveRoleRef
 from app.modules.meetings.domain.roles import MeetingRole, decode_role_metadata, try_role
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -64,8 +65,7 @@ class PublishMixin(ServiceBase):
 
         # The meetings row itself is ALWAYS written here, org_id or not —
         # an internal/general meeting (no company tagged at all) still
-        # gets its full transcript+summary persisted. Only the CRM side
-        # write below (notes table, optionally Attio) is gated on org_id.
+        # gets its full transcript+summary persisted.
         rendered = render_summary_text(summary)
         await self._meetings_repository.mark_completed(
             meeting_id,
@@ -74,30 +74,57 @@ class PublishMixin(ServiceBase):
             title=summary.title,
         )
 
-        org_id = meeting.org_id
-        if org_id is None:
-            # An unanchored note is unreadable in Attio and unqueryable in
-            # Postgres — skip entirely rather than write a dangling row.
-            # This meeting's summary is still fully available above; it
-            # just has nowhere to file a CRM note without a company.
-            return
+        # Every meeting files a note now, org_id or not — an unanchored
+        # note used to be skipped entirely ("unreadable in Attio and
+        # unqueryable in Postgres"), but `notes.organization_id` was made
+        # nullable specifically for this case (see migration
+        # e0c1e7522181), and `primary_role` now gives an org-less note a
+        # way to be found/filtered that didn't exist before.
+        await self._write_note(org_id=meeting.org_id, content=rendered, meeting=meeting)
 
-        await self._write_note(org_id=org_id, content=rendered, meeting=meeting)
-
-    async def _write_note(self, *, org_id: str, content: str, meeting: MeetingRecord) -> None:
+    async def _write_note(
+        self, *, org_id: str | None, content: str, meeting: MeetingRecord
+    ) -> None:
         """Best-effort side write — never lets a note-writer/notes-
         repository failure roll back the meeting row's mark_completed
         above, which has already succeeded.
         """
+        primary = meeting.primary_role
+        role_ref = await self._resolve_role(org_id=org_id, primary=primary)
+
+        buyer_role_id: UUID | None = None
+        seller_role_id: UUID | None = None
+        buyer_role_entry_id: str | None = None
+        seller_role_entry_id: str | None = None
+        if role_ref is not None:
+            # Skip the link entirely (both sides) when the row has no
+            # `legacy_entry_id`: `ddl_commands`' inbound note sync
+            # (`_NOTE_UPSERT`) always re-resolves `buyer_role_id`/
+            # `seller_role_id` from whatever we send Attio, so sending a
+            # Postgres uuid with nothing on the Attio side means the next
+            # `note.updated`/`note.created` webhook for this note would
+            # resolve NULL and silently overwrite the uuid we just wrote.
+            # Keeping both sides agreeing on "no link" avoids that.
+            if role_ref.legacy_entry_id is not None:
+                if primary is MeetingRole.BUYER:
+                    buyer_role_id = role_ref.id
+                    buyer_role_entry_id = role_ref.legacy_entry_id
+                elif primary is MeetingRole.SELLER:
+                    seller_role_id = role_ref.id
+                    seller_role_entry_id = role_ref.legacy_entry_id
+
         # No availability gate: the `note` object exists in SOURCE, which
         # serves both environments now. `push_note` swallows its own Attio
         # errors and returns None; the except here covers anything it cannot.
-        note_id: UUID | None = None
+        note_attio_id: UUID | None = None
         try:
-            note_id = await self._note_writer.push_note(
+            note_attio_id = await self._note_writer.push_note(
                 organization_attio_id=org_id,
                 content=content,
                 created_at=meeting.occurred_at,
+                primary_role=primary.value if primary is not None else None,
+                buyer_role_entry_id=buyer_role_entry_id,
+                seller_role_entry_id=seller_role_entry_id,
             )
         except Exception as exc:  # noqa: BLE001 - best-effort, must not affect the meeting
             logger.warning(
@@ -106,14 +133,17 @@ class PublishMixin(ServiceBase):
                 exc,
                 extra={"meeting_id": str(meeting.id), "error": str(exc)},
             )
-            note_id = None
+            note_attio_id = None
 
         try:
-            await self._notes_repository.create(
-                note_id=note_id,
+            note_id = await self._notes_repository.create(
+                note_id=note_attio_id,
                 organization_id=org_id,
                 note_type="Meeting",
                 content=content,
+                primary_role=primary.value if primary is not None else None,
+                buyer_role_id=buyer_role_id,
+                seller_role_id=seller_role_id,
             )
         except Exception as exc:  # noqa: BLE001 - meeting already succeeded, don't propagate
             logger.warning(
@@ -122,6 +152,40 @@ class PublishMixin(ServiceBase):
                 exc,
                 extra={"meeting_id": str(meeting.id), "error": str(exc)},
             )
+            return
+
+        try:
+            await self._meetings_repository.set_note_id(meeting.id, note_id=note_id)
+        except Exception as exc:  # noqa: BLE001 - note already succeeded, don't propagate
+            logger.warning(
+                "note_id_writeback_failed meeting_id=%s error=%s",
+                meeting.id,
+                exc,
+                extra={"meeting_id": str(meeting.id), "error": str(exc)},
+            )
+
+    async def _resolve_role(
+        self, *, org_id: str | None, primary: MeetingRole | None
+    ) -> ActiveRoleRef | None:
+        """The one active buyer/seller-role row this note should link to,
+        or `None` when there's nothing to link (no org, no buyer/seller
+        primary role, or the org has no matching active role). Best-effort:
+        a lookup failure degrades to `None` rather than blocking the note.
+        """
+        if org_id is None or primary not in (MeetingRole.BUYER, MeetingRole.SELLER):
+            return None
+        try:
+            if primary is MeetingRole.BUYER:
+                return await self._role_lookup.get_active_buyer_role(org_id)
+            return await self._role_lookup.get_active_seller_role(org_id)
+        except Exception as exc:  # noqa: BLE001 - best-effort, must not affect the meeting/note
+            logger.warning(
+                "role_lookup_failed org_id=%s error=%s",
+                org_id,
+                exc,
+                extra={"org_id": org_id, "error": str(exc)},
+            )
+            return None
 
     @staticmethod
     def _reconstruct_companies(

@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from app.modules.meetings.domain.roles import MeetingRole
 from app.modules.utilities.domain.json_types import JsonObject
 
 __all__ = ["MeetingRecord", "MeetingStatus", "MeetingSyncStatus"]
@@ -39,6 +40,7 @@ class MeetingRecord:
     org_name_raw: str | None
     counterparty_role: str | None
     meeting_type: str | None
+    primary_role: MeetingRole | None
     occurred_at: datetime
     title: str | None
     source: str
@@ -56,6 +58,7 @@ class MeetingRecord:
     local_recording_id: str | None
     summary_json: JsonObject | None
     summary_started_at: datetime | None
+    note_id: UUID | None
 
 
 @dataclass(frozen=True, slots=True)

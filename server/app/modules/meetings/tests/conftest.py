@@ -14,3 +14,38 @@ os.environ.setdefault("DESKTOP_API_KEY", "test-desktop-api-key")
 # builds the Attio client eagerly and so needs a key.
 os.environ.setdefault("ATTIO_API_KEY", "test-attio-key")
 os.environ.setdefault("ATTIO_IS_TEST", "false")
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.meetings.persistence.database import get_engine, import_all_models
+
+import_all_models()
+
+
+@pytest.fixture
+async def db_session():
+    """Yields a session bound to a transaction that's rolled back at
+    teardown, so the existing dataset is never mutated. Skips the test
+    outright if the database isn't reachable. Mirrors `matching_engine`'s
+    own `db_session` fixture.
+
+    `join_transaction_mode="create_savepoint"` makes this compatible with
+    `NotesRepository.create`'s own `begin_nested()` -- savepoints nest, so
+    that inner savepoint sits inside this fixture's outer one without
+    conflict.
+    """
+    engine = get_engine()
+    try:
+        conn = await engine.connect()
+    except Exception as exc:
+        pytest.skip(f"database not reachable: {exc}")
+
+    trans = await conn.begin()
+    session = AsyncSession(bind=conn, join_transaction_mode="create_savepoint")
+    try:
+        yield session
+    finally:
+        await session.close()
+        await trans.rollback()
+        await conn.close()

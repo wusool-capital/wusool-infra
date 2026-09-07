@@ -2,8 +2,9 @@
 
 Ingests meeting transcripts pushed by the WusoolScribe desktop app,
 summarizes them via AWS Bedrock, and writes the existing `meetings`/`notes`
-tables. Optionally pushes the resulting note to Attio when
-Attio is reachable.
+tables — every meeting files a note, org-resolved or not; the note also
+links to the org's active buyer/seller role when the meeting's primary role
+is one of those. Also pushes the resulting note to Attio.
 
 This replaces Scribe's entire server-side pipeline (SQS, worker containers,
 faster-whisper, its own Postgres) for the one thing the desktop app still
@@ -45,7 +46,9 @@ meetings/
                        #   (MeetingsService facade), SummarizationService,
                        #   application/ports/ Protocols
   persistence/        # SQLAlchemy repositories for meetings/notes,
-                       #   organization lookup (wraps `organizations`)
+                       #   organization lookup (wraps `organizations`),
+                       #   role lookup (queries buyer_roles/seller_roles
+                       #   directly -- no owning module to wrap)
   providers/          # bedrock/ (forced-tool-call Converse client, its own
                        #   300s-timeout boto client — deliberately not
                        #   shared with matching_engine's), attio/ (note push)
@@ -65,6 +68,17 @@ Connects to the shared `wusool_crm` PostgreSQL database (models in
 or runs migrations itself. Reads/writes the existing `meetings` and `notes`
 tables through its own repositories only.
 
+Every meeting files a note at publish time, `org_id` or not — an org-less
+note (internal/general/investor, or a company that never resolved) still
+gets written, just with `organization_id`/role ids left NULL; `primary_role`
+is what makes it findable/filterable without an org to anchor it. When the
+meeting's primary role is buyer or seller, the note also links to that org's
+most-recently-created active `buyer_roles`/`seller_roles` row via
+`buyer_role_id`/`seller_role_id` — never both, and never guessed when no
+active row exists. `meetings.note_id` is written back once the note exists,
+so a meeting can be traced to the CRM note it produced (Postgres-only —
+Attio has no meeting object).
+
 ## Setup
 
 Config comes from the repo-root `server/.env` (see `.env.example` there).
@@ -73,7 +87,8 @@ Relevant variables: `DATABASE_URL`, `DESKTOP_API_KEY`, `AWS_REGION`,
 standard AWS credential provider chain), `AWS_BEDROCK_MODEL_ID`,
 `SUMMARY_MAX_TOKENS`/`SUMMARY_MAX_TOKENS_PER_CHUNK`,
 `MAX_CONCURRENT_SUMMARIES`, `MAX_TRANSCRIPT_CHARS`,
-`ATTIO_API_KEY` (notes are pushed to Attio's `note` object unconditionally).
+`ATTIO_API_KEY` (notes are pushed to Attio's `note` object unconditionally,
+including org-less ones).
 
 ## Testing
 
