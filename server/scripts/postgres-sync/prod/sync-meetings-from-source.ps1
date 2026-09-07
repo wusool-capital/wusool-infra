@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DatabaseUrl = $env:DATABASE_URL,
   [ValidateRange(1, 16)]
@@ -101,9 +101,16 @@ def ref(v, slug):
     return xs[0].get("target_record_id") if xs else None
 def record_id(r): return str((r.get("id") or {}).get("record_id") or "")
 
+# A no-op today: a record created by /add-* has no legacy_attio_id (it was
+# never migrated), so it can never enter the crosswalk below. Kept so this
+# stays correct if legacy_attio_id ever starts being written on new records.
+def is_test(r):
+    xs = items(r.get("values") or {}, "is_test")
+    return bool(xs) and xs[0].get("value") is True
+
 print("Reading SOURCE custom organizations/person (legacy_attio_id crosswalk + person->company)...")
-custom_orgs = pages_object("organizations")
-custom_people = pages_object("person")
+custom_orgs = [r for r in pages_object("organizations") if not is_test(r)]
+custom_people = [r for r in pages_object("person") if not is_test(r)]
 
 org_by_legacy = {}
 for r in custom_orgs:
