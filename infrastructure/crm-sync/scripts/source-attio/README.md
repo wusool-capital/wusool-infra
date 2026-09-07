@@ -32,6 +32,7 @@ Run only these public scripts:
 | `sync-lists.ps1` | Migrate Buyer Role and Seller Role. |
 | `backfill-seller-intake-source.ps1` | One-off backfill, carried over from the retired `dev-attio` tooling -- likely not needed for a fresh migration; verify before running. |
 | `backfill-notes.ps1` (its own note timestamp field is `note_created_at`, not `created_at` -- Attio reserves that slug for a protected system attribute on every custom object; writing to it 400s with `system_edit_unauthorized`, confirmed live 2026-08-28) | One-off backfill for the `note` custom object (plural noun "Unified Notes" -- slug is `note`, not `notes`, since Attio reserves `notes` for its own native per-record Notes feature; proposed unified notes table, see `config/target-schema.json`'s `Notes` entry). Populates it from native Companies'/People's own Notes panel (`GET /v2/notes`) plus the migrated `buyer_role` list's `notes` text field -- SOURCE Attio only, no Postgres. Both `note_type=Manual` and `note_type=Meeting` are migrated (nothing is filtered by type); Meeting is auto-detected by content (a `notes.granola.ai` transcript link, confirmed live against real Granola-sourced notes), everything else is Manual. The `note` object itself must already exist (created manually in the UI); this script only manages its attributes and records. Uses `-Workers` (runspace pool) to parallelize the native-notes fetch. Idempotent via a `legacy_note_id` key, safe to re-run. Wired into `sync-all-within-source.ps1` as the last entity in the pipeline. |
+| `stamp-is-test.ps1` | One-off backfill: stamps `is_test = false` on every record that has no `is_test` value, so the Attio UI's "Is Test" filter works. Writes that one attribute and nothing else, pausing the prod webhook for the run. Dry-run by default; `-Apply` requires `-Confirmation STAMP_IS_TEST_FALSE_IN_SOURCE`. Idempotent, and never touches a record that is already stamped either way. Not urgent — see the note below. |
 | `validate-attio.ps1` | Compare SOURCE counts with canonical target counts after migration. Read-only. |
 | `validate-notes.ps1` | Independently re-derives the expected Manual+Meeting note set straight from SOURCE (same classification AND same organizations/person eligibility filter as `backfill-notes.ps1` -- a note whose parent Company/Person isn't migrated yet is excluded from "expected", not reported as missing) and diffs it against what's actually in the `note` object, by `legacy_note_id`, `note_type`, and `content`. Reports specific missing/extra/mismatched records, not just aggregate counts. Read-only. |
 
@@ -53,6 +54,40 @@ regardless of the flag.
 contain consolidated implementation logic and are not run directly. The JSON
 files in `config/` define workspace decisions, field mappings, and target
 schema, retargeted for the same-workspace scenario.
+
+## `is_test` and `stamp-is-test.ps1`
+
+One SOURCE workspace serves both environments, split by the `is_test`
+checkbox: `true` is dev/test, `false` is production. Every record migrated
+before 2026-09-07 has the attribute but **no value**.
+
+That is not a broken state for the pipeline. The REST API's
+`is_test eq false` filter matches unset records, and the sync scripts and the
+webhook skip only an explicit `true`, so nothing depends on stamping having
+happened. What it blocks is *humans*: Attio's UI filter chips offer only "is
+true" and "is false" — never "is empty" — so an unstamped record appears in
+neither environment's saved views. It also blocks `-StrictIsTest` on
+`server/scripts/postgres-sync/prod/sync-source-to-prod.ps1`.
+
+```powershell
+# survey only -- writes nothing, prints a per-entity table
+.\stamp-is-test.ps1
+
+# a bounded first pass, to see the writes land before doing everything
+.\stamp-is-test.ps1 -Entities organizations -Limit 20 -Apply -Confirmation STAMP_IS_TEST_FALSE_IN_SOURCE
+
+# everything
+.\stamp-is-test.ps1 -Apply -Confirmation STAMP_IS_TEST_FALSE_IN_SOURCE
+```
+
+Do **not** use `sync-all-within-source.ps1 -Apply` for this. It would also
+set `is_test`, but it re-runs the whole migration: `_internal/objects.ps1`
+layers every mapped field (`lead_source`, `is_active`, ...) back over each
+record from SOURCE's native objects. That clobbers every manual Attio edit
+made since 2026-08-26 and refires the SOURCE-to-prod webhook for thousands of
+records.
+
+Re-run the dry run afterwards; every "to stamp" column should read 0.
 
 ## Prerequisites
 
