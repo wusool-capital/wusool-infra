@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, Text, text
-from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
+from sqlalchemy.dialects.postgresql import ENUM, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -34,6 +34,24 @@ if TYPE_CHECKING:
     from app.models.organization import Organization
     from app.models.person import Person
     from app.models.seller_role import SellerRole
+
+
+# Values are the MeetingRole StrEnum's (meetings/domain/roles.py), lowercase,
+# and the Attio `note.primary_role` select carries the identical five titles --
+# Attio select values are case-sensitive and the server passes the enum's
+# string straight through, so the two sides must not drift in casing.
+#
+# create_type=False for the same reason as meeting.py's three enums: the
+# migration owns CREATE TYPE, so autogenerate must never re-emit it.
+_MeetingRole = ENUM(
+    "seller",
+    "buyer",
+    "investor",
+    "internal",
+    "general",
+    name="meeting_role",
+    create_type=False,
+)
 
 
 class Note(Base):
@@ -58,6 +76,9 @@ class Note(Base):
     # enum -- no external service (unlike `meetings`' Scribe-owned enums)
     # needs this type to exist independently of this table.
     note_type: Mapped[str] = mapped_column(Text, nullable=False)
+    # Which side the meeting this note came from was about. Nullable: a
+    # manual note, and any note backfilled before 2026-09-07, has no role.
+    primary_role: Mapped[str | None] = mapped_column(_MeetingRole)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

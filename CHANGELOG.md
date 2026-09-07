@@ -9,6 +9,33 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-07 (later still)
+
+### Added
+
+- **`notes.primary_role`** — which side the meeting a note came from was
+  about, so internal meetings can be filtered out of the Attio UI. A Select
+  on Attio's `note` object and the native Postgres enum `meeting_role`
+  (migration `b4e1d7c0f3a2`), so both sides can filter rather than only
+  string-match.
+  - The five option titles are **lowercase** (`seller`, `buyer`, `investor`,
+    `internal`, `general`): they are the `MeetingRole` `StrEnum` values
+    (`meetings/domain/roles.py`) and the server sends the enum's string
+    straight through. Attio select values are case-sensitive, so title-casing
+    them there would fail the write or silently create a second set of
+    options. Deliberately *not* patterned on the neighbouring `note_type`,
+    whose `Manual`/`Meeting` are capitalised.
+  - Nullable, with no backfill: a manual note has no role, and neither does
+    anything written before today.
+  - Wired through both read paths — the webhook upsert
+    (`persistence/attio_sync.py`) and the nightly
+    `sync-notes-from-source.ps1` — plus the attribute declaration in
+    `backfill-notes.ps1`, which owns the `note` object's schema.
+  - Nothing writes it yet. `AttioNoteWriter.push_note` would have to take the
+    role, which means widening `NoteWriterPort`, and choosing *which* of a
+    meeting's reconstructed roles is the primary one — a product decision,
+    not a schema one.
+
 ## 2026-09-07 (later)
 
 ### Changed

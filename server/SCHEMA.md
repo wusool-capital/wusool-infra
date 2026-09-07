@@ -3,7 +3,7 @@
 Generated from `wusool_db/models/*.py` (2026-08-29) — that package is the
 source Alembic's `--autogenerate` diffs against, so it is the closest thing
 this repo has to a single source of truth for the schema. Current Alembic
-head: **`f7a2c9e14b83`** (`add_lead_magnet_columns_and_tool_runs`).
+head: **`b4e1d7c0f3a2`** (`add_notes_primary_role`).
 
 **Two tiers of confidence — read this before trusting any table below:**
 
@@ -226,6 +226,7 @@ Indexes: `idx_tool_runs_tool`, `idx_tool_runs_status`,
 | buyer_role_id | uuid | yes | | FK → buyer_roles.id |
 | seller_role_id | uuid | yes | | FK → seller_roles.id |
 | note_type | text | no | | CHECK: `Manual` or `Meeting` |
+| primary_role | enum(`seller`,`buyer`,`investor`,`internal`,`general`) | yes | | Native Postgres enum `meeting_role` — the `MeetingRole` values (`meetings/domain/roles.py`), lowercase, matching the Attio select's option titles exactly. Which side the meeting was about, so internal meetings can be filtered out. Null on manual notes and on anything backfilled before 2026-09-07 |
 | content | text | no | | |
 | created_at | timestamptz | no | `now()` | |
 
