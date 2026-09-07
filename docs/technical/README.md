@@ -147,9 +147,16 @@ State: every stack uses a partial S3 backend (`bucket = wusool-tfstate`,
 
 ## Key business rules
 
-- **Attio-first writes.** `/edit-*` and `/add-*` write to DEV Attio before
+- **Attio-first writes.** `/edit-*` and `/add-*` write to SOURCE Attio before
   Postgres, so the scheduled resync converges instead of clobbering the
   change. Partial-write failures report exactly what landed.
+- **One Attio workspace, two environments.** `ATTIO_IS_TEST` (templated from
+  `var.environment`) says which half a process owns. Creates stamp
+  `is_test`; patches never re-assert it — a read-before-write guard refuses
+  a cross-scope edit instead, because the flag describes where a record came
+  from, not who is editing it. Attio → PostgreSQL sync and webhooks run
+  **only** into the production database; the dev database is a sandbox
+  developers fill with `/add-*`, never synced from Attio.
 - **Schema authority is the data engineer**, not the bot — see the "History"
   section of
   [`ddl_commands/README.md`](../../server/app/modules/ddl_commands/README.md).

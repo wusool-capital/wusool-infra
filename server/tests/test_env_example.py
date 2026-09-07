@@ -9,6 +9,8 @@ A `BaseSettings` field whose annotation is itself a `BaseSettings` subclass
 (e.g. `matching_engine.Settings.scoring: ScoringSettings`) is *not* an env
 var itself — that nested class reads its own env vars independently (via
 its own `env_prefix`), so it's expanded recursively instead of skipped.
+A class-level `env_prefix` is applied too, which is how `AttioSettings`'
+`api_key` field resolves to `ATTIO_API_KEY`.
 """
 
 import re
@@ -16,7 +18,7 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings
 
-from app.modules.attio.config import Settings as AttioSettings
+from app.modules.attio.config import AttioSettings
 from app.modules.ddl_commands.config import Settings as DdlCommandsSettings
 from app.modules.matching_engine.config import Settings as MatchingEngineSettings
 from app.modules.meetings.config import Settings as MeetingsSettings

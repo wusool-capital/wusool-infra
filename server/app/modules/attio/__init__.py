@@ -13,6 +13,8 @@ verification, retry, registry lookups), not just `AttioClientProtocol`.
 """
 
 from app.modules.attio.application.ports.client import AttioClientProtocol
+from app.modules.attio.config import attio_is_test, attio_workspace_id, owns_record
+from app.modules.attio.domain.scope import record_scope
 from app.modules.attio.domain.webhook import WebhookEvent, WebhookEventId
 from app.modules.attio.providers.attio.client import AttioClient, AttioError, get_attio_client
 
@@ -22,5 +24,9 @@ __all__ = [
     "AttioError",
     "WebhookEvent",
     "WebhookEventId",
+    "attio_is_test",
+    "attio_workspace_id",
     "get_attio_client",
+    "owns_record",
+    "record_scope",
 ]

@@ -19,6 +19,10 @@ os.environ.setdefault("SLACK_BOT_TOKEN", "xoxb-test-token")
 os.environ.setdefault("SLACK_SIGNING_SECRET", "test-signing-secret")
 os.environ.setdefault("ATTIO_API_KEY", "test-attio-key")
 os.environ.setdefault("ATTIO_WEBHOOK_SECRET", "test-webhook-secret")
+# Production scope, so the ingest tests actually exercise a write. Under
+# the `true` default every sync_* would return early and the assertions
+# would pass without anything happening.
+os.environ.setdefault("ATTIO_IS_TEST", "false")
 
 import uuid
 

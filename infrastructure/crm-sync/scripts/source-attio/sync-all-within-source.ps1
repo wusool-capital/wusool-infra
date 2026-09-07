@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DevApiKey = $env:SOURCE_ATTIO_API_KEY,
   [ValidateSet("organizations", "person", "buyer_role", "seller_role", "deal", "note")]
@@ -15,7 +15,7 @@ param(
   [switch]$DeleteOrphaned,
   [switch]$MigrateMandates,
   [switch]$Apply,
-  # A -Apply run of this script writes many records to DEV Attio in quick
+  # A -Apply run of this script writes many records to SOURCE Attio in quick
   # succession, each one independently firing the real-time Attio-to-Postgres
   # webhook (workflows/wusool-toolkit's POST /webhooks/attio) -- correct, but
   # wasteful: buyer_role/seller_role entries in particular re-run their full
@@ -32,8 +32,8 @@ param(
 # (organizations/person/deal/buyer_role/seller_role) -- all in the SAME
 # workspace, via the same SOURCE_ATTIO_API_KEY for both read and write, and
 # never touching the native objects' own data. This is the source-attio
-# counterpart of dev-attio/sync-all.ps1 (which instead writes to a separate
-# DEV workspace and needs a SOURCE->DEV workspace-member crosswalk); that
+# counterpart of the retired dev-attio/sync-all.ps1 (which instead wrote to a
+# separate DEV workspace and needed a cross-workspace member crosswalk); that
 # crosswalk does not apply here since every actor reference is already a
 # valid member of this one workspace.
 #
@@ -156,7 +156,7 @@ Write-Host ""
 # Paused before the migration writes anything, resumed in the `finally`
 # below no matter how the run ends (success, a caught entity failure, or a
 # terminating error) -- a migration that fails must never leave the
-# real-time sync silently paused. Dry runs write nothing to DEV Attio, so
+# real-time sync silently paused. Dry runs write nothing to Attio, so
 # nothing would fire the webhook anyway; only -Apply pauses it.
 #
 # Entirely best-effort, wrapped in its own try/catch: this is a safety net

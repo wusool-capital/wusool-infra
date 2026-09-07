@@ -11,7 +11,7 @@ this repo (`sync-postgres.ps1`, `crm-sync`) addresses objects and lists.
 from app.modules.attio.application.ports.client import AttioClientProtocol
 from app.modules.attio.providers.attio.retry import get_with_retry
 
-_KNOWN_OBJECTS = {"organizations", "person", "deals", "deal", "note"}
+_KNOWN_OBJECTS = {"organizations", "person", "deal", "note"}
 _KNOWN_LISTS = {"buyer_role", "seller_role"}
 
 _object_slug_by_id: dict[str, str] | None = None

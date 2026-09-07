@@ -50,7 +50,7 @@
         {"slug": "foundation_date", "type": "date", "ownership": "attio"},
         {"slug": "employee_range", "type": "enum", "ownership": "attio", "options_status": "needs_decision", "purpose": "Requested target bands (5-10, 10-20, 20-50, 50-100, 100+) do not align with SOURCE's actual bands (1-10, 11-50, 51-250, 251-1K, 1K-5K, 5K-10K, 10K-50K, 50K-100K, 100K+) - SOURCE is coarser at the low end, so some SOURCE bands would need to split across multiple target bands. Blocked on a confirmed band definition."},
         {"slug": "ticket_size", "type": "text", "ownership": "attio"},
-        {"slug": "lead_source", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Direct Referral", "Valuation Tool", "M&A Readiness Tool", "Buyer Form"], "purpose": "SOURCE options (Valuation Tool, M&A Readiness Tool, Buyer Form) carried as-is; Direct Referral added as a DEV-only manual-entry option for organizations with no SOURCE record"},
+        {"slug": "lead_source", "type": "enum", "ownership": "attio", "options_status": "confirmed", "options": ["Direct Referral", "Valuation Tool", "M&A Readiness Tool", "Buyer Form"], "purpose": "SOURCE options (Valuation Tool, M&A Readiness Tool, Buyer Form) carried as-is; Direct Referral added as a manual-entry option for organizations with no SOURCE record"},
         {"slug": "is_test", "type": "boolean", "ownership": "attio", "purpose": "Environment discriminator: true = dev/test, false = prod. One SOURCE workspace serves both"}
       ]
     },
@@ -58,7 +58,7 @@
       "name": "Person",
       "attio_kind": "object",
       "attio_slug": "person",
-      "postgres_table": "people",
+      "postgres_table": "person",
       "fields": [
         {"slug": "attio_id", "type": "text", "ownership": "key", "attio_storage": "record_id"},
         {"slug": "legacy_attio_id", "type": "text", "ownership": "key", "purpose": "Source Attio record ID used for idempotent migration"},

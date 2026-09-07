@@ -8,7 +8,7 @@ step lives*, so you can jump straight to it.
 ## The one-sentence version
 
 Four Slack commands (`/edit-seller`, `/edit-buyer`, `/add-seller`,
-`/add-buyer`) that write to DEV Attio first, then Postgres — plus a
+`/add-buyer`) that write to SOURCE Attio first, then Postgres — plus a
 completely separate, always-running path that keeps Postgres in sync with
 Attio via webhooks. These two paths share tables but almost nothing else;
 treat them as two different modules that happen to live in one folder.
@@ -43,7 +43,7 @@ shape with an extra org-selection step (see `README.md`'s "The add flow").
      claims the current values are)
    - converts the submitted values into Attio's write shape
      -> providers/attio/write_payload.py
-   - writes DEV Attio FIRST (via app.modules.attio's client + entries.py)
+   - writes SOURCE Attio FIRST (via app.modules.attio's client + entries.py)
    - only then writes Postgres
      -> application/sellers.py (SellerService) -> persistence/repositories/
         sellers_repository.py, inside a Unit-of-Work
@@ -64,7 +64,7 @@ you don't need to read the whole file.
 ## Path 2: the Attio webhook sync (completely separate)
 
 This path has nothing to do with Slack. Attio calls *this app* whenever a
-record changes (in DEV Attio, or via the nightly full-resync script), and
+record changes (in SOURCE Attio, or via the nightly full-resync script), and
 this path writes that change into `wusool_crm`.
 
 ```

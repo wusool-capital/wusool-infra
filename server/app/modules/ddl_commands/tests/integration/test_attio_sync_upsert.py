@@ -389,20 +389,25 @@ async def test_sync_buyer_role_reconciles_and_upserts(
 async def test_sync_deal_fetches_from_source_object_slug(
     monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
 ) -> None:
-    """SOURCE Attio's custom deal object is slug "deal" (singular, not
-    "deals") -- see `config.py`'s `attio_deal_object_slug`. Same `deals`
-    Postgres table either way."""
+    """SOURCE's custom Deal_V2 object is api_slug "deal" (singular) and
+    prefixes its own fields (`deal_name`). The standard plural `deals`
+    object still exists in SOURCE but is out of this sync's scope -- it has
+    no `is_test` attribute, so its records could never be assigned to an
+    environment. The Postgres table is named `deals` either way."""
     monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
     attio_id = f"test-deal-{uuid.uuid4()}"
     client = _FakeClient(
         {
             f"/objects/deal/records/{attio_id}": {
-                "data": {"id": {"record_id": attio_id}, "values": {"name": [_item(value="Deal X")]}}
+                "data": {
+                    "id": {"record_id": attio_id},
+                    "values": {"deal_name": [_item(value="Deal X")]},
+                }
             }
         }
     )
 
-    await upsert.sync_deal(client, attio_id, object_slug="deal")
+    await upsert.sync_deal(client, attio_id)
 
     async with db_sessionmaker() as session:
         row = (

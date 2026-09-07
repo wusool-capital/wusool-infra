@@ -5,10 +5,10 @@ def _item(**kwargs) -> dict:
     return {"active_until": None, **kwargs}
 
 
-def test_deal_params_falls_back_to_source_slugs() -> None:
-    """SOURCE Attio's custom "deal" object uses deal_name/deal_stage/
-    deal_owner instead of DEV's native name/stage/owner -- confirmed against
-    a real SOURCE record's field list, 2026-08-31."""
+def test_deal_params_reads_the_prefixed_slugs() -> None:
+    """Deal_V2 prefixes these: deal_name/deal_stage/deal_owner/deal_value,
+    with no unprefixed equivalent on the object. Verified against its full
+    attribute list, 2026-09-07."""
     data = {
         "id": {"record_id": "deal-1"},
         "values": {
@@ -25,23 +25,26 @@ def test_deal_params_falls_back_to_source_slugs() -> None:
     assert params["owner_attio_id"] == "user-1"
 
 
-def test_deal_params_prefers_dev_slugs_when_both_present() -> None:
+def test_deal_params_ignores_the_unprefixed_slugs() -> None:
+    """`name` is the legacy standard `deals` object's slug. That object is
+    out of this sync's scope entirely -- it has no `is_test` attribute, so
+    its records could never be assigned to an environment."""
     data = {
         "id": {"record_id": "deal-1"},
         "values": {
-            "name": [_item(value="DEV Name")],
-            "deal_name": [_item(value="SOURCE Name")],
+            "name": [_item(value="Ignored")],
+            "deal_name": [_item(value="Revival")],
         },
     }
 
     params = _deal_params(data)
 
-    assert params["name"] == "DEV Name"
+    assert params["name"] == "Revival"
 
 
-def test_deal_params_falls_back_to_placeholder_when_neither_slug_present() -> None:
+def test_deal_params_falls_back_to_placeholder_when_unnamed() -> None:
     data = {"id": {"record_id": "deal-1"}, "values": {}}
 
     params = _deal_params(data)
 
-    assert params["name"] == "Unnamed DEV Deal [deal-1]"
+    assert params["name"] == "Unnamed Deal [deal-1]"

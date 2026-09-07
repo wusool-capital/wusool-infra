@@ -119,7 +119,7 @@ function Get-AllRecords {
 }
 
 $decisions = Get-Content (Join-Path $PSScriptRoot "config\migration-decisions.json") -Raw | ConvertFrom-Json
-$expectedWorkspaceId = [string]$decisions.dev_workspace_id
+$expectedWorkspaceId = [string]$decisions.workspace_id
 
 $notesObj = Request Get "/objects/note" $null
 if ([string]$notesObj.data.api_slug -ne "note") {

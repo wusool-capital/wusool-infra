@@ -18,5 +18,4 @@ class NoteWriterPort(Protocol):
         organization_attio_id: str,
         content: str,
         created_at: datetime,
-        object_slug: str,
     ) -> UUID | None: ...

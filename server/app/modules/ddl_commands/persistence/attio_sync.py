@@ -34,7 +34,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
-from app.modules.attio import AttioClientProtocol
+from app.modules.attio import AttioClientProtocol, owns_record
 from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.providers.attio import values as v
 from app.modules.attio.providers.attio.retry import (
@@ -63,6 +63,27 @@ SyncModel = type[Organization] | type[Person] | type[Deal] | type[BuyerRole] | t
 
 def _j(value: Any) -> str | None:
     return None if value is None else json.dumps(value)
+
+
+def in_scope(record: AttioRecord) -> bool:
+    """Whether this record belongs to this process's half of the single
+    shared SOURCE workspace.
+
+    Public rather than underscore-private: the nightly resync
+    (`scripts/attio_sync_full_resync.py`) filters its own pages with this
+    too, so it is a shared part of this module's surface, not an internal.
+
+    `owns_record` is imported unqualified rather than reached through
+    `attio.config` so a test can monkeypatch it on this module in one line,
+    the same way the existing tests patch `get_sessionmaker` -- the settings
+    object behind it is `lru_cache`d and awkward to swap otherwise.
+
+    A webhook delivery carries only IDs, never values, so every wrapper
+    below already re-fetches the record before it can write anything; this
+    reads `is_test` out of a response that was being made regardless. No
+    extra Attio call, no webhook reconfiguration.
+    """
+    return owns_record(v.boolean(v.vals(record), "is_test"))
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +237,7 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
     rid = v.record_id(data)
     return {
         "attio_id": rid,
-        "name": v.first(values, "name") or f"Unnamed DEV Organization [{rid}]",
+        "name": v.first(values, "name") or f"Unnamed Organization [{rid}]",
         "description": v.first(values, "description"),
         "type": v.titles(values, "type"),
         # client_type is multi-select on SOURCE Attio (e.g. a company can be
@@ -228,20 +249,13 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
         # 2026-08-31.
         "client_type": ", ".join(v.titles(values, "client_type")) or None,
         "sector_focus": v.titles(values, "sector_focus"),
-        # SOURCE Attio's org object uses stage_focus/connection_strength
-        # directly, not DEV's stage/strongest_connection_strength -- same
-        # class of mismatch as _deal_params' deal_name/deal_stage/deal_owner.
-        # Confirmed against a real SOURCE record's field list, 2026-08-31.
-        "stage_focus": v.titles(values, "stage") or v.titles(values, "stage_focus"),
+        "stage_focus": v.titles(values, "stage_focus"),
         "geographic_focus": v.titles(values, "geographic_focus"),
         "hq_country": v.first(values, "hq_country"),
         "domains": v.domains(values),
         "categories": v.titles(values, "categories"),
         "relationship_status": v.first(values, "relationship_status"),
-        "connection_strength": (
-            v.first(values, "strongest_connection_strength")
-            or v.first(values, "connection_strength")
-        ),
+        "connection_strength": v.first(values, "connection_strength"),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.timestamp(values, "last_interaction_at"),
         "funding_raised": v.money(values, "funding_raised"),
@@ -263,6 +277,9 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
 
 async def sync_organization(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/organizations/records/{record_id}")
+    if not in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope organization %s", record_id)
+        return
     params = _organization_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_ORG_UPSERT, _for_text_sql("organizations", params))
@@ -322,27 +339,17 @@ def _person_params(data: AttioRecord) -> PersonParams:
     roles = v.titles(values, "role") or v.titles(values, "job_title")
     return {
         "attio_id": rid,
-        "name": v.first(values, "name") or f"Unnamed DEV Person [{rid}]",
+        "name": v.first(values, "name") or f"Unnamed Person [{rid}]",
         "role": ", ".join(roles) or v.first(values, "role"),
         "company_attio_id": v.ref(values, "company"),
-        # DEV Attio's person object has a multi-valued email_addresses field;
-        # SOURCE Attio's uses a single plain "email" field instead -- same
-        # class of mismatch as _deal_params' deal_name/deal_stage/deal_owner.
-        # Confirmed against a real SOURCE record's field list, 2026-08-31.
-        "email": (
-            [
-                str(x.get("email_address"))
-                for x in v.raw_items(values, "email_addresses")
-                if x.get("email_address")
-            ]
-            or ([str(v.first(values, "email"))] if v.first(values, "email") else [])
-        ),
+        # A single plain "email" text field, not Attio's multi-valued
+        # email_addresses type -- verified against the object's full
+        # attribute list, 2026-09-07. Postgres's column is an array, so a
+        # present value is wrapped and an absent one is empty, not [None].
+        "email": [str(v.first(values, "email"))] if v.first(values, "email") else [],
         "linkedin": v.first(values, "linkedin"),
         "relationship_status": v.first(values, "relationship_status"),
-        "connection_strength": (
-            v.first(values, "strongest_connection_strength")
-            or v.first(values, "connection_strength")
-        ),
+        "connection_strength": v.first(values, "connection_strength"),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.timestamp(values, "last_interaction_at"),
         "job_title": v.first(values, "job_title"),
@@ -360,6 +367,9 @@ def _person_params(data: AttioRecord) -> PersonParams:
 
 async def sync_person(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/person/records/{record_id}")
+    if not in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope person %s", record_id)
+        return
     params = _person_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_PERSON_UPSERT, _for_text_sql("person", params))
@@ -447,15 +457,11 @@ def _deal_params(data: AttioRecord) -> DealParams:
     seller_id = v.ref(values, "seller_id")
     return {
         "attio_id": rid,
-        # SOURCE Attio's custom "deal" object uses different slugs than DEV's
-        # native "deals" object for these three fields (deal_name/deal_stage/
-        # deal_owner vs name/stage/owner) -- same reason `value` below already
-        # falls back to `deal_value`. Confirmed against a real SOURCE record's
-        # field list, 2026-08-31.
-        "name": (
-            v.first(values, "name") or v.first(values, "deal_name") or f"Unnamed DEV Deal [{rid}]"
-        ),
-        "stage": v.first(values, "stage") or v.first(values, "deal_stage"),
+        # Deal_V2 prefixes these four: deal_name/deal_stage/deal_owner/
+        # deal_value, with no unprefixed equivalent. Verified against the
+        # object's full attribute list, 2026-09-07.
+        "name": v.first(values, "deal_name") or f"Unnamed Deal [{rid}]",
+        "stage": v.first(values, "deal_stage"),
         "stage_changed_at": v.timestamp(values, "stage_changed_at"),
         # Resolved against the real tables below, at write time, since a
         # buyer/seller id here can point at either an organization or a
@@ -463,8 +469,8 @@ def _deal_params(data: AttioRecord) -> DealParams:
         # `_DEAL_UPSERT` and the equivalent per-row check in `_deal_fk_params`.
         "buyer_id": buyer_id,
         "seller_id": seller_id,
-        "owner_attio_id": v.actor(values, "owner") or v.actor(values, "deal_owner"),
-        "value": v.money(values, "value") or v.money(values, "deal_value"),
+        "owner_attio_id": v.actor(values, "deal_owner"),
+        "value": v.money(values, "deal_value"),
         "teaser_status": v.first(values, "teaser_status"),
         "nda_count": int(v.number(values, "nda_count") or 0),
         "cim_ready": v.boolean(values, "cim_ready"),
@@ -479,7 +485,7 @@ def _deal_params(data: AttioRecord) -> DealParams:
         "assigned_advisor": v.titles(values, "assigned_advisor"),
         # Merged in from the retired Mandates list, 2026-08-23 (see
         # migration-decisions.json and the Wusool Schema Handover artifact).
-        # Attio slugs stayed start_date/expiry_date -- only the DEV display
+        # Attio slugs stayed start_date/expiry_date -- only the display
         # titles changed to "Mandate Start/Expiry Date", disambiguating them
         # from contract_signed_date/exclusivity_date/expected_close_date
         # above. Postgres columns use the disambiguated name directly.
@@ -499,14 +505,16 @@ def _deal_params(data: AttioRecord) -> DealParams:
     }
 
 
-async def sync_deal(
-    client: AttioClientProtocol, record_id: str, *, object_slug: str = "deals"
-) -> None:
-    """`object_slug` is the actual Attio object api_slug to fetch from --
-    "deals" (DEV's native object, the default) or "deal" (SOURCE's custom
-    object, singular -- see `config.py`'s `attio_deal_object_slug`). Both map
-    to the same `deals` Postgres table either way."""
-    fetched = await get_with_retry(client, f"/objects/{object_slug}/records/{record_id}")
+async def sync_deal(client: AttioClientProtocol, record_id: str) -> None:
+    """Fetches from SOURCE's custom Deal_V2 object, api_slug "deal"
+    (singular). The standard plural "deals" object also exists in SOURCE but
+    is legacy and out of scope -- it carries no `is_test` attribute, so it
+    cannot be assigned to an environment at all. The Postgres table this
+    writes to is still named `deals`; that is unrelated to the Attio slug."""
+    fetched = await get_with_retry(client, f"/objects/deal/records/{record_id}")
+    if not in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope deal %s", record_id)
+        return
     params = _deal_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_DEAL_UPSERT, _for_text_sql("deals", params))
@@ -565,7 +573,7 @@ async def _reconcile_active_entry(
     `created_at` wins, the same tiebreak `lists.ps1` already applies
     elsewhere.
 
-    Postgres mirrors every DEV Attio entry now, one row each keyed by
+    Postgres mirrors every SOURCE Attio entry now, one row each keyed by
     `legacy_entry_id` (buyer_roles/seller_roles' 2026-08-28 pluralization --
     `org_attio_id` is no longer unique) rather than collapsing to a single
     row per org, so this returns every sibling, winner first, instead of
@@ -690,8 +698,19 @@ def _buyer_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Buye
 
 async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
     fetched = await get_with_retry(client, f"/lists/buyer_role/entries/{entry_id}")
+    # Before `_fetch_siblings`, not after: `_reconcile_active_entry` PATCHes
+    # `is_active` back to Attio, and a process must never write to the other
+    # half of the shared workspace.
+    if not in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope buyer_role entry %s", entry_id)
+        return
     org_id = v.parent_id(fetched["data"])
-    siblings = await _fetch_siblings(client, "buyer_role", org_id)
+    # `is_active` is reconciled *within* a scope. An org can carry both a
+    # real entry and a dev test one; reconciling them together would let the
+    # newer test entry win and demote the production entry to
+    # `is_active=False` in Attio -- corrupting the exact flag
+    # `resolve_role_entry_id` and the matching engine read.
+    siblings = [e for e in await _fetch_siblings(client, "buyer_role", org_id) if in_scope(e)]
     reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
@@ -800,26 +819,16 @@ def _seller_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Sel
     return {
         "org_attio_id": org_id,
         "outreach_tier": v.first(values, "outreach_tier"),
-        # SOURCE Attio's seller_role list uses appetite_signal directly, not
-        # DEV's seller_appetite_signal -- same class of mismatch as
-        # _deal_params' deal_name/deal_stage/deal_owner. Confirmed against a
-        # real SOURCE record's field list, 2026-08-31.
-        "appetite_signal": (
-            v.first(values, "seller_appetite_signal") or v.first(values, "appetite_signal")
-        ),
+        "appetite_signal": v.first(values, "appetite_signal"),
         "relationship_status": v.first(values, "relationship_status"),
-        "est_revenue": (
-            v.money(values, "estimated_annual_revenue_aed") or v.money(values, "est_revenue")
-        ),
-        "est_ebitda": v.money(values, "estimated_ebitda_aed") or v.money(values, "est_ebitda"),
+        "est_revenue": v.money(values, "est_revenue"),
+        "est_ebitda": v.money(values, "est_ebitda"),
         "owner_salary": v.money(values, "owner_salary"),
         "valuation_low": v.money(values, "valuation_low"),
         "valuation_mid": v.money(values, "valuation_mid"),
         "valuation_high": v.money(values, "valuation_high"),
         "sell_timeline": v.first(values, "sell_timeline"),
-        "readiness_score": (
-            v.number(values, "outreach_score") or v.number(values, "readiness_score")
-        ),
+        "readiness_score": v.number(values, "readiness_score"),
         "readiness_band": v.first(values, "readiness_band"),
         "last_attempt_date": v.date(values, "last_attempt_date"),
         "last_attempt_channel": v.first(values, "last_attempt_channel"),
@@ -875,8 +884,19 @@ def _seller_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Sel
 
 async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
     fetched = await get_with_retry(client, f"/lists/seller_role/entries/{entry_id}")
+    # Before `_fetch_siblings`, not after: `_reconcile_active_entry` PATCHes
+    # `is_active` back to Attio, and a process must never write to the other
+    # half of the shared workspace.
+    if not in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope seller_role entry %s", entry_id)
+        return
     org_id = v.parent_id(fetched["data"])
-    siblings = await _fetch_siblings(client, "seller_role", org_id)
+    # `is_active` is reconciled *within* a scope. An org can carry both a
+    # real entry and a dev test one; reconciling them together would let the
+    # newer test entry win and demote the production entry to
+    # `is_active=False` in Attio -- corrupting the exact flag
+    # `resolve_role_entry_id` and the matching engine read.
+    siblings = [e for e in await _fetch_siblings(client, "seller_role", org_id) if in_scope(e)]
     reconciled = await _reconcile_active_entry(client, "seller_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
@@ -893,8 +913,8 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# note — unified notes object (SOURCE Attio only, slug "note"; see
-# `config.py`'s `attio_note_object_slug`). `notes.id` reuses the Attio
+# note — the unified notes object, api_slug "note" (a literal: one
+# workspace, one object). `notes.id` reuses the Attio
 # record's own id verbatim -- upserts are ON CONFLICT(id).
 # `buyer_role_id`/`seller_role_id` are resolved here from the Attio record's
 # SOURCE list entry_id via `legacy_entry_id`. No `raw_attio` column on this
@@ -944,6 +964,9 @@ def _note_params(data: AttioRecord) -> NoteParams:
 
 async def sync_note(client: AttioClientProtocol, record_id: str) -> None:
     fetched = await get_with_retry(client, f"/objects/note/records/{record_id}")
+    if not in_scope(fetched["data"]):
+        _logger.info("skipping out-of-scope note %s", record_id)
+        return
     params = _note_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_NOTE_UPSERT, params)
@@ -1019,7 +1042,7 @@ _CONFLICT_COL: dict[SyncModel, str] = {
     Deal: "attio_id",
     # legacy_entry_id, not org_attio_id: buyer_roles/seller_roles.org_attio_id
     # lost its UNIQUE constraint in the 2026-08-28 pluralization (Postgres
-    # now mirrors every DEV Attio entry, one row each -- see BuyerRole's
+    # now mirrors every SOURCE Attio entry, one row each -- see BuyerRole's
     # docstring) -- org_attio_id is a plain indexed FK now, not a valid
     # ON CONFLICT target.
     BuyerRole: "legacy_entry_id",
@@ -1207,10 +1230,8 @@ class AttioSyncRepository:
     async def sync_person(self, client: AttioClientProtocol, record_id: str) -> None:
         await sync_person(client, record_id)
 
-    async def sync_deal(
-        self, client: AttioClientProtocol, record_id: str, *, object_slug: str = "deals"
-    ) -> None:
-        await sync_deal(client, record_id, object_slug=object_slug)
+    async def sync_deal(self, client: AttioClientProtocol, record_id: str) -> None:
+        await sync_deal(client, record_id)
 
     async def sync_note(self, client: AttioClientProtocol, record_id: str) -> None:
         await sync_note(client, record_id)

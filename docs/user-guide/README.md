@@ -8,9 +8,15 @@ Everything happens inside Slack — there is no separate website or login. The
 bot reads and writes the same customer data the team uses in Attio and in the
 Wusool database.
 
-> **Which data the bot uses:** the bot works against the **DEV Attio
-> workspace** and the shared Wusool database. Changes you make with `/edit-*`
+> **Which data the bot uses:** the bot works against the **Wusool Capital
+> Attio workspace** and the Wusool database. Changes you make with `/edit-*`
 > and `/add-*` appear in Attio first, then in the database a moment later.
+>
+> There is a second, test copy of the bot that developers use. It writes to
+> the same Attio workspace but marks everything it creates **Is Test**, so
+> those records stay out of your views and out of the real database. If you
+> see a record ticked "Is Test", it is a developer's scratch record — leave
+> it alone rather than correcting it.
 
 ## Commands at a glance
 
@@ -109,8 +115,13 @@ Some fields are intentionally left out of the edit form:
 ## Important rules and limitations
 
 - **Attio is written first.** Every `/edit-*` and `/add-*` change lands in
-  the DEV Attio workspace before the database. This keeps the scheduled
-  Attio → database sync from overwriting your change.
+  Attio before the database. This keeps the scheduled Attio → database sync
+  from overwriting your change.
+- **A record you create by hand in Attio counts as real.** The "Is Test"
+  checkbox is only set for you when a record is created through the bot. If
+  you add one directly in the Attio UI it will sync to the real database,
+  which is almost always what you want — but it means you cannot use the
+  Attio UI to make throwaway test records.
 - **There is no `/remove-seller` or `/remove-buyer`.** Removing a role is not
   done through the bot.
 - **Anyone in the workspace can run these commands.** There is no

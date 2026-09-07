@@ -33,10 +33,13 @@ def _person(pid: str, name: str, company_id: str) -> dict:
 
 
 def _deal(did: str, name: str, buyer_id: str, seller_id: str) -> dict:
+    # Deal_V2 prefixes its own fields (deal_name, not name); the standard
+    # plural `deals` object those unprefixed slugs belong to is out of this
+    # sync's scope, since it carries no is_test attribute.
     return {
         "id": {"record_id": did},
         "values": {
-            "name": [_item(value=name)],
+            "deal_name": [_item(value=name)],
             "buyer_id": [_item(target_record_id=buyer_id)],
             "seller_id": [_item(target_record_id=seller_id)],
         },
@@ -98,7 +101,7 @@ async def test_full_resync_run_end_to_end(
                 _org(org_2, "Seller Co"),
             ],
             "/objects/person/records/query": [_person(person_1, "Jane Doe", org_1)],
-            "/objects/deals/records/query": [_deal(deal_1, "Test Deal", org_1, org_2)],
+            "/objects/deal/records/query": [_deal(deal_1, "Test Deal", org_1, org_2)],
             "/lists/buyer_role/entries/query": [
                 _role_entry("buyer-entry-1", org_1, "2024-01-01T00:00:00Z")
             ],

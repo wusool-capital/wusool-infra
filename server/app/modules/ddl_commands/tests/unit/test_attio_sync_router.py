@@ -177,3 +177,82 @@ def test_validation_failure_logs_the_raw_body(monkeypatch, caplog) -> None:
 
     assert response.status_code == 400
     assert any("not a list, a string instead" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# One SOURCE workspace, two environments
+# ---------------------------------------------------------------------------
+
+
+def _envelope(workspace_id: str | None = None) -> bytes:
+    ws = f'"workspace_id": "{workspace_id}", ' if workspace_id else ""
+    return (
+        b'{"webhook_id": "wh-1", "events": [{"event_type": "record.created", "id": {'
+        + ws.encode()
+        + b'"object_id": "o1", "record_id": "r1"}}]}'
+    )
+
+
+def _post(body: bytes) -> int:
+    return (
+        _make_client()
+        .post("/webhooks/attio", content=body, headers={"Attio-Signature": _signed(body)})
+        .status_code
+    )
+
+
+def test_a_test_scoped_instance_acks_but_does_not_dispatch(monkeypatch) -> None:
+    """Sync runs only SOURCE -> the prod database. Enforcing that at the
+    route means a dev instance can never reconcile `is_active` back into
+    Attio, whatever the per-record filter downstream does. 200, not 4xx: a
+    rejection status would have Attio disable the subscription."""
+    calls: list[object] = []
+
+    async def fake_dispatch(upsert, registry, client, event):
+        calls.append(event)
+
+    monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
+    monkeypatch.setattr(router_module, "attio_is_test", lambda: True)
+
+    assert _post(_envelope()) == 200
+    assert calls == []
+
+
+def test_event_from_an_unexpected_workspace_is_dropped(monkeypatch) -> None:
+    calls: list[object] = []
+
+    async def fake_dispatch(upsert, registry, client, event):
+        calls.append(event)
+
+    monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
+    monkeypatch.setattr(router_module, "attio_workspace_id", lambda: "ws-expected")
+
+    assert _post(_envelope("ws-other")) == 200
+    assert calls == []
+
+
+def test_event_from_the_expected_workspace_is_dispatched(monkeypatch) -> None:
+    calls: list[object] = []
+
+    async def fake_dispatch(upsert, registry, client, event):
+        calls.append(event)
+
+    monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
+    monkeypatch.setattr(router_module, "attio_workspace_id", lambda: "ws-expected")
+
+    assert _post(_envelope("ws-expected")) == 200
+    assert len(calls) == 1
+
+
+def test_workspace_check_is_skipped_when_unset(monkeypatch) -> None:
+    """Unset must stay a no-op, so nobody's existing deployment breaks."""
+    calls: list[object] = []
+
+    async def fake_dispatch(upsert, registry, client, event):
+        calls.append(event)
+
+    monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
+    monkeypatch.setattr(router_module, "attio_workspace_id", lambda: None)
+
+    assert _post(_envelope("ws-anything")) == 200
+    assert len(calls) == 1

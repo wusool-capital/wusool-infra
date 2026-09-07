@@ -1,4 +1,4 @@
-"""Nightly safety-net: a full page-through resync of DEV Attio into
+"""Nightly safety-net: a full page-through resync of SOURCE Attio into
 Postgres. Complements, not replaces, the real-time webhook — catches
 anything a missed delivery, an out-of-order race, or a paused webhook left
 inconsistent. Scheduled by `.github/workflows/nightly-attio-sync.yml`.
@@ -38,7 +38,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
-from app.modules.attio import AttioClient, AttioClientProtocol
+from app.modules.attio import AttioClient, AttioClientProtocol, attio_is_test
+from app.modules.attio.config import get_settings as get_attio_settings
 from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.providers.attio.retry import post_with_retry
 from app.modules.ddl_commands.config import get_settings
@@ -148,7 +149,14 @@ async def _sync_streaming_entity(
     total_ok = total_failed = total_records = 0
     try:
         async for page in _iter_source_pages(_page_through(client, path)):
-            rows = [mapper(record) for record in page]
+            in_scope = [record for record in page if upsert.in_scope(record)]
+            if len(in_scope) != len(page):
+                _logger.info(
+                    "full resync: %s skipped %d out-of-scope records",
+                    table,
+                    len(page) - len(in_scope),
+                )
+            rows = [mapper(record) for record in in_scope]
             if not rows:
                 continue
             ok, failed, returned = await _write_batches_concurrently(model, rows)
@@ -280,7 +288,7 @@ async def _reconcile_roles(
     """Groups `entries` by org (one pass, already in hand) and reconciles
     each org's duplicates concurrently (bounded) -- each org's sibling set
     and is_active PATCH-back is independent of every other org's. Postgres
-    mirrors every DEV Attio entry now, one row each keyed by legacy_entry_id
+    mirrors every SOURCE Attio entry now, one row each keyed by legacy_entry_id
     (see BuyerRole/SellerRole's 2026-08-28 pluralization), so this returns
     one row per *entry*, not per org -- `build_params(org_id, entry,
     is_active)` is called once per sibling, `is_active` set explicitly from
@@ -318,17 +326,18 @@ async def _reconcile_roles(
     return rows, failed_orgs
 
 
-async def _sync_notes_full(client: AttioClientProtocol, note_slug: str) -> tuple[int, int]:
+async def _sync_notes_full(client: AttioClientProtocol) -> tuple[int, int]:
     """Plain per-row loop, not the batched `_upsert_batch` path: `notes` has
     no `raw_attio` column (unlike every other table here), so it can't share
     that machinery's content-comparison/RETURNING contract. Note volume is
     much smaller than organizations/deals, so this doesn't need the same
     performance work."""
     try:
-        records = await _collect_pages(_page_through(client, f"/objects/{note_slug}/records/query"))
+        fetched = await _collect_pages(_page_through(client, "/objects/note/records/query"))
     except Exception:
         _logger.error("full resync: failed to list note records", exc_info=True)
         return 0, 1
+    records = [record for record in fetched if upsert.in_scope(record)]
     ok = failed = 0
     async with get_sessionmaker()() as session:
         for record in records:
@@ -349,7 +358,9 @@ async def _sync_notes_full(client: AttioClientProtocol, note_slug: str) -> tuple
 
 async def run() -> None:
     import_all_models()
-    client = AttioClient(get_settings().attio_api_key)
+    # Its own client rather than the shared `get_attio_client()`: that one is
+    # `lru_cache`d process-wide and this script closes what it opens.
+    client = AttioClient(get_attio_settings().api_key)
     try:
         await _run(client)
     finally:
@@ -357,8 +368,15 @@ async def run() -> None:
 
 
 async def _run(client: AttioClientProtocol) -> None:
+    # The one place a loud stop beats failing safe. Sync runs only SOURCE ->
+    # the prod database; a resync pointed at the dev sandbox would overwrite
+    # thousands of rows and wipe the test data devs just created, which is
+    # far worse than a skipped night.
+    if attio_is_test():
+        _logger.error("full resync: refusing to run with ATTIO_IS_TEST=true (prod-only job)")
+        raise SystemExit(1)
+
     run_started = time.monotonic()
-    settings = get_settings()
     summary: dict[str, tuple[int, int]] = {}
 
     users_synced = 0
@@ -396,7 +414,7 @@ async def _run(client: AttioClientProtocol) -> None:
         client,
         Deal,
         "deals",
-        f"/objects/{settings.attio_deal_object_slug}/records/query",
+        "/objects/deal/records/query",
         lambda r: dict(upsert._deal_batch_params(r, org_ids, person_ids, user_ids)),
     )
     if _can_run_db_tasks_concurrently():
@@ -413,6 +431,13 @@ async def _run(client: AttioClientProtocol) -> None:
         _safe_fetch(_page_through(client, "/lists/buyer_role/entries/query"), "buyer_role"),
         _safe_fetch(_page_through(client, "/lists/seller_role/entries/query"), "seller_role"),
     )
+    # Before `_reconcile_roles`, which PATCHes `is_active` back to Attio:
+    # reconciling across scopes would let a newer test entry demote a
+    # production one. Same rule as the webhook path's `sync_*_role`.
+    if buyer_entries is not None:
+        buyer_entries = [e for e in buyer_entries if upsert.in_scope(e)]
+    if seller_entries is not None:
+        seller_entries = [e for e in seller_entries if upsert.in_scope(e)]
 
     if buyer_entries is None:
         summary["buyer_role"] = (0, 1)
@@ -442,12 +467,7 @@ async def _run(client: AttioClientProtocol) -> None:
         ok, write_failed = await _write_and_verify(SellerRole, "seller_roles", rows, len(rows))
         summary["seller_role"] = (ok, reconcile_failed + write_failed)
 
-    # The unified "note" object only exists in SOURCE Attio today (prod) --
-    # DEV Attio has no such object yet, so dev leaves ATTIO_NOTE_OBJECT_SLUG
-    # unset and this entity is skipped entirely rather than logging a nightly
-    # "failed to list note records" error for an object that isn't there.
-    if settings.attio_note_object_slug:
-        summary["note"] = await _sync_notes_full(client, settings.attio_note_object_slug)
+    summary["note"] = await _sync_notes_full(client)
 
     total_ok = sum(ok for ok, _ in summary.values())
     total_failed = sum(failed for _, failed in summary.values())

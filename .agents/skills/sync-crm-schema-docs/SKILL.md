@@ -1,15 +1,19 @@
 ---
 name: sync-crm-schema-docs
-description: Keep every CRM schema document in sync whenever an Attio DEV attribute/list/stage or a Postgres deals/mandates/etc. column changes — the ER diagram, the published "Wusool Schema Handover" artifact, CLIENT_SCHEMA_OVERVIEW.md, and the crm-sync script READMEs. Use immediately after any change to the dev-attio schema scripts, migration-decisions.json, target-schema.json, a Postgres model in server/app/models/, or a new Alembic migration — before ending the session, not as a separate later cleanup.
+description: Keep every CRM schema document in sync whenever a SOURCE Attio attribute/list/stage or a Postgres deals/organizations/etc. column changes — the ER diagram, the published "Wusool Schema Handover" artifact, CLIENT_SCHEMA_OVERVIEW.md, and the crm-sync script READMEs. Use immediately after any change to the source-attio schema scripts, migration-decisions.json, target-schema.json, a Postgres model in server/app/models/, or a new Alembic migration — before ending the session, not as a separate later cleanup.
 ---
 
 # Sync CRM Schema Docs
 
 Sibling of `sync-project-docs` (repo-wide READMEs + `docs/`) and
 `sync-terraform-docs` (Terraform docs). This skill owns everything that
-describes the **CRM data model itself** — Attio DEV schema and its Postgres
-mirror — across four places that do not update themselves and silently drift
-out of sync with each other otherwise.
+describes the **CRM data model itself** — the SOURCE Attio schema and its
+Postgres mirror — across four places that do not update themselves and
+silently drift out of sync with each other otherwise.
+
+One SOURCE Attio workspace serves both environments since 2026-09-07,
+discriminated by the `is_test` checkbox; the separate DEV workspace and its
+`dev-attio/` tooling are gone. Every path below points at `source-attio/`.
 
 ## When to run this
 
@@ -18,18 +22,17 @@ deferred:
 
 - A new/renamed/retyped Attio attribute, list, or pipeline stage (via
   `ensure-schema.ps1` / `_internal/schema.ps1`, or a direct API call)
-- An entry added to `workflows/crm-sync/scripts/dev-attio/config/migration-decisions.json`
+- An entry added to `infrastructure/crm-sync/scripts/source-attio/config/migration-decisions.json`
   (crosswalk, alias map, deferred backfill) or `target-schema.json`
 - A new flag/behavior added to `objects.ps1`/`lists.ps1` (e.g. `-DeleteOrphaned`,
   `-MigrateMandates`)
-- A new/changed column in `database/wusool_db/models/*.py` and its Alembic
-  migration
+- A new/changed column in `server/app/models/*.py` and its Alembic migration
 - A data backfill that changes what a field means or how confidently it's
   populated (e.g. "all 58 pre-existing Deals are now `Sell-side`")
 
 ## The four things to update, every time
 
-1. **`workflows/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md`** — the detailed
+1. **`infrastructure/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md`** — the detailed
    field-by-field reference (Attio schema + PostgreSQL schema sections). Add
    new fields to the relevant entity's table with type/ownership/relationship;
    correct any row whose behavior changed (e.g. a crosswalk fix); mark a
@@ -37,7 +40,7 @@ deferred:
    `retired YYYY-MM-DD` marker in the heading, one paragraph explaining why,
    table kept for historical reference).
 
-2. **`infrastructure/crm-sync/scripts/dev-attio/README.md`** and the
+2. **`infrastructure/crm-sync/scripts/source-attio/README.md`** and the
    **`server/`** schema docs (`server/SCHEMA.md`) — whichever side changed
    (Attio-facing scripts vs. Postgres). Check every command example, flag
    list, and mapping-rules bullet still matches the actual script/model —

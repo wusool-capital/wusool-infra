@@ -6,7 +6,7 @@ All nullable DB columns stay `X | None` here — no defaults invented, no
 "Unknown" sentinel at this layer.
 
 Field-spec section deliberately excludes (plan.md Part C): `readiness_band`
-(zero options currently defined in DEV Attio — nothing to show in a
+(had zero options defined in Attio until 2026-09-07 — nothing to show in a
 dropdown), `readiness_score`/`lead_quality_score` (ownership: both manual
 and pipeline-written — needs the data engineer's confirmation before this
 bot edits them, not this bot's own call). `intake_source` was dropped from
@@ -17,7 +17,7 @@ confirmation-checkbox machinery it drove is kept for the next write-once
 field rather than deleted.
 
 Attribute types and every option list below were verified live against the
-DEV Attio workspace (2026-08-30) via `GET /v2/lists/seller_role/attributes`
+SOURCE Attio workspace (2026-08-30) via `GET /v2/lists/seller_role/attributes`
 and each attribute's `/options`. Two corrections came out of that:
 `funding_stage` is a `select`, not free text (a bare string 400s on write),
 and `last_attempt_channel` was missing Attio's "WhatsApp" option, so
