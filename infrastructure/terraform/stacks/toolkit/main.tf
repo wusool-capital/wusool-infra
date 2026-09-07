@@ -3,8 +3,8 @@
 
 # Populate the secret value out of band with JSON: {"slack_bot_token": "...",
 # "slack_signing_secret": "...", "database_url": "postgresql://...",
-# "env": {"ATTIO_API_KEY": "...", "ATTIO_WEBHOOK_SECRET": "...",
-# "ATTIO_NOTE_OBJECT_SLUG": "note"}}. ddl_commands' Settings requires both
+# "env": {"ATTIO_API_KEY": "...", "ATTIO_WEBHOOK_SECRET": "..."}}.
+# ddl_commands' Settings requires
 # ATTIO_API_KEY and ATTIO_WEBHOOK_SECRET unconditionally (see
 # server/app/modules/ddl_commands/config.py) — omitting either fails Settings()
 # construction on the very first request that touches the database, for

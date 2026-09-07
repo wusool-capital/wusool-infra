@@ -90,16 +90,14 @@ class PublishMixin(ServiceBase):
         above, which has already succeeded.
         """
         # No availability gate: the `note` object exists in SOURCE, which
-        # serves both environments now, and the slug is validated non-empty
-        # at the config boundary. `push_note` swallows its own Attio errors
-        # and returns None; the except here covers anything it cannot.
+        # serves both environments now. `push_note` swallows its own Attio
+        # errors and returns None; the except here covers anything it cannot.
         note_id: UUID | None = None
         try:
             note_id = await self._note_writer.push_note(
                 organization_attio_id=org_id,
                 content=content,
                 created_at=meeting.occurred_at,
-                object_slug=self._attio_note_object_slug,
             )
         except Exception as exc:  # noqa: BLE001 - best-effort, must not affect the meeting
             logger.warning(

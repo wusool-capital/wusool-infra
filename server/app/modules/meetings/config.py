@@ -37,17 +37,6 @@ class Settings(BaseSettings):
     max_concurrent_summaries: int = 1
     max_transcript_chars: int = 1_500_000
 
-    # The unified "note" object's api_slug in SOURCE Attio (mirrors
-    # ddl_commands' ATTIO_NOTE_OBJECT_SLUG — same env var, both classes use
-    # extra="ignore" so reading it in two Settings classes is safe).
-    # Constant since one SOURCE workspace began serving both environments;
-    # kept configurable only so a slug rename doesn't need a code change.
-    # min_length=1 for the same reason as desktop_api_key above: a bare `str`
-    # accepts ATTIO_NOTE_OBJECT_SLUG="" from a blank Secrets Manager value,
-    # which would build `POST /objects//records` and fail silently on the
-    # best-effort note path. Fail at construction instead.
-    attio_note_object_slug: str = Field("note", min_length=1)
-
     @field_validator("database_url")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:

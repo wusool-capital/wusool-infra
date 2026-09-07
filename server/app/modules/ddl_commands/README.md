@@ -112,8 +112,7 @@ writable from Slack (same eligibility list for both edit and add):
 
 Config comes from the repo-root `server/.env` (see `.env.example` there).
 Relevant variables: `DATABASE_URL`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`,
-`ATTIO_API_KEY`, `ATTIO_WEBHOOK_SECRET`, `ATTIO_NOTE_OBJECT_SLUG`, and
-`ATTIO_IS_TEST` — which half of the single shared SOURCE workspace this
+`ATTIO_API_KEY`, `ATTIO_WEBHOOK_SECRET`, and `ATTIO_IS_TEST` — which half of the single shared SOURCE workspace this
 instance owns. `true` (the default) stamps every record it creates
 `is_test = true`, refuses to edit production records, and ignores inbound
 Attio webhooks entirely; `false` is the inverse. In the deployed

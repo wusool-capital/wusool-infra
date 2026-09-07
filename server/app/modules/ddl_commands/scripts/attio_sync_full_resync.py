@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
 from app.modules.attio import AttioClient, AttioClientProtocol, attio_is_test
+from app.modules.attio.config import get_settings as get_attio_settings
 from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.providers.attio.retry import post_with_retry
 from app.modules.ddl_commands.config import get_settings
@@ -325,14 +326,14 @@ async def _reconcile_roles(
     return rows, failed_orgs
 
 
-async def _sync_notes_full(client: AttioClientProtocol, note_slug: str) -> tuple[int, int]:
+async def _sync_notes_full(client: AttioClientProtocol) -> tuple[int, int]:
     """Plain per-row loop, not the batched `_upsert_batch` path: `notes` has
     no `raw_attio` column (unlike every other table here), so it can't share
     that machinery's content-comparison/RETURNING contract. Note volume is
     much smaller than organizations/deals, so this doesn't need the same
     performance work."""
     try:
-        fetched = await _collect_pages(_page_through(client, f"/objects/{note_slug}/records/query"))
+        fetched = await _collect_pages(_page_through(client, "/objects/note/records/query"))
     except Exception:
         _logger.error("full resync: failed to list note records", exc_info=True)
         return 0, 1
@@ -357,7 +358,9 @@ async def _sync_notes_full(client: AttioClientProtocol, note_slug: str) -> tuple
 
 async def run() -> None:
     import_all_models()
-    client = AttioClient(get_settings().attio_api_key)
+    # Its own client rather than the shared `get_attio_client()`: that one is
+    # `lru_cache`d process-wide and this script closes what it opens.
+    client = AttioClient(get_attio_settings().api_key)
     try:
         await _run(client)
     finally:
@@ -374,7 +377,6 @@ async def _run(client: AttioClientProtocol) -> None:
         raise SystemExit(1)
 
     run_started = time.monotonic()
-    settings = get_settings()
     summary: dict[str, tuple[int, int]] = {}
 
     users_synced = 0
@@ -465,7 +467,7 @@ async def _run(client: AttioClientProtocol) -> None:
         ok, write_failed = await _write_and_verify(SellerRole, "seller_roles", rows, len(rows))
         summary["seller_role"] = (ok, reconcile_failed + write_failed)
 
-    summary["note"] = await _sync_notes_full(client, settings.attio_note_object_slug)
+    summary["note"] = await _sync_notes_full(client)
 
     total_ok = sum(ok for ok, _ in summary.values())
     total_failed = sum(failed for _, failed in summary.values())

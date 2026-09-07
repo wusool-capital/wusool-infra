@@ -81,4 +81,4 @@ class AttioClient:
 
 @lru_cache
 def get_attio_client() -> AttioClient:
-    return AttioClient(get_settings().attio_api_key)
+    return AttioClient(get_settings().api_key)

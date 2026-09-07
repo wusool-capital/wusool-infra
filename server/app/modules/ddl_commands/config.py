@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,23 +22,14 @@ class Settings(BaseSettings):
     slack_bot_token: str
     slack_signing_secret: str
 
-    # SOURCE Attio workspace write access. One workspace serves both
-    # environments; `attio.config.ATTIO_IS_TEST` is what separates them.
-    # `/edit-seller`/`/edit-buyer` write to Attio first, then Postgres, in
-    # the same request — see `ddl_commands/shared/attio/`.
-    attio_api_key: str
-
+    # No ATTIO_API_KEY here: `app.modules.attio` owns the client and its
+    # credential, and this module reaches Attio only through that module.
+    # The webhook secret below is the exception — it belongs to this
+    # module's own `/webhooks/attio` route, not to the client.
     # Signs inbound Attio webhook deliveries (`POST /webhooks/attio`) —
     # returned once by Attio in the response to `POST /v2/webhooks`, never
     # retrievable again after that. See `ddl_commands/shared/attio/signature.py`.
     attio_webhook_secret: str
-
-    # The unified "note" object's api_slug in SOURCE Attio. Constant since
-    # one SOURCE workspace began serving both environments; kept
-    # configurable only so a slug rename doesn't need a code change.
-    # min_length=1 rejects a set-but-empty value, which would otherwise build
-    # `/objects//records/query` in the nightly resync.
-    attio_note_object_slug: str = Field("note", min_length=1)
 
     @field_validator("database_url")
     @classmethod

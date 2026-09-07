@@ -85,14 +85,12 @@ def build_meetings_service(session: AsyncSession) -> MeetingsService:
     this way to `BackgroundTasks` — use `run_summarize_and_publish` for
     background work instead, which owns its own session.
     """
-    settings = get_settings()
     return MeetingsService(
         meetings_repository=build_meetings_repository(session),
         notes_repository=build_notes_repository(session),
         organization_lookup=build_organization_lookup(session),
         summarization_service=build_summarization_service(),
         note_writer=build_note_writer(),
-        attio_note_object_slug=settings.attio_note_object_slug,
         summary_semaphore=_summary_semaphore(),
     )
 

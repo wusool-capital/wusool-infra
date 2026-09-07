@@ -913,8 +913,8 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# note — unified notes object (SOURCE Attio only, slug "note"; see
-# `config.py`'s `attio_note_object_slug`). `notes.id` reuses the Attio
+# note — the unified notes object, api_slug "note" (a literal: one
+# workspace, one object). `notes.id` reuses the Attio
 # record's own id verbatim -- upserts are ON CONFLICT(id).
 # `buyer_role_id`/`seller_role_id` are resolved here from the Attio record's
 # SOURCE list entry_id via `legacy_entry_id`. No `raw_attio` column on this

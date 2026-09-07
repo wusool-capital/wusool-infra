@@ -36,7 +36,6 @@ class ServiceBase:
         organization_lookup: OrganizationLookupPort,
         summarization_service: SummarizationService,
         note_writer: NoteWriterPort,
-        attio_note_object_slug: str,
         summary_semaphore: asyncio.Semaphore,
     ) -> None:
         self._meetings_repository = meetings_repository
@@ -44,7 +43,6 @@ class ServiceBase:
         self._organization_lookup = organization_lookup
         self._summarization_service = summarization_service
         self._note_writer = note_writer
-        self._attio_note_object_slug = attio_note_object_slug
         # Gates only the expensive LLM call in
         # `PublishMixin.summarize_and_publish`, never the row-creation/
         # dedup path in `IngestMixin`. Injected rather than built here:

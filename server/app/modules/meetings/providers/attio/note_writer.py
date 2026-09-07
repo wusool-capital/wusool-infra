@@ -4,7 +4,7 @@ Attio error is caught, logged, and turned into `None` so a broken Attio
 integration can't break meeting summarization. Postgres is not written
 here -- the caller decides what `None` means (skip Attio, insert
 Postgres-only with a fresh id), and whether to call this at all (this
-class doesn't gate on `settings.attio_note_object_slug` being set).
+class writes to the `note` object unconditionally).
 """
 
 from __future__ import annotations
@@ -16,6 +16,11 @@ from uuid import UUID
 from app.modules.attio import AttioClient, get_attio_client
 
 logger = logging.getLogger(__name__)
+
+# One SOURCE workspace, one note object. Was ATTIO_NOTE_OBJECT_SLUG, which
+# existed only so DEV — where the object did not exist — could skip note
+# sync by leaving it unset.
+_NOTE_OBJECT_SLUG = "note"
 
 
 class AttioNoteWriter:
@@ -35,9 +40,8 @@ class AttioNoteWriter:
         organization_attio_id: str,
         content: str,
         created_at: datetime,
-        object_slug: str,
     ) -> UUID | None:
-        """POST a "Meeting" note to Attio's `object_slug` object, linked to
+        """POST a "Meeting" note to Attio's `note` object, linked to
         `organization_attio_id`. Attribute slugs (`organization_id`,
         `note_type`, `content`, `note_created_at`) match the ones
         `ddl_commands.persistence.attio_sync._note_params` already reads
@@ -67,14 +71,13 @@ class AttioNoteWriter:
         }
         try:
             response = await self._client.post(
-                f"/objects/{object_slug}/records", {"data": {"values": values}}
+                f"/objects/{_NOTE_OBJECT_SLUG}/records", {"data": {"values": values}}
             )
             return UUID(response["data"]["id"]["record_id"])
         except Exception as exc:  # noqa: BLE001 - must never raise into the caller's meeting flow
             logger.warning(
-                "note_push_failed object_slug=%s error=%s",
-                object_slug,
+                "note_push_failed error=%s",
                 exc,
-                extra={"object_slug": object_slug, "error": str(exc)},
+                extra={"error": str(exc)},
             )
             return None
