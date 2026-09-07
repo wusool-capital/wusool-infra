@@ -143,6 +143,9 @@ for r in notes:
         "buyer_role_id": buyer_role_id,
         "seller_role_id": seller_role_id,
         "note_type": first(v, "note_type"),
+        # Option titles are the MeetingRole enum's own lowercase values, which
+        # are exactly the meeting_role labels, so this passes straight through.
+        "primary_role": first(v, "primary_role"),
         "content": first(v, "content"),
         # Slug is note_created_at, not created_at -- Attio reserves created_at
         # as a protected system attribute on every custom object.
@@ -166,15 +169,16 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
             raise RuntimeError("Refusing to write outside wusool_crm")
         rows = [(
             n["id"], n["organization_id"], n["person_id"], n["buyer_role_id"], n["seller_role_id"],
-            n["note_type"], n["content"], n["created_at"],
+            n["note_type"], n["primary_role"], n["content"], n["created_at"],
         ) for n in to_upsert]
         c.executemany(
-            """INSERT INTO notes(id, organization_id, person_id, buyer_role_id, seller_role_id, note_type, content, created_at)
-               VALUES(%s,%s,%s,%s,%s,%s,%s,COALESCE(%s, now()))
+            """INSERT INTO notes(id, organization_id, person_id, buyer_role_id, seller_role_id, note_type, primary_role, content, created_at)
+               VALUES(%s,%s,%s,%s,%s,%s,%s::meeting_role,%s,COALESCE(%s, now()))
                ON CONFLICT(id) DO UPDATE SET
                  organization_id=excluded.organization_id, person_id=excluded.person_id,
                  buyer_role_id=excluded.buyer_role_id, seller_role_id=excluded.seller_role_id,
-                 note_type=excluded.note_type, content=excluded.content,
+                 note_type=excluded.note_type, primary_role=excluded.primary_role,
+                 content=excluded.content,
                  created_at=COALESCE(excluded.created_at, notes.created_at)""",
             rows,
         )
