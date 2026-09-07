@@ -62,3 +62,20 @@ def test_build_note_writer_always_returns_a_writer() -> None:
     serving both environments there is no such deployment left, and keeping
     the gate would mean note pushes silently stopping on a blank setting."""
     assert isinstance(bootstrap.build_note_writer(), AttioNoteWriter)
+
+
+def test_a_blank_note_object_slug_is_rejected_at_construction(monkeypatch) -> None:
+    """This replaces the runtime guard `_write_note` used to carry. A bare
+    `str` accepts ATTIO_NOTE_OBJECT_SLUG="" from a blank Secrets Manager
+    value, which would build `POST /objects//records` and fail silently on a
+    best-effort path. Failing at construction is the same call
+    `desktop_api_key` already makes for the same reason.
+    """
+    from pydantic import ValidationError
+
+    from app.modules.meetings.config import Settings
+
+    monkeypatch.setenv("ATTIO_NOTE_OBJECT_SLUG", "")
+
+    with pytest.raises(ValidationError, match="at least 1 character"):
+        Settings(_env_file=None)

@@ -89,23 +89,26 @@ class PublishMixin(ServiceBase):
         repository failure roll back the meeting row's mark_completed
         above, which has already succeeded.
         """
+        # No availability gate: the `note` object exists in SOURCE, which
+        # serves both environments now, and the slug is validated non-empty
+        # at the config boundary. `push_note` swallows its own Attio errors
+        # and returns None; the except here covers anything it cannot.
         note_id: UUID | None = None
-        if self._note_writer is not None and self._attio_note_object_slug:
-            try:
-                note_id = await self._note_writer.push_note(
-                    organization_attio_id=org_id,
-                    content=content,
-                    created_at=meeting.occurred_at,
-                    object_slug=self._attio_note_object_slug,
-                )
-            except Exception as exc:  # noqa: BLE001 - best-effort, must not affect the meeting
-                logger.warning(
-                    "note_push_failed meeting_id=%s error=%s",
-                    meeting.id,
-                    exc,
-                    extra={"meeting_id": str(meeting.id), "error": str(exc)},
-                )
-                note_id = None
+        try:
+            note_id = await self._note_writer.push_note(
+                organization_attio_id=org_id,
+                content=content,
+                created_at=meeting.occurred_at,
+                object_slug=self._attio_note_object_slug,
+            )
+        except Exception as exc:  # noqa: BLE001 - best-effort, must not affect the meeting
+            logger.warning(
+                "note_push_failed meeting_id=%s error=%s",
+                meeting.id,
+                exc,
+                extra={"meeting_id": str(meeting.id), "error": str(exc)},
+            )
+            note_id = None
 
         try:
             await self._notes_repository.create(

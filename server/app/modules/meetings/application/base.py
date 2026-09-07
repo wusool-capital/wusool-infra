@@ -35,8 +35,8 @@ class ServiceBase:
         notes_repository: NotesRepositoryPort,
         organization_lookup: OrganizationLookupPort,
         summarization_service: SummarizationService,
-        note_writer: NoteWriterPort | None,
-        attio_note_object_slug: str | None,
+        note_writer: NoteWriterPort,
+        attio_note_object_slug: str,
         summary_semaphore: asyncio.Semaphore,
     ) -> None:
         self._meetings_repository = meetings_repository

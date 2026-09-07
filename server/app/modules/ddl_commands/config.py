@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,7 +36,9 @@ class Settings(BaseSettings):
     # The unified "note" object's api_slug in SOURCE Attio. Constant since
     # one SOURCE workspace began serving both environments; kept
     # configurable only so a slug rename doesn't need a code change.
-    attio_note_object_slug: str = "note"
+    # min_length=1 rejects a set-but-empty value, which would otherwise build
+    # `/objects//records/query` in the nightly resync.
+    attio_note_object_slug: str = Field("note", min_length=1)
 
     @field_validator("database_url")
     @classmethod

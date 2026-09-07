@@ -51,7 +51,6 @@ from app.modules.utilities.domain.logging import configure_logging, log_context
 
 settings = get_settings()
 configure_logging(settings.log_level)
-
 import_matching_engine_models()
 import_ddl_commands_models()
 import_meetings_models()
