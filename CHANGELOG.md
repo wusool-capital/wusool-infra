@@ -9,6 +9,18 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-07 (yet again)
+
+### Fixed
+
+- WusoolScribe 0.4.8: every `ScrollArea` surface (sidebar meeting list,
+  settings, folder view, transcript panel, model manager, dialogs) showed a
+  duplicate native scrollbar alongside the shadcn/Radix one. Radix hides the
+  native bar via a runtime-injected `<style>` tag, which Tauri's nonce'd
+  `style-src` CSP silently drops — the same class of issue #117 hit with
+  Sonner's stylesheet. The hiding rule is now shipped in `globals.css`
+  instead, scoped to `[data-radix-scroll-area-viewport]`.
+
 ## 2026-09-07 (even later)
 
 ### Changed

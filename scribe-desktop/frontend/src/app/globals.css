@@ -157,6 +157,18 @@
     height: 100%;
   }
 
+  /* Radix ScrollArea hides the viewport's native scrollbar with a runtime-injected
+     <style>, which Tauri's nonce'd style-src drops -- same reason Sonner's stylesheet
+     is bundled in layout.tsx. Ship the rule from a 'self' stylesheet instead. */
+  [data-radix-scroll-area-viewport] {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Make the window draggable */
   .titlebar {
     -webkit-app-region: drag;
