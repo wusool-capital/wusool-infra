@@ -1,4 +1,11 @@
-# Nightly safety-net full resync of DEV Attio -> Postgres. Complements, not
+# Nightly safety-net full resync of SOURCE Attio -> the PRODUCTION Postgres.
+#
+# This job writes the production database. It runs unattended, so nobody reads
+# a dry run first -- the resync itself refuses to start unless
+# ATTIO_IS_TEST=false, and skips every record flagged is_test, since one SOURCE
+# workspace now serves both environments.
+#
+# Complements, not
 # replaces, the real-time webhook (server/app/modules/ddl_commands/api/attio_sync.py,
 # `POST /webhooks/attio`) — catches
 # anything a dropped delivery, an out-of-order race, or a deliberate pause
@@ -33,7 +40,12 @@ jobs:
   full-resync:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: dev
+    # `prod` has no protection rules today, so a scheduled run does not sit
+    # waiting for an approval. If a reviewer rule is ever added here this job
+    # will stall silently every night -- it needs no environment secrets (the
+    # role ARN below is inline), so the key can simply be dropped if that
+    # happens.
+    environment: prod
 
     # Never let tonight's run and tomorrow's cron trigger overlap against the
     # same tables — a run that's still executing when the next one fires
@@ -50,10 +62,10 @@ jobs:
 
       - uses: ./.github/actions/aws-oidc
         with:
-          role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-dev
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
 
       # Read-only: no `apply` here, only the instance_id output already
-      # applied by deploy-dev.yml's own run of stacks/toolkit.
+      # applied by deploy-prod.yml's own run of stacks/toolkit.
       - name: Read toolkit stack outputs
         id: toolkit
         working-directory: infrastructure/terraform/stacks/toolkit
@@ -62,7 +74,7 @@ jobs:
           tofu init -reconfigure -input=false \
             -backend-config=bucket=wusool-tfstate \
             -backend-config=region=me-central-1 \
-            -backend-config=key=wusool/dev/toolkit/terraform.tfstate \
+            -backend-config=key=wusool/prod/toolkit/terraform.tfstate \
             -backend-config=use_lockfile=true -backend-config=encrypt=true
           echo "instance_id=$(tofu output -raw instance_id 2>/dev/null || echo '')" >> "$GITHUB_OUTPUT"
 
@@ -72,8 +84,12 @@ jobs:
           IID: ${{ steps.toolkit.outputs.instance_id }}
         run: |
           ./.github/scripts/nightly-attio-resync.sh \
-            "$IID" "${{ github.run_id }}" "/wusool/dev/toolkit"
+            "$IID" "${{ github.run_id }}" "/wusool/prod/toolkit"
 
-      - name: No toolkit instance in dev
+      # Outstanding: a failed run is only visible in the Actions tab. Now that
+      # this writes production it deserves an `if: failure()` notification, but
+      # no workflow in this repo has one yet and inventing the mechanism here
+      # is out of scope -- tracked in docs/handover/README.md.
+      - name: No toolkit instance in prod
         if: steps.toolkit.outputs.instance_id == ''
-        run: echo "::notice::No toolkit instance in dev (create_instance=false) — skipping nightly resync."
+        run: echo "::notice::No toolkit instance in prod (create_instance=false) — skipping nightly resync."

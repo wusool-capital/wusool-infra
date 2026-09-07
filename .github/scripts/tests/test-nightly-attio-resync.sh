@@ -26,7 +26,7 @@ export PATH="$TMP:$PATH"
 export AWS_CALLS_FILE="$TMP/calls"
 export NIGHTLY_SYNC_SLEEP=0
 
-"$SCRIPT" i-123 42 /wusool/dev/toolkit
+"$SCRIPT" i-123 42 /wusool/prod/toolkit
 
 grep -q 'ssm describe-instance-information' "$AWS_CALLS_FILE"
 grep -q 'ssm send-command' "$AWS_CALLS_FILE"

@@ -3,8 +3,8 @@
 
 # Populate the secret value out of band with JSON: {"slack_bot_token": "...",
 # "slack_signing_secret": "...", "database_url": "postgresql://...",
-# "github_token": "...", "env": {"ATTIO_API_KEY": "...",
-# "ATTIO_WEBHOOK_SECRET": "..."}}. ddl_commands' Settings requires both
+# "env": {"ATTIO_API_KEY": "...", "ATTIO_WEBHOOK_SECRET": "...",
+# "ATTIO_NOTE_OBJECT_SLUG": "note"}}. ddl_commands' Settings requires both
 # ATTIO_API_KEY and ATTIO_WEBHOOK_SECRET unconditionally (see
 # server/app/modules/ddl_commands/config.py) — omitting either fails Settings()
 # construction on the very first request that touches the database, for
@@ -14,6 +14,15 @@
 # value Attio returns exactly once, in the response to `POST /v2/webhooks` —
 # see the webhook-registration runbook handed over separately. Never put
 # real secrets in a .tf file or state diff.
+#
+# ATTIO_API_KEY is the SOURCE workspace's key in BOTH environments now — one
+# workspace serves both, and ATTIO_IS_TEST separates them. That flag is
+# templated from var.environment in modules/toolkit-ec2 rather than living
+# here, so it cannot be forgotten; a key of the same name in `env: {}` still
+# overrides it, since the passthrough is appended after the templated block.
+# Give dev its own SOURCE key rather than reusing prod's: every dev-originated
+# record then also carries a distinct created_by.actor_id in Attio, which is a
+# second discriminator that survives a missed is_test.
 resource "aws_secretsmanager_secret" "wusool_toolkit" {
   name                    = "/${var.project}/${var.environment}/toolkit"
   description             = "Environment-specific wusool-toolkit secrets for ${var.project} ${var.environment}"
