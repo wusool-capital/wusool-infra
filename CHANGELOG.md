@@ -9,6 +9,17 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-08
+
+### Fixed
+
+- `/edit-seller`/`/edit-buyer` failed on `organizations.client_type` with an
+  "objects attribute" option error and saved nothing. The field is declared a
+  `select` with nine options, but it is plain `text` in the SOURCE Attio
+  workspace (options list empty) — the option lookup matched nothing and
+  raised before any write. It is now a free-text field again, comma-separated
+  for multiple values, matching the read path in `attio_sync.py`.
+
 ## 2026-09-07 (yet again)
 
 ### Fixed

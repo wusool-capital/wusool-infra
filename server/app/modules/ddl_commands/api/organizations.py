@@ -32,6 +32,13 @@ identical in the SOURCE and DEV workspaces. It had been the one field with
 no option list, rendered as a free-text box — so a typo ("Fin tech") only
 surfaced as an `OptionNotFoundError` after `ack()`, discarding everything
 else the operator had filled in. Same for `buyer_roles.target_geography`.
+
+`client_type` is `text` in SOURCE Attio (verified live 2026-09-08,
+`GET /v2/objects/organizations/attributes/client_type`, options list empty).
+It was declared `select` here, so every write raised `OptionNotFoundError`
+before reaching Attio. Multiple values go in comma-separated, matching the
+read path, which joins SOURCE's titles with ", " into the same text column
+(`persistence/attio_sync.py`).
 """
 
 from datetime import date
@@ -157,22 +164,7 @@ ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
             "Nursery",
         ),
     ),
-    FieldSpec(
-        "client_type",
-        "Client type",
-        "select",
-        options=(
-            "Fundraising",
-            "M&A",
-            "IR & Governance Retainer",
-            "Direct Investments",
-            "Project",
-            "Workshop",
-            "Other",
-            "Buy-Side",
-            "Sell-Side",
-        ),
-    ),
+    FieldSpec("client_type", "Client type", "text"),
     FieldSpec(
         "relationship_status",
         "Relationship status",
