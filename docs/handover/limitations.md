@@ -28,6 +28,5 @@
 - **AWS SES is in sandbox mode** — each recipient email address must be
   individually verified before it can receive n8n email. This is a
   one-time setup step per recipient, not an ongoing limitation.
-- {% hint style="warning" %}Verify before delivery{% endhint %} The
-  production n8n bootstrap procedure may lag the current infrastructure
+- The production n8n bootstrap procedure may lag the current infrastructure
   template — confirm before relying on it for an emergency re-provision.
