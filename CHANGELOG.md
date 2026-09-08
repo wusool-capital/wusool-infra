@@ -11,6 +11,20 @@ delivered state and outstanding items see
 
 ## 2026-09-08
 
+### Changed
+
+- `docs/handover/`, `docs/technical/`, and `docs/user-guide/` are each split
+  from one long `README.md` into a per-feature GitBook page tree
+  (`docs/SUMMARY.md`, `docs/.gitbook.yaml`), so the docs can be imported into
+  GitBook and delivered to the client with a screenshot slot per feature.
+  Dev-only content (raw dev URLs, dev/prod comparison tables, the `is_test`
+  cutover mechanics, and internal-only outstanding items) moved to
+  `docs/dev/ATTIO_SOURCE_CUTOVER.md` and `docs/dev/INTERNAL_OUTSTANDING.md`;
+  the client-facing pages are prod-only. Added a WusoolScribe half to the
+  user guide and a `technical/scribe-desktop.md` page — the desktop app and
+  the `meetings` server module previously had no client-facing
+  documentation at all.
+
 ### Fixed
 
 - `/edit-seller`/`/edit-buyer` failed on `organizations.client_type` with an
