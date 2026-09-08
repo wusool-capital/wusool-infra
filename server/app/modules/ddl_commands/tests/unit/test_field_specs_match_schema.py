@@ -31,6 +31,7 @@ _EXPECTED_COLUMN_TYPE = {
     "multiline": Text,
     "select": Text,
     "multi_select_text": ARRAY,
+    "multi_select_as_text": Text,
     "currency": JSONB,
     "date": Date,
     "bool": Boolean,

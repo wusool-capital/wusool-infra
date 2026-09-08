@@ -59,7 +59,7 @@ async def build_attio_values(
         if value is None:
             continue
         spec = fields[name]
-        if spec.kind in ("text", "multiline"):
+        if spec.kind in ("text", "multiline", "multi_select_as_text"):
             attio_values[name] = value
         elif spec.kind == "select":
             option_id = await get_option_id(

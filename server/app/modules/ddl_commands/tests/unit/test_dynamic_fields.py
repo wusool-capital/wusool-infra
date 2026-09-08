@@ -175,3 +175,31 @@ def test_percent_extracts_blank_as_none() -> None:
     values = {"gross_margin_pct": {"gross_margin_pct": {"value": ""}}}
     result = extract_field_value(_GROSS_MARGIN_SPEC, values)
     assert result is None
+
+
+# `organizations.client_type` is a fixed vocabulary rendered as a multi-select,
+# but a plain `text` attribute in Attio — so it must round trip through a
+# comma-joined string, not a list.
+_CLIENT_TYPE_SPEC = FieldSpec(
+    "client_type", "Client type", "multi_select_as_text", options=("Fundraising", "M&A")
+)
+
+
+def test_multi_select_as_text_preselects_each_comma_separated_value() -> None:
+    block = render_field_block(_CLIENT_TYPE_SPEC, "Fundraising, M&A")
+    selected = block.element.initial_options
+    assert [option.value for option in selected] == ["Fundraising", "M&A"]
+
+
+def test_multi_select_as_text_extracts_a_joined_string() -> None:
+    values = {
+        "client_type": {
+            "client_type": {"selected_options": [{"value": "Fundraising"}, {"value": "M&A"}]}
+        }
+    }
+    assert extract_field_value(_CLIENT_TYPE_SPEC, values) == "Fundraising, M&A"
+
+
+def test_multi_select_as_text_extracts_nothing_picked_as_none() -> None:
+    values = {"client_type": {"client_type": {"selected_options": []}}}
+    assert extract_field_value(_CLIENT_TYPE_SPEC, values) is None

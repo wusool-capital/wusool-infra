@@ -1,10 +1,24 @@
-# Documentation
+# Wusool Capital — Platform Documentation
 
-| Audience | Document |
+This is the documentation for the software delivered to Wusool Capital:
+the **Wusool Toolkit** Slack bot, the **WusoolScribe** meeting assistant, and
+the AWS platform they run on.
+
+| I want to... | Go to |
 | --- | --- |
-| Business / ops users | [`user-guide/`](user-guide/README.md) — how to use the Wusool Toolkit Slack bot |
-| Developers | [`technical/`](technical/README.md) — architecture, deployment, configuration, and a map to the deeper docs |
-| Client / delivery | [`handover/`](handover/README.md) — delivered state, environments, third-party services, known limitations, outstanding items |
-| Change history | [`../CHANGELOG.md`](../CHANGELOG.md) |
-| Runbooks & contracts | [`dev/SCRIBE_INFRA_CONTRACT.md`](dev/SCRIBE_INFRA_CONTRACT.md), [`dev/infra_access.md`](dev/infra_access.md), [`dev/SLACK_APP_SETUP.md`](dev/SLACK_APP_SETUP.md) |
-| New to this codebase's architecture | [`dev/MODULAR_MONOLITH_GUIDE.md`](dev/MODULAR_MONOLITH_GUIDE.md) — how `server/`'s modules are laid out and how to read one |
+| Use the Slack bot or WusoolScribe day to day | [User Guide](user-guide/README.md) |
+| Understand how the system is built | [Technical Documentation](technical/README.md) |
+| See what was delivered, what's outstanding, and who to contact | [Handover](handover/README.md) |
+
+## What's included
+
+- **Wusool Toolkit** — a Slack bot for the deal team: finding buyer–seller
+  matches and keeping buyer/seller profiles up to date.
+- **WusoolScribe** — a desktop meeting assistant that records, transcribes,
+  and summarizes meetings, and can push a summary into the CRM.
+- **The Attio ↔ database platform** — Attio (the CRM) kept in sync with a
+  structured database that powers matching and automation.
+- **n8n** — a workflow-automation platform for the team.
+
+All of it runs on AWS infrastructure managed as code and deployed
+automatically from source control.

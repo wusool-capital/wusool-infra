@@ -9,6 +9,53 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-08
+
+### Changed
+
+- `docs/handover/`, `docs/technical/`, and `docs/user-guide/` are each split
+  from one long `README.md` into a per-feature GitBook page tree
+  (`docs/SUMMARY.md`, `docs/.gitbook.yaml`), so the docs can be imported into
+  GitBook and delivered to the client with a screenshot slot per feature.
+  Dev-only content (raw dev URLs, dev/prod comparison tables, the `is_test`
+  cutover mechanics, and internal-only outstanding items) moved to
+  `docs/dev/ATTIO_SOURCE_CUTOVER.md` and `docs/dev/INTERNAL_OUTSTANDING.md`;
+  the client-facing pages are prod-only. Added a WusoolScribe half to the
+  user guide and a `technical/scribe-desktop.md` page — the desktop app and
+  the `meetings` server module previously had no client-facing
+  documentation at all.
+
+### Fixed
+
+- `/edit-seller`/`/edit-buyer` failed on `organizations.client_type` with an
+  "objects attribute" option error and saved nothing. The field is declared a
+  `select` with nine options, but it is plain `text` in the SOURCE Attio
+  workspace (options list empty) — the option lookup matched nothing and
+  raised before any write. It is now a `multi_select_as_text` field: operators
+  still pick from the nine titles, and the picked ones are written comma-joined
+  as a bare string, the shape #123 documented for both sides and the shape
+  `attio_sync.py` already reads back.
+
+### Added
+
+- `multi_select_as_text` `FieldKind`, for an attribute that is plain `text` in
+  Attio but has a fixed vocabulary operators shouldn't have to retype. Renders
+  Slack's multi-select, stores `", "`-joined titles. Distinct from
+  `multi_select_text`, which is a real Attio multi-select writing option IDs
+  into a `text[]` column.
+
+## 2026-09-07 (yet again)
+
+### Fixed
+
+- WusoolScribe 0.4.8: every `ScrollArea` surface (sidebar meeting list,
+  settings, folder view, transcript panel, model manager, dialogs) showed a
+  duplicate native scrollbar alongside the shadcn/Radix one. Radix hides the
+  native bar via a runtime-injected `<style>` tag, which Tauri's nonce'd
+  `style-src` CSP silently drops — the same class of issue #117 hit with
+  Sonner's stylesheet. The hiding rule is now shipped in `globals.css`
+  instead, scoped to `[data-radix-scroll-area-viewport]`.
+
 ## 2026-09-07 (even later)
 
 ### Changed
