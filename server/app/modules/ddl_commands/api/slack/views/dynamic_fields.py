@@ -45,6 +45,9 @@ def render_field_block(
         return select_block(block_id, spec.label, current_value, spec.options)
     if spec.kind == "multi_select_text":
         return multi_select_block(block_id, spec.label, current_value, spec.options)
+    if spec.kind == "multi_select_as_text":
+        selected = [part.strip() for part in current_value.split(",")] if current_value else []
+        return multi_select_block(block_id, spec.label, selected, spec.options)
     if spec.kind == "date":
         return date_input_block(block_id, spec.label, current_value)
     if spec.kind == "currency":
@@ -89,6 +92,9 @@ def extract_field_value(
         if not raw:
             return []
         return [part.strip() for part in raw.split(",") if part.strip()]
+    if spec.kind == "multi_select_as_text":
+        # The column is nullable text, so nothing picked is NULL, not "".
+        return ", ".join(get_multi_static_select(values, block_id, block_id)) or None
     if spec.kind == "date":
         raw = get_date(values, block_id, block_id)
         return date.fromisoformat(raw) if raw else None
