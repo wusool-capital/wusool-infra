@@ -15,8 +15,6 @@ In **Settings → Push Destination**, enter:
 WusoolScribe checks the URL and key before saving, so you'll know
 immediately if something's wrong.
 
-![The Push Destination settings pane, with Server URL and API Key fields.](../../images/scribe-push-destination.png)
-
 Each install also has an **Install ID**, generated automatically and shown
 on this same screen — quote it if you ever need support.
 
@@ -30,8 +28,6 @@ on this same screen — quote it if you ever need support.
 The server generates a structured note from the summary and files it in
 Attio, linked to that organization's buyer or seller record when one exists.
 A meeting with no organization is still filed as a general note.
-
-![Pushing a meeting's summary to the CRM, with organization search.](../../images/scribe-push-meeting.png)
 
 Pushing can take a little while to finish generating the note on the
 server — you don't need to wait with the app open; the meeting's status

@@ -11,6 +11,3 @@
 4. **Submit.** The bot creates the organization (if new) and the role in
    Attio first, then the database.
 
-![The organization selection step: attach to an existing organization or create a new one.](../../images/toolkit-add-org-selection.png)
-
-![The add form for a new seller or buyer, with every field optional except a new organization's name.](../../images/toolkit-add-form.png)

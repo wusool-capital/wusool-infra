@@ -10,10 +10,6 @@
    fails partway, the confirmation message tells you exactly what was saved
    and what was not.
 
-![The field picker modal, grouped into Organization and Seller/Buyer profile.](../../images/toolkit-edit-field-picker.png)
-
-![The edit form, pre-filled with the record's current values.](../../images/toolkit-edit-form.png)
-
 ## Fields you cannot edit from Slack
 
 Some fields are intentionally left out of the edit form:

@@ -10,8 +10,6 @@
    - **Reject** — records that the match is not suitable.
    - **View Full Analysis** — shows the detailed reasoning behind the score.
 
-![A ranked shortlist posted by `/find-match`, with Approve, Reject and View Full Analysis buttons on each result.](../../images/toolkit-find-match-shortlist.png)
-
 ## Reading the result
 
 - **Score** — an overall fit percentage. Higher is better. It combines
@@ -23,8 +21,6 @@
 - **No strong match** — if every seller scores below the internal threshold,
   the bot instead shows up to **three unverified leads** found on Google
   Maps. These are suggestions only: they are not saved and are shown once.
-
-![The View Full Analysis panel, showing the detailed reasoning behind a match score.](../../images/toolkit-find-match-full-analysis.png)
 
 ## What `/find-match` does not do
 

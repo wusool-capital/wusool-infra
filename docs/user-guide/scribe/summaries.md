@@ -10,9 +10,5 @@ an AI provider of your choice:
 Choose your provider once in **Settings**; it's used for every summary after
 that.
 
-![Generating a summary for a completed meeting.](../../images/scribe-summary-generation.png)
-
-![Editing a generated summary before saving or pushing it.](../../images/scribe-summary-editor.png)
-
 The summary is editable — treat it as a first draft. Once you're happy with
 it, you can [push it to the CRM](push-to-crm.md).
