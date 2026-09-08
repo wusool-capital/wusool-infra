@@ -6,7 +6,7 @@ region.
 | Item | Value |
 | --- | --- |
 | n8n | `https://n8n.wusoolcapital.com/` |
-| Toolkit bot Slack Request URL | {% hint style="warning" %}Verify before delivery{% endhint %} Provisioned — confirm the current live hostname before handover. |
+| Toolkit bot Slack Request URL | Provisioned — confirm the current live hostname before handover. |
 | DNS | Managed in Cloudflare, pointing at each service's address. |
 | Region | `eu-central-1` (Frankfurt) |
 

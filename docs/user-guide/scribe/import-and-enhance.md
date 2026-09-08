@@ -13,4 +13,3 @@ instead of recording live:
 You can also **Enhance** a meeting you've already recorded — re-transcribe it
 with a different model or language, without leaving your machine.
 
-![Importing an existing audio file for transcription.](../../images/scribe-import-enhance.png)

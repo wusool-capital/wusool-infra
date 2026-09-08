@@ -23,8 +23,8 @@ The delivered platform includes:
 | --- | --- | --- |
 | Continuous deployment | Live | Merges to the main branches apply infrastructure changes and health-check the applications automatically. No static AWS keys involved. |
 | n8n | Live | HTTPS, pinned image versions, email delivery working (sandbox mode — see [Known limitations](limitations.md)). |
-| Wusool Toolkit Slack bot | {% hint style="warning" %}Verify before delivery{% endhint %} Live | One process, five commands. |
-| PostgreSQL database | {% hint style="warning" %}Verify before delivery{% endhint %} Live | System of record for matching and CRM sync. |
+| Wusool Toolkit Slack bot | Live | One process, five commands. |
+| PostgreSQL database | Live | System of record for matching and CRM sync. |
 | Schema management | Live | Migrations are the schema source of truth, applied automatically as part of deployment. |
 | Attio → PostgreSQL sync | Live | Nightly full resync plus a real-time webhook, both verified end-to-end. |
 | AI matching (AWS Bedrock) | Live | See [AI / LLM architecture](../technical/ai-architecture.md). |

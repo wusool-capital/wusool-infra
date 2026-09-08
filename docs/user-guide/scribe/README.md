@@ -5,8 +5,6 @@ computer. It records a meeting, transcribes it in real time, and generates
 an AI summary — all without sending your audio to the cloud. When you're
 ready, it can push a meeting's summary to the Wusool CRM.
 
-![WusoolScribe recording a meeting, with a live transcript.](../../images/scribe-home-recording.png)
-
 ## Why it's built this way
 
 - **Local first.** All recording and transcription happen on your machine.

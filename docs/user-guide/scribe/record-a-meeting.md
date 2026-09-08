@@ -9,8 +9,6 @@
 4. Pause or stop the recording at any point. Stopping ends the meeting and
    moves it to your meeting list.
 
-![The recording controls: pause, stop, and a live audio level meter.](../../images/scribe-recording-controls.png)
-
 All audio is saved locally on your computer. See
 [Audio setup](audio-setup.md) for how microphone and system audio are
 combined.

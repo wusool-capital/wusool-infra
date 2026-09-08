@@ -22,8 +22,6 @@ first, then in the database a moment later.
 Type the command in any channel or direct message where the bot is present.
 Replies are only visible to you.
 
-![The Toolkit bot's slash commands, as they appear in Slack's command autocomplete.](../../images/toolkit-slash-commands.png)
-
 ## Before you start
 
 - Anyone in the workspace can run these commands — see
