@@ -17,8 +17,18 @@ delivered state and outstanding items see
   "objects attribute" option error and saved nothing. The field is declared a
   `select` with nine options, but it is plain `text` in the SOURCE Attio
   workspace (options list empty) — the option lookup matched nothing and
-  raised before any write. It is now a free-text field again, comma-separated
-  for multiple values, matching the read path in `attio_sync.py`.
+  raised before any write. It is now a `multi_select_as_text` field: operators
+  still pick from the nine titles, and the picked ones are written comma-joined
+  as a bare string, the shape #123 documented for both sides and the shape
+  `attio_sync.py` already reads back.
+
+### Added
+
+- `multi_select_as_text` `FieldKind`, for an attribute that is plain `text` in
+  Attio but has a fixed vocabulary operators shouldn't have to retype. Renders
+  Slack's multi-select, stores `", "`-joined titles. Distinct from
+  `multi_select_text`, which is a real Attio multi-select writing option IDs
+  into a `text[]` column.
 
 ## 2026-09-07 (yet again)
 

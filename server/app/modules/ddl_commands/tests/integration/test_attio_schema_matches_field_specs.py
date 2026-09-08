@@ -48,6 +48,7 @@ _EXPECTED_ATTIO_TYPE = {
     "multiline": "text",
     "select": "select",
     "multi_select_text": "select",
+    "multi_select_as_text": "text",
     "currency": "currency",
     "date": "date",
     "bool": "checkbox",

@@ -16,11 +16,18 @@ from pydantic import BaseModel
 # `int` (built for `twitter_follower_count`), while "percent" maps to
 # `Numeric` and keeps decimal precision (e.g. `12.5`) for percentage-shaped
 # columns like `seller_roles.gross_margin_pct`.
+# "multi_select_text" vs "multi_select_as_text": both render Slack's
+# multi-select over `options`, but the first is a real Attio multi-select
+# (option IDs out, `text[]` column) while the second is a plain Attio `text`
+# attribute the operators pick into — titles joined with ", " on the way out,
+# split back on the way in. `organizations.client_type` is the latter: text in
+# Attio, so a bare string, but a fixed vocabulary operators shouldn't retype.
 FieldKind = Literal[
     "text",
     "multiline",
     "select",
     "multi_select_text",
+    "multi_select_as_text",
     "currency",
     "date",
     "bool",

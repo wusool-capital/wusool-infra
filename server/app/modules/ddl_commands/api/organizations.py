@@ -36,9 +36,12 @@ else the operator had filled in. Same for `buyer_roles.target_geography`.
 `client_type` is `text` in SOURCE Attio (verified live 2026-09-08,
 `GET /v2/objects/organizations/attributes/client_type`, options list empty).
 It was declared `select` here, so every write raised `OptionNotFoundError`
-before reaching Attio. Multiple values go in comma-separated, matching the
-read path, which joins SOURCE's titles with ", " into the same text column
-(`persistence/attio_sync.py`).
+before reaching Attio. It is `multi_select_as_text` instead: operators still
+pick from the vocabulary below, but the picked titles are joined with ", "
+into a bare string — the shape the read path already writes into the same
+text column (`persistence/attio_sync.py`). The options below are therefore
+this codebase's own list, not Attio's: the live-schema test can't verify
+them, because a text attribute has none.
 """
 
 from datetime import date
@@ -52,7 +55,7 @@ class OrganizationUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     hq_country: str | None = Field(default=None, max_length=100)
     sector_focus: list[str] | None = None
-    client_type: str | None = Field(default=None, max_length=100)
+    client_type: str | None = Field(default=None, max_length=200)
     relationship_status: str | None = Field(default=None, max_length=100)
     estimated_arr: str | None = Field(default=None, max_length=100)
     funding_raised: float | None = None
@@ -164,7 +167,22 @@ ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
             "Nursery",
         ),
     ),
-    FieldSpec("client_type", "Client type", "text"),
+    FieldSpec(
+        "client_type",
+        "Client type",
+        "multi_select_as_text",
+        options=(
+            "Fundraising",
+            "M&A",
+            "IR & Governance Retainer",
+            "Direct Investments",
+            "Project",
+            "Workshop",
+            "Other",
+            "Buy-Side",
+            "Sell-Side",
+        ),
+    ),
     FieldSpec(
         "relationship_status",
         "Relationship status",
