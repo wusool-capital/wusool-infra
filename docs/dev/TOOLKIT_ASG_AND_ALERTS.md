@@ -113,23 +113,48 @@ InvalidRequestException: Slack channel with ID C0C0E16U0HH in Slack team
 T0BAE254789 has already been configured for AWS account 030179310793.
 ```
 
-This restriction is account-wide, not per-region. **The actual fix:**
-Chatbot's `sns_topic_arns` list on the *existing* config happily accepts a
-cross-region ARN. So there's a `us-east-1` twin of the alerts SNS topic
-(`aws_sns_topic.alerts_us_east_1` in `stacks/base`), and the *one* existing
-eu-central-1 Chatbot config subscribes to both topics — not two configs.
+Cross-region topic subscription on the *existing* config is one half of the
+fix (Chatbot's `sns_topic_arns` list happily accepts a cross-region ARN).
+The other half took a second failure to find: **this restriction is
+account-wide, not per-environment either.** Dev and prod share this AWS
+account, and both want `#infra-alerts` — dev's own per-environment config
+(originally in `stacks/base`) applied first and succeeded, so prod's
+identical attempt hit the exact same error, cross-environment this time.
 
-### Gotcha: `GroupInServiceInstances` publishes zero datapoints at zero instances
+The actual, final shape: the one Chatbot channel configuration + its IAM
+role live in `stacks/account` (not per-environment `stacks/base` at all),
+reading both environments' alerts topics via `terraform_remote_state` and
+subscribing to all four — dev + prod, each in eu-central-1 and us-east-1.
+`stacks/base` still creates its own per-environment SNS topics; only the
+Chatbot-specific resources moved out.
 
-Confirmed by a live drill: with the ASG's desired capacity at 0, the
-`GroupInServiceInstances` metric doesn't publish an explicit `0` — it
-publishes **nothing at all**. An alarm without `treat_missing_data =
-"breaching"` just sits in `INSUFFICIENT_DATA` forever in that state — no
-Slack alert, no signal, for exactly the scenario the alarm exists to catch.
-`aws_cloudwatch_metric_alarm.in_service` sets this explicitly; if you add a
-similar count-based alarm elsewhere, check whether its metric behaves the
-same way at zero before assuming the default (`treat_missing_data =
-"missing"`) is safe.
+### Gotcha: ASG group metrics collection is off by default — always, not just at zero instances
+
+The first fix here (`treat_missing_data = "breaching"`) was based on an
+incomplete diagnosis. It was verified against a real drill (desired
+capacity → 0) and looked right: the alarm correctly went to `ALARM`. But a
+few minutes after restoring capacity to a perfectly healthy instance, the
+alarm was still stuck in `ALARM` — `aws cloudwatch list-metrics --namespace
+AWS/AutoScaling` returned **zero metrics for this ASG, at any capacity**.
+`aws_autoscaling_group.EnabledMetrics` was `[]`.
+
+**Group metrics collection is an opt-in AWS setting, off by default on
+every ASG.** Without it, `GroupInServiceInstances` (and every other
+`AWS/AutoScaling` group metric) never publishes at all — not "zero
+datapoints when the group is empty," but zero datapoints, ever, healthy or
+not. `treat_missing_data = "breaching"` turned "nobody enabled this metric"
+into "the alarm always lies," which is worse than the `INSUFFICIENT_DATA`
+gap it was meant to close.
+
+The real fix is `enabled_metrics = ["GroupInServiceInstances"]` on the
+`aws_autoscaling_group` resource — an in-place update, no instance
+replacement, confirmed live on both dev and prod. `treat_missing_data =
+"breaching"` is still correct and still needed as the belt-and-suspenders
+case (a metrics-collection outage, or the ASG being deleted outright), but
+it only does its job once real data is flowing the rest of the time. If you
+add a similar count-based ASG alarm elsewhere, check
+`describe-auto-scaling-groups`'s `EnabledMetrics` first — don't assume a
+missing-data setting alone makes the alarm trustworthy.
 
 ### How Slack threading actually works (and why you might miss an alert)
 
