@@ -39,6 +39,7 @@ lead_magnets/
     benchmark_copy.py         # generated report prose; do not hand-edit
     valuation.py              # sector resolution, peer matching, stats
     valuation_data.py         # typed loaders over data/valuation.json
+    valuation_methods.py      # DCF + 3 comps methods + the blend (the fallback)
     data/valuation.json       # 1000 M&A deals, 127 VC rounds, 31 comp sectors
     prompts.py                # every prompt, as a pure function
   persistence/
@@ -152,14 +153,13 @@ page parses. `tests/unit/test_readiness.py` is the regression net for that.
 
 ## Still to port
 
-- **Valuation.** The datasets and the pure helpers are ported and verified.
-  What remains is the auto-DCF module (`dopamine-valuation.html` ~1633-1829)
-  and the four-method blend in `ValuationSummary` (~2101) — together the
-  deterministic fallback, so the visitor still gets a real valuation when the
-  model fails — plus the five prompts (~401, 1430, 2239, 2459, 2877) that
-  unblock `/enrich`, `/analyze` and `/compare`. Two of those prompts use
-  Anthropic's `web_search` tool, which is what the Firecrawl pipeline
-  replaces.
+- **Valuation.** The datasets, the pure helpers, the DCF and the four-method
+  blend are ported and verified — the deterministic fallback is complete, so
+  the visitor gets a real valuation with the model switched off entirely.
+  What remains is the five prompts (`dopamine-valuation.html` ~401, 1430,
+  2239, 2459, 2877), which unblock `/enrich`, `/analyze` and `/compare`. Two
+  of them use Anthropic's `web_search` tool, which is what the Firecrawl
+  pipeline replaces.
 - **Benchmark.** Ported and verified. What remains is only the Attio field
   mapping (`relay-benchmark.js`'s ~40 slugs, its live-schema read and
   slug-remap handling) — a `providers/attio/` concern, not domain logic.
@@ -209,6 +209,7 @@ generated grid:
 | `benchmark_routing.py` route + quality | 6,840 | 0 |
 | `benchmark_submission.py` full `compute` | 8,019 | 0 |
 | `valuation.py` stats, matching, benchmarks | 350 | 1 (see below) |
+| `valuation_methods.py` DCF, comps, blend | 3,000 | 0 outside Qatar |
 
 That is what caught `js_round`. JavaScript's `Math.round` rounds a half away
 from zero and Python's `round` rounds a half to even, so `round(42.5)` is 42
@@ -223,7 +224,12 @@ than the whole grid.
 ### The one intentional divergence
 
 `tax_rate("Qatar")` and `tax_rate("Bahrain")` return **0**, where the live
-tool returns 20. Its lookup reads `return t[geo] || 20` and JavaScript
+tool returns 20. It propagates: 270 of the 3,000 DCF reference cases differ,
+and only the Qatar ones. Measured on those, the bug moved the blended
+mid-point by up to 63% for a profitable business (understated, because the
+tax drag was invented) and up to 31% the other way for a loss-making one
+(overstated, because a 20% rate softened negative cash flow with a tax
+shield that does not exist). Neither direction was visible in the output. Its lookup reads `return t[geo] || 20` and JavaScript
 treats `0` as falsy, so two jurisdictions whose table entries are correctly
 `0` are silently taxed at 20% — inflating the tax drag in the DCF and
 undervaluing every Qatari and Bahraini business. Reproducing that
