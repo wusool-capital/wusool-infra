@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.attio import attio_is_test, get_attio_client
 from app.modules.lead_magnets.application.pipelines import Pipelines
 from app.modules.lead_magnets.application.submit import SubmissionService
+from app.modules.lead_magnets.application.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.domain.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.database import get_sessionmaker
@@ -62,6 +63,10 @@ class _SellerRoleAttioWriter:
             domain=payload.get("domain"),
             entry_values=entry_values,
         )
+
+
+def build_valuation_ai() -> ValuationAi:
+    return ValuationAi(build_llm(), build_search())
 
 
 def build_pipelines() -> Pipelines:

@@ -4,10 +4,13 @@ Both follow the write contract: record the submission, respond to the
 visitor, then do everything that can fail in the background. Nothing after
 the response can lose the lead.
 
-`/enrich`, `/analyze`, `/compare` and `/buyer/apply` are specified but not
-implemented yet — they need the valuation prompts and the Buyer Network
-form, which are still to port. They are deliberately absent rather than
-stubbed: a 404 is honest, a stub that returns empty data is not.
+`/enrich`, `/analyze` and `/compare` are stateless — they build the report
+the visitor reads while still in the tool, long before there is a submission
+to record. The valuation submission itself goes through the write contract
+like every other tool.
+
+`/buyer/apply` is specified but not implemented: the Buyer Network form does
+not exist yet, and a 404 is honest where a stub returning empty data is not.
 """
 
 import logging
@@ -23,9 +26,15 @@ from app.modules.lead_magnets.api.dependencies import (
     require_allowed_origin,
 )
 from app.modules.lead_magnets.api.schemas import (
+    AnalyzeRequest,
     BenchmarkRequest,
     BenchmarkResponse,
+    ComparableOut,
+    CompareRequest,
+    CompareResponse,
     DimensionOut,
+    EnrichRequest,
+    EnrichResponse,
     FlagOut,
     ImpliedEvOut,
     MetricOut,
@@ -36,6 +45,7 @@ from app.modules.lead_magnets.api.schemas import (
 from app.modules.lead_magnets.bootstrap import (
     build_llm,
     build_submission_service,
+    build_valuation_ai,
     run_completion,
 )
 from app.modules.lead_magnets.domain.benchmark_submission import (
@@ -220,4 +230,60 @@ def _benchmark_response(run_id: str, result: BenchmarkResult) -> BenchmarkRespon
             if result.implied_ev
             else None
         ),
+    )
+
+
+@router.post("/enrich", response_model=EnrichResponse)
+async def enrich(request: EnrichRequest) -> EnrichResponse:
+    """Description and sector from the company's own page.
+
+    Stateless: this runs as the visitor types their website address, long
+    before there is a submission to record.
+    """
+    result = await build_valuation_ai().enrich(domain=request.domain, company=request.company)
+    return EnrichResponse(
+        description=result.get("description", ""), sector=result.get("sector", "")
+    )
+
+
+@router.post("/analyze")
+async def analyze(request: AnalyzeRequest) -> JsonObject:
+    """Sector judgement, discounts, DCF overrides, the strategic read and the
+    readiness scorecard — the merge of what were separate calls.
+
+    Runs in parallel with `/compare`; the two were split so the preview is
+    ready when the loading screen ends.
+    """
+    return await build_valuation_ai().analyze(
+        company=request.company,
+        domain=request.domain,
+        sector=request.sector,
+        description=request.description,
+        geography=request.geography,
+        revenue=request.revenue,
+        ebitda=request.ebitda,
+        website_text=request.website_text,
+    )
+
+
+@router.post("/compare", response_model=CompareResponse)
+async def compare(request: CompareRequest) -> CompareResponse:
+    """Comparable listed companies, grounded in search results.
+
+    Bedrock cannot search for Claude, so this is the replacement pipeline: a
+    cheap model plans the queries, Firecrawl runs them, the main model
+    selects from the results, and any shortfall is filled from the static
+    sector set rather than by inventing figures.
+    """
+    result = await build_valuation_ai().compare(
+        company=request.company,
+        sector=request.sector,
+        description=request.description,
+        revenue=request.revenue,
+        geography=request.geography,
+    )
+    return CompareResponse(
+        comps=[ComparableOut(**c) for c in result["comps"]],
+        sourced=result["sourced"],
+        filled_from_static=result["filled_from_static"],
     )

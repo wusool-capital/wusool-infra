@@ -62,10 +62,15 @@ posts to, so repointing it is a host change rather than a path change.
 |---|---|---|
 | `POST /benchmark` | serves | No model at all — scored against the peer dataset |
 | `POST /readiness/score` | serves | Sonnet 4.6, no fallback by decision |
-| `POST /enrich` | 404 | needs the valuation enrich prompt + Firecrawl scrape |
-| `POST /analyze` | 404 | needs the three merged valuation prompts |
-| `POST /compare` | 404 | needs the two-pass Firecrawl pipeline |
+| `POST /enrich` | serves | Sonnet 4.6 over a Firecrawl scrape of the one known URL |
+| `POST /analyze` | serves | Sonnet 4.6; sector judgement, discounts, DCF overrides, strategic read, scorecard |
+| `POST /compare` | serves | Haiku plans queries, Firecrawl runs them, Sonnet selects; shortfall filled from static data |
 | `POST /buyer/apply` | 404 | the Buyer Network form does not exist yet |
+
+`/enrich`, `/analyze` and `/compare` are stateless: they build the report the
+visitor reads while still in the tool, long before there is a submission to
+record. `/analyze` and `/compare` are meant to run in parallel — the split is
+what makes the preview ready when the loading screen ends.
 
 Both live endpoints commit the ledger row **before** responding, not at
 dependency teardown. Two reasons, both load-bearing: the contract is that
@@ -153,13 +158,17 @@ page parses. `tests/unit/test_readiness.py` is the regression net for that.
 
 ## Still to port
 
-- **Valuation.** The datasets, the pure helpers, the DCF and the four-method
-  blend are ported and verified — the deterministic fallback is complete, so
-  the visitor gets a real valuation with the model switched off entirely.
-  What remains is the five prompts (`dopamine-valuation.html` ~401, 1430,
-  2239, 2459, 2877), which unblock `/enrich`, `/analyze` and `/compare`. Two
-  of them use Anthropic's `web_search` tool, which is what the Firecrawl
-  pipeline replaces.
+- **Valuation.** Ported: the datasets, the pure helpers, the DCF, the
+  four-method blend and the three AI endpoints. What remains is
+  `generateStrategicAnalysis` (`dopamine-valuation.html` ~2239-2370), a
+  deterministic regex-based pros/cons generator that is the fallback for
+  `/analyze` — worth having, since `/analyze` currently has none — and the
+  valuation submission endpoint that writes to Attio.
+- The live tool turned out to make only **two** AI calls, not the six the
+  handover documents describe: the enrichment call and one analyst
+  mega-prompt covering eight steps. `callClaude` is defined and never
+  called. The five-prompt count came from counting steps and `web_search`
+  uses.
 - **Benchmark.** Ported and verified. What remains is only the Attio field
   mapping (`relay-benchmark.js`'s ~40 slugs, its live-schema read and
   slug-remap handling) — a `providers/attio/` concern, not domain logic.

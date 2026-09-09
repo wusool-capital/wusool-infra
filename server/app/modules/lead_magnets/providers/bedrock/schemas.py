@@ -22,22 +22,83 @@ class EnrichResult(BaseModel):
     sector: str
 
 
-class FundraiseScores(BaseModel):
-    """Left open: the dimension set comes from the valuation page's own
-    fundraise prompt, which has not been ported yet."""
+class TitledPoint(BaseModel):
+    """A strength, risk or insight. An object, not a string — the page renders
+    the title and the body separately, and the prompt asks for 8-15 word
+    titles against 40-60 word bodies."""
 
-    model_config = {"extra": "allow"}
+    title: str
+    body: str
+
+
+class ScoredDimension(BaseModel):
+    score: float
+    note: str
+
+
+class FundraiseScores(BaseModel):
+    """The M&A readiness scorecard the valuation page renders.
+
+    Three scored dimensions plus an overall grade. The prompt is explicit
+    that a missing figure scores 50 and says what is missing, rather than
+    the model inventing growth or retention metrics it was never given.
+    """
+
+    revenue_scale: ScoredDimension
+    profitability: ScoredDimension
+    market_context: ScoredDimension
+    overall_grade: str
+    overall_label: str
+    summary: str
+
+
+class SectorJudgement(BaseModel):
+    """The analyst's verdict on the auto-assigned tag. `poor` means the
+    closest available option would mislead the valuation."""
+
+    sector_fit: Literal["good", "poor"]
+    closest_existing_sector: str
+    effective_sector: str
+    rationale: str
+
+
+class Discounts(BaseModel):
+    revenue_discount_pct: float
+    ebitda_discount_pct: float
+
+
+class DcfOverrides(BaseModel):
+    """Sector assumptions the analyst overrides, replacing the static
+    benchmark. Field names are the page's own."""
+
+    revGrowth: float
+    ebitMarginImpr: float
+    daaPct: float
+    capexPct: float
+    nwcPct: float
+    termGrowth: float
 
 
 class AnalyzeResult(BaseModel):
-    """The merge of three current calls. Fixing a real bug in the process:
-    the preview and the full report were generated independently, so the
-    preview could claim a strength the report never mentioned.
+    """Sector judgement, discounts, DCF overrides, dataset matching terms,
+    the strategic read and the readiness scorecard.
+
+    Merging the strategic read into this one call fixes a real bug: the
+    preview and the full report were generated independently, so the preview
+    could claim a strength the report never mentioned.
     """
 
-    pros: list[str] = Field(min_length=3, max_length=3)
-    cons: list[str] = Field(min_length=3, max_length=3)
-    insights: list[str]
+    sector_fit: Literal["good", "poor"]
+    closest_existing_sector: str = ""
+    effective_sector: str = ""
+    rationale: str = ""
+    discounts: Discounts
+    dcf: DcfOverrides
+    transaction_search_terms: list[str] = Field(default_factory=list)
+    vc_search_terms: list[str] = Field(default_factory=list)
+    pros: list[TitledPoint] = Field(min_length=3, max_length=3)
+    cons: list[TitledPoint] = Field(min_length=3, max_length=3)
+    insights: list[TitledPoint] = Field(min_length=1)
     fundraise: FundraiseScores
 
 

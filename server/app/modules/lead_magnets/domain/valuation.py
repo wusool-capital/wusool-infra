@@ -167,6 +167,34 @@ def comps_for_sector(sector: str | None) -> tuple[ListedComp, ...]:
     return ()
 
 
+def trading_comps_for_sector(sector: str | None) -> tuple[ListedComp, ...]:
+    """The comparable set the trading-comps method uses.
+
+    Deliberately a different function from `comps_for_sector`, not a wider
+    version of it. `TradingComps` in the source has a fuzzy tier that
+    `getPeerMedianMargin` does not — it word-matches the sector against the
+    comp-set keys — and folding that into one function would change the peer
+    margin, which is verified against the source over 350 cases.
+
+    **One tier of the source is deliberately not ported.** When nothing
+    matches at all, it falls back to Microsoft, Alphabet and Apple. Valuing
+    an unmatched UAE fit-out contractor against mega-cap tech is worse than
+    returning nothing: the report would show a comparables table that is
+    visibly absurd, and "no comparable set found" is the honest answer. The
+    caller decides what to say instead.
+    """
+    exact = comps_for_sector(sector)
+    if exact:
+        return exact
+
+    table = static_comps()
+    words = [w for w in _WORD_SPLIT.split((sector or "").lower()) if len(w) > 2]
+    for key in table:
+        if any(word in key.lower() for word in words):
+            return table[key]
+    return ()
+
+
 def peer_median_margin(
     sector: str | None, ai_comps: list[ListedComp] | None = None
 ) -> float | None:

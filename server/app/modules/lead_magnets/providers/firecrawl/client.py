@@ -48,3 +48,21 @@ class FirecrawlSearchClient:
             )
             for item in (getattr(data, "web", None) or [])
         ]
+
+    async def scrape(self, url: str) -> str:
+        """Markdown text of one page. Empty string on any failure, so
+        `/enrich` degrades to an honest "could not be fetched" rather than
+        erroring — the model is instructed to return empty fields in that
+        case instead of guessing from the company name.
+        """
+        if self._client is None:
+            logger.warning("firecrawl_scrape_skipped reason=no_api_key")
+            return ""
+
+        try:
+            document = await self._client.scrape(url, formats=["markdown"])
+        except Exception as exc:  # noqa: BLE001 - degrade to an empty page
+            logger.warning("firecrawl_scrape_failed error=%s", exc, extra={"error": str(exc)})
+            return ""
+
+        return getattr(document, "markdown", None) or ""

@@ -180,3 +180,54 @@ class BenchmarkResponse(BaseModel):
     # field name — the legacy `*_aed` slugs hold USD and that has already
     # cost one round of confusion.
     currency: Literal["USD"] = "USD"
+
+
+class EnrichRequest(_Strict):
+    """`/enrich` runs as the visitor types their website address."""
+
+    domain: str = Field(min_length=3, max_length=253)
+    company: str | None = Field(default=None, max_length=200)
+
+
+class EnrichResponse(BaseModel):
+    description: str
+    sector: str
+
+
+class AnalyzeRequest(_Strict):
+    company: str = Field(min_length=1, max_length=200)
+    domain: str = Field(default="", max_length=253)
+    sector: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=4000)
+    geography: str = Field(default="", max_length=100)
+    revenue: float = Field(default=0, ge=0)
+    ebitda: float = 0
+    website_text: str = Field(default="", max_length=20_000)
+
+
+class CompareRequest(_Strict):
+    company: str = Field(min_length=1, max_length=200)
+    sector: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=4000)
+    revenue: float = Field(default=0, ge=0)
+    geography: str = Field(default="", max_length=100)
+
+
+class ComparableOut(BaseModel):
+    co: str
+    tk: str
+    ev: float | None = None
+    rev: float | None = None
+    ebitda: float | None = None
+
+
+class CompareResponse(BaseModel):
+    """The response key stays `comps` — the page reads `parsed.comps` in
+    three places and around thirty identifiers use the word."""
+
+    comps: list[ComparableOut]
+    # How much of the table was actually researched versus filled from
+    # sector data, so the report can say so rather than implying all of it
+    # was sourced.
+    sourced: int
+    filled_from_static: int

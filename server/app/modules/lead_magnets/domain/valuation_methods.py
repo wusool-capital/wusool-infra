@@ -490,6 +490,6 @@ def value_company(inputs: ValuationInputs) -> Valuation:
 
 
 def _static_comps_for(sector: str | None) -> tuple[ListedComp, ...]:
-    from app.modules.lead_magnets.domain.valuation import comps_for_sector
+    from app.modules.lead_magnets.domain.valuation import trading_comps_for_sector
 
-    return comps_for_sector(sector)
+    return trading_comps_for_sector(sector)
