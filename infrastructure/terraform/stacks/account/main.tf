@@ -307,15 +307,16 @@ resource "aws_iam_role_policy" "gha_apply_iam" {
       },
       {
         # PassRole is separately scoped and further restricted to roles being
-        # passed to EC2 specifically - the only thing this pipeline ever
-        # passes a role to.
-        Sid      = "PassServiceRolesToEC2Only"
+        # passed to EC2, and (since the AWS Chatbot Slack alerting relay)
+        # chatbot.amazonaws.com — the only things this pipeline ever passes
+        # a role to.
+        Sid      = "PassServiceRolesToEC2AndChatbotOnly"
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project}-${each.key}-*"
         Condition = {
           StringEquals = {
-            "iam:PassedToService" = "ec2.amazonaws.com"
+            "iam:PassedToService" = ["ec2.amazonaws.com", "chatbot.amazonaws.com"]
           }
         }
       },

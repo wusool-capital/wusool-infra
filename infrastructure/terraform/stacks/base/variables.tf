@@ -39,3 +39,15 @@ variable "alert_email" {
   type        = string
   default     = ""
 }
+
+variable "slack_team_id" {
+  description = "Slack workspace ID authorized for AWS Chatbot (Chatbot console -> Configured clients, after the one-time manual Slack authorization). Same workspace for both environments."
+  type        = string
+  default     = ""
+}
+
+variable "slack_channel_id" {
+  description = "Slack channel ID AWS Chatbot posts infrastructure alerts to. Same shared channel for both environments — the environment is already in each alarm's own name."
+  type        = string
+  default     = ""
+}
