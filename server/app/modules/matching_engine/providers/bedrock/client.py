@@ -6,14 +6,17 @@ validate-repair-retry-then-fail-closed policy `extract_requirements`/
 (`schemas.py`). Logs metadata only: model id, operation, latency, token
 usage if available, success/failure — never raw prompt/response content or
 credentials.
+
+The response parsing, transient-error set and `converse` request shape are
+shared with every other Bedrock caller in
+`app.modules.utilities.domain.bedrock`; this file owns only what is genuinely
+its own — the retry loop and the repair-retry validation policy above.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import re
 import time
 from typing import TYPE_CHECKING
 
@@ -28,6 +31,11 @@ from app.modules.matching_engine.providers.bedrock.schemas import (
     ExtractedRequirementProfile,
     ReasoningResult,
 )
+from app.modules.utilities.domain.bedrock import (
+    TRANSIENT_ERROR_CODES,
+    converse_kwargs,
+    extract_json,
+)
 from app.modules.utilities.domain.json_types import JsonObject, JsonSchema
 from app.modules.utilities.domain.money import parse_usd_amount
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
@@ -41,12 +49,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_TRANSIENT_ERROR_CODES = {
-    "ThrottlingException",
-    "ServiceUnavailableException",
-    "ModelTimeoutException",
-    "InternalServerException",
-}
 _MAX_ATTEMPTS = 3
 _BASE_DELAY_SECONDS = 1.0
 
@@ -177,7 +179,7 @@ class BedrockConverseClient:
                         "attempt": attempt,
                     },
                 )
-                return self._extract_json(response)
+                return extract_json(response)
             except ClientError as exc:
                 last_error = exc
                 error_code = exc.response.get("Error", {}).get("Code", "")
@@ -198,7 +200,7 @@ class BedrockConverseClient:
                         "attempt": attempt,
                     },
                 )
-                if error_code not in _TRANSIENT_ERROR_CODES or attempt == _MAX_ATTEMPTS:
+                if error_code not in TRANSIENT_ERROR_CODES or attempt == _MAX_ATTEMPTS:
                     raise BedrockInvocationError(f"{operation} failed: {error_code}") from exc
                 await asyncio.sleep(_BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
             except EndpointConnectionError as exc:
@@ -217,86 +219,14 @@ class BedrockConverseClient:
         inference_config: InferenceConfig,
         output_schema: JsonSchema,
     ) -> ConverseResponseTypeDef:
-        # Anthropic models reject `temperature` and `top_p` set together
-        # (confirmed live: Bedrock raises ValidationException) — Anthropic's
-        # own guidance is to tune one or the other, never both. `temperature`
-        # wins since a low, deterministic-leaning value is what extraction/
-        # reasoning actually wants here; `top_p` stays configured but unused
-        # unless a future need calls for switching the sampling strategy.
+        # No `system` block: this module's prompts are entirely user-turn.
+        # `top_p` stays configured but unused — see `converse_kwargs`.
         return self._client.converse(
-            modelId=model_id,
-            messages=[{"role": "user", "content": [{"text": prompt}]}],
-            inferenceConfig={
-                "temperature": inference_config.temperature,
-                "maxTokens": inference_config.max_tokens,
-            },
-            toolConfig={
-                "tools": [
-                    {
-                        "toolSpec": {
-                            "name": "return_structured_output",
-                            "description": (
-                                "Return the result as structured JSON matching the given schema."
-                            ),
-                            "inputSchema": {"json": output_schema},
-                        }
-                    }
-                ],
-                # Forces the model to emit its answer as this tool's parsed
-                # JSON input instead of free text — removes the root cause of
-                # the markdown-fence/prose-wrapping failure mode entirely,
-                # rather than recovering from it after the fact.
-                "toolChoice": {"tool": {"name": "return_structured_output"}},
-            },
+            **converse_kwargs(
+                model_id=model_id,
+                prompt=prompt,
+                output_schema=output_schema,
+                max_tokens=inference_config.max_tokens,
+                temperature=inference_config.temperature,
+            )
         )
-
-    @staticmethod
-    def _extract_json(response: ConverseResponseTypeDef) -> JsonObject:
-        """Prefers the forced tool call's already-parsed JSON input. Falls
-        back to text extraction only if a model/profile ignores the forced
-        tool choice (confirmed live: some models routinely wrap JSON in a
-        ```json fence and add prose commentary despite being asked for
-        strict JSON, or being forced via toolConfig) — best-effort recovery
-        (direct parse, then fenced block, then the first balanced {...}
-        substring) keeps that this class's own repair-retry's problem to
-        handle uniformly (§7): returning `{}` on total failure fails
-        Pydantic validation the same way a wrong-shaped-but-valid JSON
-        object would, rather than raising a second, differently-shaped
-        error here.
-        """
-        content = response["output"]["message"]["content"]
-
-        for block in content:
-            tool_use = block.get("toolUse")
-            if tool_use and isinstance(tool_use.get("input"), dict):
-                return tool_use["input"]
-
-        text = "".join(block.get("text", "") for block in content).strip()
-
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
-
-        fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-        if fenced:
-            try:
-                return json.loads(fenced.group(1))
-            except json.JSONDecodeError:
-                pass
-
-        start = text.find("{")
-        if start != -1:
-            depth = 0
-            for i, ch in enumerate(text[start:], start=start):
-                if ch == "{":
-                    depth += 1
-                elif ch == "}":
-                    depth -= 1
-                    if depth == 0:
-                        try:
-                            return json.loads(text[start : i + 1])
-                        except json.JSONDecodeError:
-                            break
-
-        return {}
