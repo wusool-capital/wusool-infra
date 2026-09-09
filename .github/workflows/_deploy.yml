@@ -292,13 +292,20 @@ jobs:
       # running against a schema it expects but doesn't have yet.
       # -----------------------------------------------------------------
 
+      - name: Find the current toolkit instance
+        if: steps.detect.outputs.deploy_toolkit == 'true'
+        id: find_toolkit_instance
+        uses: ./.github/actions/find-toolkit-instance
+        with:
+          environment: ${{ env.ENV }}
+
       - name: Run pending database migrations
         if: steps.detect.outputs.deploy_toolkit == 'true'
         id: migrate
         working-directory: infrastructure/terraform/stacks/toolkit
         run: |
           set -uo pipefail
-          IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
+          IID="${{ steps.find_toolkit_instance.outputs.instance_id }}"
           REPO_URL=$(tofu output -raw ecr_repository_url 2>/dev/null || echo "")
           if [ -z "$IID" ]; then
             echo "::notice::No toolkit instance in $ENV (create_instance=false) — skipping migrations."
@@ -389,6 +396,18 @@ jobs:
       # alone only updates the registered document, it doesn't invoke it.
       # -----------------------------------------------------------------
 
+      # Re-looked-up here rather than reusing the earlier step's output: the
+      # `tofu apply` on stacks/toolkit above registers a new bootstrap
+      # document and could (rarely) coincide with an ASG-driven replacement —
+      # this must target whichever instance is running right now, not
+      # whichever one existed a few minutes ago at the migration step.
+      - name: Find the current toolkit instance
+        if: steps.detect.outputs.deploy_toolkit == 'true'
+        id: find_toolkit_instance_for_bootstrap
+        uses: ./.github/actions/find-toolkit-instance
+        with:
+          environment: ${{ env.ENV }}
+
       - name: Roll the toolkit app and wait for it
         if: steps.detect.outputs.deploy_toolkit == 'true'
         id: bootstrap
@@ -396,7 +415,7 @@ jobs:
         run: |
           set -uo pipefail
           DOC=$(tofu output -raw bootstrap_document_name 2>/dev/null || echo "")
-          IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
+          IID="${{ steps.find_toolkit_instance_for_bootstrap.outputs.instance_id }}"
           if [ -z "$DOC" ] || [ -z "$IID" ]; then
             echo "::notice::No toolkit instance in $ENV (create_instance=false) — skipping app rollout."
             echo "skipped=true" >> "$GITHUB_OUTPUT"; exit 0

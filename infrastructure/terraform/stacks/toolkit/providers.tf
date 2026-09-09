@@ -20,6 +20,22 @@ provider "aws" {
   }
 }
 
+# Route 53 health checks always publish their CloudWatch alarm-backing metric
+# (HealthCheckStatus) in us-east-1, regardless of which region the checked
+# resource lives in — this alias exists only for that one alarm.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+  default_tags {
+    tags = {
+      Project     = var.project
+      Environment = var.environment
+      ManagedBy   = "terraform"
+      Owner       = var.owner
+    }
+  }
+}
+
 data "terraform_remote_state" "base" {
   backend = "s3"
   config = {

@@ -34,6 +34,11 @@ module "wusool_toolkit" {
   count  = var.create_instance ? 1 : 0
   source = "../../modules/toolkit-ec2"
 
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
   project                     = var.project
   environment                 = var.environment
   vpc_id                      = data.terraform_remote_state.base.outputs.vpc_id

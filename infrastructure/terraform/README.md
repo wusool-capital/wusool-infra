@@ -35,7 +35,7 @@ out of sync with each other without it.
 | `account` | GuardDuty, Security Hub, security-alert routing, GitHub OIDC provider + roles, the `wusool-tfstate` state bucket itself | **No** — applied once, no `-var-file` |
 | `base` | VPC, subnets, CloudTrail, the infrastructure-alerts SNS topic | Yes |
 | `n8n` | The n8n EC2 instance, its secret, optional Bedrock access | Yes |
-| `toolkit` | The wusool-toolkit EC2 instance, its secret, its own ECR repo | Yes |
+| `toolkit` | The wusool-toolkit EC2 instance (an Auto Scaling Group of size 1, not a standalone `aws_instance` — self-heals on termination/hardware failure and keeps its Elastic IP across replacement), its secret, its own ECR repo | Yes |
 | `postgres` | The RDS instance, seeded from a snapshot if `snapshot_identifier` is set | Yes |
 | `peering` | The dev↔prod VPC peering connection and its routes | **No** — spans both environments |
 | `scribe-updates` | S3 + CloudFront update feed for the WusoolScribe desktop app, and the GitHub OIDC role that publishes to it | **No** — one public feed, not per-environment (see [`docs/dev/SCRIBE_UPDATE_FEED.md`](../../docs/dev/SCRIBE_UPDATE_FEED.md)) |
