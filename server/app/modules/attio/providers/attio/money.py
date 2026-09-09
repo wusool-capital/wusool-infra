@@ -46,6 +46,13 @@ _CURRENCY_CODE_BY_FIELD = {
     ("seller_role", "revenue_last_full_year"): "USD",
     ("seller_role", "revenue_year_before"): "USD",
     ("seller_role", "annual_rent_cost"): "USD",
+    # Benchmark outputs. The columns landed with migration `f7a2c9e14b83`
+    # but had no writer until `lead_magnets`, so they were absent here and
+    # `serialize_money` raised `UnknownMoneyFieldError` on the first
+    # benchmark submission. `SCHEMA.md` already declares all three USD.
+    ("seller_role", "implied_ev_low"): "USD",
+    ("seller_role", "implied_ev_high"): "USD",
+    ("seller_role", "ebitda_adjusted"): "USD",
 }
 
 
