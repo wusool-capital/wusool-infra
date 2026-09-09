@@ -50,6 +50,7 @@ See:
 - [Scribe infra contract](docs/dev/SCRIBE_INFRA_CONTRACT.md)
 - [Scribe prod DB access runbook](docs/dev/infra_access.md)
 - [Slack app setup](docs/dev/SLACK_APP_SETUP.md)
+- [Toolkit ASG self-healing + Slack alerting](docs/dev/TOOLKIT_ASG_AND_ALERTS.md)
 
 ## Repository structure
 
