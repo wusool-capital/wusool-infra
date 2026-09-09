@@ -81,7 +81,11 @@ chmod 600 "/opt/toolkit/${app.name}/.env.production"
 
 cat > /opt/toolkit/caddy/Caddyfile <<CADDYEOF
 %{ for app in apps }
-${app.hostname} {
+${app.site_addresses} {
+  # Compression belongs here rather than in the app: the lead-magnet tool
+  # pages are ~750KB of static HTML, and a 1-vCPU Python process is the
+  # wrong place to gzip them. Harmless for the Slack bot's small JSON.
+  encode zstd gzip
   reverse_proxy ${app.name}:8000
   log {
     output file /data/${app.name}-access.log

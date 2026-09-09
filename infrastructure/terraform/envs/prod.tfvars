@@ -50,6 +50,22 @@ bedrock_models = [
 create_instance = true
 public_url      = ""
 
+# The lead-magnet tools' own hostname, served by the same container (see
+# stacks/toolkit/main.tf's apps entry). The Cloudflare A record must exist
+# and resolve to the toolkit Elastic IP BEFORE this applies — Caddy orders a
+# certificate per site address at config load. Keep it grey-cloud (DNS only):
+# proxied, Cloudflare's edge caches embed.js past its 60s TTL and every
+# rollback needs a manual purge.
+toolkit_extra_hostnames = ["tools.wusoolcapital.com"]
+
+# t2.micro's 1GB already hosts the Slack bot; the lead-magnet tools add
+# static serving plus Bedrock/Firecrawl calls next to Bolt's 3s ack budget.
+# t2.micro also hit InsufficientInstanceCapacity in eu-central-1a on
+# 2026-08-19 (see envs/dev.tfvars). Applying this is an in-place
+# stop/modify/start — the Slack bot is down 1-3 minutes, so not during
+# business hours.
+toolkit_instance_type = "t3.small"
+
 # image_digest here is a placeholder, not a live value: deploy-prod.yml
 # always overrides it with the freshly-built image's real digest via
 # `-var=image_digest=...` (see _deploy.yml). This value only matters for a
