@@ -1,5 +1,5 @@
 """The Attio note-push seam `PublishMixin` depends on. Structurally
-satisfied by `providers.attio.note_writer.AttioNoteWriter` without this
+satisfied by `app.modules.attio`'s `AttioNoteWriter` without this
 module's `application/` layer ever importing `providers/` directly (the
 architecture fitness test in `tests/test_architecture.py` forbids it) —
 `bootstrap.py` constructs the concrete `AttioNoteWriter` and hands it to

@@ -61,7 +61,7 @@ one to trace: **the desktop app pushes a transcript.**
         the meeting's primary role is buyer or seller, the note also
         links to that org's active buyer/seller-role row
                                                           <- persistence/role_lookup.py
-                                                          <- providers/attio/note_writer.py
+                                                          <- app.modules.attio ... notes.py
       - writes the note's id back onto the `meetings` row
                                                           <- persistence/meetings_repository.py
 
@@ -185,7 +185,7 @@ constructed?", the answer is always `bootstrap.py`.
   `client.py` is the interesting one (retry logic, timeout handling,
   forcing the model to return well-shaped JSON); `boto_client.py` and
   `schemas.py` are supporting plumbing.
-- **`attio/note_writer.py`** — files a note in Attio's CRM. Failure here
+- **`app.modules.attio`'s `notes.py`** — files a note in Attio's CRM. Failure here
   is never allowed to fail the meeting itself — see its docstring.
 
 ### The HTTP surface (`api/`)
