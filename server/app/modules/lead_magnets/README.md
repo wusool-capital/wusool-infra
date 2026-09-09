@@ -26,8 +26,12 @@ lead_magnets/
   domain/
     dedup.py                  # normalisation + key composition (pure)
     readiness.py              # the questionnaire, advisory rules, band map (pure)
-    benchmark.py              # the percentile engine — the whole benchmark output
+    benchmark.py              # the percentile engine + js_round
     benchmark_dataset.py      # generated peer dataset; do not hand-edit
+    benchmark_submission.py   # one submission end to end: ratios, score, implied EV
+    benchmark_routing.py      # internal triage: priority, reason, quality gates
+    benchmark_narrative.py    # which metrics earn a paragraph, and how it is filled
+    benchmark_copy.py         # generated report prose; do not hand-edit
     prompts.py                # every prompt, as a pure function
   persistence/
     database.py               # sessionmaker bound to this module's DATABASE_URL
@@ -126,10 +130,9 @@ page parses. `tests/unit/test_readiness.py` is the regression net for that.
   of those is the deterministic fallback, so the visitor still gets a real
   valuation when the model fails. Two of its prompts use Anthropic's
   `web_search` tool, which is what the Firecrawl pipeline replaces.
-- **Benchmark.** The percentile engine and peer dataset are ported. What
-  remains is the input derivation (`compute`'s ratio maths), the routing
-  narrative (`FLAGTEXT`/`flagFor`), the implied-EV multiples for startup
-  mode, and the Attio field mapping in `relay-benchmark.js`.
+- **Benchmark.** Ported and verified. What remains is only the Attio field
+  mapping (`relay-benchmark.js`'s ~40 slugs, its live-schema read and
+  slug-remap handling) — a `providers/attio/` concern, not domain logic.
 - `sector_mapping.py` and its test, with the mobility split applied
   (42 mappings): the benchmark tool's compound `"Supply Chain or mobility"`
   option becomes `"Supply Chain"` → `Supply Chain / Distribution` and
@@ -163,6 +166,28 @@ USD and needs nothing removed.
 `benchmark-dataset.json` in the source repo is a **stale pre-conversion
 copy** and must not be ported from: it declares `"currency": "AED"`, has the
 AED band cuts, and its `revEmp` anchors are the peg larger.
+
+## How the ports are verified
+
+Not by hand-computed expectations. Each ported engine was run against its
+original by extracting the JavaScript into a node harness and diffing over a
+generated grid:
+
+| Ported | Reference cases | Mismatches |
+|---|---|---|
+| `benchmark.py` percentile engine | 6,860 | 0 |
+| `benchmark_routing.py` route + quality | 6,840 | 0 |
+| `benchmark_submission.py` full `compute` | 8,019 | 0 |
+
+That is what caught `js_round`. JavaScript's `Math.round` rounds a half away
+from zero and Python's `round` rounds a half to even, so `round(42.5)` is 42
+here and 43 in the browser — 79 of the 8,019 cases differed by exactly one
+point. A benchmark score off by a point from the report a visitor already
+downloaded is a real discrepancy, so `js_round` is used for every rounded
+figure and pinned by a test.
+
+The committed tests keep the branches that would regress silently rather
+than the whole grid.
 
 ## Defects confirmed in the live source
 

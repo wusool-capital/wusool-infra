@@ -62,6 +62,12 @@ ignore = ["ANN401"]
 # instead of matching it. Line length is the only thing ignored here; F/I/UP/B
 # still apply.
 "alembic/versions/*.py" = ["E501"]
+# Generated from the benchmark tool's own `FLAGTEXT`/`TECH_FLAG` blocks. The
+# strings are client-facing prose written by the business and are quoted
+# verbatim, so re-wrapping them would fight the next regeneration for no
+# benefit — same reasoning as the Alembic entry above. Line length only;
+# F/I/UP/B/ANN still apply.
+"app/modules/lead_magnets/domain/benchmark_copy.py" = ["E501"]
 # Test fakes/mocks intentionally leave fixture/kwarg parameters unannotated
 # (e.g. `**kwargs` stand-ins for a real client's signature) — production
 # code is where annotation completeness actually matters.
