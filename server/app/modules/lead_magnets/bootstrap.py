@@ -62,6 +62,9 @@ class _SellerRoleAttioWriter:
             organization_name=payload.get("company") or payload.get("company_name") or "Unknown",
             domain=payload.get("domain"),
             entry_values=entry_values,
+            # The tool's own value; the writer maps it and raises on an
+            # unknown one rather than dropping it.
+            sector=payload.get("peer_key") or payload.get("sector"),
         )
 
 

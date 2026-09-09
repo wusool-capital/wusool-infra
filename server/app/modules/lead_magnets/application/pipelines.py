@@ -15,7 +15,11 @@ import logging
 from dataclasses import asdict
 
 from app.modules.lead_magnets.application.ports import LeadLLMPort
-from app.modules.lead_magnets.domain.attio_values import benchmark_values, readiness_values
+from app.modules.lead_magnets.domain.attio_values import (
+    benchmark_values,
+    readiness_values,
+    valuation_values,
+)
 from app.modules.lead_magnets.domain.benchmark_submission import BenchmarkInputs, evaluate
 from app.modules.lead_magnets.domain.prompts import (
     readiness_advisory_prompt,
@@ -27,6 +31,8 @@ from app.modules.lead_magnets.domain.readiness import (
     merge_advisory,
     revenue_range_midpoint_usd,
 )
+from app.modules.lead_magnets.domain.valuation_data import ListedComp
+from app.modules.lead_magnets.domain.valuation_methods import ValuationInputs, value_company
 from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
@@ -86,16 +92,27 @@ class Pipelines:
     async def run(self, tool: str, payload: JsonObject) -> JsonObject:
         if tool == "benchmark":
             return self._benchmark(payload)
+        if tool == "valuation":
+            return self._valuation(payload)
         if tool == "readiness":
             return await self._readiness(payload)
         raise NotImplementedError(f"no pipeline for tool {tool!r} yet")
 
     def fallback(self, tool: str, payload: JsonObject) -> JsonObject | None:
         """`None` means this tool has no fallback and the run is finished for
-        good. Readiness is the only one: its score, band and recommendations
-        come only from the model."""
+        good.
+
+        Readiness is the only one: its score, band and recommendations come
+        only from the model, so there is nothing to fall back to. Valuation
+        and benchmark both compute their own figures — the model only picks
+        the comparables that set valuation's trading multiples, so with it
+        gone the DCF, transaction comps and industry research still produce a
+        blended range from static sector data.
+        """
         if tool == "benchmark":
             return self._benchmark(payload)
+        if tool == "valuation":
+            return self._valuation(payload)
         return None
 
     def _benchmark(self, payload: JsonObject) -> JsonObject:
@@ -104,6 +121,24 @@ class Pipelines:
             "entry_values": benchmark_values(result, headcount=payload.get("headcount")),
             "score": result.score,
             "band": result.band,
+        }
+
+    def _valuation(self, payload: JsonObject) -> JsonObject:
+        """The blended valuation, computed from the submission alone.
+
+        Serves as both the primary path and the fallback: the AI-supplied
+        comparables and discount/DCF overrides are applied when the payload
+        carries them (from `/analyze` and `/compare`), and omitted when it
+        does not. That is what makes a sweeper resume free — no model call,
+        and the same figures either way for a given payload.
+        """
+        result = value_company(_valuation_inputs(payload))
+        return {
+            "entry_values": valuation_values(result),
+            "low": result.low,
+            "mid": result.mid,
+            "high": result.high,
+            "methods": [m.name for m in result.methods],
         }
 
     async def _readiness(self, payload: JsonObject) -> JsonObject:
@@ -150,3 +185,54 @@ class Pipelines:
             "score": scored,
             "advisory": asdict(advisory),
         }
+
+
+def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
+    """Rebuilds the valuation inputs from a stored payload.
+
+    Comparables and overrides are read from whatever `/compare` and
+    `/analyze` put there. Their absence is the fallback case, not an error.
+    """
+
+    def num(key: str) -> float | None:
+        value = payload.get(key)
+        return float(value) if isinstance(value, (int, float)) else None
+
+    def text(key: str) -> str | None:
+        value = payload.get(key)
+        return value if isinstance(value, str) else None
+
+    comps: list[ListedComp] = []
+    for raw in payload.get("comps") or []:
+        if not isinstance(raw, dict):
+            continue
+        comps.append(
+            ListedComp(
+                co=str(raw.get("co", "")),
+                tk=str(raw.get("tk", "")),
+                ev=raw.get("ev"),
+                rev=raw.get("rev"),
+                ebitda=raw.get("ebitda"),
+            )
+        )
+
+    discounts = payload.get("discounts")
+    haircut_revenue = 50.0
+    haircut_ebitda = 50.0
+    if isinstance(discounts, dict):
+        haircut_revenue = float(discounts.get("revenue_discount_pct") or haircut_revenue)
+        haircut_ebitda = float(discounts.get("ebitda_discount_pct") or haircut_ebitda)
+
+    return ValuationInputs(
+        revenue=num("revenue") or 0.0,
+        profit_before_tax=num("profit_before_tax"),
+        owner_salary=num("owner_salary"),
+        sector=text("sector"),
+        geography=text("geography"),
+        stage=text("stage"),
+        cash=num("cash") or 0.0,
+        debt=num("debt") or 0.0,
+        haircut_revenue_pct=haircut_revenue,
+        haircut_ebitda_pct=haircut_ebitda,
+        ai_comps=tuple(comps),
+    )

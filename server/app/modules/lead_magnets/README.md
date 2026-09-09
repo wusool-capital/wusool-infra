@@ -31,6 +31,8 @@ lead_magnets/
   domain/
     dedup.py                  # normalisation + key composition (pure)
     readiness.py              # the questionnaire, advisory rules, band map (pure)
+    sector_mapping.py         # tool sector -> sector_focus; raises on unmapped
+    sector_options.py         # the live 85 option titles; generated
     benchmark.py              # the percentile engine + js_round
     benchmark_dataset.py      # generated peer dataset; do not hand-edit
     benchmark_submission.py   # one submission end to end: ratios, score, implied EV
@@ -155,6 +157,26 @@ role, so there is nowhere for a key to live — which is the point.
 Anything ported from either is quoted verbatim where the value is a
 contract — an Attio option title, a text field a human reads, a JSON key the
 page parses. `tests/unit/test_readiness.py` is the regression net for that.
+
+## Sector mapping
+
+Every tool asks for a sector in its own vocabulary and none matches the
+CRM's. Two rules make a silent loss impossible: every target is validated
+against the live 85 `sector_focus` options **at import**, and an unmapped
+input **raises** rather than defaulting to "Diversified / Generalist" — a
+wrong sector misfiles the lead and skews any sector report built on it,
+which is worse than a missing one.
+
+All 31 of the benchmark tool's dropdown values are mapped, with the compound
+"Supply Chain or mobility" split so mobility keeps its own target (both are
+live options, so nothing needed creating in Attio). The pre-split label
+still maps, so a submission from the current form does not raise before the
+form ships the two separate options.
+
+**Still unmapped:** the valuation tool's own 225-label vocabulary (214 of
+which have no target) and the readiness form's sector dropdown. Those need
+the delivered `sector_mapping` artifact; until then `to_sector_focus` raises
+with a message naming what is outstanding.
 
 ## Still to port
 

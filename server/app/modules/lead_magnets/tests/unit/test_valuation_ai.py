@@ -279,3 +279,73 @@ async def test_company_name_is_derived_from_the_domain_when_absent(domain, expec
     llm = _FakeLlm()
     await ValuationAi(llm, _FakeSearch()).enrich(domain=domain)
     assert expected in llm.prompts["enrich"]
+
+
+async def test_a_valuation_run_falls_back_without_any_model_call() -> None:
+    """B9: the deterministic valuation must be reachable from the sweeper.
+
+    `value_company` was verified over 3,000 cases but nothing dispatched it,
+    so a valuation run whose AI failed resumed to `fallback -> None` and was
+    finished as failed. The visitor is supposed to still get a real
+    valuation — the model only picks the comparables that set the trading
+    multiples.
+    """
+    from app.modules.lead_magnets.application.pipelines import Pipelines
+
+    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]
+    result = pipelines.fallback(
+        "valuation",
+        {
+            "revenue": 3_000_000,
+            "profit_before_tax": 400_000,
+            "owner_salary": 60_000,
+            "sector": "AI",
+            "geography": "United Arab Emirates",
+        },
+    )
+
+    assert result is not None
+    assert result["mid"] > 0
+    # Every method still contributes with the model gone.
+    assert len(result["methods"]) == 5
+    assert set(result["entry_values"]) == {
+        "valuation_low",
+        "valuation_mid",
+        "valuation_high",
+    }
+
+
+def test_readiness_still_has_no_fallback() -> None:
+    """The one tool that must not have one: its score, band and
+    recommendations come only from the model."""
+    from app.modules.lead_magnets.application.pipelines import Pipelines
+
+    assert Pipelines(llm=None).fallback("readiness", {}) is None  # type: ignore[arg-type]
+
+
+async def test_a_valuation_resume_applies_stored_ai_output() -> None:
+    """Comparables and discounts from `/compare` and `/analyze` are used when
+    the payload carries them, so a resume produces the same figures as the
+    original request rather than silently reverting to sector defaults."""
+    from app.modules.lead_magnets.application.pipelines import Pipelines
+
+    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]
+    base = {
+        "revenue": 3_000_000,
+        "profit_before_tax": 400_000,
+        "owner_salary": 60_000,
+        "sector": "AI",
+        "geography": "United Arab Emirates",
+    }
+    without = pipelines.fallback("valuation", base)
+    with_ai = pipelines.fallback(
+        "valuation",
+        {
+            **base,
+            "comps": [{"co": "Tight Co", "tk": "TGT", "ev": 100, "rev": 50, "ebitda": 10}],
+            "discounts": {"revenue_discount_pct": 20, "ebitda_discount_pct": 20},
+        },
+    )
+
+    assert without is not None and with_ai is not None
+    assert with_ai["mid"] != without["mid"]

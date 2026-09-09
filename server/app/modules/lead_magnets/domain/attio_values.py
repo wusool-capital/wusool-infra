@@ -18,6 +18,7 @@ from app.modules.attio.providers.attio.money import serialize_money
 from app.modules.lead_magnets.domain.benchmark import PERCENTILE_COLUMNS
 from app.modules.lead_magnets.domain.benchmark_submission import BenchmarkResult
 from app.modules.lead_magnets.domain.readiness import AdvisoryContent, attio_band
+from app.modules.lead_magnets.domain.valuation_methods import Valuation
 
 # What a `seller_role` attribute can hold on the write side. A money field
 # arrives as a bare number and is serialised into Attio's own currency shape
@@ -100,5 +101,21 @@ def readiness_values(
             "readiness_band": attio_band(band),
             "recommended_referral": advisory.referral,
             "est_revenue": revenue_usd,
+        }
+    )
+
+
+def valuation_values(result: Valuation) -> dict[str, object]:
+    """The blended valuation, as `seller_role` attributes.
+
+    The three figures are what the seller-side team works from, and they are
+    USD — the legacy `*_aed` slugs on the old lead-magnet list are a misnomer
+    and are not what this writes to.
+    """
+    return _values(
+        {
+            "valuation_low": result.low or None,
+            "valuation_mid": result.mid or None,
+            "valuation_high": result.high or None,
         }
     )

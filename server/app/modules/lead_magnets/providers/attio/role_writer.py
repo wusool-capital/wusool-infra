@@ -19,6 +19,7 @@ import logging
 
 from app.modules.attio import AttioClientProtocol
 from app.modules.attio.providers.attio import entries
+from app.modules.lead_magnets.domain.sector_mapping import to_sector_focus
 from app.modules.lead_magnets.domain.tool_run import SubjectRefs
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ class AttioRoleWriter:
         organization_name: str,
         domain: str | None,
         entry_values: dict[str, object],
+        sector: str | None = None,
         organization_attio_id: str | None = None,
     ) -> SubjectRefs:
         """Creates or updates the organisation, then its `seller_role` entry.
@@ -50,6 +52,12 @@ class AttioRoleWriter:
         org_values: dict[str, object] = {"name": organization_name}
         if domain:
             org_values["domains"] = [domain]
+        # Mapped, never raw: `sector_focus` is a select, Attio rejects an
+        # undefined option, and the live relay only logs that — so a raw
+        # tool value would silently drop the sector. `to_sector_focus`
+        # raises instead.
+        if (mapped := to_sector_focus(sector)) is not None:
+            org_values["sector_focus"] = [mapped]
 
         if organization_attio_id is None:
             org_id = await entries.create_organization(
