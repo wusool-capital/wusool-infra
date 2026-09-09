@@ -163,10 +163,16 @@ async def test_readiness_ai_failure_is_never_retried(db_session) -> None:
     """Readiness has no deterministic fallback by decision, so a resume
     would have to re-call Bedrock. Its ceiling is 1 — the original attempt
     and nothing more. The write-ahead row keeps the lead; the report is
-    lost either way."""
+    lost either way.
+
+    Note the setup: an AI failure leaves **no** stage recorded, because
+    `stage` marks what *completed*. Setting `stage="ai"` here would describe
+    a run whose AI succeeded and whose Attio write failed — the opposite
+    case, and free to retry. Getting that backwards let a real readiness
+    failure be resumed and re-billed; the end-to-end simulation caught it.
+    """
     repo = ToolRunsRepository(db_session)
     run_id, _ = await repo.start(tool="readiness", payload={}, idempotency_key=_key())
-    await repo.set_stage(run_id, stage="ai")
 
     claimed = await repo.claim_stale(cutoff=datetime.now(UTC) + timedelta(seconds=1))
     assert run_id not in [r.id for r in claimed]
@@ -177,22 +183,31 @@ async def test_readiness_ai_failure_is_never_retried(db_session) -> None:
 
 
 @pytest.mark.parametrize(
-    "tool,stage,claims",
+    "tool,stage_completed,claims",
     [
-        # AI already paid for, Attio write is free and idempotent to retry.
+        # 'ai' completed => the Attio write failed. The model output is
+        # stored and already paid for, so retrying is free and idempotent.
+        ("valuation", "ai", True),
+        ("readiness", "ai", True),
+        ("benchmark", "ai", True),
+        # 'attio' completed => only `finish` failed. Equally free.
         ("valuation", "attio", True),
         ("readiness", "attio", True),
-        # A valuation/benchmark AI failure resumes once, from the fallback.
-        ("valuation", "ai", True),
-        ("benchmark", "ai", True),
-        # Readiness AI: never.
-        ("readiness", "ai", False),
+        # Nothing completed => the AI call itself failed. Valuation and
+        # benchmark resume once, from their deterministic fallback...
+        ("valuation", None, True),
+        ("benchmark", None, True),
+        # ...and readiness never does, because it has no fallback and a
+        # resume would re-bill Bedrock for a report already shown as an error.
+        ("readiness", None, False),
     ],
 )
-async def test_ceilings_per_failure_class(db_session, tool, stage, claims) -> None:
+async def test_ceilings_per_failure_class(db_session, tool, stage_completed, claims) -> None:
+    """`stage` is the last step that COMPLETED, not where the run failed."""
     repo = ToolRunsRepository(db_session)
     run_id, _ = await repo.start(tool=tool, payload={}, idempotency_key=_key())
-    await repo.set_stage(run_id, stage=stage)
+    if stage_completed is not None:
+        await repo.set_stage(run_id, stage=stage_completed)
     claimed = [
         r.id for r in await repo.claim_stale(cutoff=datetime.now(UTC) + timedelta(seconds=1))
     ]

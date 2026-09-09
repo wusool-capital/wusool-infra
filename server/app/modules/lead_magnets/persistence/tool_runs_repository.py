@@ -29,20 +29,28 @@ from app.modules.lead_magnets.persistence.mappers import to_tool_run_record
 from app.modules.organizations import OrganizationRepository
 from app.modules.utilities.domain.json_types import JsonObject
 
-# `payload->>'stage'`, as SQL. The sweeper's ceilings key off it.
-_STAGE = ToolRun.payload["stage"].astext
+# `payload.stage` records the last step that **completed**, so its absence
+# is what identifies a run that failed at the AI step. Reading it as "where
+# it failed" instead is inverted, and got a readiness AI failure — the one
+# case that must never be retried — the default ceiling of 6.
+_STAGE_DONE = func.coalesce(ToolRun.payload["stage"].astext, "")
 
 # Per-failure-class retry ceilings, applied as one CASE so a row is never
-# claimed past its own limit. Retrying a failed Attio write is free and
-# idempotent — the AI output is already paid for and stored. Retrying a
-# failed AI call is not, so those resume from the deterministic fallback
-# instead, and readiness — which has no fallback by decision — is never
-# retried at all.
+# claimed past its own limit.
+#
+#   nothing completed  -> the AI call failed. Costs money on every attempt.
+#   'ai' completed     -> the Attio write failed. Free and idempotent: the
+#                         model output is already stored and paid for.
+#   'attio' completed  -> only `finish` failed. Equally free.
+#
+# Readiness has no deterministic fallback by decision, so a resume there
+# would have to re-call Bedrock for a report the visitor has already been
+# shown an error for. Ceiling 1 means the original attempt and nothing more.
 _NO_SUBJECTS = SubjectRefs()
 
 _CEILING = case(
-    (and_(_STAGE == "ai", ToolRun.tool == "readiness"), 1),
-    (_STAGE == "ai", 2),
+    (and_(_STAGE_DONE == "", ToolRun.tool == "readiness"), 1),
+    (_STAGE_DONE == "", 2),
     else_=6,
 )
 
