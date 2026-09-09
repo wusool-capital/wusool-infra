@@ -18,6 +18,20 @@ terraform {
 
 data "aws_caller_identity" "current" {}
 
+# aws_launch_template's block_device_mappings needs an explicit device_name —
+# unlike aws_instance.root_block_device, it can't infer the root device from
+# the AMI. Derived from the pinned AMI itself rather than hardcoded, so a
+# future AMI change (var.ami_id is a deliberate, reviewed tfvars edit per the
+# H1 comment above) can't silently attach root_volume_size/encryption to an
+# unattached extra volume instead of the disk the instance actually boots
+# from.
+data "aws_ami" "wusool_toolkit" {
+  filter {
+    name   = "image-id"
+    values = [var.ami_id]
+  }
+}
+
 resource "aws_security_group" "wusool_toolkit" {
   # name_prefix, not name: a security group cannot be destroyed while an ENI
   # still uses it or another SG's rules reference it. With a fixed name and
@@ -253,7 +267,7 @@ resource "aws_launch_template" "wusool_toolkit" {
   vpc_security_group_ids = [aws_security_group.wusool_toolkit.id]
 
   block_device_mappings {
-    device_name = "/dev/xvda"
+    device_name = data.aws_ami.wusool_toolkit.root_device_name
     ebs {
       volume_size = var.root_volume_size
       volume_type = "gp3"
@@ -397,13 +411,20 @@ resource "aws_cloudwatch_metric_alarm" "cpu" {
 # StatusCheckFailed, /health serving 200 throughout, yet a Slack request
 # never reached the box at all). Visibility only: nothing here auto-heals a
 # blip this short, it exists to make it visible instead of invisible.
+#
+# Targets /health, NOT /readiness: /readiness also fails on a pure database
+# blip (server/main.py), which is a different, unrelated failure mode this
+# alarm isn't meant to page on — it would misreport a DB hiccup as "the box
+# is unreachable" when the network path is actually fine. /health is a pure
+# liveness check with no DB dependency, so it isolates reachability the way
+# this alarm's name promises.
 resource "aws_route53_health_check" "wusool_toolkit" {
   for_each = { for app in local.apps_resolved : app.name => app }
 
   fqdn              = each.value.hostname
   port              = 443
   type              = "HTTPS"
-  resource_path     = "/readiness"
+  resource_path     = "/health"
   failure_threshold = 3
   request_interval  = 30
   enable_sni        = true

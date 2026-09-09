@@ -62,19 +62,11 @@ jobs:
         with:
           role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
 
-      # The toolkit instance is ASG-managed — there is no stable instance_id
-      # output any more (it can be replaced at any time by the ASG itself,
-      # independent of any `tofu apply`). Look up whichever instance is
-      # currently running by its Name tag instead of reading Terraform state.
       - name: Find the current toolkit instance
         id: toolkit
-        run: |
-          set -euo pipefail
-          IID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=wusool-prod-toolkit" "Name=instance-state-name,Values=running" \
-            --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || echo "")
-          [ "$IID" = "None" ] && IID=""
-          echo "instance_id=$IID" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/find-toolkit-instance
+        with:
+          environment: prod
 
       - name: Run full resync on the toolkit instance
         if: steps.toolkit.outputs.instance_id != ''
