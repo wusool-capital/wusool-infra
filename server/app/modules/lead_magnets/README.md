@@ -25,6 +25,8 @@ lead_magnets/
   config.py                # Settings — see "Env var names" below
   domain/
     dedup.py                  # normalisation + key composition (pure)
+    readiness.py              # the questionnaire, advisory rules, band map (pure)
+    prompts.py                # every prompt, as a pure function
   persistence/
     database.py               # sessionmaker bound to this module's DATABASE_URL
     mappers.py                # tool_runs row -> ToolRunRecord; where the ORM type stops
@@ -101,17 +103,56 @@ therefore `LEAD_MAGNET_*`; only genuinely shared values use bare names
 No AWS key setting exists. Bedrock is reached through the instance's IAM
 role, so there is nowhere for a key to live — which is the point.
 
-## Blocked on
+## Source of the ported logic
 
-- The four tool files and `index.js`, currently in `dopamine-relay` /
-  `wusool-benchmark` (private, personal account). Needed for the prompts,
-  the deterministic fallbacks, the static pages and `embed.js`.
+- `github.com/ramzy0z/dopamine-relay` — **public**, not private as the
+  handover document said. Holds `dopamine-valuation.html`,
+  `dopamine-readiness-score.html` and `index.js` (the relay backend).
+- `github.com/wusool-capital/wusool-benchmark` — private, org-owned. Holds
+  `wusool-benchmark.html`, `relay-benchmark.js`, `benchmark-dataset.json`
+  and `attio-setup.js`.
+
+Anything ported from either is quoted verbatim where the value is a
+contract — an Attio option title, a text field a human reads, a JSON key the
+page parses. `tests/unit/test_readiness.py` is the regression net for that.
+
+## Still to port
+
+- **Valuation.** Five prompts (`dopamine-valuation.html` around lines 401,
+  1430, 2247, 2417, 2594, 2877), the `DAMODARAN_WACC` table and industry
+  growth benchmarks (~811-1243), and the auto-DCF module (~1632+) — the last
+  of those is the deterministic fallback, so the visitor still gets a real
+  valuation when the model fails. Two of its prompts use Anthropic's
+  `web_search` tool, which is what the Firecrawl pipeline replaces.
+- **Benchmark.** `relay-benchmark.js` (its Attio field names and scoring) and
+  `benchmark-dataset.json` (the peer dataset it scores against — no AI
+  involved in its output at all).
 - `sector_mapping.py` and its test, with the mobility split applied
   (42 mappings): the benchmark tool's compound `"Supply Chain or mobility"`
   option becomes `"Supply Chain"` → `Supply Chain / Distribution` and
   `"Mobility"` → `Mobility`, both live `sector_focus` options.
+- The Buyer Network, which exists in neither repo — it is a Tally form today
+  and the only tool being built rather than moved.
 - End-to-end Firecrawl verification — the only unproven half of the
   comparables pipeline.
+
+## Defects confirmed in the live source
+
+Read from the two repos above, not inferred:
+
+- `index.js:179` rejects a submission with a blank domain outright
+  (`400 domain is required`), and `dopamine-readiness-score.html`'s
+  `pushReadinessToAttio` returns early on the same condition. A lead with no
+  website is lost twice over.
+- `pushReadinessToAttio` is called with the model's own result, so the Attio
+  write only happens **after** the AI call succeeds. That is the live
+  lead-loss path this module's step 1 exists to close.
+- `index.js` assigns `advisoryNote = ai.internalAdvisoryNote || null`,
+  discarding the deterministic note wholesale — so a "DEAL RISK … do not
+  refer" flag disappears whenever the model's prose does not repeat it.
+  `merge_advisory` is the fix.
+- Both tools pin outdated models: `claude-sonnet-4-20250514` (readiness) and
+  a `web_search_20260209` tool version in valuation.
 
 ## Table ownership
 

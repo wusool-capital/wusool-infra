@@ -28,9 +28,9 @@ from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.lead_magnets.providers.bedrock.schemas import (
     AnalyzeResult,
-    BuyerQualification,
     CompareResult,
     EnrichResult,
+    InternalNote,
     ReadinessResult,
     SearchQueries,
 )
@@ -100,11 +100,19 @@ class LeadBedrockClient:
             self._sonnet, prompt, ReadinessResult, "score_readiness", max_tokens=4096
         )
 
+    async def advise_readiness(self, *, prompt: str) -> JsonObject:
+        """The internal advisory note. Haiku: the deterministic rules already
+        own the referral and the hard flags, so what is left is one paragraph
+        of synthesis."""
+        return await self._invoke(
+            self._haiku, prompt, InternalNote, "advise_readiness", max_tokens=1024
+        )
+
     async def qualify_buyer(self, *, prompt: str) -> JsonObject:
         """Internal output only, so a failure here is invisible to the
         applicant — their application is already recorded."""
         return await self._invoke(
-            self._haiku, prompt, BuyerQualification, "qualify_buyer", max_tokens=2048
+            self._haiku, prompt, InternalNote, "qualify_buyer", max_tokens=2048
         )
 
     async def _invoke(
