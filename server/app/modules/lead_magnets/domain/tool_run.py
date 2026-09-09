@@ -8,7 +8,7 @@ CHECK violation on a real submission.
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast, get_args
 from uuid import UUID
 
 from app.modules.utilities.domain.json_types import JsonObject
@@ -22,10 +22,23 @@ Tool = Literal["valuation", "readiness", "benchmark", "buyer_network", "attio_we
 Stage = Literal["ai", "attio"]
 
 
+class UnknownToolError(ValueError):
+    pass
+
+
+def parse_tool(raw: str) -> Tool:
+    """`tool_runs.tool` is plain text with no CHECK behind it, unlike
+    `status`. Validating on the way out keeps `Tool` honest rather than
+    casting an unchecked string and hoping."""
+    if raw not in get_args(Tool):
+        raise UnknownToolError(f"unknown tool {raw!r} in tool_runs")
+    return cast(Tool, raw)
+
+
 @dataclass(frozen=True)
 class ToolRunRecord:
     id: UUID
-    tool: str
+    tool: Tool
     status: str
     attempt_count: int
     payload: JsonObject

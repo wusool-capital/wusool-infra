@@ -24,6 +24,7 @@ from app.modules.lead_magnets.domain.tool_run import (
     Tool,
     ToolRunRecord,
     ToolRunStatus,
+    parse_tool,
 )
 from app.modules.organizations import OrganizationRepository
 from app.modules.utilities.domain.json_types import JsonObject
@@ -50,7 +51,7 @@ def _to_record(row: ToolRun) -> ToolRunRecord:
     payload = row.payload or {}
     return ToolRunRecord(
         id=row.id,
-        tool=row.tool,
+        tool=parse_tool(row.tool),
         status=row.status,
         attempt_count=row.attempt_count,
         payload=payload,
