@@ -18,6 +18,7 @@
 # Test suites — not needed at runtime.
 app/modules/matching_engine/tests/
 app/modules/ddl_commands/tests/
+app/modules/lead_magnets/tests/
 tests/
 
 # Ops scripts / docs generators — not needed at runtime.
