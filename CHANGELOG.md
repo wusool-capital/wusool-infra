@@ -9,6 +9,90 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-09
+
+### Added
+
+- `server/app/modules/lead_magnets/` — the first slice of moving the four
+  lead-magnet tools (Valuation, M&A Readiness, GCC SME Benchmark, Buyer
+  Network) off Vercel + Render + Tally and onto the toolkit instance, with
+  the AI on Bedrock through the instance role so no API key exists. Landed
+  in this slice: `Settings`, `domain/dedup.py`, the `tool_runs` write-ahead
+  ledger, the write contract and its sweeper, the Bedrock and Firecrawl
+  providers, and the API guards + static handler. 85 tests.
+  - The write contract records every submission **before** any AI or Attio
+    call, which is what makes a lost lead impossible. `complete()` takes a
+    ledger row rather than a fresh payload, so a first attempt and a sweeper
+    resume are one code path: a run never re-earns AI output it already paid
+    for, and never writes Attio twice.
+  - Retry ceilings are per failure class, as one SQL `CASE`: a failed Attio
+    write retries (the AI output is stored), a valuation/benchmark AI failure
+    resumes once from the deterministic fallback, and readiness — which has
+    no fallback by decision — never retries.
+  - No new Attio→Postgres sync code. `ddl_commands`' existing webhook mirror
+    already maps every lead-magnet and benchmark column, so this module
+    writes Attio and lets the mirror follow.
+- `apps[*].extra_hostnames` on `modules/toolkit-ec2`, joined into Caddy's
+  site addresses so one container serves several hostnames.
+  `toolkit_extra_hostnames = ["tools.wusoolcapital.com"]` and
+  `toolkit_instance_type = "t3.small"` in `envs/prod.tfvars` (prod was on the
+  `t2.micro` default, 1GB, already running the Slack bot). Also adds `encode
+  zstd gzip` to the Caddy site block. Chosen over a second `apps` entry,
+  which would need its own secret, ECR repo and image build while
+  `_deploy.yml` names `toolkit` literally in three steps — and would not
+  isolate failure, since `apps` renders one compose file and one bootstrap.
+- `utilities/domain/bedrock.py` — `extract_json`, `TRANSIENT_ERROR_CODES` and
+  `converse_kwargs`, shared by every Bedrock caller. `meetings` and
+  `matching_engine` each carried a byte-identical `_extract_json`, and
+  meetings' own docstring warned to check the other copy when fixing either;
+  a third caller would have made that unfollowable.
+
+### Changed
+
+- `AttioNoteWriter` moved from `meetings/providers/attio/note_writer.py` to
+  `attio/providers/attio/notes.py`. The `note` object slug and attribute
+  shape are workspace-level facts, and `server/tests/test_architecture.py`
+  allows deep cross-module imports only into the full-access modules, so
+  `lead_magnets` could not have reused it in place. `note_type` is now a
+  required constructor argument — no default, since `notes.note_type`'s CHECK
+  allows exactly `Meeting` or `Manual`.
+
+### Fixed
+
+- `implied_ev_low`, `implied_ev_high` and `ebitda_adjusted` were missing from
+  `attio.providers.attio.money._CURRENCY_CODE_BY_FIELD`. The columns landed
+  with `f7a2c9e14b83` but had no writer, so the first benchmark submission
+  would have raised `UnknownMoneyFieldError`. All three are USD, as
+  `SCHEMA.md` already declared.
+- A latent bug in the planned write contract, caught before it shipped:
+  `tool_runs`' subject columns are foreign keys into the Postgres mirror, but
+  at the moment an Attio write returns those rows exist only in Attio, so
+  setting them FK-violated on every genuinely new lead. `finish()` seeds both
+  parent rows `ON CONFLICT DO NOTHING` and resolves role FKs by a
+  `legacy_entry_id` subquery that is NULL until the mirror lands;
+  `promote_role_fks()` back-fills them.
+- `infrastructure/terraform/README.md` said prod `create_instance` defaults
+  to `false`; `envs/prod.tfvars` has set it `true` since 2026-08-17.
+
+### Notes
+
+- The module does **not** serve yet and is not registered in
+  `server/main.py`. The endpoints, the prompts, the deterministic fallbacks
+  and the tool pages need the four HTML files and `index.js` from
+  `dopamine-relay`/`wusool-benchmark` (private, personal account) and
+  `sector_mapping.py`; Firecrawl's half of the comparables pipeline is still
+  unverified end to end. Recorded in the module README's "Blocked on".
+- Resolves a contradiction across the three handover documents: money is
+  **USD everywhere**, per docs 1-2 and the code (`utilities.domain.Money`
+  types `currency` as `Literal["USD"]` and raises otherwise). Doc 3's
+  "valuation and readiness are AED" is stale, and deleting the tools'
+  `toAed()` belongs with the repointing work, as this file's 2026-09-07 entry
+  already said.
+- Two handover items were already done and needed no work: prod Bedrock
+  access (`envs/prod.tfvars` has had `enable_bedrock = true` with both
+  granted models since before this branch), and the Attio→Postgres receiver
+  for lead-magnet fields.
+
 ## 2026-09-08
 
 ### Changed
