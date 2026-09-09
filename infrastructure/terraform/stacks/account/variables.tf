@@ -21,3 +21,15 @@ variable "alert_email" {
   type        = string
   default     = "raoof@azmora.ai"
 }
+
+variable "slack_team_id" {
+  description = "Slack workspace ID authorized for AWS Chatbot (Chatbot console -> Configured clients, after the one-time manual Slack authorization). Same value as stacks/base's identically-named variable — this is the account-wide, not per-environment, Chatbot relay."
+  type        = string
+  default     = "T0BAE254789"
+}
+
+variable "slack_channel_id" {
+  description = "Slack channel ID AWS Chatbot posts infrastructure alerts to. Same value as stacks/base's identically-named variable."
+  type        = string
+  default     = "C0C0E16U0HH"
+}

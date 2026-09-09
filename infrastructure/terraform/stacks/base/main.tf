@@ -29,77 +29,27 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alert_email
 }
 
-# Slack relay for the same alerts topic every alarm in this environment
-# already notifies — one new subscriber, no per-alarm changes anywhere else.
-# Both envs point at the same Slack workspace/channel; the environment is
-# already visible in each alarm's own name (e.g. wusool-prod-toolkit-...).
-#
-# Gated on both IDs being set, same pattern as alert_email above: the
-# one-time Slack workspace authorization happens by hand in the AWS Chatbot
-# console (no Terraform resource for that step exists), so this stays a
-# no-op until that's done and the resulting IDs are in tfvars.
-resource "aws_iam_role" "chatbot_alerts" {
-  count = var.slack_team_id != "" && var.slack_channel_id != "" ? 1 : 0
-
-  name = "${var.project}-${var.environment}-chatbot-alerts"
-  assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [{ Effect = "Allow", Principal = { Service = "chatbot.amazonaws.com" }, Action = "sts:AssumeRole" }]
-  })
-}
-
-# AWS's own documented minimum for notification-only use (relaying
-# CloudWatch/SNS alarms into a chat room, no interactive AWS commands run
-# from Slack): https://docs.aws.amazon.com/chatbot/latest/adminguide/chatbot-iam-policies.html#read-only-notifications-policy
-# — deliberately not ReadOnlyAccess or CloudWatchReadOnlyAccess, both far
-# broader than an alert relay needs.
-resource "aws_iam_role_policy" "chatbot_notifications_only" {
-  count = length(aws_iam_role.chatbot_alerts)
-
-  name = "${var.project}-${var.environment}-chatbot-notifications-only"
-  role = aws_iam_role.chatbot_alerts[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["cloudwatch:Describe*", "cloudwatch:Get*", "cloudwatch:List*"]
-      Resource = "*"
-    }]
-  })
-}
-
 # us-east-1 twin of the alerts topic, for alarms that must live there —
 # today that's just the toolkit's Route 53 reachability alarm (PutMetricAlarm
 # rejects a cross-region action ARN for AWS/Route53 alarms specifically).
-# NOT a second Chatbot channel configuration: AWS Chatbot allows only ONE
-# configuration per Slack channel per account, account-wide — a second
-# regional config for the same channel is rejected outright
+#
+# The Slack relay itself (IAM role + the one Chatbot channel configuration)
+# is NOT here — it lives in stacks/account. AWS Chatbot allows only ONE
+# configuration per Slack channel per AWS ACCOUNT, full stop — not one per
+# region, and not one per environment either. Dev and prod share an
+# account, so each environment trying to own its own config for the same
+# #infra-alerts channel fails outright the moment the second one applies
 # (InvalidRequestException: "already been configured for AWS account"),
-# discovered via a live apply failure, 2026-09-09. So this topic is a second
-# subscription on the one existing config below, not a parallel relay.
+# discovered via two separate live apply failures, 2026-09-09 — first
+# cross-region within one environment, then cross-environment. The one
+# shared config in stacks/account subscribes to both of this environment's
+# topics (this one and the default-region `alerts` topic above) alongside
+# the other environment's.
 resource "aws_sns_topic" "alerts_us_east_1" {
   count    = var.slack_team_id != "" && var.slack_channel_id != "" ? 1 : 0
   provider = aws.us_east_1
 
   name = "${var.project}-${var.environment}-infrastructure-alerts-use1"
-}
-
-resource "aws_chatbot_slack_channel_configuration" "alerts" {
-  count = var.slack_team_id != "" && var.slack_channel_id != "" ? 1 : 0
-
-  configuration_name = "${var.project}-${var.environment}-alerts"
-  iam_role_arn       = aws_iam_role.chatbot_alerts[0].arn
-  slack_channel_id   = var.slack_channel_id
-  slack_team_id      = var.slack_team_id
-  # Both topics, one config: an SNS ARN is self-describing its own region,
-  # and unlike CloudWatch alarm actions, Chatbot's own cross-region topic
-  # subscription is untested by us until this apply — see the comment above.
-  sns_topic_arns = compact([
-    aws_sns_topic.alerts.arn,
-    try(aws_sns_topic.alerts_us_east_1[0].arn, ""),
-  ])
-  logging_level = "ERROR"
 }
 
 resource "aws_s3_bucket" "cloudtrail" {
