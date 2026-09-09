@@ -30,6 +30,16 @@ IMDS_TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" \
 INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
   http://169.254.169.254/latest/meta-data/instance-id)
 
+# The instance is ASG-managed, not a standalone aws_instance with a static
+# aws_eip_association — there is no stable instance ID for Terraform to
+# attach the EIP to ahead of time. Every instance the ASG ever launches
+# re-associates the one persistent EIP to itself here, on boot, so the
+# public IP/hostname never changes across a replacement. --allow-reassociation
+# is required: the EIP is still attached to whatever instance is being
+# replaced until this runs.
+aws ec2 associate-address --instance-id "$INSTANCE_ID" \
+  --allocation-id "${eip_allocation_id}" --region "${aws_region}" --allow-reassociation
+
 # set +x for the remainder: this script runs under `set -x`, and without this
 # every secret below would be echoed verbatim into SSM command history (retained
 # ~30 days) and CloudWatch. Re-enabling tracing after secret handling is not
@@ -109,6 +119,25 @@ services:
       - /opt/toolkit/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+  # Docker's own "restart: always" reacts only to a container EXITING — it
+  # does nothing for a process that's still running but no longer answering
+  # (a hung-but-alive uvicorn), even though the Dockerfile's own HEALTHCHECK
+  # already detects exactly that and marks the container "unhealthy". Autoheal
+  # is the piece that actually acts on that status: it watches every
+  # container's health via the Docker socket and force-restarts any that go
+  # unhealthy. This is the fix for the failure mode that motivated this
+  # change — see the ASG module's main.tf comment on the 2026-09-09 incident.
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    restart: always
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: all
+      AUTOHEAL_INTERVAL: 30
+    volumes:
+      # NOT :ro — autoheal issues `docker restart` over this socket, which
+      # needs write access; a read-only mount breaks that silently rather
+      # than with an obvious permission error.
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   caddy_data:

@@ -298,7 +298,13 @@ jobs:
         working-directory: infrastructure/terraform/stacks/toolkit
         run: |
           set -uo pipefail
-          IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
+          # The toolkit instance is ASG-managed (no stable instance_id output
+          # any more — see stacks/toolkit/outputs.tf) — look up whichever
+          # instance is currently running by its Name tag instead.
+          IID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=wusool-${ENV}-toolkit" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || echo "")
+          [ "$IID" = "None" ] && IID=""
           REPO_URL=$(tofu output -raw ecr_repository_url 2>/dev/null || echo "")
           if [ -z "$IID" ]; then
             echo "::notice::No toolkit instance in $ENV (create_instance=false) — skipping migrations."
@@ -396,7 +402,11 @@ jobs:
         run: |
           set -uo pipefail
           DOC=$(tofu output -raw bootstrap_document_name 2>/dev/null || echo "")
-          IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
+          # ASG-managed instance — no stable instance_id output. Look it up live.
+          IID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=wusool-${ENV}-toolkit" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || echo "")
+          [ "$IID" = "None" ] && IID=""
           if [ -z "$DOC" ] || [ -z "$IID" ]; then
             echo "::notice::No toolkit instance in $ENV (create_instance=false) — skipping app rollout."
             echo "skipped=true" >> "$GITHUB_OUTPUT"; exit 0

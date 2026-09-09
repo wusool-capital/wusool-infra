@@ -4,8 +4,15 @@
 # with "Unsupported attribute". Empty string is always present and compact()
 # (used by stacks/postgres) already treats "" the same as null.
 
-output "instance_id" {
-  value = try(module.wusool_toolkit[0].instance_id, "")
+# No stable instance_id — the instance is ASG-managed and can be replaced at
+# any time. CI must look up the live instance instead:
+#   aws ec2 describe-instances --filters \
+#     "Name=tag:Name,Values=wusool-<env>-toolkit" "Name=instance-state-name,Values=running"
+# (that tag value, NOT this ASG's own name — the ASG uses name_prefix and
+# carries a random suffix; the instance Name tag it propagates does not).
+# Kept mainly for direct `aws autoscaling describe-auto-scaling-groups` use.
+output "autoscaling_group_name" {
+  value = try(module.wusool_toolkit[0].autoscaling_group_name, "")
 }
 
 output "public_ip" {

@@ -7,6 +7,17 @@
 # removed from the instance (a prior pass fixed the AMI source but left this
 # in place, quietly defeating the fix — caught in code review 2026-08-16).
 
+terraform {
+  required_providers {
+    aws = {
+      source                = "hashicorp/aws"
+      configuration_aliases = [aws.us_east_1]
+    }
+  }
+}
+
+data "aws_caller_identity" "current" {}
+
 resource "aws_security_group" "wusool_toolkit" {
   # name_prefix, not name: a security group cannot be destroyed while an ENI
   # still uses it or another SG's rules reference it. With a fixed name and
@@ -77,6 +88,30 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 resource "aws_iam_role_policy_attachment" "cloudwatch" {
   role       = aws_iam_role.wusool_toolkit.name
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+# The instance is ASG-managed (below), so it no longer has a stable ID for a
+# static aws_eip_association to target. Each new instance re-associates the
+# one persistent EIP to itself on boot (user_data.sh.tpl) — this is the
+# permission that lets it do so. Scoped to this one EIP allocation and to
+# instances in this account/region (AssociateAddress's "instance" resource
+# type has no further way to scope to "this ASG only" short of a tag
+# condition, and the instance calling this only ever targets itself).
+resource "aws_iam_role_policy" "eip_associate" {
+  name = "${var.project}-${var.environment}-toolkit-eip-associate"
+  role = aws_iam_role.wusool_toolkit.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["ec2:AssociateAddress"]
+      Resource = [
+        "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:elastic-ip/${aws_eip.wusool_toolkit.id}",
+        "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/*",
+      ]
+    }]
+  })
 }
 
 resource "aws_iam_role_policy" "secrets_manager" {
@@ -195,45 +230,95 @@ locals {
     attio_is_test           = local.attio_is_test
     cloudwatch_agent_config = local.cloudwatch_agent_config
     cloudwatch_log_group    = aws_cloudwatch_log_group.wusool_toolkit.name
+    eip_allocation_id       = aws_eip.wusool_toolkit.id
   }), "\r\n", "\n")
 }
 
-resource "aws_instance" "wusool_toolkit" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  subnet_id              = var.subnet_id
-  vpc_security_group_ids = [aws_security_group.wusool_toolkit.id]
-  key_name               = var.key_name != "" ? var.key_name : null
-  iam_instance_profile   = aws_iam_instance_profile.wusool_toolkit.name
+# Launch Template + ASG(1), not a standalone aws_instance: an ASG is what
+# gives this a real self-healing property a lone instance has none of — if
+# the instance is ever terminated (retirement, manual mistake, host failure),
+# the ASG launches a replacement automatically. user_data re-associates the
+# one persistent EIP to whichever instance boots, so the public IP/hostname
+# never changes.
+resource "aws_launch_template" "wusool_toolkit" {
+  name_prefix   = "${var.project}-${var.environment}-toolkit-"
+  image_id      = var.ami_id
+  instance_type = var.instance_type
+  key_name      = var.key_name != "" ? var.key_name : null
 
-  root_block_device {
-    volume_size = var.root_volume_size
-    volume_type = "gp3"
-    encrypted   = true
+  iam_instance_profile {
+    name = aws_iam_instance_profile.wusool_toolkit.name
   }
 
-  user_data = local.user_data_rendered
+  vpc_security_group_ids = [aws_security_group.wusool_toolkit.id]
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size = var.root_volume_size
+      volume_type = "gp3"
+      encrypted   = true
+    }
+  }
 
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
   }
 
-  tags = {
-    Name = "${var.project}-${var.environment}-toolkit"
+  user_data = base64encode(local.user_data_rendered)
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${var.project}-${var.environment}-toolkit"
+    }
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
-resource "aws_eip_association" "wusool_toolkit" {
-  instance_id   = aws_instance.wusool_toolkit.id
-  allocation_id = aws_eip.wusool_toolkit.id
+resource "aws_autoscaling_group" "wusool_toolkit" {
+  name_prefix         = "${var.project}-${var.environment}-toolkit-"
+  min_size            = 1
+  max_size            = 1
+  desired_capacity    = 1
+  vpc_zone_identifier = [var.subnet_id]
+
+  # No load balancer attached, so this is AWS's own system/instance status
+  # checks — not an app-level check. It replaces a terminated or
+  # hardware-impaired instance; it does NOT see a hung-but-alive process
+  # (that's the container-level healthcheck in user_data.sh.tpl) or a
+  # network-path blip while the instance itself stays healthy (that's the
+  # Route 53 health check below — visibility only, it can't act on this).
+  health_check_type         = "EC2"
+  health_check_grace_period = 120
+
+  launch_template {
+    id      = aws_launch_template.wusool_toolkit.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "${var.project}-${var.environment}-toolkit"
+    propagate_at_launch = true
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Existing instances do not rerun EC2 user data when it changes. This SSM
 # association applies the same idempotent bootstrap (docker login, pull the
 # pinned digest, restart) without replacing the instance, so a redeploy is
 # `terraform apply` followed by this association re-running — no manual SSH
-# step required.
+# step required. Tag-based targeting (not InstanceIds): the ASG can replace
+# the underlying instance at any time, and this must keep applying to
+# whichever one is currently running without a Terraform apply in between.
 resource "aws_ssm_document" "bootstrap" {
   name            = "${var.project}-${var.environment}-toolkit-bootstrap"
   document_type   = "Command"
@@ -262,29 +347,34 @@ resource "aws_ssm_association" "bootstrap" {
   association_name = "${var.project}-${var.environment}-toolkit-bootstrap"
 
   targets {
-    key    = "InstanceIds"
-    values = [aws_instance.wusool_toolkit.id]
+    key    = "tag:Name"
+    values = ["${var.project}-${var.environment}-toolkit"]
   }
 
   depends_on = [
     aws_iam_role_policy_attachment.ssm,
     aws_iam_role_policy_attachment.cloudwatch,
-    aws_eip_association.wusool_toolkit
+    aws_autoscaling_group.wusool_toolkit,
   ]
 }
 
-resource "aws_cloudwatch_metric_alarm" "status" {
-  alarm_name          = "${var.project}-${var.environment}-toolkit-status-check"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
+# StatusCheckFailed/CPUUtilization pinned to a specific InstanceId (the old
+# shape here) go stale the moment the ASG replaces the instance — a static
+# dimension value doesn't follow rotation. AutoScalingGroupName is a stable
+# dimension CloudWatch aggregates onto automatically for every instance the
+# ASG currently owns, with no extra configuration.
+resource "aws_cloudwatch_metric_alarm" "in_service" {
+  alarm_name          = "${var.project}-${var.environment}-toolkit-not-in-service"
+  comparison_operator = "LessThanThreshold"
   evaluation_periods  = 2
-  metric_name         = "StatusCheckFailed"
-  namespace           = "AWS/EC2"
+  metric_name         = "GroupInServiceInstances"
+  namespace           = "AWS/AutoScaling"
   period              = 60
-  statistic           = "Maximum"
+  statistic           = "Minimum"
   threshold           = 1
   alarm_actions       = local.alarm_actions
   ok_actions          = local.alarm_actions
-  dimensions          = { InstanceId = aws_instance.wusool_toolkit.id }
+  dimensions          = { AutoScalingGroupName = aws_autoscaling_group.wusool_toolkit.name }
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu" {
@@ -298,5 +388,66 @@ resource "aws_cloudwatch_metric_alarm" "cpu" {
   threshold           = 85
   alarm_actions       = local.alarm_actions
   ok_actions          = local.alarm_actions
-  dimensions          = { InstanceId = aws_instance.wusool_toolkit.id }
+  dimensions          = { AutoScalingGroupName = aws_autoscaling_group.wusool_toolkit.name }
+}
+
+# External reachability check, run from outside AWS's network — the layer
+# that catches a network-path blip while the instance itself stays healthy
+# (confirmed against a real incident: 2026-09-09 prod, CPU flat, zero
+# StatusCheckFailed, /health serving 200 throughout, yet a Slack request
+# never reached the box at all). Visibility only: nothing here auto-heals a
+# blip this short, it exists to make it visible instead of invisible.
+resource "aws_route53_health_check" "wusool_toolkit" {
+  for_each = { for app in local.apps_resolved : app.name => app }
+
+  fqdn              = each.value.hostname
+  port              = 443
+  type              = "HTTPS"
+  resource_path     = "/readiness"
+  failure_threshold = 3
+  request_interval  = 30
+  enable_sni        = true
+
+  tags = { Name = "${var.project}-${var.environment}-${each.key}-reachability" }
+}
+
+# A dedicated, same-region SNS topic for this one alarm — not the shared
+# eu-central-1 alarm_topic_arn. CloudWatch's own docs explicitly decline to
+# guarantee cross-region alarm-to-SNS delivery, and note that a bad action
+# (nonexistent or unreachable target) is never validated or surfaced at
+# apply/alarm time — it just silently never fires. That failure mode is
+# exactly the "fails open, looks fine" class of bug this whole migration is
+# trying to remove, so this alarm is not the place to gamble on it.
+resource "aws_sns_topic" "reachability_alerts" {
+  count    = var.alert_email != "" ? 1 : 0
+  provider = aws.us_east_1
+
+  name = "${var.project}-${var.environment}-toolkit-reachability-alerts"
+}
+
+resource "aws_sns_topic_subscription" "reachability_alerts_email" {
+  count    = var.alert_email != "" ? 1 : 0
+  provider = aws.us_east_1
+
+  topic_arn = aws_sns_topic.reachability_alerts[0].arn
+  protocol  = "email"
+  endpoint  = var.alert_email
+}
+
+resource "aws_cloudwatch_metric_alarm" "reachability" {
+  for_each = aws_route53_health_check.wusool_toolkit
+  provider = aws.us_east_1
+
+  alarm_name          = "${var.project}-${var.environment}-${each.key}-unreachable"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "HealthCheckStatus"
+  namespace           = "AWS/Route53"
+  period              = 60
+  statistic           = "Minimum"
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_actions       = var.alert_email != "" ? [aws_sns_topic.reachability_alerts[0].arn] : []
+  ok_actions          = var.alert_email != "" ? [aws_sns_topic.reachability_alerts[0].arn] : []
+  dimensions          = { HealthCheckId = each.value.id }
 }

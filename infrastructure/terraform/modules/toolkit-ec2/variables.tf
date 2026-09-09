@@ -109,3 +109,9 @@ variable "ecr_repository_arn" {
   description = "ARN of the ECR repository apps' images are pulled from. Scopes this instance's pull permission to just that repo."
   type        = string
 }
+
+variable "alert_email" {
+  description = "Email address for the Route 53 reachability alarm (a dedicated us-east-1 SNS topic, not the shared alarm_topic_arn — see main.tf). Empty skips creating the topic/subscription/alarm actions."
+  type        = string
+  default     = ""
+}
