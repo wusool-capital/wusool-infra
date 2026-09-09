@@ -386,9 +386,15 @@ resource "aws_cloudwatch_metric_alarm" "in_service" {
   period              = 60
   statistic           = "Minimum"
   threshold           = 1
-  alarm_actions       = local.alarm_actions
-  ok_actions          = local.alarm_actions
-  dimensions          = { AutoScalingGroupName = aws_autoscaling_group.wusool_toolkit.name }
+  # Confirmed by a live drill (2026-09-09, dev): with 0 in-service instances,
+  # GroupInServiceInstances publishes NO datapoints at all — not even an
+  # explicit 0. Without this, the default "missing" behavior leaves the
+  # alarm stuck in INSUFFICIENT_DATA — no Slack alert, no signal of any
+  # kind — for exactly the scenario this alarm exists to catch.
+  treat_missing_data = "breaching"
+  alarm_actions      = local.alarm_actions
+  ok_actions         = local.alarm_actions
+  dimensions         = { AutoScalingGroupName = aws_autoscaling_group.wusool_toolkit.name }
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu" {
