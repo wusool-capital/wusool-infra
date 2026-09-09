@@ -33,6 +33,7 @@ from app.modules.ddl_commands.api.slack.handlers import (
 from app.modules.ddl_commands.persistence.database import (
     import_all_models as import_ddl_commands_models,
 )
+from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
 )
@@ -101,6 +102,10 @@ app = FastAPI(title="Wusool Toolkit Bot", lifespan=_lifespan)
 register_exception_handlers(app)
 app.include_router(attio_sync_router)
 app.include_router(meetings_router)
+# The four lead-magnet tools. Served on this same container behind a second
+# Caddy hostname (see modules/toolkit-ec2's `extra_hostnames`), not a
+# separate app.
+app.include_router(lead_magnets_router)
 
 
 @app.exception_handler(Exception)

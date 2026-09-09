@@ -12,9 +12,14 @@ second Caddy hostname pointing at the same container.
 
 ## Status
 
-Partial. The pure and persistence layers are in place; the endpoints, the
-prompts and the tool pages are blocked on inputs that live outside this
-repo — see "Blocked on" below.
+Two of the six endpoints serve. `POST /benchmark` and
+`POST /readiness/score` are wired into `server/main.py` and verified over
+HTTP against a real Postgres and live Bedrock. `/enrich`, `/analyze`,
+`/compare` and `/buyer/apply` return 404 — they need the valuation prompts
+and the Buyer Network form, and a 404 is honest where a stub returning empty
+data would not be.
+
+The tool pages are not served yet: `static/` is still empty.
 
 ## Structure
 
@@ -42,6 +47,26 @@ lead_magnets/
     bedrock/ firecrawl/ attio/
   tests/
 ```
+
+## Endpoints
+
+Paths follow the migration spec's own table, not this module's invention.
+`/benchmark` additionally keeps the path the live benchmark page already
+posts to, so repointing it is a host change rather than a path change.
+
+| | | |
+|---|---|---|
+| `POST /benchmark` | serves | No model at all — scored against the peer dataset |
+| `POST /readiness/score` | serves | Sonnet 4.6, no fallback by decision |
+| `POST /enrich` | 404 | needs the valuation enrich prompt + Firecrawl scrape |
+| `POST /analyze` | 404 | needs the three merged valuation prompts |
+| `POST /compare` | 404 | needs the two-pass Firecrawl pipeline |
+| `POST /buyer/apply` | 404 | the Buyer Network form does not exist yet |
+
+Both live endpoints commit the ledger row **before** responding, not at
+dependency teardown. Two reasons, both load-bearing: the contract is that
+the lead is durable before the visitor is told anything, and the background
+completion opens its own session, so an uncommitted row is invisible to it.
 
 ## The write contract
 

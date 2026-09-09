@@ -1,0 +1,182 @@
+"""Request and response shapes for the lead-magnet endpoints.
+
+Paths and payloads follow the migration spec's endpoint table, not this
+module's own invention:
+
+    POST /enrich           {domain} -> {description, sector}
+    POST /analyze          -> {pros[3], cons[3], insights[], fundraise{}}
+    POST /compare          -> {comps:[{co,tk,ev,rev,ebitda}]}
+    POST /readiness/score  -> {overallScore, scoreBand, summaryParagraph,
+                               dimensions[5], recommendations[3]}
+    POST /buyer/apply      -> {ok, run_id}
+    POST /benchmark        -> the benchmark result (no model involved)
+
+`/benchmark` keeps the path the live tool already posts to
+(`wusool-benchmark.html`'s `CFG.relay`), so repointing the page is a host
+change rather than a path change. It is absent from the spec's table because
+that table lists the *AI* endpoints and the benchmark uses none.
+
+Response field names are the ones the existing pages parse — `comps`,
+`overallScore`, `dimensions[].insight` — and are not renamed.
+"""
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.modules.lead_magnets.domain.benchmark_dataset import SECTORS, STAGES
+from app.modules.lead_magnets.domain.benchmark_narrative import Tone
+
+
+class _Strict(BaseModel):
+    # A misspelled field from a page we are rewriting should fail loudly here
+    # rather than be silently dropped and score as a blank.
+    model_config = ConfigDict(extra="forbid")
+
+
+class ReadinessAnswersIn(_Strict):
+    """q1-q13 are 0-3 scores; q14 and q15 are free text.
+
+    Every one is optional: the form gates per section, so a partial
+    submission is a real shape — and a missing answer must stay missing
+    rather than become a zero, which is the hard DEAL RISK flag.
+    """
+
+    q1: int | None = Field(default=None, ge=0, le=3)
+    q2: int | None = Field(default=None, ge=0, le=3)
+    q3: int | None = Field(default=None, ge=0, le=3)
+    q4: int | None = Field(default=None, ge=0, le=3)
+    q5: int | None = Field(default=None, ge=0, le=3)
+    q6: int | None = Field(default=None, ge=0, le=3)
+    q7: int | None = Field(default=None, ge=0, le=3)
+    q8: int | None = Field(default=None, ge=0, le=3)
+    q9: int | None = Field(default=None, ge=0, le=3)
+    q10: int | None = Field(default=None, ge=0, le=3)
+    q11: int | None = Field(default=None, ge=0, le=3)
+    q12: int | None = Field(default=None, ge=0, le=3)
+    q13: int | None = Field(default=None, ge=0, le=3)
+    q14: str | None = Field(default=None, max_length=2000)
+    q15: str | None = Field(default=None, max_length=2000)
+
+
+class ReadinessRequest(_Strict):
+    submission_id: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=200)
+    company: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=320)
+    sector: str = Field(min_length=1, max_length=200)
+    revenue: str | None = Field(default=None, max_length=100)
+    country: str | None = Field(default=None, max_length=100)
+    # Optional by decision: the live tools reject a blank domain outright,
+    # which loses the lead. Here it only weakens deduplication.
+    domain: str | None = Field(default=None, max_length=253)
+    answers: ReadinessAnswersIn
+
+
+class DimensionOut(BaseModel):
+    name: str
+    score: float
+    insight: str
+
+
+class RecommendationOut(BaseModel):
+    title: str
+    detail: str
+
+
+class ReadinessResponse(BaseModel):
+    run_id: str
+    overallScore: float
+    scoreBand: str
+    summaryParagraph: str
+    dimensions: list[DimensionOut]
+    recommendations: list[RecommendationOut]
+
+
+class BenchmarkRequest(_Strict):
+    """The raw form figures, in USD.
+
+    The live page computes its own score and posts the result; here the
+    server computes it, which is the point of the migration — the browser
+    stops being the source of truth for what lands in the CRM.
+    """
+
+    submission_id: str = Field(min_length=1, max_length=64)
+    mode: Literal["sme", "tech"] = "sme"
+    # A sector key in SME mode, a funding stage in startup mode.
+    peer_key: str = Field(min_length=1, max_length=64)
+    company: str = Field(min_length=1, max_length=200)
+    name: str | None = Field(default=None, max_length=200)
+    email: str = Field(min_length=3, max_length=320)
+    domain: str | None = Field(default=None, max_length=253)
+    geography: str | None = Field(default=None, max_length=100)
+    consent: bool = False
+
+    revenue: float | None = Field(default=None, ge=0)
+    prev_revenue: float | None = Field(default=None, ge=0)
+    ebitda_reported: float | None = None
+    owner_salary: float | None = Field(default=None, ge=0)
+    salary_deducted: bool = False
+    gross_margin_pct: float | None = Field(default=None, ge=-100, le=100)
+    headcount: int | None = Field(default=None, ge=0)
+    rent_cost: float | None = Field(default=None, ge=0)
+    capital_raised: float | None = Field(default=None, ge=0)
+    top_customer_pct: float | None = Field(default=None, ge=0, le=100)
+    recurring_pct: float | None = Field(default=None, ge=0, le=100)
+    years_active: float | None = Field(default=None, ge=0)
+    outlets: int | None = Field(default=None, ge=0)
+    days_to_get_paid: int | None = Field(default=None, ge=0)
+
+    @field_validator("peer_key")
+    @classmethod
+    def known_peer_cut(cls, value: str) -> str:
+        """A sector or stage the dataset has no anchors for would otherwise
+        surface as a 500 from the scoring engine. Rejecting it here gives the
+        page a 422 naming the field."""
+        if value in SECTORS or value in STAGES:
+            return value
+        raise ValueError(
+            f"unknown peer_key {value!r}; expected one of "
+            f"{sorted(SECTORS)} (sme) or {sorted(STAGES)} (tech)"
+        )
+
+
+class MetricOut(BaseModel):
+    label: str
+    value: float | None
+    percentile: float | None
+    quartile: int | None
+    peer_median: float | None
+
+
+class FlagOut(BaseModel):
+    tone: Tone
+    title: str
+    body: str
+
+
+class ImpliedEvOut(BaseModel):
+    low: float
+    mid: float
+    high: float
+    forward_revenue: float
+
+
+class BenchmarkResponse(BaseModel):
+    run_id: str
+    score: int
+    band: str
+    quartile: int
+    peer_label: str
+    revenue_band: str
+    sample_size: int | None
+    metrics: dict[str, MetricOut]
+    flags: list[FlagOut]
+    data_completeness: int
+    metrics_covered: int
+    metrics_total: int
+    implied_ev: ImpliedEvOut | None
+    # Currency is stated on the wire so no consumer has to infer it from a
+    # field name — the legacy `*_aed` slugs hold USD and that has already
+    # cost one round of confusion.
+    currency: Literal["USD"] = "USD"
