@@ -21,24 +21,31 @@ from app.modules.lead_magnets.domain.tool_run import (
     ToolRunRecord,
     ToolRunStatus,
 )
-from app.modules.utilities.domain.json_types import JsonObject, JsonSchema
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class LeadLLMPort(Protocol):
-    """Returns an already-validated plain `dict`. Pydantic models must not
-    cross this seam — the same contract `meetings.SummarizerLLM` keeps.
+    """One method per model call, named for the operation rather than the
+    schema — the same shape `meetings.SummarizerLLM` and
+    `matching_engine.BedrockClient` use.
+
+    Each takes a finished prompt: prompts are pure functions in `domain/`,
+    so this layer never learns a model id, a token budget or a response
+    schema. Each returns an already-validated plain `dict`; Pydantic models
+    must not cross this seam.
     """
 
-    async def invoke(
-        self,
-        *,
-        model_id: str,
-        prompt: str,
-        schema: JsonSchema,
-        max_tokens: int,
-        temperature: float,
-        system_prompt: str = "",
-    ) -> JsonObject: ...
+    async def enrich(self, *, prompt: str) -> JsonObject: ...
+
+    async def analyze(self, *, prompt: str) -> JsonObject: ...
+
+    async def plan_search_queries(self, *, prompt: str) -> JsonObject: ...
+
+    async def select_comparables(self, *, prompt: str) -> JsonObject: ...
+
+    async def score_readiness(self, *, prompt: str) -> JsonObject: ...
+
+    async def qualify_buyer(self, *, prompt: str) -> JsonObject: ...
 
 
 class SearchPort(Protocol):
