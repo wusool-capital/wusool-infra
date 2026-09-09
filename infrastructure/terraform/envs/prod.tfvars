@@ -10,6 +10,10 @@ database_private_subnet_cidr = "10.20.3.0/24"
 
 alert_email = "raoof@azmora.ai"
 
+# AWS Chatbot -> #infra-alerts, shared with dev (workspace: Azmora)
+slack_team_id    = "T0BAE254789"
+slack_channel_id = "C0C0E16U0HH"
+
 # stacks/n8n — prod
 key_name      = ""
 instance_type = "t3.small"

@@ -1,0 +1,31 @@
+name: Find the current toolkit instance
+description: >
+  Looks up the currently running wusool-<env>-toolkit EC2 instance by its
+  Name tag. The instance is ASG-managed (infrastructure/terraform/modules/toolkit-ec2)
+  and can be replaced at any time, independent of any `tofu apply` — there is
+  no stable instance_id Terraform output any more, so every consumer that
+  needs the live instance ID looks it up the same way, here, instead of each
+  reimplementing the same aws ec2 describe-instances call.
+
+inputs:
+  environment:
+    description: 'dev or prod'
+    required: true
+
+outputs:
+  instance_id:
+    description: 'The running instance ID, or empty string if none is found (create_instance=false, or the ASG is mid-replacement).'
+    value: ${{ steps.find.outputs.instance_id }}
+
+runs:
+  using: composite
+  steps:
+    - id: find
+      shell: bash
+      run: |
+        set -euo pipefail
+        IID=$(aws ec2 describe-instances \
+          --filters "Name=tag:Name,Values=wusool-${{ inputs.environment }}-toolkit" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || echo "")
+        [ "$IID" = "None" ] && IID=""
+        echo "instance_id=$IID" >> "$GITHUB_OUTPUT"

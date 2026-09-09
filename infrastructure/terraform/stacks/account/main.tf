@@ -125,6 +125,94 @@ resource "aws_cloudwatch_event_target" "securityhub_to_sns" {
 }
 
 # ---------------------------------------------------------------------------
+# Infrastructure alerts -> Slack (AWS Chatbot)
+#
+# Account-level, not per-environment, for one hard reason: AWS Chatbot
+# allows only ONE channel configuration per Slack channel per AWS ACCOUNT —
+# not per region, not per environment. Dev and prod share this account and
+# both want alerts in the same #infra-alerts channel, so only one of them
+# can ever own a Chatbot config for it; the second environment's own
+# attempt is rejected outright (InvalidRequestException: "already been
+# configured for AWS account"), discovered via two separate live apply
+# failures, 2026-09-09. The fix here is architectural, not a workaround:
+# ONE config, reading both environments' alerts topics via remote state,
+# same way stacks/postgres already reads n8n's and toolkit's outputs.
+#
+# The Slack workspace authorization itself (Chatbot console -> Configure
+# new client -> Slack -> Allow) is a one-time manual step with no
+# Terraform resource — this stays inert until that's done and the two IDs
+# below are set.
+data "terraform_remote_state" "base_dev" {
+  backend = "s3"
+  config = {
+    bucket = "wusool-tfstate"
+    key    = "wusool/dev/base/terraform.tfstate"
+    region = "me-central-1"
+  }
+}
+
+data "terraform_remote_state" "base_prod" {
+  backend = "s3"
+  config = {
+    bucket = "wusool-tfstate"
+    key    = "wusool/prod/base/terraform.tfstate"
+    region = "me-central-1"
+  }
+}
+
+resource "aws_iam_role" "chatbot_alerts" {
+  count = var.slack_team_id != "" && var.slack_channel_id != "" ? 1 : 0
+
+  name = "${var.project}-chatbot-alerts"
+  assume_role_policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{ Effect = "Allow", Principal = { Service = "chatbot.amazonaws.com" }, Action = "sts:AssumeRole" }]
+  })
+}
+
+# AWS's own documented minimum for notification-only use (relaying
+# CloudWatch/SNS alarms into a chat room, no interactive AWS commands run
+# from Slack): https://docs.aws.amazon.com/chatbot/latest/adminguide/chatbot-iam-policies.html#read-only-notifications-policy
+# — deliberately not ReadOnlyAccess or CloudWatchReadOnlyAccess, both far
+# broader than an alert relay needs.
+resource "aws_iam_role_policy" "chatbot_notifications_only" {
+  count = length(aws_iam_role.chatbot_alerts)
+
+  name = "${var.project}-chatbot-notifications-only"
+  role = aws_iam_role.chatbot_alerts[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["cloudwatch:Describe*", "cloudwatch:Get*", "cloudwatch:List*"]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_chatbot_slack_channel_configuration" "alerts" {
+  count = var.slack_team_id != "" && var.slack_channel_id != "" ? 1 : 0
+
+  configuration_name = "${var.project}-infrastructure-alerts"
+  iam_role_arn       = aws_iam_role.chatbot_alerts[0].arn
+  slack_channel_id   = var.slack_channel_id
+  slack_team_id      = var.slack_team_id
+  # All four topics, one config — dev and prod each in their default region
+  # plus their us-east-1 twin (Route 53 alarms). An SNS ARN is self-describing
+  # its own region; Chatbot subscribes across regions with no extra config.
+  # compact() guards against applying this before a base stack has created
+  # its us_east_1 topic yet — base's own output is try(..., ""), never null.
+  sns_topic_arns = compact([
+    data.terraform_remote_state.base_dev.outputs.alarm_topic_arn,
+    data.terraform_remote_state.base_dev.outputs.us_east_1_alarm_topic_arn,
+    data.terraform_remote_state.base_prod.outputs.alarm_topic_arn,
+    data.terraform_remote_state.base_prod.outputs.us_east_1_alarm_topic_arn,
+  ])
+  logging_level = "ERROR"
+}
+
+# ---------------------------------------------------------------------------
 # GitHub Actions OIDC (Phase E)
 #
 # Account-level: one provider, one set of roles, trusted by this repo only.
@@ -307,15 +395,16 @@ resource "aws_iam_role_policy" "gha_apply_iam" {
       },
       {
         # PassRole is separately scoped and further restricted to roles being
-        # passed to EC2 specifically - the only thing this pipeline ever
-        # passes a role to.
-        Sid      = "PassServiceRolesToEC2Only"
+        # passed to EC2, and (since the AWS Chatbot Slack alerting relay)
+        # chatbot.amazonaws.com — the only things this pipeline ever passes
+        # a role to.
+        Sid      = "PassServiceRolesToEC2AndChatbotOnly"
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project}-${each.key}-*"
         Condition = {
           StringEquals = {
-            "iam:PassedToService" = "ec2.amazonaws.com"
+            "iam:PassedToService" = ["ec2.amazonaws.com", "chatbot.amazonaws.com"]
           }
         }
       },

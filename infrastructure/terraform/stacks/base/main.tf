@@ -29,6 +29,29 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alert_email
 }
 
+# us-east-1 twin of the alerts topic, for alarms that must live there —
+# today that's just the toolkit's Route 53 reachability alarm (PutMetricAlarm
+# rejects a cross-region action ARN for AWS/Route53 alarms specifically).
+#
+# The Slack relay itself (IAM role + the one Chatbot channel configuration)
+# is NOT here — it lives in stacks/account. AWS Chatbot allows only ONE
+# configuration per Slack channel per AWS ACCOUNT, full stop — not one per
+# region, and not one per environment either. Dev and prod share an
+# account, so each environment trying to own its own config for the same
+# #infra-alerts channel fails outright the moment the second one applies
+# (InvalidRequestException: "already been configured for AWS account"),
+# discovered via two separate live apply failures, 2026-09-09 — first
+# cross-region within one environment, then cross-environment. The one
+# shared config in stacks/account subscribes to both of this environment's
+# topics (this one and the default-region `alerts` topic above) alongside
+# the other environment's.
+resource "aws_sns_topic" "alerts_us_east_1" {
+  count    = var.slack_team_id != "" && var.slack_channel_id != "" ? 1 : 0
+  provider = aws.us_east_1
+
+  name = "${var.project}-${var.environment}-infrastructure-alerts-use1"
+}
+
 resource "aws_s3_bucket" "cloudtrail" {
   bucket        = "${var.project}-${var.environment}-cloudtrail-${data.aws_caller_identity.current.account_id}"
   force_destroy = false

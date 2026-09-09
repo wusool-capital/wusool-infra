@@ -58,25 +58,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ./.github/actions/setup-opentofu
-
       - uses: ./.github/actions/aws-oidc
         with:
           role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
 
-      # Read-only: no `apply` here, only the instance_id output already
-      # applied by deploy-prod.yml's own run of stacks/toolkit.
-      - name: Read toolkit stack outputs
+      - name: Find the current toolkit instance
         id: toolkit
-        working-directory: infrastructure/terraform/stacks/toolkit
-        run: |
-          set -euo pipefail
-          tofu init -reconfigure -input=false \
-            -backend-config=bucket=wusool-tfstate \
-            -backend-config=region=me-central-1 \
-            -backend-config=key=wusool/prod/toolkit/terraform.tfstate \
-            -backend-config=use_lockfile=true -backend-config=encrypt=true
-          echo "instance_id=$(tofu output -raw instance_id 2>/dev/null || echo '')" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/find-toolkit-instance
+        with:
+          environment: prod
 
       - name: Run full resync on the toolkit instance
         if: steps.toolkit.outputs.instance_id != ''
@@ -92,4 +82,4 @@ jobs:
       # is out of scope -- tracked in docs/handover/README.md.
       - name: No toolkit instance in prod
         if: steps.toolkit.outputs.instance_id == ''
-        run: echo "::notice::No toolkit instance in prod (create_instance=false) — skipping nightly resync."
+        run: echo "::warning::No running toolkit instance found in prod (create_instance=false, or the ASG is mid-replacement) — skipping nightly resync. If this wasn't a deliberate create_instance=false, re-run this workflow."
