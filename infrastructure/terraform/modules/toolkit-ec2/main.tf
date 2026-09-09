@@ -432,29 +432,16 @@ resource "aws_route53_health_check" "wusool_toolkit" {
   tags = { Name = "${var.project}-${var.environment}-${each.key}-reachability" }
 }
 
-# A dedicated, same-region SNS topic for this one alarm — not the shared
-# eu-central-1 alarm_topic_arn. CloudWatch's own docs explicitly decline to
-# guarantee cross-region alarm-to-SNS delivery, and note that a bad action
-# (nonexistent or unreachable target) is never validated or surfaced at
-# apply/alarm time — it just silently never fires. That failure mode is
-# exactly the "fails open, looks fine" class of bug this whole migration is
-# trying to remove, so this alarm is not the place to gamble on it.
-resource "aws_sns_topic" "reachability_alerts" {
-  count    = var.alert_email != "" ? 1 : 0
-  provider = aws.us_east_1
-
-  name = "${var.project}-${var.environment}-toolkit-reachability-alerts"
-}
-
-resource "aws_sns_topic_subscription" "reachability_alerts_email" {
-  count    = var.alert_email != "" ? 1 : 0
-  provider = aws.us_east_1
-
-  topic_arn = aws_sns_topic.reachability_alerts[0].arn
-  protocol  = "email"
-  endpoint  = var.alert_email
-}
-
+# The ALARM itself must live in us-east-1 — that's not a choice, it's where
+# Route 53 publishes HealthCheckStatus, full stop (AWS's own console
+# instructions: "Route 53 metrics are not available if you select any other
+# region"). The SNS target it notifies does NOT have to move with it:
+# PutMetricAlarm's AlarmActions takes a full ARN including its own region
+# (`arn:aws:sns:region:account-id:topic`), and AWS's own example requests
+# show alarms notifying topics with no stated requirement that the regions
+# match. So this reuses the same shared eu-central-1 alarm_topic_arn every
+# other alarm in this module uses — one topic, one place to check, no extra
+# "confirm your subscription" email.
 resource "aws_cloudwatch_metric_alarm" "reachability" {
   for_each = aws_route53_health_check.wusool_toolkit
   provider = aws.us_east_1
@@ -468,7 +455,7 @@ resource "aws_cloudwatch_metric_alarm" "reachability" {
   statistic           = "Minimum"
   threshold           = 1
   treat_missing_data  = "breaching"
-  alarm_actions       = var.alert_email != "" ? [aws_sns_topic.reachability_alerts[0].arn] : []
-  ok_actions          = var.alert_email != "" ? [aws_sns_topic.reachability_alerts[0].arn] : []
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
   dimensions          = { HealthCheckId = each.value.id }
 }
