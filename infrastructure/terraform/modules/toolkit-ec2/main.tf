@@ -435,13 +435,15 @@ resource "aws_route53_health_check" "wusool_toolkit" {
 # The ALARM itself must live in us-east-1 — that's not a choice, it's where
 # Route 53 publishes HealthCheckStatus, full stop (AWS's own console
 # instructions: "Route 53 metrics are not available if you select any other
-# region"). The SNS target it notifies does NOT have to move with it:
-# PutMetricAlarm's AlarmActions takes a full ARN including its own region
-# (`arn:aws:sns:region:account-id:topic`), and AWS's own example requests
-# show alarms notifying topics with no stated requirement that the regions
-# match. So this reuses the same shared eu-central-1 alarm_topic_arn every
-# other alarm in this module uses — one topic, one place to check, no extra
-# "confirm your subscription" email.
+# region"). The SNS target ALSO has to be us-east-1: a live apply
+# (2026-09-09) proved this the hard way — PutMetricAlarm rejected an
+# eu-central-1 action ARN on this alarm with "Invalid region eu-central-1
+# specified. Only us-east-1 is supported.", contradicting the general
+# PutMetricAlarm API docs (which show cross-region SNS actions with no
+# stated restriction — apparently true for ordinary alarms, not this
+# Route 53-sourced one). Hence the separate us_east_1_alarm_topic_arn,
+# rather than reusing the shared eu-central-1 alarm_topic_arn every other
+# alarm in this module uses.
 resource "aws_cloudwatch_metric_alarm" "reachability" {
   for_each = aws_route53_health_check.wusool_toolkit
   provider = aws.us_east_1
@@ -455,7 +457,7 @@ resource "aws_cloudwatch_metric_alarm" "reachability" {
   statistic           = "Minimum"
   threshold           = 1
   treat_missing_data  = "breaching"
-  alarm_actions       = local.alarm_actions
-  ok_actions          = local.alarm_actions
+  alarm_actions       = var.us_east_1_alarm_topic_arn != "" ? [var.us_east_1_alarm_topic_arn] : []
+  ok_actions          = var.us_east_1_alarm_topic_arn != "" ? [var.us_east_1_alarm_topic_arn] : []
   dimensions          = { HealthCheckId = each.value.id }
 }

@@ -94,6 +94,12 @@ variable "alarm_topic_arn" {
   default     = ""
 }
 
+variable "us_east_1_alarm_topic_arn" {
+  description = "us-east-1 twin of alarm_topic_arn, required for the Route 53 reachability alarm — PutMetricAlarm rejects an AWS/Route53 alarm whose action ARN is in a different region from the alarm itself (learned from a live apply failure, not documented). Empty disables that alarm's actions."
+  type        = string
+  default     = ""
+}
+
 variable "aws_region" {
   description = "AWS region the app calls Bedrock in (passed through as AWS_REGION)."
   type        = string

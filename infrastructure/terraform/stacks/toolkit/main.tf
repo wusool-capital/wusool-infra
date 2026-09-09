@@ -51,6 +51,7 @@ module "wusool_toolkit" {
   root_volume_size            = var.toolkit_root_volume_size
   aws_region                  = var.aws_region
   alarm_topic_arn             = data.terraform_remote_state.base.outputs.alarm_topic_arn
+  us_east_1_alarm_topic_arn   = data.terraform_remote_state.base.outputs.us_east_1_alarm_topic_arn
   secrets_manager_secret_arns = [aws_secretsmanager_secret.wusool_toolkit.arn]
   ecr_repository_arn          = aws_ecr_repository.wusool_toolkit.arn
 
