@@ -27,6 +27,7 @@ lead_magnets/
     dedup.py                  # normalisation + key composition (pure)
   persistence/
     database.py               # sessionmaker bound to this module's DATABASE_URL
+    mappers.py                # tool_runs row -> ToolRunRecord; where the ORM type stops
     tool_runs_repository.py   # the write-ahead ledger
   application/ports/          # every Protocol, one file
   providers/
@@ -111,6 +112,37 @@ role, so there is nowhere for a key to live — which is the point.
   `"Mobility"` → `Mobility`, both live `sector_focus` options.
 - End-to-end Firecrawl verification — the only unproven half of the
   comparables pipeline.
+
+## Table ownership
+
+This module owns `tool_runs`. It also touches three tables it does not own,
+each deliberately:
+
+- `organizations` — through `app.modules.organizations`'
+  `OrganizationRepository.create`, which is already
+  `ON CONFLICT DO NOTHING` and documents this exact webhook race.
+- `seller_roles` / `buyer_roles` — read only, as a `legacy_entry_id`
+  subquery resolving this module's own foreign keys. No role data is read or
+  written.
+- `person` — a stub insert (`attio_id`, `name`) `ON CONFLICT DO NOTHING`,
+  so `tool_runs.person_attio_id` has something to point at until the mirror
+  lands the full record. **This one is a known wart:** `ddl_commands` owns
+  `person` and writes it with raw SQL in `persistence/attio_sync.py`, but
+  exposes no repository or facade for it, so there is nothing to go through.
+  The alternative — adding a person facade to `ddl_commands` — is a larger
+  change than this module should be making. Worth revisiting if a second
+  caller ever needs the same stub.
+
+## Not built yet
+
+- `bootstrap.py`. There is no wiring to centralise until the endpoints
+  exist; `api/dependencies.py` currently constructs nothing but a session.
+  When the endpoints land, concrete provider and repository construction
+  belongs there, not in `dependencies.py`.
+- `api/router.py`, `api/schemas.py` and the five endpoints; `domain/prompts.py`,
+  `domain/mapping.py`; `providers/attio/role_writer.py`; the `activities`
+  timeline row (step 6 — it needs a resolved subject, so it cannot be
+  written before the Attio write succeeds).
 
 ## Testing
 

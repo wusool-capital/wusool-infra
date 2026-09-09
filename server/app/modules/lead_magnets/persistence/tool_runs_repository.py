@@ -24,8 +24,8 @@ from app.modules.lead_magnets.domain.tool_run import (
     Tool,
     ToolRunRecord,
     ToolRunStatus,
-    parse_tool,
 )
+from app.modules.lead_magnets.persistence.mappers import to_tool_run_record
 from app.modules.organizations import OrganizationRepository
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -45,18 +45,6 @@ _CEILING = case(
     (_STAGE == "ai", 2),
     else_=6,
 )
-
-
-def _to_record(row: ToolRun) -> ToolRunRecord:
-    payload = row.payload or {}
-    return ToolRunRecord(
-        id=row.id,
-        tool=parse_tool(row.tool),
-        status=row.status,
-        attempt_count=row.attempt_count,
-        payload=payload,
-        stage=payload.get("stage"),
-    )
 
 
 class ToolRunsRepository:
@@ -200,7 +188,7 @@ class ToolRunsRepository:
             .returning(ToolRun)
         )
         rows = (await self._session.execute(stmt)).scalars().all()
-        return [_to_record(row) for row in rows]
+        return [to_tool_run_record(row) for row in rows]
 
     async def abandon_past_ceiling(self, *, cutoff: datetime) -> list[ToolRunRecord]:
         """Unfinished runs that have exhausted their class's ceiling. These
@@ -219,7 +207,7 @@ class ToolRunsRepository:
             .returning(ToolRun)
         )
         rows = (await self._session.execute(stmt)).scalars().all()
-        return [_to_record(row) for row in rows]
+        return [to_tool_run_record(row) for row in rows]
 
     async def promote_role_fks(self) -> int:
         """Fills in role FKs left NULL because the Attio→Postgres mirror had
@@ -252,4 +240,4 @@ class ToolRunsRepository:
         row = (
             await self._session.execute(select(ToolRun).where(ToolRun.id == run_id))
         ).scalar_one_or_none()
-        return None if row is None else _to_record(row)
+        return None if row is None else to_tool_run_record(row)
