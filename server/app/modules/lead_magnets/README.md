@@ -26,6 +26,8 @@ lead_magnets/
   domain/
     dedup.py                  # normalisation + key composition (pure)
     readiness.py              # the questionnaire, advisory rules, band map (pure)
+    benchmark.py              # the percentile engine — the whole benchmark output
+    benchmark_dataset.py      # generated peer dataset; do not hand-edit
     prompts.py                # every prompt, as a pure function
   persistence/
     database.py               # sessionmaker bound to this module's DATABASE_URL
@@ -124,9 +126,10 @@ page parses. `tests/unit/test_readiness.py` is the regression net for that.
   of those is the deterministic fallback, so the visitor still gets a real
   valuation when the model fails. Two of its prompts use Anthropic's
   `web_search` tool, which is what the Firecrawl pipeline replaces.
-- **Benchmark.** `relay-benchmark.js` (its Attio field names and scoring) and
-  `benchmark-dataset.json` (the peer dataset it scores against — no AI
-  involved in its output at all).
+- **Benchmark.** The percentile engine and peer dataset are ported. What
+  remains is the input derivation (`compute`'s ratio maths), the routing
+  narrative (`FLAGTEXT`/`flagFor`), the implied-EV multiples for startup
+  mode, and the Attio field mapping in `relay-benchmark.js`.
 - `sector_mapping.py` and its test, with the mobility split applied
   (42 mappings): the benchmark tool's compound `"Supply Chain or mobility"`
   option becomes `"Supply Chain"` → `Supply Chain / Distribution` and
@@ -135,6 +138,31 @@ page parses. `tests/unit/test_readiness.py` is the regression net for that.
   and the only tool being built rather than moved.
 - End-to-end Firecrawl verification — the only unproven half of the
   comparables pipeline.
+
+## Currency: settled
+
+The handover documents contradicted each other on this, and it was the
+highest-risk open question — a wrong answer is wrong by 3.6725x with nothing
+in the data to show it. Resolved from the source, three independent ways:
+
+1. `wusool-benchmark.html`'s band cuts are USD (`Under USD 545k`, max
+   `545000`), with the comment "the original AED 2m / 10m / 30m cuts
+   converted at 3.6725". 2,000,000 / 3.6725 = 544,860.
+2. The same file states it outright: *"The engine computes in USD in both
+   modes. The toggle governs entry and display only."* `toCalc` divides AED
+   input by the peg on the way in.
+3. `toUSD`, the function feeding the Attio write, is a round-only no-op —
+   *"Already USD, so this only rounds."*
+
+So **every destination is USD** and the `_aed` suffix on the benchmark
+list's Attio attributes is a misnomer; the live code even names a local
+`rentAed` while assigning a USD figure to it. The `toAed()` deletion applies
+to valuation and readiness (via `index.js`) only — benchmark already stores
+USD and needs nothing removed.
+
+`benchmark-dataset.json` in the source repo is a **stale pre-conversion
+copy** and must not be ported from: it declares `"currency": "AED"`, has the
+AED band cuts, and its `revEmp` anchors are the peg larger.
 
 ## Defects confirmed in the live source
 
