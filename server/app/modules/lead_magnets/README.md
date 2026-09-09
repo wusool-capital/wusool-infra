@@ -37,6 +37,9 @@ lead_magnets/
     benchmark_routing.py      # internal triage: priority, reason, quality gates
     benchmark_narrative.py    # which metrics earn a paragraph, and how it is filled
     benchmark_copy.py         # generated report prose; do not hand-edit
+    valuation.py              # sector resolution, peer matching, stats
+    valuation_data.py         # typed loaders over data/valuation.json
+    data/valuation.json       # 1000 M&A deals, 127 VC rounds, 31 comp sectors
     prompts.py                # every prompt, as a pure function
   persistence/
     database.py               # sessionmaker bound to this module's DATABASE_URL
@@ -149,12 +152,14 @@ page parses. `tests/unit/test_readiness.py` is the regression net for that.
 
 ## Still to port
 
-- **Valuation.** Five prompts (`dopamine-valuation.html` around lines 401,
-  1430, 2247, 2417, 2594, 2877), the `DAMODARAN_WACC` table and industry
-  growth benchmarks (~811-1243), and the auto-DCF module (~1632+) — the last
-  of those is the deterministic fallback, so the visitor still gets a real
-  valuation when the model fails. Two of its prompts use Anthropic's
-  `web_search` tool, which is what the Firecrawl pipeline replaces.
+- **Valuation.** The datasets and the pure helpers are ported and verified.
+  What remains is the auto-DCF module (`dopamine-valuation.html` ~1633-1829)
+  and the four-method blend in `ValuationSummary` (~2101) — together the
+  deterministic fallback, so the visitor still gets a real valuation when the
+  model fails — plus the five prompts (~401, 1430, 2239, 2459, 2877) that
+  unblock `/enrich`, `/analyze` and `/compare`. Two of those prompts use
+  Anthropic's `web_search` tool, which is what the Firecrawl pipeline
+  replaces.
 - **Benchmark.** Ported and verified. What remains is only the Attio field
   mapping (`relay-benchmark.js`'s ~40 slugs, its live-schema read and
   slug-remap handling) — a `providers/attio/` concern, not domain logic.
@@ -203,6 +208,7 @@ generated grid:
 | `benchmark.py` percentile engine | 6,860 | 0 |
 | `benchmark_routing.py` route + quality | 6,840 | 0 |
 | `benchmark_submission.py` full `compute` | 8,019 | 0 |
+| `valuation.py` stats, matching, benchmarks | 350 | 1 (see below) |
 
 That is what caught `js_round`. JavaScript's `Math.round` rounds a half away
 from zero and Python's `round` rounds a half to even, so `round(42.5)` is 42
@@ -213,6 +219,16 @@ figure and pinned by a test.
 
 The committed tests keep the branches that would regress silently rather
 than the whole grid.
+
+### The one intentional divergence
+
+`tax_rate("Qatar")` and `tax_rate("Bahrain")` return **0**, where the live
+tool returns 20. Its lookup reads `return t[geo] || 20` and JavaScript
+treats `0` as falsy, so two jurisdictions whose table entries are correctly
+`0` are silently taxed at 20% — inflating the tax drag in the DCF and
+undervaluing every Qatari and Bahraini business. Reproducing that
+bug-for-bug would mean knowingly under-valuing real companies, so the port
+returns the table's own figure and a test pins the difference.
 
 ## Defects confirmed in the live source
 
