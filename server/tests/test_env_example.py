@@ -20,11 +20,18 @@ from pydantic_settings import BaseSettings
 
 from app.modules.attio.config import AttioSettings
 from app.modules.ddl_commands.config import Settings as DdlCommandsSettings
+from app.modules.lead_magnets.config import Settings as LeadMagnetsSettings
 from app.modules.matching_engine.config import Settings as MatchingEngineSettings
 from app.modules.meetings.config import Settings as MeetingsSettings
 
 _ENV_EXAMPLE = Path(__file__).parent.parent / ".env.example"
-_SETTINGS_CLASSES = (MatchingEngineSettings, DdlCommandsSettings, AttioSettings, MeetingsSettings)
+_SETTINGS_CLASSES = (
+    MatchingEngineSettings,
+    DdlCommandsSettings,
+    AttioSettings,
+    MeetingsSettings,
+    LeadMagnetsSettings,
+)
 
 
 def _env_var_names(settings_cls: type[BaseSettings]) -> set[str]:
