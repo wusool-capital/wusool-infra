@@ -207,14 +207,22 @@ live options, so nothing needed creating in Attio). The pre-split label
 still maps, so a submission from the current form does not raise before the
 form ships the two separate options.
 
-**Still unmapped:** only the valuation tool's own 225-label vocabulary
-(`ALL_SECTORS` — verified live, 204 of which have no target; 21 resolve
-today, 12 by exact string match against a live option, 9 by reusing
-benchmark's own mapping table). Not free text: the visitor sees the same
-225 as a `<select>`, same mechanism as readiness's, and `/enrich` also
-picks one of them when researching the company. Readiness's own 11-value
-dropdown is mapped (`READINESS_SECTORS`). `to_sector_focus` raises
-with a message naming what is still outstanding.
+**Fully mapped now.** All three tools' vocabularies resolve:
+`BENCHMARK_SECTORS` (31), `READINESS_SECTORS` (11), and
+`VALUATION_SECTORS` (204 of the valuation tool's 225-label `ALL_SECTORS`
+— the other 21 already resolved by exact string match or by reusing
+`BENCHMARK_SECTORS`). Valuation's own vocabulary is not free text: the
+visitor sees the same 225 as a `<select>`, same mechanism as readiness's,
+and `/enrich`/`/analyze` also see the same list.
+
+204 fine-grained VC/startup labels against an 85-option CRM taxonomy means
+several targets are real judgment calls, not obvious 1:1 matches —
+flagged in `_VALUATION_SECTORS_FOR_REVIEW` (15 entries) rather than one
+comment per line, the same way "DeepTech or hardware" and
+"F&B & Hospitality" are flagged individually. Worth a second look from
+someone with sector-taxonomy context before treated as settled.
+`UNMAPPED_VOCABULARIES` is empty now; `to_sector_focus` still raises
+rather than defaulting on anything genuinely new.
 
 ## Still to port
 

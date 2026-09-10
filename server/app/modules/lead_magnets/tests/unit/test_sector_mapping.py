@@ -10,12 +10,15 @@ import pytest
 
 from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import SECTORS, TECH_SECTOR_LIST
 from app.modules.lead_magnets.domain.shared.sector_mapping import (
+    _VALUATION_SECTORS_FOR_REVIEW,
     BENCHMARK_SECTORS,
     READINESS_SECTORS,
+    VALUATION_SECTORS,
     UnmappedSectorError,
     to_sector_focus,
 )
 from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
+from app.modules.lead_magnets.domain.valuation.valuation_data import sectors as valuation_sectors
 
 # `dopamine-readiness-score.html`'s `#cSector` — a real `<select>`, confirmed
 # live 2026-09-10, transcribed separately from `READINESS_SECTORS`' own keys
@@ -46,7 +49,7 @@ def test_every_mapping_target_is_a_live_option() -> None:
     here so the reason is visible in the suite."""
     unknown = sorted(
         t
-        for t in {**BENCHMARK_SECTORS, **READINESS_SECTORS}.values()
+        for t in {**BENCHMARK_SECTORS, **READINESS_SECTORS, **VALUATION_SECTORS}.values()
         if t not in SECTOR_FOCUS_OPTIONS
     )
     assert unknown == []
@@ -97,6 +100,30 @@ def test_known_values_map(value: str, expected: str) -> None:
 )
 def test_readiness_known_values_map(value: str, expected: str) -> None:
     assert to_sector_focus(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("Automakers", "Automotive"),
+        ("Artificial Intelligence", "AI / ML"),
+        ("Blockchain & Crypto", "Web3 / Blockchain / Digital Assets"),
+        ("Restaurants & Nightlife", "Food & Beverage / QSR"),
+        ("Commercial Banking", "Banking / Commercial"),
+        ("Metals & Mining", "Steel / Metals / Mining"),
+    ],
+)
+def test_valuation_known_values_map(value: str, expected: str) -> None:
+    assert to_sector_focus(value) == expected
+
+
+def test_flagged_valuation_mappings_are_a_real_nonempty_subset() -> None:
+    """`_VALUATION_SECTORS_FOR_REVIEW` names the judgment calls worth a
+    second look, not the whole 204 — every one of them must be a real key
+    in `VALUATION_SECTORS`, and there must be at least one (204 labels
+    against an 85-option taxonomy always leaves genuine ambiguity)."""
+    assert len(_VALUATION_SECTORS_FOR_REVIEW) > 0
+    assert set(_VALUATION_SECTORS_FOR_REVIEW) <= set(VALUATION_SECTORS)
 
 
 def test_readiness_and_benchmark_agree_on_shared_targets() -> None:
@@ -151,21 +178,28 @@ def test_an_unanswered_sector_is_not_an_error() -> None:
 def test_an_unmapped_sector_raises_rather_than_defaulting() -> None:
     """A wrong sector is worse than a missing one: it silently misfiles the
     lead and skews any sector report built on it. So this must never quietly
-    become "Diversified / Generalist"."""
+    become "Diversified / Generalist". Not a real value from any tool's
+    vocabulary — every real one now resolves."""
     with pytest.raises(UnmappedSectorError) as excinfo:
-        to_sector_focus("Vertical AI Applications")
+        to_sector_focus("Not A Real Sector Label")
 
     message = str(excinfo.value)
-    assert "Vertical AI Applications" in message
-    assert "Diversified" not in message.split("still unmapped")[0]
-    # The message names where to add it and what is still outstanding.
+    assert "Not A Real Sector Label" in message
+    assert "Diversified" not in message
+    # The message names where to add it.
     assert "sector_mapping.py" in message
-    assert "valuation tool's ALL_SECTORS" in message
 
 
-def test_the_valuation_vocabulary_is_still_unmapped_and_says_so() -> None:
-    """214 of the valuation tool's 225 labels have no mapping. Recorded as a
-    raise with a useful message rather than silently mis-filing them — the
-    delivered `sector_mapping` artifact is still outstanding."""
-    with pytest.raises(UnmappedSectorError):
-        to_sector_focus("Blockchain & Crypto")
+def test_every_valuation_label_is_now_mapped() -> None:
+    """All 225 of `ALL_SECTORS` resolve: 21 already did (exact match or
+    reused from `BENCHMARK_SECTORS`), `VALUATION_SECTORS` covers the other
+    204."""
+    unmapped = []
+    for label in valuation_sectors():
+        try:
+            to_sector_focus(label)
+        except UnmappedSectorError:
+            unmapped.append(label)
+    assert unmapped == []
+    assert len(valuation_sectors()) == 225
+    assert len(VALUATION_SECTORS) == 204
