@@ -310,6 +310,17 @@ resource "aws_autoscaling_group" "wusool_toolkit" {
   health_check_type         = "EC2"
   health_check_grace_period = 120
 
+  # Group metrics collection is OFF by default on every ASG — confirmed live
+  # (2026-09-09): `list-metrics` returned zero AWS/AutoScaling datapoints for
+  # this group at ANY capacity, not just zero instances. Combined with the
+  # in_service alarm's treat_missing_data = "breaching" below, that meant the
+  # alarm was permanently stuck in false ALARM the moment it was created —
+  # not just during a genuine zero-instance drill, which is the only case it
+  # was actually tested against. Without this, treat_missing_data ->
+  # "breaching" turns "nobody enabled this metric" into "the alarm is always
+  # lying", which is worse than the INSUFFICIENT_DATA gap it was meant to fix.
+  enabled_metrics = ["GroupInServiceInstances"]
+
   launch_template {
     id      = aws_launch_template.wusool_toolkit.id
     version = "$Latest"
