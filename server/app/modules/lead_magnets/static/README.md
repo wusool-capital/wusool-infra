@@ -10,10 +10,17 @@ imported before this directory can be filled — see the module README's
 When they land, they belong here as:
 
 ```
-valuation.html  readiness.html  benchmark.html  buyers.html
+valuation/  readiness/  benchmark/  buyers/    # each: index.html + its own .css/.js slices
 embed.js
-img/<sha8>.<ext>
+img/<sha8>.<ext>       # shared across tools — logo dedupes by content hash
+shared/                 # api.js, height.js — NOT created until a 2nd tool needs them
 ```
+
+Each tool is fully self-contained under its own folder, `index.html` included — the
+same grouping this module's Python layers already use
+(`domain/valuation/`, `application/valuation/`, `api/valuation/`). `img/` and `shared/`
+sit as siblings at `static/` root because they're used by more than one tool; nothing
+single-tool belongs there.
 
 Three things the import has to do, not just a copy:
 
@@ -35,11 +42,15 @@ Everything under here is served by `ToolStatic`, which sets the CSP
 `frame-ancestors` and the two-tier cache policy. `embed.js` is deliberately
 short-cached: it is both the cutover switch and the rollback switch.
 
-`embed.js` must use the **full filename** — `/valuation.html`, not
-`/valuation`. Starlette's `html=True` serves `index.html` for a directory
-path; it does not strip extensions the way nginx does. Covered by
-`tests/unit/test_static_headers.py` so it is not rediscovered against a
-production 404.
+`embed.js` must use the **trailing-slash directory form** — `/valuation/`,
+not `/valuation`. Starlette's `html=True` serves `index.html` for a
+directory path (`/valuation/` → 200), but a bare `/valuation` costs a 307
+redirect to `/valuation/` first — same headers, one avoidable round trip.
+Verified against this repo's pinned Starlette (1.6.0): the redirect
+response itself still carries the CSP and cache headers, so nothing breaks
+if `embed.js` gets this wrong, it's just slower. Covered by
+`tests/unit/test_static_headers.py` so the redirect cost isn't
+rediscovered as a production latency mystery.
 
 One hazard when wiring the mount: `StaticFiles` raises
 `RuntimeError: Directory ... does not exist` unless `check_dir=False`, and
