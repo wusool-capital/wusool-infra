@@ -2,19 +2,37 @@
 
 The four tool pages, `embed.js`, and their extracted images.
 
-**Landing tool by tool.** Benchmark is in: `benchmark/index.html` is a
-verbatim copy of the original page (no script/style split yet — that is
-slice 2), its one embedded image extracted to `img/`, and its submit call
-repointed at `/benchmark` directly instead of the old Render relay.
-Valuation, readiness, and buyers are still not here.
+**Landing tool by tool.** Benchmark is in: split into `00-styles.css` and
+six numbered `.js` files at its own top-level section boundaries (`CONFIG`,
+`DATASET`, `STATE + HELPERS`, `PERCENTILE ENGINE`, `NARRATIVE`, `RENDER` —
+the sections the original source already commented), its one embedded image
+extracted to `img/`, and its submit call repointed at `/benchmark` directly
+instead of the old Render relay. Valuation, readiness, and buyers are still
+not here.
 
 ```
 valuation/  readiness/  buyers/                # not built yet
-benchmark/index.html                            # verbatim, unsplit (slice 1)
+benchmark/
+  index.html
+  00-styles.css
+  10-config.js  20-data.js  30-helpers.js  40-scoring.js  50-narrative.js  60-render.js
 embed.js
 img/<sha8>.<ext>       # shared across tools — logo dedupes by content hash
 shared/                 # api.js, height.js — NOT created until a 2nd tool needs them
 ```
+
+Every `<script src>`/`<link href>` carries a hand-bumped `?v=1` cache-buster
+(bump on any content change to that file — `.js`/`.css` are `max-age=60`,
+so without it a deploy has a 60-second window where old JS can pair with
+new HTML). Every `<script src>` also carries `onerror="window.__lmFail=1"`,
+checked by one final inline `<script>` against a per-page sentinel
+(benchmark: `typeof render === "function"`) — a failed fetch or a mid-file
+parse error otherwise leaves the page silently half-working rather than
+visibly broken. `tests/unit/test_static_contract.py` and
+`tests/unit/test_embed_js.py` pin the parts of this that are mechanically
+checkable: every ref resolves to a real file, no page still carries a
+base64 image, and the outbound payload field names match the request
+schema.
 
 Each tool is fully self-contained under its own folder, `index.html` included — the
 same grouping this module's Python layers already use

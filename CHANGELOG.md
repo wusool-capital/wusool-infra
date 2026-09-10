@@ -81,6 +81,23 @@ delivered state and outstanding items see
   every submission. Also fixes a latent bug: the page treated any settled
   `fetch` (including a non-2xx response) as a successful submit; it now
   checks `response.ok` first.
+- Front end, slice 2 of 5: benchmark's inline `<style>`/`<script>` split
+  into `00-styles.css` and six numbered `.js` files, cut at the source's
+  own `CONFIG`/`DATASET`/`STATE + HELPERS`/`PERCENTILE ENGINE`/`NARRATIVE`/
+  `RENDER` section comments — a boundary already proven not to fall inside
+  a template literal, at-rule, or load-time reader. Verified byte-exact:
+  concatenating the six `.js` files in `<script src>` order reproduces the
+  pre-split script body's SHA-256 exactly, and same for the CSS. Every
+  `<script src>` carries `onerror="window.__lmFail=1"` and a hand-bumped
+  `?v=1`, checked by one final inline sentinel script against
+  `typeof render === "function"` — a failed fetch or a mid-file parse
+  error now shows a fallback message instead of a silently half-working
+  page. New `tests/unit/test_static_contract.py` and
+  `tests/unit/test_embed_js.py` pin every `<script src>`/`<link href>`
+  resolving to a real file, no committed page still carrying a base64
+  image, and the outbound payload's field names matching the request
+  schema — parametrized to cover each tool's `index.html` automatically as
+  more of them land.
 
 ### Changed
 
