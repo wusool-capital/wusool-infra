@@ -3,9 +3,9 @@ site:
   title: Wusool Capital Docs
   structure:
     - type: space
-      key: space-1
-      title: Untitled
-      path: untitled
+      key: platform-docs
+      title: Wusool Platform Documentation
+      path: undefined
       default: true
       content:
-        directory: ./untitled
+        directory: null
