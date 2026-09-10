@@ -202,6 +202,12 @@ delivered state and outstanding items see
   complete pending the cutover steps in the migration plan (Firecrawl
   verification, Cloudflare DNS, Webflow paste-in, one-line `embed.js`
   switch per tool).
+- `server/app/modules/lead_magnets/DEPLOYMENT.md` — the deploy runbook for
+  this module: what `_deploy.yml` already does automatically vs. the
+  one-time human steps (Secrets Manager keys, `LEAD_MAGNET_ALLOWED_ORIGINS`,
+  Cloudflare DNS before the `toolkit_extra_hostnames` apply, the SSM
+  bootstrap re-run, and the Webflow paste-in order — benchmark first,
+  Buyer Network last since its rollback also means re-enabling Tally).
 
 ### Changed
 
@@ -243,6 +249,25 @@ delivered state and outstanding items see
 
 ### Fixed
 
+- `application/shared/sweeper.py`'s `sweep_once` was fully built and unit
+  tested but never actually invoked — no `run_sweeper_forever` existed and
+  `main.py`'s `_lifespan` started no background loop for it, so a
+  submission whose AI/Attio completion step failed would sit
+  `status='failed'` in `tool_runs` forever with nothing to retry it (the
+  lead itself was never lost — the write-ahead ledger already guarantees
+  that — but it wouldn't self-heal either). Caught writing the deploy
+  runbook (`DEPLOYMENT.md`), not by a test, since nothing exercised the
+  gap directly. Added `bootstrap.run_sweeper_forever()` (one pass
+  immediately at boot, then every `LEAD_MAGNET_SWEEPER_INTERVAL_S`; a
+  failed pass is logged and never stops the loop) and started it as a
+  cancelled-on-shutdown `asyncio.Task` in `main.py`'s `_lifespan`.
+  `sweeper.py`'s `submissions` parameter now types against the composed
+  `LeadMagnetService` (`bootstrap.build_submission_service`'s own return
+  type) instead of the bare `SubmissionService`, so the loop can reuse the
+  same factory `run_completion` already does rather than re-wiring
+  `Pipelines`/`SubmissionService` by hand. New `test_bootstrap.py` pins
+  that a raised exception on one pass doesn't stop later passes and that
+  cancellation actually propagates rather than hanging.
 - `embed.js`: `iframe.src = config.src` assigned a root-relative path
   (e.g. `"/benchmark/"`) directly, which the browser resolves against the
   *parent* page's own origin, not the tools host — `toolsOrigin` was

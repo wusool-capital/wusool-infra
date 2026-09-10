@@ -15,13 +15,13 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from app.modules.lead_magnets.application.shared.ports import ToolRunsPort
-from app.modules.lead_magnets.application.shared.submit import SubmissionService
+from app.modules.lead_magnets.application.shared.service import LeadMagnetService
 
 logger = logging.getLogger(__name__)
 
 
 async def sweep_once(
-    tool_runs: ToolRunsPort, submissions: SubmissionService, *, stale_after_s: int
+    tool_runs: ToolRunsPort, submissions: LeadMagnetService, *, stale_after_s: int
 ) -> int:
     """One pass. Returns how many runs were resumed."""
     cutoff = datetime.now(UTC) - timedelta(seconds=stale_after_s)

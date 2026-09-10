@@ -6,6 +6,7 @@ committed and closed the moment the FastAPI dependency resumes, so handing
 one to `BackgroundTasks` would use it after close.
 """
 
+import asyncio
 import logging
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.attio import attio_is_test, get_attio_client
 from app.modules.lead_magnets.application.shared.service import LeadMagnetService
+from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
@@ -109,3 +111,32 @@ async def run_completion(run_id: UUID) -> None:
         except Exception:
             await session.rollback()
             logger.exception("lead_magnet_completion_failed run_id=%s", run_id)
+
+
+async def run_sweeper_forever() -> None:
+    """Started once by `main.py`'s lifespan, cancelled on shutdown.
+
+    Drains whatever the write contract left unfinished — see
+    `application/shared/sweeper.py`. A pass runs immediately on every start
+    (so a container restart doesn't wait out a full interval before
+    draining a backlog), then again every `lead_magnet_sweeper_interval_s`.
+    A failed pass is logged, never stops the loop: a stuck sweep matters far
+    less than the loop dying silently and nothing ever retrying again.
+    """
+    settings = get_settings()
+    while True:
+        try:
+            async with get_sessionmaker()() as session:
+                tool_runs = build_tool_runs(session)
+                service = build_submission_service(session)
+                resumed = await sweep_once(
+                    tool_runs, service, stale_after_s=settings.lead_magnet_sweeper_stale_after_s
+                )
+                await session.commit()
+            if resumed:
+                logger.info("lead_magnet_sweeper_pass resumed=%d", resumed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("lead_magnet_sweeper_pass_failed")
+        await asyncio.sleep(settings.lead_magnet_sweeper_interval_s)

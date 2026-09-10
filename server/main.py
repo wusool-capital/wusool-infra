@@ -11,10 +11,11 @@ construction, not by convention. Neither Slack module's own
 standalone (its own test suite) — this file is what actually gets deployed.
 """
 
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from functools import lru_cache
 from typing import Any
 
@@ -35,6 +36,7 @@ from app.modules.ddl_commands.persistence.database import (
 )
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.lead_magnets.api.static import ToolStatic, static_dir
+from app.modules.lead_magnets.bootstrap import run_sweeper_forever
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
 )
@@ -96,7 +98,17 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
         )
     else:
         logging.getLogger("app").info("ATTIO_IS_TEST=false — this instance owns production records")
-    yield
+
+    # Drains any lead-magnet submission the write contract left unfinished
+    # (a failed AI/Attio call) without waiting for a request to trigger it.
+    # See `lead_magnets/application/shared/sweeper.py`.
+    sweeper_task = asyncio.create_task(run_sweeper_forever())
+    try:
+        yield
+    finally:
+        sweeper_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await sweeper_task
 
 
 app = FastAPI(title="Wusool Toolkit Bot", lifespan=_lifespan)
