@@ -10,7 +10,7 @@ The copy itself lives in the generated `benchmark_copy.py`.
 from dataclasses import dataclass
 from typing import Literal
 
-from app.modules.lead_magnets.domain.benchmark import MetricResult, Mode, js_round
+from app.modules.lead_magnets.domain.benchmark.benchmark import MetricResult, Mode, js_round
 
 # A flag is raised only outside these bounds — good at or above 68, bad below
 # 40. The `bad` copy is further split at 25 so the report can lead with the
@@ -62,7 +62,7 @@ def flag_for(
     percentage — its copy carries the `{c}` currency placeholder and prints
     a rounded thousands figure.
     """
-    from app.modules.lead_magnets.domain.benchmark_copy import (
+    from app.modules.lead_magnets.domain.benchmark.benchmark_copy import (
         SME_FLAG_COPY,
         TECH_FLAG_COPY,
     )

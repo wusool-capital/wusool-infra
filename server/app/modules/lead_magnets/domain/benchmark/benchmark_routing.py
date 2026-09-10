@@ -14,7 +14,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
-from app.modules.lead_magnets.domain.benchmark import js_round
+from app.modules.lead_magnets.domain.benchmark.benchmark import js_round
 
 Mode = Literal["sme", "tech"]
 

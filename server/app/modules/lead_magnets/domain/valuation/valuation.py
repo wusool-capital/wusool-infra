@@ -23,7 +23,7 @@ import math
 import re
 from dataclasses import dataclass
 
-from app.modules.lead_magnets.domain.valuation_data import (
+from app.modules.lead_magnets.domain.valuation.valuation_data import (
     GrowthBenchmark,
     ListedComp,
     Transaction,

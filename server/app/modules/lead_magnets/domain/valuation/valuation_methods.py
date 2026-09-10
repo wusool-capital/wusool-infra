@@ -31,8 +31,8 @@ Bahrain were silently taxed at 20% here too.
 
 from dataclasses import dataclass, field
 
-from app.modules.lead_magnets.domain.benchmark import js_round
-from app.modules.lead_magnets.domain.valuation import (
+from app.modules.lead_magnets.domain.benchmark.benchmark import js_round
+from app.modules.lead_magnets.domain.valuation.valuation import (
     Stats,
     growth_benchmark,
     match_transactions,
@@ -41,7 +41,7 @@ from app.modules.lead_magnets.domain.valuation import (
     tax_rate,
     wacc_benchmark,
 )
-from app.modules.lead_magnets.domain.valuation_data import ListedComp
+from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
 
 # Growth decelerates over the projection: flat for two years, then easing off.
 _DECELERATION = (1.0, 1.0, 0.8, 0.65, 0.5)
@@ -490,6 +490,6 @@ def value_company(inputs: ValuationInputs) -> Valuation:
 
 
 def _static_comps_for(sector: str | None) -> tuple[ListedComp, ...]:
-    from app.modules.lead_magnets.domain.valuation import trading_comps_for_sector
+    from app.modules.lead_magnets.domain.valuation.valuation import trading_comps_for_sector
 
     return trading_comps_for_sector(sector)

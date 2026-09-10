@@ -18,7 +18,7 @@ from app.models.buyer_role import BuyerRole
 from app.models.person import Person
 from app.models.seller_role import SellerRole
 from app.models.tool_run import ToolRun
-from app.modules.lead_magnets.domain.tool_run import (
+from app.modules.lead_magnets.domain.shared.tool_run import (
     Stage,
     SubjectRefs,
     Tool,

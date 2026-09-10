@@ -8,13 +8,13 @@ and an unmapped input raises rather than defaulting.
 
 import pytest
 
-from app.modules.lead_magnets.domain.benchmark_dataset import SECTORS, TECH_SECTOR_LIST
-from app.modules.lead_magnets.domain.sector_mapping import (
+from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import SECTORS, TECH_SECTOR_LIST
+from app.modules.lead_magnets.domain.shared.sector_mapping import (
     BENCHMARK_SECTORS,
     UnmappedSectorError,
     to_sector_focus,
 )
-from app.modules.lead_magnets.domain.sector_options import SECTOR_FOCUS_OPTIONS
+from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
 
 
 def test_there_are_eighty_five_live_options() -> None:

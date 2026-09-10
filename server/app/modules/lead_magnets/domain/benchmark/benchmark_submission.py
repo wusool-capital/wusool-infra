@@ -9,7 +9,7 @@ see `benchmark.py` on why the `_aed` Attio slugs nonetheless hold USD.
 
 from dataclasses import dataclass
 
-from app.modules.lead_magnets.domain.benchmark import (
+from app.modules.lead_magnets.domain.benchmark.benchmark import (
     Band,
     MetricResult,
     MetricSpec,
@@ -18,15 +18,15 @@ from app.modules.lead_magnets.domain.benchmark import (
     band_for,
     score_metrics,
 )
-from app.modules.lead_magnets.domain.benchmark_dataset import (
+from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import (
     BANDS,
     SECTORS,
     SME_METRICS,
     STAGES,
     TECH_METRICS,
 )
-from app.modules.lead_magnets.domain.benchmark_narrative import Flag, flag_for
-from app.modules.lead_magnets.domain.benchmark_routing import (
+from app.modules.lead_magnets.domain.benchmark.benchmark_narrative import Flag, flag_for
+from app.modules.lead_magnets.domain.benchmark.benchmark_routing import (
     Quality,
     Routing,
     headline_flag,

@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from app.models.seller_role import SellerRole
 from app.models.tool_run import ToolRun
-from app.modules.lead_magnets.domain.tool_run import SubjectRefs
+from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
 
 

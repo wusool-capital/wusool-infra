@@ -4,7 +4,7 @@ cases here are the real shapes a public form yields.
 
 import pytest
 
-from app.modules.lead_magnets.domain.dedup import (
+from app.modules.lead_magnets.domain.shared.dedup import (
     idempotency_key,
     normalise_domain,
     normalise_email,

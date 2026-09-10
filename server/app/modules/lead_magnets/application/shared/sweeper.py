@@ -14,8 +14,8 @@ makes one pass directly testable.
 import logging
 from datetime import UTC, datetime, timedelta
 
-from app.modules.lead_magnets.application.ports import ToolRunsPort
-from app.modules.lead_magnets.application.submit import SubmissionService
+from app.modules.lead_magnets.application.shared.ports import ToolRunsPort
+from app.modules.lead_magnets.application.shared.submit import SubmissionService
 
 logger = logging.getLogger(__name__)
 

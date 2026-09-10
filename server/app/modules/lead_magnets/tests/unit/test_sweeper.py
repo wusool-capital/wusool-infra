@@ -6,8 +6,8 @@ pass does with what the repository hands back.
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.modules.lead_magnets.application.sweeper import sweep_once
-from app.modules.lead_magnets.domain.tool_run import Tool, ToolRunRecord
+from app.modules.lead_magnets.application.shared.sweeper import sweep_once
+from app.modules.lead_magnets.domain.shared.tool_run import Tool, ToolRunRecord
 
 
 def _record(tool: Tool = "valuation", stage: str | None = "attio") -> ToolRunRecord:

@@ -14,7 +14,7 @@ be silent rather than obvious.
 
 import pytest
 
-from app.modules.lead_magnets.domain.benchmark import (
+from app.modules.lead_magnets.domain.benchmark.benchmark import (
     ANCHOR_PERCENTILES,
     PERCENTILE_COLUMNS,
     adjusted_anchors,
@@ -23,7 +23,7 @@ from app.modules.lead_magnets.domain.benchmark import (
     quartile,
     score_metrics,
 )
-from app.modules.lead_magnets.domain.benchmark_dataset import (
+from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import (
     BANDS,
     SECTORS,
     SME_METRICS,

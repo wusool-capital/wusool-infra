@@ -13,7 +13,7 @@ prompt asking for a differently-named field just produces a validation
 failure the visitor experiences as an error.
 """
 
-from app.modules.lead_magnets.domain.readiness import ReadinessAnswers
+from app.modules.lead_magnets.domain.readiness.readiness import ReadinessAnswers
 
 
 def readiness_score_prompt(

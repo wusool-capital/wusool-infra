@@ -24,8 +24,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.modules.lead_magnets.domain.benchmark_dataset import SECTORS, STAGES
-from app.modules.lead_magnets.domain.benchmark_narrative import Tone
+from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import SECTORS, STAGES
+from app.modules.lead_magnets.domain.benchmark.benchmark_narrative import Tone
 
 
 class _Strict(BaseModel):

@@ -19,8 +19,8 @@ import logging
 
 from app.modules.attio import AttioClientProtocol
 from app.modules.attio.providers.attio import entries
-from app.modules.lead_magnets.domain.sector_mapping import to_sector_focus
-from app.modules.lead_magnets.domain.tool_run import SubjectRefs
+from app.modules.lead_magnets.domain.shared.sector_mapping import to_sector_focus
+from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 
 logger = logging.getLogger(__name__)
 

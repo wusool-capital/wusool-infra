@@ -6,7 +6,7 @@ sees `ToolRunRecord`, so a column rename cannot reach a use case.
 """
 
 from app.models.tool_run import ToolRun
-from app.modules.lead_magnets.domain.tool_run import ToolRunRecord, parse_tool
+from app.modules.lead_magnets.domain.shared.tool_run import ToolRunRecord, parse_tool
 
 
 def to_tool_run_record(row: ToolRun) -> ToolRunRecord:

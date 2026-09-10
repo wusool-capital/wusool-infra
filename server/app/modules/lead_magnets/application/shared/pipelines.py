@@ -14,25 +14,28 @@ not need one.
 import logging
 from dataclasses import asdict
 
-from app.modules.lead_magnets.application.ports import LeadLLMPort
-from app.modules.lead_magnets.domain.attio_values import (
-    benchmark_values,
-    readiness_values,
-    valuation_values,
-)
-from app.modules.lead_magnets.domain.benchmark_submission import BenchmarkInputs, evaluate
-from app.modules.lead_magnets.domain.prompts import (
-    readiness_advisory_prompt,
-    readiness_score_prompt,
-)
-from app.modules.lead_magnets.domain.readiness import (
+from app.modules.lead_magnets.application.shared.ports import LeadLLMPort
+from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkInputs, evaluate
+from app.modules.lead_magnets.domain.readiness.readiness import (
     ReadinessAnswers,
     build_advisory_content,
     merge_advisory,
     revenue_range_midpoint_usd,
 )
-from app.modules.lead_magnets.domain.valuation_data import ListedComp
-from app.modules.lead_magnets.domain.valuation_methods import ValuationInputs, value_company
+from app.modules.lead_magnets.domain.shared.attio_values import (
+    benchmark_values,
+    readiness_values,
+    valuation_values,
+)
+from app.modules.lead_magnets.domain.shared.prompts import (
+    readiness_advisory_prompt,
+    readiness_score_prompt,
+)
+from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
+from app.modules.lead_magnets.domain.valuation.valuation_methods import (
+    ValuationInputs,
+    value_company,
+)
 from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)

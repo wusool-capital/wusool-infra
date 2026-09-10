@@ -20,7 +20,7 @@ its own target. The valuation tool's own vocabulary is 225 labels and is
 **not** mapped here — see `UNMAPPED_VOCABULARIES`.
 """
 
-from app.modules.lead_magnets.domain.sector_options import SECTOR_FOCUS_OPTIONS
+from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
 
 # The GCC SME Benchmark's established-business dropdown (20 values).
 _BENCHMARK_SME = {

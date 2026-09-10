@@ -7,14 +7,14 @@ parses, it is just wrong.
 
 import pytest
 
-from app.modules.lead_magnets.application.valuation_ai import ValuationAi
-from app.modules.lead_magnets.domain.prompts import (
+from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
+from app.modules.lead_magnets.domain.shared.prompts import (
     analyze_prompt,
     compare_query_prompt,
     compare_select_prompt,
     enrich_prompt,
 )
-from app.modules.lead_magnets.domain.search import SearchResult
+from app.modules.lead_magnets.domain.shared.search import SearchResult
 
 
 class _FakeLlm:
@@ -235,7 +235,7 @@ async def test_compare_reports_how_much_was_actually_sourced() -> None:
 async def test_compare_does_not_duplicate_a_sourced_ticker() -> None:
     """A static entry for a company search already found would appear twice
     in the table."""
-    from app.modules.lead_magnets.domain.valuation import trading_comps_for_sector
+    from app.modules.lead_magnets.domain.valuation.valuation import trading_comps_for_sector
 
     existing = trading_comps_for_sector("AI")[0]
     llm = _FakeLlm(
@@ -290,7 +290,7 @@ async def test_a_valuation_run_falls_back_without_any_model_call() -> None:
     valuation — the model only picks the comparables that set the trading
     multiples.
     """
-    from app.modules.lead_magnets.application.pipelines import Pipelines
+    from app.modules.lead_magnets.application.shared.pipelines import Pipelines
 
     pipelines = Pipelines(llm=None)  # type: ignore[arg-type]
     result = pipelines.fallback(
@@ -318,7 +318,7 @@ async def test_a_valuation_run_falls_back_without_any_model_call() -> None:
 def test_readiness_still_has_no_fallback() -> None:
     """The one tool that must not have one: its score, band and
     recommendations come only from the model."""
-    from app.modules.lead_magnets.application.pipelines import Pipelines
+    from app.modules.lead_magnets.application.shared.pipelines import Pipelines
 
     assert Pipelines(llm=None).fallback("readiness", {}) is None  # type: ignore[arg-type]
 
@@ -327,7 +327,7 @@ async def test_a_valuation_resume_applies_stored_ai_output() -> None:
     """Comparables and discounts from `/compare` and `/analyze` are used when
     the payload carries them, so a resume produces the same figures as the
     original request rather than silently reverting to sector defaults."""
-    from app.modules.lead_magnets.application.pipelines import Pipelines
+    from app.modules.lead_magnets.application.shared.pipelines import Pipelines
 
     pipelines = Pipelines(llm=None)  # type: ignore[arg-type]
     base = {

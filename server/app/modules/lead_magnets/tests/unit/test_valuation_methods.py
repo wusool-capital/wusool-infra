@@ -13,8 +13,8 @@ choices that look interchangeable and are not.
 
 import pytest
 
-from app.modules.lead_magnets.domain.valuation_data import ListedComp
-from app.modules.lead_magnets.domain.valuation_methods import (
+from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
+from app.modules.lead_magnets.domain.valuation.valuation_methods import (
     ValuationInputs,
     discounted_cash_flow,
     industry_research,

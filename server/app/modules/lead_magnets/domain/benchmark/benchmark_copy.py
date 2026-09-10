@@ -11,7 +11,7 @@ Placeholders, filled by `flag_for` in `benchmark_narrative.py`:
   {c} the display currency
 """
 
-from app.modules.lead_magnets.domain.benchmark_narrative import FlagCopy
+from app.modules.lead_magnets.domain.benchmark.benchmark_narrative import FlagCopy
 
 SME_FLAG_COPY: dict[str, FlagCopy] = {
     "ebitda": FlagCopy(

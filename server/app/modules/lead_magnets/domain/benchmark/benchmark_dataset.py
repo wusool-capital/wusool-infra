@@ -18,7 +18,7 @@ were currency-denominated in the first place.
 Anchors are [p10, p25, p50, p75, p90].
 """
 
-from app.modules.lead_magnets.domain.benchmark import Band, MetricSpec, PeerCut
+from app.modules.lead_magnets.domain.benchmark.benchmark import Band, MetricSpec, PeerCut
 
 DATASET_VERSION = "1.0"
 DATASET_UPDATED = "2026-08-17"

@@ -11,7 +11,7 @@ not is the Qatar tax bug documented below.
 
 import pytest
 
-from app.modules.lead_magnets.domain.valuation import (
+from app.modules.lead_magnets.domain.valuation.valuation import (
     comps_for_sector,
     growth_benchmark,
     match_transactions,
@@ -22,7 +22,7 @@ from app.modules.lead_magnets.domain.valuation import (
     tax_rate,
     wacc_benchmark,
 )
-from app.modules.lead_magnets.domain.valuation_data import (
+from app.modules.lead_magnets.domain.valuation.valuation_data import (
     industry_growth,
     static_comps,
     transactions,
@@ -80,7 +80,7 @@ def test_peer_median_margin_takes_the_upper_median() -> None:
     """An even-length set takes the upper middle value, not the mean of the
     two — `statistics.median` would return a different figure and shift
     every trading-comps valuation."""
-    from app.modules.lead_magnets.domain.valuation_data import ListedComp
+    from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
 
     peers = [
         ListedComp(co="A", tk="A", ev=None, rev=100, ebitda=10),  # 10%
@@ -92,7 +92,7 @@ def test_peer_median_margin_takes_the_upper_median() -> None:
 def test_peer_median_margin_ignores_loss_making_peers() -> None:
     """A negative-EBITDA peer would drag the margin below anything a buyer
     would underwrite."""
-    from app.modules.lead_magnets.domain.valuation_data import ListedComp
+    from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
 
     peers = [
         ListedComp(co="A", tk="A", ev=None, rev=100, ebitda=20),

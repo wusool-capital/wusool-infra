@@ -19,9 +19,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from uuid import UUID
 
-from app.modules.lead_magnets.application.ports import AttioWriterPort, ToolRunsPort
-from app.modules.lead_magnets.domain.dedup import idempotency_key
-from app.modules.lead_magnets.domain.tool_run import SubjectRefs, Tool, ToolRunRecord
+from app.modules.lead_magnets.application.shared.ports import AttioWriterPort, ToolRunsPort
+from app.modules.lead_magnets.domain.shared.dedup import idempotency_key
+from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs, Tool, ToolRunRecord
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 

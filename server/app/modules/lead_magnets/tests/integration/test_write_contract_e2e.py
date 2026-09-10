@@ -22,9 +22,9 @@ import pytest
 from sqlalchemy import select
 
 from app.models.tool_run import ToolRun
-from app.modules.lead_magnets.application.submit import SubmissionService
-from app.modules.lead_magnets.application.sweeper import sweep_once
-from app.modules.lead_magnets.domain.tool_run import SubjectRefs
+from app.modules.lead_magnets.application.shared.submit import SubmissionService
+from app.modules.lead_magnets.application.shared.sweeper import sweep_once
+from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError

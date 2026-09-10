@@ -12,11 +12,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.attio import attio_is_test, get_attio_client
-from app.modules.lead_magnets.application.pipelines import Pipelines
-from app.modules.lead_magnets.application.submit import SubmissionService
-from app.modules.lead_magnets.application.valuation_ai import ValuationAi
+from app.modules.lead_magnets.application.shared.pipelines import Pipelines
+from app.modules.lead_magnets.application.shared.submit import SubmissionService
+from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
-from app.modules.lead_magnets.domain.tool_run import SubjectRefs
+from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.database import get_sessionmaker
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter

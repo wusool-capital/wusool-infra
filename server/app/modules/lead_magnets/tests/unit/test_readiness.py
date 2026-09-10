@@ -8,17 +8,17 @@ the score/band drive `seller_roles.readiness_score`/`readiness_band`.
 
 import pytest
 
-from app.modules.lead_magnets.domain.prompts import (
-    readiness_advisory_prompt,
-    readiness_score_prompt,
-)
-from app.modules.lead_magnets.domain.readiness import (
+from app.modules.lead_magnets.domain.readiness.readiness import (
     AdvisoryContent,
     ReadinessAnswers,
     attio_band,
     build_advisory_content,
     merge_advisory,
     revenue_range_midpoint_usd,
+)
+from app.modules.lead_magnets.domain.shared.prompts import (
+    readiness_advisory_prompt,
+    readiness_score_prompt,
 )
 
 # Every scored question at its best answer — no rule should fire.

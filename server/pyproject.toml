@@ -67,7 +67,7 @@ ignore = ["ANN401"]
 # verbatim, so re-wrapping them would fight the next regeneration for no
 # benefit — same reasoning as the Alembic entry above. Line length only;
 # F/I/UP/B/ANN still apply.
-"app/modules/lead_magnets/domain/benchmark_copy.py" = ["E501"]
+"app/modules/lead_magnets/domain/benchmark/benchmark_copy.py" = ["E501"]
 # Test fakes/mocks intentionally leave fixture/kwarg parameters unannotated
 # (e.g. `**kwargs` stand-ins for a real client's signature) — production
 # code is where annotation completeness actually matters.

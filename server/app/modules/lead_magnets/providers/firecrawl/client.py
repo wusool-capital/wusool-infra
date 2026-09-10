@@ -20,7 +20,7 @@ import logging
 
 from firecrawl import AsyncFirecrawl
 
-from app.modules.lead_magnets.domain.search import SearchResult
+from app.modules.lead_magnets.domain.shared.search import SearchResult
 
 logger = logging.getLogger(__name__)
 

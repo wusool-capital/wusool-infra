@@ -13,8 +13,8 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.modules.lead_magnets.domain.search import SearchResult
-from app.modules.lead_magnets.domain.tool_run import (
+from app.modules.lead_magnets.domain.shared.search import SearchResult
+from app.modules.lead_magnets.domain.shared.tool_run import (
     Stage,
     SubjectRefs,
     Tool,

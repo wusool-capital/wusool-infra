@@ -16,15 +16,15 @@ figures.
 import asyncio
 import logging
 
-from app.modules.lead_magnets.application.ports import LeadLLMPort, SearchPort
-from app.modules.lead_magnets.domain.prompts import (
+from app.modules.lead_magnets.application.shared.ports import LeadLLMPort, SearchPort
+from app.modules.lead_magnets.domain.shared.prompts import (
     analyze_prompt,
     compare_query_prompt,
     compare_select_prompt,
     enrich_prompt,
 )
-from app.modules.lead_magnets.domain.valuation import trading_comps_for_sector
-from app.modules.lead_magnets.domain.valuation_data import sectors
+from app.modules.lead_magnets.domain.valuation.valuation import trading_comps_for_sector
+from app.modules.lead_magnets.domain.valuation.valuation_data import sectors
 from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)

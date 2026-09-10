@@ -15,10 +15,10 @@ whose `*_aed` slugs the Postgres mirror never reads.
 from collections.abc import Mapping
 
 from app.modules.attio.providers.attio.money import serialize_money
-from app.modules.lead_magnets.domain.benchmark import PERCENTILE_COLUMNS
-from app.modules.lead_magnets.domain.benchmark_submission import BenchmarkResult
-from app.modules.lead_magnets.domain.readiness import AdvisoryContent, attio_band
-from app.modules.lead_magnets.domain.valuation_methods import Valuation
+from app.modules.lead_magnets.domain.benchmark.benchmark import PERCENTILE_COLUMNS
+from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkResult
+from app.modules.lead_magnets.domain.readiness.readiness import AdvisoryContent, attio_band
+from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation
 
 # What a `seller_role` attribute can hold on the write side. A money field
 # arrives as a bare number and is serialised into Attio's own currency shape

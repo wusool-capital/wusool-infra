@@ -25,32 +25,59 @@ The tool pages are not served yet: `static/` is still empty.
 
 _New to this codebase's layering? See [the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
 
+Layered `domain → application → persistence → providers → api`
+(enforced by `tests/test_architecture.py`), and inside `domain/` and
+`application/` grouped a second way, by tool. A file used by exactly one
+tool lives in that tool's own subpackage; a file two or more tools depend
+on — the ledger vocabulary, the write contract, the Bedrock/Attio clients —
+lives in `shared/` instead. `persistence/` and `providers/` stay flat: they
+are one ledger and one set of clients for every tool, not four.
+
 ```
 lead_magnets/
-  config.py                # Settings — see "Env var names" below
+  config.py                     # Settings — see "Env var names" below
   domain/
-    dedup.py                  # normalisation + key composition (pure)
-    readiness.py              # the questionnaire, advisory rules, band map (pure)
-    sector_mapping.py         # tool sector -> sector_focus; raises on unmapped
-    sector_options.py         # the live 85 option titles; generated
-    benchmark.py              # the percentile engine + js_round
-    benchmark_dataset.py      # generated peer dataset; do not hand-edit
-    benchmark_submission.py   # one submission end to end: ratios, score, implied EV
-    benchmark_routing.py      # internal triage: priority, reason, quality gates
-    benchmark_narrative.py    # which metrics earn a paragraph, and how it is filled
-    benchmark_copy.py         # generated report prose; do not hand-edit
-    valuation.py              # sector resolution, peer matching, stats
-    valuation_data.py         # typed loaders over data/valuation.json
-    valuation_methods.py      # DCF + 3 comps methods + the blend (the fallback)
-    data/valuation.json       # 1000 M&A deals, 127 VC rounds, 31 comp sectors
-    prompts.py                # every prompt, as a pure function
+    valuation/
+      valuation.py                 # sector resolution, peer matching, stats
+      valuation_data.py            # typed loaders over data/valuation.json
+      valuation_methods.py         # DCF + 3 comps methods + the blend (the fallback)
+      data/valuation.json          # 1000 M&A deals, 127 VC rounds, 31 comp sectors
+    benchmark/
+      benchmark.py                 # the percentile engine + js_round
+      benchmark_dataset.py         # generated peer dataset; do not hand-edit
+      benchmark_submission.py      # one submission end to end: ratios, score, implied EV
+      benchmark_routing.py         # internal triage: priority, reason, quality gates
+      benchmark_narrative.py       # which metrics earn a paragraph, and how it is filled
+      benchmark_copy.py            # generated report prose; do not hand-edit
+    readiness/
+      readiness.py                 # the questionnaire, advisory rules, band map (pure)
+    shared/                        # used by 2+ tools — see the note above
+      dedup.py                     # normalisation + key composition (pure)
+      tool_run.py                  # the ledger's own vocabulary (Tool, Stage, …)
+      attio_values.py              # tool result -> Attio attribute values
+      prompts.py                   # every prompt, as a pure function
+      sector_mapping.py            # tool sector -> sector_focus; raises on unmapped
+      sector_options.py            # the live 85 option titles; generated
+      search.py                    # the search-result domain type
+  application/
+    valuation/
+      valuation_ai.py               # enrich, analyze, compare
+    shared/
+      submit.py                     # the write contract, every tool goes through it
+      pipelines.py                  # per-tool dispatch from the stored payload
+      sweeper.py                    # resumes abandoned runs
+      ports/                        # every Protocol, one file
   persistence/
-    database.py               # sessionmaker bound to this module's DATABASE_URL
-    mappers.py                # tool_runs row -> ToolRunRecord; where the ORM type stops
-    tool_runs_repository.py   # the write-ahead ledger
-  application/ports/          # every Protocol, one file
+    database.py                    # sessionmaker bound to this module's DATABASE_URL
+    mappers.py                      # tool_runs row -> ToolRunRecord; where the ORM type stops
+    tool_runs_repository.py         # the write-ahead ledger — one, for every tool
   providers/
     bedrock/ firecrawl/ attio/
+  api/
+    router.py, schemas.py, dependencies.py, static.py   # shared
+    valuation/endpoints.py          # /enrich /analyze /compare
+    benchmark/endpoints.py          # /benchmark
+    readiness/endpoints.py          # /readiness/score
   tests/
 ```
 
@@ -318,7 +345,7 @@ each deliberately:
 
 ## Testing
 
-`domain/dedup.py` carries the densest unit coverage in the module: it is
+`domain/shared/dedup.py` carries the densest unit coverage in the module: it is
 pure, and a normalisation bug silently merges or splits real companies.
 `tests/test_architecture.py` enforces that `domain/`/`application/` never
 import `persistence/`/`providers/`/`api/`/`fastapi`/`pydantic`/`sqlalchemy`.

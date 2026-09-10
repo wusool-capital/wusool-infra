@@ -12,9 +12,9 @@ demotion.
 
 import pytest
 
-from app.modules.lead_magnets.domain.benchmark import js_round
-from app.modules.lead_magnets.domain.benchmark_narrative import flag_for
-from app.modules.lead_magnets.domain.benchmark_routing import (
+from app.modules.lead_magnets.domain.benchmark.benchmark import js_round
+from app.modules.lead_magnets.domain.benchmark.benchmark_narrative import flag_for
+from app.modules.lead_magnets.domain.benchmark.benchmark_routing import (
     MIN_COMPLETENESS,
     PRIORITY_COLD,
     PRIORITY_HOT,
@@ -24,7 +24,7 @@ from app.modules.lead_magnets.domain.benchmark_routing import (
     route,
     score_band,
 )
-from app.modules.lead_magnets.domain.benchmark_submission import (
+from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
     BenchmarkInputs,
     adjusted_ebitda,
     evaluate,

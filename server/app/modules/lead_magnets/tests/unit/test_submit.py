@@ -10,8 +10,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.modules.lead_magnets.application.submit import SubmissionService
-from app.modules.lead_magnets.domain.tool_run import SubjectRefs, Tool, ToolRunRecord
+from app.modules.lead_magnets.application.shared.submit import SubmissionService
+from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs, Tool, ToolRunRecord
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
