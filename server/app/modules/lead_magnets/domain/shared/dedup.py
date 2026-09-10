@@ -22,6 +22,7 @@ second one creating a second Attio organisation.
 """
 
 import re
+from collections.abc import Iterable
 from urllib.parse import urlsplit
 
 # Matched after stripping dots and hyphens, so "l.l.c" and "fz-llc" both
@@ -89,6 +90,22 @@ def normalise_email(raw: str | None) -> str:
 
 def org_key(*, domain: str | None, name: str | None) -> str:
     return f"{normalise_domain(domain)}|{normalise_name(name)}"
+
+
+def domain_matches(candidate_domains: Iterable[str], domain: str | None) -> bool:
+    """True if `domain` is genuinely one of `candidate_domains`, both
+    normalised the same way.
+
+    Used to confirm a name-similarity search hit is actually the same
+    organisation, not a similarly-named one — domain alone is never enough
+    on its own (a holdco domain can legitimately cover several distinct
+    businesses, see the module docstring), so an empty/unmatched `domain`
+    is always `False` rather than treated as a wildcard.
+    """
+    target = normalise_domain(domain)
+    if not target:
+        return False
+    return target in {normalise_domain(d) for d in candidate_domains}
 
 
 def person_key(email: str | None) -> str:

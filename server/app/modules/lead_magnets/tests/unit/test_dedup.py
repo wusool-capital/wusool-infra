@@ -5,6 +5,7 @@ cases here are the real shapes a public form yields.
 import pytest
 
 from app.modules.lead_magnets.domain.shared.dedup import (
+    domain_matches,
     idempotency_key,
     normalise_domain,
     normalise_email,
@@ -117,6 +118,22 @@ def test_idempotency_key_separates_tools_but_org_key_does_not() -> None:
     args = {"email": "f@acme.com", "domain": "acme.com", "submission_id": "s1"}
     assert idempotency_key(tool="valuation", **args) != idempotency_key(tool="readiness", **args)
     assert org_key(domain="acme.com", name="Acme") == org_key(domain="acme.com", name="Acme")
+
+
+def test_domain_matches_ignores_scheme_and_case() -> None:
+    assert domain_matches(["Example.com", "other.com"], "https://WWW.Example.com/path")
+
+
+def test_domain_matches_is_false_for_no_overlap() -> None:
+    assert not domain_matches(["other.com"], "example.com")
+
+
+def test_domain_matches_is_false_for_an_empty_domain() -> None:
+    """An empty/missing domain is never a wildcard match against every
+    candidate's domain list."""
+    assert not domain_matches(["example.com"], None)
+    assert not domain_matches(["example.com"], "")
+    assert not domain_matches([], "example.com")
 
 
 def test_idempotency_key_distinguishes_submissions_from_the_same_person() -> None:

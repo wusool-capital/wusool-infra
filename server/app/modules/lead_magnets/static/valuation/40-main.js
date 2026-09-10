@@ -199,7 +199,10 @@ function App(){
     const rawTV=(lastFCF*(1+gR))/denom/Math.pow(1+waccVal,rows.length);
     const tv=lastFCF<0?0:rawTV;
     const dcfEV=Math.max(sumDFCF+tv,0);
-    const dcfEquity=Math.max(dcfEV,0);
+    // Matches domain/valuation/valuation_methods.py's `_DEFAULT_DLOM_PCT` —
+    // see the same fix in 30-components.js's `DCFModule`, which overwrites
+    // this pre-calc once it mounts.
+    const dcfEquity=Math.max(dcfEV,0)*(1-DLOM_PCT/100);
 
     // --- Transaction comps pre-calc ---
     const txMatches=matchTransactions(sector,15);

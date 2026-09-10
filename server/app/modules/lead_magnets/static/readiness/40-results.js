@@ -1,3 +1,8 @@
+// The model's own dimension/recommendation text is spliced into innerHTML
+// below — escape it, since the prompt embeds the visitor's own free-text
+// answers and the model can echo them back.
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
 function renderResults(data,name,biz,sector){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('resultsScreen').classList.add('active');
@@ -22,7 +27,7 @@ function renderResults(data,name,biz,sector){
     const c=pct>=65?'#16DA80':pct>=40?'#f5a623':'#DC2626';
     const card=document.createElement('div');
     card.className='dim-card';
-    card.innerHTML=`<div class="dim-header"><span class="dim-label">${dim.name}</span><span class="dim-score-badge" style="background:${c}20;color:${c}">${pct}</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:${pct}%;background:${c}"></div></div><div class="dim-insight">${dim.insight}</div>`;
+    card.innerHTML=`<div class="dim-header"><span class="dim-label">${esc(dim.name)}</span><span class="dim-score-badge" style="background:${c}20;color:${c}">${pct}</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:${pct}%;background:${c}"></div></div><div class="dim-insight">${esc(dim.insight)}</div>`;
     grid.appendChild(card);
   });
   const recsEl=document.getElementById('recsContainer');
@@ -30,7 +35,7 @@ function renderResults(data,name,biz,sector){
   data.recommendations.forEach((rec,i)=>{
     const card=document.createElement('div');
     card.className='rec-card';
-    card.innerHTML=`<div class="rec-num">Priority ${i+1}</div><div class="rec-title">${rec.title}</div><div class="rec-text">${rec.detail}</div>`;
+    card.innerHTML=`<div class="rec-num">Priority ${i+1}</div><div class="rec-title">${esc(rec.title)}</div><div class="rec-text">${esc(rec.detail)}</div>`;
     recsEl.appendChild(card);
   });
 

@@ -334,7 +334,11 @@ function DCFModule({gate,cfg,onUpdate}){
     // Floor terminal value: if projected FCF never turns positive, TV should not be a large negative drag
     const tv=lastFCF<0?0:rawTV;
     const ev=Math.max(sumDFCF+tv,0);
-    const eqV=Math.max(ev+cash-(wacc_inputs.d||0),0);
+    const eqBeforeDlom=Math.max(ev+cash-(wacc_inputs.d||0),0);
+    // Matches domain/valuation/valuation_methods.py's `_DEFAULT_DLOM_PCT` —
+    // without it this report shows an equity value ~1.43x higher than the
+    // blend actually written to Attio for the same submission.
+    const eqV=eqBeforeDlom*(1-DLOM_PCT/100);
     return{rows,tv,ev,eqVal:eqV,sumDFCF,tvFloored:lastFCF<0};
   },[pf,wacc,wacc_inputs,termGrowth,cash]);
 

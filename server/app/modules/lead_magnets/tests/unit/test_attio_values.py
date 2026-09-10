@@ -17,7 +17,9 @@ from app.modules.lead_magnets.domain.shared.attio_values import (
     benchmark_values,
     buyer_values,
     readiness_values,
+    valuation_values,
 )
+from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation
 
 _BAND = Band(id="sme", label="SME", max_usd=None, ebitda_adj=1.0, rev_emp_mult=1.0, rent_mult=1.0)
 
@@ -119,6 +121,17 @@ def test_benchmark_quartile_maps_to_the_real_attio_option_title(quartile: int, t
     """
     values = benchmark_values(_benchmark_result(quartile=quartile), headcount=None)
     assert values["benchmark_quartile"] == title
+
+
+def test_valuation_values_records_a_genuine_zero_rather_than_dropping_it() -> None:
+    """`value_company()` legitimately returns 0 for every figure when no
+    method produces a usable row — `result.low or None` would make that
+    indistinguishable in Attio from a valuation never attempted."""
+    result = Valuation(low=0, mid=0, high=0, methods=(), dcf=None)
+    values = valuation_values(result)
+    assert values["valuation_low"] == {"currency_value": 0.0}
+    assert values["valuation_mid"] == {"currency_value": 0.0}
+    assert values["valuation_high"] == {"currency_value": 0.0}
 
 
 def test_benchmark_quartile_falls_back_to_the_raw_value_when_unrecognised() -> None:

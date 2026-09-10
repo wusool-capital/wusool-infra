@@ -265,12 +265,20 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
             )
         )
 
+    # `or default` would silently turn an explicit 0% discount into the
+    # 50% default (`0 or 50.0` is `50.0`), diverging from the visitor's own
+    # choice — same `is not None` shape `api/valuation/endpoints.py` already
+    # uses for the synchronous response.
     discounts = payload.get("discounts")
     haircut_revenue = 50.0
     haircut_ebitda = 50.0
     if isinstance(discounts, dict):
-        haircut_revenue = float(discounts.get("revenue_discount_pct") or haircut_revenue)
-        haircut_ebitda = float(discounts.get("ebitda_discount_pct") or haircut_ebitda)
+        revenue_discount = discounts.get("revenue_discount_pct")
+        if isinstance(revenue_discount, (int, float)):
+            haircut_revenue = float(revenue_discount)
+        ebitda_discount = discounts.get("ebitda_discount_pct")
+        if isinstance(ebitda_discount, (int, float)):
+            haircut_ebitda = float(ebitda_discount)
 
     return ValuationInputs(
         revenue=num("revenue") or 0.0,

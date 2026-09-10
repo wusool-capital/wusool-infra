@@ -249,6 +249,73 @@ delivered state and outstanding items see
 
 ### Fixed
 
+- Six findings from a full code review ahead of deploying the lead-magnet
+  migration, all confirmed by direct code reading before being fixed and
+  re-verified live against the real dev Attio workspace where applicable:
+  - **Every submission created a duplicate Attio organization.**
+    `bootstrap.py`'s `_RoleAttioWriter.write()` never passed an existing org
+    id through to `role_writer.py`, so it always took the `create_organization`
+    branch — never `patch_organization`. `domain/shared/dedup.py`'s
+    `org_key`/`person_key` (whose own docstring says this is "what stops the
+    second one creating a second Attio organisation") were grepped and
+    confirmed unused anywhere outside their own tests. Added a new pure
+    `domain_matches()` helper (name-similarity search via the existing
+    `OrganizationRepository.search_by_name`, then a domain-match filter — an
+    empty domain never matches, so name alone can't accidentally merge two
+    distinct companies) and wired it into `_RoleAttioWriter`. Verified live:
+    seeded Postgres with what the Attio webhook mirror would normally write
+    (disabled locally under `ATTIO_IS_TEST=true`), then confirmed a second
+    tool submission for the same company+domain reused the existing
+    `organization_attio_id` instead of creating a new one, even with a
+    different URL form of the same domain.
+  - **An explicit 0% valuation discount silently became the 50% default.**
+    `pipelines.py`'s `_valuation_inputs` used `discounts.get(...) or default`
+    — `0 or 50.0` is `50.0` in Python — while `api/valuation/endpoints.py`'s
+    synchronous response correctly used `is not None`. The figure permanently
+    recorded in Attio diverged from what the visitor actually saw and chose.
+    Fixed to the same `is not None` shape.
+  - **A real XSS gap** in `static/readiness/40-results.js`: model-generated
+    dimension/recommendation text was spliced into `innerHTML` unescaped in
+    four places, while the line above already correctly used `.textContent`
+    for the same kind of data. The prompt embeds the visitor's own free-text
+    answers, so an echoed injection would execute live on the results page.
+    Added a small `esc()` helper and applied it to all four fields.
+  - **The interactive valuation report's client-side DCF calc omitted the
+    30% DLOM** (`domain/valuation/valuation_methods.py`'s `_DEFAULT_DLOM_PCT`)
+    both places it's computed client-side (`30-components.js`'s `DCFModule`
+    and `40-main.js`'s pre-calc that seeds it) — showing the visitor an
+    equity value ~1.43x higher than what the server actually blends and
+    writes to Attio for the same submission. Added a matching `DLOM_PCT`
+    constant and applied it in both places.
+  - **A genuine $0 valuation was silently dropped from the Attio write.**
+    `valuation_values()` used `result.low or None`, and `value_company()` can
+    legitimately return 0 for every figure when no method produces a usable
+    row — making a submission whose valuation genuinely computed to zero
+    indistinguishable in Attio from one where valuation was never attempted.
+    Fixed by passing the values through directly. This surfaced a **second,
+    more severe pre-existing bug** while writing the test for it:
+    `valuation_low`/`mid`/`high` were never in `_SELLER_MONEY`, so they were
+    never routed through `serialize_money()` at all — every valuation write,
+    zero or not, sent a bare float instead of the `{"currency_value": ...}`
+    shape Attio's `currency`-type attribute requires (`money.py`'s own
+    `_CURRENCY_CODE_BY_FIELD` already configures all three, just never
+    consumed for this path). Added them to `_SELLER_MONEY`. Live-testing the
+    fix surfaced a **third** bug in the same path: `serialize_money()` never
+    rounded, and a blended valuation (several ratios multiplied together)
+    routinely produces more than Attio's 4-decimal-place limit on
+    `currency_value`, confirmed live (`Must have no more than 4 decimal
+    places`). Fixed by rounding to 2 decimal places in `serialize_money()`
+    itself, benefiting every caller of the shared `attio/providers/attio/
+    money.py`, not just valuation. Verified live end-to-end after both
+    fixes: a real `/submit-lead` valuation now reaches `status='succeeded'`
+    with a real Attio organization and seller_role entry.
+  - Benchmark's percent-field validation silently accepted non-numeric input:
+    `static/benchmark/30-helpers.js`'s `num(v)` returns `null` for garbage
+    text, and JS coerces `null<0`/`null>100` to `false`, so the range check
+    let it through with no inline error. Fixed with an explicit
+    `n===null` check alongside the range check. UX-only — backend Pydantic
+    bounds checks already protect the actual data — but fixed for
+    consistency with the rest of this review.
 - `domain/shared/attio_values.py::benchmark_values` sent `benchmark_quartile`
   as a bare digit (`str(result.quartile)`, e.g. `"2"`) — the real Attio
   attribute is a select with option titles `Bottom 25%`/`Below Average`/

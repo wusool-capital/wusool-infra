@@ -193,3 +193,40 @@ def test_buyers_select_options_match_the_live_validation_sets() -> None:
     assert options_for("orgType") == ORGANIZATION_TYPE_OPTIONS
     assert options_for("targetGeography") == TARGET_GEOGRAPHY_OPTIONS
     assert options_for("sectorFocus") == SECTOR_FOCUS_OPTIONS
+
+
+def test_readiness_results_escapes_model_generated_text_before_innerhtml() -> None:
+    """`dim.name`/`dim.insight`/`rec.title`/`rec.detail` come straight from
+    the `/readiness/score` Bedrock response and are spliced into
+    `innerHTML` — unescaped, the prompt embedding the visitor's own
+    free-text answers makes this a live XSS vector if the model ever echoes
+    injected markup back."""
+    js = (static_dir() / "readiness" / "40-results.js").read_text()
+    assert "function esc(" in js
+    for field in ("dim.name", "dim.insight", "rec.title", "rec.detail"):
+        assert f"esc({field})" in js, f"{field} is interpolated into innerHTML unescaped"
+
+
+def test_valuation_client_dcf_applies_the_same_dlom_as_the_server() -> None:
+    """`domain/valuation/valuation_methods.py` always applies a 30% DLOM
+    (`_DEFAULT_DLOM_PCT`) before reporting DCF equity value. Both client-side
+    DCF calculations (`30-components.js`'s `DCFModule`, and `40-main.js`'s
+    pre-calc that seeds it) must apply the same discount, or the interactive
+    report a visitor reads shows a materially higher number than what is
+    actually blended and written to Attio for the same submission."""
+    helpers = (static_dir() / "valuation" / "20-helpers.js").read_text()
+    assert "const DLOM_PCT=30;" in helpers
+
+    components = (static_dir() / "valuation" / "30-components.js").read_text()
+    assert "eqBeforeDlom*(1-DLOM_PCT/100)" in components
+
+    main = (static_dir() / "valuation" / "40-main.js").read_text()
+    assert "Math.max(dcfEV,0)*(1-DLOM_PCT/100)" in main
+
+
+def test_benchmark_percent_validation_rejects_non_numeric_input() -> None:
+    """`num(v)` returns `null` for non-numeric text, and JS coerces
+    `null<0`/`null>100` to `false` — without an explicit `n===null` check,
+    garbage input passed the 0-100 range check silently."""
+    js = (static_dir() / "benchmark" / "30-helpers.js").read_text()
+    assert "if(n===null||n<0||n>100)" in js

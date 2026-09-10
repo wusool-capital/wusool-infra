@@ -40,6 +40,14 @@ _SELLER_MONEY = frozenset(
         "implied_ev_low",
         "implied_ev_high",
         "ebitda_adjusted",
+        # `valuation_values()` below — configured in `money.py`'s
+        # `_CURRENCY_CODE_BY_FIELD` but never actually routed through
+        # `serialize_money` until now, so every valuation write sent a bare
+        # float to a `currency`-type attribute instead of the
+        # `{"currency_value": ...}` shape Attio's API requires for one.
+        "valuation_low",
+        "valuation_mid",
+        "valuation_high",
     }
 )
 
@@ -142,9 +150,14 @@ def valuation_values(result: Valuation) -> dict[str, object]:
     """
     return _values(
         {
-            "valuation_low": result.low or None,
-            "valuation_mid": result.mid or None,
-            "valuation_high": result.high or None,
+            # Not `result.low or None` — `value_company()` can legitimately
+            # return 0 for every figure when no method produces a usable
+            # row, and `0 or None` would drop it, making a submission whose
+            # valuation genuinely computed to zero indistinguishable in
+            # Attio from one where valuation was never attempted.
+            "valuation_low": result.low,
+            "valuation_mid": result.mid,
+            "valuation_high": result.high,
         }
     )
 

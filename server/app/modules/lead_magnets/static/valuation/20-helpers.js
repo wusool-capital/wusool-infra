@@ -26,6 +26,8 @@ function NumInput({value,onChange,className,style,step,min,max,placeholder,readO
 // ===== UTILITIES =====
 const fmt=(v,cur="USD")=>{if(v===null||v===undefined||isNaN(v))return"-";const sy=CUR_SYM[cur]||"$";const a=Math.abs(v);let s;if(a>=1e9)s=(a/1e9).toFixed(1)+"B";else if(a>=1e6)s=(a/1e6).toFixed(1)+"M";else if(a>=1e3)s=Math.round(a).toLocaleString();else s=a.toFixed(0);return v<0?`(${sy}${s})`:`${sy}${s}`};
 const CUR_RATE={USD:1,AED:3.6725,SAR:3.75,GBP:0.79,EUR:0.92};
+// Matches domain/valuation/valuation_methods.py's `_DEFAULT_DLOM_PCT`.
+const DLOM_PCT=30;
 const fmtResult=(v,cur="USD")=>{if(v===null||v===undefined||isNaN(v))return"-";const sy=CUR_SYM[cur]||"$";const converted=v*(CUR_RATE[cur]||1);const a=Math.abs(converted);let s;if(a>=1e9)s=(a/1e9).toFixed(1)+"B";else s=(a/1e6).toFixed(1)+"M";return converted<0?`(${sy}${s})`:`${sy}${s}`};
 const fmtM=v=>{if(v===null||v===undefined||isNaN(v)||v===0)return"-";return v.toFixed(1)+"x"};
 const fmtP=v=>{if(v===null||v===undefined||isNaN(v))return"-";return v.toFixed(2)+"%"};

@@ -17,12 +17,18 @@ from app.modules.lead_magnets.application.shared.service import LeadMagnetServic
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
+from app.modules.lead_magnets.domain.shared.dedup import (
+    domain_matches,
+    normalise_domain,
+    normalise_name,
+)
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.database import get_sessionmaker
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
+from app.modules.organizations import OrganizationRepository
 from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
@@ -53,28 +59,56 @@ class _RoleAttioWriter:
     leaking into the use case.
     """
 
-    def __init__(self, writer: AttioRoleWriter) -> None:
+    def __init__(self, writer: AttioRoleWriter, organizations: OrganizationRepository) -> None:
         self._writer = writer
+        self._organizations = organizations
+
+    async def _find_existing_org(self, *, name: str, domain: str | None) -> str | None:
+        """Postgres-side dedup, per `domain/shared/dedup.py`'s own docstring:
+        without this, every submission from a company Attio has already seen
+        creates a second Attio organisation instead of reusing the first.
+
+        Name-similarity search first (candidates), `domain_matches` to
+        confirm identity — domain alone is never enough (a holdco domain can
+        legitimately cover several distinct businesses), and an empty
+        `domain` always returns `None` rather than matching by name alone.
+        `write_seller_role`/`write_buyer_role` still call
+        `assert_organization_in_scope` on whatever this returns, so a match
+        against the wrong `is_test` half of the shared workspace fails the
+        write cleanly rather than corrupting it — Postgres has no `is_test`
+        column to pre-filter on.
+        """
+        if not normalise_domain(domain):
+            return None
+        for candidate in await self._organizations.search_by_name(normalise_name(name)):
+            if domain_matches(candidate.domains, domain):
+                return candidate.attio_id
+        return None
 
     async def write(self, *, tool: str, payload: JsonObject, ai: JsonObject) -> SubjectRefs:
         entry_values = ai.get("entry_values")
         if not isinstance(entry_values, dict):
             entry_values = {}
+        domain = payload.get("domain")
         if tool == "buyer_network":
+            name = payload.get("org_name") or "Unknown"
             return await self._writer.write_buyer_role(
-                organization_name=payload.get("org_name") or "Unknown",
-                domain=payload.get("domain"),
+                organization_name=name,
+                domain=domain,
                 org_type=[v for v in payload.get("org_type") or [] if isinstance(v, str)],
                 sector_focus=[v for v in payload.get("sector_focus") or [] if isinstance(v, str)],
                 entry_values=entry_values,
+                organization_attio_id=await self._find_existing_org(name=name, domain=domain),
             )
+        name = payload.get("company") or payload.get("company_name") or "Unknown"
         return await self._writer.write_seller_role(
-            organization_name=payload.get("company") or payload.get("company_name") or "Unknown",
-            domain=payload.get("domain"),
+            organization_name=name,
+            domain=domain,
             entry_values=entry_values,
             # The tool's own value; the writer maps it and raises on an
             # unknown one rather than dropping it.
             sector=payload.get("peer_key") or payload.get("sector"),
+            organization_attio_id=await self._find_existing_org(name=name, domain=domain),
         )
 
 
@@ -87,7 +121,7 @@ def build_submission_service(session: AsyncSession) -> LeadMagnetService:
     same service serves a fresh request and a sweeper resume."""
     return LeadMagnetService(
         tool_runs=build_tool_runs(session),
-        attio=_RoleAttioWriter(build_role_writer()),
+        attio=_RoleAttioWriter(build_role_writer(), OrganizationRepository(session)),
         llm=build_llm(),
     )
 

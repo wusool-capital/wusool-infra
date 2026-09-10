@@ -41,3 +41,13 @@ def test_role_money_fields_are_usd(table: str, field: str) -> None:
 def test_unknown_field_raises() -> None:
     with pytest.raises(UnknownMoneyFieldError):
         serialize_money("seller_role", "not_a_real_field", 1.0)
+
+
+def test_serialize_money_rounds_to_attios_4_decimal_limit() -> None:
+    """A blended figure (several ratios multiplied together) routinely
+    produces more than 4 decimal places, which Attio's API rejects outright
+    (`validation_type` on `currency_value`, confirmed live against the real
+    workspace)."""
+    assert serialize_money("seller_role", "valuation_low", 2_683_279.502586056) == {
+        "currency_value": 2_683_279.5,
+    }

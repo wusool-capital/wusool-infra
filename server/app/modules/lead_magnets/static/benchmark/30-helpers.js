@@ -162,7 +162,9 @@ function validate(step){
   for(const id of pctFields){
     const el=$(id); if(!shown(el)||el.value.trim()==="") continue;
     const n=num(el.value);
-    if(n<0||n>100){ markErr(id,"Enter a value between 0 and 100."); ok=false; }
+    // n===null (non-numeric input) must fail explicitly — n<0||n>100 alone
+    // lets it through silently, since JS coerces null<0 and null>100 to false.
+    if(n===null||n<0||n>100){ markErr(id,"Enter a value between 0 and 100."); ok=false; }
   }
   return ok;
 }

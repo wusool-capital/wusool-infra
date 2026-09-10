@@ -77,9 +77,14 @@ def serialize_money(table: str, field: str, amount: float) -> AttioCurrencyWrite
     field slipping through unconfigured that every other caller of this
     module relies on, even though the returned code isn't part of the
     payload itself.
+
+    Rounded to 2 decimal places — Attio's API rejects a `currency_value`
+    with more than 4, and a blended figure computed by multiplying several
+    ratios together (e.g. a valuation blend) routinely produces more than
+    that; 2 is standard cents precision for any of these fields.
     """
     default_currency_code(table, field)
-    return {"currency_value": amount}
+    return {"currency_value": round(amount, 2)}
 
 
 def to_postgres_money(table: str, field: str, amount: float) -> MoneyJson:
