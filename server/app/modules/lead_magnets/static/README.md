@@ -2,15 +2,15 @@
 
 The four tool pages, `embed.js`, and their extracted images.
 
-**Empty on purpose.** The pages live in `dopamine-relay` /
-`wusool-benchmark` (private, on a personal GitHub account) and have to be
-imported before this directory can be filled — see the module README's
-"Blocked on" section.
-
-When they land, they belong here as:
+**Landing tool by tool.** Benchmark is in: `benchmark/index.html` is a
+verbatim copy of the original page (no script/style split yet — that is
+slice 2), its one embedded image extracted to `img/`, and its submit call
+repointed at `/benchmark` directly instead of the old Render relay.
+Valuation, readiness, and buyers are still not here.
 
 ```
-valuation/  readiness/  benchmark/  buyers/    # each: index.html + its own .css/.js slices
+valuation/  readiness/  buyers/                # not built yet
+benchmark/index.html                            # verbatim, unsplit (slice 1)
 embed.js
 img/<sha8>.<ext>       # shared across tools — logo dedupes by content hash
 shared/                 # api.js, height.js — NOT created until a 2nd tool needs them
@@ -28,11 +28,14 @@ Three things the import has to do, not just a copy:
   `src`. That is ~212KB of the valuation page's 564KB, and content-addressed
   names are what make the year-long `Cache-Control` in `api/static.py`
   safe. Commit the rewritten HTML only, never both forms.
-- **Repoint every AI call** at `/api/tools/*` with a relative path. The pages
-  currently compose the prompts themselves and post them to a pass-through
-  endpoint; afterwards they send data and receive validated JSON. Relative
-  paths are what make the calls same-origin, which is why no CORS
-  middleware exists.
+- **Repoint every call** at the real endpoint with a relative, same-origin
+  path (the router has no `/api/tools` prefix — `POST /benchmark` etc. are
+  the paths the pages already know). Field names have to match the request
+  schema exactly (`api/schemas.py` is `extra="forbid"`, snake_case), which
+  for benchmark meant rebuilding the payload rather than just swapping the
+  URL — see `benchmark/index.html`'s submit handler. Valuation and readiness
+  currently compose their own AI prompts and post them to a pass-through
+  endpoint; those calls send data and receive validated JSON instead.
 - **Emit height.** None of the three pages tells its parent how tall it is
   today, which is why the current embeds are a fixed height. A
   `ResizeObserver` posting `{type: "wusool:height", id, height}` to
@@ -52,11 +55,11 @@ if `embed.js` gets this wrong, it's just slower. Covered by
 `tests/unit/test_static_headers.py` so the redirect cost isn't
 rediscovered as a production latency mystery.
 
-One hazard when wiring the mount: `StaticFiles` raises
-`RuntimeError: Directory ... does not exist` unless `check_dir=False`, and
-this directory is empty until the pages land (`.dockerignore` excludes
-`**/*.md`, so even this file is absent from the image). Do not add the mount
-to `server/main.py` before there is a real file here.
+The mount is wired: `server/main.py` mounts `ToolStatic(directory=static_dir(), html=True)`
+at `/`, last, after every router — verified live and via a real `podman build`
+image inspection that the wheel actually ships this directory
+(`.dockerignore` excludes `**/*.md`, so only the non-`.md` files here reach
+the image).
 
 Why this directory and not a top-level one: `_deploy.yml`'s toolkit change
 detection matches `^server/`, and `pyproject.toml`'s hatchling

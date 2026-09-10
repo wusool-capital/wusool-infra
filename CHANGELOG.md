@@ -63,6 +63,24 @@ delivered state and outstanding items see
   Verified live: pointing `AWS_REGION` at a region with no Bedrock access
   produces the deterministic response in 1.4s, failing at the auth layer
   before any tokens are processed.
+- Front end, slice 1 of 5: the GCC SME Benchmark tool now serves at
+  `/benchmark/` — a verbatim copy of the live page (no script/style split
+  yet), its one embedded image extracted to a content-addressed
+  `static/img/<sha8>.png`, and a new `embed.js` Webflow loader with a
+  `postMessage` height contract. `server/main.py` mounts `ToolStatic` at
+  `/`, last, after every router. Proved two ways before merge: a local
+  `uvicorn` boot exercising every route (including the bare-`/benchmark`
+  307 and confirming `POST /benchmark` still reaches the API, not the
+  static mount) and a real `podman build` + `podman run` image inspection
+  confirming the wheel actually ships `static/`.
+- Benchmark's submit call repointed from the old
+  `wusool-benchmark.onrender.com/benchmark` Render relay to a relative
+  `/benchmark`, rebuilding the outbound payload to the snake_case shape
+  `BenchmarkRequest` requires (`extra="forbid"`) rather than just swapping
+  the URL — the page's original camelCase payload would have 422'd on
+  every submission. Also fixes a latent bug: the page treated any settled
+  `fetch` (including a non-2xx response) as a successful submit; it now
+  checks `response.ok` first.
 
 ### Changed
 

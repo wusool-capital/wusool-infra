@@ -15,12 +15,13 @@ second Caddy hostname pointing at the same container.
 All seven endpoints serve, wired into `server/main.py`. `POST /benchmark`
 and `POST /readiness/score` are verified over HTTP against a real Postgres
 and live Bedrock. `POST /buyer/apply` and `POST /submit-lead` are built and
-unit-tested but unverified against a real Attio/Postgres pair, and every
-endpoint is gated behind the front end, which does not exist yet
-(`static/` is still empty) — so nothing can reach any of them in
-production.
+unit-tested but unverified against a real Attio/Postgres pair.
 
-The tool pages are not served yet: `static/` is still empty.
+The front end is landing tool by tool (see `static/README.md`). Benchmark
+is the first: served verbatim at `/benchmark/` (one file, no script split
+yet) and repointed off the old Render relay at `/benchmark` directly. The
+other three tools are still unreachable — nothing serves at `/valuation/`,
+`/readiness/`, or `/buyers/` yet.
 
 ## Structure
 
@@ -352,8 +353,8 @@ each deliberately:
 
 ## Not built yet
 
-- The front end. `static/` holds only a README; nothing can reach any of
-  the seven endpoints in production until it exists.
+- The front end for valuation, readiness, and buyers — only benchmark is
+  served today (see `static/README.md`).
 - The `activities` timeline row (step 6 — it needs a resolved subject, so
   it cannot be written before the Attio write succeeds).
 - `POST /buyer/apply` and `POST /submit-lead` verified against a real

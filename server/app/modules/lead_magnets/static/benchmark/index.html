@@ -371,9 +371,6 @@ footer{padding:44px 0 60px;font-size:12px;color:var(--navy-30)}
    CONFIG
    ============================================================ */
 const CFG = {
-  // LIVE. Submissions post here and are written to Attio.
-  relay: "https://wusool-benchmark.onrender.com/benchmark",
-
   // TODO: replace these three with your real pages before you send traffic.
   // They point at the homepage for now so nothing 404s.
   valuationUrl: "https://www.wusoolcapital.com",
@@ -813,46 +810,39 @@ function unlock(){
   const btn=$("g-btn");
   btn.disabled=true; btn.innerHTML='<span class="spin"></span>Building your report';
 
-  // Everything monetary is normalised to USD before it leaves the browser, so
-  // the CRM holds one currency regardless of how the figures were entered.
-  // Note: the benchmark itself still computes in AED for SME peer sets. Only
-  // the outbound payload is converted.
+  // Field names and shape match BenchmarkRequest (api/schemas.py) exactly —
+  // the server scores its own copy from these raw figures; nothing computed
+  // client-side (score, percentiles, impliedEv*) is sent, since the server
+  // recomputes it as the source of truth for what lands in the CRM.
   const payload = {
-    ...S.inputs,
-    revenue:        toUSD(S.inputs.revenue),
-    prevRevenue:    toUSD(S.inputs.prevRevenue),
-    ebitdaReported: toUSD(S.inputs.ebitdaReported),
-    ownerSalary:    toUSD(S.inputs.ownerSalary),
-    ebitdaAdjusted: toUSD(S.inputs.ebitdaAdjusted),
-    rentAed:        toUSD(S.inputs.rentAed),
-    capitalRaised:  toUSD(S.inputs.capitalRaised),
-    name: $("g-name").value.trim(),
-    email: $("g-email").value.trim().toLowerCase(),
-    company: $("g-company").value.trim(),
-    phone: $("g-phone").value.trim(),
-    consent: $("g-consent").checked,
-    score: S.results.score,
-    percentiles: Object.fromEntries(Object.entries(S.results.metrics).map(([k,v])=>[k, v.pct==null?null:Math.round(v.pct)])),
-    source: window.location.href,
-    utm: Object.fromEntries(new URLSearchParams(window.location.search)),
-    submittedAt: new Date().toISOString(),
-    datasetVersion: DATA.version,
+    submission_id: (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
     mode: MODE,
-    modeLabel: S.inputs.modeLabel,
-    stageLabel: S.inputs.stageLabel,
-    capitalRaised: toUSD(S.inputs.capitalRaised),
-    currency: "USD",
-    entryCurrency: S.inputs.entryCurrency,
-    fxRateAedPerUsd: FX,
-    metricsCovered: S.inputs.metricsCovered,
-    metricsTotal: S.inputs.metricsTotal,
-    dataCompleteness: S.inputs.dataCompleteness,
-    impliedEvLow:  S.results.val ? toUSD(S.results.val.low)  : null,
-    impliedEvHigh: S.results.val ? toUSD(S.results.val.high) : null
+    peer_key: MODE==="tech" ? S.inputs.stage : S.inputs.sector,
+    company: $("g-company").value.trim(),
+    name: $("g-name").value.trim() || null,
+    email: $("g-email").value.trim().toLowerCase(),
+    domain: null,
+    geography: S.inputs.geo || null,
+    consent: $("g-consent").checked,
+    revenue: toUSD(S.inputs.revenue),
+    prev_revenue: toUSD(S.inputs.prevRevenue),
+    ebitda_reported: toUSD(S.inputs.ebitdaReported),
+    owner_salary: toUSD(S.inputs.ownerSalary),
+    salary_deducted: S.salaryDeducted,
+    gross_margin_pct: S.inputs.grossMargin,
+    headcount: S.inputs.headcount,
+    rent_cost: toUSD(S.inputs.rentAed),
+    capital_raised: toUSD(S.inputs.capitalRaised),
+    top_customer_pct: S.inputs.topCustomerPct,
+    recurring_pct: S.inputs.recurringPct,
+    years_active: S.inputs.years,
+    outlets: S.inputs.outlets,
+    days_to_get_paid: S.inputs.dso
   };
 
-  fetch(CFG.relay,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
-    .catch(e=>console.warn("relay",e))
+  fetch("/benchmark",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+    .then(r=>{ if(!r.ok) throw new Error("benchmark submit failed: "+r.status); })
+    .catch(e=>console.warn("submit",e))
     .finally(()=>{ S.sent=true; render(); });
 }
 
