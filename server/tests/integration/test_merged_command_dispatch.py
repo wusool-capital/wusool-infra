@@ -23,6 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
+from app.modules.lead_magnets.api import dependencies as lead_magnet_deps
 from app.modules.matching_engine.config import get_settings
 
 
@@ -241,6 +242,15 @@ def test_lead_magnet_static_mount_does_not_shadow_existing_routes() -> None:
     (trailing slash) — exact-path route registration keeps them apart.
     """
     client = TestClient(main.app)
+
+    # `rate_limit`'s counter is a module-level singleton shared by every
+    # test in this process, keyed on TestClient's fixed "testclient" host —
+    # by the time this file's tests run, lead_magnets' own integration
+    # suite has already spent some of the hourly quota against that same
+    # key. Reset it so the three POSTs below are judged on their own,
+    # exactly as `test_api_guards.py` already does for its own assertions
+    # about this limiter.
+    lead_magnet_deps._limiter = None
 
     assert client.get("/health").status_code == 200
     # 503 here means "no real database in this test", not "route missing" —
