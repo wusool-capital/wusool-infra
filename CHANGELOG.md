@@ -89,6 +89,17 @@ delivered state and outstanding items see
   treatment as the pre-existing `"DeepTech or hardware"` case — mapped
   to `Food & Beverage / QSR` as the more common case for a generalist
   SME tool, not a settled decision.
+- The valuation tool's own 225-label vocabulary (`ALL_SECTORS`) had the
+  same gap, at far larger scale: 204 labels with no `sector_focus`
+  target, confirmed by actually running `to_sector_focus()` against the
+  real list rather than trusting this file's own stale docstring, which
+  had said 214 — itself wrong, corrected in the same commit. Added
+  `VALUATION_SECTORS` covering all 204; 0 of the tool's 225 labels now
+  raise `UnmappedSectorError`. 204 fine-grained VC/startup labels against
+  an 85-option CRM taxonomy means several targets are real judgment
+  calls — 15 flagged in `_VALUATION_SECTORS_FOR_REVIEW`, each with its
+  reasoning and the plausible alternative, worth a second look from
+  someone with sector-taxonomy context.
 
 ## 2026-09-09
 
