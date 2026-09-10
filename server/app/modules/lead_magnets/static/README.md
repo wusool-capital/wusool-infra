@@ -2,20 +2,30 @@
 
 The four tool pages, `embed.js`, and their extracted images.
 
-**Landing tool by tool.** Benchmark is in: split into `00-styles.css` and
-six numbered `.js` files at its own top-level section boundaries (`CONFIG`,
-`DATASET`, `STATE + HELPERS`, `PERCENTILE ENGINE`, `NARRATIVE`, `RENDER` —
-the sections the original source already commented), its one embedded image
-extracted to `img/`, and its submit call repointed at `/benchmark` directly
-instead of the old Render relay. Valuation, readiness, and buyers are still
+**Landing tool by tool.** Benchmark and readiness are in — both split into
+`00-styles.css` plus numbered `.js` files at legal boundaries (benchmark:
+its own `/* SECTION */` comments; readiness: one file per function group,
+since it had no such comments), one embedded image each extracted to
+`img/`, and their submit calls repointed at `/benchmark` and
+`/readiness/score` directly instead of the old Render relays. Readiness's
+repoint is bigger than a URL swap: the server now builds the prompt, scores
+it, and records the lead in one call, so the page no longer composes its
+own Claude prompt (`buildPrompt`/`callClaude`) or separately pushes to
+Attio (`buildAdvisoryContent`/`pushReadinessToAttio`/
+`revenueRangeToMidpointUsd`) — all four deleted, all ported server-side
+already in `domain/readiness/readiness.py`. Valuation and buyers are still
 not here.
 
 ```
-valuation/  readiness/  buyers/                # not built yet
+valuation/  buyers/                             # not built yet
 benchmark/
   index.html
   00-styles.css
   10-config.js  20-data.js  30-helpers.js  40-scoring.js  50-narrative.js  60-render.js
+readiness/
+  index.html
+  00-styles.css
+  10-state.js  20-nav.js  30-submit.js  40-results.js
 embed.js
 img/<sha8>.<ext>       # shared across tools — logo dedupes by content hash
 shared/height.js        # ResizeObserver -> parent.postMessage, every tool includes it
@@ -50,10 +60,10 @@ Three things the import has to do, not just a copy:
   path (the router has no `/api/tools` prefix — `POST /benchmark` etc. are
   the paths the pages already know). Field names have to match the request
   schema exactly (`api/schemas.py` is `extra="forbid"`, snake_case), which
-  for benchmark meant rebuilding the payload rather than just swapping the
-  URL — see `benchmark/index.html`'s submit handler. Valuation and readiness
-  currently compose their own AI prompts and post them to a pass-through
-  endpoint; those calls send data and receive validated JSON instead.
+  for benchmark and readiness meant rebuilding the payload rather than just
+  swapping the URL — see each tool's `30-submit.js`/render script. Valuation
+  still composes its own AI prompts and posts them to a pass-through
+  endpoint; that call needs to send data and receive validated JSON instead.
 - **Emit height.** `shared/height.js` posts `{type: "wusool:height", height}`
   to `parent` on a `ResizeObserver`; every tool's `index.html` includes it
   as its last script. `embed.js` disambiguates which iframe a message came

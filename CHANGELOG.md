@@ -98,6 +98,32 @@ delivered state and outstanding items see
   image, and the outbound payload's field names matching the request
   schema — parametrized to cover each tool's `index.html` automatically as
   more of them land.
+- `static/shared/height.js`: every tool page now reports its own height to
+  `embed.js` via a `ResizeObserver` + `postMessage`, so an embed grows and
+  shrinks with the page instead of sitting at the fixed `fallbackHeight`
+  forever. Caught a real bug before any page used it: `embed.js`'s listener
+  required the message to echo an `id` the parent assigned *after* creating
+  the iframe, which the child document has no way to learn — every height
+  update would silently have failed to match. Fixed by relying on
+  `event.source === iframe.contentWindow`, which already disambiguates
+  per-iframe on its own.
+- Front end, slice 3 of 5: the M&A Readiness tool now serves at
+  `/readiness/`, split the same way as benchmark (`00-styles.css` plus
+  numbered `.js` files — one per function group here, since the source had
+  no section comments to cut at) and repointed off `dopamine-relay` onto
+  `POST /readiness/score`. Bigger than benchmark's repoint: the endpoint
+  builds the prompt, scores it, and records the lead in one call, so
+  `buildPrompt`, `callClaude`, `buildAdvisoryContent`,
+  `revenueRangeToMidpointUsd`, and `pushReadinessToAttio` are deleted
+  outright rather than repointed — all ported server-side already in
+  `domain/readiness/readiness.py`, including a fix (`merge_advisory`) for a
+  bug in the live tool where the model's advisory note silently replaced
+  the deterministic one instead of adding to it. Verified the outbound
+  payload matches `ReadinessRequest` field-for-field (a new
+  `test_readiness_payload_field_names_match_the_request_schema` pins it)
+  and that a realistic submission reaches request validation cleanly
+  (fails only on the absence of a local Postgres in this environment, not
+  on shape).
 
 ### Changed
 
