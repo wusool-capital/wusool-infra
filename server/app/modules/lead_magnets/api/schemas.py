@@ -10,11 +10,17 @@ module's own invention:
                                dimensions[5], recommendations[3]}
     POST /buyer/apply      -> {ok, run_id}
     POST /benchmark        -> the benchmark result (no model involved)
+    POST /submit-lead      -> the blended valuation (no model involved)
 
-`/benchmark` keeps the path the live tool already posts to
-(`wusool-benchmark.html`'s `CFG.relay`), so repointing the page is a host
-change rather than a path change. It is absent from the spec's table because
-that table lists the *AI* endpoints and the benchmark uses none.
+`/benchmark` and `/submit-lead` keep the paths the live tools already post
+to (`wusool-benchmark.html`'s `CFG.relay`; `dopamine-valuation.html`'s
+`pushLeadToAttio`), so repointing the pages is a host change rather than a
+path change. Both are absent from the spec's table because that table lists
+the *AI* endpoints and neither one calls a model to produce its result — the
+live page computed its own blend and sent the finished numbers; here the
+server recomputes them from the raw inputs and ignores anything else, which
+is the point of the migration: the browser stops being the source of truth
+for what lands in the CRM.
 
 Response field names are the ones the existing pages parse — `comps`,
 `overallScore`, `dimensions[].insight` — and are not renamed.
@@ -231,6 +237,64 @@ class CompareResponse(BaseModel):
     # was sourced.
     sourced: int
     filled_from_static: int
+
+
+class ValuationDiscountsIn(BaseModel):
+    """`/analyze`'s own `discounts` key, round-tripped back in verbatim.
+    Both fields are optional: `Pipelines._valuation_inputs` already
+    defaults each to 50% when absent, so a visitor who never called
+    `/analyze` still gets a valuation."""
+
+    revenue_discount_pct: float | None = None
+    ebitda_discount_pct: float | None = None
+
+
+class ValuationRequest(_Strict):
+    """The blended valuation submission — DCF, trading comps, transaction
+    comps. Field names match `Pipelines._valuation_inputs`'s stored-payload
+    keys exactly (`profit_before_tax`, not `ebitda`: `ValuationInputs`
+    itself adds the owner's salary back to get to EBITDA, so the raw input
+    it wants is pre-addback profit), which is what lets a sweeper resume
+    rebuild identical inputs from this same payload.
+
+    `comps` and `discounts` are what the visitor's own prior `/compare` and
+    `/analyze` calls returned, sent back verbatim — this endpoint does not
+    re-run either. Their absence is the deterministic-fallback case, not an
+    error: the same blend a sweeper resume produces with no model in reach.
+    """
+
+    submission_id: str = Field(min_length=1, max_length=64)
+    company: str = Field(min_length=1, max_length=200)
+    name: str | None = Field(default=None, max_length=200)
+    email: str = Field(min_length=3, max_length=320)
+    domain: str | None = Field(default=None, max_length=253)
+    description: str | None = Field(default=None, max_length=4000)
+    sector: str | None = Field(default=None, max_length=200)
+    geography: str | None = Field(default=None, max_length=100)
+    stage: str | None = Field(default=None, max_length=100)
+    revenue: float = Field(ge=0)
+    profit_before_tax: float | None = None
+    owner_salary: float | None = Field(default=None, ge=0)
+    cash: float = Field(default=0, ge=0)
+    debt: float = Field(default=0, ge=0)
+    comps: list[ComparableOut] = Field(default_factory=list)
+    discounts: ValuationDiscountsIn | None = None
+    consent: bool = False
+
+
+class MethodRowOut(BaseModel):
+    name: str
+    low: float
+    mid: float
+    high: float
+
+
+class ValuationResponse(BaseModel):
+    run_id: str
+    low: float
+    mid: float
+    high: float
+    methods: list[MethodRowOut]
 
 
 class BuyerApplyRequest(_Strict):

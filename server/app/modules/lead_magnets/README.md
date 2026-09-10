@@ -12,11 +12,13 @@ second Caddy hostname pointing at the same container.
 
 ## Status
 
-All six endpoints serve, wired into `server/main.py`. `POST /benchmark` and
-`POST /readiness/score` are verified over HTTP against a real Postgres and
-live Bedrock. `POST /buyer/apply` is built but unverified against a real
-Attio/Postgres pair, and gated behind the front end, which does not exist
-yet (`static/` is still empty) — so nothing can reach it in production.
+All seven endpoints serve, wired into `server/main.py`. `POST /benchmark`
+and `POST /readiness/score` are verified over HTTP against a real Postgres
+and live Bedrock. `POST /buyer/apply` and `POST /submit-lead` are built and
+unit-tested but unverified against a real Attio/Postgres pair, and every
+endpoint is gated behind the front end, which does not exist yet
+(`static/` is still empty) — so nothing can reach any of them in
+production.
 
 The tool pages are not served yet: `static/` is still empty.
 
@@ -76,7 +78,7 @@ lead_magnets/
     bedrock/ firecrawl/ attio/
   api/
     router.py, schemas.py, dependencies.py, static.py   # shared
-    valuation/endpoints.py          # /enrich /analyze /compare
+    valuation/endpoints.py          # /enrich /analyze /compare /submit-lead
     benchmark/endpoints.py          # /benchmark
     readiness/endpoints.py          # /readiness/score
     buyer_network/endpoints.py      # /buyer/apply
@@ -97,6 +99,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /analyze` | serves | Sonnet 4.6; sector judgement, discounts, DCF overrides, strategic read, scorecard |
 | `POST /compare` | serves | Haiku plans queries, Firecrawl runs them, Sonnet selects; shortfall filled from static data |
 | `POST /buyer/apply` | serves | No blocking model call; a best-effort Haiku qualification note, never shown to the applicant |
+| `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
 visitor reads while still in the tool, long before there is a submission to
@@ -338,12 +341,15 @@ each deliberately:
 ## Not built yet
 
 - The front end. `static/` holds only a README; nothing can reach any of
-  the six endpoints in production until it exists.
+  the seven endpoints in production until it exists.
 - The `activities` timeline row (step 6 — it needs a resolved subject, so
   it cannot be written before the Attio write succeeds).
-- `POST /buyer/apply` verified against a real Attio/Postgres pair — built
-  and unit-tested, but never exercised end to end the way `/benchmark` and
-  `/readiness/score` have been.
+- `POST /buyer/apply` and `POST /submit-lead` verified against a real
+  Attio/Postgres pair — both built and unit-tested, but never exercised
+  end to end the way `/benchmark` and `/readiness/score` have been.
+- `/analyze`'s deterministic fallback (`generateStrategicAnalysis` in the
+  live tool). A Bedrock failure there currently surfaces as an error to
+  the visitor, unlike every other tool's AI call.
 
 ## Testing
 

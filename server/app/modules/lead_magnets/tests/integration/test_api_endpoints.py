@@ -125,3 +125,50 @@ def test_percentage_fields_reject_impossible_values(client) -> None:
 
 def test_negative_revenue_is_rejected(client) -> None:
     assert client.post("/benchmark", json=_payload(revenue=-1)).status_code == 422
+
+
+def _valuation_payload(**overrides) -> dict:
+    body = {
+        "submission_id": str(uuid.uuid4()),
+        "company": "Acme Restaurant Group LLC",
+        "email": "dana@acmegroup.ae",
+        "domain": "acmegroup.ae",
+        "revenue": 3_000_000,
+        "profit_before_tax": 400_000,
+    }
+    return {**body, **overrides}
+
+
+def test_submit_lead_missing_required_fields_are_rejected(client) -> None:
+    response = client.post("/submit-lead", json={})
+    assert response.status_code == 422
+    missing = {tuple(d["loc"]) for d in response.json()["detail"]}
+    assert ("body", "submission_id") in missing
+    assert ("body", "company") in missing
+    assert ("body", "email") in missing
+    assert ("body", "revenue") in missing
+
+
+def test_submit_lead_negative_revenue_is_rejected(client) -> None:
+    assert client.post("/submit-lead", json=_valuation_payload(revenue=-1)).status_code == 422
+
+
+def test_submit_lead_unknown_top_level_field_is_rejected(client) -> None:
+    response = client.post("/submit-lead", json=_valuation_payload(revenuee=1))
+    assert response.status_code == 422
+    assert any(d["loc"][-1] == "revenuee" for d in response.json()["detail"])
+
+
+def test_submit_lead_with_comps_and_discounts_passes_validation(client) -> None:
+    """The shapes `/compare` and `/analyze` actually return, round-tripped
+    back in verbatim — must not be rejected."""
+    response = client.post(
+        "/submit-lead",
+        json=_valuation_payload(
+            comps=[
+                {"co": "Talabat PLC", "tk": "TALABAT", "ev": 10_000, "rev": 1_900, "ebitda": 380}
+            ],
+            discounts={"revenue_discount_pct": 45.0, "ebitda_discount_pct": 40.0},
+        ),
+    )
+    assert response.status_code != 422

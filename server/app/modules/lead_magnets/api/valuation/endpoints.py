@@ -1,14 +1,19 @@
-"""`/enrich`, `/analyze` and `/compare` — the valuation tool's AI endpoints.
+"""`/enrich`, `/analyze`, `/compare` and `/submit-lead` — the valuation
+tool's endpoints.
 
-All three are stateless: they build the report the visitor reads while
-still in the tool, long before there is a submission to record. The
-valuation submission itself is not implemented yet (see the module README's
-"Not built yet").
+`/enrich`, `/analyze` and `/compare` are stateless: they build the report
+the visitor reads while still in the tool, long before there is a
+submission to record. `/submit-lead` is the write-contract endpoint — the
+one that actually records the lead.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 
-from app.modules.lead_magnets.api.dependencies import rate_limit, require_allowed_origin
+from app.modules.lead_magnets.api.dependencies import (
+    SessionDep,
+    rate_limit,
+    require_allowed_origin,
+)
 from app.modules.lead_magnets.api.schemas import (
     AnalyzeRequest,
     ComparableOut,
@@ -16,8 +21,20 @@ from app.modules.lead_magnets.api.schemas import (
     CompareResponse,
     EnrichRequest,
     EnrichResponse,
+    MethodRowOut,
+    ValuationRequest,
+    ValuationResponse,
 )
-from app.modules.lead_magnets.bootstrap import build_valuation_ai
+from app.modules.lead_magnets.bootstrap import (
+    build_submission_service,
+    build_valuation_ai,
+    run_completion,
+)
+from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
+from app.modules.lead_magnets.domain.valuation.valuation_methods import (
+    ValuationInputs,
+    value_company,
+)
 from app.modules.utilities.domain.json_types import JsonObject
 
 router = APIRouter(
@@ -79,4 +96,69 @@ async def compare(request: CompareRequest) -> CompareResponse:
         comps=[ComparableOut(**c) for c in result["comps"]],
         sourced=result["sourced"],
         filled_from_static=result["filled_from_static"],
+    )
+
+
+@router.post("/submit-lead", response_model=ValuationResponse)
+async def submit_lead(
+    request: ValuationRequest, session: SessionDep, background: BackgroundTasks
+) -> ValuationResponse:
+    """The blended valuation — DCF, trading comps, transaction comps.
+
+    No model call here or in the background: the blend is entirely
+    deterministic once `/compare`'s comparables and `/analyze`'s discount
+    overrides are in hand (or absent, in which case
+    `Pipelines._valuation_inputs`'s own 50% defaults apply), so the
+    response is computed inline rather than deferred. The background task
+    still exists — it writes the ledger row to Attio, exactly like every
+    other tool.
+    """
+    service = build_submission_service(session)
+    run_id, is_new = await service.record(
+        tool="valuation",
+        payload=request.model_dump(),
+        email=request.email,
+        domain=request.domain,
+        submission_id=request.submission_id,
+    )
+    await session.commit()
+
+    if is_new:
+        background.add_task(run_completion, run_id)
+
+    # Omitted rather than passed as `None` when absent: `ValuationInputs`'
+    # own dataclass default (50%) already applies, and staying in sync with
+    # that default is free this way rather than duplicating the number here.
+    haircuts: dict[str, float] = {}
+    if request.discounts:
+        if request.discounts.revenue_discount_pct is not None:
+            haircuts["haircut_revenue_pct"] = request.discounts.revenue_discount_pct
+        if request.discounts.ebitda_discount_pct is not None:
+            haircuts["haircut_ebitda_pct"] = request.discounts.ebitda_discount_pct
+
+    result = value_company(
+        ValuationInputs(
+            revenue=request.revenue,
+            profit_before_tax=request.profit_before_tax,
+            owner_salary=request.owner_salary,
+            sector=request.sector,
+            geography=request.geography,
+            stage=request.stage,
+            cash=request.cash,
+            debt=request.debt,
+            ai_comps=tuple(
+                ListedComp(co=c.co, tk=c.tk, ev=c.ev, rev=c.rev, ebitda=c.ebitda)
+                for c in request.comps
+            ),
+            **haircuts,
+        )
+    )
+    return ValuationResponse(
+        run_id=str(run_id),
+        low=result.low,
+        mid=result.mid,
+        high=result.high,
+        methods=[
+            MethodRowOut(name=m.name, low=m.low, mid=m.mid, high=m.high) for m in result.methods
+        ],
     )
