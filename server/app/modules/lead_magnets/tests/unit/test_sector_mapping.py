@@ -11,10 +11,28 @@ import pytest
 from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import SECTORS, TECH_SECTOR_LIST
 from app.modules.lead_magnets.domain.shared.sector_mapping import (
     BENCHMARK_SECTORS,
+    READINESS_SECTORS,
     UnmappedSectorError,
     to_sector_focus,
 )
 from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
+
+# `dopamine-readiness-score.html`'s `#cSector` — a real `<select>`, confirmed
+# live 2026-09-10, transcribed separately from `READINESS_SECTORS`' own keys
+# so a typo in one does not silently agree with the other.
+_READINESS_DROPDOWN_VALUES = (
+    "Technology & SaaS",
+    "Healthcare & Medical",
+    "F&B & Hospitality",
+    "Professional Services",
+    "Education & Training",
+    "Retail & E-Commerce",
+    "Construction & Contracting",
+    "Logistics & Supply Chain",
+    "Financial Services",
+    "Manufacturing & Industrial",
+    "Other",
+)
 
 
 def test_there_are_eighty_five_live_options() -> None:
@@ -26,7 +44,11 @@ def test_there_are_eighty_five_live_options() -> None:
 def test_every_mapping_target_is_a_live_option() -> None:
     """Also asserted at import, so a bad target is a startup failure. Kept
     here so the reason is visible in the suite."""
-    unknown = sorted(t for t in BENCHMARK_SECTORS.values() if t not in SECTOR_FOCUS_OPTIONS)
+    unknown = sorted(
+        t
+        for t in {**BENCHMARK_SECTORS, **READINESS_SECTORS}.values()
+        if t not in SECTOR_FOCUS_OPTIONS
+    )
     assert unknown == []
 
 
@@ -34,6 +56,13 @@ def test_every_benchmark_dropdown_value_is_mapped() -> None:
     """A value the form can produce but the mapping cannot translate would
     raise on a real submission."""
     unmapped = [s for s in list(SECTORS) + list(TECH_SECTOR_LIST) if s not in BENCHMARK_SECTORS]
+    assert unmapped == []
+
+
+def test_every_readiness_dropdown_value_is_mapped() -> None:
+    """A curl test against a throwaway DB found 10 of these 11 raising
+    `UnmappedSectorError` before `READINESS_SECTORS` existed."""
+    unmapped = [s for s in _READINESS_DROPDOWN_VALUES if s not in READINESS_SECTORS]
     assert unmapped == []
 
 
@@ -54,6 +83,28 @@ def test_every_benchmark_dropdown_value_is_mapped() -> None:
 )
 def test_known_values_map(value: str, expected: str) -> None:
     assert to_sector_focus(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("Technology & SaaS", "SaaS / Cloud"),
+        ("Healthcare & Medical", "Healthcare Services / Clinics"),
+        ("F&B & Hospitality", "Food & Beverage / QSR"),
+        ("Retail & E-Commerce", "Retail / E-Commerce"),
+        ("Financial Services", "Financial Services"),
+    ],
+)
+def test_readiness_known_values_map(value: str, expected: str) -> None:
+    assert to_sector_focus(value) == expected
+
+
+def test_readiness_and_benchmark_agree_on_shared_targets() -> None:
+    """Both dropdowns independently offer sectors close enough to share a
+    target — real agreement, not a coincidence to be surprised by."""
+    assert to_sector_focus("Retail & E-Commerce") == to_sector_focus("ecommerce")
+    assert to_sector_focus("Construction & Contracting") == to_sector_focus("contracting")
+    assert to_sector_focus("Education & Training") == to_sector_focus("training")
 
 
 def test_two_sources_may_share_one_target() -> None:

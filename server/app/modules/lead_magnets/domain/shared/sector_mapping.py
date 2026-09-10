@@ -16,8 +16,12 @@ Two rules make that impossible here:
 
 The benchmark mappings below are the full set for that tool's 31 dropdown
 values, with the compound "Supply Chain or mobility" split so mobility keeps
-its own target. The valuation tool's own vocabulary is 225 labels and is
-**not** mapped here — see `UNMAPPED_VOCABULARIES`.
+its own target. The readiness mappings are the full set for that tool's own
+11-value dropdown (`dopamine-readiness-score.html`'s `#cSector`, confirmed
+live 2026-09-10 — a real `<select>`, not free text; a curl test against a
+throwaway DB raised `UnmappedSectorError` on 10 of its 11 real options
+before this table existed). The valuation tool's own vocabulary is 225
+labels and is **not** mapped here — see `UNMAPPED_VOCABULARIES`.
 """
 
 from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
@@ -72,13 +76,33 @@ _BENCHMARK_TECH = {
 
 BENCHMARK_SECTORS: dict[str, str] = {**_BENCHMARK_SME, **_BENCHMARK_TECH}
 
+# The M&A Readiness form's own dropdown (11 values, `#cSector`).
+READINESS_SECTORS: dict[str, str] = {
+    "Technology & SaaS": "SaaS / Cloud",
+    "Healthcare & Medical": "Healthcare Services / Clinics",
+    # Compound, like benchmark's "DeepTech or hardware": F&B is the more
+    # common submission for a generalist SME assessment tool, so it is the
+    # default target, not a settled decision. Flagged for the same review.
+    "F&B & Hospitality": "Food & Beverage / QSR",
+    "Professional Services": "Consulting / Advisory",
+    "Education & Training": "EdTech / Education",
+    "Retail & E-Commerce": "Retail / E-Commerce",
+    "Construction & Contracting": "Construction & Engineering",
+    "Logistics & Supply Chain": "Logistics / 3PL / Freight",
+    "Financial Services": "Financial Services",
+    "Manufacturing & Industrial": "Industrial Manufacturing",
+    "Other": "Diversified / Generalist",
+}
+
+# Merged for lookup: the two vocabularies' keys do not collide (only "Other"
+# is shared between them, and both map to the same target), so one combined
+# dict is simpler than routing `to_sector_focus` by tool.
+_MAPPED_SECTORS: dict[str, str] = {**BENCHMARK_SECTORS, **READINESS_SECTORS}
+
 # Vocabularies that deliberately have no mapping yet. Naming them here means
 # `to_sector_focus` raises with a useful message rather than a bare KeyError,
 # and the gap is visible in code rather than only in a document.
-UNMAPPED_VOCABULARIES = (
-    "the valuation tool's ALL_SECTORS (225 labels, chosen by /enrich)",
-    "the M&A Readiness form's own sector dropdown",
-)
+UNMAPPED_VOCABULARIES = ("the valuation tool's ALL_SECTORS (225 labels, chosen by /enrich)",)
 
 
 class UnmappedSectorError(ValueError):
@@ -105,8 +129,8 @@ def to_sector_focus(value: str | None) -> str | None:
         return None
 
     raw = value.strip()
-    if raw in BENCHMARK_SECTORS:
-        return BENCHMARK_SECTORS[raw]
+    if raw in _MAPPED_SECTORS:
+        return _MAPPED_SECTORS[raw]
 
     # A value that is already an option title passes through: `/enrich` picks
     # from a list that overlaps the CRM's, and the readiness form may too.
@@ -114,7 +138,7 @@ def to_sector_focus(value: str | None) -> str | None:
         return raw
 
     lowered = raw.lower()
-    for source, target in BENCHMARK_SECTORS.items():
+    for source, target in _MAPPED_SECTORS.items():
         if source.lower() == lowered:
             return target
     for option in SECTOR_FOCUS_OPTIONS:
@@ -131,7 +155,7 @@ def _assert_targets_are_live() -> None:
     that — so a typo here would silently drop the sector on every write. A
     startup failure is the cheaper outcome.
     """
-    unknown = sorted({t for t in BENCHMARK_SECTORS.values() if t not in SECTOR_FOCUS_OPTIONS})
+    unknown = sorted({t for t in _MAPPED_SECTORS.values() if t not in SECTOR_FOCUS_OPTIONS})
     if unknown:
         raise RuntimeError(f"sector_mapping targets are not live sector_focus options: {unknown}")
 
