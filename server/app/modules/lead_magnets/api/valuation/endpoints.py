@@ -63,6 +63,10 @@ async def analyze(request: AnalyzeRequest) -> JsonObject:
 
     Runs in parallel with `/compare`; the two were split so the preview is
     ready when the loading screen ends.
+
+    A Bedrock failure no longer surfaces as a bare error: `ValuationAi`
+    falls back to the deterministic pros/cons/insights, so the response is
+    partial rather than absent.
     """
     return await build_valuation_ai().analyze(
         company=request.company,
@@ -73,6 +77,8 @@ async def analyze(request: AnalyzeRequest) -> JsonObject:
         revenue=request.revenue,
         ebitda=request.ebitda,
         website_text=request.website_text,
+        raised=request.raised,
+        stage=request.stage,
     )
 
 

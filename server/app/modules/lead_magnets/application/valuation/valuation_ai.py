@@ -15,6 +15,7 @@ figures.
 
 import asyncio
 import logging
+from dataclasses import asdict
 
 from app.modules.lead_magnets.application.shared.ports import LeadLLMPort, SearchPort
 from app.modules.lead_magnets.domain.shared.prompts import (
@@ -22,6 +23,9 @@ from app.modules.lead_magnets.domain.shared.prompts import (
     compare_query_prompt,
     compare_select_prompt,
     enrich_prompt,
+)
+from app.modules.lead_magnets.domain.valuation.strategic_analysis import (
+    generate_strategic_analysis,
 )
 from app.modules.lead_magnets.domain.valuation.valuation import trading_comps_for_sector
 from app.modules.lead_magnets.domain.valuation.valuation_data import sectors
@@ -70,20 +74,51 @@ class ValuationAi:
         revenue: float,
         ebitda: float,
         website_text: str = "",
+        raised: bool = False,
+        stage: str | None = None,
     ) -> JsonObject:
-        return await self._llm.analyze(
-            prompt=analyze_prompt(
+        """Sector judgement, discounts, DCF overrides, the strategic read
+        and the readiness scorecard — the merge of what were separate
+        calls.
+
+        A Bedrock failure falls back to `generate_strategic_analysis`, the
+        live tool's own deterministic pros/cons/insights logic — the one
+        part of this response that was ever deterministic in the source.
+        `sector_fit`, `discounts`, `dcf`, the search term lists and
+        `fundraise` have no fallback there either, so the response is
+        partial on failure, not absent.
+        """
+        try:
+            return await self._llm.analyze(
+                prompt=analyze_prompt(
+                    company=company,
+                    domain=domain,
+                    sector=sector,
+                    description=description,
+                    geography=geography,
+                    revenue=revenue,
+                    ebitda=ebitda,
+                    sector_list=list(sectors()),
+                    website_text=website_text,
+                )
+            )
+        except Exception:  # noqa: BLE001 - falls back rather than showing an error
+            logger.warning("lead_magnet_analyze_failed_using_fallback")
+            fallback = generate_strategic_analysis(
                 company=company,
-                domain=domain,
-                sector=sector,
                 description=description,
-                geography=geography,
+                sector=sector,
                 revenue=revenue,
                 ebitda=ebitda,
-                sector_list=list(sectors()),
-                website_text=website_text,
+                geography=geography,
+                raised=raised,
+                stage=stage,
             )
-        )
+            return {
+                "pros": [asdict(p) for p in fallback.pros],
+                "cons": [asdict(p) for p in fallback.cons],
+                "insights": [asdict(p) for p in fallback.insights],
+            }
 
     async def compare(
         self,

@@ -209,6 +209,12 @@ class AnalyzeRequest(_Strict):
     revenue: float = Field(default=0, ge=0)
     ebitda: float = 0
     website_text: str = Field(default="", max_length=20_000)
+    # Optional: only the deterministic fallback's two fundraise-readiness
+    # insights need them, and the live tool's own gate collects them
+    # earlier in the funnel — a visitor who skipped that step just gets
+    # neither insight on fallback, same as the original.
+    raised: bool = False
+    stage: str | None = Field(default=None, max_length=100)
 
 
 class CompareRequest(_Strict):

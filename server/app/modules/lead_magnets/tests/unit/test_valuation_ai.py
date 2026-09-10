@@ -18,9 +18,10 @@ from app.modules.lead_magnets.domain.shared.search import SearchResult
 
 
 class _FakeLlm:
-    def __init__(self, **responses) -> None:
+    def __init__(self, *, analyze_raises: bool = False, **responses) -> None:
         self.responses = responses
         self.prompts: dict[str, str] = {}
+        self.analyze_raises = analyze_raises
 
     def _record(self, name: str, prompt: str):
         self.prompts[name] = prompt
@@ -30,6 +31,8 @@ class _FakeLlm:
         return self._record("enrich", prompt)
 
     async def analyze(self, *, prompt):
+        if self.analyze_raises:
+            raise RuntimeError("bedrock down")
         return self._record("analyze", prompt)
 
     async def plan_search_queries(self, *, prompt):
@@ -349,3 +352,43 @@ async def test_a_valuation_resume_applies_stored_ai_output() -> None:
 
     assert without is not None and with_ai is not None
     assert with_ai["mid"] != without["mid"]
+
+
+async def test_analyze_falls_back_to_the_deterministic_pros_cons_insights_on_bedrock_failure() -> (
+    None
+):
+    """A Bedrock failure must not surface as a bare error, the same way a
+    benchmark/valuation AI failure never does."""
+    valuation_ai = ValuationAi(_FakeLlm(analyze_raises=True), _FakeSearch())
+
+    result = await valuation_ai.analyze(
+        company="Acme",
+        domain="acme.com",
+        sector="",
+        description="",
+        geography="",
+        revenue=1000,
+        ebitda=-100,
+    )
+
+    assert set(result.keys()) == {"pros", "cons", "insights"}
+    assert len(result["pros"]) == 3
+    assert len(result["cons"]) == 3
+    assert len(result["insights"]) == 2
+    assert result["insights"][0]["title"] == (
+        "Path to profitability is the highest-priority near-term milestone"
+    )
+
+
+async def test_analyze_success_never_touches_the_fallback() -> None:
+    valuation_ai = ValuationAi(_FakeLlm(analyze={"sector_fit": "good"}), _FakeSearch())
+    result = await valuation_ai.analyze(
+        company="Acme",
+        domain="acme.com",
+        sector="",
+        description="",
+        geography="",
+        revenue=0,
+        ebitda=0,
+    )
+    assert result == {"sector_fit": "good"}

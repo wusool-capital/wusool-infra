@@ -42,6 +42,7 @@ lead_magnets/
       valuation.py                 # sector resolution, peer matching, stats
       valuation_data.py            # typed loaders over data/valuation.json
       valuation_methods.py         # DCF + 3 comps methods + the blend (the fallback)
+      strategic_analysis.py        # /analyze's deterministic pros/cons/insights fallback
       data/valuation.json          # 1000 M&A deals, 127 VC rounds, 31 comp sectors
     benchmark/
       benchmark.py                 # the percentile engine + js_round
@@ -96,7 +97,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /benchmark` | serves | No model at all — scored against the peer dataset |
 | `POST /readiness/score` | serves | Sonnet 4.6, no fallback by decision |
 | `POST /enrich` | serves | Sonnet 4.6 over a Firecrawl scrape of the one known URL |
-| `POST /analyze` | serves | Sonnet 4.6; sector judgement, discounts, DCF overrides, strategic read, scorecard |
+| `POST /analyze` | serves | Sonnet 4.6; sector judgement, discounts, DCF overrides, strategic read, scorecard — falls back to a deterministic pros/cons/insights on failure |
 | `POST /compare` | serves | Haiku plans queries, Firecrawl runs them, Sonnet selects; shortfall filled from static data |
 | `POST /buyer/apply` | serves | No blocking model call; a best-effort Haiku qualification note, never shown to the applicant |
 | `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline |
@@ -206,19 +207,19 @@ live options, so nothing needed creating in Attio). The pre-split label
 still maps, so a submission from the current form does not raise before the
 form ships the two separate options.
 
-**Still unmapped:** the valuation tool's own 225-label vocabulary (214 of
-which have no target) and the readiness form's sector dropdown. Those need
-the delivered `sector_mapping` artifact; until then `to_sector_focus` raises
-with a message naming what is outstanding.
+**Still unmapped:** only the valuation tool's own 225-label vocabulary
+(214 of which have no target) — `/enrich` picks from this list and it is
+free text, unlike every other tool's constrained dropdown. Readiness's own
+11-value dropdown is mapped (`READINESS_SECTORS`). `to_sector_focus` raises
+with a message naming what is still outstanding.
 
 ## Still to port
 
 - **Valuation.** Ported: the datasets, the pure helpers, the DCF, the
-  four-method blend and the three AI endpoints. What remains is
-  `generateStrategicAnalysis` (`dopamine-valuation.html` ~2239-2370), a
-  deterministic regex-based pros/cons generator that is the fallback for
-  `/analyze` — worth having, since `/analyze` currently has none — and the
-  valuation submission endpoint that writes to Attio.
+  four-method blend, `generateStrategicAnalysis` (`/analyze`'s
+  deterministic pros/cons/insights fallback), and all four AI/write
+  endpoints (`/enrich`, `/analyze`, `/compare`, `/submit-lead`). Nothing
+  from the live valuation tool remains unported.
 - The live tool turned out to make only **two** AI calls, not the six the
   handover documents describe: the enrichment call and one analyst
   mega-prompt covering eight steps. `callClaude` is defined and never
@@ -347,9 +348,6 @@ each deliberately:
 - `POST /buyer/apply` and `POST /submit-lead` verified against a real
   Attio/Postgres pair — both built and unit-tested, but never exercised
   end to end the way `/benchmark` and `/readiness/score` have been.
-- `/analyze`'s deterministic fallback (`generateStrategicAnalysis` in the
-  live tool). A Bedrock failure there currently surfaces as an error to
-  the visitor, unlike every other tool's AI call.
 
 ## Testing
 

@@ -68,6 +68,11 @@ ignore = ["ANN401"]
 # benefit — same reasoning as the Alembic entry above. Line length only;
 # F/I/UP/B/ANN still apply.
 "app/modules/lead_magnets/domain/benchmark/benchmark_copy.py" = ["E501"]
+# Generated from the live tool's `generateStrategicAnalysis` pools/fallbacks
+# by a Node harness (see the module docstring) — client-facing prose quoted
+# verbatim, same reasoning as the two entries above. Line length only;
+# F/I/UP/B/ANN still apply.
+"app/modules/lead_magnets/domain/valuation/strategic_analysis.py" = ["E501"]
 # Test fakes/mocks intentionally leave fixture/kwarg parameters unannotated
 # (e.g. `**kwargs` stand-ins for a real client's signature) — production
 # code is where annotation completeness actually matters.
