@@ -208,9 +208,12 @@ still maps, so a submission from the current form does not raise before the
 form ships the two separate options.
 
 **Still unmapped:** only the valuation tool's own 225-label vocabulary
-(214 of which have no target) — `/enrich` picks from this list and it is
-free text, unlike every other tool's constrained dropdown. Readiness's own
-11-value dropdown is mapped (`READINESS_SECTORS`). `to_sector_focus` raises
+(`ALL_SECTORS` — verified live, 204 of which have no target; 21 resolve
+today, 12 by exact string match against a live option, 9 by reusing
+benchmark's own mapping table). Not free text: the visitor sees the same
+225 as a `<select>`, same mechanism as readiness's, and `/enrich` also
+picks one of them when researching the company. Readiness's own 11-value
+dropdown is mapped (`READINESS_SECTORS`). `to_sector_focus` raises
 with a message naming what is still outstanding.
 
 ## Still to port
