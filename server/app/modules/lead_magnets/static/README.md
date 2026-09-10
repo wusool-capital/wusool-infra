@@ -2,9 +2,20 @@
 
 The four tool pages, `embed.js`, and their extracted images.
 
-**Landing tool by tool.** Benchmark, readiness and valuation are all in.
-Only buyers is not here (gated on `POST /buyer/apply`'s front end, which
-does not exist yet).
+**All four tools are in.** Benchmark, readiness and valuation were ported
+from live tools and repointed; buyers is genuinely new — the Buyer Network
+never had a custom tool page, only a Tally form, so there was nothing to
+port. Its 9 fields plus consent match `BuyerApplyRequest` exactly, and its
+three multiselects (`org_type`, `target_geography`, `sector_focus`) use
+plain `<select multiple>` — no JS picker library, no custom chip UI — with
+every `<option>` generated from the same live Python option sets
+(`domain/buyer_network/buyer_network.py`,
+`domain/shared/sector_options.py`) rather than hand-typed, so there is
+nothing to transcribe wrong. `test_buyers_select_options_match_the_live_validation_sets`
+pins that the page and the domain module's option sets stay identical —
+these fields aren't validated by the request schema (only the background
+Attio write checks them), so a typo'd option here would otherwise record
+the lead and then silently fail to land in the CRM.
 
 Each split at legal boundaries — benchmark and valuation had their own
 `/* SECTION */`-style comments to cut at; readiness and valuation's
@@ -69,7 +80,6 @@ inline image on `.footer-gradient-bg` was a 122.5KB JPEG mislabeled
 before deleting, not assumed from the plan's shorthand description of them.
 
 ```
-buyers/                                          # not built yet
 benchmark/
   index.html
   00-styles.css
@@ -83,6 +93,10 @@ valuation/
   00-styles.css
   10-data.js          # plain <script src>, no JSX
   20-helpers.js  30-components.js  40-main.js   # type="text/babel"
+buyers/
+  index.html
+  00-styles.css
+  10-main.js
 embed.js
 img/<sha8>.<ext>       # shared across tools — logo dedupes by content hash
 shared/height.js        # ResizeObserver -> parent.postMessage, every tool includes it
@@ -93,17 +107,19 @@ Every `<script src>`/`<link href>` carries a hand-bumped `?v=1` cache-buster
 so without it a deploy has a 60-second window where old JS can pair with
 new HTML). Every `<script src>` also carries `onerror="window.__lmFail=1"`,
 which a per-page sentinel checks to swap in a plain-text fallback message.
-Benchmark and readiness check it in one final inline `<script>` right after
-their `<script src>` tags (`typeof render === "function"`); valuation
-cannot do that — Babel's script loading is async, so a plain script placed
-immediately after the `type="text/babel"` tags would run before Babel has
-even fetched them, always finding nothing. Its check lives instead as the
-last statement in `40-main.js` itself (also `type="text/babel"`, so it
-executes in the correct order): a few seconds after the `ReactDOM.createRoot(...).render()`
-call, if `#root` never got a child, show `#lm-fallback`. This is also the
-one page-load failure mode `onerror` genuinely cannot catch on its own — a
-bad slice that Babel fetches fine (HTTP 200) but fails to *compile* throws
-inside the transpiler, never firing `onerror` at all.
+Benchmark, readiness and buyers check it in one final inline `<script>`
+right after their `<script src>` tags (`typeof render === "function"` /
+`typeof submitBuyerForm === "function"`); valuation cannot do that —
+Babel's script loading is async, so a plain script placed immediately
+after the `type="text/babel"` tags would run before Babel has even
+fetched them, always finding nothing. Its check lives instead as the last
+statement in `40-main.js` itself (also `type="text/babel"`, so it executes
+in the correct order): a few seconds after the
+`ReactDOM.createRoot(...).render()` call, if `#root` never got a child,
+show `#lm-fallback`. This is also the one page-load failure mode `onerror`
+genuinely cannot catch on its own — a bad slice that Babel fetches fine
+(HTTP 200) but fails to *compile* throws inside the transpiler, never
+firing `onerror` at all.
 `tests/unit/test_static_contract.py` and
 `tests/unit/test_embed_js.py` pin the parts of this that are mechanically
 checkable: every ref resolves to a real file, no page still carries a
@@ -132,9 +148,13 @@ Three things the import has to do, not just a copy:
   path (the router has no `/api/tools` prefix — `POST /benchmark` etc. are
   the paths the pages already know). Field names have to match the request
   schema exactly (`api/schemas.py` is `extra="forbid"`, snake_case), which
-  for all three landed tools meant rebuilding the payload rather than just
-  swapping the URL — see each tool's `30-submit.js`/render script, or
-  valuation's `App()` in `40-main.js` for the four-endpoint case.
+  for benchmark, readiness and valuation meant rebuilding the payload
+  rather than just swapping the URL — see each tool's `30-submit.js`/render
+  script, or valuation's `App()` in `40-main.js` for the four-endpoint
+  case. Buyers is a fresh page, so its `10-main.js` posts the right shape
+  from the start (`POST /buyer/apply`, singular — the static page is
+  plural `/buyers/`, so unlike the other three tools this was never even a
+  near-collision).
 - **Emit height.** `shared/height.js` posts `{type: "wusool:height", height}`
   to `parent` on a `ResizeObserver`; every tool's `index.html` includes it
   as its last script. `embed.js` disambiguates which iframe a message came

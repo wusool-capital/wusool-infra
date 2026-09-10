@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wusool | Buyer Network</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="00-styles.css?v=1">
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <img class="logo" src="../img/a0288d00.png" alt="Wusool">
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">Buyer Network</div>
+    <h1>Get matched with <em>GCC sell-side mandates</em></h1>
+    <p class="lede">Tell us what you're looking for and our team will introduce you to relevant deals as they come to market. No fee, no obligation.</p>
+  </section>
+
+  <div class="card" id="app">
+    <div id="form-wrap">
+      <form id="buyer-form">
+        <div class="grid">
+          <div class="fg"><label for="fullName">Full name *</label><input class="fi" type="text" id="fullName" name="fullName" placeholder="Jane Doe" required></div>
+          <div class="fg"><label for="orgName">Organization name *</label><input class="fi" type="text" id="orgName" name="orgName" placeholder="Acme Capital" required></div>
+        </div>
+        <div class="grid">
+          <div class="fg"><label for="email">Email *</label><input class="fi" type="email" id="email" name="email" placeholder="you@firm.com" required></div>
+          <div class="fg"><label for="domain">Company website <span class="opt">optional</span></label><input class="fi" type="text" id="domain" name="domain" placeholder="acmecapital.com"></div>
+        </div>
+
+        <div class="fg">
+          <label for="orgType">Organization type * <span class="hint-inline">select all that apply</span></label>
+          <select class="fi" id="orgType" name="orgType" multiple size="6" required>
+      <option value="Accelerator/Incubator">Accelerator/Incubator</option>
+      <option value="Angel Syndicate">Angel Syndicate</option>
+      <option value="Asset Management">Asset Management</option>
+      <option value="Association">Association</option>
+      <option value="Client: Advisory">Client: Advisory</option>
+      <option value="Client: Sell-Side">Client: Sell-Side</option>
+      <option value="Corporate">Corporate</option>
+      <option value="Corporate Venture Capital">Corporate Venture Capital</option>
+      <option value="Family Office">Family Office</option>
+      <option value="Fund of Fund">Fund of Fund</option>
+      <option value="M&amp;A Advisory">M&amp;A Advisory</option>
+      <option value="Multi-Family Office">Multi-Family Office</option>
+      <option value="Real Estate">Real Estate</option>
+      <option value="Roll">Roll</option>
+      <option value="Roll-up">Roll-up</option>
+      <option value="Search Fund">Search Fund</option>
+      <option value="Startup">Startup</option>
+      <option value="Venture Builder">Venture Builder</option>
+      <option value="Venture Capital">Venture Capital</option>
+      <option value="Venture Debt">Venture Debt</option>
+          </select>
+        </div>
+
+        <div class="fg">
+          <label for="targetGeography">Target geography * <span class="hint-inline">select all that apply</span></label>
+          <select class="fi" id="targetGeography" name="targetGeography" multiple size="6" required>
+      <option value="Bahrain">Bahrain</option>
+      <option value="GCC-wide">GCC-wide</option>
+      <option value="KSA">KSA</option>
+      <option value="Kuwait">Kuwait</option>
+      <option value="Oman">Oman</option>
+      <option value="Qatar">Qatar</option>
+      <option value="UAE">UAE</option>
+          </select>
+        </div>
+
+        <div class="fg">
+          <label for="sectorFocus">Sector focus * <span class="hint-inline">select all that apply</span></label>
+          <select class="fi" id="sectorFocus" name="sectorFocus" multiple size="8" required>
+      <option value="AI / ML">AI / ML</option>
+      <option value="Aerospace &amp; Defense">Aerospace &amp; Defense</option>
+      <option value="Agriculture / AgriTech">Agriculture / AgriTech</option>
+      <option value="Aquaculture / Forestry">Aquaculture / Forestry</option>
+      <option value="Asset Management">Asset Management</option>
+      <option value="Automotive">Automotive</option>
+      <option value="Aviation / Aircraft Leasing">Aviation / Aircraft Leasing</option>
+      <option value="B2B Business Services">B2B Business Services</option>
+      <option value="Banking / Commercial">Banking / Commercial</option>
+      <option value="Beauty &amp; Personal Care">Beauty &amp; Personal Care</option>
+      <option value="Biotech / Longevity">Biotech / Longevity</option>
+      <option value="Chemicals &amp; Petrochemicals">Chemicals &amp; Petrochemicals</option>
+      <option value="Clinic">Clinic</option>
+      <option value="Construction &amp; Engineering">Construction &amp; Engineering</option>
+      <option value="Consulting / Advisory">Consulting / Advisory</option>
+      <option value="Consumer &amp; Lifestyle Services">Consumer &amp; Lifestyle Services</option>
+      <option value="Creative / Arts &amp; Culture">Creative / Arts &amp; Culture</option>
+      <option value="Cybersecurity">Cybersecurity</option>
+      <option value="Dental / Specialist Clinics">Dental / Specialist Clinics</option>
+      <option value="Diversified / Generalist">Diversified / Generalist</option>
+      <option value="EdTech / Education">EdTech / Education</option>
+      <option value="Electrical Equipment">Electrical Equipment</option>
+      <option value="Energy Infrastructure">Energy Infrastructure</option>
+      <option value="Energy Storage / Services">Energy Storage / Services</option>
+      <option value="Enterprise Software">Enterprise Software</option>
+      <option value="FMCG / Consumer Goods">FMCG / Consumer Goods</option>
+      <option value="Family Office / Wealth Management">Family Office / Wealth Management</option>
+      <option value="FemTech / Mental Health">FemTech / Mental Health</option>
+      <option value="Financial Services">Financial Services</option>
+      <option value="Fintech">Fintech</option>
+      <option value="Food &amp; Beverage / QSR">Food &amp; Beverage / QSR</option>
+      <option value="Food Manufacturing / FoodTech">Food Manufacturing / FoodTech</option>
+      <option value="Gaming / Metaverse">Gaming / Metaverse</option>
+      <option value="Garage">Garage</option>
+      <option value="HR / Human Capital">HR / Human Capital</option>
+      <option value="Healthcare Services / Clinics">Healthcare Services / Clinics</option>
+      <option value="Healthtech / Digital Health">Healthtech / Digital Health</option>
+      <option value="Hospitality / Hotels / Tourism">Hospitality / Hotels / Tourism</option>
+      <option value="IT Services / Distribution">IT Services / Distribution</option>
+      <option value="Impact / ESG / Sustainability">Impact / ESG / Sustainability</option>
+      <option value="Industrial Manufacturing">Industrial Manufacturing</option>
+      <option value="Insurance / Insurtech">Insurance / Insurtech</option>
+      <option value="Investment Banking / M&amp;A Advisory">Investment Banking / M&amp;A Advisory</option>
+      <option value="Legal Services">Legal Services</option>
+      <option value="Logistics / 3PL / Freight">Logistics / 3PL / Freight</option>
+      <option value="Luxury / Fashion / Apparel">Luxury / Fashion / Apparel</option>
+      <option value="Marketing / AdTech">Marketing / AdTech</option>
+      <option value="Media / Entertainment / Gaming">Media / Entertainment / Gaming</option>
+      <option value="Medical Devices &amp; Supplies">Medical Devices &amp; Supplies</option>
+      <option value="Medical Education">Medical Education</option>
+      <option value="Mobility">Mobility</option>
+      <option value="Nursery">Nursery</option>
+      <option value="Oil &amp; Gas">Oil &amp; Gas</option>
+      <option value="Packaging &amp; Materials">Packaging &amp; Materials</option>
+      <option value="Pet Care">Pet Care</option>
+      <option value="Pharmaceuticals / Biotech">Pharmaceuticals / Biotech</option>
+      <option value="Private Credit / Debt">Private Credit / Debt</option>
+      <option value="Private Equity">Private Equity</option>
+      <option value="Property Management / Proptech">Property Management / Proptech</option>
+      <option value="Public Markets / Equities">Public Markets / Equities</option>
+      <option value="Real Assets">Real Assets</option>
+      <option value="Real Estate Development">Real Estate Development</option>
+      <option value="Renewable Energy / CleanTech">Renewable Energy / CleanTech</option>
+      <option value="Residential / Commercial Real Estate">Residential / Commercial Real Estate</option>
+      <option value="Retail / E-Commerce">Retail / E-Commerce</option>
+      <option value="Robotics / Automation">Robotics / Automation</option>
+      <option value="SaaS / Cloud">SaaS / Cloud</option>
+      <option value="Security Services">Security Services</option>
+      <option value="Semiconductors / Hardware">Semiconductors / Hardware</option>
+      <option value="Sharia-Compliant">Sharia-Compliant</option>
+      <option value="Shipping / Maritime">Shipping / Maritime</option>
+      <option value="Sovereign Wealth Fund">Sovereign Wealth Fund</option>
+      <option value="Space / Deep Tech">Space / Deep Tech</option>
+      <option value="Sports &amp; Wellness">Sports &amp; Wellness</option>
+      <option value="Steel / Metals / Mining">Steel / Metals / Mining</option>
+      <option value="Supply Chain / Distribution">Supply Chain / Distribution</option>
+      <option value="Technology">Technology</option>
+      <option value="Telecom / Connectivity">Telecom / Connectivity</option>
+      <option value="Trade &amp; Technical Services">Trade &amp; Technical Services</option>
+      <option value="Transportation">Transportation</option>
+      <option value="Utilities">Utilities</option>
+      <option value="Venture / Growth (Africa / MENA SME)">Venture / Growth (Africa / MENA SME)</option>
+      <option value="Venture Capital">Venture Capital</option>
+      <option value="Water / Waste Management">Water / Waste Management</option>
+      <option value="Web3 / Blockchain / Digital Assets">Web3 / Blockchain / Digital Assets</option>
+          </select>
+        </div>
+
+        <div class="grid">
+          <div class="fg"><label for="checkSizeMin">Check size, min (USD) <span class="opt">optional</span></label><input class="fi" type="text" inputmode="numeric" id="checkSizeMin" name="checkSizeMin" placeholder="e.g. 500,000"></div>
+          <div class="fg"><label for="checkSizeMax">Check size, max (USD) <span class="opt">optional</span></label><input class="fi" type="text" inputmode="numeric" id="checkSizeMax" name="checkSizeMax" placeholder="e.g. 5,000,000"></div>
+        </div>
+
+        <div class="fg"><label for="priorAcquisition">Prior GCC acquisition experience <span class="opt">optional</span></label><textarea class="fi" id="priorAcquisition" name="priorAcquisition" placeholder="Briefly describe any acquisitions you've made in the GCC, if any" rows="3"></textarea></div>
+
+        <div class="fg"><label for="linkedin">LinkedIn URL <span class="opt">optional</span></label><input class="fi" type="text" id="linkedin" name="linkedin" placeholder="https://linkedin.com/in/..."></div>
+
+        <div class="check">
+          <input type="checkbox" id="consent" onchange="clearConsentErr()">
+          <label for="consent">I agree to Wusool's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a> and consent to being contacted.</label>
+        </div>
+        <div class="errtext" id="e-consent">Please accept the Privacy Policy to continue.</div>
+        <div class="errtext" id="e-form">Please fill in every required field above.</div>
+
+        <div class="row"><button class="btn btn-p" type="submit" id="submit-btn">Join the Buyer Network</button></div>
+      </form>
+    </div>
+
+    <div id="success-wrap" class="hide">
+      <h2>You're on the list</h2>
+      <p class="sub">Thanks for joining the Wusool Buyer Network. Our team will reach out when a mandate matches what you're looking for.</p>
+    </div>
+  </div>
+
+  <footer>Wusool Capital &middot; Dubai &middot; Buyer applications are reviewed by our team before any introduction is made.</footer>
+
+  <div id="lm-fallback" class="hide">
+    <p>This tool did not load correctly. Please try refreshing the page, or visit <a href="https://www.wusoolcapital.com">wusoolcapital.com</a> to get in touch directly.</p>
+  </div>
+</div>
+
+<script src="10-main.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="../shared/height.js?v=1"></script>
+<script>
+  if(window.__lmFail || typeof submitBuyerForm!=="function"){
+    document.getElementById("app").classList.add("hide");
+    document.getElementById("lm-fallback").classList.remove("hide");
+  }
+</script>
+</body>
+</html>

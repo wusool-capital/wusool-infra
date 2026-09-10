@@ -252,10 +252,12 @@ def test_lead_magnet_static_mount_does_not_shadow_existing_routes() -> None:
     assert client.get("/benchmark/", follow_redirects=False).status_code == 200
     assert client.get("/readiness/", follow_redirects=False).status_code == 200
     assert client.get("/valuation/", follow_redirects=False).status_code == 200
+    assert client.get("/buyers/", follow_redirects=False).status_code == 200
     assert client.get("/img/5ba450cc.png").status_code == 200
     assert client.get("/img/a0288d00.png").status_code == 200
     assert client.get("/shared/height.js").status_code == 200
     assert client.get("/valuation/10-data.js").status_code == 200
+    assert client.get("/buyers/10-main.js").status_code == 200
 
     # POST /benchmark is the real submission API, at the same path prefix
     # as the GET-only static page — different HTTP methods, no collision.
@@ -266,6 +268,12 @@ def test_lead_magnet_static_mount_does_not_shadow_existing_routes() -> None:
     # a sibling path to the GET-only /readiness/ static page, not a
     # collision.
     response = client.post("/readiness/score", json={})
+    assert response.status_code == 422
+
+    # /buyer/apply (singular) is the real submission API; /buyers/
+    # (plural) is the static page — different path prefixes entirely, so
+    # this one was never even a near-collision like the other three.
+    response = client.post("/buyer/apply", json={})
     assert response.status_code == 422
 
     assert client.get("/this-path-does-not-exist/").status_code == 404

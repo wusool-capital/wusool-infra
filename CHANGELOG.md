@@ -173,6 +173,35 @@ delivered state and outstanding items see
     expects, and that the unlocked report (Strategic Analysis, the
     readiness scorecard, Trading Comparables) renders the fetched data
     correctly end to end.
+- Front end, slice 5 of 5 (last one): the Buyer Network tool now serves at
+  `/buyers/`, posting to `POST /buyer/apply`. Unlike the other three, there
+  was no live tool to port — the Buyer Network only ever ran on a Tally
+  form — so this is a new page: `index.html` + `00-styles.css` +
+  `10-main.js`, built to the same visual language as the ported tools
+  (shares the logo image, same navy/sky palette) but with no prior
+  monolith to slice, so no concat-byte-exactness invariant applies here.
+  Its 9 fields plus consent match `BuyerApplyRequest` exactly
+  (`test_buyers_payload_field_names_match_the_request_schema`), and its
+  three multiselects (`org_type` 20 options, `target_geography` 7,
+  `sector_focus` 85) use plain `<select multiple>` with every `<option>`
+  generated straight from `domain/buyer_network/buyer_network.py` and
+  `domain/shared/sector_options.py` — the same live Python option sets the
+  background Attio write validates against — rather than hand-typed, and
+  pinned in sync by a new
+  `test_buyers_select_options_match_the_live_validation_sets`: these
+  fields aren't checked by the request schema itself (only the background
+  write is), so a typo'd option would otherwise record the lead and then
+  silently fail to land in the CRM. Verified with the same jsdom-over-HTTP
+  method as the other three: filled every field including both
+  multiselects, submitted, and confirmed the POST body matches
+  `BuyerApplyRequest` field-for-field and the success view replaces the
+  form. Also confirmed live that `/buyers/` (the static page, plural) and
+  `/buyer/apply` (the API, singular) were never even a near-collision, the
+  way `/benchmark`, `/readiness/score` and the others required checking.
+  This is the last of the four tools — the migration's front-end work is
+  complete pending the cutover steps in the migration plan (Firecrawl
+  verification, Cloudflare DNS, Webflow paste-in, one-line `embed.js`
+  switch per tool).
 
 ### Changed
 

@@ -5,6 +5,7 @@ land, `test_every_script_and_stylesheet_ref_resolves` parametrizes over each
 new `<tool>/index.html` automatically, no test edit required.
 """
 
+import html as html_entities
 import re
 from pathlib import Path
 
@@ -13,6 +14,7 @@ import pytest
 from app.modules.lead_magnets.api.schemas import (
     AnalyzeRequest,
     BenchmarkRequest,
+    BuyerApplyRequest,
     CompareRequest,
     EnrichRequest,
     ReadinessRequest,
@@ -145,3 +147,35 @@ def test_valuation_payload_field_names_match_their_request_schemas() -> None:
     assert required <= submit_keys
     assert submit_keys <= set(ValuationRequest.model_fields)
     assert set(ValuationRequest.model_fields) - submit_keys == {"discounts"}
+
+
+def test_buyers_payload_field_names_match_the_request_schema() -> None:
+    js = (static_dir() / "buyers" / "10-main.js").read_text()
+    keys = _payload_keys(js, "const payload={")
+    assert keys == set(BuyerApplyRequest.model_fields)
+
+
+def test_buyers_select_options_match_the_live_validation_sets() -> None:
+    """A stale `<option>` here fails silently: the request schema itself
+    doesn't validate `org_type`/`target_geography`/`sector_focus` (only the
+    background Attio write does), so a typo'd option would record the lead
+    and then just silently fail to land in the CRM."""
+    from app.modules.lead_magnets.domain.buyer_network.buyer_network import (
+        ORGANIZATION_TYPE_OPTIONS,
+        TARGET_GEOGRAPHY_OPTIONS,
+    )
+    from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
+
+    html = (static_dir() / "buyers" / "index.html").read_text()
+
+    def options_for(select_id: str) -> set[str]:
+        start = html.index(f'id="{select_id}"')
+        end = html.index("</select>", start)
+        return {
+            html_entities.unescape(v)
+            for v in re.findall(r'<option value="([^"]*)"', html[start:end])
+        }
+
+    assert options_for("orgType") == ORGANIZATION_TYPE_OPTIONS
+    assert options_for("targetGeography") == TARGET_GEOGRAPHY_OPTIONS
+    assert options_for("sectorFocus") == SECTOR_FOCUS_OPTIONS

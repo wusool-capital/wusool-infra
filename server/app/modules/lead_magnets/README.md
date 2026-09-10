@@ -17,12 +17,10 @@ and `POST /readiness/score` are verified over HTTP against a real Postgres
 and live Bedrock. `POST /buyer/apply` and `POST /submit-lead` are built and
 unit-tested but unverified against a real Attio/Postgres pair.
 
-The front end is landing tool by tool (see `static/README.md`). Benchmark,
-readiness and valuation all serve now — split into numbered `.js`/`.css`
-files and repointed off their old Render relays at `/benchmark`,
-`/readiness/score`, and `/enrich`/`/analyze`/`/compare`/`/submit-lead`
-respectively. Only buyers is still unreachable — nothing serves at
-`/buyers/` yet.
+All four tools now serve (see `static/README.md`): benchmark, readiness
+and valuation were ported from the live tools and repointed off their old
+Render relays; buyers is a new page (no live tool existed — the network
+only ever ran on Tally) at `/buyers/`, posting to `POST /buyer/apply`.
 
 ## Structure
 
@@ -354,8 +352,6 @@ each deliberately:
 
 ## Not built yet
 
-- The front end for buyers — benchmark, readiness and valuation are all
-  served today (see `static/README.md`).
 - The `activities` timeline row (step 6 — it needs a resolved subject, so
   it cannot be written before the Attio write succeeds).
 - `POST /buyer/apply` and `POST /submit-lead` verified against a real
