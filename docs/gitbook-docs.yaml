@@ -1,11 +1,11 @@
 $schema: https://api.gitbook.com/gitbook-docs.yaml
 site:
-  title: Wusool Platform Documentation
+  title: Wusool Capital Docs
   structure:
     - type: space
-      key: platform-docs
-      title: Wusool Platform Documentation
-      path: undefined
+      key: space-1
+      title: Untitled
+      path: untitled
       default: true
       content:
-        directory: null
+        directory: ./untitled
