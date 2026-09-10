@@ -9,6 +9,66 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-10
+
+### Added
+
+- `server/app/modules/lead_magnets` now serves `POST /buyer/apply`, the
+  sixth and last endpoint the migration spec names. Nine fields plus
+  consent: `full_name`, `org_name`, `email`, `org_type`
+  (`organizations.type`, 20 options pulled live from DEV Attio),
+  `target_geography`/`sector_focus` (multiselect, live options),
+  `check_size_min`/`check_size_max` (two USD numbers — the dropped
+  `typical_check_size` bucket column and the internal `/add-buyer` Slack
+  form's own fields both confirm this is the right shape, not one coarse
+  range), `prior_gcc_acquisition` (free text, verified live — not
+  boolean), `linkedin_url`. `org_type`/`sector_focus`/`target_geography`
+  are validated against their live option sets only in the background
+  Attio write, never on the request schema, so a CRM-vocabulary typo can
+  never block recording the lead — the exact failure class this
+  migration exists to remove.
+  - Wires the previously-built but unused `LeadLLMPort.qualify_buyer`
+    into a best-effort internal qualification note (same non-blocking
+    pattern as readiness's advisory note), landing in
+    `buyer_role.acquisition_enrichment` — the column
+    `ddl_commands/api/buyers.py` already reserved for exactly this kind
+    of pipeline write.
+  - Two real bugs caught before either reached a submission, both pinned
+    by new tests: `bootstrap.py`'s Attio writer adapter was hardcoded to
+    `write_seller_role` regardless of tool despite claiming to be
+    tool-agnostic — every buyer submission would have landed in the
+    seller_role list. And `domain/shared/attio_values.py`'s money
+    serialiser hardcoded `"seller_role"` as the currency-lookup table, so
+    `check_size_min`/`check_size_max` would have raised
+    `UnknownMoneyFieldError` on every submission with a check size, since
+    that `(table, field)` pair only exists for `buyer_role`.
+
+### Changed
+
+- `lead_magnets`' `domain/`, `application/`, and `api/` regrouped by tool
+  (`valuation/`, `benchmark/`, `readiness/`, `buyer_network/`) with a
+  `shared/` subpackage for what two or more tools genuinely depend on —
+  the ledger vocabulary, the write contract, the sweeper, the Bedrock/
+  Attio clients. `persistence/` and `providers/` stay flat: one ledger
+  and one set of clients for every tool, not four duplicated copies.
+  File structure only, no behavioural change — all tests passed
+  unmodified in substance (import paths only) before and after.
+
+### Fixed
+
+- Readiness's own sector dropdown (`dopamine-readiness-score.html`'s
+  `#cSector`, 11 real options) had no entry in `sector_mapping.py` — a
+  curl test against a throwaway DB raised `UnmappedSectorError` on 10 of
+  the 11, e.g. `"F&B & Hospitality"`. Only `"Other"` happened to collide
+  with benchmark's own vocabulary and work by coincidence. The lead was
+  never lost (the write-ahead ledger already guarantees that), but the
+  CRM entry would never have gotten a `sector_focus` classification.
+  Added `READINESS_SECTORS`, merged into the existing lookup. One
+  compound, `"F&B & Hospitality"`, gets the same flagged-default
+  treatment as the pre-existing `"DeepTech or hardware"` case — mapped
+  to `Food & Beverage / QSR` as the more common case for a generalist
+  SME tool, not a settled decision.
+
 ## 2026-09-09
 
 ### Added
