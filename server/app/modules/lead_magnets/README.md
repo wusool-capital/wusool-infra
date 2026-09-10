@@ -67,6 +67,8 @@ lead_magnets/
     valuation/
       valuation_ai.py               # enrich, analyze, compare
     shared/
+      base.py                       # ServiceBase — composes Pipelines + SubmissionService
+      service.py                    # LeadMagnetService — the one facade bootstrap.py builds
       submit.py                     # the write contract, every tool goes through it
       pipelines.py                  # per-tool dispatch from the stored payload
       sweeper.py                    # resumes abandoned runs
@@ -85,6 +87,16 @@ lead_magnets/
     buyer_network/endpoints.py      # /buyer/apply
   tests/
 ```
+
+`application/shared/base.py` + `service.py` compose by construction, not
+the multiple-inheritance mixin split the guide above describes for `crm`:
+`Pipelines` and `SubmissionService` take genuinely different Ports and are
+deliberately tested standalone (`test_valuation_ai.py` builds a bare
+`Pipelines`; `test_submit.py` injects fake `run_ai`/`fallback` callables
+into a bare `SubmissionService`), so mixing them into shared-state sibling
+concerns would force every pipeline-only or submission-only test to fake
+Ports it has no use for. `bootstrap.build_submission_service` now returns
+one `LeadMagnetService` instead of wiring the two by hand.
 
 ## Endpoints
 

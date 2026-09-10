@@ -213,6 +213,16 @@ delivered state and outstanding items see
   and one set of clients for every tool, not four duplicated copies.
   File structure only, no behavioural change — all tests passed
   unmodified in substance (import paths only) before and after.
+- `application/shared/base.py` + `service.py`: `bootstrap.build_submission_service`
+  now returns one composed `LeadMagnetService` instead of wiring
+  `Pipelines` and `SubmissionService` together by hand. Composition, not
+  the multiple-inheritance mixin split the modular-monolith guide
+  generally prescribes — the two take genuinely different Ports and are
+  deliberately tested standalone, so forcing them into shared-state
+  sibling mixins would make every pipeline-only or submission-only test
+  fake Ports it has no use for. Purely additive: `Pipelines` and
+  `SubmissionService` are unchanged, every existing test against them
+  passes unmodified.
 
 ### Fixed
 

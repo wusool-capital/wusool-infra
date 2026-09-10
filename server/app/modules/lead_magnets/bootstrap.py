@@ -12,8 +12,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.attio import attio_is_test, get_attio_client
-from app.modules.lead_magnets.application.shared.pipelines import Pipelines
-from app.modules.lead_magnets.application.shared.submit import SubmissionService
+from app.modules.lead_magnets.application.shared.service import LeadMagnetService
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
@@ -81,19 +80,13 @@ def build_valuation_ai() -> ValuationAi:
     return ValuationAi(build_llm(), build_search())
 
 
-def build_pipelines() -> Pipelines:
-    return Pipelines(build_llm())
-
-
-def build_submission_service(session: AsyncSession) -> SubmissionService:
+def build_submission_service(session: AsyncSession) -> LeadMagnetService:
     """Every tool's pipeline is reachable from the tool name alone, so the
     same service serves a fresh request and a sweeper resume."""
-    pipelines = build_pipelines()
-    return SubmissionService(
+    return LeadMagnetService(
         tool_runs=build_tool_runs(session),
         attio=_RoleAttioWriter(build_role_writer()),
-        run_ai=pipelines.run,
-        fallback=pipelines.fallback,
+        llm=build_llm(),
     )
 
 
