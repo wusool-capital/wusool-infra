@@ -43,12 +43,13 @@ def build_tool_runs(session: AsyncSession) -> ToolRunsRepository:
     return ToolRunsRepository(session)
 
 
-class _SellerRoleAttioWriter:
+class _RoleAttioWriter:
     """Adapts `AttioRoleWriter` to `AttioWriterPort`.
 
-    The port is tool-agnostic — `submit.py` knows nothing about seller roles
-    — so the per-tool value mapping is resolved here, at the composition
-    root, rather than leaking into the use case.
+    The port is tool-agnostic — `submit.py` knows nothing about seller or
+    buyer roles — so the per-tool value mapping, and which Attio list a tool
+    writes to, is resolved here, at the composition root, rather than
+    leaking into the use case.
     """
 
     def __init__(self, writer: AttioRoleWriter) -> None:
@@ -58,6 +59,14 @@ class _SellerRoleAttioWriter:
         entry_values = ai.get("entry_values")
         if not isinstance(entry_values, dict):
             entry_values = {}
+        if tool == "buyer_network":
+            return await self._writer.write_buyer_role(
+                organization_name=payload.get("org_name") or "Unknown",
+                domain=payload.get("domain"),
+                org_type=[v for v in payload.get("org_type") or [] if isinstance(v, str)],
+                sector_focus=[v for v in payload.get("sector_focus") or [] if isinstance(v, str)],
+                entry_values=entry_values,
+            )
         return await self._writer.write_seller_role(
             organization_name=payload.get("company") or payload.get("company_name") or "Unknown",
             domain=payload.get("domain"),
@@ -82,7 +91,7 @@ def build_submission_service(session: AsyncSession) -> SubmissionService:
     pipelines = build_pipelines()
     return SubmissionService(
         tool_runs=build_tool_runs(session),
-        attio=_SellerRoleAttioWriter(build_role_writer()),
+        attio=_RoleAttioWriter(build_role_writer()),
         run_ai=pipelines.run,
         fallback=pipelines.fallback,
     )

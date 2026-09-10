@@ -24,10 +24,12 @@ from app.modules.lead_magnets.domain.readiness.readiness import (
 )
 from app.modules.lead_magnets.domain.shared.attio_values import (
     benchmark_values,
+    buyer_values,
     readiness_values,
     valuation_values,
 )
 from app.modules.lead_magnets.domain.shared.prompts import (
+    buyer_qualification_prompt,
     readiness_advisory_prompt,
     readiness_score_prompt,
 )
@@ -99,6 +101,8 @@ class Pipelines:
             return self._valuation(payload)
         if tool == "readiness":
             return await self._readiness(payload)
+        if tool == "buyer_network":
+            return await self._buyer_network(payload)
         raise NotImplementedError(f"no pipeline for tool {tool!r} yet")
 
     def fallback(self, tool: str, payload: JsonObject) -> JsonObject | None:
@@ -187,6 +191,48 @@ class Pipelines:
             ),
             "score": scored,
             "advisory": asdict(advisory),
+        }
+
+    async def _buyer_network(self, payload: JsonObject) -> JsonObject:
+        """The application itself is the whole record — unlike readiness,
+        there is no score to compute, so there is nothing for a sweeper
+        resume to reproduce and no fallback (`fallback()` returns `None` for
+        this tool). The qualification note is the one best-effort addition,
+        same pattern as readiness's advisory note: it never blocks or fails
+        the submission.
+        """
+        check_size_min = payload.get("check_size_min")
+        check_size_max = payload.get("check_size_max")
+        org_type = [v for v in payload.get("org_type") or [] if isinstance(v, str)]
+        sector_focus = [v for v in payload.get("sector_focus") or [] if isinstance(v, str)]
+        target_geography = [v for v in payload.get("target_geography") or [] if isinstance(v, str)]
+        prior_gcc_acquisition = payload.get("prior_gcc_acquisition")
+
+        note: str | None = None
+        try:
+            qualification = await self._llm.qualify_buyer(
+                prompt=buyer_qualification_prompt(
+                    org_name=payload.get("org_name") or "",
+                    org_type=org_type,
+                    sector_focus=sector_focus,
+                    target_geography=target_geography,
+                    check_size_min=check_size_min,
+                    check_size_max=check_size_max,
+                    prior_gcc_acquisition=prior_gcc_acquisition,
+                )
+            )
+            note = qualification.get("note")
+        except Exception:  # noqa: BLE001 - the note is internal; the application is already recorded
+            logger.warning("lead_magnet_buyer_qualification_failed, submitting without a note")
+
+        return {
+            "entry_values": buyer_values(
+                check_size_min=check_size_min,
+                check_size_max=check_size_max,
+                prior_gcc_acquisition=prior_gcc_acquisition,
+                target_geography=target_geography,
+                qualification_note=note,
+            ),
         }
 
 

@@ -290,3 +290,45 @@ Rules:
 - If the results contain no credible listed peer, return an empty list.
 
 Respond with ONLY valid JSON: {{"comps":[{{"co":"Name","tk":"TICKER","ev":0,"rev":0,"ebitda":0}}]}}"""  # noqa: E501
+
+
+def buyer_qualification_prompt(
+    *,
+    org_name: str,
+    org_type: list[str],
+    sector_focus: list[str],
+    target_geography: list[str],
+    check_size_min: float | None,
+    check_size_max: float | None,
+    prior_gcc_acquisition: str | None,
+) -> str:
+    """Internal only, mirroring `readiness_advisory_prompt`: one paragraph of
+    synthesis, never shown to the applicant. There is nothing deterministic
+    to compute here — unlike readiness's hard flags, a buyer application has
+    no rule-derived score for the model to add judgement on top of, so the
+    whole note is the model's read."""
+
+    def money(low: float | None, high: float | None) -> str:
+        if low is None and high is None:
+            return "Not specified"
+        if low is None:
+            return f"up to ${high:,.0f}"
+        if high is None:
+            return f"${low:,.0f}+"
+        return f"${low:,.0f} - ${high:,.0f}"
+
+    return f"""You are an internal analyst at Wusool Capital, an M&A advisory firm in the UAE. A prospective buyer just applied to our Buyer Network. Generate one internal CRM field — never shown to the applicant.
+
+APPLICANT
+Organization: {org_name}
+Type: {", ".join(org_type) or "Not specified"}
+Sector preference: {", ".join(sector_focus) or "Not specified"}
+Target geography: {", ".join(target_geography) or "Not specified"}
+Typical check size: {money(check_size_min, check_size_max)}
+Prior GCC acquisition: {prior_gcc_acquisition or "Not provided"}
+
+TASK — INTERNAL QUALIFICATION NOTE
+Write a frank, direct brief (3-5 sentences) for the Wusool advisor deciding whether to introduce deals to this buyer. Judge fit and credibility from what was submitted alone — do not assume facts not given. Call out anything that looks like a mismatch (an unusually broad mandate, an implausible check size, no prior GCC experience for an ambitious mandate) and whether this buyer is worth prioritising for warm introductions now or worth a qualifying call first. Be direct. This is internal.
+
+Respond with ONLY valid JSON, no markdown:
+{{"priority":"<introduce now|qualify first>","note":"<string>"}}"""  # noqa: E501

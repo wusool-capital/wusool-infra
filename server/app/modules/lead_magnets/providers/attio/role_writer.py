@@ -1,4 +1,4 @@
-"""Writes a submission's result to Attio's V2 `seller_role` list.
+"""Writes a submission's result to Attio's V2 `seller_role`/`buyer_role` lists.
 
 Attio first, Postgres second — always. A nightly job overwrites Postgres
 from Attio, so anything written straight to Postgres is destroyed on the
@@ -19,12 +19,17 @@ import logging
 
 from app.modules.attio import AttioClientProtocol
 from app.modules.attio.providers.attio import entries
+from app.modules.lead_magnets.domain.buyer_network.buyer_network import (
+    validate_org_type,
+    validate_sector_focus,
+)
 from app.modules.lead_magnets.domain.shared.sector_mapping import to_sector_focus
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 
 logger = logging.getLogger(__name__)
 
 _SELLER_ROLE_LIST = "seller_role"
+_BUYER_ROLE_LIST = "buyer_role"
 
 
 class AttioRoleWriter:
@@ -82,4 +87,52 @@ class AttioRoleWriter:
             org_attio_id=org_id,
             org_name=organization_name,
             seller_role_entry_id=entry_id,
+        )
+
+    async def write_buyer_role(
+        self,
+        *,
+        organization_name: str,
+        domain: str | None,
+        org_type: list[str],
+        sector_focus: list[str],
+        entry_values: dict[str, object],
+        organization_attio_id: str | None = None,
+    ) -> SubjectRefs:
+        """Same shape as `write_seller_role`. `org_type`/`sector_focus` are
+        already Attio's own option titles — validated, not mapped, since the
+        form offers the live vocabulary directly rather than a tool-specific
+        one needing translation.
+        """
+        org_values: dict[str, object] = {"name": organization_name}
+        if domain:
+            org_values["domains"] = [domain]
+        if org_type:
+            org_values["type"] = validate_org_type(org_type)
+        if sector_focus:
+            org_values["sector_focus"] = validate_sector_focus(sector_focus)
+
+        if organization_attio_id is None:
+            org_id = await entries.create_organization(
+                self._client, org_values, is_test=self._is_test
+            )
+        else:
+            org_id = organization_attio_id
+            await entries.assert_organization_in_scope(self._client, org_id, is_test=self._is_test)
+            await entries.patch_organization(self._client, org_id, org_values)
+
+        try:
+            entry_id = await entries.resolve_role_entry_id(
+                self._client, _BUYER_ROLE_LIST, org_id, is_test=self._is_test
+            )
+            await entries.patch_role_entry(self._client, _BUYER_ROLE_LIST, entry_id, entry_values)
+        except entries.RoleEntryNotFoundError:
+            entry_id = await entries.create_role_entry(
+                self._client, _BUYER_ROLE_LIST, org_id, entry_values, is_test=self._is_test
+            )
+
+        return SubjectRefs(
+            org_attio_id=org_id,
+            org_name=organization_name,
+            buyer_role_entry_id=entry_id,
         )

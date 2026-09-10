@@ -12,12 +12,11 @@ second Caddy hostname pointing at the same container.
 
 ## Status
 
-Two of the six endpoints serve. `POST /benchmark` and
-`POST /readiness/score` are wired into `server/main.py` and verified over
-HTTP against a real Postgres and live Bedrock. `/enrich`, `/analyze`,
-`/compare` and `/buyer/apply` return 404 — they need the valuation prompts
-and the Buyer Network form, and a 404 is honest where a stub returning empty
-data would not be.
+All six endpoints serve, wired into `server/main.py`. `POST /benchmark` and
+`POST /readiness/score` are verified over HTTP against a real Postgres and
+live Bedrock. `POST /buyer/apply` is built but unverified against a real
+Attio/Postgres pair, and gated behind the front end, which does not exist
+yet (`static/` is still empty) — so nothing can reach it in production.
 
 The tool pages are not served yet: `static/` is still empty.
 
@@ -51,6 +50,8 @@ lead_magnets/
       benchmark_copy.py            # generated report prose; do not hand-edit
     readiness/
       readiness.py                 # the questionnaire, advisory rules, band map (pure)
+    buyer_network/
+      buyer_network.py             # org type / sector focus / target geography validation
     shared/                        # used by 2+ tools — see the note above
       dedup.py                     # normalisation + key composition (pure)
       tool_run.py                  # the ledger's own vocabulary (Tool, Stage, …)
@@ -78,6 +79,7 @@ lead_magnets/
     valuation/endpoints.py          # /enrich /analyze /compare
     benchmark/endpoints.py          # /benchmark
     readiness/endpoints.py          # /readiness/score
+    buyer_network/endpoints.py      # /buyer/apply
   tests/
 ```
 
@@ -94,14 +96,15 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /enrich` | serves | Sonnet 4.6 over a Firecrawl scrape of the one known URL |
 | `POST /analyze` | serves | Sonnet 4.6; sector judgement, discounts, DCF overrides, strategic read, scorecard |
 | `POST /compare` | serves | Haiku plans queries, Firecrawl runs them, Sonnet selects; shortfall filled from static data |
-| `POST /buyer/apply` | 404 | the Buyer Network form does not exist yet |
+| `POST /buyer/apply` | serves | No blocking model call; a best-effort Haiku qualification note, never shown to the applicant |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
 visitor reads while still in the tool, long before there is a submission to
 record. `/analyze` and `/compare` are meant to run in parallel — the split is
 what makes the preview ready when the loading screen ends.
 
-Both live endpoints commit the ledger row **before** responding, not at
+All three ledger-backed endpoints (`/benchmark`, `/readiness/score`,
+`/buyer/apply`) commit the ledger row **before** responding, not at
 dependency teardown. Two reasons, both load-bearing: the contract is that
 the lead is durable before the visitor is told anything, and the background
 completion opens its own session, so an uncommitted row is invisible to it.
@@ -334,14 +337,13 @@ each deliberately:
 
 ## Not built yet
 
-- `bootstrap.py`. There is no wiring to centralise until the endpoints
-  exist; `api/dependencies.py` currently constructs nothing but a session.
-  When the endpoints land, concrete provider and repository construction
-  belongs there, not in `dependencies.py`.
-- `api/router.py`, `api/schemas.py` and the five endpoints; `domain/prompts.py`,
-  `domain/mapping.py`; `providers/attio/role_writer.py`; the `activities`
-  timeline row (step 6 — it needs a resolved subject, so it cannot be
-  written before the Attio write succeeds).
+- The front end. `static/` holds only a README; nothing can reach any of
+  the six endpoints in production until it exists.
+- The `activities` timeline row (step 6 — it needs a resolved subject, so
+  it cannot be written before the Attio write succeeds).
+- `POST /buyer/apply` verified against a real Attio/Postgres pair — built
+  and unit-tested, but never exercised end to end the way `/benchmark` and
+  `/readiness/score` have been.
 
 ## Testing
 

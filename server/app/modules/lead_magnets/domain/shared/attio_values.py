@@ -17,6 +17,7 @@ from collections.abc import Mapping
 from app.modules.attio.providers.attio.money import serialize_money
 from app.modules.lead_magnets.domain.benchmark.benchmark import PERCENTILE_COLUMNS
 from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkResult
+from app.modules.lead_magnets.domain.buyer_network.buyer_network import validate_target_geography
 from app.modules.lead_magnets.domain.readiness.readiness import AdvisoryContent, attio_band
 from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation
 
@@ -28,7 +29,7 @@ AttrValue = float | int | str | bool | None
 # Money attributes on `seller_role`, all USD. `serialize_money` refuses a
 # field it has no configured currency for, which is the guard that stops a
 # new money attribute being written with an unknown denomination.
-_MONEY = frozenset(
+_SELLER_MONEY = frozenset(
     {
         "est_revenue",
         "est_ebitda",
@@ -42,8 +43,20 @@ _MONEY = frozenset(
     }
 )
 
+# `buyer_role`'s money attributes — a distinct set from `_SELLER_MONEY`
+# because `serialize_money`'s currency lookup is keyed on `(table, field)`;
+# `check_size_min` on `seller_role` isn't a configured pair, so passing the
+# wrong table name here would raise `UnknownMoneyFieldError` on every buyer
+# submission that gave a check size.
+_BUYER_MONEY = frozenset({"check_size_min", "check_size_max"})
 
-def _values(raw: Mapping[str, AttrValue]) -> dict[str, object]:
+
+def _values(
+    raw: Mapping[str, AttrValue],
+    *,
+    table: str = "seller_role",
+    money: frozenset[str] = _SELLER_MONEY,
+) -> dict[str, object]:
     """Drops empty values and serialises the money ones.
 
     A `None` is omitted rather than sent: Attio treats an explicit null as
@@ -54,12 +67,12 @@ def _values(raw: Mapping[str, AttrValue]) -> dict[str, object]:
     for slug, value in raw.items():
         if value is None:
             continue
-        if slug in _MONEY:
+        if slug in money:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise TypeError(
                     f"money attribute {slug} needs a number, got {type(value).__name__}"
                 )
-            out[slug] = serialize_money("seller_role", slug, float(value))
+            out[slug] = serialize_money(table, slug, float(value))
         else:
             out[slug] = value
     return out
@@ -119,3 +132,37 @@ def valuation_values(result: Valuation) -> dict[str, object]:
             "valuation_high": result.high or None,
         }
     )
+
+
+def buyer_values(
+    *,
+    check_size_min: float | None,
+    check_size_max: float | None,
+    prior_gcc_acquisition: str | None,
+    target_geography: list[str],
+    qualification_note: str | None = None,
+) -> dict[str, object]:
+    """The buyer application, as `buyer_role` attributes.
+
+    `target_geography` is a multiselect array, not run through `_values`'s
+    single-value path — an empty list is a real, distinct "no answer" from
+    `None` and is sent as-is rather than dropped.
+
+    `qualification_note` lands in `acquisition_enrichment`: that column is
+    explicitly excluded from `/edit-buyer`'s field list because it is "both
+    manual and pipeline-written" (`ddl_commands/api/buyers.py`) — this is
+    the pipeline write it was reserved for.
+    """
+    values = _values(
+        {
+            "prior_gcc_acquisition": prior_gcc_acquisition,
+            "check_size_min": check_size_min,
+            "check_size_max": check_size_max,
+            "acquisition_enrichment": qualification_note,
+        },
+        table="buyer_role",
+        money=_BUYER_MONEY,
+    )
+    if target_geography:
+        values["target_geography"] = validate_target_geography(target_geography)
+    return values

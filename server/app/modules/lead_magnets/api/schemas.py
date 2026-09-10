@@ -231,3 +231,56 @@ class CompareResponse(BaseModel):
     # was sourced.
     sourced: int
     filled_from_static: int
+
+
+class BuyerApplyRequest(_Strict):
+    """The Buyer Network form's nine fields plus consent.
+
+    `org_type` and `target_geography` are **not** validated here — like
+    `BenchmarkRequest.peer_key`, they map onto CRM select options, but
+    unlike it they are not needed to compute anything the visitor sees. The
+    lead is recorded first; an unmapped value only fails the background
+    Attio write (`UnmappedOrgTypeError`/`UnmappedTargetGeographyError`),
+    caught by `submit.py` the same way `UnmappedSectorError` is for every
+    other tool's sector field. Blocking the record on a CRM-vocabulary typo
+    would be the exact lead-loss bug this migration exists to fix.
+
+    `check_size_min`/`check_size_max` are two numbers, not one bucket — the
+    live Slack `/add-buyer` form (`ddl_commands/api/buyers.py`, verified
+    live 2026-08-30) is the authoritative precedent, and `typical_check_size`
+    (a coarse bucket) was deliberately dropped from the schema in
+    migration `a4f9e61c3d78` in favour of these two real USD figures.
+
+    `full_name` and `linkedin_url` have nowhere to go in Attio yet: no
+    `person` write path exists for any tool in this module today (a
+    pre-existing gap, not new here) — they land in `tool_runs.payload` for
+    the record, same as every other tool's `name` field.
+    """
+
+    submission_id: str = Field(min_length=1, max_length=64)
+    full_name: str = Field(min_length=1, max_length=200)
+    org_name: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=320)
+    org_type: list[str] = Field(min_length=1)
+    target_geography: list[str] = Field(min_length=1)
+    sector_focus: list[str] = Field(min_length=1)
+    check_size_min: float | None = Field(default=None, ge=0)
+    check_size_max: float | None = Field(default=None, ge=0)
+    prior_gcc_acquisition: str | None = Field(default=None, max_length=500)
+    linkedin_url: str | None = Field(default=None, max_length=500)
+    # Optional by the same decision as every other tool: a blank domain only
+    # weakens dedup, never loses the lead.
+    domain: str | None = Field(default=None, max_length=253)
+    consent: bool = Field(...)
+
+    @field_validator("consent")
+    @classmethod
+    def consent_given(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("consent is required")
+        return value
+
+
+class BuyerApplyResponse(BaseModel):
+    ok: bool
+    run_id: str
