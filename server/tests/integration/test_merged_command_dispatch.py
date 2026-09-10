@@ -250,11 +250,22 @@ def test_lead_magnet_static_mount_does_not_shadow_existing_routes() -> None:
 
     assert client.get("/embed.js").status_code == 200
     assert client.get("/benchmark/", follow_redirects=False).status_code == 200
+    assert client.get("/readiness/", follow_redirects=False).status_code == 200
+    assert client.get("/valuation/", follow_redirects=False).status_code == 200
     assert client.get("/img/5ba450cc.png").status_code == 200
+    assert client.get("/img/a0288d00.png").status_code == 200
+    assert client.get("/shared/height.js").status_code == 200
+    assert client.get("/valuation/10-data.js").status_code == 200
 
     # POST /benchmark is the real submission API, at the same path prefix
     # as the GET-only static page — different HTTP methods, no collision.
     response = client.post("/benchmark", json={})
     assert response.status_code == 422  # reaches request validation, not a 404
+
+    # /readiness/score is the real submission API for the readiness tool —
+    # a sibling path to the GET-only /readiness/ static page, not a
+    # collision.
+    response = client.post("/readiness/score", json={})
+    assert response.status_code == 422
 
     assert client.get("/this-path-does-not-exist/").status_code == 404

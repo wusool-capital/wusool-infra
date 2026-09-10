@@ -10,7 +10,14 @@ from pathlib import Path
 
 import pytest
 
-from app.modules.lead_magnets.api.schemas import BenchmarkRequest, ReadinessRequest
+from app.modules.lead_magnets.api.schemas import (
+    AnalyzeRequest,
+    BenchmarkRequest,
+    CompareRequest,
+    EnrichRequest,
+    ReadinessRequest,
+    ValuationRequest,
+)
 from app.modules.lead_magnets.api.static import static_dir
 
 _EXTERNAL_HREF = re.compile(r"^https?://")
@@ -96,3 +103,45 @@ def test_readiness_payload_field_names_match_the_request_schema() -> None:
     js = (static_dir() / "readiness" / "30-submit.js").read_text()
     keys = _payload_keys(js, "const payload={")
     assert keys == set(ReadinessRequest.model_fields)
+
+
+def test_valuation_payload_field_names_match_their_request_schemas() -> None:
+    """Valuation has four call sites across two files, each posting to its
+    own endpoint — checked independently since a shared helper would hide
+    which one drifted."""
+    components = (static_dir() / "valuation" / "30-components.js").read_text()
+    enrich_start = components.index('fetch("/enrich"')
+    enrich_keys = _payload_keys(components[enrich_start:], "body:JSON.stringify({")
+    assert enrich_keys == set(EnrichRequest.model_fields)
+
+    main = (static_dir() / "valuation" / "40-main.js").read_text()
+    analyze_start = main.index('fetch("/analyze"')
+    analyze_keys = _payload_keys(main[analyze_start:], "body:JSON.stringify({")
+    # website_text is the one deliberate omission: the client-side scraping
+    # that ever populated it was already dead in the live tool (see
+    # 30-components.js's enrichFromDomain comment), so there was never a
+    # real value to carry over. Every other field, including every
+    # required one, must still be present.
+    required = {name for name, field in AnalyzeRequest.model_fields.items() if field.is_required()}
+    assert required <= analyze_keys
+    assert analyze_keys <= set(AnalyzeRequest.model_fields)
+    assert set(AnalyzeRequest.model_fields) - analyze_keys == {"website_text"}
+
+    compare_start = main.index('fetch("/compare"')
+    compare_keys = _payload_keys(main[compare_start:], "body:JSON.stringify({")
+    assert compare_keys == set(CompareRequest.model_fields)
+
+    submit_start = main.index('fetch("/submit-lead"')
+    submit_keys = _payload_keys(main[submit_start:], "body:JSON.stringify({")
+    # discounts is the one deliberate omission: TradingComps and
+    # TransactionComps each keep their own independent user-adjustable
+    # discount sliders, so there is no single unambiguous client-side
+    # discount to forward - ValuationInputs already defaults to 50%/50%
+    # when it's absent, the same as a sweeper resume with no model in
+    # reach.
+    required = {
+        name for name, field in ValuationRequest.model_fields.items() if field.is_required()
+    }
+    assert required <= submit_keys
+    assert submit_keys <= set(ValuationRequest.model_fields)
+    assert set(ValuationRequest.model_fields) - submit_keys == {"discounts"}

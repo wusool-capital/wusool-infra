@@ -124,6 +124,55 @@ delivered state and outstanding items see
   and that a realistic submission reaches request validation cleanly
   (fails only on the absence of a local Postgres in this environment, not
   on shape).
+- Front end, slice 4 of 5: the Valuation tool now serves at `/valuation/`,
+  split into `00-styles.css`, a plain (non-Babel) `10-data.js` for its
+  ~180KB of pure data literals, and `20-helpers.js`/`30-components.js`/
+  `40-main.js` (`type="text/babel"`, kept coarse per the migration plan —
+  splitting React/JSX further buys nothing and adds silent-compile-failure
+  surface). Repointed off `dopamine-relay` onto all four endpoints
+  (`/enrich`, `/analyze`, `/compare`, `/submit-lead`). The live tool fired
+  five independent client-composed Claude calls across its lifecycle
+  (enrich, a loading-screen teaser, the full strategic read, the M&A
+  readiness scorecard, and dynamic comps); `/analyze` merges four of those
+  into one, so `pushLeadToAttio`, `DynamicCompsLoader`, `callClaude`,
+  `RELAY_BASE`, and the teaser's own abbreviated fetch are deleted outright
+  rather than repointed, and `StrategicAnalysis`/`FundraiseReadiness`
+  become prop-driven off the one shared `/analyze` result instead of firing
+  their own requests. `generateStrategicAnalysis` (the client's
+  deterministic port) survives only as `LockedPreview`'s fallback while
+  `/analyze` is in flight — everywhere else `/analyze`'s own server-side
+  fallback already covers the failure case.
+  - Two dead-code findings bigger than already documented: the *entire*
+    Webflow-exported nav/footer CSS block (59 lines, not just the two
+    selectors previously named) had zero JSX usages of any class in it,
+    and its one inline image was a 122.5KB JPEG mislabeled `image/png` on
+    a class also never referenced — both verified by grep before deleting,
+    both gone. Valuation's logo turned out byte-identical to readiness's,
+    deduped for free. Total served weight (`index.html` + 5 files): 327KB,
+    down from the original single file's 564KB.
+  - One simplification, noted rather than hidden: `/analyze`'s response
+    shape cannot distinguish a Bedrock success from its own deterministic
+    fallback, so `StrategicAnalysis`'s "AI-powered"/"Based on X's profile"
+    copy — previously conditional on which one happened — now always
+    shows. Cosmetic only; the fallback content is a verified exact port of
+    the live tool's own local-fallback text either way.
+  - Two request fields the schemas accept but the page deliberately never
+    sends, both pinned explicitly by
+    `test_valuation_payload_field_names_match_their_request_schemas` (so a
+    third field going missing still fails it): `AnalyzeRequest.website_text`
+    (the client-side scraping that ever populated it was already dead
+    before this migration) and `ValuationRequest.discounts` (`TradingComps`
+    and `TransactionComps` keep independent discount sliders, so there is
+    no single value to forward — the server already defaults to 50%/50%).
+  - Verified past the usual byte-exact-concat and per-file-Babel-transpile
+    checks: a full headless run using the real `@babel/standalone@7.25.6`
+    and React/ReactDOM 18.3.1 UMD builds against jsdom, served live over
+    HTTP from a local `uvicorn`, driving the actual Gate form through
+    submission and confirming `/enrich`, `/analyze`, `/compare` and
+    `/submit-lead` each fire with exactly the request body their schema
+    expects, and that the unlocked report (Strategic Analysis, the
+    readiness scorecard, Trading Comparables) renders the fetched data
+    correctly end to end.
 
 ### Changed
 

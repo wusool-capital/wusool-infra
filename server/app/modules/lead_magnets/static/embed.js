@@ -10,6 +10,7 @@
   var TOOLS = {
     benchmark: { src: "/benchmark/", fallbackHeight: 1400 },
     readiness: { src: "/readiness/", fallbackHeight: 1000 },
+    valuation: { src: "/valuation/", fallbackHeight: 1600 },
   };
 
   var script = document.currentScript;
