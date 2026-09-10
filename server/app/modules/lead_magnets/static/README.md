@@ -18,7 +18,7 @@ benchmark/
   10-config.js  20-data.js  30-helpers.js  40-scoring.js  50-narrative.js  60-render.js
 embed.js
 img/<sha8>.<ext>       # shared across tools — logo dedupes by content hash
-shared/                 # api.js, height.js — NOT created until a 2nd tool needs them
+shared/height.js        # ResizeObserver -> parent.postMessage, every tool includes it
 ```
 
 Every `<script src>`/`<link href>` carries a hand-bumped `?v=1` cache-buster
@@ -54,10 +54,14 @@ Three things the import has to do, not just a copy:
   URL — see `benchmark/index.html`'s submit handler. Valuation and readiness
   currently compose their own AI prompts and post them to a pass-through
   endpoint; those calls send data and receive validated JSON instead.
-- **Emit height.** None of the three pages tells its parent how tall it is
-  today, which is why the current embeds are a fixed height. A
-  `ResizeObserver` posting `{type: "wusool:height", id, height}` to
-  `parent` is all `embed.js` needs.
+- **Emit height.** `shared/height.js` posts `{type: "wusool:height", height}`
+  to `parent` on a `ResizeObserver`; every tool's `index.html` includes it
+  as its last script. `embed.js` disambiguates which iframe a message came
+  from via `event.source === iframe.contentWindow`, not a shared id — the
+  child has no way to learn an id the parent assigns after creating the
+  iframe, so an earlier draft that required one silently never matched and
+  every embed stayed pinned at `fallbackHeight` forever. Caught before any
+  tool used it.
 
 Everything under here is served by `ToolStatic`, which sets the CSP
 `frame-ancestors` and the two-tier cache policy. `embed.js` is deliberately

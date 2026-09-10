@@ -3,11 +3,6 @@
  * tag per placement — the src is always the same URL, `data-tool` picks
  * which iframe this particular tag builds. `TOOLS` grows one entry per
  * tool as each one ships; cutover and rollback are both one line here.
- *
- * Assumes each embed <script> tag is plain (no async/defer): classic
- * external scripts execute synchronously in document order, which is what
- * makes the shared `window.__wusoolEmbedCount` counter below safe without
- * a lock. Adding async/defer to an embed tag would race it.
  */
 (function () {
   "use strict";
@@ -26,9 +21,6 @@
   // an iframe src.
   if (!config) return;
 
-  window.__wusoolEmbedCount = (window.__wusoolEmbedCount || 0) + 1;
-  var id = "w" + window.__wusoolEmbedCount;
-
   // Derived, not hardcoded: the same script works from a dev bare-IP host
   // or the prod hostname without a build-time swap. This is where the
   // child iframe's height messages must come from — not the parent
@@ -37,7 +29,6 @@
 
   var iframe = document.createElement("iframe");
   iframe.src = config.src;
-  iframe.id = id;
   iframe.title = "Wusool " + tool + " tool";
   iframe.setAttribute("scrolling", "no");
   iframe.style.border = "0";
@@ -50,11 +41,15 @@
   var minHeight = config.fallbackHeight / 4;
   var maxHeight = 20000;
 
+  // event.source === iframe.contentWindow is what disambiguates this
+  // embed's messages from any other wusool iframe on the same host page —
+  // the child cannot know an id the parent assigned after the iframe was
+  // created, so there is nothing for it to echo back.
   window.addEventListener("message", function (event) {
     if (event.origin !== toolsOrigin) return;
     if (event.source !== iframe.contentWindow) return;
     var data = event.data;
-    if (!data || data.type !== "wusool:height" || data.id !== id) return;
+    if (!data || data.type !== "wusool:height") return;
     var height = Number(data.height);
     if (!isFinite(height) || height <= 0) return;
     height = Math.max(minHeight, Math.min(maxHeight, height));
