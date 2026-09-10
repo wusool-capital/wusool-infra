@@ -50,6 +50,18 @@ _SELLER_MONEY = frozenset(
 # submission that gave a check size.
 _BUYER_MONEY = frozenset({"check_size_min", "check_size_max"})
 
+# `benchmark_quartile` is an Attio select, not free text — its option titles
+# describe the band, not the raw 1-4 int (`benchmark_submission.py`'s
+# `overall_quartile`, 1=worst, 4=best). Confirmed against the live workspace
+# after a real submission's Attio write failed with `Cannot find select
+# option with title "2"`.
+_QUARTILE_TITLES = {
+    1: "Bottom 25%",
+    2: "Below Average",
+    3: "Above Average",
+    4: "Top 25%",
+}
+
 
 def _values(
     raw: Mapping[str, AttrValue],
@@ -89,7 +101,10 @@ def benchmark_values(result: BenchmarkResult, *, headcount: int | None) -> dict[
         {
             "benchmark_score": result.score,
             "benchmark_band": result.band,
-            "benchmark_quartile": str(result.quartile),
+            # Falls through to the raw int for anything unrecognised, same
+            # as `attio_band()` — a future quartile scheme change surfaces
+            # as a failed Attio option lookup, not a silently wrong value.
+            "benchmark_quartile": _QUARTILE_TITLES.get(result.quartile, str(result.quartile)),
             "ebitda_adjusted": result.ebitda_adjusted,
             "headcount": headcount,
             "lead_priority": result.routing.priority,

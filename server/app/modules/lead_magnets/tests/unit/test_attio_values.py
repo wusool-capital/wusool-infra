@@ -10,7 +10,38 @@ wrong table name would 500 every buyer submission that gave a check size.
 import pytest
 
 from app.modules.attio.providers.attio.money import UnknownMoneyFieldError
-from app.modules.lead_magnets.domain.shared.attio_values import buyer_values, readiness_values
+from app.modules.lead_magnets.domain.benchmark.benchmark import Band
+from app.modules.lead_magnets.domain.benchmark.benchmark_routing import Quality, Routing
+from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkResult
+from app.modules.lead_magnets.domain.shared.attio_values import (
+    benchmark_values,
+    buyer_values,
+    readiness_values,
+)
+
+_BAND = Band(id="sme", label="SME", max_usd=None, ebitda_adj=1.0, rev_emp_mult=1.0, rent_mult=1.0)
+
+
+def _benchmark_result(*, quartile: int) -> BenchmarkResult:
+    return BenchmarkResult(
+        score=50,
+        band="Solidly in the middle",
+        quartile=quartile,
+        peer_label="IT Services",
+        revenue_band=_BAND,
+        sample_size=10,
+        metrics={},
+        percentiles={},
+        flags=[],
+        routing=Routing(priority="Cold", reason="No routing trigger"),
+        quality=Quality("Passed", True),
+        headline="",
+        ebitda_adjusted=None,
+        data_completeness=100,
+        metrics_covered=5,
+        metrics_total=5,
+        implied_ev=None,
+    )
 
 
 def test_buyer_check_size_serialises_against_the_buyer_role_table() -> None:
@@ -70,3 +101,29 @@ def test_readiness_values_is_unaffected_by_the_table_parameter() -> None:
         revenue_usd=1_000_000,
     )
     assert values["est_revenue"] == {"currency_value": 1_000_000.0}
+
+
+@pytest.mark.parametrize(
+    ("quartile", "title"),
+    [
+        (1, "Bottom 25%"),
+        (2, "Below Average"),
+        (3, "Above Average"),
+        (4, "Top 25%"),
+    ],
+)
+def test_benchmark_quartile_maps_to_the_real_attio_option_title(quartile: int, title: str) -> None:
+    """A real submission's Attio write failed with `Cannot find select
+    option with title "2"` — `benchmark_quartile` is a select on the real
+    workspace, not free text, and the raw 1-4 int isn't one of its options.
+    """
+    values = benchmark_values(_benchmark_result(quartile=quartile), headcount=None)
+    assert values["benchmark_quartile"] == title
+
+
+def test_benchmark_quartile_falls_back_to_the_raw_value_when_unrecognised() -> None:
+    """Same fallback shape as `attio_band()`: an out-of-range quartile
+    surfaces as a failed Attio option lookup rather than a silently wrong
+    value."""
+    values = benchmark_values(_benchmark_result(quartile=5), headcount=None)
+    assert values["benchmark_quartile"] == "5"

@@ -249,6 +249,31 @@ delivered state and outstanding items see
 
 ### Fixed
 
+- `domain/shared/attio_values.py::benchmark_values` sent `benchmark_quartile`
+  as a bare digit (`str(result.quartile)`, e.g. `"2"`) — the real Attio
+  attribute is a select with option titles `Bottom 25%`/`Below Average`/
+  `Above Average`/`Top 25%`, not free text (`SCHEMA.md`'s "text" is wrong for
+  this one field). Caught live: pointed the local stack at the real dev
+  Attio key and a real `/benchmark` submission's background Attio write
+  failed with `Cannot find select option with title "2"`, while the
+  write-ahead ledger correctly kept the lead (`tool_runs.status='failed'`
+  with the error captured, nothing lost). A first MCP-tool-based audit of
+  the workspace wrongly concluded ~20 other attributes and `is_test` were
+  also missing everywhere — the Attio MCP server's attribute-listing tools
+  were silently under-reporting (33 of the real 59 attributes on the
+  `seller_role` list, and fabricated `readiness_band`'s options as `Yes`/
+  `No` when the real options are the 4 bands the code already sends).
+  Re-verified every field against Attio's raw v2 REST API directly instead
+  of the MCP abstraction: everything else in the whole module — `is_test`,
+  `readiness_band`, `recommended_referral`, benchmark's other 20 fields,
+  `lead_priority`, `quality_check`, `benchmark_band`, buyer's org_type/
+  target_geography/sector_focus, valuation's 3 fields — was already
+  correctly wired to a real, matching attribute. Fixed with a
+  `_QUARTILE_TITLES` lookup, same fallback-to-raw-value shape as the
+  existing `readiness.py::attio_band()`. Re-verified against the real
+  workspace after the fix: the same failing case (score 48, quartile 2) now
+  lands in Attio as `benchmark_quartile: "Below Average"`, confirmed
+  straight from the v2 API, not just Postgres.
 - `application/shared/sweeper.py`'s `sweep_once` was fully built and unit
   tested but never actually invoked — no `run_sweeper_forever` existed and
   `main.py`'s `_lifespan` started no background loop for it, so a
