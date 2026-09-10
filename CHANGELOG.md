@@ -42,6 +42,27 @@ delivered state and outstanding items see
     `check_size_min`/`check_size_max` would have raised
     `UnknownMoneyFieldError` on every submission with a check size, since
     that `(table, field)` pair only exists for `buyer_role`.
+- `POST /submit-lead` — the valuation tool's own write contract, the last
+  of the seven endpoints. Keeps the path the live tool already posts to
+  (`dopamine-valuation.html`'s `pushLeadToAttio`). No model call: the
+  blend is entirely deterministic once `/compare`'s comparables and
+  `/analyze`'s discount overrides are in hand, so the result is computed
+  inline rather than deferred, matching `/benchmark`. Verified live: the
+  ledger's stored AI-stage output and the synchronous HTTP response for
+  the same submission are bit-for-bit identical, and zero Postgres rows
+  exist until the Attio write actually succeeds.
+- `/analyze`'s deterministic fallback, ported from the live tool's
+  `generateStrategicAnalysis`. Every regex, condition, and paragraph of
+  copy was extracted programmatically from the source HTML via a Node
+  harness rather than hand-typed, to eliminate transcription risk on
+  ~30 paragraphs a real prospective client would read — verified by
+  equivalence against the original across 113 generated cases spanning
+  every regex signal and every margin/fundraise/geography boundary, 0
+  mismatches. `analyze()` now falls back to it on any Bedrock failure,
+  the same best-effort pattern readiness's advisory note already uses.
+  Verified live: pointing `AWS_REGION` at a region with no Bedrock access
+  produces the deterministic response in 1.4s, failing at the auth layer
+  before any tokens are processed.
 
 ### Changed
 
