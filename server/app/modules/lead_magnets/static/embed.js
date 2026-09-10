@@ -31,7 +31,12 @@
   var toolsOrigin = new URL(script.src, window.location.href).origin;
 
   var iframe = document.createElement("iframe");
-  iframe.src = config.src;
+  // Absolute, built from toolsOrigin — config.src is root-relative
+  // ("/benchmark/"), which a bare assignment would resolve against the
+  // *parent* page's own origin (Webflow's), not the tools host. That
+  // would silently send the iframe to e.g. wusoolcapital.com/benchmark/
+  // instead of the tools server, 404ing on the parent site.
+  iframe.src = toolsOrigin + config.src;
   iframe.title = "Wusool " + tool + " tool";
   iframe.setAttribute("scrolling", "no");
   iframe.style.border = "0";

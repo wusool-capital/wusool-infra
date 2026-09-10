@@ -226,6 +226,18 @@ delivered state and outstanding items see
 
 ### Fixed
 
+- `embed.js`: `iframe.src = config.src` assigned a root-relative path
+  (e.g. `"/benchmark/"`) directly, which the browser resolves against the
+  *parent* page's own origin, not the tools host — `toolsOrigin` was
+  already computed correctly (used for the `postMessage` origin check)
+  but never applied to the iframe's own `src`. On the real Webflow
+  deployment this would have sent every embed to
+  `wusoolcapital.com/benchmark/` instead of the tools server, 404ing
+  there rather than loading the tool. Caught testing locally: a plain
+  `file://` page with the embed script produced an iframe pointed at
+  `file:///benchmark/`, nothing rendered. Fixed to
+  `iframe.src = toolsOrigin + config.src`; pinned by a new
+  `test_iframe_src_is_built_absolute_from_tools_origin`.
 - Readiness's own sector dropdown (`dopamine-readiness-score.html`'s
   `#cSector`, 11 real options) had no entry in `sector_mapping.py` — a
   curl test against a throwaway DB raised `UnmappedSectorError` on 10 of
