@@ -34,6 +34,7 @@ from app.modules.ddl_commands.persistence.database import (
     import_all_models as import_ddl_commands_models,
 )
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
+from app.modules.lead_magnets.api.static import ToolStatic, static_dir
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
 )
@@ -237,6 +238,16 @@ async def slack_events(req: Request) -> Response:
     trust a payload without it.
     """
     return await _slack_request_handler().handle(req)
+
+
+# Last: a catch-all, so it never shadows /health, /readiness, /ready,
+# /slack/events, /webhooks/attio, or /desktop/* — all registered above.
+# Static-file behind a trailing-slash directory path only ever matches a
+# request no earlier route claimed (verified against exact-path routes
+# like GET /readiness, which is unrelated to the readiness *tool* served
+# at /readiness/ — no collision, confirmed live: the two differ only by
+# the trailing slash and Starlette's exact-path matching keeps them apart).
+app.mount("/", ToolStatic(directory=static_dir(), html=True), name="lead_magnet_tools")
 
 
 if __name__ == "__main__":
