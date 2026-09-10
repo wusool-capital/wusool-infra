@@ -8,4 +8,4 @@ site:
       path: undefined
       default: true
       content:
-        directory: ./
+        directory: null
