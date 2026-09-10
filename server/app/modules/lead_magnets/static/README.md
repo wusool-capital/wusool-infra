@@ -6,9 +6,12 @@ The four tool pages, `embed.js`, and their extracted images.
 from live tools and repointed; buyers is genuinely new — the Buyer Network
 never had a custom tool page, only a Tally form, so there was nothing to
 port. Its 9 fields plus consent match `BuyerApplyRequest` exactly, and its
-three multiselects (`org_type`, `target_geography`, `sector_focus`) use
-plain `<select multiple>` — no JS picker library, no custom chip UI — with
-every `<option>` generated from the same live Python option sets
+three multiselects (`org_type`, `target_geography`, `sector_focus`) are a
+plain, searchable, click-to-toggle widget of `<div class="ms-opt">` rows —
+no JS picker library, no custom chip UI — rather than a native
+`<select multiple>`, which needs ctrl/cmd+click to pick more than one
+option and isn't discoverable in a public lead form. Every option is
+generated from the same live Python option sets
 (`domain/buyer_network/buyer_network.py`,
 `domain/shared/sector_options.py`) rather than hand-typed, so there is
 nothing to transcribe wrong. `test_buyers_select_options_match_the_live_validation_sets`

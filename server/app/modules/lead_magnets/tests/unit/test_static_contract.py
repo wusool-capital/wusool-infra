@@ -156,7 +156,7 @@ def test_buyers_payload_field_names_match_the_request_schema() -> None:
 
 
 def test_buyers_select_options_match_the_live_validation_sets() -> None:
-    """A stale `<option>` here fails silently: the request schema itself
+    """A stale `.ms-opt` here fails silently: the request schema itself
     doesn't validate `org_type`/`target_geography`/`sector_focus` (only the
     background Attio write does), so a typo'd option would record the lead
     and then just silently fail to land in the CRM."""
@@ -168,12 +168,26 @@ def test_buyers_select_options_match_the_live_validation_sets() -> None:
 
     html = (static_dir() / "buyers" / "index.html").read_text()
 
-    def options_for(select_id: str) -> set[str]:
-        start = html.index(f'id="{select_id}"')
-        end = html.index("</select>", start)
+    def options_for(field_id: str) -> set[str]:
+        # The widget is `<div class="ms" id="{field_id}">...</div>`, with
+        # further nested `<div>`s inside (the list, each option row) — find
+        # its true closing tag by depth, not the first `</div>` seen.
+        marker = f'<div class="ms" id="{field_id}">'
+        i = html.index(marker) + len(marker)
+        depth = 1
+        while depth > 0:
+            next_open = html.find("<div", i)
+            next_close = html.index("</div>", i)
+            if next_open != -1 and next_open < next_close:
+                depth += 1
+                i = next_open + 4
+            else:
+                depth -= 1
+                i = next_close + len("</div>")
+        block = html[html.index(marker) : i]
         return {
             html_entities.unescape(v)
-            for v in re.findall(r'<option value="([^"]*)"', html[start:end])
+            for v in re.findall(r'class="ms-opt" data-value="([^"]*)"', block)
         }
 
     assert options_for("orgType") == ORGANIZATION_TYPE_OPTIONS

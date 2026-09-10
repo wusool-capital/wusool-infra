@@ -35,133 +35,145 @@
         </div>
 
         <div class="fg">
-          <label for="orgType">Organization type * <span class="hint-inline">select all that apply</span></label>
-          <select class="fi" id="orgType" name="orgType" multiple size="6" required>
-      <option value="Accelerator/Incubator">Accelerator/Incubator</option>
-      <option value="Angel Syndicate">Angel Syndicate</option>
-      <option value="Asset Management">Asset Management</option>
-      <option value="Association">Association</option>
-      <option value="Client: Advisory">Client: Advisory</option>
-      <option value="Client: Sell-Side">Client: Sell-Side</option>
-      <option value="Corporate">Corporate</option>
-      <option value="Corporate Venture Capital">Corporate Venture Capital</option>
-      <option value="Family Office">Family Office</option>
-      <option value="Fund of Fund">Fund of Fund</option>
-      <option value="M&amp;A Advisory">M&amp;A Advisory</option>
-      <option value="Multi-Family Office">Multi-Family Office</option>
-      <option value="Real Estate">Real Estate</option>
-      <option value="Roll">Roll</option>
-      <option value="Roll-up">Roll-up</option>
-      <option value="Search Fund">Search Fund</option>
-      <option value="Startup">Startup</option>
-      <option value="Venture Builder">Venture Builder</option>
-      <option value="Venture Capital">Venture Capital</option>
-      <option value="Venture Debt">Venture Debt</option>
-          </select>
+          <label for="orgTypeSearch">Organization type * <span class="hint-inline">click to select multiple</span></label>
+          <div class="ms" id="orgType">
+            <input type="text" class="ms-search" id="orgTypeSearch" placeholder="Search organization types…" autocomplete="off">
+            <div class="ms-list" role="listbox" aria-multiselectable="true">
+        <div class="ms-opt" data-value="Accelerator/Incubator" role="option" tabindex="0">Accelerator/Incubator</div>
+        <div class="ms-opt" data-value="Angel Syndicate" role="option" tabindex="0">Angel Syndicate</div>
+        <div class="ms-opt" data-value="Asset Management" role="option" tabindex="0">Asset Management</div>
+        <div class="ms-opt" data-value="Association" role="option" tabindex="0">Association</div>
+        <div class="ms-opt" data-value="Client: Advisory" role="option" tabindex="0">Client: Advisory</div>
+        <div class="ms-opt" data-value="Client: Sell-Side" role="option" tabindex="0">Client: Sell-Side</div>
+        <div class="ms-opt" data-value="Corporate" role="option" tabindex="0">Corporate</div>
+        <div class="ms-opt" data-value="Corporate Venture Capital" role="option" tabindex="0">Corporate Venture Capital</div>
+        <div class="ms-opt" data-value="Family Office" role="option" tabindex="0">Family Office</div>
+        <div class="ms-opt" data-value="Fund of Fund" role="option" tabindex="0">Fund of Fund</div>
+        <div class="ms-opt" data-value="M&amp;A Advisory" role="option" tabindex="0">M&amp;A Advisory</div>
+        <div class="ms-opt" data-value="Multi-Family Office" role="option" tabindex="0">Multi-Family Office</div>
+        <div class="ms-opt" data-value="Real Estate" role="option" tabindex="0">Real Estate</div>
+        <div class="ms-opt" data-value="Roll" role="option" tabindex="0">Roll</div>
+        <div class="ms-opt" data-value="Roll-up" role="option" tabindex="0">Roll-up</div>
+        <div class="ms-opt" data-value="Search Fund" role="option" tabindex="0">Search Fund</div>
+        <div class="ms-opt" data-value="Startup" role="option" tabindex="0">Startup</div>
+        <div class="ms-opt" data-value="Venture Builder" role="option" tabindex="0">Venture Builder</div>
+        <div class="ms-opt" data-value="Venture Capital" role="option" tabindex="0">Venture Capital</div>
+        <div class="ms-opt" data-value="Venture Debt" role="option" tabindex="0">Venture Debt</div>
+              <div class="ms-empty hide">No matches.</div>
+            </div>
+          </div>
         </div>
 
         <div class="fg">
-          <label for="targetGeography">Target geography * <span class="hint-inline">select all that apply</span></label>
-          <select class="fi" id="targetGeography" name="targetGeography" multiple size="6" required>
-      <option value="Bahrain">Bahrain</option>
-      <option value="GCC-wide">GCC-wide</option>
-      <option value="KSA">KSA</option>
-      <option value="Kuwait">Kuwait</option>
-      <option value="Oman">Oman</option>
-      <option value="Qatar">Qatar</option>
-      <option value="UAE">UAE</option>
-          </select>
+          <label for="targetGeographySearch">Target geography * <span class="hint-inline">click to select multiple</span></label>
+          <div class="ms" id="targetGeography">
+            <input type="text" class="ms-search" id="targetGeographySearch" placeholder="Search geographies…" autocomplete="off">
+            <div class="ms-list" role="listbox" aria-multiselectable="true">
+        <div class="ms-opt" data-value="Bahrain" role="option" tabindex="0">Bahrain</div>
+        <div class="ms-opt" data-value="GCC-wide" role="option" tabindex="0">GCC-wide</div>
+        <div class="ms-opt" data-value="KSA" role="option" tabindex="0">KSA</div>
+        <div class="ms-opt" data-value="Kuwait" role="option" tabindex="0">Kuwait</div>
+        <div class="ms-opt" data-value="Oman" role="option" tabindex="0">Oman</div>
+        <div class="ms-opt" data-value="Qatar" role="option" tabindex="0">Qatar</div>
+        <div class="ms-opt" data-value="UAE" role="option" tabindex="0">UAE</div>
+              <div class="ms-empty hide">No matches.</div>
+            </div>
+          </div>
         </div>
 
         <div class="fg">
-          <label for="sectorFocus">Sector focus * <span class="hint-inline">select all that apply</span></label>
-          <select class="fi" id="sectorFocus" name="sectorFocus" multiple size="8" required>
-      <option value="AI / ML">AI / ML</option>
-      <option value="Aerospace &amp; Defense">Aerospace &amp; Defense</option>
-      <option value="Agriculture / AgriTech">Agriculture / AgriTech</option>
-      <option value="Aquaculture / Forestry">Aquaculture / Forestry</option>
-      <option value="Asset Management">Asset Management</option>
-      <option value="Automotive">Automotive</option>
-      <option value="Aviation / Aircraft Leasing">Aviation / Aircraft Leasing</option>
-      <option value="B2B Business Services">B2B Business Services</option>
-      <option value="Banking / Commercial">Banking / Commercial</option>
-      <option value="Beauty &amp; Personal Care">Beauty &amp; Personal Care</option>
-      <option value="Biotech / Longevity">Biotech / Longevity</option>
-      <option value="Chemicals &amp; Petrochemicals">Chemicals &amp; Petrochemicals</option>
-      <option value="Clinic">Clinic</option>
-      <option value="Construction &amp; Engineering">Construction &amp; Engineering</option>
-      <option value="Consulting / Advisory">Consulting / Advisory</option>
-      <option value="Consumer &amp; Lifestyle Services">Consumer &amp; Lifestyle Services</option>
-      <option value="Creative / Arts &amp; Culture">Creative / Arts &amp; Culture</option>
-      <option value="Cybersecurity">Cybersecurity</option>
-      <option value="Dental / Specialist Clinics">Dental / Specialist Clinics</option>
-      <option value="Diversified / Generalist">Diversified / Generalist</option>
-      <option value="EdTech / Education">EdTech / Education</option>
-      <option value="Electrical Equipment">Electrical Equipment</option>
-      <option value="Energy Infrastructure">Energy Infrastructure</option>
-      <option value="Energy Storage / Services">Energy Storage / Services</option>
-      <option value="Enterprise Software">Enterprise Software</option>
-      <option value="FMCG / Consumer Goods">FMCG / Consumer Goods</option>
-      <option value="Family Office / Wealth Management">Family Office / Wealth Management</option>
-      <option value="FemTech / Mental Health">FemTech / Mental Health</option>
-      <option value="Financial Services">Financial Services</option>
-      <option value="Fintech">Fintech</option>
-      <option value="Food &amp; Beverage / QSR">Food &amp; Beverage / QSR</option>
-      <option value="Food Manufacturing / FoodTech">Food Manufacturing / FoodTech</option>
-      <option value="Gaming / Metaverse">Gaming / Metaverse</option>
-      <option value="Garage">Garage</option>
-      <option value="HR / Human Capital">HR / Human Capital</option>
-      <option value="Healthcare Services / Clinics">Healthcare Services / Clinics</option>
-      <option value="Healthtech / Digital Health">Healthtech / Digital Health</option>
-      <option value="Hospitality / Hotels / Tourism">Hospitality / Hotels / Tourism</option>
-      <option value="IT Services / Distribution">IT Services / Distribution</option>
-      <option value="Impact / ESG / Sustainability">Impact / ESG / Sustainability</option>
-      <option value="Industrial Manufacturing">Industrial Manufacturing</option>
-      <option value="Insurance / Insurtech">Insurance / Insurtech</option>
-      <option value="Investment Banking / M&amp;A Advisory">Investment Banking / M&amp;A Advisory</option>
-      <option value="Legal Services">Legal Services</option>
-      <option value="Logistics / 3PL / Freight">Logistics / 3PL / Freight</option>
-      <option value="Luxury / Fashion / Apparel">Luxury / Fashion / Apparel</option>
-      <option value="Marketing / AdTech">Marketing / AdTech</option>
-      <option value="Media / Entertainment / Gaming">Media / Entertainment / Gaming</option>
-      <option value="Medical Devices &amp; Supplies">Medical Devices &amp; Supplies</option>
-      <option value="Medical Education">Medical Education</option>
-      <option value="Mobility">Mobility</option>
-      <option value="Nursery">Nursery</option>
-      <option value="Oil &amp; Gas">Oil &amp; Gas</option>
-      <option value="Packaging &amp; Materials">Packaging &amp; Materials</option>
-      <option value="Pet Care">Pet Care</option>
-      <option value="Pharmaceuticals / Biotech">Pharmaceuticals / Biotech</option>
-      <option value="Private Credit / Debt">Private Credit / Debt</option>
-      <option value="Private Equity">Private Equity</option>
-      <option value="Property Management / Proptech">Property Management / Proptech</option>
-      <option value="Public Markets / Equities">Public Markets / Equities</option>
-      <option value="Real Assets">Real Assets</option>
-      <option value="Real Estate Development">Real Estate Development</option>
-      <option value="Renewable Energy / CleanTech">Renewable Energy / CleanTech</option>
-      <option value="Residential / Commercial Real Estate">Residential / Commercial Real Estate</option>
-      <option value="Retail / E-Commerce">Retail / E-Commerce</option>
-      <option value="Robotics / Automation">Robotics / Automation</option>
-      <option value="SaaS / Cloud">SaaS / Cloud</option>
-      <option value="Security Services">Security Services</option>
-      <option value="Semiconductors / Hardware">Semiconductors / Hardware</option>
-      <option value="Sharia-Compliant">Sharia-Compliant</option>
-      <option value="Shipping / Maritime">Shipping / Maritime</option>
-      <option value="Sovereign Wealth Fund">Sovereign Wealth Fund</option>
-      <option value="Space / Deep Tech">Space / Deep Tech</option>
-      <option value="Sports &amp; Wellness">Sports &amp; Wellness</option>
-      <option value="Steel / Metals / Mining">Steel / Metals / Mining</option>
-      <option value="Supply Chain / Distribution">Supply Chain / Distribution</option>
-      <option value="Technology">Technology</option>
-      <option value="Telecom / Connectivity">Telecom / Connectivity</option>
-      <option value="Trade &amp; Technical Services">Trade &amp; Technical Services</option>
-      <option value="Transportation">Transportation</option>
-      <option value="Utilities">Utilities</option>
-      <option value="Venture / Growth (Africa / MENA SME)">Venture / Growth (Africa / MENA SME)</option>
-      <option value="Venture Capital">Venture Capital</option>
-      <option value="Water / Waste Management">Water / Waste Management</option>
-      <option value="Web3 / Blockchain / Digital Assets">Web3 / Blockchain / Digital Assets</option>
-          </select>
+          <label for="sectorFocusSearch">Sector focus * <span class="hint-inline">click to select multiple</span></label>
+          <div class="ms" id="sectorFocus">
+            <input type="text" class="ms-search" id="sectorFocusSearch" placeholder="Search sectors…" autocomplete="off">
+            <div class="ms-list" role="listbox" aria-multiselectable="true">
+        <div class="ms-opt" data-value="AI / ML" role="option" tabindex="0">AI / ML</div>
+        <div class="ms-opt" data-value="Aerospace &amp; Defense" role="option" tabindex="0">Aerospace &amp; Defense</div>
+        <div class="ms-opt" data-value="Agriculture / AgriTech" role="option" tabindex="0">Agriculture / AgriTech</div>
+        <div class="ms-opt" data-value="Aquaculture / Forestry" role="option" tabindex="0">Aquaculture / Forestry</div>
+        <div class="ms-opt" data-value="Asset Management" role="option" tabindex="0">Asset Management</div>
+        <div class="ms-opt" data-value="Automotive" role="option" tabindex="0">Automotive</div>
+        <div class="ms-opt" data-value="Aviation / Aircraft Leasing" role="option" tabindex="0">Aviation / Aircraft Leasing</div>
+        <div class="ms-opt" data-value="B2B Business Services" role="option" tabindex="0">B2B Business Services</div>
+        <div class="ms-opt" data-value="Banking / Commercial" role="option" tabindex="0">Banking / Commercial</div>
+        <div class="ms-opt" data-value="Beauty &amp; Personal Care" role="option" tabindex="0">Beauty &amp; Personal Care</div>
+        <div class="ms-opt" data-value="Biotech / Longevity" role="option" tabindex="0">Biotech / Longevity</div>
+        <div class="ms-opt" data-value="Chemicals &amp; Petrochemicals" role="option" tabindex="0">Chemicals &amp; Petrochemicals</div>
+        <div class="ms-opt" data-value="Clinic" role="option" tabindex="0">Clinic</div>
+        <div class="ms-opt" data-value="Construction &amp; Engineering" role="option" tabindex="0">Construction &amp; Engineering</div>
+        <div class="ms-opt" data-value="Consulting / Advisory" role="option" tabindex="0">Consulting / Advisory</div>
+        <div class="ms-opt" data-value="Consumer &amp; Lifestyle Services" role="option" tabindex="0">Consumer &amp; Lifestyle Services</div>
+        <div class="ms-opt" data-value="Creative / Arts &amp; Culture" role="option" tabindex="0">Creative / Arts &amp; Culture</div>
+        <div class="ms-opt" data-value="Cybersecurity" role="option" tabindex="0">Cybersecurity</div>
+        <div class="ms-opt" data-value="Dental / Specialist Clinics" role="option" tabindex="0">Dental / Specialist Clinics</div>
+        <div class="ms-opt" data-value="Diversified / Generalist" role="option" tabindex="0">Diversified / Generalist</div>
+        <div class="ms-opt" data-value="EdTech / Education" role="option" tabindex="0">EdTech / Education</div>
+        <div class="ms-opt" data-value="Electrical Equipment" role="option" tabindex="0">Electrical Equipment</div>
+        <div class="ms-opt" data-value="Energy Infrastructure" role="option" tabindex="0">Energy Infrastructure</div>
+        <div class="ms-opt" data-value="Energy Storage / Services" role="option" tabindex="0">Energy Storage / Services</div>
+        <div class="ms-opt" data-value="Enterprise Software" role="option" tabindex="0">Enterprise Software</div>
+        <div class="ms-opt" data-value="FMCG / Consumer Goods" role="option" tabindex="0">FMCG / Consumer Goods</div>
+        <div class="ms-opt" data-value="Family Office / Wealth Management" role="option" tabindex="0">Family Office / Wealth Management</div>
+        <div class="ms-opt" data-value="FemTech / Mental Health" role="option" tabindex="0">FemTech / Mental Health</div>
+        <div class="ms-opt" data-value="Financial Services" role="option" tabindex="0">Financial Services</div>
+        <div class="ms-opt" data-value="Fintech" role="option" tabindex="0">Fintech</div>
+        <div class="ms-opt" data-value="Food &amp; Beverage / QSR" role="option" tabindex="0">Food &amp; Beverage / QSR</div>
+        <div class="ms-opt" data-value="Food Manufacturing / FoodTech" role="option" tabindex="0">Food Manufacturing / FoodTech</div>
+        <div class="ms-opt" data-value="Gaming / Metaverse" role="option" tabindex="0">Gaming / Metaverse</div>
+        <div class="ms-opt" data-value="Garage" role="option" tabindex="0">Garage</div>
+        <div class="ms-opt" data-value="HR / Human Capital" role="option" tabindex="0">HR / Human Capital</div>
+        <div class="ms-opt" data-value="Healthcare Services / Clinics" role="option" tabindex="0">Healthcare Services / Clinics</div>
+        <div class="ms-opt" data-value="Healthtech / Digital Health" role="option" tabindex="0">Healthtech / Digital Health</div>
+        <div class="ms-opt" data-value="Hospitality / Hotels / Tourism" role="option" tabindex="0">Hospitality / Hotels / Tourism</div>
+        <div class="ms-opt" data-value="IT Services / Distribution" role="option" tabindex="0">IT Services / Distribution</div>
+        <div class="ms-opt" data-value="Impact / ESG / Sustainability" role="option" tabindex="0">Impact / ESG / Sustainability</div>
+        <div class="ms-opt" data-value="Industrial Manufacturing" role="option" tabindex="0">Industrial Manufacturing</div>
+        <div class="ms-opt" data-value="Insurance / Insurtech" role="option" tabindex="0">Insurance / Insurtech</div>
+        <div class="ms-opt" data-value="Investment Banking / M&amp;A Advisory" role="option" tabindex="0">Investment Banking / M&amp;A Advisory</div>
+        <div class="ms-opt" data-value="Legal Services" role="option" tabindex="0">Legal Services</div>
+        <div class="ms-opt" data-value="Logistics / 3PL / Freight" role="option" tabindex="0">Logistics / 3PL / Freight</div>
+        <div class="ms-opt" data-value="Luxury / Fashion / Apparel" role="option" tabindex="0">Luxury / Fashion / Apparel</div>
+        <div class="ms-opt" data-value="Marketing / AdTech" role="option" tabindex="0">Marketing / AdTech</div>
+        <div class="ms-opt" data-value="Media / Entertainment / Gaming" role="option" tabindex="0">Media / Entertainment / Gaming</div>
+        <div class="ms-opt" data-value="Medical Devices &amp; Supplies" role="option" tabindex="0">Medical Devices &amp; Supplies</div>
+        <div class="ms-opt" data-value="Medical Education" role="option" tabindex="0">Medical Education</div>
+        <div class="ms-opt" data-value="Mobility" role="option" tabindex="0">Mobility</div>
+        <div class="ms-opt" data-value="Nursery" role="option" tabindex="0">Nursery</div>
+        <div class="ms-opt" data-value="Oil &amp; Gas" role="option" tabindex="0">Oil &amp; Gas</div>
+        <div class="ms-opt" data-value="Packaging &amp; Materials" role="option" tabindex="0">Packaging &amp; Materials</div>
+        <div class="ms-opt" data-value="Pet Care" role="option" tabindex="0">Pet Care</div>
+        <div class="ms-opt" data-value="Pharmaceuticals / Biotech" role="option" tabindex="0">Pharmaceuticals / Biotech</div>
+        <div class="ms-opt" data-value="Private Credit / Debt" role="option" tabindex="0">Private Credit / Debt</div>
+        <div class="ms-opt" data-value="Private Equity" role="option" tabindex="0">Private Equity</div>
+        <div class="ms-opt" data-value="Property Management / Proptech" role="option" tabindex="0">Property Management / Proptech</div>
+        <div class="ms-opt" data-value="Public Markets / Equities" role="option" tabindex="0">Public Markets / Equities</div>
+        <div class="ms-opt" data-value="Real Assets" role="option" tabindex="0">Real Assets</div>
+        <div class="ms-opt" data-value="Real Estate Development" role="option" tabindex="0">Real Estate Development</div>
+        <div class="ms-opt" data-value="Renewable Energy / CleanTech" role="option" tabindex="0">Renewable Energy / CleanTech</div>
+        <div class="ms-opt" data-value="Residential / Commercial Real Estate" role="option" tabindex="0">Residential / Commercial Real Estate</div>
+        <div class="ms-opt" data-value="Retail / E-Commerce" role="option" tabindex="0">Retail / E-Commerce</div>
+        <div class="ms-opt" data-value="Robotics / Automation" role="option" tabindex="0">Robotics / Automation</div>
+        <div class="ms-opt" data-value="SaaS / Cloud" role="option" tabindex="0">SaaS / Cloud</div>
+        <div class="ms-opt" data-value="Security Services" role="option" tabindex="0">Security Services</div>
+        <div class="ms-opt" data-value="Semiconductors / Hardware" role="option" tabindex="0">Semiconductors / Hardware</div>
+        <div class="ms-opt" data-value="Sharia-Compliant" role="option" tabindex="0">Sharia-Compliant</div>
+        <div class="ms-opt" data-value="Shipping / Maritime" role="option" tabindex="0">Shipping / Maritime</div>
+        <div class="ms-opt" data-value="Sovereign Wealth Fund" role="option" tabindex="0">Sovereign Wealth Fund</div>
+        <div class="ms-opt" data-value="Space / Deep Tech" role="option" tabindex="0">Space / Deep Tech</div>
+        <div class="ms-opt" data-value="Sports &amp; Wellness" role="option" tabindex="0">Sports &amp; Wellness</div>
+        <div class="ms-opt" data-value="Steel / Metals / Mining" role="option" tabindex="0">Steel / Metals / Mining</div>
+        <div class="ms-opt" data-value="Supply Chain / Distribution" role="option" tabindex="0">Supply Chain / Distribution</div>
+        <div class="ms-opt" data-value="Technology" role="option" tabindex="0">Technology</div>
+        <div class="ms-opt" data-value="Telecom / Connectivity" role="option" tabindex="0">Telecom / Connectivity</div>
+        <div class="ms-opt" data-value="Trade &amp; Technical Services" role="option" tabindex="0">Trade &amp; Technical Services</div>
+        <div class="ms-opt" data-value="Transportation" role="option" tabindex="0">Transportation</div>
+        <div class="ms-opt" data-value="Utilities" role="option" tabindex="0">Utilities</div>
+        <div class="ms-opt" data-value="Venture / Growth (Africa / MENA SME)" role="option" tabindex="0">Venture / Growth (Africa / MENA SME)</div>
+        <div class="ms-opt" data-value="Venture Capital" role="option" tabindex="0">Venture Capital</div>
+        <div class="ms-opt" data-value="Water / Waste Management" role="option" tabindex="0">Water / Waste Management</div>
+        <div class="ms-opt" data-value="Web3 / Blockchain / Digital Assets" role="option" tabindex="0">Web3 / Blockchain / Digital Assets</div>
+              <div class="ms-empty hide">No matches.</div>
+            </div>
+          </div>
         </div>
 
         <div class="grid">

@@ -223,6 +223,23 @@ delivered state and outstanding items see
   fake Ports it has no use for. Purely additive: `Pipelines` and
   `SubmissionService` are unchanged, every existing test against them
   passes unmodified.
+- Buyer Network's three multiselects (`org_type`, `target_geography`,
+  `sector_focus`) replaced the native `<select multiple>` with a plain,
+  searchable, click-to-toggle widget — no library, matching this page's
+  existing vanilla-JS style. The native control needed ctrl/cmd+click to
+  pick more than one option, which is not discoverable in a public lead
+  form; a plain click now toggles a row independently of any other
+  selection, and typing filters the list (useful on `sector_focus`'s 85
+  options). Every `<option>` was regenerated from the same live Python
+  option sets as before (`domain/buyer_network/buyer_network.py`,
+  `domain/shared/sector_options.py`), not hand-edited, and
+  `test_buyers_select_options_match_the_live_validation_sets` was updated
+  to parse the new markup rather than the old `<select>`. Verified with a
+  full headless run: typed "fintech" into the 85-option sector list and
+  confirmed it narrowed to one match, clicked two unrelated options with
+  plain clicks and confirmed both stayed selected, clicked one again and
+  confirmed it toggled off, then submitted and confirmed the POST body
+  carried every selection correctly.
 
 ### Fixed
 
