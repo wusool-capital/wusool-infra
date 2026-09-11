@@ -7,7 +7,11 @@ validation, not end-to-end.
 from datetime import date
 
 from app.modules.enrichment.domain.field_plans import enrichable_fields_for
-from app.modules.enrichment.providers.diffbot.client import _map_entity, _parse_founding_date
+from app.modules.enrichment.providers.diffbot.client import (
+    _REQUEST_TIMEOUT,
+    _map_entity,
+    _parse_founding_date,
+)
 from app.modules.enrichment.providers.diffbot.schemas import (
     DiffbotCountry,
     DiffbotDate,
@@ -112,3 +116,11 @@ def test_parse_founding_date_strips_diffbots_precision_prefix() -> None:
 def test_parse_founding_date_rejects_unparseable_input() -> None:
     assert _parse_founding_date("not-a-date") is None
     assert _parse_founding_date("") is None
+
+
+def test_request_timeout_is_bounded() -> None:
+    """A background enrichment run must not hang on aiohttp's 300s default
+    when Diffbot is slow or unreachable.
+    """
+    assert _REQUEST_TIMEOUT.total is not None
+    assert 0 < _REQUEST_TIMEOUT.total <= 30

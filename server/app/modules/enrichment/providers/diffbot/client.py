@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 
 _ENHANCE_URL = "https://kg.diffbot.com/kg/v3/enhance"
 _PROVIDER_NAME = "Diffbot"
+# A structured lookup, not a scrape — aiohttp's 300s default would leave a
+# background enrichment run hanging far longer than a hung Diffbot call is
+# ever worth waiting on for one field of nine.
+_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 
 def _parse_founding_date(raw: str) -> date | None:
@@ -91,7 +95,7 @@ class DiffbotCompanyDataClient:
     ) -> list[CompanyDataField]:
         requested = {f.name for f in fields}
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=_REQUEST_TIMEOUT) as session:
                 async with session.get(
                     _ENHANCE_URL,
                     params={"token": self._api_key, "type": "Organization", "name": org_name},

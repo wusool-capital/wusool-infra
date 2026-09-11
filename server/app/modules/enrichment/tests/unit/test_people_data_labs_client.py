@@ -2,11 +2,22 @@
 
 from datetime import date
 
-from app.modules.enrichment.providers.people_data_labs.client import _map_response
+from app.modules.enrichment.providers.people_data_labs.client import (
+    _REQUEST_TIMEOUT,
+    _map_response,
+)
 from app.modules.enrichment.providers.people_data_labs.schemas import (
     PdlCompanyResponse,
     PdlLocation,
 )
+
+
+def test_request_timeout_is_bounded() -> None:
+    """A background enrichment run must not hang on aiohttp's 300s default
+    when PDL is slow or unreachable.
+    """
+    assert _REQUEST_TIMEOUT.total is not None
+    assert 0 < _REQUEST_TIMEOUT.total <= 30
 
 
 def test_map_response_resolves_requested_fields_only() -> None:

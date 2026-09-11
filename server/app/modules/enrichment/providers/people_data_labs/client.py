@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 _ENRICH_URL = "https://api.peopledatalabs.com/v5/company/enrich"
 _PROVIDER_NAME = "People Data Labs"
+# A structured lookup, not a scrape — same reasoning as Diffbot's own
+# `_REQUEST_TIMEOUT` (aiohttp's 300s default would hang a background
+# enrichment run far longer than this one field is worth waiting on).
+_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 
 def _map_response(parsed: PdlCompanyResponse, requested: set[str]) -> list[CompanyDataField]:
@@ -66,7 +70,7 @@ class PeopleDataLabsCompanyDataClient:
     ) -> list[CompanyDataField]:
         requested = {f.name for f in fields}
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=_REQUEST_TIMEOUT) as session:
                 async with session.get(
                     _ENRICH_URL, params={"api_key": self._api_key, "name": org_name}
                 ) as resp:
