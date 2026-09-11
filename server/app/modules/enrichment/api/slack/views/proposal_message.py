@@ -13,19 +13,22 @@ ordinary edit-form write path.
 import json
 import uuid
 from datetime import date
-from typing import Any
 
 from slack_sdk.models.blocks import Block, ContextBlock, DividerBlock, SectionBlock
 from slack_sdk.models.blocks.basic_components import MarkdownTextObject
 from slack_sdk.models.blocks.block_elements import ButtonElement
 
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_by_name_for
-from app.modules.enrichment.domain.proposals import EnrichmentProposal, ProposedFieldValue
+from app.modules.enrichment.domain.proposals import (
+    EnrichmentProposal,
+    FieldValue,
+    ProposedFieldValue,
+)
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.notifications import sanitize_mrkdwn
 
 
-def _json_safe(value: Any) -> Any:
+def _json_safe(value: FieldValue) -> FieldValue:
     """`ProposedFieldValue.proposed` can be a native `date` (coerced in
     `EnrichMixin`) — `json.dumps` can't serialize that, so it goes into the
     button value as an ISO string; `decode_proposal` converts it back for
