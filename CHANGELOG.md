@@ -13,6 +13,45 @@ delivered state and outstanding items see
 
 ### Changed
 
+- Two more raw-JSON seams in `lead_magnets` converted to Pydantic, found by
+  a sweep for remaining `JsonObject`/untyped-dict usage:
+  - `/analyze` (`api/valuation/endpoints.py`) had no `response_model` — a
+    client generated from `/openapi.json` would have typed it `unknown`,
+    the one endpoint of five not fully typed on the wire. Added
+    `AnalyzeResponse` (`api/schemas.py`), every field but `pros`/`cons`/
+    `insights` optional since `ValuationAi.analyze` genuinely returns a
+    partial shape on a Bedrock failure (its deterministic fallback). New
+    `test_analyze_response_model_accepts_both_the_full_and_fallback_shape`
+    pins both real shapes against it.
+  - `bootstrap.py::_RoleAttioWriter.write` — the concrete `AttioWriterPort`
+    composition-root implementation — read `payload.get("domain")`,
+    `payload.get("company") or payload.get("company_name")`,
+    `payload.get("peer_key") or payload.get("sector")`, and hand-filtered
+    `org_type`/`sector_focus` with `isinstance(v, str)`, independently of
+    `pipelines.py`'s already-existing per-tool payload models. Now parses
+    through those same stored-payload models: a new, smaller
+    `AttioIdentityPayload` (domain, company, peer_key, sector) for the
+    benchmark/valuation/readiness branch — a separate model rather than
+    added fields on `BenchmarkPayload` etc., since none of those exist to
+    serve this call site — and the existing `BuyerNetworkPayload` (now with
+    a `domain` field) for the buyer branch. One real behaviour change: a
+    non-string `org_type`/`sector_focus` entry in a stored payload now
+    raises instead of being silently dropped, matching this module's
+    established "raise rather than default" rule
+    (`UnmappedSectorError`) — pinned by a new
+    `test_write_rejects_a_non_string_org_type_entry`. Every real request
+    already validates these as `list[str]` at the API boundary before
+    storage, so this cannot fire on any live path, only a corrupted row.
+  - Left deliberately untouched: `AttioWriterPort`/`ToolRunsPort`'s
+    `payload`/`ai` (genuinely tool-agnostic — `submit.py` and the sweeper
+    must work identically regardless of which tool's shape they're
+    carrying), `attio_values.py`'s `dict[str, object]` return (already a
+    generic Attio attribute-slug bag, the same shape the rest of the
+    codebase uses for Attio writes), and `valuation_data.py`'s private
+    `_raw()` loader (every public accessor already converts its result
+    into a typed frozen dataclass one line later; wrapping the loader
+    itself would just validate a static shipped file twice for no gain).
+
 - Four closed string vocabularies in `lead_magnets/domain/` converted to
   `StrEnum`s so a typo fails at definition time instead of silently
   producing a dead dict entry or a missing lookup:

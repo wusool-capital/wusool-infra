@@ -105,15 +105,19 @@ allowlists `pydantic` for exactly that one file path, nothing else. Four
 families of type live there:
 
 - **Stored-payload models** (`BenchmarkPayload`, `ReadinessPayload`,
-  `ValuationPayload`, `BuyerNetworkPayload`) type `tool_runs.payload`, one
-  per tool, mirroring the corresponding `api/schemas.py` request.
-  `pipelines.py` parses it with `SomePayload.model_validate(payload)`
-  instead of `payload.get(key)` plus a manual `isinstance` check per field.
-  Deliberately permissive (`extra="ignore"`, no re-declared `ge`/`le`/
-  length constraints): the data was already strictly validated once at the
-  API boundary, and the stored dict also picks up the write contract's own
-  bookkeeping keys later (`stage`, `ai`, `attio`, readiness's `score`) that
-  these models were never meant to reject.
+  `ValuationPayload`, `BuyerNetworkPayload`, `AttioIdentityPayload`) type
+  `tool_runs.payload`, one per tool, mirroring the corresponding
+  `api/schemas.py` request. `pipelines.py` parses it with
+  `SomePayload.model_validate(payload)` instead of `payload.get(key)` plus a
+  manual `isinstance` check per field — `bootstrap.py::_RoleAttioWriter.write`
+  does the same, via the smaller `AttioIdentityPayload` (domain, company
+  name, sector) since it reads a different subset of fields than any one
+  tool's own pipeline model does. Deliberately permissive (`extra="ignore"`,
+  no re-declared `ge`/`le`/length constraints): the data was already
+  strictly validated once at the API boundary, and the stored dict also
+  picks up the write contract's own bookkeeping keys later (`stage`, `ai`,
+  `attio`, readiness's `score`) that these models were never meant to
+  reject.
 - **Bedrock response models** (`EnrichResult`, `AnalyzeResult`,
   `SearchQueries`, `CompareResult`, `ReadinessResult`, `InternalNote`) are
   what `LeadLLMPort`'s seven methods actually return — moved here from

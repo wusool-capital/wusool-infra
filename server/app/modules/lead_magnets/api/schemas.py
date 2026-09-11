@@ -217,6 +217,66 @@ class AnalyzeRequest(_Strict):
     stage: str | None = Field(default=None, max_length=100)
 
 
+class TitledPointOut(BaseModel):
+    title: str
+    body: str
+
+
+class DiscountsOut(BaseModel):
+    revenue_discount_pct: float
+    ebitda_discount_pct: float
+
+
+class DcfOverridesOut(BaseModel):
+    """Sector assumptions the analyst overrides. Field names are the page's
+    own — see `domain/shared/schemas.py::DcfOverrides`, which this mirrors."""
+
+    revGrowth: float
+    ebitMarginImpr: float
+    daaPct: float
+    capexPct: float
+    nwcPct: float
+    termGrowth: float
+
+
+class ScoredDimensionOut(BaseModel):
+    score: float
+    note: str
+
+
+class FundraiseScoresOut(BaseModel):
+    revenue_scale: ScoredDimensionOut
+    profitability: ScoredDimensionOut
+    market_context: ScoredDimensionOut
+    overall_grade: str
+    overall_label: str
+    summary: str
+
+
+class AnalyzeResponse(BaseModel):
+    """Every field but `pros`/`cons`/`insights` is optional: a Bedrock
+    failure makes `ValuationAi.analyze` fall back to
+    `generate_strategic_analysis`'s deterministic pros/cons/insights only
+    (its `except` branch), so this response is genuinely partial on
+    failure, not absent. Was returned as a schema-free `JsonObject` — a
+    client generated from `/openapi.json` would have typed it `unknown`,
+    the one endpoint of five not fully typed on the wire.
+    """
+
+    sector_fit: Literal["good", "poor"] | None = None
+    closest_existing_sector: str | None = None
+    effective_sector: str | None = None
+    rationale: str | None = None
+    discounts: DiscountsOut | None = None
+    dcf: DcfOverridesOut | None = None
+    transaction_search_terms: list[str] = Field(default_factory=list)
+    vc_search_terms: list[str] = Field(default_factory=list)
+    pros: list[TitledPointOut]
+    cons: list[TitledPointOut]
+    insights: list[TitledPointOut]
+    fundraise: FundraiseScoresOut | None = None
+
+
 class CompareRequest(_Strict):
     company: str = Field(min_length=1, max_length=200)
     sector: str = Field(default="", max_length=200)

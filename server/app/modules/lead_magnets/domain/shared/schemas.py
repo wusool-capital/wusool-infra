@@ -12,11 +12,13 @@ these — only this one file does, so the allowlist stays narrow.
 Two families here, deliberately validated differently:
 
 - **Stored-payload models** (`BenchmarkPayload`, `ReadinessPayload`,
-  `ValuationPayload`, `BuyerNetworkPayload`) parse `tool_runs.payload` back
-  out — `payload.get(key)` plus a manual `isinstance` check per field (the
-  `num()`/`text()`/`count()` closures `pipelines.py` used to repeat once
-  per tool) is exactly the class of bug Pydantic exists to remove.
-  Deliberately permissive (`extra="ignore"`, no min/max/`ge`/`le`
+  `ValuationPayload`, `BuyerNetworkPayload`, `AttioIdentityPayload`) parse
+  `tool_runs.payload` back out — `payload.get(key)` plus a manual
+  `isinstance` check per field (the `num()`/`text()`/`count()` closures
+  `pipelines.py` used to repeat once per tool, and the same pattern
+  `bootstrap.py::_RoleAttioWriter.write` repeated again for Attio's own
+  organisation-identity fields) is exactly the class of bug Pydantic exists
+  to remove. Deliberately permissive (`extra="ignore"`, no min/max/`ge`/`le`
   constraints re-declared from `api/schemas.py`): the data was already
   strictly validated once, at the API boundary, before it was stored, and
   the stored dict also picks up the write contract's own bookkeeping keys
@@ -149,6 +151,23 @@ class BuyerNetworkPayload(_Payload):
     check_size_min: float | None = None
     check_size_max: float | None = None
     prior_gcc_acquisition: str | None = None
+    domain: str | None = None
+
+
+class AttioIdentityPayload(_Payload):
+    """The organisation-identity fields `bootstrap.py::_RoleAttioWriter.write`
+    reads from a benchmark/valuation/readiness payload to route the write and
+    run Postgres-side dedup — a separate, smaller model from
+    `BenchmarkPayload`/`ValuationPayload`/`ReadinessPayload` above rather than
+    added fields on all three, since none of those exist to serve this call
+    site (they mirror what each tool's own scoring/AI step reads) and the
+    sector field's name differs by tool: `peer_key` for benchmark, `sector`
+    for valuation and readiness."""
+
+    domain: str | None = None
+    company: str = ""
+    peer_key: str = ""
+    sector: str | None = None
 
 
 # ===== Bedrock response models — see the module docstring =====

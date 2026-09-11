@@ -9,6 +9,7 @@ import asyncio
 from dataclasses import dataclass, field
 
 import pytest
+from pydantic import ValidationError
 
 from app.modules.lead_magnets import bootstrap
 
@@ -142,3 +143,18 @@ async def test_write_dedups_buyer_role_the_same_way() -> None:
     )
 
     assert writer.buyer_calls[0]["organization_attio_id"] == "org-1"
+
+
+async def test_write_rejects_a_non_string_org_type_entry() -> None:
+    """`payload` is now parsed through `BuyerNetworkPayload` rather than a
+    manual `isinstance` filter — a malformed stored row now fails loudly
+    instead of silently dropping the bad entry, matching this module's
+    established "raise rather than default" rule (`UnmappedSectorError`)."""
+    role_attio_writer = bootstrap._RoleAttioWriter(_FakeRoleWriter(), _FakeOrganizations([]))
+
+    with pytest.raises(ValidationError):
+        await role_attio_writer.write(
+            tool="buyer_network",
+            payload={"org_name": "Acme", "org_type": ["PE Fund", 123]},
+            ai={},
+        )

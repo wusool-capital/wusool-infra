@@ -22,6 +22,10 @@ from app.modules.lead_magnets.domain.shared.dedup import (
     normalise_domain,
     normalise_name,
 )
+from app.modules.lead_magnets.domain.shared.schemas import (
+    AttioIdentityPayload,
+    BuyerNetworkPayload,
+)
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.database import get_sessionmaker
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
@@ -89,26 +93,32 @@ class _RoleAttioWriter:
         entry_values = ai.get("entry_values")
         if not isinstance(entry_values, dict):
             entry_values = {}
-        domain = payload.get("domain")
+
         if tool == "buyer_network":
-            name = payload.get("org_name") or "Unknown"
+            buyer = BuyerNetworkPayload.model_validate(payload)
+            name = buyer.org_name or "Unknown"
             return await self._writer.write_buyer_role(
                 organization_name=name,
-                domain=domain,
-                org_type=[v for v in payload.get("org_type") or [] if isinstance(v, str)],
-                sector_focus=[v for v in payload.get("sector_focus") or [] if isinstance(v, str)],
+                domain=buyer.domain,
+                org_type=buyer.org_type,
+                sector_focus=buyer.sector_focus,
                 entry_values=entry_values,
-                organization_attio_id=await self._find_existing_org(name=name, domain=domain),
+                organization_attio_id=await self._find_existing_org(name=name, domain=buyer.domain),
             )
-        name = payload.get("company") or payload.get("company_name") or "Unknown"
+
+        seller = AttioIdentityPayload.model_validate(payload)
+        # `company_name` is not a field any real request ever sends — kept as
+        # a raw fallback rather than promoted onto `AttioIdentityPayload`,
+        # matching the pre-existing behaviour exactly.
+        name = seller.company or payload.get("company_name") or "Unknown"
         return await self._writer.write_seller_role(
             organization_name=name,
-            domain=domain,
+            domain=seller.domain,
             entry_values=entry_values,
             # The tool's own value; the writer maps it and raises on an
             # unknown one rather than dropping it.
-            sector=payload.get("peer_key") or payload.get("sector"),
-            organization_attio_id=await self._find_existing_org(name=name, domain=domain),
+            sector=seller.peer_key or seller.sector,
+            organization_attio_id=await self._find_existing_org(name=name, domain=seller.domain),
         )
 
 

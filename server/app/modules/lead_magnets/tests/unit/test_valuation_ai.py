@@ -7,6 +7,7 @@ parses, it is just wrong.
 
 import pytest
 
+from app.modules.lead_magnets.api.schemas import AnalyzeResponse
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.domain.shared.prompts import (
     analyze_prompt,
@@ -487,3 +488,39 @@ async def test_analyze_success_never_touches_the_fallback() -> None:
     # exist on the real success path.
     assert result["sector_fit"] == "good"
     assert "discounts" in result and "dcf" in result and "fundraise" in result
+
+
+async def test_analyze_response_model_accepts_both_the_full_and_fallback_shape() -> None:
+    """`/analyze`'s `response_model=AnalyzeResponse` (api/valuation/endpoints.py)
+    must validate whatever `ValuationAi.analyze` can actually return —
+    the full `AnalyzeResult` shape on success, and the pros/cons/insights-only
+    dict on a Bedrock failure. Was a schema-free `JsonObject`; this is the
+    regression guard for the two real shapes that can now reach it."""
+    fallback_result = await ValuationAi(_FakeLlm(analyze_raises=True), _FakeSearch()).analyze(
+        company="Acme",
+        domain="acme.com",
+        sector="",
+        description="",
+        geography="",
+        revenue=0,
+        ebitda=0,
+    )
+    fallback_response = AnalyzeResponse(**fallback_result)
+    assert fallback_response.sector_fit is None
+    assert fallback_response.fundraise is None
+    assert len(fallback_response.pros) == 3
+
+    full_result = await ValuationAi(
+        _FakeLlm(analyze={"sector_fit": "good"}), _FakeSearch()
+    ).analyze(
+        company="Acme",
+        domain="acme.com",
+        sector="",
+        description="",
+        geography="",
+        revenue=0,
+        ebitda=0,
+    )
+    full_response = AnalyzeResponse(**full_result)
+    assert full_response.sector_fit == "good"
+    assert full_response.fundraise is not None

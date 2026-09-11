@@ -16,6 +16,7 @@ from app.modules.lead_magnets.api.dependencies import (
 )
 from app.modules.lead_magnets.api.schemas import (
     AnalyzeRequest,
+    AnalyzeResponse,
     ComparableOut,
     CompareRequest,
     CompareResponse,
@@ -35,7 +36,6 @@ from app.modules.lead_magnets.domain.valuation.valuation_methods import (
     ValuationInputs,
     value_company,
 )
-from app.modules.utilities.domain.json_types import JsonObject
 
 router = APIRouter(
     tags=["lead-magnets"],
@@ -54,8 +54,8 @@ async def enrich(request: EnrichRequest) -> EnrichResponse:
     return EnrichResponse(description=result.description, sector=result.sector)
 
 
-@router.post("/analyze")
-async def analyze(request: AnalyzeRequest) -> JsonObject:
+@router.post("/analyze", response_model=AnalyzeResponse)
+async def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
     """Sector judgement, discounts, DCF overrides, the strategic read and the
     readiness scorecard — the merge of what were separate calls.
 
@@ -66,7 +66,7 @@ async def analyze(request: AnalyzeRequest) -> JsonObject:
     falls back to the deterministic pros/cons/insights, so the response is
     partial rather than absent.
     """
-    return await build_valuation_ai().analyze(
+    result = await build_valuation_ai().analyze(
         company=request.company,
         domain=request.domain,
         sector=request.sector,
@@ -78,6 +78,7 @@ async def analyze(request: AnalyzeRequest) -> JsonObject:
         raised=request.raised,
         stage=request.stage,
     )
+    return AnalyzeResponse(**result)
 
 
 @router.post("/compare", response_model=CompareResponse)
