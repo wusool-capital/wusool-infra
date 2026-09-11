@@ -46,24 +46,22 @@ async def db_session():
 
 
 @pytest.fixture
-async def db_sessionmaker():
-    """Like `db_session`, but yields a sessionmaker — for
-    `SqlAlchemyRoleReader`, which opens its own short-lived session."""
-    engine = get_engine()
-    try:
-        conn = await engine.connect()
-    except Exception as exc:
-        pytest.skip(f"database not reachable: {exc}")
+def db_sessionmaker(db_session: AsyncSession) -> async_sessionmaker[AsyncSession]:
+    """For `SqlAlchemyRoleReader`, which opens its own short-lived session —
+    bound to `db_session`'s own connection/transaction, not a fresh one.
 
-    trans = await conn.begin()
-    maker = async_sessionmaker(
-        bind=conn, join_transaction_mode="create_savepoint", expire_on_commit=False
+    A separate `engine.connect()` here (the original shape of this fixture)
+    opens an independent connection: under READ COMMITTED isolation, a row
+    the test only `flush()`ed via `db_session` (never committed, by design —
+    `db_session`'s rollback-at-teardown is what keeps this suite from
+    mutating real data) is invisible to any query issued through that other
+    connection. `SqlAlchemyRoleReader.current_values` would silently see
+    `None` for every field the test just seeded — confirmed live via a real
+    Postgres tunnel, not just a theoretical isolation concern.
+    """
+    return async_sessionmaker(
+        bind=db_session.bind, join_transaction_mode="create_savepoint", expire_on_commit=False
     )
-    try:
-        yield maker
-    finally:
-        await trans.rollback()
-        await conn.close()
 
 
 @pytest.fixture
