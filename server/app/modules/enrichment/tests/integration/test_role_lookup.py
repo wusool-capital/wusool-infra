@@ -61,3 +61,54 @@ async def test_current_values_for_a_missing_role_returns_none_for_role_fields(
     values = await SqlAlchemyRoleReader(db_sessionmaker).current_values(target)
 
     assert values["est_revenue"] is None
+
+
+async def test_company_context_reads_organization_disambiguators(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    org = Organization(
+        attio_id=f"test-org-{uuid.uuid4()}",
+        name="Raoof Plus",
+        domains=["raoofplus.com"],
+        sector_focus=["Utilities", "Cybersecurity"],
+        hq_country="US",
+        linkedin="https://linkedin.com/company/raoofplus",
+    )
+    db_session.add(org)
+    await db_session.flush()
+
+    role = SellerRole(id=uuid.uuid4(), org_attio_id=org.attio_id, is_active=True)
+    db_session.add(role)
+    await db_session.flush()
+
+    target = EnrichmentTarget(
+        kind=EnrichmentTargetKind.SELLER,
+        role_id=role.id,
+        org_attio_id=org.attio_id,
+        org_name=org.name,
+    )
+    context = await SqlAlchemyRoleReader(db_sessionmaker).company_context(target)
+
+    assert context.domains == ("raoofplus.com",)
+    assert context.sector_focus == ("Utilities", "Cybersecurity")
+    assert context.hq_country == "US"
+    assert context.linkedin == "https://linkedin.com/company/raoofplus"
+
+
+async def test_company_context_for_a_missing_role_falls_back_to_bare_name(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Ghost Org")
+    db_session.add(org)
+    await db_session.flush()
+
+    target = EnrichmentTarget(
+        kind=EnrichmentTargetKind.SELLER,
+        role_id=uuid.uuid4(),  # no such role row exists
+        org_attio_id=org.attio_id,
+        org_name=org.name,
+    )
+    context = await SqlAlchemyRoleReader(db_sessionmaker).company_context(target)
+
+    assert context.org_name == "Ghost Org"
+    assert context.domains == ()

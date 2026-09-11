@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models import BuyerRole, SellerRole
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_for
+from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -82,3 +83,30 @@ class SqlAlchemyRoleReader:
             source = role if field.write_target is role_write_target else org
             values[field.name] = getattr(source, field.name, None) if source is not None else None
         return values
+
+    async def company_context(self, target: EnrichmentTarget) -> CompanyContext:
+        role_model = BuyerRole if target.kind is EnrichmentTargetKind.BUYER else SellerRole
+
+        async with self._sessionmaker() as session:
+            role = (
+                await session.execute(
+                    select(role_model)
+                    .where(role_model.id == target.role_id)
+                    .options(selectinload(role_model.organization))
+                )
+            ).scalar_one_or_none()
+
+        org = role.organization if role is not None else None
+        if org is None:
+            return CompanyContext(org_name=target.org_name)
+
+        return CompanyContext(
+            org_name=target.org_name,
+            domains=tuple(org.domains or ()),
+            sector_focus=tuple(org.sector_focus or ()),
+            categories=tuple(org.categories or ()),
+            hq_country=org.hq_country,
+            geographic_focus=tuple(org.geographic_focus or ()),
+            description=org.description,
+            linkedin=org.linkedin,
+        )

@@ -40,4 +40,12 @@ class FirecrawlResearchClient:
             if not url or not content:
                 continue
             documents.append(SourceDocument(url=url, title=title or url, content=content))
+
+        if len(documents) < limit:
+            logger.info(
+                "enrichment_research_search_thin query=%s requested=%d returned=%d",
+                query,
+                limit,
+                len(documents),
+            )
         return documents

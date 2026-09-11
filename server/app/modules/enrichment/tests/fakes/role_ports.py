@@ -5,15 +5,24 @@ from typing import Any
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
 from app.modules.enrichment.application.ports.role_reader import RoleReaderPort
 from app.modules.enrichment.domain.proposals import ProposedFieldValue
+from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget
 
 
 class FakeRoleReader(RoleReaderPort):
-    def __init__(self, values: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        values: dict[str, Any] | None = None,
+        context: CompanyContext | None = None,
+    ) -> None:
         self.values = values or {}
+        self._context = context
 
     async def current_values(self, target: EnrichmentTarget) -> dict[str, Any]:
         return dict(self.values)
+
+    async def company_context(self, target: EnrichmentTarget) -> CompanyContext:
+        return self._context or CompanyContext(org_name=target.org_name)
 
 
 class FakeReviewPort(EnrichmentReviewPort):

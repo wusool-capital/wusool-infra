@@ -19,6 +19,11 @@ from app.modules.enrichment.domain.proposals import (
     FieldValue,
     ProposedFieldValue,
 )
+from app.modules.enrichment.domain.research_context import (
+    CompanyContext,
+    build_known_facts_block,
+    build_research_query,
+)
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -72,14 +77,22 @@ def _coerce_proposed_value(kind: str, raw_value: str) -> FieldValue:
     return raw_value
 
 
-def _build_prompt(org_name: str, missing: list[EnrichableField], sources: list[str]) -> str:
+def _build_prompt(
+    org_name: str,
+    missing: list[EnrichableField],
+    sources: list[str],
+    context: CompanyContext,
+) -> str:
     field_lines = "\n".join(f"- {f.name}: {f.prompt_hint}" for f in missing)
     source_lines = "\n\n".join(sources) if sources else "(no source material found)"
+    known_facts_block = build_known_facts_block(context)
     return (
         f"You are researching the company '{org_name}' from public sources only.\n"
+        f"{known_facts_block}"
         "Propose a value for each of the following fields, ONLY when the source "
-        "material below actually supports it. Never invent a value. Cite the exact "
-        "source URL you drew each value from.\n\n"
+        "material below actually supports it. Never invent a value. Skip any source "
+        "that is clearly about a different company than the one described above. "
+        "Cite the exact source URL you drew each value from.\n\n"
         f"Fields to fill:\n{field_lines}\n\n"
         f"Source material:\n{source_lines}"
     )
@@ -169,14 +182,13 @@ class EnrichMixin(ServiceBase):
         # narrowing doesn't carry across the method boundary.
         assert self._research_client is not None
         fields_by_name = enrichable_fields_by_name_for(target.kind.value)
-        documents = await self._research_client.search(
-            f"{target.org_name} company profile", limit=5
-        )
+        context = await self._role_reader.company_context(target)
+        documents = await self._research_client.search(build_research_query(context), limit=5)
         sources = [f"[{doc.url}] {doc.title}\n{doc.content}" for doc in documents]
 
         raw = await self._extraction_client.extract_fields(
             model_id=self._model_id,
-            prompt=_build_prompt(target.org_name, missing, sources),
+            prompt=_build_prompt(target.org_name, missing, sources, context),
             repair_prompt_builder=_repair_prompt,
             temperature=self._temperature,
             max_tokens=self._max_tokens,
