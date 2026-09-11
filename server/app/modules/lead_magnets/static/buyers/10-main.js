@@ -49,7 +49,6 @@ function num(v){
 }
 
 const orgTypeMS=initMultiSelect("orgType");
-const targetGeographyMS=initMultiSelect("targetGeography");
 const sectorFocusMS=initMultiSelect("sectorFocus");
 
 async function submitBuyerForm(e){
@@ -64,11 +63,12 @@ async function submitBuyerForm(e){
   }
   document.getElementById("e-consent").classList.remove("show");
 
-  // Native HTML5 `required` on the text inputs still stops the submit
-  // event before this handler runs when one is empty. The three
-  // multiselects are plain divs now, not a native <select required>, so
-  // their own "at least one picked" check has to happen here.
-  const multiSelectsFilled=orgTypeMS.hasSelection()&&targetGeographyMS.hasSelection()&&sectorFocusMS.hasSelection();
+  // Native HTML5 `required` on the text inputs (and target_geography's
+  // plain <select required>) still stops the submit event before this
+  // handler runs when one is empty. org_type/sector_focus are plain divs,
+  // not a native <select required>, so their own "at least one picked"
+  // check has to happen here.
+  const multiSelectsFilled=orgTypeMS.hasSelection()&&sectorFocusMS.hasSelection();
   if(!form.checkValidity()||!multiSelectsFilled){
     document.getElementById("e-form").classList.add("show");
     return;
@@ -78,13 +78,16 @@ async function submitBuyerForm(e){
   btn.disabled=true;
   btn.textContent="Submitting...";
 
+  // target_geography is single-select on the form, but the request/Attio
+  // field is still a list — Attio's own attribute is multiselect-typed, so
+  // a one-item list is exactly as valid there as a longer one.
   const payload={
     submission_id:(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`),
     full_name:document.getElementById("fullName").value.trim(),
     org_name:document.getElementById("orgName").value.trim(),
     email:document.getElementById("email").value.trim(),
     org_type:orgTypeMS.values(),
-    target_geography:targetGeographyMS.values(),
+    target_geography:[document.getElementById("targetGeography").value],
     sector_focus:sectorFocusMS.values(),
     check_size_min:num(document.getElementById("checkSizeMin").value),
     check_size_max:num(document.getElementById("checkSizeMax").value),

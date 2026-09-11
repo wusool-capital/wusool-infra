@@ -156,7 +156,7 @@ def test_buyers_payload_field_names_match_the_request_schema() -> None:
 
 
 def test_buyers_select_options_match_the_live_validation_sets() -> None:
-    """A stale `.ms-opt` here fails silently: the request schema itself
+    """A stale option here fails silently: the request schema itself
     doesn't validate `org_type`/`target_geography`/`sector_focus` (only the
     background Attio write does), so a typo'd option would record the lead
     and then just silently fail to land in the CRM."""
@@ -168,7 +168,7 @@ def test_buyers_select_options_match_the_live_validation_sets() -> None:
 
     html = (static_dir() / "buyers" / "index.html").read_text()
 
-    def options_for(field_id: str) -> set[str]:
+    def multiselect_options_for(field_id: str) -> set[str]:
         # The widget is `<div class="ms" id="{field_id}">...</div>`, with
         # further nested `<div>`s inside (the list, each option row) — find
         # its true closing tag by depth, not the first `</div>` seen.
@@ -190,9 +190,19 @@ def test_buyers_select_options_match_the_live_validation_sets() -> None:
             for v in re.findall(r'class="ms-opt" data-value="([^"]*)"', block)
         }
 
-    assert options_for("orgType") == ORGANIZATION_TYPE_OPTIONS
-    assert options_for("targetGeography") == TARGET_GEOGRAPHY_OPTIONS
-    assert options_for("sectorFocus") == SECTOR_FOCUS_OPTIONS
+    def select_options_for(field_id: str) -> set[str]:
+        marker = f'id="{field_id}"'
+        start = html.index(marker)
+        end = html.index("</select>", start)
+        block = html[start:end]
+        return {html_entities.unescape(v) for v in re.findall(r'<option value="([^"]+)"', block)}
+
+    assert multiselect_options_for("orgType") == ORGANIZATION_TYPE_OPTIONS
+    # target_geography is single-select (a plain <select>), unlike the
+    # other two — the applicant only ever targets one geography per
+    # application.
+    assert select_options_for("targetGeography") == TARGET_GEOGRAPHY_OPTIONS
+    assert multiselect_options_for("sectorFocus") == SECTOR_FOCUS_OPTIONS
 
 
 def test_readiness_results_escapes_model_generated_text_before_innerhtml() -> None:

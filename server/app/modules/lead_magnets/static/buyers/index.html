@@ -65,20 +65,17 @@
         </div>
 
         <div class="fg">
-          <label for="targetGeographySearch">Target geography * <span class="hint-inline">click to select multiple</span></label>
-          <div class="ms" id="targetGeography">
-            <input type="text" class="ms-search" id="targetGeographySearch" placeholder="Search geographies…" autocomplete="off">
-            <div class="ms-list" role="listbox" aria-multiselectable="true">
-        <div class="ms-opt" data-value="Bahrain" role="option" tabindex="0">Bahrain</div>
-        <div class="ms-opt" data-value="GCC-wide" role="option" tabindex="0">GCC-wide</div>
-        <div class="ms-opt" data-value="KSA" role="option" tabindex="0">KSA</div>
-        <div class="ms-opt" data-value="Kuwait" role="option" tabindex="0">Kuwait</div>
-        <div class="ms-opt" data-value="Oman" role="option" tabindex="0">Oman</div>
-        <div class="ms-opt" data-value="Qatar" role="option" tabindex="0">Qatar</div>
-        <div class="ms-opt" data-value="UAE" role="option" tabindex="0">UAE</div>
-              <div class="ms-empty hide">No matches.</div>
-            </div>
-          </div>
+          <label for="targetGeography">Target geography *</label>
+          <select class="fi" id="targetGeography" required>
+            <option value="">Select</option>
+            <option value="Bahrain">Bahrain</option>
+            <option value="GCC-wide">GCC-wide</option>
+            <option value="KSA">KSA</option>
+            <option value="Kuwait">Kuwait</option>
+            <option value="Oman">Oman</option>
+            <option value="Qatar">Qatar</option>
+            <option value="UAE">UAE</option>
+          </select>
         </div>
 
         <div class="fg">
@@ -209,7 +206,7 @@
   </div>
 </div>
 
-<script src="10-main.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="10-main.js?v=2" onerror="window.__lmFail=1"></script>
 <script src="../shared/height.js?v=1"></script>
 <script>
   if(window.__lmFail || typeof submitBuyerForm!=="function"){

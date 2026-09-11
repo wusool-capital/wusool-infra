@@ -9,6 +9,22 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-11
+
+### Changed
+
+- Buyer Network's `target_geography` field changed from multi-select to
+  single-select — a plain `<select>` (7 options: Bahrain, GCC-wide, KSA,
+  Kuwait, Oman, Qatar, UAE) replacing the searchable click-to-toggle
+  widget, since an applicant only ever targets one geography per
+  application (`org_type`/`sector_focus` stay multi-select — a buyer can
+  legitimately span several categories/sectors). The request/Attio field
+  itself is unchanged (`target_geography: list[str]`) — Attio's own
+  attribute is multiselect-typed, so the page now always sends a one-item
+  list rather than the schema or domain validation changing shape.
+  `test_buyers_select_options_match_the_live_validation_sets` updated with
+  a plain-`<select>` option parser alongside the existing multiselect one.
+
 ## 2026-09-10
 
 ### Added
