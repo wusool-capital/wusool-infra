@@ -1,7 +1,7 @@
-"""`/enrich <name>` step 1, only shown when the fuzzy match is ambiguous —
-one org can carry both an active seller role and an active buyer role, or
-several orgs can match the typed name. Mirrors `ddl_commands`'
-`organization_selection.py` shape.
+"""`/enrich-seller`/`/enrich-buyer` step 1, only shown when the fuzzy match
+is ambiguous within that one kind — several distinct orgs matching the
+typed name, each with an active role of the kind asked for. Mirrors
+`ddl_commands`' `organization_selection.py` shape.
 """
 
 import json
@@ -18,10 +18,10 @@ from app.modules.notifications import sanitize_mrkdwn
 def build_role_selection_modal(
     candidates: list[ResolvedOrgRole], *, search_term: str, requested_by: str, channel_id: str
 ) -> View:
-    options = [
-        Option(value=f"{c.kind}:{c.role_id}", text=f"{c.org_name} ({c.kind})"[:75])
-        for c in candidates
-    ]
+    # Every candidate shares the same kind — `/enrich-seller`/`/enrich-buyer`
+    # already filtered by it before this modal is ever shown — so the only
+    # remaining ambiguity is *which organization*, not which role.
+    options = [Option(value=f"{c.kind}:{c.role_id}", text=c.org_name[:75]) for c in candidates]
     return View(
         type="modal",
         callback_id="enrichment_role_selection_modal",
@@ -38,7 +38,7 @@ def build_role_selection_modal(
             ),
             InputBlock(
                 block_id="role_id",
-                label="Buyer/seller",
+                label="Organization",
                 element=StaticSelectElement(
                     action_id="selected_role", options=options, initial_option=options[0]
                 ),

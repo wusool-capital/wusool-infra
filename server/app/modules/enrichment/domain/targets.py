@@ -22,9 +22,9 @@ class EnrichmentTarget:
 
 @dataclass(frozen=True)
 class ResolvedOrgRole:
-    """A resolved `/enrich` candidate, read side — an org plus which of its
-    roles (seller/buyer) are active, for the Slack layer to pick from
-    before it has committed to one `EnrichmentTarget`.
+    """A resolved `/enrich-seller`/`/enrich-buyer` candidate, read side — an
+    org plus which of its roles (seller/buyer) are active, for the Slack
+    layer to pick from before it has committed to one `EnrichmentTarget`.
     """
 
     org_attio_id: str

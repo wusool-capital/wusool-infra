@@ -32,9 +32,9 @@ delivered state and outstanding items see
   field with a single "Review & Save" button that opens the real, prefilled
   `/edit-seller`/`/edit-buyer` modal (`EnrichmentReviewPort`, replacing
   `RoleUpdaterPort`); the write goes through that existing modal's ordinary
-  submission path, not a bespoke one. Reachable from `/enrich`, the buyer
-  "enrich first?" checkbox, and a new per-candidate "Enrich" button on each
-  `/find-match` result.
+  submission path, not a bespoke one. Reachable from `/enrich-seller`/
+  `/enrich-buyer`, the buyer "enrich first?" checkbox, and a new
+  per-candidate "Enrich" button on each `/find-match` result.
 - `discovery` no longer runs its own dedupe check before handing a lead to
   `ddl_commands` — `ddl_commands`' own `/add-seller` search
   (`organization_selection_modal`, including its existing "already has a
@@ -44,9 +44,10 @@ delivered state and outstanding items see
 - `organization_selection_modal`'s "existing org, no active role"
   branch now carries `discovery`'s prefill through to the resulting add
   form (it previously dropped it silently — the only branch that did).
-- `/enrich-seller <name>` and `/enrich-buyer <name>` — kind-scoped
-  shortcuts for `/enrich` that skip the role-selection modal when an org
-  has both a buyer and a seller role.
+- `/enrich-seller <name>` and `/enrich-buyer <name>` — the only enrichment
+  commands; there is no bare `/enrich`, so an org with both an active
+  buyer and seller role never needs a role-selection modal just to pick
+  the kind.
 - Buyer saves now suggest re-matching: every successful `/edit-buyer`
   confirmation appends a copy-pasteable `` `/find-match {org_name}` ``
   line. Replaces the old "enrich this buyer first?" checkbox on the

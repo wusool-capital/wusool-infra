@@ -90,7 +90,8 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/edit-buyer": "ddl-commands",
     "/add-seller": "ddl-commands",
     "/add-buyer": "ddl-commands",
-    "/enrich": "enrichment",
+    "/enrich-seller": "enrichment",
+    "/enrich-buyer": "enrichment",
 }
 _UNKNOWN_TRIGGER = "unknown"
 _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")

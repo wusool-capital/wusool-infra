@@ -1,8 +1,9 @@
-"""`/enrich <buyer or seller name>`, plus `/enrich-seller <seller name>` and
-`/enrich-buyer <buyer name>` — kind-scoped shortcuts that skip the
-role-selection modal when an org has both a buyer and a seller role.
-Mirrors `ddl_commands`'/`matching_engine`'s own command handler shape: ack
-first, idempotency-guard on `trigger_id`, usage message on empty text.
+"""`/enrich-seller <seller name>` and `/enrich-buyer <buyer name>` — always
+kind-scoped, on purpose: there is no bare `/enrich` (would need the
+role-selection modal for every single-role org too, not just an
+ambiguous one). Mirrors `ddl_commands`'/`matching_engine`'s own command
+handler shape: ack first, idempotency-guard on `trigger_id`, usage
+message on empty text.
 """
 
 import logging
@@ -57,13 +58,6 @@ async def _run(
 
 
 def register(app: AsyncApp) -> None:
-    @app.command("/enrich")
-    async def handle_enrich(
-        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
-    ) -> None:
-        await ack()
-        await _run("enrich", command, client, _handle_enrich_command(command, client))
-
     @app.command("/enrich-seller")
     async def handle_enrich_seller(
         ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
@@ -93,9 +87,9 @@ async def _handle_enrich_command(
     command: SlackCommandPayload,
     client: AsyncWebClient,
     *,
-    role_kind: Literal["seller", "buyer"] | None = None,
+    role_kind: Literal["seller", "buyer"],
 ) -> None:
-    action = "enrich" if role_kind is None else f"enrich-{role_kind}"
+    action = f"enrich-{role_kind}"
     idempotency_key = f"{action}:{command.get('trigger_id')}"
     if _idempotency_store.seen(idempotency_key):
         logger.info("%s_duplicate_delivery_skipped key=%s", action, idempotency_key)
@@ -105,23 +99,20 @@ async def _handle_enrich_command(
     org_name = (command.get("text") or "").strip()
     channel_id = command["channel_id"]
     user_id = command["user_id"]
-    role_label = role_kind or "buyer or seller"
 
     if not org_name:
         await client.chat_postEphemeral(
-            channel=channel_id, user=user_id, text=f"*Usage:* `/{action} <{role_label} name>`"
+            channel=channel_id, user=user_id, text=f"*Usage:* `/{action} <{role_kind} name>`"
         )
         return
 
-    candidates = await resolve_org_roles(org_name)
-    if role_kind is not None:
-        candidates = [c for c in candidates if c.kind == role_kind]
+    candidates = [c for c in await resolve_org_roles(org_name) if c.kind == role_kind]
 
     if not candidates:
         await client.chat_postEphemeral(
             channel=channel_id,
             user=user_id,
-            text=f"No active {role_label} found for *{org_name}*. _Try a different name._",
+            text=f"No active {role_kind} found for *{org_name}*. _Try a different name._",
         )
         return
 

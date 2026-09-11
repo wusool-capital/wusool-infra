@@ -117,8 +117,9 @@ def slack_notifier() -> SlackWebClientNotifier:
 
 async def resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
     """Every active seller/buyer role on any organization fuzzy-matching
-    `org_name` — `/enrich` picks among these rather than requiring the
-    operator to already know which role kind exists.
+    `org_name`, both kinds — `/enrich-seller`/`/enrich-buyer` each filter
+    this down to their own kind afterward, so this stays kind-agnostic
+    rather than taking a `kind` filter itself.
     """
     async with get_sessionmaker()() as session:
         candidates = await OrganizationRepository(session).search_by_name(org_name)

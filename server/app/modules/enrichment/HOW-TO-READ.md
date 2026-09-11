@@ -1,9 +1,10 @@
 # How to read this module
 
-Follow one `/enrich <name>` request end to end (the buyer "enrich first?"
-checkbox and a match result's "Enrich" button both land on the same
-`enrich_and_post` entry point, just with the org already known or resolved
-internally rather than searched by name).
+Follow one `/enrich-seller <name>` request end to end (`/enrich-buyer` is the
+same path, kind-scoped the other way; a match result's "Enrich" button and
+the seller-add "Enrich" button both land on the same `enrich_and_post`
+entry point, just with the org already known/resolved rather than searched
+by name).
 
 1. `api/slack/handlers/commands.py::_handle_enrich_command` — resolves org+role
    candidates via `api/dependencies.py::resolve_org_roles` (organizations trigram search).

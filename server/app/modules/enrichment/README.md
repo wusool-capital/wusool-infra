@@ -15,7 +15,7 @@ domain/            # EnrichmentTarget, ProposedFieldValue/EnrichmentProposal, fi
 application/        # EnrichMixin (structured lookup + research+extract), ReviewMixin (hand-off), ports/
 providers/          # diffbot/ + people_data_labs/ (structured, seller-only) — Firecrawl + Bedrock (fallback)
 persistence/        # SqlAlchemyRoleReader — reads current values + resolves a target by role id
-api/                # /enrich Slack command + handlers, "Review & Save" button
+api/                # /enrich-seller, /enrich-buyer Slack commands + handlers, "Review & Save" button
 ```
 
 ### Seller research waterfall
@@ -91,9 +91,9 @@ credentials required; `tests/fakes/` stands in for all three.
 
 ## Where to go next
 
-`/enrich <name>` (or `/enrich-seller <name>` / `/enrich-buyer <name>` — same
-command, pre-filtered to one role kind so it skips the role-selection modal
-when an org has both a buyer and a seller role; or a match result's
+`/enrich-seller <name>` / `/enrich-buyer <name>` (always kind-scoped — no
+bare `/enrich`, so an org with both an active buyer and seller role never
+needs a role-selection modal just to pick the kind; or a match result's
 "Enrich" button) → `enrich_and_post` → `api/dependencies.py
 ::propose_and_post` (background task, mirrors
 `matching_engine.run_match_and_post`) → `EnrichMixin.propose` →
