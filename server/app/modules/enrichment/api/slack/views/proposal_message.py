@@ -14,8 +14,7 @@ import json
 import uuid
 from datetime import date
 
-from slack_sdk.models.blocks import Block, ContextBlock, DividerBlock, SectionBlock
-from slack_sdk.models.blocks.basic_components import MarkdownTextObject
+from slack_sdk.models.blocks import Block, DividerBlock, SectionBlock
 from slack_sdk.models.blocks.block_elements import ButtonElement
 
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_by_name_for
@@ -117,19 +116,17 @@ def build_proposal_blocks(proposal: EnrichmentProposal) -> list[Block]:
         DividerBlock(),
     ]
     for value in proposal.values:
-        current = value.current if value.current not in (None, "") else "_(empty)_"
+        # `current` is always empty here — `propose()` only ever proposes a
+        # value for a field that was missing in the first place (see
+        # `EnrichMixin._is_missing`), so showing it adds nothing.
         blocks.append(
             SectionBlock(
                 text=(
                     f"*{value.field_name}*\n"
-                    f"Current: {sanitize_mrkdwn(str(current))}\n"
                     f"Proposed: *{_render_proposed_value(value.proposed)}*\n"
                     f"Confidence: {value.confidence:.0%} — {sanitize_mrkdwn(value.rationale)}"
                 )
             )
-        )
-        blocks.append(
-            ContextBlock(elements=[MarkdownTextObject(text=f"<{value.source_url}|source>")])
         )
 
     blocks.append(DividerBlock())
