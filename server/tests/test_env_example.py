@@ -22,6 +22,7 @@ from app.modules.attio.config import AttioSettings
 from app.modules.ddl_commands.config import Settings as DdlCommandsSettings
 from app.modules.discovery.config import Settings as DiscoverySettings
 from app.modules.enrichment.config import Settings as EnrichmentSettings
+from app.modules.lead_magnets.config import Settings as LeadMagnetsSettings
 from app.modules.matching_engine.config import Settings as MatchingEngineSettings
 from app.modules.meetings.config import Settings as MeetingsSettings
 
@@ -33,6 +34,7 @@ _SETTINGS_CLASSES = (
     MeetingsSettings,
     EnrichmentSettings,
     DiscoverySettings,
+    LeadMagnetsSettings,
 )
 
 

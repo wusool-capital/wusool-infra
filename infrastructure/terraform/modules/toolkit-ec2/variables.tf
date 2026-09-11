@@ -70,6 +70,18 @@ variable "apps" {
     # Empty derives an sslip.io hostname from the shared Elastic IP, prefixed
     # with `name`.
     public_url = optional(string, "")
+    # Additional hostnames Caddy serves from this SAME container, appended as
+    # extra site addresses on this app's one site block. Use this when a
+    # second audience needs its own hostname but not its own process — the
+    # lead-magnet tools are routers and static files inside the toolkit
+    # image, not a separate service.
+    #
+    # DNS for every name here MUST already resolve to this instance's Elastic
+    # IP before apply: Caddy orders a certificate per site address at config
+    # load, and a failing HTTP-01 burns Let's Encrypt's five-failures-per-
+    # hostname-per-hour budget, then backs off well past the point DNS is
+    # fixed.
+    extra_hostnames = optional(list(string), [])
   }))
 
   validation {

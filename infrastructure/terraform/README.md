@@ -46,10 +46,33 @@ group IDs the same way. Apply order for a **new** environment:
 `base` → `n8n` and `toolkit` → `postgres` (postgres needs the others' security
 groups to already exist in state).
 
-**`stacks/toolkit` has a `create_instance` variable.** In prod it currently
-defaults to `false` — the ECR repo and secret exist, but no EC2 instance has
-been deliberately created yet. Don't be surprised that `envs/prod.tfvars`
-produces no toolkit instance; that's intentional until someone flips it.
+**`stacks/toolkit` has a `create_instance` variable.** It gates the EC2
+instance separately from the ECR repo and secret, so those can exist ahead of
+any billable compute. Corrected 2026-09-09: this section previously said prod
+defaulted to `false`; `envs/prod.tfvars` has set `create_instance = true`
+since 2026-08-17 and the prod toolkit instance is live.
+
+**One container can serve several hostnames.** Each `apps` entry takes
+`extra_hostnames`, joined into Caddy's comma-separated site addresses, so a
+second audience gets its own hostname without its own process — this is how
+`tools.wusoolcapital.com` reaches the lead-magnet tools, which are routers
+and static files inside the same toolkit image. Prefer this over a second
+`apps` entry unless you genuinely need process isolation: a second entry
+needs its own Secrets Manager secret and IAM ARN, its own ECR repo and pull
+policy, a second image build in `_build.yml`, and `_deploy.yml`'s migration,
+health-check and `deployed_sha` steps all name `toolkit` literally. It also
+would not isolate failure the way it looks like it does — `apps` renders one
+docker-compose file and one SSM bootstrap, so an app that cannot start fails
+every app's rollout.
+
+> **DNS must exist before you apply a new hostname.** Caddy orders a
+> certificate per site address at config load. A name that does not yet
+> resolve to the instance's Elastic IP fails HTTP-01, burns Let's Encrypt's
+> five-failures-per-hostname-per-hour budget, and then stays broken on
+> Caddy's own backoff well past the point DNS is fixed. DNS is manual in
+> Cloudflare, not in this repo — and keep the record grey-cloud (DNS only),
+> or Cloudflare's edge caches `embed.js` past its 60s TTL and every rollback
+> needs a manual purge.
 
 ## Applying a stack
 

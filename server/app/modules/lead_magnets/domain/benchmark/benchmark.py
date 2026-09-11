@@ -1,0 +1,246 @@
+"""The GCC SME Benchmark scoring engine. Pure, and the whole of the tool's
+output — no model is involved in what the visitor sees.
+
+That makes this the one lead magnet with no AI dependency at all, and the
+reason it is the safest to cut over first.
+
+Everything computes in USD. The live tool offers an AED/USD toggle, but it
+governs data entry and display only: `toCalc` divides AED input by the peg on
+the way in, and the value that reaches Attio goes through a round-only
+`toUSD`. The `_aed` suffix on the benchmark list's Attio attributes is a
+misnomer — those fields hold USD, and the live code even names a local
+`rentAed` while assigning a USD figure to it.
+"""
+
+import math
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Literal
+
+ANCHOR_PERCENTILES = (10, 25, 50, 75, 90)
+
+
+def js_round(value: float) -> int:
+    """`Math.round`, not Python's `round`.
+
+    JavaScript rounds a half away from zero (`Math.round(42.5) === 43`);
+    Python rounds a half to even (`round(42.5) == 42`). Every rounded figure
+    here is compared against the live tool's output, and a benchmark score
+    that differs by a point from what the visitor saw in the browser is a
+    real discrepancy in a report they may already have downloaded. This
+    caught 79 mismatches out of 8,019 reference cases.
+    """
+    return math.floor(value + 0.5)
+
+
+Mode = Literal["sme", "tech"]
+
+
+class MetricKey(StrEnum):
+    """The nine scoring metrics, by their internal short name — the same
+    identifiers `benchmark_dataset.py`'s peer-cut tables, `benchmark_
+    submission.py`'s percentile dict, and `benchmark_routing.py`'s `at()`
+    lookups already key on. Not retrofitted into those (a large, generated
+    reference dataset and its own established string-keyed call sites) —
+    used here, and in `benchmark_copy.py`'s flag-text tables, as the
+    smaller, lower-risk typo guard: a misspelled `MetricKey.EBTIDA` fails at
+    definition time, where a misspelled `"ebtida"` string literal silently
+    creates a dead dict entry no test catches."""
+
+    EBITDA = "ebitda"
+    GROWTH = "growth"
+    REV_EMP = "revEmp"
+    CONC = "conc"
+    GM = "gm"
+    RENT = "rent"
+    RECUR = "recur"
+    CAP_EFF = "capEff"
+    REV_SCALE = "revScale"
+
+
+class PercentileColumn(StrEnum):
+    """The nine `seller_roles`/Attio percentile columns `MetricKey`'s
+    metrics land in. Confirmed against the live Attio workspace this
+    migration writes to — `CONC` is `pct_concentration`, not
+    `pct_revenue_concentration`."""
+
+    EBITDA = "pct_ebitda_margin"
+    GROWTH = "pct_revenue_growth"
+    REV_EMP = "pct_revenue_per_employee"
+    CONC = "pct_concentration"
+    GM = "pct_gross_margin"
+    RENT = "pct_premises_cost"
+    RECUR = "pct_recurring_revenue"
+    CAP_EFF = "pct_capital_efficiency"
+    REV_SCALE = "pct_revenue_scale"
+
+
+# Metric key -> the `seller_roles` percentile column it lands in. Seven SME
+# metrics plus the two tech-only ones account for all nine `pct_*` columns.
+PERCENTILE_COLUMNS: dict[str, PercentileColumn] = {
+    MetricKey.EBITDA: PercentileColumn.EBITDA,
+    MetricKey.GROWTH: PercentileColumn.GROWTH,
+    MetricKey.REV_EMP: PercentileColumn.REV_EMP,
+    MetricKey.CONC: PercentileColumn.CONC,
+    MetricKey.GM: PercentileColumn.GM,
+    MetricKey.RENT: PercentileColumn.RENT,
+    MetricKey.RECUR: PercentileColumn.RECUR,
+    MetricKey.CAP_EFF: PercentileColumn.CAP_EFF,
+    MetricKey.REV_SCALE: PercentileColumn.REV_SCALE,
+}
+
+QUARTILE_LABELS = ("", "Bottom 25%", "Below Average", "Above Average", "Top 25%")
+
+
+@dataclass(frozen=True)
+class MetricSpec:
+    label: str
+    unit: str
+    higher_is_better: bool
+    weight: int
+
+
+@dataclass(frozen=True)
+class Band:
+    """A revenue peer band. The multipliers shift the sector anchors so a
+    micro business is not scored against mid-market operating leverage."""
+
+    id: str
+    label: str
+    max_usd: float | None
+    ebitda_adj: float
+    rev_emp_mult: float
+    rent_mult: float
+
+
+@dataclass(frozen=True)
+class PeerCut:
+    """One sector (SME mode) or funding stage (startup mode) — the peer set a
+    submission is ranked against. Startup mode cuts by stage rather than
+    sector because sector cuts in the source sample run n=3 to 6."""
+
+    label: str
+    sample_size: int | None
+    anchors: Mapping[str, Sequence[float]]
+    multi_site: bool = False
+    b2b: bool = False
+
+
+@dataclass(frozen=True)
+class MetricResult:
+    key: str
+    value: float | None
+    percentile: float | None
+    quartile: int | None
+    anchors: tuple[float, ...] | None
+    spec: MetricSpec
+
+
+def percentile_rank(value: float | None, anchors: Sequence[float]) -> float | None:
+    """Piecewise-linear rank against the five anchors, with linear
+    extrapolation into both tails.
+
+    Ported exactly, including the details that look arbitrary and are not:
+    the tails extrapolate at 15 percentile points per anchor step and clamp
+    at 1 and 99, so no submission is ever reported as a 0th or 100th
+    percentile of a modelled distribution. A zero-width anchor step falls
+    back to 1 to avoid dividing by zero on a flat sector.
+    """
+    if value is None or not anchors:
+        return None
+
+    if value <= anchors[0]:
+        step = (anchors[1] - anchors[0]) or 1
+        return max(1.0, 10 - ((anchors[0] - value) / step) * 15)
+
+    if value >= anchors[4]:
+        step = (anchors[4] - anchors[3]) or 1
+        return min(99.0, 90 + ((value - anchors[4]) / step) * 15)
+
+    for i in range(4):
+        if anchors[i] <= value <= anchors[i + 1]:
+            span = (anchors[i + 1] - anchors[i]) or 1
+            low, high = ANCHOR_PERCENTILES[i], ANCHOR_PERCENTILES[i + 1]
+            return low + ((value - anchors[i]) / span) * (high - low)
+
+    return 50.0
+
+
+def band_for(revenue_usd: float | None, bands: Sequence[Band]) -> Band:
+    """The first band whose ceiling the revenue is under; the open-ended top
+    band otherwise. A missing revenue lands in the lowest band, matching the
+    live `bandFor` — `null < 545000` is true in JavaScript.
+    """
+    for band in bands:
+        if band.max_usd is None or (revenue_usd or 0) < band.max_usd:
+            return band
+    return bands[-1]
+
+
+def adjusted_anchors(
+    key: str, anchors: Sequence[float], band: Band, *, mode: Mode
+) -> tuple[float, ...]:
+    """Shifts a sector's anchors for the submission's revenue band.
+
+    Startup mode returns them untouched: the funding stage *is* the cut
+    there, so applying a revenue band on top would double-count size.
+    """
+    if mode != "sme":
+        return tuple(anchors)
+    if key == MetricKey.EBITDA:
+        return tuple(a + band.ebitda_adj for a in anchors)
+    if key == MetricKey.REV_EMP:
+        return tuple(a * band.rev_emp_mult for a in anchors)
+    if key == MetricKey.RENT:
+        return tuple(a * (band.rent_mult or 1) for a in anchors)
+    return tuple(anchors)
+
+
+def quartile(percentile: float) -> int:
+    return 1 if percentile < 25 else 2 if percentile < 50 else 3 if percentile < 75 else 4
+
+
+def score_metrics(
+    values: Mapping[str, float | None],
+    *,
+    specs: Mapping[str, MetricSpec],
+    cut: PeerCut,
+    band: Band,
+    mode: Mode,
+) -> tuple[dict[str, MetricResult], int, int]:
+    """Ranks every metric the peer cut has anchors for.
+
+    Returns `(results, score, weight_covered)`. `weight_covered` is the live
+    tool's `dataCompleteness` — the summed weight of the metrics that could
+    actually be ranked, which is how a half-filled form is distinguished from
+    a genuinely average one.
+
+    A `higher_is_better=False` metric is inverted *before* clamping, so
+    concentration and premises cost read the same direction as everything
+    else.
+    """
+    results: dict[str, MetricResult] = {}
+    weight_sum = 0
+    weighted_percentile = 0.0
+
+    for key, spec in specs.items():
+        value = values.get(key)
+        anchors = cut.anchors.get(key)
+        if value is None or not anchors:
+            results[key] = MetricResult(key, value, None, None, None, spec)
+            continue
+
+        adjusted = adjusted_anchors(key, anchors, band, mode=mode)
+        percentile = percentile_rank(value, adjusted)
+        assert percentile is not None
+        if not spec.higher_is_better:
+            percentile = 100 - percentile
+        percentile = max(1.0, min(99.0, percentile))
+
+        results[key] = MetricResult(key, value, percentile, quartile(percentile), adjusted, spec)
+        weight_sum += spec.weight
+        weighted_percentile += percentile * spec.weight
+
+    score = js_round(weighted_percentile / weight_sum) if weight_sum else 50
+    return results, score, weight_sum
