@@ -3,7 +3,7 @@
 Manual, one-time setup at [api.slack.com/apps](https://api.slack.com/apps) for
 **one** Slack bot serving all 9 commands — `/find-match` (matching-engine),
 `/enrich-seller`, `/enrich-buyer` (enrichment), `/edit-seller`,
-`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl-commands), and `/help`/
+`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl-commands), and `/toolkit-help`/
 `/toolkit-status` (answered directly in `server/main.py` — neither is owned
 by any one module). There is no bare `/enrich` — every enrichment command
 is kind-scoped on purpose, see below.
@@ -42,12 +42,13 @@ point at the same URL — Bolt routes internally by command name):
 | `/add-seller` | `https://<bot-host>/slack/events` | Add a new seller | `<organization name>` |
 | `/add-buyer` | `https://<bot-host>/slack/events` | Add a new buyer | `<organization name>` |
 | `/toolkit-status` | `https://<bot-host>/slack/events` | Show uptime, database, and Attio mode | *(none)* |
-| `/help` | `https://<bot-host>/slack/events` | List every command and how to use it | *(none)* |
+| `/toolkit-help` | `https://<bot-host>/slack/events` | List every command and how to use it | *(none)* |
 
-`/status` is a Slack-reserved word and cannot be registered — `/toolkit-status`
-is the actual command name.
+`/status` is a Slack-reserved word and cannot be registered —
+`/toolkit-status` is the actual command name. `/help` was renamed to
+`/toolkit-help` to match.
 
-`/help`/`/toolkit-status` are answered directly in `server/main.py`
+`/toolkit-help`/`/toolkit-status` are answered directly in `server/main.py`
 (`_COMMAND_HELP`, `_register_status_command`) — neither is owned by any
 one module, so keep `_COMMAND_HELP` in sync with this table when a
 command is added, removed, or renamed.
@@ -78,7 +79,7 @@ organization selection (skipped if the search found nothing) → add form;
 `/enrich-seller`/`/enrich-buyer` post a research proposal as a message
 with a single "Review & Save" button, not a modal, since research + LLM
 extraction routinely runs past Slack's 3-second modal-open budget).
-`/help`/`/toolkit-status` have no modal or button of their own — they
+`/toolkit-help`/`/toolkit-status` have no modal or button of their own — they
 still go through this same URL as every slash command does, they just
 never trigger a follow-up interaction. This is exactly why every one of
 these modules had to become one process: Slack has no per-command

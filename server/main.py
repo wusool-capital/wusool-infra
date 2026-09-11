@@ -1,11 +1,11 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
 all 9 commands: `/find-match` (matching_engine module), `/enrich-seller`/
 `/enrich-buyer` (enrichment module), `/edit-seller`/`/edit-buyer`/
-`/add-seller`/`/add-buyer` (ddl_commands module), and `/help`/`/toolkit-status`
-(answered directly here, since neither is owned by any one module) — plus
-the `meetings` module's `/desktop/*` REST surface for the WusoolScribe
-desktop app (transcript ingestion, summarization, status polling; no
-Slack command).
+`/add-seller`/`/add-buyer` (ddl_commands module), and `/toolkit-help`/
+`/toolkit-status` (answered directly here, since neither is owned by any
+one module) — plus the `meetings` module's `/desktop/*` REST surface for
+the WusoolScribe desktop app (transcript ingestion, summarization, status
+polling; no Slack command).
 
 Builds **one** `AsyncApp` and registers both Slack modules' handlers against
 it, so Slack's one-interactivity-URL-per-app requirement is satisfied by
@@ -97,7 +97,7 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/add-buyer": "ddl-commands",
     "/enrich-seller": "enrichment",
     "/enrich-buyer": "enrichment",
-    "/help": "help",
+    "/toolkit-help": "help",
     "/toolkit-status": "status",
 }
 _UNKNOWN_TRIGGER = "unknown"
@@ -128,7 +128,7 @@ _COMMAND_HELP: tuple[tuple[str, str, str], ...] = (
     ("/add-seller", "<organization name>", "Add a new seller."),
     ("/add-buyer", "<organization name>", "Add a new buyer."),
     ("/toolkit-status", "", "Show the bot's uptime, database, and Attio mode."),
-    ("/help", "", "List every command and how to use it."),
+    ("/toolkit-help", "", "List every command and how to use it."),
 )
 
 # Bolt's own `ack_timeout` is 3s; warn a little under it so a request that is
@@ -242,7 +242,7 @@ def _help_line(command: str, usage_hint: str, description: str) -> str:
 
 
 def _register_help_command(bolt_app: AsyncApp) -> None:
-    @bolt_app.command("/help")
+    @bolt_app.command("/toolkit-help")
     async def handle_help(
         ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
     ) -> None:

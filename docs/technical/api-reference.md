@@ -11,7 +11,7 @@
 | `/add-buyer <organization name>` | `ddl_commands` |
 | `/enrich-seller <name>` | `enrichment` |
 | `/enrich-buyer <name>` | `enrichment` |
-| `/help` | Answered directly in the process entrypoint (`main.py`) — not owned by any one module. |
+| `/toolkit-help` | Answered directly in the process entrypoint (`main.py`) — not owned by any one module. |
 | `/toolkit-status` | Same — reports uptime, database reachability, and Attio test/production mode. |
 
 There is no bare `/enrich` — both enrichment commands are kind-scoped, so an

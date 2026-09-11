@@ -21,7 +21,7 @@ first, then in the database a moment later.
 | [`/enrich-seller <name>`](enrich.md) | Research a seller from public sources and propose values for whatever fields are empty. |
 | [`/enrich-buyer <name>`](enrich.md) | Same, for a buyer. |
 | `/toolkit-status` | Shows the bot's uptime, database connectivity, and whether it's writing to Attio in test or production mode. |
-| `/help` | Lists every command and how to use it, right in Slack. |
+| `/toolkit-help` | Lists every command and how to use it, right in Slack. |
 
 Type the command in any channel or direct message where the bot is present.
 Replies are only visible to you.

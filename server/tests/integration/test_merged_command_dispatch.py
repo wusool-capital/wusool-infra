@@ -3,7 +3,7 @@
 `AsyncApp`, all 9 commands (matching-engine's `/find-match`,
 ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`,
 enrichment's `/enrich-seller`/`/enrich-buyer`, and `main.py`'s own
-`/help`/`/toolkit-status`) correctly registered and dispatching, with no
+`/toolkit-help`/`/toolkit-status`) correctly registered and dispatching, with no
 cross-package collision.
 
 Each package's own test suite (`matching-engine/tests/`, `ddl-commands/tests/`)
@@ -121,9 +121,9 @@ def _post_view_submission_raw(view: dict) -> TestClient:
 def test_every_command_dispatches_off_the_one_shared_app(
     command: str, _mock_slack_web_client
 ) -> None:
-    """Every slash command but `/help` routes correctly through the single
+    """Every slash command but `/toolkit-help` routes correctly through the single
     merged `AsyncApp` — the empty-text usage-message path touches neither
-    the DB nor any business logic, so this is a pure wiring check. `/help`
+    the DB nor any business logic, so this is a pure wiring check. `/toolkit-help`
     has no usage message (it always answers the same way regardless of
     text) — covered separately below.
     """
@@ -247,13 +247,13 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
 
 
 def test_help_command_lists_every_command(_mock_slack_web_client) -> None:
-    """`/help` isn't owned by any one module — `main.py`'s own
+    """`/toolkit-help` isn't owned by any one module — `main.py`'s own
     `_COMMAND_HELP` list is the single source of truth, so this pins that
     every command actually registered on the app also appears in the help
     text (catching the same class of staleness `SLACK_APP_SETUP.md` had
     before it was updated to match).
     """
-    response = _post_command("/help")
+    response = _post_command("/toolkit-help")
 
     assert response.status_code == 200
     assert len(_mock_slack_web_client) == 1
@@ -263,10 +263,10 @@ def test_help_command_lists_every_command(_mock_slack_web_client) -> None:
 
 
 def test_command_help_and_service_map_stay_in_sync() -> None:
-    """`_SERVICE_BY_TRIGGER` (dispatch logging) and `_COMMAND_HELP` (`/help`'s
-    own text) are two independently hand-maintained lists of the same
-    command set — nothing else catches one going stale relative to the
-    other, so this does.
+    """`_SERVICE_BY_TRIGGER` (dispatch logging) and `_COMMAND_HELP`
+    (`/toolkit-help`'s own text) are two independently hand-maintained
+    lists of the same command set — nothing else catches one going stale
+    relative to the other, so this does.
     """
     help_commands = {command for command, _hint, _description in main._COMMAND_HELP}
     assert help_commands == set(main._SERVICE_BY_TRIGGER)
