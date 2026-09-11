@@ -18,7 +18,8 @@ from app.modules.attio.providers.attio.money import serialize_money
 from app.modules.lead_magnets.domain.benchmark.benchmark import PERCENTILE_COLUMNS
 from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkResult
 from app.modules.lead_magnets.domain.buyer_network.buyer_network import validate_target_geography
-from app.modules.lead_magnets.domain.readiness.readiness import AdvisoryContent, attio_band
+from app.modules.lead_magnets.domain.readiness.readiness import attio_band
+from app.modules.lead_magnets.domain.shared.schemas import BuyerValuesInput, ReadinessValuesInput
 from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation
 
 # What a `seller_role` attribute can hold on the write side. A money field
@@ -127,16 +128,14 @@ def benchmark_values(result: BenchmarkResult, *, headcount: int | None) -> dict[
     )
 
 
-def readiness_values(
-    *, score: float, band: str, advisory: AdvisoryContent, revenue_usd: float | None
-) -> dict[str, object]:
+def readiness_values(data: ReadinessValuesInput) -> dict[str, object]:
     return _values(
         {
-            "readiness_score": score,
+            "readiness_score": data.score,
             # The prompt's band wording is not an Attio option title.
-            "readiness_band": attio_band(band),
-            "recommended_referral": advisory.referral,
-            "est_revenue": revenue_usd,
+            "readiness_band": attio_band(data.band),
+            "recommended_referral": data.advisory.referral,
+            "est_revenue": data.revenue_usd,
         }
     )
 
@@ -162,14 +161,7 @@ def valuation_values(result: Valuation) -> dict[str, object]:
     )
 
 
-def buyer_values(
-    *,
-    check_size_min: float | None,
-    check_size_max: float | None,
-    prior_gcc_acquisition: str | None,
-    target_geography: list[str],
-    qualification_note: str | None = None,
-) -> dict[str, object]:
+def buyer_values(data: BuyerValuesInput) -> dict[str, object]:
     """The buyer application, as `buyer_role` attributes.
 
     `target_geography` is a multiselect array, not run through `_values`'s
@@ -183,14 +175,14 @@ def buyer_values(
     """
     values = _values(
         {
-            "prior_gcc_acquisition": prior_gcc_acquisition,
-            "check_size_min": check_size_min,
-            "check_size_max": check_size_max,
-            "acquisition_enrichment": qualification_note,
+            "prior_gcc_acquisition": data.prior_gcc_acquisition,
+            "check_size_min": data.check_size_min,
+            "check_size_max": data.check_size_max,
+            "acquisition_enrichment": data.qualification_note,
         },
         table="buyer_role",
         money=_BUYER_MONEY,
     )
-    if target_geography:
-        values["target_geography"] = validate_target_geography(target_geography)
+    if data.target_geography:
+        values["target_geography"] = validate_target_geography(data.target_geography)
     return values

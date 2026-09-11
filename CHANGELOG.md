@@ -13,6 +13,41 @@ delivered state and outstanding items see
 
 ### Changed
 
+- Extended `domain/shared/schemas.py`'s pydantic exception to the two
+  remaining raw-JSON seams in the module:
+  - **`LeadLLMPort`'s seven methods now return real Pydantic models**
+    (`EnrichResult`, `AnalyzeResult`, `SearchQueries`, `CompareResult`,
+    `ReadinessResult`, `InternalNote`×2) instead of a plain `dict`. These
+    moved from `providers/bedrock/schemas.py` (deleted) into `domain/
+    shared/schemas.py`, since `application/` still can't import
+    `providers/` — both layers can import `domain/`, so that's the one
+    place they can share a type without either depending on the other.
+    `LeadBedrockClient._invoke` no longer calls `.model_dump()` before
+    returning. Every consumer updated to attribute access:
+    `pipelines.py`'s `_readiness`/`_buyer_network`,
+    `valuation_ai.py`'s `enrich`/`analyze`/`compare` (the last of which
+    now returns a new `ComparablesResult` instead of a hand-built dict,
+    removing the `isinstance(q, str)`/`isinstance(c, dict)` filtering that
+    existed only because the old contract was untyped), and both
+    `api/readiness/endpoints.py` and `api/valuation/endpoints.py`'s
+    `/enrich`/`/compare` handlers. `readiness/endpoints.py`'s
+    `_store_score` now takes a `ReadinessResult` and calls `.model_dump()`
+    itself at the one point a plain dict is actually needed (the raw SQL
+    JSONB merge); `pipelines.py`'s resume path re-hydrates it back via
+    `ReadinessResult.model_validate(stored_score)`.
+  - **`attio_values.py`'s `readiness_values()`/`buyer_values()`** now take
+    one bundled `ReadinessValuesInput`/`BuyerValuesInput` model instead of
+    several loose keyword arguments. `benchmark_values()`/
+    `valuation_values()` were left as-is — they already take one
+    well-typed domain dataclass, which wrapping again would not improve.
+  - Verified live against the real dev Attio workspace: all seven
+    `LeadLLMPort` operations exercised with real Bedrock calls
+    (`/enrich`, `/analyze`, `/compare`, `/readiness/score` — including its
+    resume/background-completion path — and `/buyer/apply`'s
+    qualification note), each reaching a correct response and, where
+    applicable, `tool_runs.status='succeeded'` with the right `entry_values`
+    landing in Attio.
+
 - Added `domain/shared/schemas.py` — Pydantic models for the shapes stored
   in `tool_runs.payload` (`BenchmarkPayload`, `ReadinessPayload`,
   `ValuationPayload`, `BuyerNetworkPayload`, one per tool, mirroring the

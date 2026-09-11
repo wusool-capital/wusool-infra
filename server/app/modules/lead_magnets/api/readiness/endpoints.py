@@ -28,7 +28,7 @@ from app.modules.lead_magnets.domain.readiness.readiness import (
     build_advisory_content,
 )
 from app.modules.lead_magnets.domain.shared.prompts import readiness_score_prompt
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.lead_magnets.domain.shared.schemas import ReadinessResult
 
 router = APIRouter(
     tags=["lead-magnets"],
@@ -82,15 +82,15 @@ async def readiness_score(
 
     return ReadinessResponse(
         run_id=str(run_id),
-        overallScore=scored["overallScore"],
-        scoreBand=scored["scoreBand"],
-        summaryParagraph=scored["summaryParagraph"],
-        dimensions=[DimensionOut(**d) for d in scored["dimensions"]],
-        recommendations=[RecommendationOut(**r) for r in scored["recommendations"]],
+        overallScore=scored.overallScore,
+        scoreBand=scored.scoreBand,
+        summaryParagraph=scored.summaryParagraph,
+        dimensions=[DimensionOut(**d.model_dump()) for d in scored.dimensions],
+        recommendations=[RecommendationOut(**r.model_dump()) for r in scored.recommendations],
     )
 
 
-async def _store_score(session: AsyncSession, run_id: UUID, scored: JsonObject) -> None:
+async def _store_score(session: AsyncSession, run_id: UUID, scored: ReadinessResult) -> None:
     """Stores the scoring result so the background advisory reuses it rather
     than calling the model a second time for the same report."""
     from sqlalchemy import literal, update
@@ -101,5 +101,5 @@ async def _store_score(session: AsyncSession, run_id: UUID, scored: JsonObject) 
     await session.execute(
         update(ToolRun)
         .where(ToolRun.id == run_id)
-        .values(payload=ToolRun.payload.op("||")(literal({"score": scored}, JSONB)))
+        .values(payload=ToolRun.payload.op("||")(literal({"score": scored.model_dump()}, JSONB)))
     )

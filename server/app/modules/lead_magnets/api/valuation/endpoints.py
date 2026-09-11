@@ -51,9 +51,7 @@ async def enrich(request: EnrichRequest) -> EnrichResponse:
     before there is a submission to record.
     """
     result = await build_valuation_ai().enrich(domain=request.domain, company=request.company)
-    return EnrichResponse(
-        description=result.get("description", ""), sector=result.get("sector", "")
-    )
+    return EnrichResponse(description=result.description, sector=result.sector)
 
 
 @router.post("/analyze")
@@ -99,9 +97,9 @@ async def compare(request: CompareRequest) -> CompareResponse:
         geography=request.geography,
     )
     return CompareResponse(
-        comps=[ComparableOut(**c) for c in result["comps"]],
-        sourced=result["sourced"],
-        filled_from_static=result["filled_from_static"],
+        comps=[ComparableOut(**c.model_dump()) for c in result.comps],
+        sourced=result.sourced,
+        filled_from_static=result.filled_from_static,
     )
 
 

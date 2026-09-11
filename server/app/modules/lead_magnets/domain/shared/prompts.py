@@ -7,10 +7,10 @@ browser bundle. Two deliberate changes from the originals, both explained in
 is computed, not asked for) and gains the two free-text answers the live
 version never sees.
 
-The response contracts in these prompts must stay in step with
-`providers/bedrock/schemas.py` — the schema is what actually validates, but a
-prompt asking for a differently-named field just produces a validation
-failure the visitor experiences as an error.
+The response contracts in these prompts must stay in step with the Bedrock
+response models in `domain/shared/schemas.py` — the schema is what actually
+validates, but a prompt asking for a differently-named field just produces a
+validation failure the visitor experiences as an error.
 """
 
 from app.modules.lead_magnets.domain.readiness.readiness import ReadinessAnswers

@@ -14,7 +14,68 @@ from app.modules.lead_magnets.domain.shared.prompts import (
     compare_select_prompt,
     enrich_prompt,
 )
+from app.modules.lead_magnets.domain.shared.schemas import (
+    AnalyzeResult,
+    CompareResult,
+    EnrichResult,
+    InternalNote,
+    ReadinessResult,
+    SearchQueries,
+)
 from app.modules.lead_magnets.domain.shared.search import SearchResult
+
+# One real model per operation — matches `LeadBedrockClient`'s own dispatch,
+# so a fake's response is validated exactly like a real one would be
+# (nested models included: a `select={"comps": [...]}` dict below becomes
+# real `Comparable` instances, not passthrough dicts). Each has a minimal
+# always-valid default, used whenever a test doesn't care about that
+# particular response's shape.
+_RESPONSE_MODELS = {
+    "enrich": EnrichResult,
+    "analyze": AnalyzeResult,
+    "plan": SearchQueries,
+    "select": CompareResult,
+    "score": ReadinessResult,
+    "advise": InternalNote,
+    "qualify": InternalNote,
+}
+_DEFAULTS: dict[str, dict] = {
+    "enrich": {"description": "", "sector": ""},
+    "analyze": {
+        "sector_fit": "good",
+        "discounts": {"revenue_discount_pct": 50, "ebitda_discount_pct": 50},
+        "dcf": {
+            "revGrowth": 0,
+            "ebitMarginImpr": 0,
+            "daaPct": 0,
+            "capexPct": 0,
+            "nwcPct": 0,
+            "termGrowth": 2,
+        },
+        "pros": [{"title": "", "body": ""}] * 3,
+        "cons": [{"title": "", "body": ""}] * 3,
+        "insights": [{"title": "", "body": ""}],
+        "fundraise": {
+            "revenue_scale": {"score": 50, "note": ""},
+            "profitability": {"score": 50, "note": ""},
+            "market_context": {"score": 50, "note": ""},
+            "overall_grade": "",
+            "overall_label": "",
+            "summary": "",
+        },
+    },
+    "plan": {"queries": ["q"]},
+    "select": {"comps": []},
+    "score": {
+        "overallScore": 50,
+        "scoreBand": "Getting There",
+        "summaryParagraph": "",
+        "dimensions": [{"name": "", "score": 50, "insight": ""}] * 5,
+        "recommendations": [{"title": "", "detail": ""}] * 3,
+    },
+    "advise": {"priority": "", "note": ""},
+    "qualify": {"priority": "", "note": ""},
+}
 
 
 class _FakeLlm:
@@ -25,7 +86,10 @@ class _FakeLlm:
 
     def _record(self, name: str, prompt: str):
         self.prompts[name] = prompt
-        return self.responses.get(name, {})
+        # Shallow-merged over the default: a test only has to specify the
+        # field(s) it actually cares about, same as the old dict-based fake.
+        merged = {**_DEFAULTS[name], **self.responses.get(name, {})}
+        return _RESPONSE_MODELS[name].model_validate(merged)
 
     async def enrich(self, *, prompt):
         return self._record("enrich", prompt)
@@ -198,7 +262,8 @@ async def test_enrich_scrapes_the_given_domain_once() -> None:
 
     assert search.scraped == ["https://acme.ae"]
     assert search.queries == [], "enrich searches for nothing; the URL is already known"
-    assert result == {"description": "d", "sector": "AI"}
+    assert result.description == "d"
+    assert result.sector == "AI"
 
 
 async def test_enrich_keeps_an_existing_scheme() -> None:
@@ -215,9 +280,9 @@ async def test_compare_fills_the_shortfall_from_static_data() -> None:
         company="Acme", sector="AI", description="", revenue=3_000_000
     )
 
-    assert result["sourced"] == 0
-    assert result["filled_from_static"] == len(result["comps"])
-    assert result["comps"], "a known sector must still produce a table"
+    assert result.sourced == 0
+    assert result.filled_from_static == len(result.comps)
+    assert result.comps, "a known sector must still produce a table"
 
 
 async def test_compare_reports_how_much_was_actually_sourced() -> None:
@@ -230,9 +295,9 @@ async def test_compare_reports_how_much_was_actually_sourced() -> None:
         company="Acme", sector="AI", description="", revenue=3_000_000
     )
 
-    assert result["sourced"] == 1
-    assert result["comps"][0]["tk"] == "REAL"
-    assert result["filled_from_static"] == len(result["comps"]) - 1
+    assert result.sourced == 1
+    assert result.comps[0].tk == "REAL"
+    assert result.filled_from_static == len(result.comps) - 1
 
 
 async def test_compare_does_not_duplicate_a_sourced_ticker() -> None:
@@ -250,7 +315,7 @@ async def test_compare_does_not_duplicate_a_sourced_ticker() -> None:
         company="Acme", sector="AI", description="", revenue=1
     )
 
-    tickers = [c["tk"] for c in result["comps"]]
+    tickers = [c.tk for c in result.comps]
     assert len(tickers) == len(set(tickers))
 
 
@@ -261,17 +326,21 @@ async def test_compare_survives_a_search_outage() -> None:
     result = await ValuationAi(llm, _FakeSearch(raises=True)).compare(
         company="Acme", sector="AI", description="", revenue=1
     )
-    assert result["comps"]
-    assert result["sourced"] == 0
+    assert result.comps
+    assert result.sourced == 0
 
 
 async def test_compare_skips_selection_when_no_queries_come_back() -> None:
-    llm = _FakeLlm(plan={"queries": []}, select={"comps": [{"co": "X", "tk": "X"}]})
+    # An empty *string* query, not an empty list — `SearchQueries.queries`
+    # requires at least one entry (Bedrock is schema-forced to return one),
+    # so "nothing usable came back" is realistically a blank/whitespace
+    # entry that `compare()`'s own `q.strip()` filter then drops.
+    llm = _FakeLlm(plan={"queries": [""]}, select={"comps": [{"co": "X", "tk": "X"}]})
     result = await ValuationAi(llm, _FakeSearch()).compare(
         company="Acme", sector="AI", description="", revenue=1
     )
     assert "select" not in llm.prompts, "nothing to select from"
-    assert result["sourced"] == 0
+    assert result.sourced == 0
 
 
 @pytest.mark.parametrize(
@@ -413,4 +482,8 @@ async def test_analyze_success_never_touches_the_fallback() -> None:
         revenue=0,
         ebitda=0,
     )
-    assert result == {"sector_fit": "good"}
+    # The full `AnalyzeResult` shape, not the fallback's minimal
+    # pros/cons/insights-only dict — `discounts`/`dcf`/`fundraise` only
+    # exist on the real success path.
+    assert result["sector_fit"] == "good"
+    assert "discounts" in result and "dcf" in result and "fundraise" in result

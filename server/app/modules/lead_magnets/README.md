@@ -101,18 +101,33 @@ one `LeadMagnetService` instead of wiring the two by hand.
 
 `domain/shared/schemas.py` is this module's one deliberate exception to
 "no pydantic in `domain/`/`application/`" — `tests/test_architecture.py`
-allowlists `pydantic` for exactly that one file path, nothing else. It
-types the shapes stored in `tool_runs.payload` (one model per tool,
-mirroring the corresponding `api/schemas.py` request), so `pipelines.py`
-parses the stored payload with `SomePayload.model_validate(payload)`
-instead of `payload.get(key)` plus a manual `isinstance` check per field —
-the `num()`/`text()`/`count()` closures that pattern used to need, once
-per tool, are gone. These models are deliberately permissive
-(`extra="ignore"`, no re-declared `ge`/`le`/length constraints): the data
-was already strictly validated once at the API boundary before being
-stored, and the stored dict also picks up the write contract's own
-bookkeeping keys later (`stage`, `ai`, `attio`, readiness's `score`) that
-these models were never meant to reject.
+allowlists `pydantic` for exactly that one file path, nothing else. Three
+families of type live there:
+
+- **Stored-payload models** (`BenchmarkPayload`, `ReadinessPayload`,
+  `ValuationPayload`, `BuyerNetworkPayload`) type `tool_runs.payload`, one
+  per tool, mirroring the corresponding `api/schemas.py` request.
+  `pipelines.py` parses it with `SomePayload.model_validate(payload)`
+  instead of `payload.get(key)` plus a manual `isinstance` check per field.
+  Deliberately permissive (`extra="ignore"`, no re-declared `ge`/`le`/
+  length constraints): the data was already strictly validated once at the
+  API boundary, and the stored dict also picks up the write contract's own
+  bookkeeping keys later (`stage`, `ai`, `attio`, readiness's `score`) that
+  these models were never meant to reject.
+- **Bedrock response models** (`EnrichResult`, `AnalyzeResult`,
+  `SearchQueries`, `CompareResult`, `ReadinessResult`, `InternalNote`) are
+  what `LeadLLMPort`'s seven methods actually return — moved here from
+  `providers/bedrock/schemas.py` so `application/` can see the real model
+  (a `dict` used to cross that seam) without importing `providers/`: both
+  sides depend inward on `domain/`, neither imports the other. Strict, no
+  `extra="ignore"` — they match exactly what each prompt's forced tool-call
+  schema asks Bedrock for.
+- **`attio_values.py` input models** (`ReadinessValuesInput`,
+  `BuyerValuesInput`) bundle what `readiness_values()`/`buyer_values()`
+  used to take as several loose keyword arguments into one validated
+  object. `benchmark_values()`/`valuation_values()` keep their existing
+  single-dataclass-argument signature — it was already the right type,
+  wrapping it again would be ceremony, not safety.
 
 ## Endpoints
 

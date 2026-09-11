@@ -25,8 +25,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from pydantic import BaseModel, ValidationError
 
 from app.modules.lead_magnets.config import get_settings
-from app.modules.lead_magnets.providers.bedrock.boto_client import get_bedrock_runtime_client
-from app.modules.lead_magnets.providers.bedrock.schemas import (
+from app.modules.lead_magnets.domain.shared.schemas import (
     AnalyzeResult,
     CompareResult,
     EnrichResult,
@@ -34,6 +33,7 @@ from app.modules.lead_magnets.providers.bedrock.schemas import (
     ReadinessResult,
     SearchQueries,
 )
+from app.modules.lead_magnets.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.utilities import retry_with_backoff
 from app.modules.utilities.domain.bedrock import (
     TRANSIENT_ERROR_CODES,
@@ -77,30 +77,30 @@ class LeadBedrockClient:
         self._sonnet = settings.lead_magnet_model_sonnet
         self._haiku = settings.lead_magnet_model_haiku
 
-    async def enrich(self, *, prompt: str) -> JsonObject:
+    async def enrich(self, *, prompt: str) -> EnrichResult:
         return await self._invoke(self._sonnet, prompt, EnrichResult, "enrich", max_tokens=1024)
 
-    async def analyze(self, *, prompt: str) -> JsonObject:
+    async def analyze(self, *, prompt: str) -> AnalyzeResult:
         return await self._invoke(self._sonnet, prompt, AnalyzeResult, "analyze", max_tokens=4096)
 
-    async def plan_search_queries(self, *, prompt: str) -> JsonObject:
+    async def plan_search_queries(self, *, prompt: str) -> SearchQueries:
         """Haiku, and queries only — the cheap model handles the throwaway
         work, and letting it name companies produced invented tickers."""
         return await self._invoke(
             self._haiku, prompt, SearchQueries, "plan_search_queries", max_tokens=512
         )
 
-    async def select_comparables(self, *, prompt: str) -> JsonObject:
+    async def select_comparables(self, *, prompt: str) -> CompareResult:
         return await self._invoke(
             self._sonnet, prompt, CompareResult, "select_comparables", max_tokens=4096
         )
 
-    async def score_readiness(self, *, prompt: str) -> JsonObject:
+    async def score_readiness(self, *, prompt: str) -> ReadinessResult:
         return await self._invoke(
             self._sonnet, prompt, ReadinessResult, "score_readiness", max_tokens=4096
         )
 
-    async def advise_readiness(self, *, prompt: str) -> JsonObject:
+    async def advise_readiness(self, *, prompt: str) -> InternalNote:
         """The internal advisory note. Haiku: the deterministic rules already
         own the referral and the hard flags, so what is left is one paragraph
         of synthesis."""
@@ -108,7 +108,7 @@ class LeadBedrockClient:
             self._haiku, prompt, InternalNote, "advise_readiness", max_tokens=1024
         )
 
-    async def qualify_buyer(self, *, prompt: str) -> JsonObject:
+    async def qualify_buyer(self, *, prompt: str) -> InternalNote:
         """Internal output only, so a failure here is invisible to the
         applicant — their application is already recorded."""
         return await self._invoke(
@@ -123,7 +123,7 @@ class LeadBedrockClient:
         operation: str,
         *,
         max_tokens: int,
-    ) -> JsonObject:
+    ) -> ModelT:
         output_schema = response_model.model_json_schema()
 
         async def call() -> ConverseResponseTypeDef:
@@ -184,7 +184,7 @@ class LeadBedrockClient:
 
         raw = extract_json(response)
         try:
-            return response_model.model_validate(raw).model_dump()
+            return response_model.model_validate(raw)
         except ValidationError as exc:
             # NOT f"...: {exc}" — pydantic's ValidationError.__str__ embeds
             # each failing field's `input_value`, which here is the model's

@@ -13,6 +13,14 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from app.modules.lead_magnets.domain.shared.schemas import (
+    AnalyzeResult,
+    CompareResult,
+    EnrichResult,
+    InternalNote,
+    ReadinessResult,
+    SearchQueries,
+)
 from app.modules.lead_magnets.domain.shared.search import SearchResult
 from app.modules.lead_magnets.domain.shared.tool_run import (
     Stage,
@@ -31,23 +39,26 @@ class LeadLLMPort(Protocol):
 
     Each takes a finished prompt: prompts are pure functions in `domain/`,
     so this layer never learns a model id, a token budget or a response
-    schema. Each returns an already-validated plain `dict`; Pydantic models
-    must not cross this seam.
+    schema. Each returns an already-validated Pydantic model — these are
+    `domain/shared/schemas.py` types, the one place `application/` is
+    allowed to see `pydantic` model instances (never the `pydantic` import
+    itself), since a real implementation validates the model's raw output
+    before handing it here.
     """
 
-    async def enrich(self, *, prompt: str) -> JsonObject: ...
+    async def enrich(self, *, prompt: str) -> EnrichResult: ...
 
-    async def analyze(self, *, prompt: str) -> JsonObject: ...
+    async def analyze(self, *, prompt: str) -> AnalyzeResult: ...
 
-    async def plan_search_queries(self, *, prompt: str) -> JsonObject: ...
+    async def plan_search_queries(self, *, prompt: str) -> SearchQueries: ...
 
-    async def select_comparables(self, *, prompt: str) -> JsonObject: ...
+    async def select_comparables(self, *, prompt: str) -> CompareResult: ...
 
-    async def score_readiness(self, *, prompt: str) -> JsonObject: ...
+    async def score_readiness(self, *, prompt: str) -> ReadinessResult: ...
 
-    async def advise_readiness(self, *, prompt: str) -> JsonObject: ...
+    async def advise_readiness(self, *, prompt: str) -> InternalNote: ...
 
-    async def qualify_buyer(self, *, prompt: str) -> JsonObject: ...
+    async def qualify_buyer(self, *, prompt: str) -> InternalNote: ...
 
 
 class SearchPort(Protocol):

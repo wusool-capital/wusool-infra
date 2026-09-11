@@ -24,6 +24,11 @@ from app.modules.lead_magnets.domain.shared.prompts import (
     compare_select_prompt,
     enrich_prompt,
 )
+from app.modules.lead_magnets.domain.shared.schemas import (
+    Comparable,
+    ComparablesResult,
+    EnrichResult,
+)
 from app.modules.lead_magnets.domain.valuation.strategic_analysis import (
     generate_strategic_analysis,
 )
@@ -43,7 +48,7 @@ class ValuationAi:
         self._llm = llm
         self._search = search
 
-    async def enrich(self, *, domain: str, company: str | None = None) -> JsonObject:
+    async def enrich(self, *, domain: str, company: str | None = None) -> EnrichResult:
         """Description and sector from the company's own page.
 
         One scrape of the URL the visitor gave us, not a search: the site is
@@ -89,7 +94,7 @@ class ValuationAi:
         partial on failure, not absent.
         """
         try:
-            return await self._llm.analyze(
+            result = await self._llm.analyze(
                 prompt=analyze_prompt(
                     company=company,
                     domain=domain,
@@ -102,6 +107,12 @@ class ValuationAi:
                     website_text=website_text,
                 )
             )
+            # Flattened back to a dict here, deliberately: the fallback below
+            # is a genuinely different, partial shape (pros/cons/insights
+            # only — none of AnalyzeResult's other fields have a fallback),
+            # so this method's own contract stays `JsonObject` rather than a
+            # union type, matching `/analyze`'s existing schema-free response.
+            return result.model_dump()
         except Exception:  # noqa: BLE001 - falls back rather than showing an error
             logger.warning("lead_magnet_analyze_failed_using_fallback")
             fallback = generate_strategic_analysis(
@@ -128,19 +139,16 @@ class ValuationAi:
         description: str,
         revenue: float,
         geography: str = "",
-    ) -> JsonObject:
-        """Comparables, grounded in search results.
-
-        Returns `{"comps": [...], "sourced": n, "filled_from_static": n}` so
-        the caller can be honest about how much of the table was researched
-        versus filled from sector data.
-        """
+    ) -> ComparablesResult:
+        """Comparables, grounded in search results — `sourced`/
+        `filled_from_static` let the caller be honest about how much of the
+        table was actually researched versus filled from sector data."""
         planned = await self._llm.plan_search_queries(
             prompt=compare_query_prompt(
                 company=company, sector=sector, description=description, geography=geography
             )
         )
-        queries = [q for q in planned.get("queries", []) if isinstance(q, str) and q.strip()]
+        queries = [q for q in planned.queries if q.strip()]
 
         results: list[tuple[str, str, str]] = []
         if queries:
@@ -154,7 +162,7 @@ class ValuationAi:
                     continue
                 results.extend((r.title, r.url, r.snippet) for r in batch)
 
-        selected: list[JsonObject] = []
+        selected: list[Comparable] = []
         if results:
             chosen = await self._llm.select_comparables(
                 prompt=compare_select_prompt(
@@ -165,7 +173,7 @@ class ValuationAi:
                     search_results=results,
                 )
             )
-            selected = [c for c in chosen.get("comps", []) if isinstance(c, dict)]
+            selected = list(chosen.comps)
         else:
             logger.warning("lead_magnet_compare_no_search_results sector=%s", sector)
 
@@ -174,27 +182,19 @@ class ValuationAi:
         # actually appear in the results returns fewer peers. The gap is
         # filled from the static sector set, never by inventing figures.
         if sourced < _TARGET_COMPS:
-            have = {str(c.get("tk", "")).upper() for c in selected}
+            have = {c.tk.upper() for c in selected}
             for comp in trading_comps_for_sector(sector):
                 if len(selected) >= _TARGET_COMPS:
                     break
                 if comp.tk.upper() in have:
                     continue
                 selected.append(
-                    {
-                        "co": comp.co,
-                        "tk": comp.tk,
-                        "ev": comp.ev,
-                        "rev": comp.rev,
-                        "ebitda": comp.ebitda,
-                    }
+                    Comparable(co=comp.co, tk=comp.tk, ev=comp.ev, rev=comp.rev, ebitda=comp.ebitda)
                 )
 
-        return {
-            "comps": selected,
-            "sourced": sourced,
-            "filled_from_static": len(selected) - sourced,
-        }
+        return ComparablesResult(
+            comps=selected, sourced=sourced, filled_from_static=len(selected) - sourced
+        )
 
 
 def _company_from_domain(domain: str) -> str:

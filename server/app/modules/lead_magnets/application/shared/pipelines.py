@@ -36,7 +36,10 @@ from app.modules.lead_magnets.domain.shared.prompts import (
 from app.modules.lead_magnets.domain.shared.schemas import (
     BenchmarkPayload,
     BuyerNetworkPayload,
+    BuyerValuesInput,
     ReadinessPayload,
+    ReadinessResult,
+    ReadinessValuesInput,
     ValuationPayload,
 )
 from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
@@ -121,12 +124,15 @@ class Pipelines:
 
         # `score` isn't part of the original request — it's the write
         # contract's own bookkeeping, merged in separately by
-        # `readiness/endpoints.py` so this resume never pays for a second
-        # scoring call. Deliberately left as a raw lookup rather than a
-        # typed field on `ReadinessPayload`.
-        scored = payload.get("score")
-        if not isinstance(scored, dict):
-            scored = await self._llm.score_readiness(
+        # `readiness/endpoints.py` (as `scored.model_dump()`) so this resume
+        # never pays for a second scoring call. Deliberately left as a raw
+        # lookup rather than a typed field on `ReadinessPayload` itself,
+        # then re-hydrated into the real model here.
+        stored_score = payload.get("score")
+        scored = (
+            ReadinessResult.model_validate(stored_score)
+            if isinstance(stored_score, dict)
+            else await self._llm.score_readiness(
                 prompt=readiness_score_prompt(
                     founder=parsed.name,
                     business=parsed.company,
@@ -136,6 +142,7 @@ class Pipelines:
                     answers=answers,
                 )
             )
+        )
 
         advisory = rules
         try:
@@ -144,23 +151,25 @@ class Pipelines:
                     company=parsed.company,
                     sector=parsed.sector,
                     revenue_range=revenue_range,
-                    score=scored["overallScore"],
-                    band=scored["scoreBand"],
+                    score=scored.overallScore,
+                    band=scored.scoreBand,
                     answers=answers,
                 )
             )
-            advisory = merge_advisory(rules, note.get("note"))
+            advisory = merge_advisory(rules, note.note)
         except Exception:  # noqa: BLE001 - the note is internal; the score is not
             logger.warning("lead_magnet_advisory_note_failed, keeping the deterministic rules")
 
         return {
             "entry_values": readiness_values(
-                score=scored["overallScore"],
-                band=scored["scoreBand"],
-                advisory=advisory,
-                revenue_usd=revenue_range_midpoint_usd(revenue_range),
+                ReadinessValuesInput(
+                    score=scored.overallScore,
+                    band=scored.scoreBand,
+                    advisory=advisory,
+                    revenue_usd=revenue_range_midpoint_usd(revenue_range),
+                )
             ),
-            "score": scored,
+            "score": scored.model_dump(),
             "advisory": asdict(advisory),
         }
 
@@ -191,17 +200,19 @@ class Pipelines:
                     prior_gcc_acquisition=prior_gcc_acquisition,
                 )
             )
-            note = qualification.get("note")
+            note = qualification.note
         except Exception:  # noqa: BLE001 - the note is internal; the application is already recorded
             logger.warning("lead_magnet_buyer_qualification_failed, submitting without a note")
 
         return {
             "entry_values": buyer_values(
-                check_size_min=check_size_min,
-                check_size_max=check_size_max,
-                prior_gcc_acquisition=prior_gcc_acquisition,
-                target_geography=target_geography,
-                qualification_note=note,
+                BuyerValuesInput(
+                    check_size_min=check_size_min,
+                    check_size_max=check_size_max,
+                    prior_gcc_acquisition=prior_gcc_acquisition,
+                    target_geography=target_geography,
+                    qualification_note=note,
+                )
             ),
         }
 

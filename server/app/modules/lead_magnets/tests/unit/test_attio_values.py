@@ -13,12 +13,14 @@ from app.modules.attio.providers.attio.money import UnknownMoneyFieldError
 from app.modules.lead_magnets.domain.benchmark.benchmark import Band
 from app.modules.lead_magnets.domain.benchmark.benchmark_routing import Quality, Routing
 from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkResult
+from app.modules.lead_magnets.domain.readiness.readiness import AdvisoryContent
 from app.modules.lead_magnets.domain.shared.attio_values import (
     benchmark_values,
     buyer_values,
     readiness_values,
     valuation_values,
 )
+from app.modules.lead_magnets.domain.shared.schemas import BuyerValuesInput, ReadinessValuesInput
 from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation
 
 _BAND = Band(id="sme", label="SME", max_usd=None, ebitda_adj=1.0, rev_emp_mult=1.0, rent_mult=1.0)
@@ -48,10 +50,12 @@ def _benchmark_result(*, quartile: int) -> BenchmarkResult:
 
 def test_buyer_check_size_serialises_against_the_buyer_role_table() -> None:
     values = buyer_values(
-        check_size_min=1_000_000,
-        check_size_max=5_000_000,
-        prior_gcc_acquisition="One deal in 2023",
-        target_geography=["UAE", "KSA"],
+        BuyerValuesInput(
+            check_size_min=1_000_000,
+            check_size_max=5_000_000,
+            prior_gcc_acquisition="One deal in 2023",
+            target_geography=["UAE", "KSA"],
+        )
     )
     assert values["check_size_min"] == {"currency_value": 1_000_000.0}
     assert values["check_size_max"] == {"currency_value": 5_000_000.0}
@@ -60,23 +64,12 @@ def test_buyer_check_size_serialises_against_the_buyer_role_table() -> None:
 
 
 def test_buyer_values_omits_none_rather_than_clearing_the_field() -> None:
-    values = buyer_values(
-        check_size_min=None,
-        check_size_max=None,
-        prior_gcc_acquisition=None,
-        target_geography=[],
-    )
+    values = buyer_values(BuyerValuesInput())
     assert values == {}
 
 
 def test_buyer_values_carries_the_qualification_note_into_acquisition_enrichment() -> None:
-    values = buyer_values(
-        check_size_min=None,
-        check_size_max=None,
-        prior_gcc_acquisition=None,
-        target_geography=[],
-        qualification_note="Warm mandate, introduce now.",
-    )
+    values = buyer_values(BuyerValuesInput(qualification_note="Warm mandate, introduce now."))
     assert values["acquisition_enrichment"] == "Warm mandate, introduce now."
 
 
@@ -94,13 +87,13 @@ def test_an_unconfigured_table_field_pair_still_raises() -> None:
 def test_readiness_values_is_unaffected_by_the_table_parameter() -> None:
     """The refactor's default (`table="seller_role"`) must reproduce the
     pre-existing behaviour for every caller that does not pass one."""
-    from app.modules.lead_magnets.domain.readiness.readiness import AdvisoryContent
-
     values = readiness_values(
-        score=72.5,
-        band="Getting There",
-        advisory=AdvisoryContent(referral=None, advisory_note=None),
-        revenue_usd=1_000_000,
+        ReadinessValuesInput(
+            score=72.5,
+            band="Getting There",
+            advisory=AdvisoryContent(referral=None, advisory_note=None),
+            revenue_usd=1_000_000,
+        )
     )
     assert values["est_revenue"] == {"currency_value": 1_000_000.0}
 
