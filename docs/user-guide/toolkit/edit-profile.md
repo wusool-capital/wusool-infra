@@ -10,14 +10,22 @@
    fails partway, the confirmation message tells you exactly what was saved
    and what was not.
 
+After a successful buyer edit, the confirmation message suggests a
+copy-pasteable `/find-match <name>` command — a convenient next step if you
+just updated the buyer's requirements and want to see matches right away.
+If a profile still has empty fields, [`/enrich-seller`/`/enrich-buyer`](enrich.md)
+can propose values for you to review instead of filling them in by hand.
+
 ## Fields you cannot edit from Slack
 
 Some fields are intentionally left out of the edit form:
 
 - System-managed values such as an organization's connection strength.
-- Scores and enrichment fields (readiness score, lead-quality score, deals
-  introduced / converted) — these are set by other processes and need
-  sign-off before they can be edited here.
+- Scores and pipeline fields set by other processes (readiness score,
+  lead-quality score, deals introduced / converted) — not to be confused
+  with the fields [`/enrich-seller`/`/enrich-buyer`](enrich.md) can propose
+  values for, which *are* editable here. These need sign-off before they
+  can be changed from Slack.
 - People/user references such as an organization's owner or a buyer's key
   contact — there is no person picker in the form yet.
 - `Intake source` can be changed, but only after ticking the "this is a

@@ -59,6 +59,8 @@ integration() {
     app/modules/lead_magnets/tests/integration \
     app/modules/matching_engine/tests/integration \
     app/modules/meetings/tests/integration \
+    app/modules/enrichment/tests/integration \
+    app/modules/discovery/tests/integration \
     tests/integration
 }
 

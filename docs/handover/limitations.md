@@ -12,13 +12,17 @@
 - Runs as a single process, so it does not currently support running more
   than one instance at once.
 
-## Matching engine
+## Matching engine and enrichment
 
-- The web-search fallback is limited to Google-Maps leads, and results are
-  never persisted.
-- No semantic/vector retrieval, document ingestion, seller-financial
-  enrichment, PDF generation, or outreach — these are out of scope by
-  design, not oversights.
+- The web-search fallback (when no strong CRM match exists) finds leads via
+  a public search; a lead is never persisted on its own — only once an
+  operator turns it into a real seller record via `/add-seller`.
+- Seller-financial enrichment (`/enrich-seller`) is supported, via a
+  structured company-data waterfall (Diffbot, then People Data Labs) with a
+  free-text + LLM fallback — see
+  [Enrichment](../user-guide/toolkit/enrich.md).
+- No semantic/vector retrieval, document ingestion, PDF generation, or
+  outreach — these remain out of scope by design, not oversights.
 
 ## Infrastructure
 

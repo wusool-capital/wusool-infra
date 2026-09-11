@@ -41,7 +41,6 @@ from app.modules.matching_engine.persistence.repositories.meetings_repository im
 )
 from app.modules.matching_engine.persistence.unit_of_work import SqlAlchemyMatchingUnitOfWork
 from app.modules.matching_engine.providers.bedrock.client import BedrockConverseClient
-from app.modules.matching_engine.providers.firecrawl.client import FirecrawlMapsClient
 from app.modules.notifications import SlackWebClientNotifier, get_slack_client
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging
@@ -57,10 +56,6 @@ def build_meeting_repository(session: AsyncSession, *, max_chars: int) -> Meetin
 
 def build_bedrock_client() -> BedrockConverseClient:
     return BedrockConverseClient()
-
-
-def build_firecrawl_client(api_key: str) -> FirecrawlMapsClient:
-    return FirecrawlMapsClient(api_key)
 
 
 def build_slack_notifier() -> SlackWebClientNotifier:
@@ -84,7 +79,6 @@ def build_matching_engine_service(
     uow_factory: MatchingUnitOfWorkFactory,
     sessionmaker: async_sessionmaker[AsyncSession],
     bedrock_client: BedrockConverseClient,
-    firecrawl_client: FirecrawlMapsClient | None,
 ) -> MatchingEngineService:
     """`session` backs `buyer_repository`/`meeting_repository` — every
     method call this service makes must happen before that session closes,
@@ -125,7 +119,6 @@ def build_matching_engine_service(
         ),
         top_n=settings.stage3_top_n,
         enable_seller_meeting_notes=settings.enable_seller_meeting_notes,
-        firecrawl_client=firecrawl_client,
     )
 
 

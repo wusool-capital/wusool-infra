@@ -10,7 +10,7 @@ The platform delivers three connected planes:
 | Plane | What it is |
 | --- | --- |
 | **AWS infrastructure** | OpenTofu-managed AWS resources running the whole platform. |
-| **Slack bot server** | One FastAPI + Slack Bolt process (a modular monolith) running the five slash commands and the meeting-summarization API. |
+| **Slack bot server** | One FastAPI + Slack Bolt process (a modular monolith) running the nine slash commands and the meeting-summarization API. |
 | **CRM data platform** | Attio (the CRM) kept in sync with the `wusool_crm` PostgreSQL database: a nightly full resync, a real-time webhook, and operator scripts. |
 
 n8n (workflow automation) runs as its own service and is infrastructure-managed

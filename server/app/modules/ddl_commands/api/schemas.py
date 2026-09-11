@@ -3,9 +3,12 @@
 """
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel
+
+from app.modules.utilities.domain.json_types import JsonObject
 
 # A "bool_as_text" kind used to live here for `buyer_roles.earnout_tolerance`
 # alone — boolean in Attio, `text` in Postgres. #53 made the column a real
@@ -42,6 +45,17 @@ class FieldSpec:
     label: str
     kind: FieldKind
     options: tuple[str, ...] = ()
+
+
+# Every shape a field's value can take across `FieldKind`, at either its
+# already-stored ORM-column shape or a prefill source's raw shape (a bare
+# currency amount before `wrap_prefill_value` wraps it into the
+# `{"amount": ...}` shape a stored role/org row already carries). Mirrors
+# `enrichment.domain.proposals.FieldValue` — same underlying concept
+# (whatever a dynamically-typed field's value looks like), kept as this
+# module's own type rather than a cross-module import since `FieldKind`
+# here is `ddl_commands`' own vocabulary, not enrichment's.
+PrefillValue = str | float | bool | int | date | list[str] | JsonObject
 
 
 class OrganizationSummary(BaseModel):

@@ -66,11 +66,11 @@ class Settings(BaseSettings):
 
     stage3_top_n: int = 3
 
-    # Firecrawl web-fallback: shown when no CRM candidate's score clears
-    # this threshold. Optional since local dev without a key just never
-    # triggers the fallback (falls back to the plain "no candidates"
-    # message) rather than requiring a key to boot.
-    firecrawl_api_key: str | None = None
+    # Below this score, `/find-match` offers the `discovery` module's
+    # "find more sellers" search instead of (or alongside) the CRM
+    # shortlist. The search itself — and its own FIRECRAWL_API_KEY — is
+    # `discovery`'s; this is only the threshold decision, which stays this
+    # module's own call about match quality.
     web_fallback_min_score: float = 50.0
 
     # Meeting-notes enrichment: free-text call/meeting notes (`meetings`

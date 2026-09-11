@@ -38,6 +38,7 @@ class SlackInteractionBody(TypedDict, total=False):
     actions: list[SlackBlockAction]
     channel: SlackChannel
     user: SlackUser
+    trigger_id: str
 
 
 class SlackViewState(TypedDict):

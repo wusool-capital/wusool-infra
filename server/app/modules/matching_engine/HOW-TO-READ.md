@@ -59,9 +59,11 @@ persists the run, and posts an Approve/Reject message to Slack.
       complete, all in ONE atomic transaction
       -> persistence/repositories/matching_repository.py, via a
          Unit-of-Work (persistence/unit_of_work.py)
-   f. posts the ranked result to Slack (or, if every candidate scored
-      too low, up to 3 unverified web leads via providers/firecrawl/
-      instead) -> api/slack/views/match_result.py
+   f. posts the ranked result to Slack, with a "Find more sellers" button
+      -> api/slack/views/match_result.py; if every candidate scored too
+      low, that same discovery search is also triggered automatically
+      -> api/dependencies.py::trigger_seller_discovery ->
+      app.modules.discovery.find_and_post_leads
 
 4. Approve/Reject button clicked
    -> api/slack/handlers/actions.py -> application/approvals.py
@@ -123,7 +125,9 @@ If you're fixing "the LLM keeps getting the wrong idea," look in
   `application/requirements.py` / `application/matching/reasoning_service.py`.
 - Changing how a score is computed → `domain/matching/scoring.py` (pure,
   easy to unit test in isolation).
-- The web-fallback lead search (when nobody scores well enough) →
-  `application/web_search.py`, `providers/firecrawl/client.py`.
+- The lead search (manual button or when nobody scores well enough) →
+  moved to the `discovery` module; this module only decides *whether* to
+  trigger it (`domain/matching/scoring.py::needs_web_fallback`,
+  `application/discovery_bridge.py::extract_query_terms`).
 - The approval/rejection state machine → `domain/matching/lifecycle.py`
   (`can_transition`), `application/approvals.py`.

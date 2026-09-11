@@ -16,8 +16,12 @@ from slack_sdk.models.views import View
 
 from app.models import Organization
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
+from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
-from app.modules.ddl_commands.api.slack.views.dynamic_fields import render_field_block
+from app.modules.ddl_commands.api.slack.views.dynamic_fields import (
+    render_field_block,
+    wrap_prefill_value,
+)
 from app.modules.ddl_commands.api.slack.views.form_values import text_input_block
 from app.modules.notifications import sanitize_mrkdwn
 
@@ -29,6 +33,7 @@ def build_seller_add_form_modal(
     channel_id: str,
     prefill_name: str = "",
     duplicate_candidates: list[str] | None = None,
+    prefill: dict[str, PrefillValue] | None = None,
 ) -> View:
     is_new_org = org is None
     blocks: list[Block] = []
@@ -52,12 +57,22 @@ def build_seller_add_form_modal(
             SectionBlock(text=f"Attaching this seller role to *{sanitize_mrkdwn(org.name)}*.")
         )
 
+    prefill = prefill or {}
     for spec in ORGANIZATION_FIELDS:
-        current = getattr(org, spec.name) if org is not None else None
+        # An existing org's own recorded value always wins over a guess —
+        # prefill only fills in org fields when there is no existing org
+        # row to read from at all (a brand-new organization).
+        current = (
+            getattr(org, spec.name)
+            if org is not None
+            else wrap_prefill_value(spec, prefill.get(spec.name))
+        )
         blocks.append(render_field_block(spec, current, block_id_prefix="org_"))
 
     for spec in SELLER_ROLE_FIELDS:
-        blocks.append(render_field_block(spec, None))
+        # A brand-new seller role has no existing value regardless of
+        # `org`, so prefill always applies here.
+        blocks.append(render_field_block(spec, wrap_prefill_value(spec, prefill.get(spec.name))))
 
     return View(
         type="modal",

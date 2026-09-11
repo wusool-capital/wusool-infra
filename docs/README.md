@@ -13,7 +13,8 @@ the AWS platform they run on.
 ## What's included
 
 - **Wusool Toolkit** — a Slack bot for the deal team: finding buyer–seller
-  matches and keeping buyer/seller profiles up to date.
+  matches, researching missing buyer/seller details, and keeping
+  buyer/seller profiles up to date.
 - **WusoolScribe** — a desktop meeting assistant that records, transcribes,
   and summarizes meetings, and can push a summary into the CRM.
 - **The Attio ↔ database platform** — Attio (the CRM) kept in sync with a

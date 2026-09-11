@@ -1,0 +1,75 @@
+"""Regression coverage for `EnrichMixin`'s pure helpers — no service
+construction needed, both are plain functions.
+"""
+
+from datetime import date
+
+import pytest
+
+from app.modules.enrichment.application.enrich import _coerce_proposed_value, _is_missing
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, True),
+        ("", True),
+        ("   ", True),
+        ([], True),
+        ({}, True),
+        ({"amount": None}, True),
+        (0, False),
+        (0.0, False),
+        (False, False),
+        ("0", False),
+        (["a"], False),
+        ({"amount": 5000}, False),
+        ({"amount": 0}, False),
+        ({"amount": 0.0}, False),
+    ],
+)
+def test_is_missing(value: object, expected: bool) -> None:
+    assert _is_missing(value) is expected
+
+
+def test_coerce_proposed_value_currency() -> None:
+    assert _coerce_proposed_value("currency", "5000000") == 5000000.0
+
+
+def test_coerce_proposed_value_number() -> None:
+    assert _coerce_proposed_value("number", "20") == 20.0
+
+
+def test_coerce_proposed_value_date() -> None:
+    assert _coerce_proposed_value("date", "2020-01-15") == date(2020, 1, 15)
+
+
+def test_coerce_proposed_value_bool() -> None:
+    assert _coerce_proposed_value("bool", "true") is True
+    assert _coerce_proposed_value("bool", "false") is False
+
+
+def test_coerce_proposed_value_text_passthrough() -> None:
+    assert _coerce_proposed_value("text", "Dubai") == "Dubai"
+
+
+def test_coerce_proposed_value_multi_select_text_splits_on_comma() -> None:
+    """`target_geography` is the one `multi_select_text` field the LLM path
+    ever proposes — the extraction schema's `value` is always a single
+    `str`, never a real list, so this is what actually turns "UAE, Saudi
+    Arabia" into `["UAE", "Saudi Arabia"]` for `_normalize` to filter
+    against the fixed option vocabulary.
+    """
+    assert _coerce_proposed_value("multi_select_text", "UAE, Saudi Arabia") == [
+        "UAE",
+        "Saudi Arabia",
+    ]
+
+
+def test_coerce_proposed_value_multi_select_text_single_value() -> None:
+    assert _coerce_proposed_value("multi_select_text", "UAE") == ["UAE"]
+
+
+def test_coerce_proposed_value_invalid_currency_raises() -> None:
+    with pytest.raises(ValueError):
+        _coerce_proposed_value("currency", "about five million")

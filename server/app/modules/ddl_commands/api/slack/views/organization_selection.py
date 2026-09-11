@@ -20,6 +20,7 @@ from slack_sdk.models.blocks.block_elements import StaticSelectElement
 from slack_sdk.models.views import View
 
 from app.models import Organization
+from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.notifications import sanitize_mrkdwn
 
 NEW_ORGANIZATION_VALUE = "__new__"
@@ -32,6 +33,7 @@ def build_organization_selection_modal(
     search_term: str,
     requested_by: str,
     channel_id: str,
+    prefill: dict[str, PrefillValue] | None = None,
 ) -> View:
     options = []
     for org in candidates:
@@ -53,6 +55,7 @@ def build_organization_selection_modal(
                 "requested_by": requested_by,
                 "channel_id": channel_id,
                 "candidate_names": [org.name for org in candidates],
+                "prefill": prefill or {},
             }
         ),
         title=f"Add {kind}: organization",

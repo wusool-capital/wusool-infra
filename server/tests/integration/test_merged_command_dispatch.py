@@ -1,8 +1,10 @@
 """End-to-end Slack command dispatch through the **merged** app (`main.py`)
 — proves the actual thing this merge exists to fix: one process, one
-`AsyncApp`, all 5 commands (matching-engine's `/find-match` plus
-ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`)
-correctly registered and dispatching, with no cross-package collision.
+`AsyncApp`, all 9 commands (matching-engine's `/find-match`,
+ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`,
+enrichment's `/enrich-seller`/`/enrich-buyer`, and `main.py`'s own
+`/help`/`/status`) correctly registered and dispatching, with no
+cross-package collision.
 
 Each package's own test suite (`matching-engine/tests/`, `ddl-commands/tests/`)
 already covers its own business logic and Slack wiring in isolation via its
@@ -105,14 +107,25 @@ def _post_view_submission_raw(view: dict) -> TestClient:
 
 
 @pytest.mark.parametrize(
-    "command", ["/find-match", "/edit-seller", "/edit-buyer", "/add-seller", "/add-buyer"]
+    "command",
+    [
+        "/find-match",
+        "/edit-seller",
+        "/edit-buyer",
+        "/add-seller",
+        "/add-buyer",
+        "/enrich-seller",
+        "/enrich-buyer",
+    ],
 )
 def test_every_command_dispatches_off_the_one_shared_app(
     command: str, _mock_slack_web_client
 ) -> None:
-    """All 5 slash commands route correctly through the single merged
-    `AsyncApp` — the empty-text usage-message path touches neither the DB
-    nor any business logic, so this is a pure wiring check.
+    """Every slash command but `/help` routes correctly through the single
+    merged `AsyncApp` — the empty-text usage-message path touches neither
+    the DB nor any business logic, so this is a pure wiring check. `/help`
+    has no usage message (it always answers the same way regardless of
+    text) — covered separately below.
     """
     response = _post_command(command)
 
@@ -231,6 +244,62 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
     body = response.json()
     assert body["response_action"] == "update"
     assert body["view"]["callback_id"] == "buyer_field_picker_modal"
+
+
+def test_help_command_lists_every_command(_mock_slack_web_client) -> None:
+    """`/help` isn't owned by any one module — `main.py`'s own
+    `_COMMAND_HELP` list is the single source of truth, so this pins that
+    every command actually registered on the app also appears in the help
+    text (catching the same class of staleness `SLACK_APP_SETUP.md` had
+    before it was updated to match).
+    """
+    response = _post_command("/help")
+
+    assert response.status_code == 200
+    assert len(_mock_slack_web_client) == 1
+    text = _mock_slack_web_client[0]["text"]
+    for command, _hint, _description in main._COMMAND_HELP:
+        assert f"`{command}" in text
+
+
+def test_command_help_and_service_map_stay_in_sync() -> None:
+    """`_SERVICE_BY_TRIGGER` (dispatch logging) and `_COMMAND_HELP` (`/help`'s
+    own text) are two independently hand-maintained lists of the same
+    command set — nothing else catches one going stale relative to the
+    other, so this does.
+    """
+    help_commands = {command for command, _hint, _description in main._COMMAND_HELP}
+    assert help_commands == set(main._SERVICE_BY_TRIGGER)
+
+
+def test_status_command_reports_healthy_database(monkeypatch, _mock_slack_web_client) -> None:
+    async def fake_check_database_connectivity() -> None:
+        return None
+
+    monkeypatch.setattr(main, "check_database_connectivity", fake_check_database_connectivity)
+    monkeypatch.setattr(main, "attio_is_test", lambda: True)
+
+    response = _post_command("/status")
+
+    assert response.status_code == 200
+    text = _mock_slack_web_client[0]["text"]
+    assert "Database: reachable" in text
+    assert "Attio: test" in text
+
+
+def test_status_command_reports_unreachable_database(monkeypatch, _mock_slack_web_client) -> None:
+    async def fake_check_database_connectivity() -> None:
+        raise ConnectionError("no route to host")
+
+    monkeypatch.setattr(main, "check_database_connectivity", fake_check_database_connectivity)
+    monkeypatch.setattr(main, "attio_is_test", lambda: False)
+
+    response = _post_command("/status")
+
+    assert response.status_code == 200
+    text = _mock_slack_web_client[0]["text"]
+    assert "Database: unreachable" in text
+    assert "Attio: production" in text
 
 
 def test_lead_magnet_static_mount_does_not_shadow_existing_routes() -> None:

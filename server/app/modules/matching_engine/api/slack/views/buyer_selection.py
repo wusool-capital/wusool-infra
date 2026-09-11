@@ -7,8 +7,8 @@ builders only, no logic.
 
 import json
 
-from slack_sdk.models.blocks import InputBlock
-from slack_sdk.models.blocks.basic_components import Option
+from slack_sdk.models.blocks import ContextBlock, InputBlock
+from slack_sdk.models.blocks.basic_components import MarkdownTextObject, Option
 from slack_sdk.models.blocks.block_elements import StaticSelectElement
 from slack_sdk.models.views import View
 
@@ -32,7 +32,7 @@ def build_buyer_selection_modal(
         callback_id="buyer_selection_modal",
         private_metadata=json.dumps({"requested_by": requested_by, "channel_id": channel_id}),
         title="Confirm buyer",
-        submit="Find matches",
+        submit="Continue",
         close="Cancel",
         blocks=[
             InputBlock(
@@ -43,6 +43,16 @@ def build_buyer_selection_modal(
                     options=options,
                     initial_option=options[0],
                 ),
-            )
+            ),
+            ContextBlock(
+                elements=[
+                    MarkdownTextObject(
+                        text=(
+                            "_Want richer buyer data first? Run `/enrich-buyer <name>` before "
+                            "this, then `/find-match` again._"
+                        )
+                    )
+                ]
+            ),
         ],
     )

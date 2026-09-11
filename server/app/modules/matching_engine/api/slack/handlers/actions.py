@@ -18,6 +18,7 @@ from app.modules.matching_engine.api.dependencies import (
     matching_engine_service,
     run_match_and_post,
     to_match_analysis_schema,
+    trigger_seller_discovery,
 )
 from app.modules.matching_engine.api.slack.views.full_analysis import build_full_analysis_blocks
 from app.modules.matching_engine.api.slack.views.match_result import (
@@ -123,12 +124,45 @@ def register(app: AsyncApp) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="reject")
 
-    @app.action("view_web_lead_source")
-    async def handle_view_web_lead_source(ack: AsyncAck) -> None:
-        # A `url` button still sends an interaction payload Slack requires
-        # this app to acknowledge, even though the browser opens the link
-        # independently — no server-side action needed beyond the ack.
+    @app.action("discover_more_sellers")
+    async def handle_discover_more_sellers(ack: AsyncAck, body: SlackInteractionBody) -> None:
         await ack()
+        run_id_raw = body["actions"][0].get("value")
+        channel_id = body["channel"]["id"]
+        try:
+            run_id = uuid.UUID(run_id_raw)
+        except (ValueError, TypeError):
+            return
+        _task_runner.run(
+            lambda: trigger_seller_discovery(run_id, channel_id=channel_id),
+            name=f"discover:{run_id}",
+        )
+
+    @app.action("enrich_seller_from_match")
+    async def handle_enrich_seller_from_match(ack: AsyncAck, body: SlackInteractionBody) -> None:
+        await ack()
+        seller_role_id = body["actions"][0].get("value")
+        channel_id = body["channel"]["id"]
+        if not seller_role_id:
+            return
+        _task_runner.run(
+            lambda: _enrich_and_notify(
+                kind="seller", role_id=seller_role_id, channel_id=channel_id
+            ),
+            name=f"enrich-seller:{seller_role_id}",
+        )
+
+
+async def _enrich_and_notify(*, kind: str, role_id: str, channel_id: str) -> None:
+    """The per-candidate "Enrich" button on a match result lands here —
+    hands off to `enrichment`, which resolves the org itself and owns the
+    rest of the flow. Kind-agnostic (`/enrich-seller` and `/enrich-buyer`
+    reach the same enrichment pipeline through a different entry point,
+    `enrichment`'s own Slack commands).
+    """
+    from app.modules.enrichment import enrich_and_post
+
+    await enrich_and_post(kind=kind, role_id=role_id, channel_id=channel_id)
 
 
 async def _handle_decision(

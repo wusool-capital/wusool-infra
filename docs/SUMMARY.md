@@ -10,6 +10,7 @@
   * [Finding matches](user-guide/toolkit/find-match.md)
   * [Editing a profile](user-guide/toolkit/edit-profile.md)
   * [Adding a buyer or seller](user-guide/toolkit/add-buyer-seller.md)
+  * [Filling in missing details](user-guide/toolkit/enrich.md)
   * [Rules and limitations](user-guide/toolkit/rules-and-limits.md)
 * WusoolScribe (Meeting Assistant)
   * [Overview](user-guide/scribe/README.md)
