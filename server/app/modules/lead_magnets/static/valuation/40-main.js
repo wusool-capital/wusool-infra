@@ -6,7 +6,9 @@ function App(){
   const [aiComps,setAiComps]=useState(null);
   const [aiCompsStatus,setAiCompsStatus]=useState("idle");
   const [resultsReady,setResultsReady]=useState(false);
-  const [reportUnlocked,setReportUnlocked]=useState(false);
+  // Never set anywhere — the report stays permanently locked, matching
+  // readiness's gate. See the "Get Your Free Valuation Report Now" link.
+  const [reportUnlocked]=useState(false);
   const [analyzeData,setAnalyzeData]=useState(null);
   const [analyzeStatus,setAnalyzeStatus]=useState("idle");
   const [vd,setVd]=useState({
@@ -318,7 +320,14 @@ function App(){
               <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#f0fff8",border:"1px solid rgba(22,218,128,0.4)",borderRadius:8,padding:"4px 12px",fontSize:11,fontWeight:700,color:"#007a50",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.5px"}}>Full Report Ready</div>
               <h2 style={{fontSize:20,fontWeight:800,color:"#000523",marginBottom:8,letterSpacing:"-0.3px",lineHeight:1.25}}>Get Your Free Valuation Report Now</h2>
               <p style={{fontSize:13,color:"#888",lineHeight:1.5,marginBottom:18}}>Your {gate.sector} business in {gate.geo} has been valued across multiple methods. Get your full report and our team will walk you through the complete analysis.</p>
-              <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" onClick={()=>setReportUnlocked(true)} style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"Inter,sans-serif",boxSizing:"border-box"}}>Get Your Free Valuation Report Now →</a>
+              {/* No onClick unlock here, matching readiness's gate
+                  (index.html's #gateOverlay): the link only opens the
+                  booking page in a new tab. It used to also call
+                  setReportUnlocked(true) synchronously on click — before
+                  any booking was actually confirmed — which permanently
+                  unblurred the full AI-generated report in this tab, visible
+                  on return from the booking page. */}
+              <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"Inter,sans-serif",boxSizing:"border-box"}}>Get Your Free Valuation Report Now →</a>
               <div style={{fontSize:11,color:"#aaa",marginTop:9}}>Free · No commitment · Response within 24 hours</div>
             </div>
           </div>

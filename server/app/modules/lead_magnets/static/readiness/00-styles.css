@@ -225,3 +225,10 @@ body{font-family:'Inter',sans-serif;background:#fff;color:#000523;min-height:100
 @media(max-width:768px){.nav-menu{display:none}.btn-primary-cta-nav.desktop-cta{display:none}.menu-button-2{display:flex}.mobile-cta-bar{display:flex;background:rgba(26,26,26,0.95);padding:12px 20px;border-top:1px solid rgba(255,255,255,0.08)}.mobile-btn{width:100%;justify-content:center}}
 @media(max-width:580px){.what-to-expect,.contact-grid,.dimensions-grid{grid-template-columns:1fr}.welcome-hero h1{font-size:28px}.cta-block{flex-direction:column}.options-grid{grid-template-columns:1fr}}
 @media print{.results-screen{display:block!important}.results-hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}#navbar-transparent,.progress-wrap,.loading-screen,.nav-row,.btn-back,.btn-next,.footer-section,.gate-overlay{display:none!important}.results-gate-blur{filter:none!important}}
+
+/* EMBEDDED-MODE HEIGHT FIX: `100vh` inside an iframe is the iframe's own
+   current height, which `shared/height.js` computes from this page's own
+   scrollHeight — the two chase each other to an oversized iframe otherwise.
+   `html.wusool-embedded` is set by height.js only when actually embedded,
+   so a direct visit keeps the original full-viewport body untouched. */
+html.wusool-embedded body{min-height:0}

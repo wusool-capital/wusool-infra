@@ -3,6 +3,25 @@
 // Info tooltip component
 function Tip({text}){return(<span className="tip-wrap"><span className="tip-i">i</span><span className="tip-box">{text}</span></span>)}
 
+// Forces a collapsible panel open for the duration of window.print(),
+// restoring whatever state it was actually in afterward. Needed because
+// every panel's body is render-gated (`{open&&<div>...}`), not merely
+// CSS-hidden — window.print() only captures what's actually in the DOM at
+// the moment it's called, so a collapsed panel's content is simply absent,
+// and no `@media print` rule can bring back a node that was never rendered.
+function usePrintExpand(open,setOpen){
+  const openRef=useRef(open);
+  useEffect(()=>{openRef.current=open},[open]);
+  useEffect(()=>{
+    let wasOpen=null;
+    const before=()=>{wasOpen=openRef.current;setOpen(true)};
+    const after=()=>{if(wasOpen!==null){setOpen(wasOpen);wasOpen=null}};
+    window.addEventListener("beforeprint",before);
+    window.addEventListener("afterprint",after);
+    return()=>{window.removeEventListener("beforeprint",before);window.removeEventListener("afterprint",after)};
+  },[]);
+}
+
 // Numeric input that handles negatives and intermediate typing states
 function NumInput({value,onChange,className,style,step,min,max,placeholder,readOnly}){
   const [display,setDisplay]=useState(String(value||""));

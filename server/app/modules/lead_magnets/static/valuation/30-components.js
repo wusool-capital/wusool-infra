@@ -134,9 +134,9 @@ function Gate({onSubmit,apiKey,setApiKey}){
         <h1 className="gate-title" style={{textAlign:"center"}}>Valuation Tool</h1>
         <p className="gate-sub" style={{textAlign:"center"}}>Get an institutional-grade valuation for your company in minutes</p>
         <form onSubmit={sub}>
-          <div className="row2">
-            <div className="fg"><label className="fl">Company Name *</label><input className="fi" name="companyName" value={f.companyName} onChange={ch} placeholder="e.g. Acme Corp"/>{err.companyName&&<div className="fe">{err.companyName}</div>}</div>
-            <div className="fg"><label className="fl">Your Name *</label><input className="fi" name="name" value={f.name} onChange={ch} placeholder="Full name"/>{err.name&&<div className="fe">{err.name}</div>}</div>
+          <div className="row2" style={{gridTemplateColumns:"1fr 1fr"}}>
+            <div className="fg" style={{minWidth:0}}><label className="fl">Company Name *</label><input className="fi" name="companyName" value={f.companyName} onChange={ch} placeholder="e.g. Acme Corp"/>{err.companyName&&<div className="fe">{err.companyName}</div>}</div>
+            <div className="fg" style={{minWidth:0}}><label className="fl">Your Name *</label><input className="fi" name="name" value={f.name} onChange={ch} placeholder="Full name"/>{err.name&&<div className="fe">{err.name}</div>}</div>
           </div>
           <div className="fg"><label className="fl">Email *</label><input className="fi" name="email" type="email" value={f.email} onChange={ch} placeholder="you@company.com"/>{err.email&&<div className="fe">{err.email}</div>}</div>
           <div className="fg">
@@ -223,12 +223,12 @@ function Gate({onSubmit,apiKey,setApiKey}){
                   {STAGES.map(s=><option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-              <div className="row2">
-                <div className="fg">
+              <div className="row2" style={{gridTemplateColumns:"1fr 1fr"}}>
+                <div className="fg" style={{minWidth:0}}>
                   <label className="fl">Annual Revenue at Last Fundraise ({gateCur}) <Tip text="Annual revenue at the time of your most recent round."/></label>
                   <input className="fi input-blue" name="lastRaiseRevenue" type="text" inputMode="numeric" value={fmtNumInput(f.lastRaiseRevenue)} onChange={chNum} placeholder="Optional"/>
                 </div>
-                <div className="fg">
+                <div className="fg" style={{minWidth:0}}>
                   <label className="fl">Profit Before Tax at Fundraise ({gateCur}) <Tip text="PBT at time of last raise."/></label>
                   <input className="fi input-blue" name="lastRaisePBT" type="text" inputMode="numeric" value={fmtNumInput(f.lastRaisePBT)} onChange={chNum} placeholder="Optional"/>
                 </div>
@@ -253,6 +253,7 @@ function Gate({onSubmit,apiKey,setApiKey}){
 function DCFModule({gate,cfg,onUpdate}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [open,setOpen]=useState(false);
+  usePrintExpand(open,setOpen);
   const [wacc_inputs,setWaccInputs]=useState(null);
   const [termGrowth,setTermGrowth]=useState(2);
   const [pf,setPf]=useState([]);
@@ -414,6 +415,7 @@ function TradingComps({gate,cfg,onUpdate,aiComps}){
   const [dRev,setDRev]=useState(30);
   const [dEb,setDEb]=useState(30);
   const [open,setOpen]=useState(false);
+  usePrintExpand(open,setOpen);
   const [initialized,setInitialized]=useState(false);
 
   useEffect(()=>{
@@ -542,6 +544,7 @@ function TransactionComps({gate,cfg,onUpdate}){
   const [dRev,setDRev]=useState(40);
   const [dEb,setDEb]=useState(20);
   const [open,setOpen]=useState(false);
+  usePrintExpand(open,setOpen);
   const [initialized,setInitialized]=useState(false);
 
   useEffect(()=>{
@@ -617,6 +620,7 @@ function IndustryResearch({gate,cfg,onUpdate}){
   const [selected,setSelected]=useState(new Set());
   const [disc,setDisc]=useState(20);
   const [open,setOpen]=useState(false);
+  usePrintExpand(open,setOpen);
   const [initialized,setInitialized]=useState(false);
 
   useEffect(()=>{
@@ -959,6 +963,7 @@ function generateStrategicAnalysis(gate,cfg){
 // separate loading/local-fallback state to manage here any more.
 function StrategicAnalysis({gate,analysis}){
   const [open,setOpen]=useState(false);
+  usePrintExpand(open,setOpen);
 
   if(!analysis){
     return(
@@ -1054,6 +1059,7 @@ function PDFExportButton({gate,cfg,vd,methods,blended}){
 // being absent, so this needed no other change.
 function FundraiseReadiness({fundraise}){
   const [open,setOpen]=useState(false);
+  usePrintExpand(open,setOpen);
 
   const barColor=(score)=>score>=70?"var(--ng)":score>=45?"#f5a623":"var(--sp)";
   const gradeColor=(g)=>/^A/.test(g)?"var(--ng)":/^B/.test(g)?"#0066cc":/^C/.test(g)?"#f5a623":"var(--sp)";
