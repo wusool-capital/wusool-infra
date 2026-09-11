@@ -16,6 +16,7 @@ from slack_sdk.models.views import View
 
 from app.models import Organization, SellerRole
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
+from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.sellers import (
     GATED_SELLER_ROLE_FIELDS,
     SELLER_ROLE_FIELDS_BY_NAME,
@@ -35,7 +36,7 @@ def build_seller_edit_form_modal(
     selected_role_fields: list[str],
     requested_by: str,
     channel_id: str,
-    prefill: dict[str, object] | None = None,
+    prefill: dict[str, PrefillValue] | None = None,
 ) -> View:
     prefill = prefill or {}
     blocks: list[Block] = []

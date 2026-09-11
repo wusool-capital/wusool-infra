@@ -12,7 +12,7 @@ from typing import Any
 
 from slack_sdk.models.blocks import InputBlock
 
-from app.modules.ddl_commands.api.schemas import FieldSpec
+from app.modules.ddl_commands.api.schemas import FieldSpec, PrefillValue
 from app.modules.ddl_commands.api.slack.views.form_values import (
     bool_select_block,
     date_input_block,
@@ -27,6 +27,7 @@ from app.modules.ddl_commands.api.slack.views.form_values import (
     select_block,
     text_input_block,
 )
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 def _block_id(spec: FieldSpec, block_id_prefix: str) -> str:
@@ -36,6 +37,12 @@ def _block_id(spec: FieldSpec, block_id_prefix: str) -> str:
 def render_field_block(
     spec: FieldSpec, current_value: Any, *, block_id_prefix: str = ""
 ) -> InputBlock:
+    """`current_value` is a `PrefillValue | None` in shape, but stays `Any`
+    here on purpose: this function dispatches on `spec.kind` — a runtime
+    string, not something a type checker can narrow a union against — so
+    each per-kind branch below already knows its own real type without
+    needing (or being able to use) a static discriminant.
+    """
     block_id = _block_id(spec, block_id_prefix)
     if spec.kind == "text":
         return text_input_block(block_id, spec.label, current_value)
@@ -63,8 +70,8 @@ def render_field_block(
 
 
 def extract_field_value(
-    spec: FieldSpec, values: dict[str, Any], *, block_id_prefix: str = ""
-) -> Any:
+    spec: FieldSpec, values: JsonObject, *, block_id_prefix: str = ""
+) -> PrefillValue | None:
     """Returns a plain value in the same shape Postgres already stores
     (title strings for selects, a bare `float | None` amount for money — the
     caller wraps it with `{"amount": ..., "currency": ...}` once it knows
@@ -116,11 +123,14 @@ def extract_field_value(
     raise ValueError(f"Unsupported field kind for extraction: {spec.kind!r}")
 
 
-def wrap_prefill_value(spec: FieldSpec, value: Any) -> Any:
+def wrap_prefill_value(spec: FieldSpec, value: PrefillValue | None) -> Any:
     """Shapes a raw prefill value (`discovery`'s draft, `enrichment`'s
     proposal) the way `render_field_block` expects for `spec.kind` —
     doesn't decide *whether* to use it over a current value, only how to
-    shape it once a caller has already decided to.
+    shape it once a caller has already decided to. Returns `Any`, not
+    `PrefillValue`, since its one job is producing exactly what
+    `render_field_block`'s dynamic dispatch wants — see that function's
+    own docstring for why that boundary stays untyped.
 
     `render_field_block`'s `currency` branch expects the same
     `{"amount": ...}` shape an existing role's ORM column already carries
@@ -131,3 +141,31 @@ def wrap_prefill_value(spec: FieldSpec, value: Any) -> Any:
     if spec.kind == "currency" and isinstance(value, (int, float)):
         return {"amount": value}
     return value
+
+
+def normalize_prefill(
+    values: dict[str, PrefillValue], fields_by_name: dict[str, FieldSpec]
+) -> dict[str, PrefillValue]:
+    """Drops any value not in a `select`/`multi_select_text` field's fixed
+    vocabulary (never passed through as free text) — Slack silently drops an
+    unmatched `select` initial_option and degrades `multi_select_text` to a
+    free-text box (see `render_field_block`), so normalizing before prefill
+    keeps the rendered form predictable either way. Shared by every prefill
+    source (`discovery`'s draft, `enrichment`'s proposal) — previously two
+    near-identical private copies, one per adapter.
+    """
+    normalized: dict[str, PrefillValue] = {}
+    for name, value in values.items():
+        spec = fields_by_name.get(name)
+        if spec is None or value is None:
+            continue
+        if spec.kind == "select" and value not in spec.options:
+            continue
+        if spec.kind == "multi_select_text":
+            kept = [v for v in value if v in spec.options] if isinstance(value, list) else []
+            if not kept:
+                continue
+            normalized[name] = kept
+            continue
+        normalized[name] = value
+    return normalized

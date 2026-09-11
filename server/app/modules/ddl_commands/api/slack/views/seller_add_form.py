@@ -16,6 +16,7 @@ from slack_sdk.models.views import View
 
 from app.models import Organization
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
+from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import (
     render_field_block,
@@ -32,7 +33,7 @@ def build_seller_add_form_modal(
     channel_id: str,
     prefill_name: str = "",
     duplicate_candidates: list[str] | None = None,
-    prefill: dict[str, object] | None = None,
+    prefill: dict[str, PrefillValue] | None = None,
 ) -> View:
     is_new_org = org is None
     blocks: list[Block] = []

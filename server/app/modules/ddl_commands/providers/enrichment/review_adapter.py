@@ -5,23 +5,17 @@ then goes through the ordinary `seller_edit_form_modal`/`buyer_edit_form_modal`
 write path unchanged; this module gains no new write logic for enrichment,
 only a prefilled starting point for the existing one.
 
-Values not in a `select`/`multi_select_text` field's fixed vocabulary are
-dropped here (never passed through as free text) — same reasoning as
-`providers/discovery/seller_draft_adapter.py::_normalize`.
-
 The dependency edge points this way on purpose (`ddl_commands ->
 enrichment`, never the reverse) so `enrichment` never needs to know Attio
 or Postgres exist — see `enrichment/__init__.py`'s docstring.
 """
 
-from typing import Any
-
 from app.modules.ddl_commands.api.buyers import BUYER_ROLE_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.dependencies import resolve_buyer_by_id, resolve_seller_by_id
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
-from app.modules.ddl_commands.api.schemas import FieldSpec
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.slack.views.buyer_form import build_buyer_edit_form_modal
+from app.modules.ddl_commands.api.slack.views.dynamic_fields import normalize_prefill
 from app.modules.ddl_commands.api.slack.views.seller_form import build_seller_edit_form_modal
 from app.modules.ddl_commands.config import get_settings
 from app.modules.enrichment import EnrichmentTarget, EnrichmentTargetKind, ProposedFieldValue
@@ -31,24 +25,6 @@ _ROLE_FIELDS_BY_NAME = {
     EnrichmentTargetKind.SELLER: SELLER_ROLE_FIELDS_BY_NAME,
     EnrichmentTargetKind.BUYER: BUYER_ROLE_FIELDS_BY_NAME,
 }
-
-
-def _normalize(values: dict[str, Any], fields_by_name: dict[str, FieldSpec]) -> dict[str, Any]:
-    normalized: dict[str, Any] = {}
-    for name, value in values.items():
-        spec = fields_by_name.get(name)
-        if spec is None or value is None:
-            continue
-        if spec.kind == "select" and value not in spec.options:
-            continue
-        if spec.kind == "multi_select_text":
-            kept = [v for v in value if v in spec.options] if isinstance(value, list) else []
-            if not kept:
-                continue
-            normalized[name] = kept
-            continue
-        normalized[name] = value
-    return normalized
 
 
 class DdlCommandsReviewAdapter:
@@ -66,7 +42,9 @@ class DdlCommandsReviewAdapter:
 
         role_fields_by_name = _ROLE_FIELDS_BY_NAME[target.kind]
         combined_fields_by_name = {**role_fields_by_name, **ORGANIZATION_FIELDS_BY_NAME}
-        prefill = _normalize({v.field_name: v.proposed for v in values}, combined_fields_by_name)
+        prefill = normalize_prefill(
+            {v.field_name: v.proposed for v in values}, combined_fields_by_name
+        )
         if not prefill:
             return
 
