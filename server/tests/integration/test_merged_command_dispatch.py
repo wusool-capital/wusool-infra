@@ -262,6 +262,16 @@ def test_help_command_lists_every_command(_mock_slack_web_client) -> None:
         assert f"`{command}" in text
 
 
+def test_command_help_and_service_map_stay_in_sync() -> None:
+    """`_SERVICE_BY_TRIGGER` (dispatch logging) and `_COMMAND_HELP` (`/help`'s
+    own text) are two independently hand-maintained lists of the same
+    command set — nothing else catches one going stale relative to the
+    other, so this does.
+    """
+    help_commands = {command for command, _hint, _description in main._COMMAND_HELP}
+    assert help_commands == set(main._SERVICE_BY_TRIGGER)
+
+
 def test_status_command_reports_healthy_database(monkeypatch, _mock_slack_web_client) -> None:
     async def fake_check_database_connectivity() -> None:
         return None
