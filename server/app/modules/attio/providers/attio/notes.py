@@ -1,10 +1,17 @@
-"""Pushes a meeting summary to Attio's "note" object as a best-effort side
-write. `AttioNoteWriter.push_note` must never fail the caller's meeting: any
-Attio error is caught, logged, and turned into `None` so a broken Attio
-integration can't break meeting summarization. Postgres is not written
-here -- the caller decides what `None` means (skip Attio, insert
-Postgres-only with a fresh id), and whether to call this at all (this
-class writes to the `note` object unconditionally).
+"""Writes to Attio's "note" object as a best-effort side write.
+`AttioNoteWriter.push_note` must never fail its caller: any Attio error is
+caught, logged, and turned into `None`, so a broken Attio integration cannot
+break the flow that produced the note. Postgres is not written here -- the
+caller decides what `None` means (skip Attio, insert Postgres-only with a
+fresh id), and whether to call this at all.
+
+Lives in this module rather than in `meetings`, which wrote it: the `note`
+object slug and its attribute shape are workspace-level facts, not
+meeting-specific ones, and a second caller (`lead_magnets`' advisory note)
+cannot legally reach into `meetings/providers/` -- `server/tests/
+test_architecture.py` allows deep imports only into the full-access modules,
+of which this is one. `note_type` is the only thing that was
+meeting-specific; it is now a constructor argument.
 """
 
 from __future__ import annotations
@@ -13,7 +20,7 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from app.modules.attio import AttioClient, get_attio_client
+from app.modules.attio.providers.attio.client import AttioClient, get_attio_client
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +31,19 @@ _NOTE_OBJECT_SLUG = "note"
 
 
 class AttioNoteWriter:
-    def __init__(self, client: AttioClient | None = None, *, is_test: bool) -> None:
+    def __init__(self, client: AttioClient | None = None, *, is_test: bool, note_type: str) -> None:
         """`is_test` is which half of the single shared SOURCE workspace this
         process owns. Taken here rather than as a `push_note` argument: that
-        method is the `NoteWriterPort` surface, and threading the flag
-        through it would put an Attio-workspace concept into
-        `meetings/application/`, which has no business knowing about one.
+        method is the caller's Port surface, and threading the flag through
+        it would put an Attio-workspace concept into an `application/` layer
+        that has no business knowing about one. `note_type` is a constructor
+        argument for the same reason. It has no default: `notes.note_type`'s CHECK
+        allows exactly `Meeting` or `Manual`, and neither is the obvious one
+        to assume on a caller's behalf.
         """
         self._client = client or get_attio_client()
         self._is_test = is_test
+        self._note_type = note_type
 
     async def push_note(
         self,
@@ -44,7 +55,7 @@ class AttioNoteWriter:
         buyer_role_entry_id: str | None,
         seller_role_entry_id: str | None,
     ) -> UUID | None:
-        """POST a "Meeting" note to Attio's `note` object, linked to
+        """POST a note to Attio's `note` object, linked to
         `organization_attio_id`. Attribute slugs (`organization_id`,
         `note_type`, `content`, `note_created_at`) match the ones
         `ddl_commands.persistence.attio_sync._note_params` already reads
@@ -71,7 +82,7 @@ class AttioNoteWriter:
         failure.
         """
         values: dict[str, object] = {
-            "note_type": "Meeting",
+            "note_type": self._note_type,
             "content": content,
             "note_created_at": created_at.isoformat(),
             # One SOURCE workspace serves both environments; a note written

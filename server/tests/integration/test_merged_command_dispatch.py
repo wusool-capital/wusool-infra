@@ -23,6 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
+from app.modules.lead_magnets.api import dependencies as lead_magnet_deps
 from app.modules.matching_engine.config import get_settings
 
 
@@ -230,3 +231,59 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
     body = response.json()
     assert body["response_action"] == "update"
     assert body["view"]["callback_id"] == "buyer_field_picker_modal"
+
+
+def test_lead_magnet_static_mount_does_not_shadow_existing_routes() -> None:
+    """The static mount (`app.mount("/", ToolStatic(...))`) is the newest
+    thing merged into this app, registered last — the same collision risk
+    this file already exists to catch for the Slack handlers. Proven live
+    once: `GET /readiness` is a k8s-style DB-connectivity probe unrelated
+    to the readiness *tool*, which will eventually serve at `/readiness/`
+    (trailing slash) — exact-path route registration keeps them apart.
+    """
+    client = TestClient(main.app)
+
+    # `rate_limit`'s counter is a module-level singleton shared by every
+    # test in this process, keyed on TestClient's fixed "testclient" host —
+    # by the time this file's tests run, lead_magnets' own integration
+    # suite has already spent some of the hourly quota against that same
+    # key. Reset it so the three POSTs below are judged on their own,
+    # exactly as `test_api_guards.py` already does for its own assertions
+    # about this limiter.
+    lead_magnet_deps._limiter = None
+
+    assert client.get("/health").status_code == 200
+    # 503 here means "no real database in this test", not "route missing" —
+    # the k8s probe still answered, which is what this test checks.
+    assert client.get("/readiness").status_code in (200, 503)
+    assert client.get("/ready").status_code in (200, 503)
+
+    assert client.get("/embed.js").status_code == 200
+    assert client.get("/benchmark/", follow_redirects=False).status_code == 200
+    assert client.get("/readiness/", follow_redirects=False).status_code == 200
+    assert client.get("/valuation/", follow_redirects=False).status_code == 200
+    assert client.get("/buyers/", follow_redirects=False).status_code == 200
+    assert client.get("/img/5ba450cc.png").status_code == 200
+    assert client.get("/img/a0288d00.png").status_code == 200
+    assert client.get("/shared/height.js").status_code == 200
+    assert client.get("/valuation/10-data.js").status_code == 200
+    assert client.get("/buyers/10-main.js").status_code == 200
+
+    # POST /benchmark is the real submission API, at the same path prefix
+    # as the GET-only static page — different HTTP methods, no collision.
+    response = client.post("/benchmark", json={})
+    assert response.status_code == 422  # reaches request validation, not a 404
+
+    # /readiness/score is the real submission API for the readiness tool —
+    # a sibling path to the GET-only /readiness/ static page, not a
+    # collision.
+    response = client.post("/readiness/score", json={})
+    assert response.status_code == 422
+
+    # /buyer/apply (singular) is the real submission API; /buyers/
+    # (plural) is the static page — different path prefixes entirely, so
+    # this one was never even a near-collision like the other three.
+    response = client.post("/buyer/apply", json={})
+    assert response.status_code == 422
+
+    assert client.get("/this-path-does-not-exist/").status_code == 404

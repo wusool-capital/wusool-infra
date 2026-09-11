@@ -1,0 +1,202 @@
+"""The valuation tool's three AI helpers: enrich, analyze and compare.
+
+Stateless. None of them writes to the ledger, because none of them is a
+submission — they build the report the visitor reads while still in the
+tool. The valuation submission itself goes through the write contract like
+every other tool.
+
+`compare` is the one piece Bedrock cannot do natively: search is not
+available for Claude at all, so the live tool's `web_search` is replaced by
+a three-step pipeline — a cheap model plans the queries, Firecrawl runs
+them, and the main model selects comparables from the results. Any shortfall
+is filled from the static sector set rather than by letting a model invent
+figures.
+"""
+
+import asyncio
+import logging
+from dataclasses import asdict
+
+from app.modules.lead_magnets.application.shared.ports import LeadLLMPort, SearchPort
+from app.modules.lead_magnets.domain.shared.prompts import (
+    analyze_prompt,
+    compare_query_prompt,
+    compare_select_prompt,
+    enrich_prompt,
+)
+from app.modules.lead_magnets.domain.shared.schemas import (
+    Comparable,
+    ComparablesResult,
+    EnrichResult,
+)
+from app.modules.lead_magnets.domain.valuation.strategic_analysis import (
+    generate_strategic_analysis,
+)
+from app.modules.lead_magnets.domain.valuation.valuation import trading_comps_for_sector
+from app.modules.lead_magnets.domain.valuation.valuation_data import sectors
+from app.modules.utilities.domain.json_types import JsonObject
+
+logger = logging.getLogger(__name__)
+
+# The live prompt asks for 6 to 8 listed peers.
+_TARGET_COMPS = 8
+_RESULTS_PER_QUERY = 5
+
+
+class ValuationAi:
+    def __init__(self, llm: LeadLLMPort, search: SearchPort) -> None:
+        self._llm = llm
+        self._search = search
+
+    async def enrich(self, *, domain: str, company: str | None = None) -> EnrichResult:
+        """Description and sector from the company's own page.
+
+        One scrape of the URL the visitor gave us, not a search: the site is
+        already known, so there was never anything to search for.
+        """
+        url = domain if domain.startswith("http") else f"https://{domain}"
+        page = await self._search.scrape(url)
+        if not page:
+            logger.warning("lead_magnet_enrich_page_empty domain=%s", domain)
+
+        return await self._llm.enrich(
+            prompt=enrich_prompt(
+                company=company or _company_from_domain(domain),
+                domain=domain,
+                page_text=page,
+                sector_list=list(sectors()),
+            )
+        )
+
+    async def analyze(
+        self,
+        *,
+        company: str,
+        domain: str,
+        sector: str,
+        description: str,
+        geography: str,
+        revenue: float,
+        ebitda: float,
+        website_text: str = "",
+        raised: bool = False,
+        stage: str | None = None,
+    ) -> JsonObject:
+        """Sector judgement, discounts, DCF overrides, the strategic read
+        and the readiness scorecard — the merge of what were separate
+        calls.
+
+        A Bedrock failure falls back to `generate_strategic_analysis`, the
+        live tool's own deterministic pros/cons/insights logic — the one
+        part of this response that was ever deterministic in the source.
+        `sector_fit`, `discounts`, `dcf`, the search term lists and
+        `fundraise` have no fallback there either, so the response is
+        partial on failure, not absent.
+        """
+        try:
+            result = await self._llm.analyze(
+                prompt=analyze_prompt(
+                    company=company,
+                    domain=domain,
+                    sector=sector,
+                    description=description,
+                    geography=geography,
+                    revenue=revenue,
+                    ebitda=ebitda,
+                    sector_list=list(sectors()),
+                    website_text=website_text,
+                )
+            )
+            # Flattened back to a dict here, deliberately: the fallback below
+            # is a genuinely different, partial shape (pros/cons/insights
+            # only — none of AnalyzeResult's other fields have a fallback),
+            # so this method's own contract stays `JsonObject` rather than a
+            # union type, matching `/analyze`'s existing schema-free response.
+            return result.model_dump()
+        except Exception:  # noqa: BLE001 - falls back rather than showing an error
+            logger.warning("lead_magnet_analyze_failed_using_fallback")
+            fallback = generate_strategic_analysis(
+                company=company,
+                description=description,
+                sector=sector,
+                revenue=revenue,
+                ebitda=ebitda,
+                geography=geography,
+                raised=raised,
+                stage=stage,
+            )
+            return {
+                "pros": [asdict(p) for p in fallback.pros],
+                "cons": [asdict(p) for p in fallback.cons],
+                "insights": [asdict(p) for p in fallback.insights],
+            }
+
+    async def compare(
+        self,
+        *,
+        company: str,
+        sector: str,
+        description: str,
+        revenue: float,
+        geography: str = "",
+    ) -> ComparablesResult:
+        """Comparables, grounded in search results — `sourced`/
+        `filled_from_static` let the caller be honest about how much of the
+        table was actually researched versus filled from sector data."""
+        planned = await self._llm.plan_search_queries(
+            prompt=compare_query_prompt(
+                company=company, sector=sector, description=description, geography=geography
+            )
+        )
+        queries = [q for q in planned.queries if q.strip()]
+
+        results: list[tuple[str, str, str]] = []
+        if queries:
+            batches = await asyncio.gather(
+                *(self._search.search(q, limit=_RESULTS_PER_QUERY) for q in queries),
+                return_exceptions=True,
+            )
+            for batch in batches:
+                if isinstance(batch, BaseException):
+                    logger.warning("lead_magnet_compare_search_failed error=%s", batch)
+                    continue
+                results.extend((r.title, r.url, r.snippet) for r in batch)
+
+        selected: list[Comparable] = []
+        if results:
+            chosen = await self._llm.select_comparables(
+                prompt=compare_select_prompt(
+                    company=company,
+                    sector=sector,
+                    description=description,
+                    revenue=revenue,
+                    search_results=results,
+                )
+            )
+            selected = list(chosen.comps)
+        else:
+            logger.warning("lead_magnet_compare_no_search_results sector=%s", sector)
+
+        sourced = len(selected)
+        # Accuracy and quantity trade off: a model held to figures that
+        # actually appear in the results returns fewer peers. The gap is
+        # filled from the static sector set, never by inventing figures.
+        if sourced < _TARGET_COMPS:
+            have = {c.tk.upper() for c in selected}
+            for comp in trading_comps_for_sector(sector):
+                if len(selected) >= _TARGET_COMPS:
+                    break
+                if comp.tk.upper() in have:
+                    continue
+                selected.append(
+                    Comparable(co=comp.co, tk=comp.tk, ev=comp.ev, rev=comp.rev, ebitda=comp.ebitda)
+                )
+
+        return ComparablesResult(
+            comps=selected, sourced=sourced, filled_from_static=len(selected) - sourced
+        )
+
+
+def _company_from_domain(domain: str) -> str:
+    host = domain.replace("https://", "").replace("http://", "").split("/")[0]
+    return host.removeprefix("www.").rsplit(".", 1)[0].replace("-", " ").replace("_", " ")

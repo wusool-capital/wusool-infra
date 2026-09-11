@@ -66,6 +66,12 @@ module "wusool_toolkit" {
       image         = "${aws_ecr_repository.wusool_toolkit.repository_url}@${var.image_digest}"
       app_secret_id = aws_secretsmanager_secret.wusool_toolkit.id
       public_url    = var.public_url
+      # Same container, second vhost: the four lead-magnet tools are routers
+      # and static files in this image, not a separate service. A second
+      # `apps` entry would need its own secret, ECR repo and image build,
+      # and `_deploy.yml`'s migration/health-check/deployed_sha steps are all
+      # hardcoded to the name "toolkit".
+      extra_hostnames = var.toolkit_extra_hostnames
     }
   ]
 }

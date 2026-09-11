@@ -11,10 +11,11 @@ construction, not by convention. Neither Slack module's own
 standalone (its own test suite) — this file is what actually gets deployed.
 """
 
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from functools import lru_cache
 from typing import Any
 
@@ -33,6 +34,9 @@ from app.modules.ddl_commands.api.slack.handlers import (
 from app.modules.ddl_commands.persistence.database import (
     import_all_models as import_ddl_commands_models,
 )
+from app.modules.lead_magnets.api.router import router as lead_magnets_router
+from app.modules.lead_magnets.api.static import ToolStatic, static_dir
+from app.modules.lead_magnets.bootstrap import run_sweeper_forever
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
 )
@@ -94,13 +98,27 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
         )
     else:
         logging.getLogger("app").info("ATTIO_IS_TEST=false — this instance owns production records")
-    yield
+
+    # Drains any lead-magnet submission the write contract left unfinished
+    # (a failed AI/Attio call) without waiting for a request to trigger it.
+    # See `lead_magnets/application/shared/sweeper.py`.
+    sweeper_task = asyncio.create_task(run_sweeper_forever())
+    try:
+        yield
+    finally:
+        sweeper_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await sweeper_task
 
 
 app = FastAPI(title="Wusool Toolkit Bot", lifespan=_lifespan)
 register_exception_handlers(app)
 app.include_router(attio_sync_router)
 app.include_router(meetings_router)
+# The four lead-magnet tools. Served on this same container behind a second
+# Caddy hostname (see modules/toolkit-ec2's `extra_hostnames`), not a
+# separate app.
+app.include_router(lead_magnets_router)
 
 
 @app.exception_handler(Exception)
@@ -232,6 +250,16 @@ async def slack_events(req: Request) -> Response:
     trust a payload without it.
     """
     return await _slack_request_handler().handle(req)
+
+
+# Last: a catch-all, so it never shadows /health, /readiness, /ready,
+# /slack/events, /webhooks/attio, or /desktop/* — all registered above.
+# Static-file behind a trailing-slash directory path only ever matches a
+# request no earlier route claimed (verified against exact-path routes
+# like GET /readiness, which is unrelated to the readiness *tool* served
+# at /readiness/ — no collision, confirmed live: the two differ only by
+# the trailing slash and Starlette's exact-path matching keeps them apart).
+app.mount("/", ToolStatic(directory=static_dir(), html=True), name="lead_magnet_tools")
 
 
 if __name__ == "__main__":

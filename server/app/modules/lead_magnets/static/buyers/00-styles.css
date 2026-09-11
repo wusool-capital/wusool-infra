@@ -1,0 +1,77 @@
+:root{
+  --navy:#000523; --navy-80:rgba(0,5,35,.80); --navy-55:rgba(0,5,35,.55); --navy-30:rgba(0,5,35,.28);
+  --navy-12:rgba(0,5,35,.11); --navy-06:rgba(0,5,35,.05);
+  --sky:#C6E1EE; --sky-deep:#7FB4CE; --ink:#1A1A1A; --mist:#F5F5F5;
+  --paper:#F7F5F0; --white:#fff;
+  --r:4px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--paper);color:var(--navy);-webkit-font-smoothing:antialiased;line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;padding:0 22px}
+
+header{padding:34px 0 0}
+.logo{height:26px;width:auto;display:block}
+.eyebrow{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--navy-55)}
+
+.hero{padding:40px 0 32px}
+h1{font-size:clamp(30px,5.5vw,46px);font-weight:600;letter-spacing:-.03em;line-height:1.08;margin:16px 0 14px}
+h1 em{font-style:normal;color:var(--navy)}
+.lede{font-size:16px;color:var(--navy-80);max-width:56ch}
+
+.card{background:var(--white);border:1px solid var(--navy-12);border-radius:var(--r);padding:30px;margin-bottom:40px}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.fg{margin-bottom:18px}
+label{display:block;font-size:13.5px;font-weight:500;margin-bottom:6px}
+.opt,.hint-inline{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy-30);font-weight:400;margin-left:7px;vertical-align:1px}
+.fi{width:100%;padding:12px 13px;border:1px solid var(--navy-12);border-radius:9px;font-family:'Inter',sans-serif;font-size:15px;color:var(--navy);background:var(--white);transition:border-color .15s,box-shadow .15s}
+.fi:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px var(--navy-06)}
+.fi::placeholder{color:var(--navy-30)}
+textarea.fi{resize:vertical;font-family:inherit}
+
+.ms{border:1px solid var(--navy-12);border-radius:9px;background:var(--white);overflow:hidden}
+.ms:focus-within{border-color:var(--navy);box-shadow:0 0 0 3px var(--navy-06)}
+.ms-search{display:block;width:100%;padding:11px 13px;border:none;border-bottom:1px solid var(--navy-12);font-family:'Inter',sans-serif;font-size:14px;color:var(--navy);background:var(--mist)}
+.ms-search:focus{outline:none}
+.ms-search::placeholder{color:var(--navy-30)}
+.ms-list{max-height:210px;overflow-y:auto}
+.ms-opt{padding:9px 13px;font-size:14.5px;cursor:pointer;user-select:none;transition:background .1s}
+.ms-opt:hover{background:var(--navy-06)}
+.ms-opt.selected{background:var(--navy);color:#fff}
+.ms-opt.selected::before{content:"\2713";display:inline-block;width:1.1em;font-weight:700}
+.ms-opt:focus-visible{outline:2px solid var(--sky-deep);outline-offset:-2px}
+.ms-opt.ms-hidden{display:none}
+.ms-empty{padding:16px 13px;font-size:13px;color:var(--navy-30);text-align:center}
+
+.row{display:flex;gap:18px;margin-top:22px;align-items:center;flex-wrap:wrap}
+.btn{padding:13px 26px;border-radius:9px;border:none;font-family:'Inter',sans-serif;font-size:15px;font-weight:500;cursor:pointer;transition:.15s}
+.btn-p{background:var(--navy);color:#fff}
+.btn-p:hover{background:#0a1240}
+.btn-p:disabled{opacity:.45;cursor:not-allowed}
+
+.check{display:flex;gap:10px;align-items:flex-start;margin-top:10px}
+.check input{width:16px;height:16px;margin-top:3px;flex-shrink:0}
+.check label{font-size:12.5px;color:var(--navy-55);font-weight:400;line-height:1.45;margin:0}
+.check label a{color:var(--navy);text-decoration:underline;text-underline-offset:2px}
+.check label a:hover{color:var(--sky-deep)}
+
+.errtext{color:var(--navy);font-size:12.5px;margin-top:8px;display:none}
+.errtext.show{display:block}
+
+#success-wrap h2{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+#success-wrap .sub{color:var(--navy-55);font-size:14.5px}
+
+#lm-fallback{text-align:center;padding:40px 0}
+#lm-fallback p{color:var(--navy-55);font-size:14px}
+#lm-fallback a{color:var(--navy)}
+
+.hide{display:none!important}
+
+footer{padding:32px 0 60px;font-size:12px;color:var(--navy-30)}
+
+@media(max-width:640px){
+  .grid{grid-template-columns:1fr}
+  .card{padding:22px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}

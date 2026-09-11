@@ -1,8 +1,11 @@
 # attio
 
 The Attio CRM vendor integration — API client, webhook envelope types, and
-value-extraction/serialization helpers. `ddl_commands` is this module's one
-real consumer today; extracted into its own peer module for organizational
+value-extraction/serialization helpers. `ddl_commands` is this module's
+largest consumer; `meetings` uses `providers/attio/notes.py` (which it
+originally owned — moved here because the `note` object slug and attribute
+shape are workspace-level facts, and a second caller cannot legally import
+`meetings/providers/`); extracted into its own peer module for organizational
 clarity (Attio is a large, self-contained integration surface), not because
 a second consumer exists yet. No `persistence/`, no `api/`, no
 `bootstrap.py` — this module owns no tables and no HTTP surface of its own.
@@ -36,6 +39,8 @@ attio/
     registry.py                          # object/list id -> api_slug lookups
     retry.py                             # retry policy for the webhook-sync path only
     entries.py                           # create/patch organization + list-entry helpers
+    notes.py                             # AttioNoteWriter — best-effort note write, never
+                                            # raises into its caller; note_type per caller
 ```
 
 ## Public contract

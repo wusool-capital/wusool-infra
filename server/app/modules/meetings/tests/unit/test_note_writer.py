@@ -10,8 +10,8 @@ from uuid import UUID
 
 import pytest
 
+from app.modules.attio.providers.attio.notes import AttioNoteWriter
 from app.modules.meetings import bootstrap
-from app.modules.meetings.providers.attio.note_writer import AttioNoteWriter
 
 
 class _FakeClient:
@@ -41,7 +41,7 @@ async def _push(writer: AttioNoteWriter) -> UUID | None:
 async def test_push_note_stamps_the_scope(is_test: bool) -> None:
     client = _FakeClient()
 
-    await _push(AttioNoteWriter(client, is_test=is_test))
+    await _push(AttioNoteWriter(client, is_test=is_test, note_type="Meeting"))
 
     _, body = client.post_calls[0]
     assert body["data"]["values"]["is_test"] is is_test
@@ -55,7 +55,7 @@ async def test_push_note_still_swallows_attio_failures() -> None:
         async def post(self, path: str, json_body: dict) -> dict:
             raise RuntimeError("attio is down")
 
-    assert await _push(AttioNoteWriter(_Failing(), is_test=False)) is None
+    assert await _push(AttioNoteWriter(_Failing(), is_test=False, note_type="Meeting")) is None
 
 
 def test_build_note_writer_always_returns_a_writer() -> None:
@@ -66,13 +66,23 @@ def test_build_note_writer_always_returns_a_writer() -> None:
     assert isinstance(bootstrap.build_note_writer(), AttioNoteWriter)
 
 
+async def test_note_type_comes_from_the_constructor() -> None:
+    """`note_type` is per-caller now that the writer is shared — meetings
+    files `Meeting`, and `notes.note_type`'s CHECK allows only that or
+    `Manual`."""
+    client = _FakeClient()
+    await _push(AttioNoteWriter(client, is_test=False, note_type="Manual"))
+    assert client.post_calls[0][1]["data"]["values"]["note_type"] == "Manual"
+    assert bootstrap.build_note_writer()._note_type == "Meeting"
+
+
 async def test_push_note_omits_organization_id_when_none() -> None:
     """An org-less meeting (internal/general/investor, or a company that
     never resolved to an Attio org) must not send an empty/null
     `organization_id` reference — the key is omitted entirely."""
     client = _FakeClient()
 
-    await AttioNoteWriter(client, is_test=False).push_note(
+    await AttioNoteWriter(client, is_test=False, note_type="Meeting").push_note(
         organization_attio_id=None,
         content="Internal sync.",
         created_at=datetime(2026, 9, 7, tzinfo=UTC),
@@ -94,7 +104,7 @@ async def test_push_note_sends_only_the_matching_role_id() -> None:
     `seller_role_id`, and vice versa (`PublishMixin` never resolves both)."""
     client = _FakeClient()
 
-    await AttioNoteWriter(client, is_test=False).push_note(
+    await AttioNoteWriter(client, is_test=False, note_type="Meeting").push_note(
         organization_attio_id="org-1",
         content="Buyer call.",
         created_at=datetime(2026, 9, 7, tzinfo=UTC),

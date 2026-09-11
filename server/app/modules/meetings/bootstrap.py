@@ -18,6 +18,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.attio import attio_is_test
+from app.modules.attio.providers.attio.notes import AttioNoteWriter
 from app.modules.meetings.application.ports.note_writer import NoteWriterPort
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
@@ -27,7 +28,6 @@ from app.modules.meetings.persistence.meetings_repository import MeetingsReposit
 from app.modules.meetings.persistence.notes_repository import NotesRepository
 from app.modules.meetings.persistence.organization_lookup import OrganizationLookup
 from app.modules.meetings.persistence.role_lookup import RoleLookup
-from app.modules.meetings.providers.attio.note_writer import AttioNoteWriter
 from app.modules.meetings.providers.bedrock.client import BedrockConverseClient
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ def build_note_writer() -> NoteWriterPort:
     someone left the slug blank in a secrets map — the exact
     silent-misconfiguration failure the `is_test` work exists to remove.
     """
-    return AttioNoteWriter(is_test=attio_is_test())
+    return AttioNoteWriter(is_test=attio_is_test(), note_type="Meeting")
 
 
 def build_summarization_service() -> SummarizationService:

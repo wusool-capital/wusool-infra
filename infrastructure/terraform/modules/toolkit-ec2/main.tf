@@ -196,7 +196,13 @@ locals {
   alarm_actions      = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
 
   # Per-app hostname/URL resolution — same sslip.io-fallback logic as before,
-  # just per app instead of a single pair of locals.
+  # just per app instead of a single pair of locals. Hoisted out of
+  # apps_resolved so the fallback ternary is written once, not once per
+  # consumer.
+  app_hostnames = { for a in var.apps : a.name =>
+    a.public_url != "" ? regex("^https?://([^/]+)", a.public_url)[0] : "${a.name}-${local.generated_ip_label}.sslip.io"
+  }
+
   apps_resolved = [for a in var.apps : {
     name = a.name
     # Bash variable names can't contain hyphens (app names can, e.g.
@@ -205,8 +211,11 @@ locals {
     slug          = replace(a.name, "-", "_")
     image         = a.image
     app_secret_id = a.app_secret_id
-    hostname      = a.public_url != "" ? regex("^https?://([^/]+)", a.public_url)[0] : "${a.name}-${local.generated_ip_label}.sslip.io"
-    url           = a.public_url != "" ? a.public_url : "https://${a.name}-${local.generated_ip_label}.sslip.io"
+    hostname      = local.app_hostnames[a.name]
+    url           = a.public_url != "" ? a.public_url : "https://${local.app_hostnames[a.name]}"
+    # Caddy accepts comma-separated site addresses on one block; every name
+    # gets its own certificate and all of them proxy to the same container.
+    site_addresses = join(", ", concat([local.app_hostnames[a.name]], a.extra_hostnames))
   }]
 
   # ECR registry host, derived from any app's image reference (everything

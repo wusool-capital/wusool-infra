@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M&A Readiness Score | Wusool Capital</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="00-styles.css?v=1">
+</head>
+<body>
+
+<!-- NAVBAR -->
+
+
+
+<!-- LOADING -->
+<div class="loading-screen" id="loadingScreen">
+  <img src="../img/a0288d00.png" alt="Wusool Capital" style="height:44px;width:auto;display:block;margin:0 auto;">
+  <div class="loading-ring"></div>
+  <div class="loading-text" id="loadingText">Analysing your business...</div>
+  <div class="loading-sub">Our AI is reviewing your answers across 5 dimensions of M&amp;A readiness.</div>
+  <div class="loading-dots"><span></span><span></span><span></span></div>
+</div>
+
+<!-- MAIN CONTAINER -->
+<div class="container">
+
+<!-- WELCOME -->
+<div class="section active" id="sec0">
+  <div class="welcome-hero">
+    <span class="welcome-badge">Free Tool</span>
+    <h1>How ready are you<br>to <em>sell your business?</em></h1>
+    <p>Answer 15 plain-English questions and our AI will give you a personalised M&amp;A Readiness Score - plus the specific steps to increase your exit value before going to market.</p>
+    <div class="what-to-expect">
+      <div class="expect-card"><span class="expect-icon">⏱</span><strong>5 minutes</strong><span>No jargon, plain English throughout</span></div>
+      <div class="expect-card"><span class="expect-icon">🎯</span><strong>Personalised score</strong><span>Across 5 dimensions buyers care about</span></div>
+      <div class="expect-card"><span class="expect-icon">📋</span><strong>Action plan</strong><span>Specific steps to improve your score</span></div>
+    </div>
+    <button class="btn-start" onclick="goTo(1)">Get My Score &nbsp;→</button>
+  </div>
+</div>
+
+<!-- SEC 1: FINANCES -->
+<div class="section" id="sec1">
+  <div class="q-section-header">
+    <div class="q-section-num">Section 1 of 5</div>
+    <h2>💰 Financial Health</h2>
+    <p>Buyers need to trust your numbers. These questions help us understand how financially transparent your business is.</p>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">1</span>Are your last 2–3 years of financial statements prepared by an accountant?</div>
+    <div class="options" data-q="q1">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes, fully audited or reviewed by an external firm</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes, prepared by an accountant but not audited</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">We're working on it - not fully done yet</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Not really - mostly internal spreadsheets</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">2</span>Does any single customer represent more than 30% of your revenue?</div>
+    <div class="options" data-q="q2">
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes - one customer is more than half my revenue</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes - one customer is between 30–50% of revenue</div></div></button>
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">No - my top customer is less than 30% of revenue</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">3</span>Are there any outstanding issues with taxes, loans, or legal disputes?</div>
+    <div class="options" data-q="q3">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">None - everything is clean and up to date</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Minor issues that are being resolved</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes, there are some significant open issues</div></div></button>
+    </div>
+  </div>
+  <div class="nav-row">
+    <button class="btn-back" onclick="goTo(0)">← Back</button>
+    <button class="btn-next" onclick="nextSection(1,2)">Next: Your Team →</button>
+  </div>
+  <div class="error-msg" id="err1">Please answer all questions before continuing.</div>
+</div>
+
+<!-- SEC 2: TEAM -->
+<div class="section" id="sec2">
+  <div class="q-section-header">
+    <div class="q-section-num">Section 2 of 5</div>
+    <h2>👥 Team &amp; Operations</h2>
+    <p>One of the biggest concerns for buyers is whether the business depends entirely on you.</p>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">4</span>If you stepped away for 3 months, could the business keep running smoothly?</div>
+    <div class="options" data-q="q4">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes - I have a strong team that handles most things</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Mostly - there'd be some gaps but it would survive</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Probably not - key relationships or decisions need me</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">No - the business is very dependent on me personally</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">5</span>How would you describe your management team?</div>
+    <div class="options" data-q="q5">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Strong - I have experienced managers across key functions</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Decent - I have 1–2 good people I rely on heavily</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Thin - it's mostly me and a few junior staff</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">6</span>Are your key business processes written down or documented?</div>
+    <div class="options" data-q="q6">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes - we have clear SOPs and documented processes</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Some are - the important ones mostly</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Not really - most of it is in people's heads</div></div></button>
+    </div>
+  </div>
+  <div class="nav-row">
+    <button class="btn-back" onclick="goTo(1)">← Back</button>
+    <button class="btn-next" onclick="nextSection(2,3)">Next: Revenue Quality →</button>
+  </div>
+  <div class="error-msg" id="err2">Please answer all questions before continuing.</div>
+</div>
+
+<!-- SEC 3: REVENUE -->
+<div class="section" id="sec3">
+  <div class="q-section-header">
+    <div class="q-section-num">Section 3 of 5</div>
+    <h2>📈 Revenue Quality</h2>
+    <p>Not all revenue is created equal. Buyers pay more for predictable, growing income.</p>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">7</span>What percentage of your revenue is recurring or under signed contracts?</div>
+    <div class="options-grid options" data-q="q7">
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Under 20%</div><div class="opt-subtext">Mostly one-off</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">20–50%</div><div class="opt-subtext">Mixed</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">50–80%</div><div class="opt-subtext">Mostly recurring</div></div></button>
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">80%+</div><div class="opt-subtext">Highly contracted</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">8</span>How long have your top 3 customers been with you?</div>
+    <div class="options" data-q="q8">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">3+ years - they've been with us a long time</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">1–3 years</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Less than a year</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">We don't really have repeat customers</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">9</span>How has your revenue been trending over the last 2 years?</div>
+    <div class="options" data-q="q9">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Growing fast - 20%+ per year</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Growing steadily</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Roughly flat - stable but not growing much</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Declining or inconsistent</div></div></button>
+    </div>
+  </div>
+  <div class="nav-row">
+    <button class="btn-back" onclick="goTo(2)">← Back</button>
+    <button class="btn-next" onclick="nextSection(3,4)">Next: Legal &amp; Structure →</button>
+  </div>
+  <div class="error-msg" id="err3">Please answer all questions before continuing.</div>
+</div>
+
+<!-- SEC 4: LEGAL -->
+<div class="section" id="sec4">
+  <div class="q-section-header">
+    <div class="q-section-num">Section 4 of 5</div>
+    <h2>⚖️ Legal &amp; Structure</h2>
+    <p>Legal surprises can kill a deal. We just need a quick health check.</p>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">10</span>Is your company properly registered and in good regulatory standing?</div>
+    <div class="options" data-q="q10">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes - fully registered and all licences are current</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Mostly - a few minor things to sort out</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Not fully - there are registration gaps to address</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">11</span>Are your key contracts - customers, suppliers, employees - properly signed?</div>
+    <div class="options" data-q="q11">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Yes - everything significant is under signed contract</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Most of them - some relationships are still informal</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Not really - a lot runs on trust and handshakes</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">12</span>Who owns the key assets of the business - brand, software, IP?</div>
+    <div class="options" data-q="q12">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">The company owns everything - clearly registered</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Most of it - a few things need to be formally transferred</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Unclear - some things are in my personal name</div></div></button>
+    </div>
+  </div>
+  <div class="nav-row">
+    <button class="btn-back" onclick="goTo(3)">← Back</button>
+    <button class="btn-next" onclick="nextSection(4,5)">Next: Growth Story →</button>
+  </div>
+  <div class="error-msg" id="err4">Please answer all questions before continuing.</div>
+</div>
+
+<!-- SEC 5: GROWTH -->
+<div class="section" id="sec5">
+  <div class="q-section-header">
+    <div class="q-section-num">Section 5 of 5</div>
+    <h2>🚀 Your Growth Story</h2>
+    <p>Buyers don't just pay for today - they pay for what your business could become.</p>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">13</span>How clear and compelling is your reason for a buyer to want this business?</div>
+    <div class="options" data-q="q13">
+      <button class="option-btn" data-val="3" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Very clear - strong market position, loyal customers, or unique capability</div></div></button>
+      <button class="option-btn" data-val="2" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Reasonably clear - good business with a solid track record</div></div></button>
+      <button class="option-btn" data-val="1" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Somewhat clear - good business but the story needs work</div></div></button>
+      <button class="option-btn" data-val="0" onclick="selectOpt(this)"><span class="opt-radio"></span><div><div class="opt-text">Not sure yet - I haven't thought through the buyer pitch</div></div></button>
+    </div>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">14</span>In your own words - what's the main reason a buyer would want your business?</div>
+    <textarea class="text-input" id="q14" placeholder="e.g. We have exclusive supplier relationships, a loyal customer base of 200+ businesses, and a team that runs independently..."></textarea>
+  </div>
+  <div class="question-block">
+    <div class="question-label"><span class="q-num">15</span>What's held back growth until now?</div>
+    <textarea class="text-input" id="q15" placeholder="e.g. We've been limited by working capital - with proper backing we could expand to 3 more cities within 18 months..."></textarea>
+  </div>
+  <div class="nav-row">
+    <button class="btn-back" onclick="goTo(4)">← Back</button>
+    <button class="btn-next" onclick="nextSection(5,6)">Almost there →</button>
+  </div>
+  <div class="error-msg" id="err5">Please answer all questions before continuing.</div>
+</div>
+
+<!-- SEC 6: CONTACT -->
+<div class="section" id="sec6">
+  <div class="q-section-header">
+    <div class="q-section-num">Last step</div>
+    <h2>✉️ Where should we send your score?</h2>
+    <p>Tell us a bit about yourself so we can personalise your results.</p>
+  </div>
+  <div style="background:#fff;border:1px solid #E2E4EE;border-radius:4px;padding:24px;">
+    <div class="contact-grid" style="margin-bottom:14px">
+      <div class="form-field"><label>Your Name <span>*</span></label><input type="text" class="form-input" id="cName" placeholder="Ahmed Al Rashidi"></div>
+      <div class="form-field"><label>Email Address <span>*</span></label><input type="email" class="form-input" id="cEmail" placeholder="ahmed@company.com"></div>
+      <div class="form-field"><label>Business Name <span>*</span></label><input type="text" class="form-input" id="cBiz" placeholder="Gulf Health Solutions LLC"></div>
+      <div class="form-field"><label>Company Website / Domain <span>*</span></label><input type="text" class="form-input" id="cDomain" placeholder="e.g. gulfhealth.ae" autocomplete="off"></div>
+      <div class="form-field"><label>Sector <span>*</span></label>
+        <select class="form-input" id="cSector">
+          <option value="">Select your sector</option>
+          <option>Technology &amp; SaaS</option><option>Healthcare &amp; Medical</option><option>F&amp;B &amp; Hospitality</option><option>Professional Services</option><option>Education &amp; Training</option><option>Retail &amp; E-Commerce</option><option>Construction &amp; Contracting</option><option>Logistics &amp; Supply Chain</option><option>Financial Services</option><option>Manufacturing &amp; Industrial</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-field"><label>Annual Revenue</label>
+        <select class="form-input" id="cRevenue">
+          <option value="">Select range</option><option>Under $1M</option><option>$1M – $5M</option><option>$5M – $15M</option><option>$15M – $50M</option><option>$50M+</option>
+        </select>
+      </div>
+      <div class="form-field"><label>Country</label>
+        <select class="form-input" id="cCountry">
+          <option value="">Select country</option><option>UAE</option><option>Saudi Arabia</option><option>Egypt</option><option>Kuwait</option><option>Qatar</option><option>Bahrain</option><option>Oman</option><option>Other MENA</option>
+        </select>
+      </div>
+    </div>
+    <div class="consent-check">
+      <input type="checkbox" id="cConsent" onchange="clearConsentErr()">
+      <label for="cConsent">I agree to Wusool's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a> and consent to being contacted.</label>
+    </div>
+    <div class="consent-err" id="errConsent">Please accept the Privacy Policy to continue.</div>
+  </div>
+  <div class="nav-row">
+    <button class="btn-back" onclick="goTo(5)">← Back</button>
+    <button class="btn-submit" onclick="submitForm()" id="submitBtn">Generate My Score ✦</button>
+  </div>
+  <div class="error-msg" id="err6">Please fill in your name, email, business name, sector, and company domain.</div>
+  <p style="font-size:11px;color:#7F7F7F;margin-top:12px;text-align:center">Your answers are confidential and used only to generate your report. Wusool Capital will never share your data.</p>
+</div>
+
+<!-- RESULTS -->
+<div class="results-screen" id="resultsScreen">
+  <!-- Always visible: score hero -->
+  <div class="results-hero" id="resultsHero">
+    <div class="results-top">
+      <div>
+        <div class="results-badge">M&amp;A Readiness Report</div>
+        <div class="results-name" id="resName"></div>
+        <div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:4px" id="resDate"></div>
+      </div>
+      <div class="score-circle-wrap">
+        <div class="score-circle" id="scoreCircle">
+          <div class="score-num" id="scoreNum">--</div>
+          <div class="score-label">/ 100</div>
+        </div>
+        <div class="score-band" id="scoreBand"></div>
+      </div>
+    </div>
+    <div class="results-summary" id="resSummary"></div>
+  </div>
+
+  <!-- Score breakdown title - always visible -->
+  <div style="margin-bottom:8px"><div class="recs-title">Your Score Breakdown</div></div>
+
+  <!-- GATE: blurred content + overlay card -->
+  <div class="results-gate">
+    <!-- Blurred content underneath -->
+    <div class="results-gate-blur" id="gateBlur">
+      <div class="dimensions-grid" id="dimensionsGrid"></div>
+      <div class="recs-section">
+        <div class="recs-title">Priority Actions</div>
+        <div id="recsContainer"></div>
+      </div>
+      <div class="cta-block">
+        <div><h3>Ready to take this further?</h3><p>Talk to a Wusool Capital advisor about your exit strategy.</p></div>
+        <div class="cta-actions">
+          <button class="btn-cta-white">⬇ Save Report</button>
+          <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" class="btn-cta-outline" style="text-decoration:none">Book a Call →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gate overlay -->
+    <div class="gate-overlay" id="gateOverlay">
+      <div class="gate-card">
+        <span class="gate-icon">🔒</span>
+        <h3>Unlock Your Full Report</h3>
+        <p>Book a free 20-minute call with a Wusool Capital advisor to receive your complete breakdown - including all 5 dimension scores and your personalised action plan.</p>
+        <div class="gate-bullets">
+          <div class="gate-bullet">Full dimension-by-dimension breakdown</div>
+          <div class="gate-bullet">3 priority actions to increase your score</div>
+          <div class="gate-bullet">No retainer · No obligation</div>
+        </div>
+        <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" class="btn-gate">Book My Free Call →</a>
+        <p class="gate-note">Takes 20 minutes. Zero commitment required.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-footer">Prepared by Wusool Capital &middot; Confidential &middot; <span id="footerDate"></span></div>
+</div>
+
+</div><!-- /container -->
+
+<!-- FOOTER -->
+
+<div id="lmFallback" style="display:none">
+  <p style="max-width:40ch;margin:60px auto;text-align:center;color:#7F7F7F;font-size:14px">This tool did not load correctly. Please try refreshing the page, or visit <a href="https://www.wusoolcapital.com">wusoolcapital.com</a> to get in touch directly.</p>
+</div>
+
+<script src="10-state.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="20-nav.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="30-submit.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="40-results.js?v=2" onerror="window.__lmFail=1"></script>
+<script src="../shared/height.js?v=1"></script>
+<script>
+  if(window.__lmFail || typeof renderResults!=="function"){
+    document.querySelector(".container").style.display="none";
+    document.getElementById("lmFallback").style.display="block";
+  }
+</script>
+</body>
+</html>
