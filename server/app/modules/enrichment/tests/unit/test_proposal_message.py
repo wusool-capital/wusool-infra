@@ -9,6 +9,7 @@ from datetime import date
 
 from app.modules.enrichment.api.slack.views.proposal_message import (
     _encode_proposal,
+    build_proposal_blocks,
     decode_proposal,
 )
 from app.modules.enrichment.domain.field_plans import WriteTarget
@@ -106,3 +107,29 @@ def test_round_trip_drops_display_only_fields() -> None:
     assert decoded.values[0].current is None
     assert decoded.values[0].source_url == ""
     assert decoded.values[0].rationale == ""
+
+
+def test_url_shaped_proposed_value_renders_as_a_short_link() -> None:
+    """Diffbot's `logo_url` is an encoded image-proxy URL, unreadable as raw
+    text — any http(s) proposed value should render as a short link, not the
+    full string, so a reviewer isn't shown an unreadable wall of text.
+    """
+    proposal = _proposal(
+        (
+            ProposedFieldValue(
+                field_name="logo_url",
+                write_target=WriteTarget.ORGANIZATION,
+                current=None,
+                proposed="https://kg.diffbot.com/image/api/get?fetch=yes&url=abc123",
+                source_url="https://example.com",
+                confidence=0.9,
+                rationale="Sourced from Diffbot.",
+            ),
+        )
+    )
+
+    blocks = build_proposal_blocks(proposal)
+    field_block_text = blocks[2].text.text
+
+    assert "<https://kg.diffbot.com/image/api/get?fetch=yes&url=abc123|View>" in field_block_text
+    assert "kg.diffbot.com/image/api/get?fetch=yes&url=abc123*" not in field_block_text

@@ -91,6 +91,18 @@ def decode_proposal(value: str) -> EnrichmentProposal:
     return EnrichmentProposal(target=target, values=tuple(values), generated_by_model="")
 
 
+def _render_proposed_value(value: FieldValue) -> str:
+    """A URL-shaped proposed value (logo_url, linkedin, twitter, etc.) is
+    unreadable as raw text in Slack — Diffbot's own logo_url in particular
+    is an encoded image-proxy link, not a plain URL. Render any http(s) URL
+    as a short clickable link instead of dumping the raw string.
+    """
+    text = str(value)
+    if text.startswith("http://") or text.startswith("https://"):
+        return f"<{text}|View>"
+    return sanitize_mrkdwn(text)
+
+
 def build_proposal_blocks(proposal: EnrichmentProposal) -> list[Block]:
     if not proposal.values:
         return [
@@ -111,7 +123,7 @@ def build_proposal_blocks(proposal: EnrichmentProposal) -> list[Block]:
                 text=(
                     f"*{value.field_name}*\n"
                     f"Current: {sanitize_mrkdwn(str(current))}\n"
-                    f"Proposed: *{sanitize_mrkdwn(str(value.proposed))}*\n"
+                    f"Proposed: *{_render_proposed_value(value.proposed)}*\n"
                     f"Confidence: {value.confidence:.0%} — {sanitize_mrkdwn(value.rationale)}"
                 )
             )
