@@ -15,10 +15,12 @@ from app.modules.enrichment.api.dependencies import propose_and_post, target_fro
 from app.modules.enrichment.api.slack.views.proposal_message import decode_proposal
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
 from app.modules.utilities import InProcessTaskRunner
+from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
 
 logger = logging.getLogger(__name__)
 
 _task_runner = InProcessTaskRunner()
+_submission_idempotency_store = InMemoryIdempotencyStore()
 
 
 def register(app: AsyncApp) -> None:
@@ -27,6 +29,15 @@ def register(app: AsyncApp) -> None:
         ack: AsyncAck, body: SlackInteractionBody, view: SlackViewSubmissionPayload
     ) -> None:
         await ack()
+
+        view_id = view.get("id")
+        if view_id:
+            idempotency_key = f"role_selection_submission:{view_id}"
+            if _submission_idempotency_store.seen(idempotency_key):
+                logger.info("role_selection_duplicate_delivery_skipped key=%s", idempotency_key)
+                return
+            _submission_idempotency_store.mark(idempotency_key)
+
         metadata = json.loads(view.get("private_metadata") or "{}")
         channel_id = metadata.get("channel_id")
         if not channel_id:

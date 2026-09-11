@@ -20,9 +20,10 @@ delivered state and outstanding items see
   directly-typed field from either provider's own database is treated as
   high-confidence and never re-researched via the LLM path. Buyer targets
   never call either provider — none of `BUYER_ENRICHABLE_FIELDS` are fields
-  their schemas track. Neither provider's response shape has been verified
-  against a live account yet — see `providers/diffbot/schemas.py` and
-  `providers/people_data_labs/schemas.py`.
+  their schemas track. Diffbot's response shape is now verified live (see
+  the Fixed entry below); People Data Labs' is not yet — confirm
+  `providers/people_data_labs/schemas.py` against a real account before
+  relying on it.
 
 ### Changed
 
@@ -43,6 +44,41 @@ delivered state and outstanding items see
 - `organization_selection_modal`'s "existing org, no active role"
   branch now carries `discovery`'s prefill through to the resulting add
   form (it previously dropped it silently — the only branch that did).
+- `/enrich-seller <name>` and `/enrich-buyer <name>` — kind-scoped
+  shortcuts for `/enrich` that skip the role-selection modal when an org
+  has both a buyer and a seller role.
+- Buyer saves now suggest re-matching: every successful `/edit-buyer`
+  confirmation appends a copy-pasteable `` `/find-match {org_name}` ``
+  line. Replaces the old "enrich this buyer first?" checkbox on the
+  `/find-match` buyer-confirmation modal, which stopped short of actually
+  running the match — the checkbox is gone; the modal now shows a static
+  tip pointing at `/enrich-buyer` instead.
+- New sellers get an "Enrich" button too: `/add-seller`'s confirmation
+  message now carries the same `enrich_seller_from_match` button a match
+  result shows, reusing `matching_engine`'s existing handler via the
+  shared action_id convention — no new handler, no cross-module import.
+
+### Fixed
+
+- Diffbot's Enhance API lookup was broken end-to-end, only caught by
+  testing live against a real `DIFFBOT_API_KEY` account: the request used
+  a DQL-style `query` param (`type:Organization name:"X"`), but the
+  Enhance API wants `type`/`name` as separate params and 400s otherwise.
+  Once fixed, the response also didn't match the schema —
+  `foundingDate`/`revenue` are nested objects, not bare scalars, and
+  `location.country` is itself an entity with its own `name` — none of
+  which matched Diffbot's published docs, which this schema was
+  originally written against blind. Also wired up `nbLocations`, `logo`,
+  `angellistUri`, `facebookUri`, `twitterUri` — present on every Enhance
+  response but previously unmapped despite matching existing
+  `location_count`/`logo_url`/`angellist`/`facebook`/`twitter` columns.
+- `enrichment`'s `enrichment_role_selection_modal` view submission had no
+  duplicate-delivery guard, unlike its sibling view-submission handlers
+  (`matching_engine`'s `buyer_selection_modal`) — a redelivered Slack
+  submission would have spawned two background research runs (real
+  Bedrock/Firecrawl/Diffbot/PDL cost) and posted two duplicate proposal
+  messages. Added the same `InMemoryIdempotencyStore` pattern, keyed on
+  the view id.
 
 ### Changed
 
