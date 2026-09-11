@@ -3,7 +3,7 @@
 `AsyncApp`, all 9 commands (matching-engine's `/find-match`,
 ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`,
 enrichment's `/enrich-seller`/`/enrich-buyer`, and `main.py`'s own
-`/help`/`/status`) correctly registered and dispatching, with no
+`/help`/`/toolkit-status`) correctly registered and dispatching, with no
 cross-package collision.
 
 Each package's own test suite (`matching-engine/tests/`, `ddl-commands/tests/`)
@@ -279,7 +279,7 @@ def test_status_command_reports_healthy_database(monkeypatch, _mock_slack_web_cl
     monkeypatch.setattr(main, "check_database_connectivity", fake_check_database_connectivity)
     monkeypatch.setattr(main, "attio_is_test", lambda: True)
 
-    response = _post_command("/status")
+    response = _post_command("/toolkit-status")
 
     assert response.status_code == 200
     text = _mock_slack_web_client[0]["text"]
@@ -294,7 +294,7 @@ def test_status_command_reports_unreachable_database(monkeypatch, _mock_slack_we
     monkeypatch.setattr(main, "check_database_connectivity", fake_check_database_connectivity)
     monkeypatch.setattr(main, "attio_is_test", lambda: False)
 
-    response = _post_command("/status")
+    response = _post_command("/toolkit-status")
 
     assert response.status_code == 200
     text = _mock_slack_web_client[0]["text"]

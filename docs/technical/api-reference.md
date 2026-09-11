@@ -12,7 +12,7 @@
 | `/enrich-seller <name>` | `enrichment` |
 | `/enrich-buyer <name>` | `enrichment` |
 | `/help` | Answered directly in the process entrypoint (`main.py`) — not owned by any one module. |
-| `/status` | Same — reports uptime, database reachability, and Attio test/production mode. |
+| `/toolkit-status` | Same — reports uptime, database reachability, and Attio test/production mode. |
 
 There is no bare `/enrich` — both enrichment commands are kind-scoped, so an
 organization with both an active buyer and seller role never needs a

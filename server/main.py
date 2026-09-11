@@ -1,7 +1,7 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
 all 9 commands: `/find-match` (matching_engine module), `/enrich-seller`/
 `/enrich-buyer` (enrichment module), `/edit-seller`/`/edit-buyer`/
-`/add-seller`/`/add-buyer` (ddl_commands module), and `/help`/`/status`
+`/add-seller`/`/add-buyer` (ddl_commands module), and `/help`/`/toolkit-status`
 (answered directly here, since neither is owned by any one module) — plus
 the `meetings` module's `/desktop/*` REST surface for the WusoolScribe
 desktop app (transcript ingestion, summarization, status polling; no
@@ -98,13 +98,13 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/enrich-seller": "enrichment",
     "/enrich-buyer": "enrichment",
     "/help": "help",
-    "/status": "status",
+    "/toolkit-status": "status",
 }
 _UNKNOWN_TRIGGER = "unknown"
 _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
 
-# Process start, for `/status`'s uptime — read once at import time, not per
-# request.
+# Process start, for `/toolkit-status`'s uptime — read once at import
+# time, not per request.
 _BOOT_TIME = time.monotonic()
 
 # (command, usage hint, description) for every command Slack can route to
@@ -127,7 +127,7 @@ _COMMAND_HELP: tuple[tuple[str, str, str], ...] = (
     ("/edit-buyer", "<buyer org name>", "Edit an existing buyer profile."),
     ("/add-seller", "<organization name>", "Add a new seller."),
     ("/add-buyer", "<organization name>", "Add a new buyer."),
-    ("/status", "", "Show the bot's uptime, database, and Attio mode."),
+    ("/toolkit-status", "", "Show the bot's uptime, database, and Attio mode."),
     ("/help", "", "List every command and how to use it."),
 )
 
@@ -267,7 +267,7 @@ def _format_uptime(seconds: float) -> str:
 
 
 def _register_status_command(bolt_app: AsyncApp) -> None:
-    @bolt_app.command("/status")
+    @bolt_app.command("/toolkit-status")
     async def handle_status(
         ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
     ) -> None:
