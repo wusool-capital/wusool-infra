@@ -33,10 +33,21 @@ def register_handlers(app: AsyncApp) -> None:
     ) -> None:
         await ack()
         action = body["actions"][0]
-        lead = decode_lead(action["value"])
         channel_id = body["channel"]["id"]
         user_id = body["user"]["id"]
         trigger_id = body["trigger_id"]
+
+        try:
+            lead = decode_lead(action["value"])
+        except Exception:
+            # A stale/legacy button value (e.g. after a deploy changes
+            # `DiscoveredLead`'s shape) must not fail silently after `ack()`
+            # has already fired — the operator needs to see *something*.
+            logger.exception("discover_lead_decode_failed")
+            await client.chat_postEphemeral(
+                channel=channel_id, user=user_id, text="Couldn't process that lead."
+            )
+            return
 
         try:
             await discovery_service().open_confirm_form(
