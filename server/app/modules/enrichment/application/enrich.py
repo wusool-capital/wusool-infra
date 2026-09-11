@@ -62,6 +62,13 @@ def _coerce_proposed_value(kind: str, raw_value: str) -> FieldValue:
         return raw_value.strip().lower() in ("true", "yes", "1")
     if kind == "date":
         return date.fromisoformat(raw_value.strip())
+    if kind == "multi_select_text":
+        # The extraction schema's `value` is always one `str` per field —
+        # never a real list — so a multi-value answer (e.g. `target_geography`)
+        # comes back comma-separated; without this split, `_normalize`'s
+        # `isinstance(value, list)` check fails and the whole field is
+        # silently dropped from the review form.
+        return [v.strip() for v in raw_value.split(",") if v.strip()]
     return raw_value
 
 

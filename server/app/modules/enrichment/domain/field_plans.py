@@ -167,7 +167,8 @@ BUYER_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
         "Target geography",
         "multi_select_text",
         WriteTarget.BUYER_ROLE,
-        "Countries/regions the buyer targets, from its own stated investment scope.",
+        "Countries/regions the buyer targets, from its own stated investment "
+        "scope. Multiple values, comma-separated (e.g. 'UAE, Saudi Arabia').",
     ),
     EnrichableField(
         "prior_gcc_acquisition",

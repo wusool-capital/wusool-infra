@@ -53,6 +53,23 @@ def test_coerce_proposed_value_text_passthrough() -> None:
     assert _coerce_proposed_value("text", "Dubai") == "Dubai"
 
 
+def test_coerce_proposed_value_multi_select_text_splits_on_comma() -> None:
+    """`target_geography` is the one `multi_select_text` field the LLM path
+    ever proposes — the extraction schema's `value` is always a single
+    `str`, never a real list, so this is what actually turns "UAE, Saudi
+    Arabia" into `["UAE", "Saudi Arabia"]` for `_normalize` to filter
+    against the fixed option vocabulary.
+    """
+    assert _coerce_proposed_value("multi_select_text", "UAE, Saudi Arabia") == [
+        "UAE",
+        "Saudi Arabia",
+    ]
+
+
+def test_coerce_proposed_value_multi_select_text_single_value() -> None:
+    assert _coerce_proposed_value("multi_select_text", "UAE") == ["UAE"]
+
+
 def test_coerce_proposed_value_invalid_currency_raises() -> None:
     with pytest.raises(ValueError):
         _coerce_proposed_value("currency", "about five million")
