@@ -11,3 +11,7 @@
 4. **Submit.** The bot creates the organization (if new) and the role in
    Attio first, then the database.
 
+For a new seller, the confirmation message carries an **Enrich** button —
+a newly-added record is usually the one most worth researching for missing
+details. See [Filling in missing details](enrich.md).
+

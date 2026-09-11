@@ -1,8 +1,8 @@
 # Wusool Toolkit — Getting Started
 
-The Wusool Toolkit is a Slack bot for the deal team. It has five slash
-commands for finding buyer–seller matches and for keeping buyer and seller
-profiles up to date.
+The Wusool Toolkit is a Slack bot for the deal team. It has nine slash
+commands for finding buyer–seller matches, researching missing details, and
+keeping buyer and seller profiles up to date.
 
 Everything happens inside Slack — there is no separate website or login. The
 bot reads and writes the same customer data the team uses in Attio and in the
@@ -18,6 +18,10 @@ first, then in the database a moment later.
 | [`/edit-buyer <name>`](edit-profile.md) | Edit an existing buyer's profile (and, optionally, its organization's details). |
 | [`/add-seller <organization name>`](add-buyer-seller.md) | Register a new seller, attaching it to an existing organization or creating a new one. |
 | [`/add-buyer <organization name>`](add-buyer-seller.md) | Register a new buyer, attaching it to an existing organization or creating a new one. |
+| [`/enrich-seller <name>`](enrich.md) | Research a seller from public sources and propose values for whatever fields are empty. |
+| [`/enrich-buyer <name>`](enrich.md) | Same, for a buyer. |
+| `/status` | Shows the bot's uptime, database connectivity, and whether it's writing to Attio in test or production mode. |
+| `/help` | Lists every command and how to use it, right in Slack. |
 
 Type the command in any channel or direct message where the bot is present.
 Replies are only visible to you.

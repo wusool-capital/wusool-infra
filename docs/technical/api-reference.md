@@ -9,10 +9,19 @@
 | `/edit-buyer <name>` | `ddl_commands` |
 | `/add-seller <organization name>` | `ddl_commands` |
 | `/add-buyer <organization name>` | `ddl_commands` |
+| `/enrich-seller <name>` | `enrichment` |
+| `/enrich-buyer <name>` | `enrichment` |
+| `/help` | Answered directly in the process entrypoint (`main.py`) — not owned by any one module. |
+| `/status` | Same — reports uptime, database reachability, and Attio test/production mode. |
+
+There is no bare `/enrich` — both enrichment commands are kind-scoped, so an
+organization with both an active buyer and seller role never needs a
+disambiguation step just to pick the kind.
 
 Slack interactive components (buttons and modals) back each of these —
-disambiguation modals, field pickers, edit/add forms, and the
-Approve/Reject/View Full Analysis buttons on a match result.
+disambiguation modals, field pickers, edit/add forms, the
+Approve/Reject/View Full Analysis/Enrich buttons on a match result, and the
+"Review & Save" button on an enrichment proposal.
 
 ## WusoolScribe desktop API
 
