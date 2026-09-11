@@ -58,6 +58,34 @@ delivered state and outstanding items see
 - `lead_magnets`' rate limiter is now reset between tests — it previously
   leaked global state across the test session, causing a spurious 429 on
   an unrelated later test depending on run order.
+- People Data Labs' `founded` year is now guarded the same way Diffbot's
+  founding-date parsing already was — an out-of-range value used to crash
+  the entire enrichment proposal (including any good fields Diffbot had
+  already resolved) instead of just dropping that one field.
+- Diffbot's `est_revenue` is no longer proposed when its `currency` isn't
+  USD (or unset) — the write path and extraction prompt both hardcode USD
+  with no FX conversion anywhere in the pipeline, so a foreign-currency
+  figure was silently written as if it were USD.
+- Discovery's `discover_add_seller` button handler now catches a decode
+  failure on a stale/legacy button value — it used to be an uncaught,
+  silent no-op after `ack()`, with only a server-side stack trace and no
+  message to the operator.
+
+### Changed
+
+- The Bedrock retry/logging scaffolding around `retry_with_backoff`
+  (`enrichment`'s and `lead_magnets`' clients carried a byte-identical
+  copy) is now one shared `invoke_bedrock_with_retry`
+  (`utilities.providers.bedrock.retry`) — `matching_engine`'s own,
+  differently-shaped hand-rolled loop is left as-is, per that module's own
+  documented reasoning.
+- Every Slack handler module used to construct its own
+  `InProcessTaskRunner()`/`InMemoryIdempotencyStore()`, fragmenting
+  in-flight background-task and idempotency state across six separate
+  instances. Both are now process-wide singletons
+  (`utilities.get_shared_task_runner()`/`get_shared_idempotency_store()`) —
+  every idempotency key was already prefixed by its own command/action
+  name, so sharing carries no collision risk.
 
 ## 2026-09-11
 
