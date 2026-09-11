@@ -32,6 +32,18 @@ _PROVIDER_NAME = "People Data Labs"
 _REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 
+def _parse_founding_year(founded: int) -> date | None:
+    """`datetime.date` only accepts years 1-9999 — an out-of-range or
+    otherwise bogus `founded` value from PDL must drop just this one field,
+    not crash the whole proposal (mirrors Diffbot's own `_parse_founding_date`
+    guard).
+    """
+    try:
+        return date(founded, 1, 1)
+    except ValueError:
+        return None
+
+
 def _map_response(parsed: PdlCompanyResponse, requested: set[str]) -> list[CompanyDataField]:
     source_url = parsed.website or "https://www.peopledatalabs.com/"
     resolved: list[CompanyDataField] = []
@@ -52,8 +64,10 @@ def _map_response(parsed: PdlCompanyResponse, requested: set[str]) -> list[Compa
     if parsed.location:
         _add("hq_country", parsed.location.country)
     if parsed.founded:
-        _add("foundation_date", date(parsed.founded, 1, 1))
-        _add("years_active", date.today().year - parsed.founded)
+        founding_date = _parse_founding_year(parsed.founded)
+        if founding_date is not None:
+            _add("foundation_date", founding_date)
+            _add("years_active", date.today().year - parsed.founded)
     if parsed.estimated_num_employees is not None:
         band = bucket_employee_count(parsed.estimated_num_employees)
         if band:

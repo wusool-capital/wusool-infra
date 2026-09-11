@@ -78,3 +78,21 @@ def test_map_response_with_nothing_set_resolves_nothing() -> None:
     resolved = _map_response(parsed, requested={"linkedin", "hq_country", "description"})
 
     assert resolved == []
+
+
+def test_map_response_drops_foundation_fields_on_an_out_of_range_founded_year() -> None:
+    """`datetime.date` only accepts years 1-9999 — a bad `founded` value
+    from PDL must drop just this field, not crash the whole proposal. Uses
+    10000 (truthy, unlike 0, which the surrounding `if parsed.founded:`
+    already skips for an unrelated reason) to actually exercise the guard.
+    """
+    parsed = PdlCompanyResponse(founded=10000, linkedin_url="https://linkedin.com/company/acme")
+
+    resolved = {
+        f.field_name: f
+        for f in _map_response(parsed, requested={"foundation_date", "years_active", "linkedin"})
+    }
+
+    assert "foundation_date" not in resolved
+    assert "years_active" not in resolved
+    assert resolved["linkedin"].value == "https://linkedin.com/company/acme"
