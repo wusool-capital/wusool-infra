@@ -11,6 +11,27 @@ delivered state and outstanding items see
 
 ## 2026-09-11
 
+### Changed
+
+- `providers/attio/role_writer.py`'s `write_seller_role`/`write_buyer_role`
+  deduplicated: both were ~50 lines identical in structure (create-or-patch
+  the organization with dedup-scope checking, then resolve-or-create the
+  role-list entry), differing only in what goes into `org_values`, which
+  list slug, and which `SubjectRefs` field gets set. Extracted into two
+  private helpers, `_upsert_organization`/`_upsert_role_entry`, called by
+  both public methods — kept inside `role_writer.py` rather than moved to
+  `utilities`, since this is Attio-write business logic tied to this
+  module's own `SubjectRefs`/list constants, not a generic cross-module
+  primitive. No existing test exercised `AttioRoleWriter` directly (only
+  a fake, at the `_RoleAttioWriter`/`bootstrap.py` layer above it), so
+  verified live against the real dev Attio workspace instead, calling the
+  refactored class directly to exercise all four branches: create and
+  patch, for both seller and buyer roles. The patch calls returned the
+  same `org_attio_id`/role-entry id (no duplicate created) and the raw v2
+  API confirmed the patched fields actually changed
+  (`benchmark_score` 61→77, `check_size_min/max` updated) — not just the
+  same ids with stale data. All test records deleted afterward.
+
 ### Fixed
 
 - Pre-merge `/code-review` over the full PR diff (not just this session's

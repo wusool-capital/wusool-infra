@@ -37,6 +37,38 @@ class AttioRoleWriter:
         self._client = client
         self._is_test = is_test
 
+    async def _upsert_organization(
+        self, *, org_values: dict[str, object], organization_attio_id: str | None
+    ) -> str:
+        """`organization_attio_id` is passed when the caller's dedup lookup
+        already matched an existing organisation; otherwise a new one is
+        created."""
+        if organization_attio_id is None:
+            return await entries.create_organization(
+                self._client, org_values, is_test=self._is_test
+            )
+        org_id = organization_attio_id
+        await entries.assert_organization_in_scope(self._client, org_id, is_test=self._is_test)
+        await entries.patch_organization(self._client, org_id, org_values)
+        return org_id
+
+    async def _upsert_role_entry(
+        self, *, list_slug: str, org_id: str, entry_values: dict[str, object]
+    ) -> str:
+        """Resolving an existing entry is done by
+        `entries.resolve_role_entry_id`, which pages the list and respects
+        the `is_test` half of the shared workspace."""
+        try:
+            entry_id = await entries.resolve_role_entry_id(
+                self._client, list_slug, org_id, is_test=self._is_test
+            )
+            await entries.patch_role_entry(self._client, list_slug, entry_id, entry_values)
+            return entry_id
+        except entries.RoleEntryNotFoundError:
+            return await entries.create_role_entry(
+                self._client, list_slug, org_id, entry_values, is_test=self._is_test
+            )
+
     async def write_seller_role(
         self,
         *,
@@ -46,14 +78,7 @@ class AttioRoleWriter:
         sector: str | None = None,
         organization_attio_id: str | None = None,
     ) -> SubjectRefs:
-        """Creates or updates the organisation, then its `seller_role` entry.
-
-        `organization_attio_id` is passed when the caller's dedup lookup
-        already matched an existing organisation; otherwise a new one is
-        created. Resolving an existing role entry is done by
-        `entries.resolve_role_entry_id`, which pages the list and respects
-        the `is_test` half of the shared workspace.
-        """
+        """Creates or updates the organisation, then its `seller_role` entry."""
         org_values: dict[str, object] = {"name": organization_name}
         if domain:
             org_values["domains"] = [domain]
@@ -64,24 +89,12 @@ class AttioRoleWriter:
         if (mapped := to_sector_focus(sector)) is not None:
             org_values["sector_focus"] = [mapped]
 
-        if organization_attio_id is None:
-            org_id = await entries.create_organization(
-                self._client, org_values, is_test=self._is_test
-            )
-        else:
-            org_id = organization_attio_id
-            await entries.assert_organization_in_scope(self._client, org_id, is_test=self._is_test)
-            await entries.patch_organization(self._client, org_id, org_values)
-
-        try:
-            entry_id = await entries.resolve_role_entry_id(
-                self._client, _SELLER_ROLE_LIST, org_id, is_test=self._is_test
-            )
-            await entries.patch_role_entry(self._client, _SELLER_ROLE_LIST, entry_id, entry_values)
-        except entries.RoleEntryNotFoundError:
-            entry_id = await entries.create_role_entry(
-                self._client, _SELLER_ROLE_LIST, org_id, entry_values, is_test=self._is_test
-            )
+        org_id = await self._upsert_organization(
+            org_values=org_values, organization_attio_id=organization_attio_id
+        )
+        entry_id = await self._upsert_role_entry(
+            list_slug=_SELLER_ROLE_LIST, org_id=org_id, entry_values=entry_values
+        )
 
         return SubjectRefs(
             org_attio_id=org_id,
@@ -112,24 +125,12 @@ class AttioRoleWriter:
         if sector_focus:
             org_values["sector_focus"] = validate_sector_focus(sector_focus)
 
-        if organization_attio_id is None:
-            org_id = await entries.create_organization(
-                self._client, org_values, is_test=self._is_test
-            )
-        else:
-            org_id = organization_attio_id
-            await entries.assert_organization_in_scope(self._client, org_id, is_test=self._is_test)
-            await entries.patch_organization(self._client, org_id, org_values)
-
-        try:
-            entry_id = await entries.resolve_role_entry_id(
-                self._client, _BUYER_ROLE_LIST, org_id, is_test=self._is_test
-            )
-            await entries.patch_role_entry(self._client, _BUYER_ROLE_LIST, entry_id, entry_values)
-        except entries.RoleEntryNotFoundError:
-            entry_id = await entries.create_role_entry(
-                self._client, _BUYER_ROLE_LIST, org_id, entry_values, is_test=self._is_test
-            )
+        org_id = await self._upsert_organization(
+            org_values=org_values, organization_attio_id=organization_attio_id
+        )
+        entry_id = await self._upsert_role_entry(
+            list_slug=_BUYER_ROLE_LIST, org_id=org_id, entry_values=entry_values
+        )
 
         return SubjectRefs(
             org_attio_id=org_id,
