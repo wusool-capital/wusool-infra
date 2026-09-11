@@ -33,6 +33,18 @@ from app.modules.ddl_commands.api.slack.handlers import (
 from app.modules.ddl_commands.persistence.database import (
     import_all_models as import_ddl_commands_models,
 )
+from app.modules.ddl_commands.providers.discovery.seller_draft_adapter import (
+    DdlCommandsSellerDraftAdapter,
+)
+from app.modules.ddl_commands.providers.enrichment.review_adapter import DdlCommandsReviewAdapter
+from app.modules.discovery.api.dependencies import configure_seller_draft_port
+from app.modules.discovery.api.slack.handlers import (
+    register_handlers as register_discovery_handlers,
+)
+from app.modules.enrichment.api.dependencies import configure_review_port
+from app.modules.enrichment.api.slack.handlers import (
+    register_handlers as register_enrichment_handlers,
+)
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
 )
@@ -55,6 +67,14 @@ import_matching_engine_models()
 import_ddl_commands_models()
 import_meetings_models()
 
+# Cross-module wiring for EnrichmentReviewPort/SellerDraftPort: enrichment
+# and discovery each declare a Port and never import ddl_commands themselves
+# (the dependency edge points ddl_commands -> {enrichment, discovery}); this
+# is the composition root that already imports both sides, so it is where
+# the two get connected — see enrichment/discovery's own `__init__.py`.
+configure_review_port(DdlCommandsReviewAdapter())
+configure_seller_draft_port(DdlCommandsSellerDraftAdapter())
+
 # Which service owns each command/interaction trigger Slack can send. Bolt's
 # own global error handler always logs a caught exception under its own
 # `slack_bolt.AsyncApp` logger, with no indication of which command or
@@ -66,6 +86,7 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/edit-buyer": "ddl-commands",
     "/add-seller": "ddl-commands",
     "/add-buyer": "ddl-commands",
+    "/enrich": "enrichment",
 }
 _UNKNOWN_TRIGGER = "unknown"
 _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
@@ -164,6 +185,8 @@ def _extract_trigger(body: dict[str, Any]) -> str:
 def _register_all_handlers(bolt_app: AsyncApp) -> None:
     register_matching_engine_handlers(bolt_app)
     register_ddl_commands_handlers(bolt_app)
+    register_enrichment_handlers(bolt_app)
+    register_discovery_handlers(bolt_app)
 
 
 @lru_cache

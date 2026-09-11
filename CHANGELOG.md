@@ -9,6 +9,67 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-11
+
+### Added
+
+- Seller enrichment now tries two structured company-data providers before
+  falling back to Firecrawl+Bedrock: Diffbot (`DIFFBOT_API_KEY`, 10,000
+  free credits/month), then People Data Labs (`PEOPLE_DATA_LABS_API_KEY`,
+  100 free lookups/month) for whatever Diffbot missed. Both optional; a
+  directly-typed field from either provider's own database is treated as
+  high-confidence and never re-researched via the LLM path. Buyer targets
+  never call either provider — none of `BUYER_ENRICHABLE_FIELDS` are fields
+  their schemas track. Neither provider's response shape has been verified
+  against a live account yet — see `providers/diffbot/schemas.py` and
+  `providers/people_data_labs/schemas.py`.
+
+### Changed
+
+- `enrichment`'s review step no longer posts one "Accept & Save" button per
+  proposed field with its own immediate write — it now shows every proposed
+  field with a single "Review & Save" button that opens the real, prefilled
+  `/edit-seller`/`/edit-buyer` modal (`EnrichmentReviewPort`, replacing
+  `RoleUpdaterPort`); the write goes through that existing modal's ordinary
+  submission path, not a bespoke one. Reachable from `/enrich`, the buyer
+  "enrich first?" checkbox, and a new per-candidate "Enrich" button on each
+  `/find-match` result.
+- `discovery` no longer runs its own dedupe check before handing a lead to
+  `ddl_commands` — `ddl_commands`' own `/add-seller` search
+  (`organization_selection_modal`, including its existing "already has a
+  seller role, use `/edit-seller` instead" message) is now the only dedupe
+  in that pipeline. `discovery` lost its `DedupeMixin`/`OrganizationLookupPort`
+  and its database connection entirely — it no longer touches Postgres.
+- `organization_selection_modal`'s "existing org, no active role"
+  branch now carries `discovery`'s prefill through to the resulting add
+  form (it previously dropped it silently — the only branch that did).
+
+## 2026-09-10
+
+### Added
+
+- `enrichment` module: `/enrich <name>` researches a buyer/seller's missing
+  fields from public sources (Firecrawl + Bedrock), posts a diff as a Slack
+  message, and writes only operator-accepted values — Attio first, then
+  Postgres, via `RoleUpdaterPort` (`ddl_commands` implements the adapter).
+  Also reachable from `/find-match`'s buyer-confirmation step ("enrich this
+  buyer first?").
+- `discovery` module: finds sellers outside the CRM (the Google-Maps lead
+  search moved out of `matching_engine`), dedupes a lead against existing
+  organizations, and hands a genuinely new one to a prefilled `/add-seller`
+  form via `SellerDraftPort`. Reachable automatically when a `/find-match`
+  run's shortlist scores below `WEB_FALLBACK_MIN_SCORE`, or on demand via a
+  "Find more sellers" button on the match-result message.
+
+### Changed
+
+- `ddl_commands/api/slack/views/seller_add_form.py`'s add-seller form takes
+  an optional `prefill` mapping, used by `discovery`'s hand-off; the
+  `/add-seller` submission path itself is unchanged.
+- `matching_engine` no longer owns a Firecrawl client or web-fallback view —
+  both moved to `discovery`; `matching_engine` keeps only the score-based
+  decision of *whether* to trigger a search.
+
 ## 2026-09-08
 
 ### Changed

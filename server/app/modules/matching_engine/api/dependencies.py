@@ -15,9 +15,6 @@ from app.modules.matching_engine.application.ports.unit_of_work import MatchingU
 from app.modules.matching_engine.application.service import MatchingEngineService
 from app.modules.matching_engine.bootstrap import build_bedrock_client as _build_bedrock_client
 from app.modules.matching_engine.bootstrap import (
-    build_firecrawl_client as _build_firecrawl_client,
-)
-from app.modules.matching_engine.bootstrap import (
     build_matching_engine_service,
     build_matching_unit_of_work_factory,
     build_slack_notifier,
@@ -28,7 +25,6 @@ from app.modules.matching_engine.domain.matching.entities import MatchAnalysisDa
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.matching_engine.providers.bedrock.client import BedrockConverseClient
-from app.modules.matching_engine.providers.firecrawl.client import FirecrawlMapsClient
 from app.modules.notifications import SlackWebClientNotifier
 
 logger = logging.getLogger(__name__)
@@ -45,20 +41,6 @@ def _bedrock_client() -> BedrockConverseClient:
     return _build_bedrock_client()
 
 
-@lru_cache
-def _firecrawl_client() -> FirecrawlMapsClient | None:
-    api_key = get_settings().firecrawl_api_key
-    if not api_key:
-        # `@lru_cache` means this fires once, not per-run — loud enough to
-        # show up in CloudWatch without spamming every no-match request.
-        logger.warning(
-            "firecrawl_api_key_unset — Google-Maps web-fallback is disabled; "
-            "set FIRECRAWL_API_KEY to enable it"
-        )
-        return None
-    return _build_firecrawl_client(api_key)
-
-
 def matching_engine_service(session: AsyncSession) -> MatchingEngineService:
     """`session` must stay open for as long as the returned service is in
     use — see `bootstrap.build_matching_engine_service`'s docstring."""
@@ -67,7 +49,6 @@ def matching_engine_service(session: AsyncSession) -> MatchingEngineService:
         uow_factory=_matching_unit_of_work_factory(),
         sessionmaker=get_sessionmaker(),
         bedrock_client=_bedrock_client(),
-        firecrawl_client=_firecrawl_client(),
     )
 
 
@@ -115,10 +96,10 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
     # module's caller (handlers/actions.py) — a top-level import here would
     # be circular.
     from app.modules.matching_engine.api.slack.views.match_result import build_match_result_blocks
-    from app.modules.matching_engine.api.slack.views.web_fallback import build_web_fallback_blocks
 
     notifier = _build_slack_notifier()
     placeholder_ts: str | None = None
+    discovery_run_id: uuid.UUID | None = None
     try:
         placeholder_ts = await notifier.post_message(
             channel=channel_id, text="✨ *_Finding matches, please wait…_*"
@@ -146,24 +127,9 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
 
         blocks = build_match_result_blocks(result)
         scores = [c.match_score for c in result.results]
-        if result.status == "GENERATED" and needs_web_fallback(
+        should_trigger_discovery = result.status == "GENERATED" and needs_web_fallback(
             scores, get_settings().web_fallback_min_score
-        ):
-            await notifier.update_message(
-                channel=channel_id,
-                ts=placeholder_ts,
-                text="✨ *_No match found, searching Google Maps for potential sellers…_*",
-            )
-
-            leads = await service.search_web_leads(uuid.UUID(result.run_id))
-            logger.info(
-                "web_fallback_triggered run_id=%s leads_found=%d",
-                result.run_id,
-                len(leads),
-                extra={"run_id": result.run_id, "leads_found": len(leads)},
-            )
-            if leads:
-                blocks = build_web_fallback_blocks(result.buyer_org_name, leads)
+        )
 
         await notifier.update_message(
             channel=channel_id,
@@ -171,6 +137,10 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
             text=f"Match results for {result.buyer_org_name}",
             blocks=blocks,
         )
+
+        if should_trigger_discovery:
+            discovery_run_id = uuid.UUID(result.run_id)
+
     except Exception:
         logger.exception(
             "match_dispatch_failed",
@@ -189,3 +159,40 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
                 "match_dispatch_failure_notification_failed",
                 extra={"buyer_role_id": buyer_role_id, "channel_id": channel_id},
             )
+        return
+
+    if discovery_run_id is not None:
+        # Deliberately outside the block above and in its own try: a
+        # below-threshold match was already successfully posted, so a
+        # failure here must never overwrite that message with a generic
+        # "matching failed" notice — it only logs.
+        try:
+            await trigger_seller_discovery(discovery_run_id, channel_id=channel_id)
+        except Exception:
+            logger.exception(
+                "seller_discovery_trigger_failed",
+                extra={"run_id": str(discovery_run_id), "channel_id": channel_id},
+            )
+
+
+async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> None:
+    """Below-threshold match quality: hand the run's own (industry,
+    geography) off to `discovery`'s search, as a second message rather than
+    replacing the match-results one — `discovery.find_and_post_leads` posts
+    and owns its own placeholder/update pair.
+    """
+    from app.modules.discovery import find_and_post_leads
+    from app.modules.matching_engine.application.discovery_bridge import extract_query_terms
+
+    async with get_sessionmaker()() as session:
+        service = matching_engine_service(session)
+        analysis = await service.get_match_analysis(run_id)
+
+    if analysis is None or analysis.run.requirement_profile is None:
+        return
+
+    industry, geography = extract_query_terms(analysis.run.requirement_profile)
+    if not industry and not geography:
+        return
+
+    await find_and_post_leads(industry=industry, geography=geography, channel_id=channel_id)

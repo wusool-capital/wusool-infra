@@ -114,3 +114,20 @@ def extract_field_value(
     if spec.kind == "percent":
         return get_number(values, block_id, block_id)
     raise ValueError(f"Unsupported field kind for extraction: {spec.kind!r}")
+
+
+def wrap_prefill_value(spec: FieldSpec, value: Any) -> Any:
+    """Shapes a raw prefill value (`discovery`'s draft, `enrichment`'s
+    proposal) the way `render_field_block` expects for `spec.kind` —
+    doesn't decide *whether* to use it over a current value, only how to
+    shape it once a caller has already decided to.
+
+    `render_field_block`'s `currency` branch expects the same
+    `{"amount": ...}` shape an existing role's ORM column already carries
+    — a prefill source instead supplies a bare amount, matching
+    `extract_field_value`'s own output shape, so it is wrapped here rather
+    than at every caller.
+    """
+    if spec.kind == "currency" and isinstance(value, (int, float)):
+        return {"amount": value}
+    return value

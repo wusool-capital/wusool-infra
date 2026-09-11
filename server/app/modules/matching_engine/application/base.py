@@ -28,7 +28,6 @@ from app.modules.matching_engine.application.ports.buyers import BuyerRepository
 from app.modules.matching_engine.application.ports.matching import CandidateRetriever
 from app.modules.matching_engine.application.ports.meetings import MeetingRepositoryPort
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
-from app.modules.matching_engine.application.ports.web_search import FirecrawlClient
 from app.modules.matching_engine.application.requirements import (
     BuyerRequirementExtractionService,
 )
@@ -48,7 +47,6 @@ class ServiceBase:
         top_n: int,
         meeting_repository: MeetingRepositoryPort | None = None,
         enable_seller_meeting_notes: bool = False,
-        firecrawl_client: FirecrawlClient | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._buyers = buyer_repository
@@ -59,4 +57,3 @@ class ServiceBase:
         self._scoring_engine = scoring_engine
         self._top_n = top_n
         self._enable_seller_meeting_notes = enable_seller_meeting_notes
-        self._firecrawl_client = firecrawl_client

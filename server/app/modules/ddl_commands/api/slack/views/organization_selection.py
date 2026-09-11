@@ -32,6 +32,7 @@ def build_organization_selection_modal(
     search_term: str,
     requested_by: str,
     channel_id: str,
+    prefill: dict[str, object] | None = None,
 ) -> View:
     options = []
     for org in candidates:
@@ -53,6 +54,7 @@ def build_organization_selection_modal(
                 "requested_by": requested_by,
                 "channel_id": channel_id,
                 "candidate_names": [org.name for org in candidates],
+                "prefill": prefill or {},
             }
         ),
         title=f"Add {kind}: organization",

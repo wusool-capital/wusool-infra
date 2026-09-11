@@ -28,7 +28,7 @@ matching_engine/
                        # calls them. See base.py's docstring for why this module's
                        # ServiceBase constructor isn't as uniform as ddl_commands'.
   persistence/       # SQLAlchemy repositories + mappers, Unit-of-Work
-  providers/         # bedrock/ (LLM), firecrawl/ (web fallback)
+  providers/         # bedrock/ (LLM) — the Firecrawl lead search moved to `discovery`
   api/                # router.py (aggregates health.py's router), Slack handlers,
                        # dependencies.py
   tests/
@@ -51,8 +51,9 @@ one env file for the whole backend). Relevant variables for this module:
 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` (optional — omit to use the
 standard AWS credential provider chain), `LLM_TEMPERATURE`/`LLM_MAX_TOKENS`/
 `LLM_TOP_P`, `STAGE3_TOP_N`, `SCORING_WEIGHT_*`, `CONFIDENCE_*`,
-`FIRECRAWL_API_KEY` (optional — omit to disable the web-fallback lead
-search entirely), `WEB_FALLBACK_MIN_SCORE`, `MEETING_NOTES_MAX_CHARS`/
+`WEB_FALLBACK_MIN_SCORE` (this module's own threshold decision — the
+Firecrawl lead search it triggers, and `FIRECRAWL_API_KEY`, belong to
+`discovery` now), `MEETING_NOTES_MAX_CHARS`/
 `MEETING_NOTES_MAX_TOTAL_CHARS`, `ENABLE_SELLER_MEETING_NOTES`.
 
 Bedrock needs `bedrock-runtime:Converse` on the two configured model IDs —
@@ -106,9 +107,10 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
 6. **Persistence** — one atomic transaction: `match_scores` rows, linked
    `match_results` candidate rows, run marked complete.
 7. **Slack delivery** — ranked result message with
-   Approve/Reject/View Full Analysis, or, if every candidate scores below
-   `WEB_FALLBACK_MIN_SCORE`, up to 3 unverified Google-Maps leads via
-   Firecrawl instead (never persisted, shown once).
+   Approve/Reject/View Full Analysis/"Find more sellers". If every
+   candidate scores below `WEB_FALLBACK_MIN_SCORE`, `discovery`'s lead
+   search is triggered automatically (same button, same search, either
+   way) — see `discovery/README.md`.
 8. **Approve/Reject** — re-validates against the database (never trusts the
    Slack payload), atomic compare-and-set against `PENDING_REVIEW` so
    concurrent decisions can't race.
@@ -119,8 +121,9 @@ for shortlisted sellers (`ENABLE_SELLER_MEETING_NOTES=false` to restrict to
 the buyer side only).
 
 Not implemented, by design: pgvector/semantic retrieval, document
-ingestion, general-purpose web scraping beyond the one Firecrawl fallback,
-structured seller-financial enrichment, PDF generation, outreach/email.
+ingestion, general-purpose web scraping beyond `discovery`'s lead search,
+structured seller-financial enrichment (see the `enrichment` module),
+PDF generation, outreach/email.
 
 ## Where to go next
 

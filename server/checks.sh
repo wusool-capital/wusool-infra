@@ -58,6 +58,8 @@ integration() {
     app/modules/ddl_commands/tests/integration \
     app/modules/matching_engine/tests/integration \
     app/modules/meetings/tests/integration \
+    app/modules/enrichment/tests/integration \
+    app/modules/discovery/tests/integration \
     tests/integration
 }
 
