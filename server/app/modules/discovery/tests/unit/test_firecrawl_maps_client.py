@@ -65,3 +65,39 @@ async def test_no_exclude_terms_returns_everything_up_to_the_limit() -> None:
     leads = await client.find_potential_sellers(industry="Healthcare", geography="UAE", limit=5)
 
     assert len(leads) == 2
+
+
+async def test_logs_how_many_leads_were_excluded(caplog) -> None:
+    """ "Why did I get fewer leads than expected" must be answerable from
+    logs alone — a silent filter isn't debuggable."""
+    client = FirecrawlMapsClient(api_key="test-key")
+    client._client.scrape = AsyncMock(
+        return_value=_scrape_result(
+            [
+                {"name": "Acme Clinics", "category": "Healthcare"},
+                {"name": "Acme Construction", "category": "Construction"},
+            ]
+        )
+    )
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(
+            industry="Healthcare", geography="UAE", limit=5, exclude_terms=("construction",)
+        )
+
+    assert "discovery_leads_excluded" in caplog.text
+    assert "excluded=1" in caplog.text
+
+
+async def test_does_not_log_when_nothing_was_excluded(caplog) -> None:
+    client = FirecrawlMapsClient(api_key="test-key")
+    client._client.scrape = AsyncMock(
+        return_value=_scrape_result([{"name": "Acme Clinics", "category": "Healthcare"}])
+    )
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(
+            industry="Healthcare", geography="UAE", limit=5, exclude_terms=("construction",)
+        )
+
+    assert "discovery_leads_excluded" not in caplog.text

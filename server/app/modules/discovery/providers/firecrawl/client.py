@@ -83,4 +83,13 @@ class FirecrawlMapsClient:
         ]
         # Filter before slicing to `limit` — an excluded lead must not
         # consume a slot a genuinely qualifying one could have filled.
-        return filter_excluded_leads(leads, exclude_terms)[:limit]
+        filtered = filter_excluded_leads(leads, exclude_terms)
+        excluded_count = len(leads) - len(filtered)
+        if excluded_count:
+            logger.info(
+                "discovery_leads_excluded query=%s excluded=%d exclude_terms=%s",
+                query,
+                excluded_count,
+                exclude_terms,
+            )
+        return filtered[:limit]
