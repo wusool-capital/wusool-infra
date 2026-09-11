@@ -73,7 +73,7 @@ lead_magnets/
       submit.py                     # the write contract, every tool goes through it
       pipelines.py                  # per-tool dispatch from the stored payload
       sweeper.py                    # resumes abandoned runs
-      ports/                        # every Protocol, one file
+      ports/                        # one Protocol per file: llm, search, attio, tool_runs
   persistence/
     database.py                    # sessionmaker bound to this module's DATABASE_URL
     mappers.py                      # tool_runs row -> ToolRunRecord; where the ORM type stops
