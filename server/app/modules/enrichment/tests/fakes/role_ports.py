@@ -18,11 +18,8 @@ class FakeRoleReader(RoleReaderPort):
         self.values = values or {}
         self._context = context
 
-    async def current_values(self, target: EnrichmentTarget) -> dict[str, Any]:
-        return dict(self.values)
-
-    async def company_context(self, target: EnrichmentTarget) -> CompanyContext:
-        return self._context or CompanyContext(org_name=target.org_name)
+    async def load(self, target: EnrichmentTarget) -> tuple[dict[str, Any], CompanyContext]:
+        return dict(self.values), self._context or CompanyContext(org_name=target.org_name)
 
 
 class FakeReviewPort(EnrichmentReviewPort):

@@ -12,7 +12,7 @@ from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTa
 from app.modules.enrichment.persistence.role_lookup import SqlAlchemyRoleReader
 
 
-async def test_current_values_reads_populated_and_missing_fields(
+async def test_load_reads_populated_and_missing_fields(
     db_session: AsyncSession, db_sessionmaker
 ) -> None:
     org = Organization(
@@ -36,7 +36,7 @@ async def test_current_values_reads_populated_and_missing_fields(
         org_attio_id=org.attio_id,
         org_name=org.name,
     )
-    values = await SqlAlchemyRoleReader(db_sessionmaker).current_values(target)
+    values, _ = await SqlAlchemyRoleReader(db_sessionmaker).load(target)
 
     assert values["est_revenue"] == {"amount": 5_000_000, "currency": "USD"}
     assert values["hq_country"] == "United Arab Emirates"
@@ -45,7 +45,7 @@ async def test_current_values_reads_populated_and_missing_fields(
     assert values["linkedin"] is None
 
 
-async def test_current_values_for_a_missing_role_returns_none_for_role_fields(
+async def test_load_for_a_missing_role_returns_none_for_role_fields(
     db_session: AsyncSession, db_sessionmaker
 ) -> None:
     org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Ghost Org")
@@ -58,14 +58,17 @@ async def test_current_values_for_a_missing_role_returns_none_for_role_fields(
         org_attio_id=org.attio_id,
         org_name=org.name,
     )
-    values = await SqlAlchemyRoleReader(db_sessionmaker).current_values(target)
+    values, _ = await SqlAlchemyRoleReader(db_sessionmaker).load(target)
 
     assert values["est_revenue"] is None
 
 
-async def test_company_context_reads_organization_disambiguators(
+async def test_load_reads_organization_disambiguators_in_the_same_call(
     db_session: AsyncSession, db_sessionmaker
 ) -> None:
+    """`values` and `context` come off one query, not two — see `load`'s
+    own docstring for why that matters (a real extra round trip per
+    research-tier enrichment call, previously)."""
     org = Organization(
         attio_id=f"test-org-{uuid.uuid4()}",
         name="Raoof Plus",
@@ -87,15 +90,16 @@ async def test_company_context_reads_organization_disambiguators(
         org_attio_id=org.attio_id,
         org_name=org.name,
     )
-    context = await SqlAlchemyRoleReader(db_sessionmaker).company_context(target)
+    values, context = await SqlAlchemyRoleReader(db_sessionmaker).load(target)
 
+    assert values["hq_country"] == "US"
     assert context.domains == ("raoofplus.com",)
     assert context.sector_focus == ("Utilities", "Cybersecurity")
     assert context.hq_country == "US"
     assert context.linkedin == "https://linkedin.com/company/raoofplus"
 
 
-async def test_company_context_for_a_missing_role_falls_back_to_bare_name(
+async def test_load_for_a_missing_role_falls_back_to_bare_name_context(
     db_session: AsyncSession, db_sessionmaker
 ) -> None:
     org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Ghost Org")
@@ -108,7 +112,7 @@ async def test_company_context_for_a_missing_role_falls_back_to_bare_name(
         org_attio_id=org.attio_id,
         org_name=org.name,
     )
-    context = await SqlAlchemyRoleReader(db_sessionmaker).company_context(target)
+    _, context = await SqlAlchemyRoleReader(db_sessionmaker).load(target)
 
     assert context.org_name == "Ghost Org"
     assert context.domains == ()

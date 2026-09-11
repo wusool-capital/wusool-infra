@@ -109,7 +109,7 @@ def _repair_prompt(raw: JsonObject, error: str) -> str:
 
 class EnrichMixin(ServiceBase):
     async def propose(self, target: EnrichmentTarget) -> EnrichmentProposal:
-        current_values = await self._role_reader.current_values(target)
+        current_values, context = await self._role_reader.load(target)
         missing = [
             field
             for field in enrichable_fields_for(target.kind.value)
@@ -126,7 +126,9 @@ class EnrichMixin(ServiceBase):
                 target=target, values=tuple(proposed), generated_by_model=self._model_id
             )
 
-        proposed.extend(await self._research_and_extract(target, still_missing, current_values))
+        proposed.extend(
+            await self._research_and_extract(target, still_missing, current_values, context)
+        )
         return EnrichmentProposal(
             target=target, values=tuple(proposed), generated_by_model=self._model_id
         )
@@ -176,13 +178,13 @@ class EnrichMixin(ServiceBase):
         target: EnrichmentTarget,
         missing: list[EnrichableField],
         current_values: JsonObject,
+        context: CompanyContext,
     ) -> list[ProposedFieldValue]:
         # Only ever called from `propose` after it's already confirmed
         # `self._research_client is not None` — asserted here since that
         # narrowing doesn't carry across the method boundary.
         assert self._research_client is not None
         fields_by_name = enrichable_fields_by_name_for(target.kind.value)
-        context = await self._role_reader.company_context(target)
         documents = await self._research_client.search(build_research_query(context), limit=5)
         sources = [f"[{doc.url}] {doc.title}\n{doc.content}" for doc in documents]
 

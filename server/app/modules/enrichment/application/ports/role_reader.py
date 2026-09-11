@@ -1,6 +1,9 @@
 """Reads the current value of every enrichable field for a target, so
-`EnrichMixin.propose` can skip fields that are already populated. Returns
-plain values keyed by field name — never an ORM row.
+`EnrichMixin.propose` can skip fields that are already populated, plus the
+company context (domain, sector, HQ country, ...) a research-tier query can
+use to search/verify more precisely. One method, not two: both are read off
+the same role+organization row, so a single combined call is what actually
+avoids a second database round trip — see `SqlAlchemyRoleReader.load`.
 """
 
 from typing import Protocol
@@ -11,6 +14,4 @@ from app.modules.utilities.domain.json_types import JsonObject
 
 
 class RoleReaderPort(Protocol):
-    async def current_values(self, target: EnrichmentTarget) -> JsonObject: ...
-
-    async def company_context(self, target: EnrichmentTarget) -> CompanyContext: ...
+    async def load(self, target: EnrichmentTarget) -> tuple[JsonObject, CompanyContext]: ...
