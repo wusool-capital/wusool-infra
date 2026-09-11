@@ -86,6 +86,17 @@ delivered state and outstanding items see
   (`utilities.get_shared_task_runner()`/`get_shared_idempotency_store()`) —
   every idempotency key was already prefixed by its own command/action
   name, so sharing carries no collision risk.
+- `RoleReaderPort.current_values`/`company_context` merged into one
+  `load()` method — both already read the same role+organization row, so
+  the split cost a genuine extra database round trip on every
+  research-tier enrichment call rather than just being a style choice.
+
+### Fixed (from merge-check)
+
+- Diffbot's non-USD `est_revenue` skip and discovery's exclude-term lead
+  filtering now both log why (`diffbot_est_revenue_skipped_non_usd`,
+  `discovery_leads_excluded`) — previously silent, correct but
+  undiagnosable from logs alone.
 
 ## 2026-09-11
 
