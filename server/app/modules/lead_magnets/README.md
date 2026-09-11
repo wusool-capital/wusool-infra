@@ -63,6 +63,7 @@ lead_magnets/
       sector_mapping.py            # tool sector -> sector_focus; raises on unmapped
       sector_options.py            # the live 85 option titles; generated
       search.py                    # the search-result domain type
+      schemas.py                   # pydantic models for tool_runs.payload — see below
   application/
     valuation/
       valuation_ai.py               # enrich, analyze, compare
@@ -97,6 +98,21 @@ into a bare `SubmissionService`), so mixing them into shared-state sibling
 concerns would force every pipeline-only or submission-only test to fake
 Ports it has no use for. `bootstrap.build_submission_service` now returns
 one `LeadMagnetService` instead of wiring the two by hand.
+
+`domain/shared/schemas.py` is this module's one deliberate exception to
+"no pydantic in `domain/`/`application/`" — `tests/test_architecture.py`
+allowlists `pydantic` for exactly that one file path, nothing else. It
+types the shapes stored in `tool_runs.payload` (one model per tool,
+mirroring the corresponding `api/schemas.py` request), so `pipelines.py`
+parses the stored payload with `SomePayload.model_validate(payload)`
+instead of `payload.get(key)` plus a manual `isinstance` check per field —
+the `num()`/`text()`/`count()` closures that pattern used to need, once
+per tool, are gone. These models are deliberately permissive
+(`extra="ignore"`, no re-declared `ge`/`le`/length constraints): the data
+was already strictly validated once at the API boundary before being
+stored, and the stored dict also picks up the write contract's own
+bookkeeping keys later (`stage`, `ai`, `attio`, readiness's `score`) that
+these models were never meant to reject.
 
 ## Endpoints
 

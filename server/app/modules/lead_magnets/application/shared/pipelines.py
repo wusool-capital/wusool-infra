@@ -33,6 +33,12 @@ from app.modules.lead_magnets.domain.shared.prompts import (
     readiness_advisory_prompt,
     readiness_score_prompt,
 )
+from app.modules.lead_magnets.domain.shared.schemas import (
+    BenchmarkPayload,
+    BuyerNetworkPayload,
+    ReadinessPayload,
+    ValuationPayload,
+)
 from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
 from app.modules.lead_magnets.domain.valuation.valuation_methods import (
     ValuationInputs,
@@ -43,51 +49,9 @@ from app.modules.utilities.domain.json_types import JsonObject
 logger = logging.getLogger(__name__)
 
 
-def benchmark_inputs(payload: JsonObject) -> BenchmarkInputs:
-    """Rebuilds the scoring inputs from a stored payload, so a resume scores
-    identically to the original request.
-
-    Written out rather than splatted: `mode` is a `Literal` and the flags are
-    non-optional, so a `**dict` would silently widen both.
-    """
-
-    def num(key: str) -> float | None:
-        value = payload.get(key)
-        return float(value) if isinstance(value, (int, float)) else None
-
-    def count(key: str) -> int | None:
-        value = payload.get(key)
-        return int(value) if isinstance(value, (int, float)) else None
-
-    def text(key: str) -> str | None:
-        value = payload.get(key)
-        return value if isinstance(value, str) else None
-
-    return BenchmarkInputs(
-        mode="tech" if payload.get("mode") == "tech" else "sme",
-        peer_key=text("peer_key") or "",
-        revenue=num("revenue"),
-        prev_revenue=num("prev_revenue"),
-        ebitda_reported=num("ebitda_reported"),
-        owner_salary=num("owner_salary"),
-        salary_deducted=bool(payload.get("salary_deducted")),
-        gross_margin_pct=num("gross_margin_pct"),
-        headcount=count("headcount"),
-        rent_cost=num("rent_cost"),
-        capital_raised=num("capital_raised"),
-        top_customer_pct=num("top_customer_pct"),
-        recurring_pct=num("recurring_pct"),
-        years_active=num("years_active"),
-        outlets=count("outlets"),
-        days_to_get_paid=count("days_to_get_paid"),
-        email=text("email"),
-        geography=text("geography"),
-    )
-
-
 def readiness_answers(payload: JsonObject) -> ReadinessAnswers:
-    raw = payload.get("answers") or {}
-    return ReadinessAnswers(**{k: v for k, v in raw.items() if k.startswith("q")})
+    parsed = ReadinessPayload.model_validate(payload)
+    return ReadinessAnswers(**parsed.answers.model_dump())
 
 
 class Pipelines:
@@ -123,9 +87,10 @@ class Pipelines:
         return None
 
     def _benchmark(self, payload: JsonObject) -> JsonObject:
-        result = evaluate(benchmark_inputs(payload))
+        parsed = BenchmarkPayload.model_validate(payload)
+        result = evaluate(BenchmarkInputs(**parsed.model_dump()))
         return {
-            "entry_values": benchmark_values(result, headcount=payload.get("headcount")),
+            "entry_values": benchmark_values(result, headcount=parsed.headcount),
             "score": result.score,
             "band": result.band,
         }
@@ -149,19 +114,25 @@ class Pipelines:
         }
 
     async def _readiness(self, payload: JsonObject) -> JsonObject:
+        parsed = ReadinessPayload.model_validate(payload)
         answers = readiness_answers(payload)
         rules = build_advisory_content(answers)
-        revenue_range = payload.get("revenue")
+        revenue_range = parsed.revenue
 
+        # `score` isn't part of the original request — it's the write
+        # contract's own bookkeeping, merged in separately by
+        # `readiness/endpoints.py` so this resume never pays for a second
+        # scoring call. Deliberately left as a raw lookup rather than a
+        # typed field on `ReadinessPayload`.
         scored = payload.get("score")
         if not isinstance(scored, dict):
             scored = await self._llm.score_readiness(
                 prompt=readiness_score_prompt(
-                    founder=payload.get("name") or "",
-                    business=payload.get("company") or "",
-                    sector=payload.get("sector") or "",
+                    founder=parsed.name,
+                    business=parsed.company,
+                    sector=parsed.sector,
                     revenue_range=revenue_range or "Not specified",
-                    country=payload.get("country") or "Not specified",
+                    country=parsed.country or "Not specified",
                     answers=answers,
                 )
             )
@@ -170,8 +141,8 @@ class Pipelines:
         try:
             note = await self._llm.advise_readiness(
                 prompt=readiness_advisory_prompt(
-                    company=payload.get("company"),
-                    sector=payload.get("sector"),
+                    company=parsed.company,
+                    sector=parsed.sector,
                     revenue_range=revenue_range,
                     score=scored["overallScore"],
                     band=scored["scoreBand"],
@@ -201,20 +172,19 @@ class Pipelines:
         same pattern as readiness's advisory note: it never blocks or fails
         the submission.
         """
-        check_size_min = payload.get("check_size_min")
-        check_size_max = payload.get("check_size_max")
-        org_type = [v for v in payload.get("org_type") or [] if isinstance(v, str)]
-        sector_focus = [v for v in payload.get("sector_focus") or [] if isinstance(v, str)]
-        target_geography = [v for v in payload.get("target_geography") or [] if isinstance(v, str)]
-        prior_gcc_acquisition = payload.get("prior_gcc_acquisition")
+        parsed = BuyerNetworkPayload.model_validate(payload)
+        check_size_min = parsed.check_size_min
+        check_size_max = parsed.check_size_max
+        target_geography = parsed.target_geography
+        prior_gcc_acquisition = parsed.prior_gcc_acquisition
 
         note: str | None = None
         try:
             qualification = await self._llm.qualify_buyer(
                 prompt=buyer_qualification_prompt(
-                    org_name=payload.get("org_name") or "",
-                    org_type=org_type,
-                    sector_focus=sector_focus,
+                    org_name=parsed.org_name,
+                    org_type=parsed.org_type,
+                    sector_focus=parsed.sector_focus,
                     target_geography=target_geography,
                     check_size_min=check_size_min,
                     check_size_max=check_size_max,
@@ -241,54 +211,31 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
 
     Comparables and overrides are read from whatever `/compare` and
     `/analyze` put there. Their absence is the fallback case, not an error.
+
+    Discounts default to 50%/50% only when `discounts` (or a field on it) is
+    genuinely absent — an explicit 0% must survive, not collapse into the
+    default (`is not None`, not `or`), same as `api/valuation/endpoints.py`'s
+    synchronous response.
     """
 
-    def num(key: str) -> float | None:
-        value = payload.get(key)
-        return float(value) if isinstance(value, (int, float)) else None
+    def haircut(pct: float | None) -> float:
+        return 50.0 if pct is None else pct
 
-    def text(key: str) -> str | None:
-        value = payload.get(key)
-        return value if isinstance(value, str) else None
-
-    comps: list[ListedComp] = []
-    for raw in payload.get("comps") or []:
-        if not isinstance(raw, dict):
-            continue
-        comps.append(
-            ListedComp(
-                co=str(raw.get("co", "")),
-                tk=str(raw.get("tk", "")),
-                ev=raw.get("ev"),
-                rev=raw.get("rev"),
-                ebitda=raw.get("ebitda"),
-            )
-        )
-
-    # `or default` would silently turn an explicit 0% discount into the
-    # 50% default (`0 or 50.0` is `50.0`), diverging from the visitor's own
-    # choice — same `is not None` shape `api/valuation/endpoints.py` already
-    # uses for the synchronous response.
-    discounts = payload.get("discounts")
-    haircut_revenue = 50.0
-    haircut_ebitda = 50.0
-    if isinstance(discounts, dict):
-        revenue_discount = discounts.get("revenue_discount_pct")
-        if isinstance(revenue_discount, (int, float)):
-            haircut_revenue = float(revenue_discount)
-        ebitda_discount = discounts.get("ebitda_discount_pct")
-        if isinstance(ebitda_discount, (int, float)):
-            haircut_ebitda = float(ebitda_discount)
+    parsed = ValuationPayload.model_validate(payload)
+    comps = [ListedComp(**c.model_dump()) for c in parsed.comps]
+    discounts = parsed.discounts
+    haircut_revenue = haircut(discounts.revenue_discount_pct if discounts else None)
+    haircut_ebitda = haircut(discounts.ebitda_discount_pct if discounts else None)
 
     return ValuationInputs(
-        revenue=num("revenue") or 0.0,
-        profit_before_tax=num("profit_before_tax"),
-        owner_salary=num("owner_salary"),
-        sector=text("sector"),
-        geography=text("geography"),
-        stage=text("stage"),
-        cash=num("cash") or 0.0,
-        debt=num("debt") or 0.0,
+        revenue=parsed.revenue,
+        profit_before_tax=parsed.profit_before_tax,
+        owner_salary=parsed.owner_salary,
+        sector=parsed.sector,
+        geography=parsed.geography,
+        stage=parsed.stage,
+        cash=parsed.cash,
+        debt=parsed.debt,
         haircut_revenue_pct=haircut_revenue,
         haircut_ebitda_pct=haircut_ebitda,
         ai_comps=tuple(comps),

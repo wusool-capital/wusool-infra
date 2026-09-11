@@ -3,6 +3,12 @@ own `tests/`) may only import stdlib, `domain/`, and `application/ports/` —
 never `persistence/`, `providers/`, `.api`, `fastapi`, `pydantic`, or
 `sqlalchemy`. Concrete implementations are wired in only by `bootstrap.py`/
 `api/dependencies.py`.
+
+`pydantic` alone has one deliberate, narrow exception: `domain/shared/
+schemas.py` types the shapes stored in `tool_runs.payload` (see that file's
+own docstring for why). Nothing else in `domain/`/`application/` gets this —
+the allowlist is a path, not a package, so a second file cannot piggyback on
+it silently.
 """
 
 import ast
@@ -18,6 +24,7 @@ _FORBIDDEN_PREFIXES = (
     "pydantic",
     "sqlalchemy",
 )
+_PYDANTIC_ALLOWED_PATHS = frozenset({"domain/shared/schemas.py"})
 
 
 def _imports(path: Path) -> set[str]:
@@ -46,7 +53,20 @@ def test_domain_and_application_dependencies_point_inward() -> None:
         for path in layer_root.rglob("*.py"):
             if "tests" in path.parts:
                 continue
-            found = [name for name in _imports(path) if _is_forbidden(name)]
+            relative = str(path.relative_to(_MODULE_ROOT))
+            allow_pydantic = relative in _PYDANTIC_ALLOWED_PATHS
+            found = [
+                name
+                for name in _imports(path)
+                if _is_forbidden(name) and not (allow_pydantic and name == "pydantic")
+            ]
             if found:
-                violations[str(path.relative_to(_MODULE_ROOT))] = found
+                violations[relative] = found
     assert violations == {}
+
+
+def test_pydantic_allowlist_names_a_real_file() -> None:
+    """A stale entry here would silently stop enforcing anything — this
+    keeps the allowlist honest."""
+    for relative in _PYDANTIC_ALLOWED_PATHS:
+        assert (_MODULE_ROOT / relative).is_file(), relative

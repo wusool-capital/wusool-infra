@@ -13,6 +13,32 @@ delivered state and outstanding items see
 
 ### Changed
 
+- Added `domain/shared/schemas.py` — Pydantic models for the shapes stored
+  in `tool_runs.payload` (`BenchmarkPayload`, `ReadinessPayload`,
+  `ValuationPayload`, `BuyerNetworkPayload`, one per tool, mirroring the
+  corresponding `api/schemas.py` request). `pipelines.py`'s four
+  per-tool payload-parsing functions used to hand-walk the stored dict with
+  `payload.get(key)` plus a manual `isinstance` check per field
+  (`num()`/`text()`/`count()` closures, repeated once per tool) — they now
+  call `SomePayload.model_validate(payload)` and read typed attributes.
+  This is a deliberate, narrow exception to the module's "no pydantic in
+  `domain/`/`application/`" rule: `tests/test_architecture.py` now
+  allowlists `pydantic` for exactly `domain/shared/schemas.py`'s path (a
+  second `test_pydantic_allowlist_names_a_real_file` pins that the
+  allowlist itself can't silently point at a deleted/renamed file). The
+  models are deliberately permissive (`extra="ignore"`, no re-declared
+  range/length constraints) since the data was already strictly validated
+  once at the API boundary, and the stored payload also picks up the write
+  contract's own bookkeeping keys later (`stage`, `ai`, `attio`,
+  readiness's `score`) that these models were never meant to reject.
+  `_valuation_inputs`'s discount handling keeps its `is not None` fix (an
+  explicit 0% survives instead of collapsing to the 50% default) — same
+  behaviour, now expressed as a typed field read instead of a raw dict
+  walk. Verified with a new `tests/unit/test_schemas.py`, and live against
+  the real dev Attio workspace for all three non-Bedrock tools (benchmark,
+  valuation — including the 0%-discount case — and buyer network), each
+  reaching `tool_runs.status='succeeded'`.
+
 - Buyer Network's `target_geography` field changed from multi-select to
   single-select — a plain `<select>` (7 options: Bahrain, GCC-wide, KSA,
   Kuwait, Oman, Qatar, UAE) replacing the searchable click-to-toggle
