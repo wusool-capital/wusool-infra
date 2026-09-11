@@ -270,8 +270,18 @@ async def test_run_raises_systemexit_when_a_table_has_failures(monkeypatch) -> N
     async def failing_write(model, table, rows, expected_count):
         return 0, 1
 
+    async def noop_streaming(client, model, table, path, mapper):
+        return 0, 0
+
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
     monkeypatch.setattr(full_resync, "_page_through", one_record_page)
+    # Organizations/person/deals sync through `_sync_streaming_entity`, not
+    # `_write_and_verify` below — without this mock too, this "unit" test
+    # silently performs a real write via the real `get_sessionmaker()`
+    # against whatever database `DATABASE_URL` points to (confirmed live:
+    # it leaked a stub "Unnamed Organization [only-one]" row into a real
+    # local Postgres, which then broke an unrelated e2e test's row count).
+    monkeypatch.setattr(full_resync, "_sync_streaming_entity", noop_streaming)
     monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
     monkeypatch.setattr(full_resync, "_write_and_verify", failing_write)
 
