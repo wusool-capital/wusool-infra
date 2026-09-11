@@ -4,16 +4,20 @@ validate -> repair-prompt retry -> fail-closed policy, narrowed to this
 module's single extraction operation.
 
 The `converse` request shape, response parsing, and transient-error set are
-shared with every other Bedrock caller via `utilities.domain.bedrock` — this
-file owns only what's genuinely its own: the repair-retry validation policy,
-and the bounded transient-error retry loop (`_invoke`), same split
-`matching_engine`'s own client documents.
+shared with every other Bedrock caller via `utilities.domain.bedrock`, and
+the bounded-retry loop itself via `utilities.retry_with_backoff` — same as
+`meetings`'/`lead_magnets`' own clients (`matching_engine`'s still
+hand-rolls its own loop, predating that helper's extraction; new callers
+should use the shared one, not mirror the older pattern). This file owns
+only what's genuinely its own: the repair-retry validation policy above the
+retry loop, and the `is_retryable`/`delay` policy functions it passes in.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from botocore.exceptions import ClientError, EndpointConnectionError
@@ -22,7 +26,7 @@ from pydantic import ValidationError
 from app.modules.enrichment.application.ports.llm import RepairPromptBuilder
 from app.modules.enrichment.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.enrichment.providers.bedrock.schemas import ExtractedFields
-from app.modules.utilities import BedrockInvocationError
+from app.modules.utilities import BedrockInvocationError, retry_with_backoff
 from app.modules.utilities.domain.bedrock import (
     TRANSIENT_ERROR_CODES,
     converse_kwargs,
@@ -37,6 +41,19 @@ logger = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 3
 _BASE_DELAY_SECONDS = 1.0
+_OPERATION = "enrichment_extraction"
+
+
+def _is_retryable(exc: Exception) -> bool:
+    if isinstance(exc, EndpointConnectionError):
+        return True
+    if isinstance(exc, ClientError):
+        return exc.response.get("Error", {}).get("Code", "") in TRANSIENT_ERROR_CODES
+    return False
+
+
+def _delay_seconds(attempt: int) -> float:
+    return _BASE_DELAY_SECONDS * (2 ** (attempt - 1))
 
 
 class BedrockConverseClient:
@@ -89,43 +106,66 @@ class BedrockConverseClient:
     ) -> JsonObject:
         """Bounded exponential-backoff retry on transient AWS errors only —
         a separate concern from the validate-repair-retry policy above,
-        which retries on a *schema* failure with a different prompt. Runs
-        the blocking boto3 call via `asyncio.to_thread`, same as every
-        other Bedrock caller in this codebase — a raw synchronous call here
-        would block the event loop for the duration of every enrichment
-        request.
+        which retries on a *schema* failure with a different prompt.
         """
-        last_error: Exception | None = None
-        for attempt in range(1, _MAX_ATTEMPTS + 1):
-            try:
-                response = await asyncio.to_thread(
-                    self._converse, model_id, prompt, temperature, max_tokens, output_schema
-                )
-                return extract_json(response)
-            except ClientError as exc:
-                last_error = exc
-                error_code = exc.response.get("Error", {}).get("Code", "")
-                logger.warning(
-                    "enrichment_bedrock_invocation_failed model_id=%s attempt=%d error_code=%s",
-                    model_id,
-                    attempt,
-                    error_code,
-                )
-                if error_code not in TRANSIENT_ERROR_CODES or attempt == _MAX_ATTEMPTS:
-                    raise BedrockInvocationError(
-                        f"enrichment extraction failed: {error_code}"
-                    ) from exc
-                await asyncio.sleep(_BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
-            except EndpointConnectionError as exc:
-                last_error = exc
-                if attempt == _MAX_ATTEMPTS:
-                    raise BedrockInvocationError(
-                        "enrichment extraction failed: connection error"
-                    ) from exc
-                await asyncio.sleep(_BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
-        raise BedrockInvocationError(
-            f"enrichment extraction failed after {_MAX_ATTEMPTS} attempts"
-        ) from last_error
+
+        async def call() -> ConverseResponseTypeDef:
+            started = time.monotonic()
+            response = await asyncio.to_thread(
+                self._converse, model_id, prompt, temperature, max_tokens, output_schema
+            )
+            latency_ms = int((time.monotonic() - started) * 1000)
+            usage = response.get("usage", {})
+            logger.info(
+                "bedrock_invocation_succeeded operation=%s model_id=%s latency_ms=%d "
+                "input_tokens=%s output_tokens=%s",
+                _OPERATION,
+                model_id,
+                latency_ms,
+                usage.get("inputTokens"),
+                usage.get("outputTokens"),
+                extra={
+                    "model_id": model_id,
+                    "operation": _OPERATION,
+                    "latency_ms": latency_ms,
+                    "input_tokens": usage.get("inputTokens"),
+                    "output_tokens": usage.get("outputTokens"),
+                },
+            )
+            return response
+
+        def on_retry(attempt: int, exc: Exception, delay: float) -> None:
+            error_code = (
+                exc.response.get("Error", {}).get("Code", "")
+                if isinstance(exc, ClientError)
+                else "EndpointConnectionError"
+            )
+            logger.warning(
+                "bedrock_invocation_failed operation=%s model_id=%s attempt=%d error_code=%s",
+                _OPERATION,
+                model_id,
+                attempt,
+                error_code,
+                extra={
+                    "model_id": model_id,
+                    "operation": _OPERATION,
+                    "attempt": attempt,
+                    "error_code": error_code,
+                },
+            )
+
+        try:
+            response = await retry_with_backoff(
+                call,
+                is_retryable=_is_retryable,
+                max_attempts=_MAX_ATTEMPTS,
+                delay_seconds=_delay_seconds,
+                on_retry=on_retry,
+            )
+        except (ClientError, EndpointConnectionError) as exc:
+            raise BedrockInvocationError(f"{_OPERATION} failed: {exc}") from exc
+
+        return extract_json(response)
 
     def _converse(
         self,
