@@ -24,6 +24,14 @@ delivered state and outstanding items see
   the Fixed entry below); People Data Labs' is not yet — confirm
   `providers/people_data_labs/schemas.py` against a real account before
   relying on it.
+- `/toolkit-help` and `/toolkit-status` — answered directly in `main.py`
+  rather than any one module, since no single module owns the full
+  command list or knows the bot's overall health. `/toolkit-help` lists
+  every registered command with its usage hint; `/toolkit-status` reports
+  uptime, database reachability, and whether this instance is writing to
+  Attio in test or production mode. (`/status` was the first name tried —
+  Slack reserves that word and refused to register it; `/help` was
+  renamed to match.)
 
 ### Changed
 
