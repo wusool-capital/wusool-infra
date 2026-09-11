@@ -9,6 +9,56 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-12
+
+### Changed
+
+- `/enrich-buyer`/`/enrich-seller`'s Firecrawl research query is no longer a
+  bare `"{name} company profile"` — it now anchors on the organization's own
+  domain when known, else enriches with sector/category/HQ country. The
+  extraction prompt is also grounded with a "what we already know" block so
+  the LLM can reject sources about a different, same-named company. Fixes a
+  live case where `/enrich-buyer Investcorp` returned nothing because the
+  generic query surfaced only one thin, unrelated snippet.
+- Discovery's lead search ("Find more sellers" / the automatic
+  below-threshold trigger) now uses more of a buyer's requirement profile,
+  not just `sector`/`geography`: `client_type` is folded into the search
+  query as a refining qualifier (e.g. "healthcare SMB"), and every
+  `sector_exclusion` value is collected and used to filter out any
+  discovered lead whose category/name matches it — Google Maps' own search
+  has no dependable negation syntax, so this filtering happens after the
+  search, before the result limit is applied. Revenue/EBITDA floors and
+  CRM-internal states (`outreach_tier`, `relationship_status`,
+  `appetite_signal`) are deliberately still not used — a Maps listing
+  carries no financial data, and those fields describe a seller's state in
+  our own CRM, meaningless for a lead that isn't in the CRM yet.
+
+### Fixed
+
+- Diffbot's `logo_url`/`linkedin`/etc. proposed values in an enrichment
+  review message now render as a short clickable link instead of dumping
+  the full raw (often encoded) URL as text.
+- A match result's "Enrich" button is replaced with a `/enrich-seller
+  <name>` hint — freeing the `enrich_seller_from_match` action id
+  exclusively for the seller-add flow's own "Enrich" button.
+- The enrichment proposal message no longer shows the always-empty
+  `Current:` line or a low-value `source` link — `propose()` only ever
+  proposes a value for a field that was already missing.
+- `client_type`/`last_attempt_channel`/`target_geography` FieldSpecs
+  corrected to match live SOURCE Attio (verified directly against the real
+  workspace): SOURCE's `client_type` converted to `text` on 2026-08-31 (our
+  code was still built against a select-typed workspace), a stale
+  "WhatsApp" option removed from `last_attempt_channel`, and `Egypt`/
+  `Global` added to `target_geography`.
+- Two real test-isolation bugs: `full_resync`'s e2e test now explicitly
+  opts out of the `ATTIO_IS_TEST` prod-only guard it's exercising, and a
+  different `full_resync` unit test was silently performing a real,
+  unmocked database write (via `_sync_streaming_entity`), leaking a stub
+  organization row that broke an unrelated e2e test depending on run order.
+- `lead_magnets`' rate limiter is now reset between tests — it previously
+  leaked global state across the test session, causing a spurious 429 on
+  an unrelated later test depending on run order.
+
 ## 2026-09-11
 
 ### Added

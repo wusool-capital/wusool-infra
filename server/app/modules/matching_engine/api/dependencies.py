@@ -207,8 +207,10 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
     if analysis is None or analysis.run.requirement_profile is None:
         return
 
-    industry, geography = extract_query_terms(analysis.run.requirement_profile)
+    industry, geography, exclude_terms = extract_query_terms(analysis.run.requirement_profile)
     if not industry and not geography:
         return
 
-    await find_and_post_leads(industry=industry, geography=geography, channel_id=channel_id)
+    await find_and_post_leads(
+        industry=industry, geography=geography, channel_id=channel_id, exclude_terms=exclude_terms
+    )

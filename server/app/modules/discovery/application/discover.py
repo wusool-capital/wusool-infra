@@ -9,10 +9,15 @@ from app.modules.discovery.domain.leads import DiscoveredLead
 
 class DiscoverMixin(ServiceBase):
     async def find_leads(
-        self, *, industry: str, geography: str, limit: int
+        self,
+        *,
+        industry: str,
+        geography: str,
+        limit: int,
+        exclude_terms: tuple[str, ...] = (),
     ) -> list[DiscoveredLead]:
         if self._lead_search_client is None:
             return []
         return await self._lead_search_client.find_potential_sellers(
-            industry=industry, geography=geography, limit=limit
+            industry=industry, geography=geography, limit=limit, exclude_terms=exclude_terms
         )
