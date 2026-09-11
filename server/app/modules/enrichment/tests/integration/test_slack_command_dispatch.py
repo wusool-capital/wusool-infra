@@ -13,10 +13,10 @@ from urllib.parse import urlencode
 
 from fastapi.testclient import TestClient
 
-from app.modules.enrichment.api.schemas import ResolvedOrgRole
 from app.modules.enrichment.api.slack.handlers import commands as commands_module
 from app.modules.enrichment.bootstrap import create_app
 from app.modules.enrichment.config import get_settings
+from app.modules.enrichment.domain.targets import ResolvedOrgRole
 
 app = create_app()
 

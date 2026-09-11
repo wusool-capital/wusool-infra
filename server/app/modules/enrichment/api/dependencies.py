@@ -12,7 +12,6 @@ import logging
 import uuid
 from functools import lru_cache
 
-from app.modules.enrichment.api.schemas import ResolvedOrgRole
 from app.modules.enrichment.application.ports.company_data import CompanyDataClient
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
 from app.modules.enrichment.application.service import EnrichmentService
@@ -25,7 +24,11 @@ from app.modules.enrichment.bootstrap import (
 )
 from app.modules.enrichment.bootstrap import build_slack_notifier as _build_slack_notifier
 from app.modules.enrichment.config import get_settings
-from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
+from app.modules.enrichment.domain.targets import (
+    EnrichmentTarget,
+    EnrichmentTargetKind,
+    ResolvedOrgRole,
+)
 from app.modules.enrichment.persistence.database import get_sessionmaker
 from app.modules.enrichment.persistence.role_lookup import SqlAlchemyRoleReader
 from app.modules.enrichment.providers.bedrock.client import BedrockConverseClient

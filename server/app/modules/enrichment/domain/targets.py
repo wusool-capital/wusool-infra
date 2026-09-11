@@ -18,3 +18,16 @@ class EnrichmentTarget:
     role_id: UUID
     org_attio_id: str
     org_name: str
+
+
+@dataclass(frozen=True)
+class ResolvedOrgRole:
+    """A resolved `/enrich` candidate, read side — an org plus which of its
+    roles (seller/buyer) are active, for the Slack layer to pick from
+    before it has committed to one `EnrichmentTarget`.
+    """
+
+    org_attio_id: str
+    org_name: str
+    role_id: str
+    kind: str  # "seller" | "buyer"

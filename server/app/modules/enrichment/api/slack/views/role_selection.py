@@ -11,7 +11,7 @@ from slack_sdk.models.blocks.basic_components import Option
 from slack_sdk.models.blocks.block_elements import StaticSelectElement
 from slack_sdk.models.views import View
 
-from app.modules.enrichment.api.schemas import ResolvedOrgRole
+from app.modules.enrichment.domain.targets import ResolvedOrgRole
 from app.modules.notifications import sanitize_mrkdwn
 
 
