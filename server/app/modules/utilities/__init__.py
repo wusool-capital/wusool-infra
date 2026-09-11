@@ -23,10 +23,16 @@ from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 from app.modules.utilities.domain.retry import retry_with_backoff
 from app.modules.utilities.persistence.engine import get_engine, get_sessionmaker
 from app.modules.utilities.persistence.health import check_database_connectivity
-from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
+from app.modules.utilities.persistence.idempotency import (
+    InMemoryIdempotencyStore,
+    get_shared_idempotency_store,
+)
 from app.modules.utilities.persistence.registry import import_all_models
 from app.modules.utilities.persistence.schema_check import find_schema_drift
-from app.modules.utilities.persistence.task_runner import InProcessTaskRunner
+from app.modules.utilities.persistence.task_runner import (
+    InProcessTaskRunner,
+    get_shared_task_runner,
+)
 
 __all__ = [
     "AppError",
@@ -43,6 +49,8 @@ __all__ = [
     "find_schema_drift",
     "get_engine",
     "get_sessionmaker",
+    "get_shared_idempotency_store",
+    "get_shared_task_runner",
     "import_all_models",
     "log_context",
     "parse_usd_amount",

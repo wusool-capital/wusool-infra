@@ -10,5 +10,5 @@ from app.modules.discovery.domain.leads import DiscoveredLead
 
 class LeadSearchClient(Protocol):
     async def find_potential_sellers(
-        self, *, industry: str, geography: str, limit: int
+        self, *, industry: str, geography: str, limit: int, exclude_terms: tuple[str, ...] = ()
     ) -> list[DiscoveredLead]: ...

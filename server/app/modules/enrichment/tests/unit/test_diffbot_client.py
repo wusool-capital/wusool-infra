@@ -89,6 +89,32 @@ def test_map_entity_resolves_locations_and_social_profiles() -> None:
     assert resolved["twitter"].value == "twitter.com/stripe"
 
 
+def test_map_entity_skips_est_revenue_when_currency_is_not_usd(caplog) -> None:
+    """The write path (`app/modules/attio/providers/attio/money.py`) and the
+    extraction prompt both hardcode USD for `est_revenue` — proposing a
+    non-USD figure as-is would silently write the wrong number. Logged so
+    "why is revenue empty" is answerable from logs alone.
+    """
+    entity = DiffbotOrganization(revenue=DiffbotRevenue(value=5_000_000.0, currency="AED"))
+
+    with caplog.at_level("INFO"):
+        resolved = _map_entity(entity, requested={"est_revenue"})
+
+    assert resolved == []
+    assert "diffbot_est_revenue_skipped_non_usd" in caplog.text
+    assert "AED" in caplog.text
+
+
+def test_map_entity_resolves_est_revenue_when_currency_is_unset() -> None:
+    """Diffbot doesn't always populate `currency` — absence isn't evidence
+    it's non-USD, so this must still resolve (unlike a confirmed mismatch)."""
+    entity = DiffbotOrganization(revenue=DiffbotRevenue(value=5_000_000.0, currency=None))
+
+    resolved = _map_entity(entity, requested={"est_revenue"})
+
+    assert resolved[0].value == 5_000_000.0
+
+
 def test_map_entity_never_returns_a_field_it_could_not_resolve() -> None:
     entity = DiffbotOrganization()  # every field unset
 

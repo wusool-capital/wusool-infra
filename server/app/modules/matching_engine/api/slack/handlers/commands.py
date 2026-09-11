@@ -18,11 +18,11 @@ from app.modules.matching_engine.api.slack.views.buyer_selection import (
     build_buyer_selection_modal,
 )
 from app.modules.notifications import SlackCommandPayload
-from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
+from app.modules.utilities import get_shared_idempotency_store
 
 logger = logging.getLogger(__name__)
 
-_idempotency_store = InMemoryIdempotencyStore()
+_idempotency_store = get_shared_idempotency_store()
 
 
 def register(app: AsyncApp) -> None:

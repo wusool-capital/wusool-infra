@@ -9,6 +9,101 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/handover/README.md`](docs/handover/README.md).
 
+## 2026-09-12
+
+### Changed
+
+- `/enrich-buyer`/`/enrich-seller`'s Firecrawl research query is no longer a
+  bare `"{name} company profile"` — it now anchors on the organization's own
+  domain when known, else enriches with sector/category/HQ country. The
+  extraction prompt is also grounded with a "what we already know" block so
+  the LLM can reject sources about a different, same-named company. Fixes a
+  live case where `/enrich-buyer Investcorp` returned nothing because the
+  generic query surfaced only one thin, unrelated snippet.
+- Discovery's lead search ("Find more sellers" / the automatic
+  below-threshold trigger) now uses more of a buyer's requirement profile,
+  not just `sector`/`geography`: `client_type` is folded into the search
+  query as a refining qualifier (e.g. "healthcare SMB"), and every
+  `sector_exclusion` value is collected and used to filter out any
+  discovered lead whose category/name matches it — Google Maps' own search
+  has no dependable negation syntax, so this filtering happens after the
+  search, before the result limit is applied. Revenue/EBITDA floors and
+  CRM-internal states (`outreach_tier`, `relationship_status`,
+  `appetite_signal`) are deliberately still not used — a Maps listing
+  carries no financial data, and those fields describe a seller's state in
+  our own CRM, meaningless for a lead that isn't in the CRM yet.
+
+### Fixed
+
+- Diffbot's `logo_url`/`linkedin`/etc. proposed values in an enrichment
+  review message now render as a short clickable link instead of dumping
+  the full raw (often encoded) URL as text.
+- A match result's "Enrich" button is replaced with a `/enrich-seller
+  <name>` hint — freeing the `enrich_seller_from_match` action id
+  exclusively for the seller-add flow's own "Enrich" button.
+- The enrichment proposal message no longer shows the always-empty
+  `Current:` line or a low-value `source` link — `propose()` only ever
+  proposes a value for a field that was already missing.
+- `client_type`/`last_attempt_channel`/`target_geography` FieldSpecs
+  corrected to match live SOURCE Attio (verified directly against the real
+  workspace): SOURCE's `client_type` converted to `text` on 2026-08-31 (our
+  code was still built against a select-typed workspace), a stale
+  "WhatsApp" option removed from `last_attempt_channel`, and `Egypt`/
+  `Global` added to `target_geography`.
+- Two real test-isolation bugs: `full_resync`'s e2e test now explicitly
+  opts out of the `ATTIO_IS_TEST` prod-only guard it's exercising, and a
+  different `full_resync` unit test was silently performing a real,
+  unmocked database write (via `_sync_streaming_entity`), leaking a stub
+  organization row that broke an unrelated e2e test depending on run order.
+- `lead_magnets`' rate limiter is now reset between tests — it previously
+  leaked global state across the test session, causing a spurious 429 on
+  an unrelated later test depending on run order.
+- People Data Labs' `founded` year is now guarded the same way Diffbot's
+  founding-date parsing already was — an out-of-range value used to crash
+  the entire enrichment proposal (including any good fields Diffbot had
+  already resolved) instead of just dropping that one field.
+- Diffbot's `est_revenue` is no longer proposed when its `currency` isn't
+  USD (or unset) — the write path and extraction prompt both hardcode USD
+  with no FX conversion anywhere in the pipeline, so a foreign-currency
+  figure was silently written as if it were USD.
+- Discovery's `discover_add_seller` button handler now catches a decode
+  failure on a stale/legacy button value — it used to be an uncaught,
+  silent no-op after `ack()`, with only a server-side stack trace and no
+  message to the operator.
+
+### Changed
+
+- The Bedrock retry/logging scaffolding around `retry_with_backoff`
+  (`enrichment`'s and `lead_magnets`' clients carried a byte-identical
+  copy) is now one shared `invoke_bedrock_with_retry`
+  (`utilities.providers.bedrock.retry`) — `matching_engine`'s own,
+  differently-shaped hand-rolled loop is left as-is, per that module's own
+  documented reasoning.
+- Every Slack handler module used to construct its own
+  `InProcessTaskRunner()`/`InMemoryIdempotencyStore()`, fragmenting
+  in-flight background-task and idempotency state across six separate
+  instances. Both are now process-wide singletons
+  (`utilities.get_shared_task_runner()`/`get_shared_idempotency_store()`) —
+  every idempotency key was already prefixed by its own command/action
+  name, so sharing carries no collision risk.
+- `RoleReaderPort.current_values`/`company_context` merged into one
+  `load()` method — both already read the same role+organization row, so
+  the split cost a genuine extra database round trip on every
+  research-tier enrichment call rather than just being a style choice.
+- Each discovered lead in the "Find more sellers" result now shows a "View
+  on Maps" button alongside "Add as seller", so an operator can sanity-check
+  the actual listing before adding it — `DiscoveredLead.source_url` was
+  already captured but previously unused for display. Two buttons per lead
+  needs an `ActionsBlock`, not a `SectionBlock` accessory (Slack allows only
+  one accessory per section).
+
+### Fixed (from merge-check)
+
+- Diffbot's non-USD `est_revenue` skip and discovery's exclude-term lead
+  filtering now both log why (`diffbot_est_revenue_skipped_non_usd`,
+  `discovery_leads_excluded`) — previously silent, correct but
+  undiagnosable from logs alone.
+
 ## 2026-09-11
 
 ### Added

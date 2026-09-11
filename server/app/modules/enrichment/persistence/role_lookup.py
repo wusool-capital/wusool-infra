@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models import BuyerRole, SellerRole
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_for
+from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -52,7 +53,17 @@ class SqlAlchemyRoleReader:
             org_name=role.organization.name,
         )
 
-    async def current_values(self, target: EnrichmentTarget) -> JsonObject:
+    async def load(self, target: EnrichmentTarget) -> tuple[JsonObject, CompanyContext]:
+        """One query serves both the current field values (so `propose()`
+        can skip already-populated fields) and the company context (so a
+        research-tier query can be anchored/enriched) — the role's own
+        `organization` relationship, `selectinload`ed here, already carries
+        every column either one reads. A single combined method (rather
+        than two independent ones each doing their own query) is what
+        actually avoids the extra round trip; two Port methods that happen
+        to share a private query helper still cost two round trips if each
+        is called independently.
+        """
         role_model = BuyerRole if target.kind is EnrichmentTargetKind.BUYER else SellerRole
         role_write_target = (
             WriteTarget.BUYER_ROLE
@@ -61,12 +72,6 @@ class SqlAlchemyRoleReader:
         )
         fields = enrichable_fields_for(target.kind.value)
 
-        # One query, not two: the role's own `organization` relationship is
-        # always the same row an independent `org_attio_id` lookup would
-        # have found (every `EnrichmentTarget` is constructed from this
-        # exact role-organization pair — see `resolve_target`/
-        # `target_from_resolved`), so `selectinload` avoids a second round
-        # trip for no behavioural difference.
         async with self._sessionmaker() as session:
             role = (
                 await session.execute(
@@ -77,8 +82,24 @@ class SqlAlchemyRoleReader:
             ).scalar_one_or_none()
 
         org = role.organization if role is not None else None
+
         values: JsonObject = {}
         for field in fields:
             source = role if field.write_target is role_write_target else org
             values[field.name] = getattr(source, field.name, None) if source is not None else None
-        return values
+
+        if org is None:
+            context = CompanyContext(org_name=target.org_name)
+        else:
+            context = CompanyContext(
+                org_name=target.org_name,
+                domains=tuple(org.domains or ()),
+                sector_focus=tuple(org.sector_focus or ()),
+                categories=tuple(org.categories or ()),
+                hq_country=org.hq_country,
+                geographic_focus=tuple(org.geographic_focus or ()),
+                description=org.description,
+                linkedin=org.linkedin,
+            )
+
+        return values, context

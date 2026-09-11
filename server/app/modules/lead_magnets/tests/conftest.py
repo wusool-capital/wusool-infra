@@ -14,10 +14,23 @@ os.environ.setdefault("ATTIO_IS_TEST", "true")
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.lead_magnets.api import dependencies as deps
 from app.modules.lead_magnets.persistence.database import get_engine
 from app.modules.utilities.persistence.registry import import_all_models
 
 import_all_models()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """`_get_limiter()` caches one process-wide `FixedWindowRateLimiter` —
+    without a reset, requests from earlier tests in the same session accrue
+    against the same "testclient" IP key and can trip a later, unrelated
+    test's request with a spurious 429 depending on run order.
+    """
+    deps._limiter = None
+    yield
+    deps._limiter = None
 
 
 @pytest.fixture

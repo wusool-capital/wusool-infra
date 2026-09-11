@@ -124,3 +124,33 @@ def test_discover_add_seller_reports_failure_without_crashing(monkeypatch) -> No
 
     assert response.status_code == 200
     assert "Couldn't process" in posted[0]["text"]
+
+
+def test_discover_add_seller_reports_a_malformed_button_value_without_crashing(
+    monkeypatch,
+) -> None:
+    """A stale/legacy button value (e.g. after a deploy changes
+    `DiscoveredLead`'s shape) must surface an ephemeral message, not fail
+    silently after `ack()` has already fired.
+    """
+    posted: list[dict] = []
+
+    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
+        posted.append(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral", fake_chat_post_ephemeral
+    )
+
+    payload = {
+        "type": "block_actions",
+        "user": {"id": "U_TEST"},
+        "channel": {"id": "C_TEST"},
+        "trigger_id": "trigger.123",
+        "actions": [{"action_id": "discover_add_seller", "value": "not valid json"}],
+    }
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert "Couldn't process" in posted[0]["text"]

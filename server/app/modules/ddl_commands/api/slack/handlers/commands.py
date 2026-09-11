@@ -31,11 +31,11 @@ from app.modules.ddl_commands.api.slack.views.seller_role_selection import (
     build_seller_selection_modal,
 )
 from app.modules.notifications import SlackCommandPayload
-from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
+from app.modules.utilities import get_shared_idempotency_store
 
 logger = logging.getLogger(__name__)
 
-_idempotency_store = InMemoryIdempotencyStore()
+_idempotency_store = get_shared_idempotency_store()
 
 # Slack invalidates a command's `trigger_id` 3s after it's issued. Anything
 # slower than this and `views_open` is already doomed — worth a WARNING.

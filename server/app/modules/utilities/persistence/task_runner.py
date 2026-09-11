@@ -2,10 +2,11 @@
 
 import asyncio
 import logging
+from functools import lru_cache
 
 from app.modules.utilities.application.ports.task_runner import CoroFactory, TaskRunner
 
-__all__ = ["TaskRunner", "InProcessTaskRunner"]
+__all__ = ["TaskRunner", "InProcessTaskRunner", "get_shared_task_runner"]
 
 logger = logging.getLogger(__name__)
 
@@ -34,3 +35,15 @@ class InProcessTaskRunner:
             logger.error(
                 "background_task_failed", extra={"task_name": task.get_name()}, exc_info=exc
             )
+
+
+@lru_cache
+def get_shared_task_runner() -> InProcessTaskRunner:
+    """One process-wide runner for every module's background Slack tasks —
+    each Slack handler module used to construct its own module-level
+    `InProcessTaskRunner()`, fragmenting in-flight task state across
+    instances with no single place to drain them on graceful shutdown.
+    Task names are already distinct per invocation (e.g.
+    `f"discover:{run_id}"`), so sharing one instance is safe.
+    """
+    return InProcessTaskRunner()

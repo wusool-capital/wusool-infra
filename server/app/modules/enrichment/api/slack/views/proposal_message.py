@@ -14,8 +14,7 @@ import json
 import uuid
 from datetime import date
 
-from slack_sdk.models.blocks import Block, ContextBlock, DividerBlock, SectionBlock
-from slack_sdk.models.blocks.basic_components import MarkdownTextObject
+from slack_sdk.models.blocks import Block, DividerBlock, SectionBlock
 from slack_sdk.models.blocks.block_elements import ButtonElement
 
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_by_name_for
@@ -91,6 +90,18 @@ def decode_proposal(value: str) -> EnrichmentProposal:
     return EnrichmentProposal(target=target, values=tuple(values), generated_by_model="")
 
 
+def _render_proposed_value(value: FieldValue) -> str:
+    """A URL-shaped proposed value (logo_url, linkedin, twitter, etc.) is
+    unreadable as raw text in Slack — Diffbot's own logo_url in particular
+    is an encoded image-proxy link, not a plain URL. Render any http(s) URL
+    as a short clickable link instead of dumping the raw string.
+    """
+    text = str(value)
+    if text.startswith("http://") or text.startswith("https://"):
+        return f"<{text}|View>"
+    return sanitize_mrkdwn(text)
+
+
 def build_proposal_blocks(proposal: EnrichmentProposal) -> list[Block]:
     if not proposal.values:
         return [
@@ -105,19 +116,17 @@ def build_proposal_blocks(proposal: EnrichmentProposal) -> list[Block]:
         DividerBlock(),
     ]
     for value in proposal.values:
-        current = value.current if value.current not in (None, "") else "_(empty)_"
+        # `current` is always empty here — `propose()` only ever proposes a
+        # value for a field that was missing in the first place (see
+        # `EnrichMixin._is_missing`), so showing it adds nothing.
         blocks.append(
             SectionBlock(
                 text=(
                     f"*{value.field_name}*\n"
-                    f"Current: {sanitize_mrkdwn(str(current))}\n"
-                    f"Proposed: *{sanitize_mrkdwn(str(value.proposed))}*\n"
+                    f"Proposed: *{_render_proposed_value(value.proposed)}*\n"
                     f"Confidence: {value.confidence:.0%} — {sanitize_mrkdwn(value.rationale)}"
                 )
             )
-        )
-        blocks.append(
-            ContextBlock(elements=[MarkdownTextObject(text=f"<{value.source_url}|source>")])
         )
 
     blocks.append(DividerBlock())

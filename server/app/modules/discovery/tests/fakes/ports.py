@@ -9,10 +9,12 @@ from app.modules.discovery.domain.leads import DiscoveredLead
 class FakeLeadSearchClient(LeadSearchClient):
     def __init__(self, leads: list[DiscoveredLead] | None = None) -> None:
         self.leads = leads or []
+        self.calls: list[tuple[str, str, tuple[str, ...]]] = []
 
     async def find_potential_sellers(
-        self, *, industry: str, geography: str, limit: int
+        self, *, industry: str, geography: str, limit: int, exclude_terms: tuple[str, ...] = ()
     ) -> list[DiscoveredLead]:
+        self.calls.append((industry, geography, exclude_terms))
         return self.leads[:limit]
 
 

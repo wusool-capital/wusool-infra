@@ -159,30 +159,31 @@ def _candidate_block(
     if status == "PENDING_REVIEW":
         elements = [
             ButtonElement(text="View Full Analysis", action_id="view_full_analysis", value=run_id),
+            ButtonElement(
+                text="Approve Match",
+                action_id="approve_match",
+                style="primary",
+                value=match_result_id,
+            ),
+            ButtonElement(
+                text="Reject Match",
+                action_id="reject_match",
+                style="danger",
+                value=match_result_id,
+            ),
         ]
+        blocks.append(ActionsBlock(block_id=f"match_actions_{match_result_id}", elements=elements))
         if seller_role_id:
-            elements.append(
-                ButtonElement(
-                    text="Enrich", action_id="enrich_seller_from_match", value=seller_role_id
+            blocks.append(
+                ContextBlock(
+                    elements=[
+                        MarkdownTextObject(
+                            text=f"Run `/enrich-seller {sanitize_mrkdwn(seller_org_name)}` "
+                            "to research missing fields."
+                        )
+                    ]
                 )
             )
-        elements.extend(
-            [
-                ButtonElement(
-                    text="Approve Match",
-                    action_id="approve_match",
-                    style="primary",
-                    value=match_result_id,
-                ),
-                ButtonElement(
-                    text="Reject Match",
-                    action_id="reject_match",
-                    style="danger",
-                    value=match_result_id,
-                ),
-            ]
-        )
-        blocks.append(ActionsBlock(block_id=f"match_actions_{match_result_id}", elements=elements))
     else:
         emoji = {"APPROVED": "✅", "REJECTED": "❌"}.get(decision or "", "•")
         who = f" by <@{approved_by}>" if approved_by else ""

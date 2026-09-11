@@ -4,6 +4,7 @@ import pytest
 
 from app.modules.enrichment.application.ports.company_data import CompanyDataField
 from app.modules.enrichment.application.service import EnrichmentService
+from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.enrichment.tests.fakes.company_data import FakeCompanyDataClient
 from app.modules.enrichment.tests.fakes.extraction import FakeExtractionClient
@@ -17,12 +18,13 @@ def _service(
     extraction_response: dict,
     research_client=None,
     company_data_clients=(),
+    context: CompanyContext | None = None,
 ) -> tuple[EnrichmentService, FakeReviewPort]:
     review_port = FakeReviewPort()
     service = EnrichmentService(
         research_client=research_client or FakeResearchClient(),
         extraction_client=FakeExtractionClient(extraction_response),
-        role_reader=FakeRoleReader(current_values),
+        role_reader=FakeRoleReader(current_values, context=context),
         review_port=review_port,
         model_id="test-model",
         temperature=0.2,
@@ -238,3 +240,56 @@ async def test_propose_never_tries_the_structured_tier_for_a_buyer(
 
     assert proposal.values == ()
     assert diffbot.calls == []
+
+
+async def test_research_query_falls_back_to_bare_name_with_no_context(
+    target: EnrichmentTarget,
+) -> None:
+    research_client = FakeResearchClient()
+    service, _ = _service(
+        current_values={},
+        extraction_response={"fields": []},
+        research_client=research_client,
+    )
+
+    await service.propose(target)
+
+    assert research_client.queries == ["Acme Co company profile"]
+
+
+async def test_research_query_is_anchored_on_domain_when_known(
+    target: EnrichmentTarget,
+) -> None:
+    research_client = FakeResearchClient()
+    service, _ = _service(
+        current_values={},
+        extraction_response={"fields": []},
+        research_client=research_client,
+        context=CompanyContext(org_name="Acme Co", domains=("acme.com",)),
+    )
+
+    await service.propose(target)
+
+    assert research_client.queries == ["Acme Co acme.com company profile"]
+
+
+async def test_extraction_prompt_includes_known_facts_when_context_is_populated(
+    target: EnrichmentTarget,
+) -> None:
+    extraction_client = FakeExtractionClient({"fields": []})
+    service = EnrichmentService(
+        research_client=FakeResearchClient(),
+        extraction_client=extraction_client,
+        role_reader=FakeRoleReader(
+            {}, context=CompanyContext(org_name="Acme Co", hq_country="UAE")
+        ),
+        review_port=FakeReviewPort(),
+        model_id="test-model",
+        temperature=0.2,
+        max_tokens=1024,
+        min_confidence=0.5,
+    )
+
+    await service.propose(target)
+
+    assert any("HQ country: UAE" in prompt for prompt in extraction_client.prompts)

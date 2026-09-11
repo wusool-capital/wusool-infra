@@ -22,13 +22,12 @@ from app.modules.enrichment.api.dependencies import (
 )
 from app.modules.enrichment.api.slack.views.role_selection import build_role_selection_modal
 from app.modules.notifications import SlackCommandPayload
-from app.modules.utilities import InProcessTaskRunner
-from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
+from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
 
 logger = logging.getLogger(__name__)
 
-_idempotency_store = InMemoryIdempotencyStore()
-_task_runner = InProcessTaskRunner()
+_idempotency_store = get_shared_idempotency_store()
+_task_runner = get_shared_task_runner()
 _TRIGGER_ID_BUDGET_MS = 2500
 
 

@@ -10,7 +10,7 @@ from urllib.parse import quote, unquote, urlsplit
 
 from firecrawl import AsyncFirecrawl
 
-from app.modules.discovery.domain.leads import DiscoveredLead
+from app.modules.discovery.domain.leads import DiscoveredLead, filter_excluded_leads
 from app.modules.discovery.providers.firecrawl.schemas import MapsExtraction
 
 logger = logging.getLogger(__name__)
@@ -45,12 +45,14 @@ class FirecrawlMapsClient:
         self._client = AsyncFirecrawl(api_key=api_key)
 
     async def find_potential_sellers(
-        self, *, industry: str, geography: str, limit: int
+        self, *, industry: str, geography: str, limit: int, exclude_terms: tuple[str, ...] = ()
     ) -> list[DiscoveredLead]:
         query = f"{industry} companies {geography}".strip()
-        return await self._scrape_maps(query, limit)
+        return await self._scrape_maps(query, limit, exclude_terms)
 
-    async def _scrape_maps(self, query: str, limit: int) -> list[DiscoveredLead]:
+    async def _scrape_maps(
+        self, query: str, limit: int, exclude_terms: tuple[str, ...] = ()
+    ) -> list[DiscoveredLead]:
         url = f"https://www.google.com/maps/search/{quote(query)}"
         try:
             result = await self._client.scrape(
@@ -70,12 +72,24 @@ class FirecrawlMapsClient:
             return []
 
         links = getattr(result, "links", None) or []
-        return [
+        leads = [
             DiscoveredLead(
                 name=b.name,
                 source_url=_match_place_link(b.name, links) or url,
                 address=b.address,
                 category=b.category,
             )
-            for b in extracted.businesses[:limit]
+            for b in extracted.businesses
         ]
+        # Filter before slicing to `limit` — an excluded lead must not
+        # consume a slot a genuinely qualifying one could have filled.
+        filtered = filter_excluded_leads(leads, exclude_terms)
+        excluded_count = len(leads) - len(filtered)
+        if excluded_count:
+            logger.info(
+                "discovery_leads_excluded query=%s excluded=%d exclude_terms=%s",
+                query,
+                excluded_count,
+                exclude_terms,
+            )
+        return filtered[:limit]

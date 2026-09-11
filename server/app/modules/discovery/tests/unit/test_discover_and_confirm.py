@@ -28,6 +28,17 @@ async def test_find_leads_delegates_to_the_search_client_with_the_given_limit() 
     assert result == leads[:2]
 
 
+async def test_find_leads_passes_exclude_terms_through_to_the_search_client() -> None:
+    search_client = FakeLeadSearchClient([])
+    service, _ = _service(lead_search_client=search_client)
+
+    await service.find_leads(
+        industry="Retail", geography="UAE", limit=2, exclude_terms=("construction",)
+    )
+
+    assert search_client.calls == [("Retail", "UAE", ("construction",))]
+
+
 async def test_open_confirm_form_delegates_to_the_seller_draft_port() -> None:
     service, draft_port = _service()
     draft = SellerDraft(org_name="Acme Co", values={}, source_urls=())
