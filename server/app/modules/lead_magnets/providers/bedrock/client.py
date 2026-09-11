@@ -1,9 +1,11 @@
 """Bedrock implementation of `LeadLLMPort`.
 
 Six operations, two models. The transport — the `converse` request shape,
-the transient-error set and the response parsing — is shared with every
-other Bedrock caller in `utilities.domain.bedrock`; what this file owns is
-which model each operation uses, its token budget, and its schema.
+the transient-error set, the response parsing, and the entire
+retry-with-logging wrapper are shared with every other Bedrock caller via
+`utilities.domain.bedrock`/`utilities.providers.bedrock.retry`; what this
+file owns is which model each operation uses, its token budget, and its
+schema.
 
 Validation is a single attempt that raises. The forced tool call already
 eliminates most malformed-JSON failure modes, and unlike `matching_engine`
@@ -16,12 +18,8 @@ prompt or response content.
 
 from __future__ import annotations
 
-import asyncio
-import logging
-import time
 from typing import TYPE_CHECKING, TypeVar
 
-from botocore.exceptions import ClientError, EndpointConnectionError
 from pydantic import BaseModel, ValidationError
 
 from app.modules.lead_magnets.config import get_settings
@@ -34,40 +32,20 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     SearchQueries,
 )
 from app.modules.lead_magnets.providers.bedrock.boto_client import get_bedrock_runtime_client
-from app.modules.utilities import retry_with_backoff
-from app.modules.utilities.domain.bedrock import (
-    TRANSIENT_ERROR_CODES,
-    converse_kwargs,
-    extract_json,
-)
+from app.modules.utilities.domain.bedrock import converse_kwargs
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
+from app.modules.utilities.providers.bedrock.retry import invoke_bedrock_with_retry
 
 if TYPE_CHECKING:
     from mypy_boto3_bedrock_runtime.type_defs import ConverseResponseTypeDef
 
-logger = logging.getLogger(__name__)
-
-_MAX_ATTEMPTS = 3
-_BASE_DELAY_SECONDS = 1.0
 # Low and deterministic-leaning: these outputs feed a valuation and a
 # readiness score, not prose. `top_p` is never sent alongside it — Anthropic
 # models reject both together.
 _TEMPERATURE = 0.2
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
-
-
-def _is_retryable(exc: Exception) -> bool:
-    if isinstance(exc, EndpointConnectionError):
-        return True
-    if isinstance(exc, ClientError):
-        return exc.response.get("Error", {}).get("Code", "") in TRANSIENT_ERROR_CODES
-    return False
-
-
-def _delay_seconds(attempt: int) -> float:
-    return _BASE_DELAY_SECONDS * (2 ** (attempt - 1))
 
 
 class LeadBedrockClient:
@@ -126,63 +104,11 @@ class LeadBedrockClient:
     ) -> ModelT:
         output_schema = response_model.model_json_schema()
 
-        async def call() -> ConverseResponseTypeDef:
-            started = time.monotonic()
-            response = await asyncio.to_thread(
-                self._converse, model_id, prompt, output_schema, max_tokens
-            )
-            latency_ms = int((time.monotonic() - started) * 1000)
-            usage = response.get("usage", {})
-            logger.info(
-                "bedrock_invocation_succeeded operation=%s model_id=%s latency_ms=%d "
-                "input_tokens=%s output_tokens=%s",
-                operation,
-                model_id,
-                latency_ms,
-                usage.get("inputTokens"),
-                usage.get("outputTokens"),
-                extra={
-                    "model_id": model_id,
-                    "operation": operation,
-                    "latency_ms": latency_ms,
-                    "input_tokens": usage.get("inputTokens"),
-                    "output_tokens": usage.get("outputTokens"),
-                },
-            )
-            return response
-
-        def on_retry(attempt: int, exc: Exception, delay: float) -> None:
-            error_code = (
-                exc.response.get("Error", {}).get("Code", "")
-                if isinstance(exc, ClientError)
-                else "EndpointConnectionError"
-            )
-            logger.warning(
-                "bedrock_invocation_failed operation=%s model_id=%s attempt=%d error_code=%s",
-                operation,
-                model_id,
-                attempt,
-                error_code,
-                extra={
-                    "model_id": model_id,
-                    "operation": operation,
-                    "attempt": attempt,
-                    "error_code": error_code,
-                },
-            )
-
-        try:
-            response = await retry_with_backoff(
-                call,
-                is_retryable=_is_retryable,
-                max_attempts=_MAX_ATTEMPTS,
-                delay_seconds=_delay_seconds,
-                on_retry=on_retry,
-            )
-        except (ClientError, EndpointConnectionError) as exc:
-            raise BedrockInvocationError(f"{operation} failed: {exc}") from exc
-
-        raw = extract_json(response)
+        raw = await invoke_bedrock_with_retry(
+            converse=lambda: self._converse(model_id, prompt, output_schema, max_tokens),
+            model_id=model_id,
+            operation=operation,
+        )
         try:
             return response_model.model_validate(raw)
         except ValidationError as exc:
