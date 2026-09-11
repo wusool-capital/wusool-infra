@@ -90,6 +90,12 @@ delivered state and outstanding items see
   `load()` method — both already read the same role+organization row, so
   the split cost a genuine extra database round trip on every
   research-tier enrichment call rather than just being a style choice.
+- Each discovered lead in the "Find more sellers" result now shows a "View
+  on Maps" button alongside "Add as seller", so an operator can sanity-check
+  the actual listing before adding it — `DiscoveredLead.source_url` was
+  already captured but previously unused for display. Two buttons per lead
+  needs an `ActionsBlock`, not a `SectionBlock` accessory (Slack allows only
+  one accessory per section).
 
 ### Fixed (from merge-check)
 
