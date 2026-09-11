@@ -71,7 +71,12 @@ def _map_entity(entity: DiffbotOrganization, requested: set[str]) -> list[Compan
     if entity.location and entity.location.country:
         _add("hq_country", entity.location.country.name)
     _add("linkedin", entity.linkedInUri)
-    if entity.revenue:
+    if entity.revenue and entity.revenue.currency in (None, "USD"):
+        # The write path (`app/modules/attio/providers/attio/money.py`) and
+        # the extraction prompt both hardcode USD for this field with no FX
+        # conversion anywhere in the pipeline — proposing a non-USD figure
+        # as-is would silently write the wrong number, so skip it rather
+        # than guess at a conversion.
         _add("est_revenue", entity.revenue.value)
     _add("location_count", entity.nbLocations)
     _add("logo_url", entity.logo)
