@@ -12,13 +12,13 @@ is never proposed from this provider.
 
 import logging
 from datetime import date
-from typing import Any
 
 import aiohttp
 
 from app.modules.enrichment.application.ports.company_data import CompanyDataField
 from app.modules.enrichment.domain.employee_bands import bucket_employee_count
 from app.modules.enrichment.domain.field_plans import EnrichableField
+from app.modules.enrichment.domain.proposals import FieldValue
 from app.modules.enrichment.providers.people_data_labs.schemas import PdlCompanyResponse
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ def _map_response(parsed: PdlCompanyResponse, requested: set[str]) -> list[Compa
     source_url = parsed.website or "https://www.peopledatalabs.com/"
     resolved: list[CompanyDataField] = []
 
-    def _add(field_name: str, value: Any) -> None:
+    def _add(field_name: str, value: FieldValue | None) -> None:
         if field_name in requested and value is not None:
             resolved.append(
                 CompanyDataField(

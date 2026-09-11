@@ -7,7 +7,6 @@ via the LLM path for whatever's still missing. Never writes anything — see
 
 import json
 from datetime import date
-from typing import Any
 
 from app.modules.enrichment.application.base import ServiceBase
 from app.modules.enrichment.domain.field_plans import (
@@ -15,7 +14,11 @@ from app.modules.enrichment.domain.field_plans import (
     enrichable_fields_by_name_for,
     enrichable_fields_for,
 )
-from app.modules.enrichment.domain.proposals import EnrichmentProposal, ProposedFieldValue
+from app.modules.enrichment.domain.proposals import (
+    EnrichmentProposal,
+    FieldValue,
+    ProposedFieldValue,
+)
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -27,7 +30,7 @@ _CONFIDENCE_SCORE = {"high": 0.9, "medium": 0.6, "low": 0.3}
 _STRUCTURED_PROVIDER_CONFIDENCE = 0.9
 
 
-def _is_missing(value: Any) -> bool:
+def _is_missing(value: FieldValue | None) -> bool:
     """A field counts as missing only when it's genuinely empty — a
     legitimately-zero number or an already-populated `False` must not be
     re-researched just because they're falsy in Python.
@@ -39,11 +42,14 @@ def _is_missing(value: Any) -> bool:
     if isinstance(value, (list, tuple)):
         return len(value) == 0
     if isinstance(value, dict):
-        return not value.get("amount")
+        # Currency fields store `{"amount": ..., "currency": "USD"}` — a
+        # legitimate zero amount (e.g. a pre-revenue seller) must not be
+        # re-researched, same as the bare-number case below.
+        return value.get("amount") is None
     return False
 
 
-def _coerce_proposed_value(kind: str, raw_value: str) -> Any:
+def _coerce_proposed_value(kind: str, raw_value: str) -> FieldValue:
     """The extraction schema only ever gives back a `str` (the LLM's own
     output shape); this converts it into what `write_payload.py`'s
     Attio/Postgres serializers for that `kind` actually expect —

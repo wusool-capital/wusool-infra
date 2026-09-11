@@ -24,6 +24,8 @@ from app.modules.enrichment.application.enrich import _coerce_proposed_value, _i
         ("0", False),
         (["a"], False),
         ({"amount": 5000}, False),
+        ({"amount": 0}, False),
+        ({"amount": 0.0}, False),
     ],
 )
 def test_is_missing(value: object, expected: bool) -> None:

@@ -9,15 +9,16 @@ touching `EnrichMixin`.
 """
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 from app.modules.enrichment.domain.field_plans import EnrichableField
+from app.modules.enrichment.domain.proposals import FieldValue
 
 
 @dataclass(frozen=True)
 class CompanyDataField:
     field_name: str
-    value: Any
+    value: FieldValue
     source_url: str
     provider: str
 

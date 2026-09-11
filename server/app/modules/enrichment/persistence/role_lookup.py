@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
-from app.models import BuyerRole, Organization, SellerRole
+from app.models import BuyerRole, SellerRole
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_for
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.utilities.domain.json_types import JsonObject
@@ -61,16 +61,22 @@ class SqlAlchemyRoleReader:
         )
         fields = enrichable_fields_for(target.kind.value)
 
+        # One query, not two: the role's own `organization` relationship is
+        # always the same row an independent `org_attio_id` lookup would
+        # have found (every `EnrichmentTarget` is constructed from this
+        # exact role-organization pair — see `resolve_target`/
+        # `target_from_resolved`), so `selectinload` avoids a second round
+        # trip for no behavioural difference.
         async with self._sessionmaker() as session:
             role = (
-                await session.execute(select(role_model).where(role_model.id == target.role_id))
-            ).scalar_one_or_none()
-            org = (
                 await session.execute(
-                    select(Organization).where(Organization.attio_id == target.org_attio_id)
+                    select(role_model)
+                    .where(role_model.id == target.role_id)
+                    .options(selectinload(role_model.organization))
                 )
             ).scalar_one_or_none()
 
+        org = role.organization if role is not None else None
         values: JsonObject = {}
         for field in fields:
             source = role if field.write_target is role_write_target else org

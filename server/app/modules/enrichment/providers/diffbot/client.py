@@ -10,13 +10,13 @@ docstring for what changed from the original blind mapping.
 
 import logging
 from datetime import date
-from typing import Any
 
 import aiohttp
 
 from app.modules.enrichment.application.ports.company_data import CompanyDataField
 from app.modules.enrichment.domain.employee_bands import bucket_employee_count
 from app.modules.enrichment.domain.field_plans import EnrichableField
+from app.modules.enrichment.domain.proposals import FieldValue
 from app.modules.enrichment.providers.diffbot.schemas import (
     DiffbotEnhanceResponse,
     DiffbotOrganization,
@@ -49,7 +49,7 @@ def _map_entity(entity: DiffbotOrganization, requested: set[str]) -> list[Compan
     source_url = entity.origin or "https://www.diffbot.com/"
     resolved: list[CompanyDataField] = []
 
-    def _add(field_name: str, value: Any) -> None:
+    def _add(field_name: str, value: FieldValue | None) -> None:
         if field_name in requested and value is not None:
             resolved.append(
                 CompanyDataField(
