@@ -1,7 +1,8 @@
 """End-to-end Slack command dispatch through the **merged** app (`main.py`)
 — proves the actual thing this merge exists to fix: one process, one
-`AsyncApp`, all 5 commands (matching-engine's `/find-match` plus
-ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`)
+`AsyncApp`, all 8 commands (matching-engine's `/find-match`,
+ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`,
+enrichment's `/enrich-seller`/`/enrich-buyer`, and `main.py`'s own `/help`)
 correctly registered and dispatching, with no cross-package collision.
 
 Each package's own test suite (`matching-engine/tests/`, `ddl-commands/tests/`)
@@ -105,14 +106,25 @@ def _post_view_submission_raw(view: dict) -> TestClient:
 
 
 @pytest.mark.parametrize(
-    "command", ["/find-match", "/edit-seller", "/edit-buyer", "/add-seller", "/add-buyer"]
+    "command",
+    [
+        "/find-match",
+        "/edit-seller",
+        "/edit-buyer",
+        "/add-seller",
+        "/add-buyer",
+        "/enrich-seller",
+        "/enrich-buyer",
+    ],
 )
 def test_every_command_dispatches_off_the_one_shared_app(
     command: str, _mock_slack_web_client
 ) -> None:
-    """All 5 slash commands route correctly through the single merged
-    `AsyncApp` — the empty-text usage-message path touches neither the DB
-    nor any business logic, so this is a pure wiring check.
+    """Every slash command but `/help` routes correctly through the single
+    merged `AsyncApp` — the empty-text usage-message path touches neither
+    the DB nor any business logic, so this is a pure wiring check. `/help`
+    has no usage message (it always answers the same way regardless of
+    text) — covered separately below.
     """
     response = _post_command(command)
 
@@ -231,6 +243,22 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
     body = response.json()
     assert body["response_action"] == "update"
     assert body["view"]["callback_id"] == "buyer_field_picker_modal"
+
+
+def test_help_command_lists_every_command(_mock_slack_web_client) -> None:
+    """`/help` isn't owned by any one module — `main.py`'s own
+    `_COMMAND_HELP` list is the single source of truth, so this pins that
+    every command actually registered on the app also appears in the help
+    text (catching the same class of staleness `SLACK_APP_SETUP.md` had
+    before it was updated to match).
+    """
+    response = _post_command("/help")
+
+    assert response.status_code == 200
+    assert len(_mock_slack_web_client) == 1
+    text = _mock_slack_web_client[0]["text"]
+    for command, _hint, _description in main._COMMAND_HELP:
+        assert f"`{command}" in text
 
 
 def test_lead_magnet_static_mount_does_not_shadow_existing_routes() -> None:

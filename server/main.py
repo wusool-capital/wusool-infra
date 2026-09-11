@@ -1,6 +1,8 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
-all 5 commands: `/find-match` (matching_engine module) and `/edit-seller`,
-`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl_commands module) — plus the
+all 8 commands: `/find-match` (matching_engine module), `/enrich-seller`/
+`/enrich-buyer` (enrichment module), `/edit-seller`/`/edit-buyer`/
+`/add-seller`/`/add-buyer` (ddl_commands module), and `/help` (answered
+directly here, since it's not owned by any one module) — plus the
 `meetings` module's `/desktop/*` REST surface for the WusoolScribe desktop
 app (transcript ingestion, summarization, status polling; no Slack command).
 
@@ -24,7 +26,9 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from slack_bolt.async_app import AsyncApp
+from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_bolt.response import BoltResponse
+from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.attio import attio_is_test
 from app.modules.ddl_commands.api.attio_sync import router as attio_sync_router
@@ -61,7 +65,7 @@ from app.modules.meetings.api.router import router as meetings_router
 from app.modules.meetings.persistence.database import (
     import_all_models as import_meetings_models,
 )
-from app.modules.notifications import build_bolt_app
+from app.modules.notifications import SlackCommandPayload, build_bolt_app
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging, log_context
 
@@ -92,9 +96,32 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/add-buyer": "ddl-commands",
     "/enrich-seller": "enrichment",
     "/enrich-buyer": "enrichment",
+    "/help": "help",
 }
 _UNKNOWN_TRIGGER = "unknown"
 _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
+
+# (command, usage hint, description) for every command Slack can route to
+# this app — kept here, not in any one module, since no single module owns
+# the full list. Order matches `docs/dev/SLACK_APP_SETUP.md`'s table; keep
+# both in sync when a command is added, removed, or renamed.
+_COMMAND_HELP: tuple[tuple[str, str, str], ...] = (
+    ("/find-match", "<buyer org name>", "Find and score buyer-seller matches."),
+    (
+        "/enrich-seller",
+        "<seller org name>",
+        "Research and fill missing seller fields from public sources.",
+    ),
+    (
+        "/enrich-buyer",
+        "<buyer org name>",
+        "Research and fill missing buyer fields from public sources.",
+    ),
+    ("/edit-seller", "<seller org name>", "Edit an existing seller profile."),
+    ("/edit-buyer", "<buyer org name>", "Edit an existing buyer profile."),
+    ("/add-seller", "<organization name>", "Add a new seller."),
+    ("/add-buyer", "<organization name>", "Add a new buyer."),
+)
 
 # Bolt's own `ack_timeout` is 3s; warn a little under it so a request that is
 # merely close to the edge still shows up before it starts failing outright.
@@ -201,11 +228,26 @@ def _extract_trigger(body: dict[str, Any]) -> str:
     return _UNKNOWN_TRIGGER
 
 
+def _register_help_command(bolt_app: AsyncApp) -> None:
+    @bolt_app.command("/help")
+    async def handle_help(
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        lines = "\n".join(f"• `{cmd} {hint}` — {desc}" for cmd, hint, desc in _COMMAND_HELP)
+        await client.chat_postEphemeral(
+            channel=command["channel_id"],
+            user=command["user_id"],
+            text=f"*Available commands:*\n{lines}",
+        )
+
+
 def _register_all_handlers(bolt_app: AsyncApp) -> None:
     register_matching_engine_handlers(bolt_app)
     register_ddl_commands_handlers(bolt_app)
     register_enrichment_handlers(bolt_app)
     register_discovery_handlers(bolt_app)
+    _register_help_command(bolt_app)
 
 
 @lru_cache
@@ -269,7 +311,7 @@ def _slack_request_handler() -> AsyncSlackRequestHandler:
 
 @app.post("/slack/events")
 async def slack_events(req: Request) -> Response:
-    """The one Slack callback endpoint for all 5 commands. Signature
+    """The one Slack callback endpoint for all 8 commands. Signature
     verification happens inside Bolt via `SLACK_SIGNING_SECRET` — never
     trust a payload without it.
     """
