@@ -145,6 +145,39 @@ async def test_write_dedups_buyer_role_the_same_way() -> None:
     assert writer.buyer_calls[0]["organization_attio_id"] == "org-1"
 
 
+async def test_write_prefers_sector_over_peer_key_for_tech_mode_benchmark() -> None:
+    """Tech-mode benchmark's `peer_key` is a funding stage ("seed"), not a
+    sector — `sector_mapping.py` has no entry for it, so passing `peer_key`
+    as the CRM sector raised `UnmappedSectorError` on every real tech-mode
+    submission. The form now also sends `sector` (the real tech sector);
+    this pins that it wins over `peer_key` when both are present."""
+    writer = _FakeRoleWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, _FakeOrganizations([]))
+
+    await role_attio_writer.write(
+        tool="benchmark",
+        payload={"company": "Acme", "mode": "tech", "peer_key": "seed", "sector": "AI"},
+        ai={},
+    )
+
+    assert writer.seller_calls[0]["sector"] == "AI"
+
+
+async def test_write_falls_back_to_peer_key_for_sme_mode_benchmark() -> None:
+    """SME mode never sends a separate `sector` — `peer_key` there already
+    is the CRM sector, and must still be used."""
+    writer = _FakeRoleWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, _FakeOrganizations([]))
+
+    await role_attio_writer.write(
+        tool="benchmark",
+        payload={"company": "Acme", "mode": "sme", "peer_key": "itservices"},
+        ai={},
+    )
+
+    assert writer.seller_calls[0]["sector"] == "itservices"
+
+
 async def test_write_rejects_a_non_string_org_type_entry() -> None:
     """`payload` is now parsed through `BuyerNetworkPayload` rather than a
     manual `isinstance` filter — a malformed stored row now fails loudly

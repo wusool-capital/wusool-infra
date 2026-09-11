@@ -160,9 +160,14 @@ class AttioIdentityPayload(_Payload):
     run Postgres-side dedup — a separate, smaller model from
     `BenchmarkPayload`/`ValuationPayload`/`ReadinessPayload` above rather than
     added fields on all three, since none of those exist to serve this call
-    site (they mirror what each tool's own scoring/AI step reads) and the
-    sector field's name differs by tool: `peer_key` for benchmark, `sector`
-    for valuation and readiness."""
+    site (they mirror what each tool's own scoring/AI step reads).
+
+    `peer_key` and `sector` are read with `sector` taking priority when both
+    are present: valuation and readiness only ever send `sector`; SME-mode
+    benchmark only ever sends `peer_key` (there, it already is the CRM
+    sector); tech-mode benchmark sends both, because *its* `peer_key` is a
+    funding stage, not a sector — `sector` there is what `sector_mapping.py`
+    can actually resolve. See `BenchmarkRequest.sector`'s own docstring."""
 
     domain: str | None = None
     company: str = ""

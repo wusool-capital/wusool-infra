@@ -109,8 +109,17 @@ class BenchmarkRequest(_Strict):
 
     submission_id: str = Field(min_length=1, max_length=64)
     mode: Literal["sme", "tech"] = "sme"
-    # A sector key in SME mode, a funding stage in startup mode.
+    # A sector key in SME mode, a funding stage in startup mode — the peer
+    # cut the score is computed against, not necessarily the CRM sector (see
+    # `sector` below).
     peer_key: str = Field(min_length=1, max_length=64)
+    # Tech mode's own sector dropdown (`DATA.techSectorList`) is a separate
+    # control from the one `peer_key` reads there (the funding stage), and
+    # is the only source `sector_focus` can be mapped from for a tech-mode
+    # submission — `peer_key` there is a stage string ("seed", "seriesa", ...)
+    # that `sector_mapping.py`'s tables have no entry for. `None` in SME
+    # mode, where `peer_key` already *is* the CRM sector.
+    sector: str | None = Field(default=None, max_length=200)
     company: str = Field(min_length=1, max_length=200)
     name: str | None = Field(default=None, max_length=200)
     email: str = Field(min_length=3, max_length=320)

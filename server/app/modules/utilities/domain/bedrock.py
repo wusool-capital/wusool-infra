@@ -96,9 +96,17 @@ def extract_json(response: Mapping[str, Any]) -> JsonObject:
     Returns `{}` on total failure rather than raising, deliberately: every
     caller already validates the result against a schema, so an empty dict
     fails that validation the same way a wrong-shaped-but-valid object
-    would, instead of introducing a second error shape to handle.
+    would, instead of introducing a second error shape to handle. That
+    includes a response missing the expected `output.message.content`
+    shape entirely (a degraded-but-200 response, a stop-reason edge case)
+    — a bare `KeyError` there would bypass every caller's schema-validation
+    error handling instead of going through it.
     """
-    content = response["output"]["message"]["content"]
+    output = response.get("output")
+    message = output.get("message") if isinstance(output, dict) else None
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, list):
+        return {}
 
     for block in content:
         tool_use = block.get("toolUse")

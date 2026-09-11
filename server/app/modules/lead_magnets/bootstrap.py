@@ -115,9 +115,15 @@ class _RoleAttioWriter:
             organization_name=name,
             domain=seller.domain,
             entry_values=entry_values,
-            # The tool's own value; the writer maps it and raises on an
-            # unknown one rather than dropping it.
-            sector=seller.peer_key or seller.sector,
+            # `sector` wins when present: benchmark tech-mode sends it
+            # because its own `peer_key` is a funding stage there, not a
+            # sector (`api/schemas.py::BenchmarkRequest.sector`'s own
+            # docstring). Every other case — SME-mode benchmark (no
+            # separate `sector` sent; `peer_key` already is the CRM
+            # sector), valuation, readiness (no `peer_key` at all) —
+            # resolves exactly as before, since only one of the two is
+            # ever actually present for them.
+            sector=seller.sector or seller.peer_key,
             organization_attio_id=await self._find_existing_org(name=name, domain=seller.domain),
         )
 

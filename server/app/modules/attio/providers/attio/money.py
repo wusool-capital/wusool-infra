@@ -89,5 +89,13 @@ def serialize_money(table: str, field: str, amount: float) -> AttioCurrencyWrite
 
 def to_postgres_money(table: str, field: str, amount: float) -> MoneyJson:
     """Same fixed currency code as the Attio write, so the two can never
-    disagree on currency."""
-    return {"amount": amount, "currency": default_currency_code(table, field)}
+    disagree on currency — and now the same 2-decimal rounding as
+    `serialize_money`, so they can never disagree on the amount either.
+    Both functions are called with the same raw extracted value
+    (`ddl_commands/providers/attio/write_payload.py`'s `build_postgres_values`/
+    `build_attio_values`), so rounding only one of them silently drifted
+    Postgres and Attio apart for any amount with more than 2 decimal places
+    — exactly the blended-figure case `serialize_money`'s own rounding was
+    added for.
+    """
+    return {"amount": round(amount, 2), "currency": default_currency_code(table, field)}

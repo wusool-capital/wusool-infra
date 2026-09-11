@@ -11,6 +11,79 @@ delivered state and outstanding items see
 
 ## 2026-09-11
 
+### Fixed
+
+- Pre-merge `/code-review` over the full PR diff (not just this session's
+  latest commits) surfaced four real bugs, all fixed and regression-tested:
+  - **Every tech-mode GCC Benchmark submission's Attio write failed.**
+    `bootstrap.py::_RoleAttioWriter.write` passed `peer_key` as the CRM
+    sector for every benchmark submission — correct in SME mode (`peer_key`
+    *is* the sector there), but tech mode's `peer_key` is a funding stage
+    (`"seed"`, `"seriesa"`, ...), and the actual tech sector the form
+    correctly collects (`static/benchmark/60-render.js`'s `S.inputs.sector`,
+    repopulated from `DATA.techSectorList` in tech mode) was never sent to
+    the backend at all. `to_sector_focus("seed")` raised
+    `UnmappedSectorError` on every one, deterministically, so no tech-mode
+    benchmark lead's organization/seller_role record ever reached Attio.
+    Fixed at all three points: `BenchmarkRequest` gets a new `sector`
+    field (`api/schemas.py`), the tech-mode form now sends it
+    (`static/benchmark/60-render.js`), and `_RoleAttioWriter.write`
+    resolves `seller.sector or seller.peer_key` (was `peer_key or
+    sector`) so the real sector wins when present. Two new tests in
+    `test_bootstrap.py` pin both the tech-mode and SME-mode paths.
+  - **`promote_role_fks` never promoted anything.** It read
+    `ToolRun.payload[key]` at the top level, but `set_stage(stage="attio",
+    output=asdict(subjects))` nests `SubjectRefs` under
+    `payload["attio"][key]` — the backfill query matched zero rows on
+    every real submission, permanently leaving `seller_role_id`/
+    `buyer_role_id` NULL whenever the Attio→Postgres mirror landed the
+    role row after `finish()` (the common case, since the mirror lands
+    "seconds after" per the method's own docstring). The one integration
+    test covering this seeded an unrealistic top-level payload shape that
+    happened to mask the bug; rewritten to go through the real
+    `set_stage` path, and confirmed (by temporarily reverting the fix)
+    that it now genuinely catches the regression.
+  - **Attio and Postgres could disagree on a money amount.** This
+    session's earlier fix rounded `serialize_money`'s Attio write to 2
+    decimal places but left the sibling `to_postgres_money` — called with
+    the exact same raw value by `write_payload.py`'s
+    `build_postgres_values`/`build_attio_values` — unrounded, breaking
+    `to_postgres_money`'s own documented "can never disagree" invariant
+    for any amount with more than 2 decimal places (routine for a blended
+    valuation figure). `to_postgres_money` now rounds identically. New
+    `test_attio_and_postgres_round_a_blended_figure_the_same_way`.
+  - **`extract_json` could raise instead of returning `{}`.** Its own
+    docstring promises "`{}` on total failure rather than raising", but it
+    indexed `response["output"]["message"]["content"]` with no guard — a
+    response missing that shape raised a bare `KeyError` that bypasses
+    every caller's `except BedrockInvocationError` handling, including
+    `lead_magnets/application/shared/submit.py::complete`'s documented
+    "never raises" contract. The identical bug already exists on `dev` in
+    `meetings/providers/bedrock/client.py::_extract_json` (confirmed via
+    `git show`) — pre-existing, not a regression from this PR's "moved
+    verbatim" extraction into `utilities/domain/bedrock.py`. Fixed only in
+    the new `utilities/` location, which `lead_magnets` depends on
+    directly; `meetings`'/`matching_engine`'s own still-buggy copies are
+    unrelated files, deliberately left untouched. New
+    `test_returns_empty_dict_rather_than_raising_on_a_malformed_response`.
+  - Six lower-severity maintainability/DRY observations from the same
+    review (role_writer.py's seller/buyer duplication, two hand-maintained
+    Attio option-set copies in `buyer_network.py`, a fallback-tool list
+    encoded in three places, `AttioIdentityPayload`'s intentional overlap
+    with the per-tool payload models) were evaluated and left as-is —
+    pre-existing patterns, not regressions, correctly lower priority than
+    the four correctness/data-integrity fixes above per this repo's
+    `merge-check` skill's stated priority order. One (`organizations.type`
+    carrying both "Roll-up" and "Roll") is an already-documented, live
+    Attio workspace data-quality stray, not a code defect.
+  - Verified: `checks.sh quality` and `checks.sh unit` both clean; the
+    real `checks.sh integration` invocation (all four modules' integration
+    suites together) passes except one pre-existing, unrelated
+    `ddl_commands` test polluted by this session's own hours of manual
+    live-Attio testing against a non-disposable local dev database — not
+    a code defect, confirmed by isolating the test and reading its
+    "organizations count mismatch" failure.
+
 ### Changed
 
 - Two more raw-JSON seams in `lead_magnets` converted to Pydantic, found by

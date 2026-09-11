@@ -6,6 +6,7 @@ write returns, those rows exist only in Attio. A naive `finish()` FK-violates
 on every genuinely new lead — the exact case the ledger exists to survive.
 """
 
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -87,21 +88,23 @@ async def test_finish_on_a_brand_new_org_does_not_fk_violate(db_session) -> None
 async def test_finish_leaves_role_fk_null_until_the_mirror_lands(db_session) -> None:
     """The role row is resolved by `legacy_entry_id`, which the mirror
     creates. Until then the subquery is over no rows, so the column is NULL
-    rather than an error — and `promote_role_fks` fills it in after."""
+    rather than an error — and `promote_role_fks` fills it in after.
+
+    `payload` is seeded via `set_stage(stage="attio", ...)`, the real path
+    `submit.py::_ensure_attio` uses — not a top-level dict — so this test
+    exercises the same nested `payload["attio"][key]` shape
+    `promote_role_fks` actually reads.
+    """
     repo = ToolRunsRepository(db_session)
     run_id, _ = await repo.start(
         tool="valuation",
-        payload={"seller_role_entry_id": "entry-xyz"},
+        payload={},
         idempotency_key=_key(),
     )
     org_id = f"org-{uuid4()}"
-    await repo.finish(
-        run_id,
-        "succeeded",
-        subjects=SubjectRefs(
-            org_attio_id=org_id, org_name="Acme", seller_role_entry_id="entry-xyz"
-        ),
-    )
+    subjects = SubjectRefs(org_attio_id=org_id, org_name="Acme", seller_role_entry_id="entry-xyz")
+    await repo.set_stage(run_id, stage="attio", output=asdict(subjects))
+    await repo.finish(run_id, "succeeded", subjects=subjects)
     assert (await _row(db_session, run_id)).seller_role_id is None
 
     # The mirror lands the role row.

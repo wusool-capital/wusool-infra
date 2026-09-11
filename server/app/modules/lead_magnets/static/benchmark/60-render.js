@@ -24,10 +24,14 @@ function unlock(){
   // the server scores its own copy from these raw figures; nothing computed
   // client-side (score, percentiles, impliedEv*) is sent, since the server
   // recomputes it as the source of truth for what lands in the CRM.
+  // `sector` is separate from `peer_key`: tech mode's peer_key is the
+  // funding stage, not the sector, so the CRM write needs the actual
+  // sector sent too. SME mode's peer_key already is the sector.
   const payload = {
     submission_id: (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
     mode: MODE,
     peer_key: MODE==="tech" ? S.inputs.stage : S.inputs.sector,
+    sector: MODE==="tech" ? S.inputs.sector : null,
     company: $("g-company").value.trim(),
     name: $("g-name").value.trim() || null,
     email: $("g-email").value.trim().toLowerCase(),

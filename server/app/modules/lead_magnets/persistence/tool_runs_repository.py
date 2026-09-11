@@ -220,6 +220,10 @@ class ToolRunsRepository:
     async def promote_role_fks(self) -> int:
         """Fills in role FKs left NULL because the Attio→Postgres mirror had
         not landed the role row when `finish()` ran. Idempotent.
+
+        `set_stage(stage="attio", output=asdict(subjects))` merges
+        `SubjectRefs` under `payload["attio"]`, not at the top level — the
+        role entry ids live at `payload["attio"][key]`, matched here.
         """
         promoted = 0
         for column, model, key in (
@@ -235,7 +239,7 @@ class ToolRunsRepository:
                     .where(
                         and_(
                             getattr(ToolRun, column).is_(None),
-                            model.legacy_entry_id == ToolRun.payload[key].astext,
+                            model.legacy_entry_id == ToolRun.payload["attio"][key].astext,
                         )
                     )
                     .values(**{column: model.id})

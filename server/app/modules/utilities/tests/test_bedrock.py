@@ -66,6 +66,19 @@ def test_returns_empty_dict_for_empty_text() -> None:
     assert result == {}
 
 
+def test_returns_empty_dict_rather_than_raising_on_a_malformed_response() -> None:
+    """A response missing `output`/`message`/`content` entirely (a
+    degraded-but-200 response, a stop-reason edge case) must still fail
+    closed into schema validation like every other unparseable case — a
+    bare `KeyError` here would bypass a caller's `except
+    BedrockInvocationError` and its own documented 'never raises'
+    contract (`lead_magnets/application/shared/submit.py::complete`)."""
+    assert extract_json({}) == {}
+    assert extract_json({"output": {}}) == {}
+    assert extract_json({"output": {"message": {}}}) == {}
+    assert extract_json({"output": {"message": {"content": "not-a-list"}}}) == {}
+
+
 def test_converse_kwargs_omits_system_when_no_system_prompt() -> None:
     """An empty system prompt must drop the block entirely, not send a blank
     one — that branch is what lets one function serve both callers."""

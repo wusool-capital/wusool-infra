@@ -4,6 +4,7 @@ from app.modules.attio.providers.attio.money import (
     UnknownMoneyFieldError,
     default_currency_code,
     serialize_money,
+    to_postgres_money,
 )
 
 
@@ -51,3 +52,14 @@ def test_serialize_money_rounds_to_attios_4_decimal_limit() -> None:
     assert serialize_money("seller_role", "valuation_low", 2_683_279.502586056) == {
         "currency_value": 2_683_279.5,
     }
+
+
+def test_attio_and_postgres_round_a_blended_figure_the_same_way() -> None:
+    """`build_postgres_values`/`build_attio_values`
+    (`ddl_commands/providers/attio/write_payload.py`) call `to_postgres_money`
+    and `serialize_money` with the same raw extracted value — the two must
+    round it identically, or Attio and Postgres silently disagree on the
+    number for the same field on the same write."""
+    raw = 2_683_279.502586056
+    assert serialize_money("seller_role", "valuation_low", raw)["currency_value"] == round(raw, 2)
+    assert to_postgres_money("seller_role", "valuation_low", raw)["amount"] == round(raw, 2)
