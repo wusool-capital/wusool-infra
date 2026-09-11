@@ -23,79 +23,112 @@ Three things here are load-bearing and were wrong in the original:
 """
 
 from dataclasses import dataclass, fields
+from enum import StrEnum
+
+
+class QuestionId(StrEnum):
+    """The thirteen scored questions, by the same `q1`..`q13` identifiers
+    `ReadinessAnswers`' own dataclass fields already use. A misspelled
+    `QuestionId.Q1` fails at definition time; a misspelled `"q1"` string
+    literal here would just silently produce a `QUESTION_OPTIONS` entry
+    nothing ever looks up."""
+
+    Q1 = "q1"
+    Q2 = "q2"
+    Q3 = "q3"
+    Q4 = "q4"
+    Q5 = "q5"
+    Q6 = "q6"
+    Q7 = "q7"
+    Q8 = "q8"
+    Q9 = "q9"
+    Q10 = "q10"
+    Q11 = "q11"
+    Q12 = "q12"
+    Q13 = "q13"
+
 
 # Option title -> score, exactly as the live `READINESS_QUESTIONS` map keys
 # them. Kept for the prompt's own labelling and for validating an inbound
 # answer against the set its question actually offers.
 QUESTION_OPTIONS: dict[str, dict[int, str]] = {
-    "q1": {
+    QuestionId.Q1: {
         3: "Fully audited by external firm",
         2: "Accountant-prepared, not audited",
         1: "In progress",
         0: "Internal spreadsheets only",
     },
-    "q2": {
+    QuestionId.Q2: {
         0: "One customer >50% of revenue",
         1: "One customer 30-50%",
         3: "No single customer >30%",
     },
-    "q3": {
+    QuestionId.Q3: {
         3: "None — everything clean",
         1: "Minor issues being resolved",
         0: "Significant open issues",
     },
-    "q4": {
+    QuestionId.Q4: {
         3: "Yes — strong independent team",
         2: "Mostly — some gaps",
         1: "Unlikely — key decisions need me",
         0: "No — fully dependent on me",
     },
-    "q5": {
+    QuestionId.Q5: {
         3: "Strong across key functions",
         2: "1-2 good people relied on heavily",
         0: "Mostly me and junior staff",
     },
-    "q6": {3: "Yes — clear SOPs", 1: "Partially", 0: "Not really — lives in people's heads"},
-    "q7": {3: "80%+", 2: "50-80%", 1: "20-50%", 0: "Under 20%"},
-    "q8": {3: "3+ years", 2: "1-3 years", 1: "Under 1 year", 0: "No repeat customers"},
-    "q9": {
+    QuestionId.Q6: {
+        3: "Yes — clear SOPs",
+        1: "Partially",
+        0: "Not really — lives in people's heads",
+    },
+    QuestionId.Q7: {3: "80%+", 2: "50-80%", 1: "20-50%", 0: "Under 20%"},
+    QuestionId.Q8: {3: "3+ years", 2: "1-3 years", 1: "Under 1 year", 0: "No repeat customers"},
+    QuestionId.Q9: {
         3: "Growing 20%+ per year",
         2: "Growing steadily",
         1: "Flat",
         0: "Declining or inconsistent",
     },
-    "q10": {
+    QuestionId.Q10: {
         3: "Fully registered, all licences current",
         1: "Mostly — minor gaps to sort",
         0: "Not fully — registration gaps exist",
     },
-    "q11": {
+    QuestionId.Q11: {
         3: "All significant contracts signed",
         2: "Most — some still informal",
         0: "Mostly handshakes and trust",
     },
-    "q12": {
+    QuestionId.Q12: {
         3: "Company owns all — clearly registered",
         2: "Most — some pending formal transfer",
         0: "Unclear — some assets in personal name",
     },
-    "q13": {3: "Clear and documented", 2: "Generally clear", 1: "Somewhat clear", 0: "Not defined"},
+    QuestionId.Q13: {
+        3: "Clear and documented",
+        2: "Generally clear",
+        1: "Somewhat clear",
+        0: "Not defined",
+    },
 }
 
 QUESTION_TEXT: dict[str, str] = {
-    "q1": "Financial statements prepared by accountant?",
-    "q2": "Customer concentration",
-    "q3": "Outstanding tax, loan or legal issues",
-    "q4": "Business continuity without owner (3-month test)",
-    "q5": "Management team strength",
-    "q6": "Business processes documented (SOPs)",
-    "q7": "Revenue that is recurring or under contract",
-    "q8": "Top 3 customer tenure",
-    "q9": "Revenue trend last 2 years",
-    "q10": "Regulatory standing and licence status",
-    "q11": "Key contracts (customers, suppliers, employees) signed",
-    "q12": "Ownership of IP, brand, software",
-    "q13": "Clarity of buyer proposition",
+    QuestionId.Q1: "Financial statements prepared by accountant?",
+    QuestionId.Q2: "Customer concentration",
+    QuestionId.Q3: "Outstanding tax, loan or legal issues",
+    QuestionId.Q4: "Business continuity without owner (3-month test)",
+    QuestionId.Q5: "Management team strength",
+    QuestionId.Q6: "Business processes documented (SOPs)",
+    QuestionId.Q7: "Revenue that is recurring or under contract",
+    QuestionId.Q8: "Top 3 customer tenure",
+    QuestionId.Q9: "Revenue trend last 2 years",
+    QuestionId.Q10: "Regulatory standing and licence status",
+    QuestionId.Q11: "Key contracts (customers, suppliers, employees) signed",
+    QuestionId.Q12: "Ownership of IP, brand, software",
+    QuestionId.Q13: "Clarity of buyer proposition",
 }
 
 # `index.js`'s BAND_MAP: the prompt's band -> the Attio option title. Not a
@@ -109,14 +142,28 @@ _ATTIO_BAND = {
     "exit ready": "Market Ready",
 }
 
+
+class RevenueRange(StrEnum):
+    """The five revenue bands the readiness form's `<select>` offers, exactly
+    as `revenue_range_midpoint_usd()` looks them up after `.lower().strip()`.
+    Member names are plain identifiers since the values themselves (`$`, an
+    en-dash) are not legal Python identifier characters."""
+
+    UNDER_1M = "under $1m"
+    ONE_TO_5M = "$1m – $5m"
+    FIVE_TO_15M = "$5m – $15m"
+    FIFTEEN_TO_50M = "$15m – $50m"
+    OVER_50M = "$50m+"
+
+
 # Midpoints for the revenue *range* the readiness form collects (it asks for a
 # band, not a figure). USD — no conversion anywhere.
 _REVENUE_MIDPOINT_USD = {
-    "under $1m": 500_000.0,
-    "$1m – $5m": 3_000_000.0,
-    "$5m – $15m": 10_000_000.0,
-    "$15m – $50m": 32_500_000.0,
-    "$50m+": 75_000_000.0,
+    RevenueRange.UNDER_1M: 500_000.0,
+    RevenueRange.ONE_TO_5M: 3_000_000.0,
+    RevenueRange.FIVE_TO_15M: 10_000_000.0,
+    RevenueRange.FIFTEEN_TO_50M: 32_500_000.0,
+    RevenueRange.OVER_50M: 75_000_000.0,
 }
 
 

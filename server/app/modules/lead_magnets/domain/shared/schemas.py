@@ -45,6 +45,11 @@ Two families here, deliberately validated differently:
   existing signature (one domain dataclass, already the right type) —
   wrapping an already-correctly-typed single argument in another model
   would be ceremony, not safety.
+
+- **Generated report-copy models** (`FlagCopy`) are pure data with no
+  behaviour — client-facing prose the business wrote, quoted verbatim —
+  so there was no reason to keep it a plain dataclass once this file
+  existed as the place for exactly this shape of thing.
 """
 
 from typing import Literal
@@ -322,3 +327,20 @@ class BuyerValuesInput(BaseModel):
     prior_gcc_acquisition: str | None = None
     target_geography: list[str] = Field(default_factory=list)
     qualification_note: str | None = None
+
+
+# ===== Generated report-copy models =====
+
+
+class FlagCopy(BaseModel):
+    """One metric's client-facing report paragraph, in both directions
+    (good/bad). Generated, quoted verbatim from the live tool's own
+    `FLAGTEXT`/`TECH_FLAG` — see `benchmark_copy.py`. Was a plain frozen
+    dataclass in `benchmark_narrative.py`; moved here since it's pure data
+    with no behaviour, matching the shape everything else in this file
+    already takes."""
+
+    bad_title: str
+    bad_body: str
+    good_title: str
+    good_body: str

@@ -13,6 +13,38 @@ delivered state and outstanding items see
 
 ### Changed
 
+- Four closed string vocabularies in `lead_magnets/domain/` converted to
+  `StrEnum`s so a typo fails at definition time instead of silently
+  producing a dead dict entry or a missing lookup:
+  - `benchmark.py`'s `MetricKey` (the nine `ebitda`/`growth`/`revEmp`/…
+    scoring metrics) and `PercentileColumn` (the nine `seller_roles`
+    `pct_*` columns each metric writes to), used at `PERCENTILE_COLUMNS`'
+    and `benchmark_copy.py`'s definition sites only — not retrofitted into
+    `benchmark_dataset.py`'s generated peer-cut tables or
+    `benchmark_submission.py`/`benchmark_routing.py`'s existing
+    string-keyed lookups, which stay untouched. In the same pass,
+    `PercentileColumn.CONC` was corrected to `pct_concentration` (not
+    `pct_revenue_concentration`, which does not exist), matching what was
+    already verified against the live Attio workspace earlier.
+  - `readiness.py`'s `QuestionId` (`q1`..`q13`, keying `QUESTION_OPTIONS`
+    and `QUESTION_TEXT`) and `RevenueRange` (the five revenue bands
+    `_REVENUE_MIDPOINT_USD` looks up).
+  - `sector_options.py`'s `SectorFocus` (all 85 live `sector_focus`
+    option titles, replacing a bare `frozenset[str]`) and every value
+    across `sector_mapping.py`'s four mapping tables (`_BENCHMARK_SME`,
+    `_BENCHMARK_TECH`, `READINESS_SECTORS`, `VALUATION_SECTORS` — 248
+    targets in total) now reference `SectorFocus.X` instead of a raw
+    string literal. `SECTOR_FOCUS_OPTIONS` stays a `frozenset[str]` over
+    the enum's members, so `buyer_network.py` and the existing tests that
+    do `value in SECTOR_FOCUS_OPTIONS` needed no changes — every
+    `StrEnum` member is a `str`.
+  - `benchmark_copy.py`'s `FlagCopy` (the client-facing report paragraphs)
+    moved from a plain frozen dataclass in `benchmark_narrative.py` into
+    `domain/shared/schemas.py` as a Pydantic model — pure data with no
+    behaviour, so it now lives with everything else that shape.
+  - Verified: `ruff check .`, `ruff format --check .`, `ty check .`, and
+    the full non-integration `pytest` suite (691 passed) all clean.
+
 - Extended `domain/shared/schemas.py`'s pydantic exception to the two
   remaining raw-JSON seams in the module:
   - **`LeadLLMPort`'s seven methods now return real Pydantic models**

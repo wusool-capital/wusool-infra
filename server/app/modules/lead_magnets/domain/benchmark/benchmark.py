@@ -15,6 +15,7 @@ misnomer — those fields hold USD, and the live code even names a local
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Literal
 
 ANCHOR_PERCENTILES = (10, 25, 50, 75, 90)
@@ -35,18 +36,58 @@ def js_round(value: float) -> int:
 
 Mode = Literal["sme", "tech"]
 
+
+class MetricKey(StrEnum):
+    """The nine scoring metrics, by their internal short name — the same
+    identifiers `benchmark_dataset.py`'s peer-cut tables, `benchmark_
+    submission.py`'s percentile dict, and `benchmark_routing.py`'s `at()`
+    lookups already key on. Not retrofitted into those (a large, generated
+    reference dataset and its own established string-keyed call sites) —
+    used here, and in `benchmark_copy.py`'s flag-text tables, as the
+    smaller, lower-risk typo guard: a misspelled `MetricKey.EBTIDA` fails at
+    definition time, where a misspelled `"ebtida"` string literal silently
+    creates a dead dict entry no test catches."""
+
+    EBITDA = "ebitda"
+    GROWTH = "growth"
+    REV_EMP = "revEmp"
+    CONC = "conc"
+    GM = "gm"
+    RENT = "rent"
+    RECUR = "recur"
+    CAP_EFF = "capEff"
+    REV_SCALE = "revScale"
+
+
+class PercentileColumn(StrEnum):
+    """The nine `seller_roles`/Attio percentile columns `MetricKey`'s
+    metrics land in. Confirmed against the live Attio workspace this
+    migration writes to — `CONC` is `pct_concentration`, not
+    `pct_revenue_concentration`."""
+
+    EBITDA = "pct_ebitda_margin"
+    GROWTH = "pct_revenue_growth"
+    REV_EMP = "pct_revenue_per_employee"
+    CONC = "pct_concentration"
+    GM = "pct_gross_margin"
+    RENT = "pct_premises_cost"
+    RECUR = "pct_recurring_revenue"
+    CAP_EFF = "pct_capital_efficiency"
+    REV_SCALE = "pct_revenue_scale"
+
+
 # Metric key -> the `seller_roles` percentile column it lands in. Seven SME
 # metrics plus the two tech-only ones account for all nine `pct_*` columns.
-PERCENTILE_COLUMNS: dict[str, str] = {
-    "ebitda": "pct_ebitda_margin",
-    "growth": "pct_revenue_growth",
-    "revEmp": "pct_revenue_per_employee",
-    "conc": "pct_concentration",
-    "gm": "pct_gross_margin",
-    "rent": "pct_premises_cost",
-    "recur": "pct_recurring_revenue",
-    "capEff": "pct_capital_efficiency",
-    "revScale": "pct_revenue_scale",
+PERCENTILE_COLUMNS: dict[str, PercentileColumn] = {
+    MetricKey.EBITDA: PercentileColumn.EBITDA,
+    MetricKey.GROWTH: PercentileColumn.GROWTH,
+    MetricKey.REV_EMP: PercentileColumn.REV_EMP,
+    MetricKey.CONC: PercentileColumn.CONC,
+    MetricKey.GM: PercentileColumn.GM,
+    MetricKey.RENT: PercentileColumn.RENT,
+    MetricKey.RECUR: PercentileColumn.RECUR,
+    MetricKey.CAP_EFF: PercentileColumn.CAP_EFF,
+    MetricKey.REV_SCALE: PercentileColumn.REV_SCALE,
 }
 
 QUARTILE_LABELS = ("", "Bottom 25%", "Below Average", "Above Average", "Top 25%")
@@ -147,11 +188,11 @@ def adjusted_anchors(
     """
     if mode != "sme":
         return tuple(anchors)
-    if key == "ebitda":
+    if key == MetricKey.EBITDA:
         return tuple(a + band.ebitda_adj for a in anchors)
-    if key == "revEmp":
+    if key == MetricKey.REV_EMP:
         return tuple(a * band.rev_emp_mult for a in anchors)
-    if key == "rent":
+    if key == MetricKey.RENT:
         return tuple(a * (band.rent_mult or 1) for a in anchors)
     return tuple(anchors)
 

@@ -23,14 +23,6 @@ Tone = Literal["good", "mid", "bad"]
 
 
 @dataclass(frozen=True)
-class FlagCopy:
-    bad_title: str
-    bad_body: str
-    good_title: str
-    good_body: str
-
-
-@dataclass(frozen=True)
 class Flag:
     tone: Tone
     title: str

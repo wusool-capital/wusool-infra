@@ -101,7 +101,7 @@ one `LeadMagnetService` instead of wiring the two by hand.
 
 `domain/shared/schemas.py` is this module's one deliberate exception to
 "no pydantic in `domain/`/`application/`" — `tests/test_architecture.py`
-allowlists `pydantic` for exactly that one file path, nothing else. Three
+allowlists `pydantic` for exactly that one file path, nothing else. Four
 families of type live there:
 
 - **Stored-payload models** (`BenchmarkPayload`, `ReadinessPayload`,
@@ -128,6 +128,17 @@ families of type live there:
   object. `benchmark_values()`/`valuation_values()` keep their existing
   single-dataclass-argument signature — it was already the right type,
   wrapping it again would be ceremony, not safety.
+- **Generated report-copy models** (`FlagCopy`) — the benchmark report's
+  client-facing paragraphs, quoted verbatim from the live tool. Pure data
+  with no behaviour, so it lives here rather than as a plain dataclass.
+
+Closed string vocabularies elsewhere in `domain/` are `StrEnum`s, not
+`pydantic`, since a `str`-typed member needs no validation and every
+existing `dict[str, str]`/plain-`str` consumer keeps working unchanged
+against them: `benchmark.py`'s `MetricKey`/`PercentileColumn`,
+`readiness.py`'s `QuestionId`/`RevenueRange`, and `sector_options.py`'s
+`SectorFocus` (the 85 live `sector_focus` option titles — every value in
+`sector_mapping.py`'s four mapping tables references one of its members).
 
 ## Endpoints
 
