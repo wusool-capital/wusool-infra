@@ -1,10 +1,11 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
-all 8 commands: `/find-match` (matching_engine module), `/enrich-seller`/
+all 9 commands: `/find-match` (matching_engine module), `/enrich-seller`/
 `/enrich-buyer` (enrichment module), `/edit-seller`/`/edit-buyer`/
-`/add-seller`/`/add-buyer` (ddl_commands module), and `/help` (answered
-directly here, since it's not owned by any one module) — plus the
-`meetings` module's `/desktop/*` REST surface for the WusoolScribe desktop
-app (transcript ingestion, summarization, status polling; no Slack command).
+`/add-seller`/`/add-buyer` (ddl_commands module), and `/help`/`/status`
+(answered directly here, since neither is owned by any one module) — plus
+the `meetings` module's `/desktop/*` REST surface for the WusoolScribe
+desktop app (transcript ingestion, summarization, status polling; no
+Slack command).
 
 Builds **one** `AsyncApp` and registers both Slack modules' handlers against
 it, so Slack's one-interactivity-URL-per-app requirement is satisfied by
@@ -97,9 +98,14 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/enrich-seller": "enrichment",
     "/enrich-buyer": "enrichment",
     "/help": "help",
+    "/status": "status",
 }
 _UNKNOWN_TRIGGER = "unknown"
 _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
+
+# Process start, for `/status`'s uptime — read once at import time, not per
+# request.
+_BOOT_TIME = time.monotonic()
 
 # (command, usage hint, description) for every command Slack can route to
 # this app — kept here, not in any one module, since no single module owns
@@ -121,6 +127,8 @@ _COMMAND_HELP: tuple[tuple[str, str, str], ...] = (
     ("/edit-buyer", "<buyer org name>", "Edit an existing buyer profile."),
     ("/add-seller", "<organization name>", "Add a new seller."),
     ("/add-buyer", "<organization name>", "Add a new buyer."),
+    ("/status", "", "Show the bot's uptime, database, and Attio mode."),
+    ("/help", "", "List every command and how to use it."),
 )
 
 # Bolt's own `ack_timeout` is 3s; warn a little under it so a request that is
@@ -228,17 +236,58 @@ def _extract_trigger(body: dict[str, Any]) -> str:
     return _UNKNOWN_TRIGGER
 
 
+def _help_line(command: str, usage_hint: str, description: str) -> str:
+    invocation = f"{command} {usage_hint}".strip()
+    return f"• `{invocation}` — {description}"
+
+
 def _register_help_command(bolt_app: AsyncApp) -> None:
     @bolt_app.command("/help")
     async def handle_help(
         ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
     ) -> None:
         await ack()
-        lines = "\n".join(f"• `{cmd} {hint}` — {desc}" for cmd, hint, desc in _COMMAND_HELP)
+        lines = "\n".join(_help_line(*entry) for entry in _COMMAND_HELP)
         await client.chat_postEphemeral(
             channel=command["channel_id"],
             user=command["user_id"],
             text=f"*Available commands:*\n{lines}",
+        )
+
+
+def _format_uptime(seconds: float) -> str:
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+def _register_status_command(bolt_app: AsyncApp) -> None:
+    @bolt_app.command("/status")
+    async def handle_status(
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        try:
+            await check_database_connectivity()
+            db_status = "reachable"
+        except Exception:
+            _slack_dispatch_logger.error("status_db_check_failed", exc_info=True)
+            db_status = "unreachable"
+
+        text = (
+            "*Bot status:*\n"
+            f"• Environment: `{settings.app_env}`\n"
+            f"• Uptime: {_format_uptime(time.monotonic() - _BOOT_TIME)}\n"
+            f"• Database: {db_status}\n"
+            f"• Attio: {'test' if attio_is_test() else 'production'}"
+        )
+        await client.chat_postEphemeral(
+            channel=command["channel_id"], user=command["user_id"], text=text
         )
 
 
@@ -248,6 +297,7 @@ def _register_all_handlers(bolt_app: AsyncApp) -> None:
     register_enrichment_handlers(bolt_app)
     register_discovery_handlers(bolt_app)
     _register_help_command(bolt_app)
+    _register_status_command(bolt_app)
 
 
 @lru_cache
@@ -311,7 +361,7 @@ def _slack_request_handler() -> AsyncSlackRequestHandler:
 
 @app.post("/slack/events")
 async def slack_events(req: Request) -> Response:
-    """The one Slack callback endpoint for all 8 commands. Signature
+    """The one Slack callback endpoint for all 9 commands. Signature
     verification happens inside Bolt via `SLACK_SIGNING_SECRET` — never
     trust a payload without it.
     """
