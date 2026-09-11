@@ -8,6 +8,7 @@ imports `ddl_commands`, so it cannot build its own adapter; see
 
 import json
 import logging
+from dataclasses import asdict
 from functools import lru_cache
 
 from app.modules.discovery.application.ports.seller_draft import SellerDraftPort
@@ -57,23 +58,13 @@ def discovery_service() -> DiscoveryService:
 def encode_lead(lead: DiscoveredLead) -> str:
     """Serializes a lead into a Slack button `value` — small enough (well
     under Slack's 2000-char button-value limit) to round-trip through a
-    single button click rather than a server-side stash.
+    single button click rather than a server-side stash. `asdict` instead
+    of a hand-written literal keeps this in sync with `DiscoveredLead`'s
+    actual fields by construction — a field added there without a matching
+    update here was the exact class of bug this replaces.
     """
-    return json.dumps(
-        {
-            "name": lead.name,
-            "source_url": lead.source_url,
-            "address": lead.address,
-            "category": lead.category,
-        }
-    )
+    return json.dumps(asdict(lead))
 
 
 def decode_lead(value: str) -> DiscoveredLead:
-    data = json.loads(value)
-    return DiscoveredLead(
-        name=data["name"],
-        source_url=data["source_url"],
-        address=data.get("address"),
-        category=data.get("category"),
-    )
+    return DiscoveredLead(**json.loads(value))
