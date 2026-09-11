@@ -89,6 +89,11 @@ async def test_full_resync_run_end_to_end(
     monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
     monkeypatch.setattr(full_resync, "get_sessionmaker", lambda: db_sessionmaker)
     monkeypatch.setattr(full_resync, "import_all_models", lambda: None)
+    # `_run` refuses to proceed when `ATTIO_IS_TEST=true` (a real safety
+    # guard — full resync only ever targets the real prod database, see
+    # its own docstring) — a local/dev environment defaults to test mode,
+    # so this exercise of the real pipeline must explicitly opt out of it.
+    monkeypatch.setattr(full_resync, "attio_is_test", lambda: False)
 
     org_1, org_2 = f"test-org-{uuid.uuid4()}", f"test-org-{uuid.uuid4()}"
     person_1 = f"test-person-{uuid.uuid4()}"
