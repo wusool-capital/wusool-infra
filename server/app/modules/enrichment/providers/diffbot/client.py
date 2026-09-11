@@ -21,6 +21,7 @@ from app.modules.enrichment.providers.diffbot.schemas import (
     DiffbotEnhanceResponse,
     DiffbotOrganization,
 )
+from app.modules.enrichment.providers.http_json import fetch_json
 
 logger = logging.getLogger(__name__)
 
@@ -94,20 +95,14 @@ class DiffbotCompanyDataClient:
         self, *, org_name: str, fields: tuple[EnrichableField, ...]
     ) -> list[CompanyDataField]:
         requested = {f.name for f in fields}
-        try:
-            async with aiohttp.ClientSession(timeout=_REQUEST_TIMEOUT) as session:
-                async with session.get(
-                    _ENHANCE_URL,
-                    params={"token": self._api_key, "type": "Organization", "name": org_name},
-                ) as resp:
-                    if resp.status != 200:
-                        logger.warning(
-                            "diffbot_lookup_failed org_name=%s status=%d", org_name, resp.status
-                        )
-                        return []
-                    body = await resp.json()
-        except Exception:
-            logger.warning("diffbot_lookup_error org_name=%s", org_name, exc_info=True)
+        body = await fetch_json(
+            url=_ENHANCE_URL,
+            params={"token": self._api_key, "type": "Organization", "name": org_name},
+            timeout=_REQUEST_TIMEOUT,
+            log_prefix="diffbot_lookup",
+            org_name=org_name,
+        )
+        if body is None:
             return []
 
         try:

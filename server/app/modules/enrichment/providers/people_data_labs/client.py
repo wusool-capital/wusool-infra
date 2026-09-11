@@ -19,6 +19,7 @@ from app.modules.enrichment.application.ports.company_data import CompanyDataFie
 from app.modules.enrichment.domain.employee_bands import bucket_employee_count
 from app.modules.enrichment.domain.field_plans import EnrichableField
 from app.modules.enrichment.domain.proposals import FieldValue
+from app.modules.enrichment.providers.http_json import fetch_json
 from app.modules.enrichment.providers.people_data_labs.schemas import PdlCompanyResponse
 
 logger = logging.getLogger(__name__)
@@ -69,21 +70,14 @@ class PeopleDataLabsCompanyDataClient:
         self, *, org_name: str, fields: tuple[EnrichableField, ...]
     ) -> list[CompanyDataField]:
         requested = {f.name for f in fields}
-        try:
-            async with aiohttp.ClientSession(timeout=_REQUEST_TIMEOUT) as session:
-                async with session.get(
-                    _ENRICH_URL, params={"api_key": self._api_key, "name": org_name}
-                ) as resp:
-                    if resp.status != 200:
-                        logger.warning(
-                            "people_data_labs_lookup_failed org_name=%s status=%d",
-                            org_name,
-                            resp.status,
-                        )
-                        return []
-                    body = await resp.json()
-        except Exception:
-            logger.warning("people_data_labs_lookup_error org_name=%s", org_name, exc_info=True)
+        body = await fetch_json(
+            url=_ENRICH_URL,
+            params={"api_key": self._api_key, "name": org_name},
+            timeout=_REQUEST_TIMEOUT,
+            log_prefix="people_data_labs_lookup",
+            org_name=org_name,
+        )
+        if body is None:
             return []
 
         try:
