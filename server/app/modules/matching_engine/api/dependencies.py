@@ -26,7 +26,7 @@ from app.modules.matching_engine.domain.matching.scoring import needs_web_fallba
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.matching_engine.providers.bedrock.client import BedrockConverseClient
 from app.modules.notifications import SlackWebClientNotifier
-from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
+from app.modules.utilities import get_shared_idempotency_store
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # trigger already fired, so without this an operator clicking it (or a
 # retried Slack delivery of that click) re-runs the search and posts a
 # second, duplicate "Found N potential sellers" message.
-_discovery_idempotency_store = InMemoryIdempotencyStore()
+_discovery_idempotency_store = get_shared_idempotency_store()
 
 
 def _matching_unit_of_work_factory() -> MatchingUnitOfWorkFactory:

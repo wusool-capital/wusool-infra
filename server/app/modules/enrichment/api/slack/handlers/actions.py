@@ -14,13 +14,12 @@ from slack_sdk.web.async_client import AsyncWebClient
 from app.modules.enrichment.api.dependencies import propose_and_post, target_from_resolved
 from app.modules.enrichment.api.slack.views.proposal_message import decode_proposal
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
-from app.modules.utilities import InProcessTaskRunner
-from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
+from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
 
 logger = logging.getLogger(__name__)
 
-_task_runner = InProcessTaskRunner()
-_submission_idempotency_store = InMemoryIdempotencyStore()
+_task_runner = get_shared_task_runner()
+_submission_idempotency_store = get_shared_idempotency_store()
 
 
 def register(app: AsyncApp) -> None:

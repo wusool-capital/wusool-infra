@@ -1,10 +1,11 @@
 """Concrete `IdempotencyStore` implementation."""
 
 import time
+from functools import lru_cache
 
 from app.modules.utilities.application.ports.idempotency import IdempotencyStore
 
-__all__ = ["IdempotencyStore", "InMemoryIdempotencyStore"]
+__all__ = ["IdempotencyStore", "InMemoryIdempotencyStore", "get_shared_idempotency_store"]
 
 
 class InMemoryIdempotencyStore:
@@ -31,3 +32,15 @@ class InMemoryIdempotencyStore:
         ]
         for key in expired:
             del self._entries[key]
+
+
+@lru_cache
+def get_shared_idempotency_store() -> InMemoryIdempotencyStore:
+    """One process-wide store for every module's Slack idempotency checks —
+    each handler module used to construct its own module-level
+    `InMemoryIdempotencyStore()`, fragmenting the same kind of state across
+    instances with no single place to tune the TTL. Every caller already
+    prefixes its keys (e.g. `f"discovery:{run_id}"`), so sharing one
+    instance across modules carries no collision risk.
+    """
+    return InMemoryIdempotencyStore()

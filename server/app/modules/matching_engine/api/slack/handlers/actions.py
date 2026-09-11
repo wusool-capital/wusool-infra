@@ -30,13 +30,12 @@ from app.modules.matching_engine.application.approvals import (
 )
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
-from app.modules.utilities import InProcessTaskRunner
-from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
+from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
 
 logger = logging.getLogger(__name__)
 
-_task_runner = InProcessTaskRunner()
-_submission_idempotency_store = InMemoryIdempotencyStore()
+_task_runner = get_shared_task_runner()
+_submission_idempotency_store = get_shared_idempotency_store()
 
 
 def register(app: AsyncApp) -> None:
