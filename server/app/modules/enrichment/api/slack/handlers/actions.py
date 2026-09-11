@@ -26,7 +26,10 @@ _submission_idempotency_store = InMemoryIdempotencyStore()
 def register(app: AsyncApp) -> None:
     @app.view("enrichment_role_selection_modal")
     async def handle_role_selection_submission(
-        ack: AsyncAck, body: SlackInteractionBody, view: SlackViewSubmissionPayload
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
         await ack()
 
@@ -41,6 +44,10 @@ def register(app: AsyncApp) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         channel_id = metadata.get("channel_id")
         if not channel_id:
+            # No channel to post to even if we wanted to — this modal's own
+            # `private_metadata` should always carry one, so this is an
+            # internal-invariant violation, not a normal user-facing case.
+            logger.warning("role_selection_submission_missing_channel_id")
             return
 
         selected = view["state"]["values"]["role_id"]["selected_role"]["selected_option"]["value"]
@@ -55,6 +62,16 @@ def register(app: AsyncApp) -> None:
         candidates = await resolve_org_roles(search_term) if search_term else []
         match = next((c for c in candidates if c.role_id == role_id and c.kind == kind), None)
         if match is None:
+            # The candidate set changed between the modal being built and
+            # submitted (a role deactivated, an org renamed) — without this,
+            # the operator sees the modal close with no result and no
+            # indication anything went wrong.
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=metadata.get("requested_by") or body["user"]["id"],
+                text="That selection is no longer available — run `/enrich-seller` or "
+                "`/enrich-buyer` again.",
+            )
             return
         _task_runner.run(
             lambda: propose_and_post(target_from_resolved(match), channel_id=channel_id),

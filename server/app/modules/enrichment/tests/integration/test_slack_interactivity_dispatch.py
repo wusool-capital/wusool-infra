@@ -108,3 +108,47 @@ def test_duplicate_role_selection_submission_only_proposes_once(monkeypatch) -> 
     assert first.status_code == 200
     assert second.status_code == 200
     assert calls == ["enrich:fae6496c-63bf-42d1-873b-e432ad2bcd39"]
+
+
+def test_stale_selection_notifies_the_operator_instead_of_silently_no_oping(
+    monkeypatch,
+) -> None:
+    """The candidate set can change between the modal being built and
+    submitted (a role deactivated, an org renamed) — the operator must see
+    something went wrong, not a modal that just closes with no result.
+    """
+    posted: list[dict] = []
+
+    async def fake_resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
+        return []  # nothing matches anymore
+
+    def fail_if_called(coro_factory, *, name: str) -> None:
+        raise AssertionError("must not propose anything for a stale selection")
+
+    class _FakeAuthTestResponse(dict):
+        headers: dict = {}
+
+    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
+        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
+
+    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
+        posted.append(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    monkeypatch.setattr(
+        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral", fake_chat_post_ephemeral
+    )
+    monkeypatch.setattr(
+        "app.modules.enrichment.api.dependencies.resolve_org_roles", fake_resolve_org_roles
+    )
+    monkeypatch.setattr(actions_module._task_runner, "run", fail_if_called)
+
+    settings = get_settings()
+    payload = _role_selection_payload(view_id="V_STALE")
+
+    response = _post_interactivity(payload, settings)
+
+    assert response.status_code == 200
+    assert len(posted) == 1
+    assert "no longer available" in posted[0]["text"]
