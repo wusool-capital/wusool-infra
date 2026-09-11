@@ -63,3 +63,6 @@ _archive/
 
 # Generated migration/discovery outputs
 outputs/
+
+# Firecrawl SDK local debug output
+.firecrawl/
