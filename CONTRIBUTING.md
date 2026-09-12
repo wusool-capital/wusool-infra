@@ -66,7 +66,7 @@ For changes to the published GitBook documentation, install Vale and run:
 
 ```bash
 brew install vale
-vale docs/README.md docs/SUMMARY.md docs/user-guide docs/technical docs/operations docs/deliverables
+vale CHANGELOG.md docs/README.md docs/SUMMARY.md docs/user-guide docs/technical docs/operations docs/deliverables
 ```
 
 Follow the page templates and content budgets in

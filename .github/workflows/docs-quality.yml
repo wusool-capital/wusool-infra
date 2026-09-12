@@ -3,6 +3,7 @@ name: Documentation quality
 on:
   pull_request:
     paths:
+      - 'CHANGELOG.md'
       - '.vale.ini'
       - '.github/styles/**'
       - '.github/workflows/docs-quality.yml'
@@ -12,6 +13,7 @@ on:
       - dev
       - prod
     paths:
+      - 'CHANGELOG.md'
       - '.vale.ini'
       - '.github/styles/**'
       - '.github/workflows/docs-quality.yml'
@@ -30,4 +32,4 @@ jobs:
         with:
           version: 3.17.0
           sync: false
-          files: '["docs/README.md", "docs/SUMMARY.md", "docs/user-guide", "docs/technical", "docs/operations", "docs/deliverables"]'
+          files: '["CHANGELOG.md", "docs/README.md", "docs/SUMMARY.md", "docs/user-guide", "docs/technical", "docs/operations", "docs/deliverables"]'

@@ -66,7 +66,7 @@ Use the smallest template that covers the reader's task.
 Install Vale 3.17.0 or a compatible Vale 3 release, then run:
 
 ```bash
-vale docs/README.md docs/SUMMARY.md docs/user-guide docs/technical docs/operations docs/deliverables
+vale CHANGELOG.md docs/README.md docs/SUMMARY.md docs/user-guide docs/technical docs/operations docs/deliverables
 ```
 
 Warnings require editorial judgment. Errors identify terminology that must be
