@@ -6,7 +6,10 @@ Ported from the deleted `test_lead_search_service.py` (covered
 this logic moved to `discovery_bridge.py`) — same behavior, new home.
 """
 
-from app.modules.matching_engine.application.discovery_bridge import extract_query_terms
+from app.modules.matching_engine.application.discovery_bridge import (
+    _clean_query_phrase,
+    extract_query_terms,
+)
 from app.modules.matching_engine.domain.requirements import (
     HardRequirement,
     RequirementProfile,
@@ -79,7 +82,7 @@ def test_falls_back_to_free_text_when_criteria_missing() -> None:
 
     industry, geography, _ = extract_query_terms(profile)
 
-    assert industry == "A profitable KSA healthcare operator."
+    assert industry == "A profitable KSA healthcare operator"
     assert geography == ""
 
 
@@ -108,7 +111,7 @@ def test_client_type_is_not_folded_into_the_free_text_fallback() -> None:
 
     industry, _, _ = extract_query_terms(profile)
 
-    assert industry == "A profitable KSA healthcare operator."
+    assert industry == "A profitable KSA healthcare operator"
 
 
 def test_collects_every_sector_exclusion_value_as_exclude_terms() -> None:
@@ -132,3 +135,57 @@ def test_exclude_terms_is_empty_when_no_sector_exclusion_present() -> None:
     _, _, exclude_terms = extract_query_terms(profile)
 
     assert exclude_terms == ()
+
+
+def test_clean_query_phrase_caps_to_max_words() -> None:
+    text = "Mid-market companies suitable for buyout investment with demonstrated profitability"
+
+    assert _clean_query_phrase(text) == (
+        "Mid-market companies suitable for buyout investment with demonstrated"
+    )
+
+
+def test_clean_query_phrase_strips_trailing_punctuation() -> None:
+    assert _clean_query_phrase("A profitable KSA healthcare operator.") == (
+        "A profitable KSA healthcare operator"
+    )
+
+
+def test_clean_query_phrase_leaves_a_short_phrase_unchanged() -> None:
+    assert _clean_query_phrase("healthcare SMB") == "healthcare SMB"
+
+
+def test_falls_back_to_a_capped_free_text_query_when_the_description_is_long() -> None:
+    """Regression coverage for a live failure: an uncapped multi-clause
+    description produced a Google Maps query long enough that Maps
+    couldn't resolve it at all."""
+    profile = _profile(
+        ideal_target_description=(
+            "Mid-market companies suitable for buyout investment, with demonstrated "
+            "profitability, scalable business models, and geographic diversification."
+        )
+    )
+
+    industry, _, _ = extract_query_terms(profile)
+
+    assert industry == "Mid-market companies suitable for buyout investment, with demonstrated"
+
+
+def test_client_type_fold_is_capped_the_same_way() -> None:
+    profile = _profile(
+        hard_requirements=[
+            _hard("sector", "healthcare"),
+            _hard("geography", "UAE"),
+            _hard(
+                "client_type",
+                "Mid-market small and medium-sized businesses seeking growth capital "
+                "and operational support",
+            ),
+        ]
+    )
+
+    industry, _, _ = extract_query_terms(profile)
+
+    assert industry == (
+        "healthcare Mid-market small and medium-sized businesses seeking growth capital"
+    )
