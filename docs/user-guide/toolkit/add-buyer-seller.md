@@ -13,13 +13,27 @@
 
 ## Example walkthrough
 
-You run:
+```
+/add-buyer Raoof Capital
+        │
+        ▼
+ No close org match ──▶ [None of these — create new] ──▶ [Continue]
+        │
+        ▼
+ Add form: name only required ──▶ [Save]
+        │
+        ▼
+ Create org + role in Attio ──▶ create in database ──▶ confirmation posted
+        │
+        ├──▶ (buyer) hints /find-match or /enrich-buyer
+        │
+        └──▶ (seller) hints /enrich-seller
+```
 
-> `/add-buyer Raoof Capital`
-
-No existing organization matches closely enough, so the bot offers
-**"None of these — create new organization"** alongside any near-matches.
-You pick that option and press **Continue**.
+You run `/add-buyer Raoof Capital`. No existing organization matches
+closely enough, so the bot offers **"None of these — create new
+organization"** alongside any near-matches. You pick that option and press
+**Continue**.
 
 The add form opens. Name is the only required field, so you leave
 everything else blank for now and press **Save**.

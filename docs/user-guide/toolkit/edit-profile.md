@@ -12,13 +12,29 @@
 
 ## Example walkthrough
 
-You run:
+```
+/edit-seller Al Noor Manufacturing
+        │
+        ▼
+ Exactly one match found
+        │
+        ▼
+ Field picker: tick HQ country, Employee range ──▶ [Continue]
+        │
+        ▼
+ Edit form, pre-filled with current values
+        │
+        ▼
+ Enter new values ──▶ [Save]
+        │
+        ▼
+ Write to Attio ──▶ write to database ──▶ confirmation posted
+```
 
-> `/edit-seller Al Noor Manufacturing`
-
-The name matches exactly one seller, so the bot opens a field picker
-listing the editable *Organization* and *Seller profile* fields. You tick
-**HQ country** and **Employee range**, then press **Continue**.
+You run `/edit-seller Al Noor Manufacturing`. The name matches exactly one
+seller, so the bot opens a field picker listing the editable *Organization*
+and *Seller profile* fields. You tick **HQ country** and **Employee
+range**, then press **Continue**.
 
 The next form shows just those two fields, pre-filled with their current
 values (blank, if they were never set). You enter:

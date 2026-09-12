@@ -16,12 +16,19 @@
 
 ## Example walkthrough
 
-You run:
+```
+/find-match Raoof Capital
+        │
+        ▼
+ Score every eligible seller in the CRM
+        │
+        ├──▶ Al Noor Manufacturing — 82/100  ──▶ [Approve Match] ──▶ done
+        │
+        └──▶ Falcon Steel Works — 58/100     ──▶ [Reject Match] ──▶ done
+```
 
-> `/find-match Raoof Capital`
-
-The bot works through Raoof Capital's requirements, scores every eligible
-seller already in the CRM, and posts something like:
+You run `/find-match Raoof Capital`. The bot scores every eligible seller
+already in the CRM and posts:
 
 > **Buyer:** Raoof Capital
 >
@@ -52,6 +59,20 @@ on Al Noor Manufacturing to take it forward.
 - **No strong match** — if every seller scores below the internal threshold,
   the bot also posts up to **three web-sourced leads**, found via a public
   search rather than existing CRM records:
+
+  ```
+  /find-match <buyer>
+          │
+          ▼
+   No CRM seller clears the threshold
+          │
+          ▼
+   Search the public web for leads
+          │
+          ├──▶ Delta Logistics ──▶ [Add as seller] ──▶ /add-seller flow
+          │
+          └──▶ [Find more sellers] ──▶ re-runs the search
+  ```
 
   > Found 2 potential seller(s) from public sources. **Not yet in CRM,
   > unverified.**
