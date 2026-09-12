@@ -24,6 +24,11 @@
   * [Updates](user-guide/scribe/updates.md)
 * [Getting help](user-guide/getting-help.md)
 
+## Deliverables
+
+* [Overview](deliverables/README.md)
+* [Aug 12 – Sep 12, 2026](deliverables/2026-08-12-to-2026-09-12.md)
+
 ## Technical Documentation
 
 * [Overview](technical/README.md)
