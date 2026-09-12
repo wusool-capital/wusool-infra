@@ -1,5 +1,5 @@
 // ===== GATE COMPONENT =====
-function Gate({onSubmit,apiKey,setApiKey}){
+function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
   const [f,setF]=useState({
     companyName:"",name:"",email:"",domain:"",description:"",
     sector:"",geo:"United Arab Emirates",
@@ -241,7 +241,8 @@ function Gate({onSubmit,apiKey,setApiKey}){
             <label htmlFor="valConsent">I agree to Wusool's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a> and consent to being contacted.</label>
           </div>
           {err.consent&&<div className="fe" style={{marginTop:8}}>{err.consent}</div>}
-          <button type="submit" className="btn-primary" style={{marginTop:20}}>Get My Valuation</button>
+          {alreadySubmitted&&<div className="fe" style={{marginTop:8}}>Sorry, you've already completed this before.</div>}
+          <button type="submit" className="btn-primary" style={{marginTop:20}} disabled={submitting}>{submitting?"Checking...":"Get My Valuation"}</button>
         </form>
       </div>
     </div>
@@ -1293,23 +1294,19 @@ function ScrollHint(){
     window.addEventListener("resize",onScroll);
     return()=>{window.removeEventListener("scroll",onScroll);window.removeEventListener("resize",onScroll);};
   },[]);
-  const jump=()=>{
-    if(atBottom){window.scrollTo({top:0,behavior:"smooth"});return;}
-    // Advance to the next section heading below the current viewport, else one viewport down.
-    const anchors=Array.from(document.querySelectorAll("[data-scroll-stop]"));
-    const threshold=window.scrollY+window.innerHeight*0.5;
-    const next=anchors.map(a=>a.getBoundingClientRect().top+window.scrollY).filter(top=>top>threshold).sort((a,b)=>a-b)[0];
-    if(next!==undefined)window.scrollTo({top:next-24,behavior:"smooth"});
-    else window.scrollBy({top:window.innerHeight*0.85,behavior:"smooth"});
-  };
+  // Purely a scroll-position indicator, not a button: `window.scrollTo`/
+  // `window.scrollY` here would be the embedding iframe's own window, which
+  // never scrolls once `shared/height.js` has resized it to fit all
+  // content — the real host page is what actually scrolls. Clicking could
+  // therefore never do anything, so it isn't offered as clickable.
   return(
-    <button className="scroll-hint" onClick={jump} aria-label={atBottom?"Back to top":"Scroll down"}>
+    <div className="scroll-hint" aria-hidden="true">
       <span className="sh-label">{atBottom?"Top":"Scroll"}</span>
       <span className="sh-track"><span className="sh-fill" style={{height:(progress*100)+"%"}}/></span>
       <span className={"sh-chev"+(atBottom?" sh-chev-up":"")}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </span>
-    </button>
+    </div>
   );
 }
 

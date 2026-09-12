@@ -58,7 +58,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .app-wrap{display:flex;min-height:calc(100vh - 65px)}
 .main{flex:1;padding:24px 40px 80px;max-width:980px;margin:0 auto;width:100%}
 .page-hdr{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #f0f0f0}
-.scroll-hint{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;background:none;border:none;font-family:'Inter',sans-serif}
+.scroll-hint{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none;background:none;border:none;font-family:'Inter',sans-serif}
 .scroll-hint .sh-label{writing-mode:vertical-rl;text-orientation:mixed;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#000523;opacity:0.55}
 .scroll-hint .sh-track{width:3px;height:90px;background:#dfe3ec;border-radius:3px;position:relative;overflow:hidden}
 .scroll-hint .sh-fill{position:absolute;top:0;left:0;right:0;height:0;background:#000523;border-radius:3px;transition:height 0.15s ease-out}

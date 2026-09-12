@@ -8,7 +8,7 @@ visitor's whole report is that call's output.
 from dataclasses import asdict
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.lead_magnets.api.dependencies import (
@@ -61,9 +61,14 @@ async def readiness_score(
         payload={**request.model_dump(), "advisory_rules": asdict(build_advisory_content(answers))},
         email=request.email,
         domain=request.domain,
-        submission_id=request.submission_id,
     )
     await session.commit()
+
+    # Checked before the model call, not just before the background task —
+    # this is the one tool where skipping a duplicate also saves a paid
+    # Bedrock call, not just a redundant Attio write.
+    if not is_new:
+        raise HTTPException(status.HTTP_409_CONFLICT, "you have already completed this")
 
     # The model call is on the response path here, unlike every other tool:
     # the visitor's whole report is its output, so there is nothing to show
@@ -88,8 +93,7 @@ async def readiness_score(
     await _store_score(session, run_id, scored)
     await session.commit()
 
-    if is_new:
-        background.add_task(run_completion, run_id)
+    background.add_task(run_completion, run_id)
 
     return ReadinessResponse(
         run_id=str(run_id),

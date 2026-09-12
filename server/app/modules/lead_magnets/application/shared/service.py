@@ -22,14 +22,12 @@ class LeadMagnetService(ServiceBase):
         payload: JsonObject,
         email: str | None,
         domain: str | None,
-        submission_id: str,
     ) -> tuple[UUID, bool]:
         return await self._submissions.record(
             tool=tool,
             payload=payload,
             email=email,
             domain=domain,
-            submission_id=submission_id,
         )
 
     async def complete(self, run: ToolRunRecord) -> None:

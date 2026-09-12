@@ -38,12 +38,18 @@ def client():
 
 
 def _payload(**overrides) -> dict:
+    # A fresh email/domain per call, not just a fresh submission_id: the
+    # idempotency key is now `tool|email|domain` alone (no submission_id),
+    # so several calls sharing one identity — as every caller of this
+    # helper used to, safely, when submission_id made each one unique —
+    # would collide and get rejected as a repeat instead of validated fresh.
+    unique = uuid.uuid4().hex[:8]
     body = {
         "submission_id": str(uuid.uuid4()),
         "peer_key": "restaurant",
         "company": "Acme Restaurant Group LLC",
-        "email": "Dana@AcmeGroup.ae",
-        "domain": "https://www.acmegroup.ae/about",
+        "email": f"dana+{unique}@acmegroup.ae",
+        "domain": f"https://www.acmegroup-{unique}.ae/about",
         "revenue": 3_000_000,
         "headcount": 40,
     }
@@ -128,11 +134,14 @@ def test_negative_revenue_is_rejected(client) -> None:
 
 
 def _valuation_payload(**overrides) -> dict:
+    # See `_payload`'s comment: a fresh identity per call, not just a fresh
+    # submission_id, now that the idempotency key no longer carries one.
+    unique = uuid.uuid4().hex[:8]
     body = {
         "submission_id": str(uuid.uuid4()),
         "company": "Acme Restaurant Group LLC",
-        "email": "dana@acmegroup.ae",
-        "domain": "acmegroup.ae",
+        "email": f"dana+{unique}@acmegroup.ae",
+        "domain": f"acmegroup-{unique}.ae",
         "revenue": 3_000_000,
         "profit_before_tax": 400_000,
     }

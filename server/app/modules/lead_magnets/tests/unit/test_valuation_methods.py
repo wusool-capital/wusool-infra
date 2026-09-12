@@ -188,10 +188,12 @@ def test_trading_comps_use_the_median_and_a_multiplicative_size_discount() -> No
         ListedComp(co="C", tk="C", ev=8000, rev=400, ebitda=100),
     )
     revenue_range, ebitda_range = trading_comps(_inputs(), comps)
-    assert revenue_range.mid == pytest.approx(revenue_range.stats.median * (1 - 0.5) * (1 - 0.2))
+    # 30%: the live tool's own trading-comps discount default.
+    assert revenue_range.mid == pytest.approx(revenue_range.stats.median * (1 - 0.3) * (1 - 0.2))
     assert ebitda_range.mid > 0
-    # A comp set this much larger than a $3m business earns a size discount.
-    assert revenue_range.applied_discount_pct > 50
+    # A comp set this much larger than a $3m business earns a size discount
+    # on top of the base 30% illiquidity discount.
+    assert revenue_range.applied_discount_pct > 30
 
 
 def test_negative_ebitda_adds_a_surcharge() -> None:
@@ -204,7 +206,10 @@ def test_negative_ebitda_adds_a_surcharge() -> None:
 def test_transaction_comps_use_the_mean_not_the_median() -> None:
     """Deliberately different from trading comps. Not a typo in either."""
     revenue_range, _ = transaction_comps(_inputs())
-    assert revenue_range.mid == pytest.approx(revenue_range.stats.avg * 0.5)
+    # 40%: the live tool's own transaction-comps revenue discount default —
+    # deliberately different from trading comps' 30%, confirmed against
+    # `dopamine-valuation.html`, not a typo.
+    assert revenue_range.mid == pytest.approx(revenue_range.stats.avg * 0.6)
 
 
 def test_industry_research_blends_current_and_forward_multiples() -> None:

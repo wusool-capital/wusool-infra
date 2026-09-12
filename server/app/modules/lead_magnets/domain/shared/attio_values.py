@@ -20,7 +20,7 @@ from app.modules.lead_magnets.domain.benchmark.benchmark_submission import Bench
 from app.modules.lead_magnets.domain.buyer_network.buyer_network import validate_target_geography
 from app.modules.lead_magnets.domain.readiness.readiness import attio_band
 from app.modules.lead_magnets.domain.shared.schemas import BuyerValuesInput, ReadinessValuesInput
-from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation
+from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation, ValuationInputs
 
 # What a `seller_role` attribute can hold on the write side. A money field
 # arrives as a bare number and is serialised into Attio's own currency shape
@@ -140,12 +140,21 @@ def readiness_values(data: ReadinessValuesInput) -> dict[str, object]:
     )
 
 
-def valuation_values(result: Valuation) -> dict[str, object]:
-    """The blended valuation, as `seller_role` attributes.
+def valuation_values(
+    result: Valuation, inputs: ValuationInputs, *, consent: bool | None = None
+) -> dict[str, object]:
+    """The blended valuation plus the raw submission it was computed from,
+    as `seller_role` attributes.
 
-    The three figures are what the seller-side team works from, and they are
-    USD — the legacy `*_aed` slugs on the old lead-magnet list are a misnomer
-    and are not what this writes to.
+    The three blended figures are what the seller-side team works from, and
+    they are USD — the legacy `*_aed` slugs on the old lead-magnet list are a
+    misnomer and are not what this writes to. `est_revenue`/`est_ebitda`/
+    `owner_salary`/`ebitda_adjusted`/`funding_stage`/`data_consent` are the
+    raw form inputs themselves — previously computed into the blend and then
+    discarded, so a real submission's own numbers never reached Attio at
+    all. `ebitda_adjusted` reuses `inputs.adjusted_ebitda`, the same
+    profit-before-tax-plus-owner-salary figure benchmark already writes
+    under this slug.
     """
     return _values(
         {
@@ -157,6 +166,12 @@ def valuation_values(result: Valuation) -> dict[str, object]:
             "valuation_low": result.low,
             "valuation_mid": result.mid,
             "valuation_high": result.high,
+            "est_revenue": inputs.revenue,
+            "est_ebitda": inputs.profit_before_tax,
+            "owner_salary": inputs.owner_salary,
+            "ebitda_adjusted": inputs.adjusted_ebitda,
+            "funding_stage": inputs.stage,
+            "data_consent": consent,
         }
     )
 

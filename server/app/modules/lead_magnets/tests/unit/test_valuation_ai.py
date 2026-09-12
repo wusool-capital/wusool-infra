@@ -381,10 +381,19 @@ async def test_a_valuation_run_falls_back_without_any_model_call() -> None:
     assert result["mid"] > 0
     # Every method still contributes with the model gone.
     assert len(result["methods"]) == 5
+    # Also the raw submission itself (est_revenue/est_ebitda/owner_salary/
+    # ebitda_adjusted) — the visitor's own numbers, not just the blend.
+    # No `funding_stage`/`data_consent` here: this payload sends neither
+    # `stage` nor `consent`, and both are correctly dropped rather than
+    # written as a false empty value.
     assert set(result["entry_values"]) == {
         "valuation_low",
         "valuation_mid",
         "valuation_high",
+        "est_revenue",
+        "est_ebitda",
+        "owner_salary",
+        "ebitda_adjusted",
     }
 
 
@@ -426,24 +435,32 @@ async def test_a_valuation_resume_applies_stored_ai_output() -> None:
 
 def test_an_explicit_zero_discount_is_not_overridden_to_the_default() -> None:
     """`0 or 50.0` is `50.0` in Python — a visitor who picks 0% must not
-    silently get the 50% default in the figure that reaches Attio, the same
+    silently get the default in the figure that reaches Attio, the same
     way `api/valuation/endpoints.py`'s synchronous response already respects
-    it via `is not None`."""
+    it via `is not None`. One AI-judged pair applies to both trading and
+    transaction comps alike."""
     from app.modules.lead_magnets.application.shared.pipelines import _valuation_inputs
 
     inputs = _valuation_inputs(
         {"revenue": 1_000_000, "discounts": {"revenue_discount_pct": 0, "ebitda_discount_pct": 0}}
     )
-    assert inputs.haircut_revenue_pct == 0.0
-    assert inputs.haircut_ebitda_pct == 0.0
+    assert inputs.trading_haircut_revenue_pct == 0.0
+    assert inputs.trading_haircut_ebitda_pct == 0.0
+    assert inputs.transaction_haircut_revenue_pct == 0.0
+    assert inputs.transaction_haircut_ebitda_pct == 0.0
 
 
 def test_discounts_absent_still_fall_back_to_the_default() -> None:
+    """The live tool's own defaults, per method — trading and transaction
+    comps have never shared one discount, confirmed against
+    `dopamine-valuation.html`."""
     from app.modules.lead_magnets.application.shared.pipelines import _valuation_inputs
 
     inputs = _valuation_inputs({"revenue": 1_000_000})
-    assert inputs.haircut_revenue_pct == 50.0
-    assert inputs.haircut_ebitda_pct == 50.0
+    assert inputs.trading_haircut_revenue_pct == 30.0
+    assert inputs.trading_haircut_ebitda_pct == 30.0
+    assert inputs.transaction_haircut_revenue_pct == 40.0
+    assert inputs.transaction_haircut_ebitda_pct == 20.0
 
 
 async def test_analyze_falls_back_to_the_deterministic_pros_cons_insights_on_bedrock_failure() -> (

@@ -44,9 +44,12 @@ Two families here, deliberately validated differently:
   `BuyerValuesInput`) bundle what `readiness_values()`/`buyer_values()`
   used to take as several loose keyword arguments into one validated
   object. `benchmark_values()`/`valuation_values()` deliberately keep their
-  existing signature (one domain dataclass, already the right type) —
-  wrapping an already-correctly-typed single argument in another model
-  would be ceremony, not safety.
+  domain-dataclass argument(s) as-is (already the right type) rather than
+  wrapping them in another model, which would be ceremony, not safety —
+  `valuation_values(result, inputs, *, consent=...)` takes both the
+  computed `Valuation` and the `ValuationInputs` it was built from, since
+  the raw submission (revenue, EBITDA, owner salary, stage) needs to reach
+  Attio too, not just the blended result.
 
 - **Generated report-copy models** (`FlagCopy`) are pure data with no
   behaviour — client-facing prose the business wrote, quoted verbatim —
@@ -141,6 +144,10 @@ class ValuationPayload(_Payload):
     debt: float = 0.0
     comps: list[ValuationCompPayload] = []
     discounts: ValuationDiscountsPayload | None = None
+    # `None`, not `False`: a resumed/replayed payload from before this field
+    # existed has no `consent` key at all, and writing that as an explicit
+    # `False` would misrepresent "unknown" as "consent refused" in Attio.
+    consent: bool | None = None
 
 
 class BuyerNetworkPayload(_Payload):
@@ -167,12 +174,20 @@ class AttioIdentityPayload(_Payload):
     benchmark only ever sends `peer_key` (there, it already is the CRM
     sector); tech-mode benchmark sends both, because *its* `peer_key` is a
     funding stage, not a sector — `sector` there is what `sector_mapping.py`
-    can actually resolve. See `BenchmarkRequest.sector`'s own docstring."""
+    can actually resolve. See `BenchmarkRequest.sector`'s own docstring.
+
+    `description`/`geography` are org-level fields (`organizations.description`,
+    `organizations.hq_country`), not entry-level like the rest of this
+    module's field mappings — they belong here rather than on a tool's own
+    payload model because this is what `write_seller_role`'s `org_values`
+    is built from."""
 
     domain: str | None = None
     company: str = ""
     peer_key: str = ""
     sector: str | None = None
+    description: str | None = None
+    geography: str | None = None
 
 
 # ===== Bedrock response models — see the module docstring =====

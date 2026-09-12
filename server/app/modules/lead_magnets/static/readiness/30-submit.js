@@ -29,6 +29,11 @@ async function submitForm(){
 
   try{
     const r=await fetch('/readiness/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(r.status===409){
+      clearInterval(interval);loading.classList.remove('active');
+      document.getElementById('errAlready').style.display='block';
+      return;
+    }
     if(!r.ok)throw new Error('readiness score failed: '+r.status);
     const result=await r.json();
     clearInterval(interval);loading.classList.remove('active');

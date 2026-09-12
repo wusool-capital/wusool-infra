@@ -114,14 +114,13 @@ async def test_record_happens_before_any_provider_call() -> None:
         payload={"answers": {}},
         email="F@Acme.com",
         domain="https://www.acme.com",
-        submission_id="s1",
     )
 
     assert tool_runs.calls == ["start"]
     assert ai_calls == []
     assert attio.writes == 0
     # The key is normalised, not the raw form input.
-    assert tool_runs.started[0] == ("readiness", "readiness|f@acme.com|acme.com|s1")
+    assert tool_runs.started[0] == ("readiness", "readiness|f@acme.com|acme.com")
 
 
 async def test_record_reports_a_replay_so_the_caller_stops() -> None:
@@ -130,7 +129,7 @@ async def test_record_reports_a_replay_so_the_caller_stops() -> None:
     service, _ = _service(tool_runs, attio)
 
     _, is_new = await service.record(
-        tool="readiness", payload={}, email="f@acme.com", domain="acme.com", submission_id="s1"
+        tool="readiness", payload={}, email="f@acme.com", domain="acme.com"
     )
     assert is_new is False
 

@@ -6,7 +6,7 @@ qualification note — in the background. Nothing after the response can lose
 the application.
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
@@ -41,11 +41,12 @@ async def buyer_apply(
         payload=request.model_dump(),
         email=request.email,
         domain=request.domain,
-        submission_id=request.submission_id,
     )
     await session.commit()
 
-    if is_new:
-        background.add_task(run_completion, run_id)
+    if not is_new:
+        raise HTTPException(status.HTTP_409_CONFLICT, "you have already completed this")
+
+    background.add_task(run_completion, run_id)
 
     return BuyerApplyResponse(ok=True, run_id=str(run_id))

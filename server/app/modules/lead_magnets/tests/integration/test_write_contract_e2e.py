@@ -110,7 +110,6 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
         payload={"company_name": _CO, "contact_name": "Dana"},
         email="Dana@AcmeGroup.ae",
         domain="https://www.acmegroup.ae/about",
-        submission_id=str(uuid.uuid4()),
     )
     assert is_new
     # Step 1 only — the visitor's response goes out here, before any provider.
@@ -130,9 +129,7 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     assert attio.calls(_CO) == 1
 
     # The idempotency key is built from normalised values, not raw form input.
-    assert after.idempotency_key == (
-        f"benchmark|dana@acmegroup.ae|acmegroup.ae|{after.idempotency_key.rsplit('|', 1)[1]}"
-    )
+    assert after.idempotency_key == "benchmark|dana@acmegroup.ae|acmegroup.ae"
 
 
 async def test_readiness_ai_failure_keeps_the_lead(db_session) -> None:
@@ -151,7 +148,6 @@ async def test_readiness_ai_failure_keeps_the_lead(db_session) -> None:
         },
         email="sam@betatrading.ae",
         domain="betatrading.ae",
-        submission_id=str(uuid.uuid4()),
     )
     await service.complete(await repo.get(run_id))
 
@@ -175,7 +171,6 @@ async def test_attio_outage_is_drained_by_the_sweeper_without_re_billing(db_sess
         payload={"company_name": "Gamma Fitout"},
         email="g@gamma.ae",
         domain="gamma.ae",
-        submission_id=str(uuid.uuid4()),
     )
     await service.complete(await repo.get(run_id))
 
@@ -212,7 +207,6 @@ async def test_readiness_ai_failure_is_never_resumed_by_the_sweeper(db_session) 
         payload={"company_name": "Delta Co"},
         email="d@delta.ae",
         domain="delta.ae",
-        submission_id=str(uuid.uuid4()),
     )
     await service.complete(await repo.get(run_id))
     assert (await _row(db_session, run_id)).payload.get("stage") is None
@@ -246,7 +240,6 @@ async def test_a_valuation_ai_failure_does_resume_from_its_fallback(db_session) 
         payload={"company_name": "Epsilon Ltd"},
         email="e@epsilon.ae",
         domain="epsilon.ae",
-        submission_id=str(uuid.uuid4()),
     )
     await service.complete(await repo.get(run_id))
     assert (await _row(db_session, run_id)).status == "failed"
@@ -264,10 +257,13 @@ async def test_a_valuation_ai_failure_does_resume_from_its_fallback(db_session) 
 
 
 @pytest.mark.parametrize("clicks", [2, 3])
-async def test_double_click_creates_one_row(db_session, clicks: int) -> None:
+async def test_repeat_submission_creates_one_row(db_session, clicks: int) -> None:
+    """No `submission_id` in the key any more, so this covers both a literal
+    double-click *and* a genuine second visit from the same person for the
+    same tool — either way, one row, and the caller is told `is_new=False`
+    rather than silently reprocessing."""
     attio, ai = _FakeAttio(), _Spy()
     service = _service(db_session, attio, ai)
-    submission_id = str(uuid.uuid4())
 
     seen = [
         await service.record(
@@ -275,7 +271,6 @@ async def test_double_click_creates_one_row(db_session, clicks: int) -> None:
             payload={"n": n},
             email="d@acme.ae",
             domain="acme.ae",
-            submission_id=submission_id,
         )
         for n in range(clicks)
     ]

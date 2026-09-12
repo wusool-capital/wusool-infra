@@ -55,9 +55,19 @@ function unlock(){
   };
 
   fetch("/benchmark",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
-    .then(r=>{ if(!r.ok) throw new Error("benchmark submit failed: "+r.status); })
+    .then(r=>{
+      if(r.status===409){ S.already=true; return; }
+      if(!r.ok) throw new Error("benchmark submit failed: "+r.status);
+    })
     .catch(e=>console.warn("submit",e))
-    .finally(()=>{ S.sent=true; render(); });
+    .finally(()=>{
+      if(S.already){
+        btn.disabled=true; btn.textContent="Show my full benchmark";
+        $("e-already").classList.add("show");
+        return;
+      }
+      S.sent=true; render();
+    });
 }
 
 function render(){
@@ -125,7 +135,10 @@ function render(){
   $("lnk-ready").href=CFG.readinessUrl;
   $("lnk-call").href=CFG.callUrl;
 
-  $("meta").innerHTML = `<strong>Methodology.</strong> Peer ranges are built from published SaaS and venture benchmark sets, GCC listed technology disclosures, regional venture funding data, and Wusool's own technology mandates, adjusted for GCC scale. Percentiles are interpolated across five anchor points and adjusted for your size band. Ranges are indicative and are not a valuation. <a href="#" onclick="return false">Full methodology</a>.`;
+  // No real methodology write-up exists yet — same as the forked
+  // wusool-benchmark.html, which also left this a dead `href="#"` link.
+  // Points at the call-booking link instead of 404ing or doing nothing.
+  $("meta").innerHTML = `<strong>Methodology.</strong> Peer ranges are built from published SaaS and venture benchmark sets, GCC listed technology disclosures, regional venture funding data, and Wusool's own technology mandates, adjusted for GCC scale. Percentiles are interpolated across five anchor points and adjusted for your size band. Ranges are indicative and are not a valuation. <a href="${CFG.callUrl}" target="_blank" rel="noopener">Full methodology</a>.`;
 
   go(5);
 }

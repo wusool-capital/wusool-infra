@@ -76,6 +76,8 @@ class AttioRoleWriter:
         domain: str | None,
         entry_values: dict[str, object],
         sector: str | None = None,
+        description: str | None = None,
+        hq_country: str | None = None,
         organization_attio_id: str | None = None,
     ) -> SubjectRefs:
         """Creates or updates the organisation, then its `seller_role` entry."""
@@ -88,6 +90,10 @@ class AttioRoleWriter:
         # raises instead.
         if (mapped := to_sector_focus(sector)) is not None:
             org_values["sector_focus"] = [mapped]
+        if description:
+            org_values["description"] = description
+        if hq_country:
+            org_values["hq_country"] = hq_country
 
         org_id = await self._upsert_organization(
             org_values=org_values, organization_attio_id=organization_attio_id

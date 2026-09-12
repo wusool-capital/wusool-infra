@@ -58,18 +58,16 @@ class SubmissionService:
         payload: JsonObject,
         email: str | None,
         domain: str | None,
-        submission_id: str,
     ) -> tuple[UUID, bool]:
         """Step 1. Returns `(run_id, is_new)`; `is_new=False` means this
-        exact submission is already in flight or done and the caller must
-        not run the pipeline again.
+        person has already completed this tool — the caller must not run
+        the pipeline again, and should tell the visitor rather than quietly
+        reprocessing.
         """
         return await self._tool_runs.start(
             tool=tool,
             payload=payload,
-            idempotency_key=idempotency_key(
-                tool=tool, email=email, domain=domain, submission_id=submission_id
-            ),
+            idempotency_key=idempotency_key(tool=tool, email=email, domain=domain),
         )
 
     async def complete(self, run: ToolRunRecord) -> None:

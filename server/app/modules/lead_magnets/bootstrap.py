@@ -124,6 +124,8 @@ class _RoleAttioWriter:
             # resolves exactly as before, since only one of the two is
             # ever actually present for them.
             sector=seller.sector or seller.peer_key,
+            description=seller.description,
+            hq_country=seller.geography,
             organization_attio_id=await self._find_existing_org(name=name, domain=seller.domain),
         )
 

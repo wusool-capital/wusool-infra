@@ -129,9 +129,12 @@ families of type live there:
 - **`attio_values.py` input models** (`ReadinessValuesInput`,
   `BuyerValuesInput`) bundle what `readiness_values()`/`buyer_values()`
   used to take as several loose keyword arguments into one validated
-  object. `benchmark_values()`/`valuation_values()` keep their existing
-  single-dataclass-argument signature — it was already the right type,
-  wrapping it again would be ceremony, not safety.
+  object. `benchmark_values()`/`valuation_values()` keep their domain
+  dataclass argument(s) as-is — already the right type, wrapping it again
+  would be ceremony, not safety. `valuation_values(result, inputs, *,
+  consent=...)` takes the raw `ValuationInputs` alongside the computed
+  `Valuation` so the visitor's own numbers (revenue, EBITDA, owner salary,
+  stage, consent) reach Attio too, not just the blended range.
 - **Generated report-copy models** (`FlagCopy`) — the benchmark report's
   client-facing paragraphs, quoted verbatim from the live tool. Pure data
   with no behaviour, so it lives here rather than as a plain dataclass.
