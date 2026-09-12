@@ -8,9 +8,8 @@ before anything is saved.
 2. If more than one organization matches the name, pick the right one from
    the list.
 3. The bot posts a message listing every field it found a value for, each
-   with the source it drew the value from and a confidence level. This can
-   take a little while — it's researching in the background, not blocking
-   you.
+   with a confidence level. This can take a little while — it's researching
+   in the background, not blocking you.
 4. Press **Review & Save**. This opens the same edit form you'd get from
    [`/edit-seller`/`/edit-buyer`](edit-profile.md), pre-filled with the
    proposed values.
@@ -18,14 +17,47 @@ before anything is saved.
    written until you submit — a proposal on its own never touches Attio or
    the database.
 
-## Where else you'll see "Enrich"
+## Example walkthrough
 
-- **On a `/find-match` result** — each seller in the shortlist has its own
-  **Enrich** button, so you can fill in gaps for a specific candidate
-  without leaving the match results.
+You run:
+
+> `/enrich-buyer Raoof Capital`
+
+A minute or so later, the bot posts:
+
+> **Proposed enrichment for Raoof Capital**
+>
+> **investment_strategy**
+> Proposed: Mid-market buyouts across the GCC, with a focus on
+> manufacturing and logistics.
+> Confidence: 90% — Sourced from Diffbot.
+>
+> **estimated_aum**
+> Proposed: 450000000.0
+> Confidence: 60% — Sourced from Diffbot.
+>
+> Review these values in the edit form before they're saved.
+> `[Review & Save]`
+
+You press **Review & Save**, which opens the same edit form `/edit-buyer`
+would — pre-filled with both values. You clear `estimated_aum` since
+you're not confident in that figure, then submit. Only
+`investment_strategy` is saved.
+
+If nothing public had supported any field — a common outcome for a
+company with no clear public investment history — the bot instead posts:
+
+> Raoof Capital
+> No new field values found from public sources.
+
+## Where else you'll see this suggested
+
+- **On a `/find-match` result** — each seller in the shortlist carries a
+  `/enrich-seller <name>` line, so you can fill in gaps for a specific
+  candidate without leaving the match results.
 - **After `/add-seller`** — the confirmation message for a newly-added
-  seller carries an **Enrich** button, since a brand-new record is usually
-  the one most worth researching.
+  seller suggests `/enrich-seller <name>` too, since a brand-new record is
+  usually the one most worth researching.
 
 ## What it looks for
 
@@ -34,7 +66,10 @@ before anything is saved.
   fields sourced from company-data providers (logo, AngelList, Facebook,
   Twitter).
 - **Buyers**: investment strategy, notable investments, estimated AUM,
-  target geography, and prior GCC acquisitions.
+  target geography, and prior GCC acquisitions. These are specifically
+  M&A/investment-firm facts — a company that isn't itself an investor
+  (a product company, say) is unlikely to have any public answer to these,
+  no matter how well-known it is.
 
 Only fields that are currently empty are researched — a field that already
 has a value is left alone.

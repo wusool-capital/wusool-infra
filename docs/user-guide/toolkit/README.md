@@ -26,6 +26,9 @@ first, then in the database a moment later.
 Type the command in any channel or direct message where the bot is present.
 Replies are only visible to you.
 
+Each command's own page below includes a worked example — a real command,
+what the bot posts back, and what happens next.
+
 ## Before you start
 
 - Anyone in the workspace can run these commands — see

@@ -11,6 +11,19 @@ delivered state and outstanding items see
 
 ## 2026-09-12
 
+### Added
+
+- Each Wusool Toolkit user-guide page (`/find-match`, `/edit-seller`/
+  `/edit-buyer`, `/add-seller`/`/add-buyer`, `/enrich-seller`/
+  `/enrich-buyer`) now includes a worked example walkthrough — a real
+  command, the bot's actual response text, and the concrete next step —
+  using one consistent example buyer/seller pair (Raoof Capital, Al Noor
+  Manufacturing) across all four pages so they read as one coherent
+  journey. Also corrected several stale references to the per-candidate
+  "Enrich" button on match results and after `/add-seller` (both replaced
+  with `/enrich-seller`/`/enrich-buyer` hint text earlier today) that the
+  docs hadn't caught up to.
+
 ### Fixed
 
 - Discovery's Google Maps client now logs the query, businesses found, and

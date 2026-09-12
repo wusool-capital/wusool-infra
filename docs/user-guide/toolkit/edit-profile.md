@@ -6,9 +6,30 @@
    into *Organization* and *Seller/Buyer profile*. Tick only what you need.
 3. **Edit the values.** The next form shows just those fields, pre-filled
    with their current values.
-4. **Submit.** The bot writes to Attio first, then the database. If a write
+4. **Save.** The bot writes to Attio first, then the database. If a write
    fails partway, the confirmation message tells you exactly what was saved
    and what was not.
+
+## Example walkthrough
+
+You run:
+
+> `/edit-seller Al Noor Manufacturing`
+
+The name matches exactly one seller, so the bot opens a field picker
+listing the editable *Organization* and *Seller profile* fields. You tick
+**HQ country** and **Employee range**, then press **Continue**.
+
+The next form shows just those two fields, pre-filled with their current
+values (blank, if they were never set). You enter:
+
+- **HQ country:** United Arab Emirates
+- **Employee range:** 51-250
+
+Then press **Save**. The bot writes both fields to Attio, then to the
+database, and posts:
+
+> *Updated* seller profile for *Al Noor Manufacturing*.
 
 After a successful buyer edit, the confirmation message suggests a
 copy-pasteable `/find-match <name>` command — a convenient next step if you
