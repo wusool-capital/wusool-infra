@@ -14,7 +14,7 @@
           <mxGeometry height="26" width="1500" x="430" y="488" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-4" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#5B7FB9;swimlaneFillColor=#FFFFFF;strokeColor=#5B7FB9;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="Organization&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · Companies object&lt;/font&gt;" vertex="1">
-          <mxGeometry height="582" width="300" x="898" y="1175" as="geometry" />
+          <mxGeometry height="600" width="300" x="898" y="1175" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-5" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK  attio_id : text" vertex="1">
           <mxGeometry height="18" width="300" y="42" as="geometry" />
@@ -40,71 +40,74 @@
         <mxCell id="RgGBnucupUyAWn9DcVHZ-12" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="hq_country : text" vertex="1">
           <mxGeometry height="18" width="300" y="168" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-13" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="domains : text (Attio) / text[] (PG)" vertex="1">
+        <mxCell id="region_Organization" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="region : text  (macro HQ region, tool-populated)" vertex="1">
           <mxGeometry height="18" width="300" y="186" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-14" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="categories[] : enum[]" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-13" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="domains : text (Attio) / text[] (PG)" vertex="1">
           <mxGeometry height="18" width="300" y="204" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-15" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="relationship_status : enum  (single warmth field)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-14" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="categories[] : enum[]" vertex="1">
           <mxGeometry height="18" width="300" y="222" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-16" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="connection_strength : enum" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-15" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="relationship_status : enum  (single warmth field)" vertex="1">
           <mxGeometry height="18" width="300" y="240" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-17" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK owner : uuid → User" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-16" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="connection_strength : enum" vertex="1">
           <mxGeometry height="18" width="300" y="258" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-18" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="last_interaction_at : timestamptz  (cached)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-17" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK owner : uuid → User" vertex="1">
           <mxGeometry height="18" width="300" y="276" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-300" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="funding_raised : currency (USD)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-18" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="last_interaction_at : timestamptz  (cached)" vertex="1">
           <mxGeometry height="18" width="300" y="294" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-301" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="estimated_arr : enum (9 revenue bands)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-300" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="funding_raised : currency (USD)" vertex="1">
           <mxGeometry height="18" width="300" y="312" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-302" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="angellist : text (url)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-301" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="estimated_arr : enum (9 revenue bands)" vertex="1">
           <mxGeometry height="18" width="300" y="330" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-303" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="facebook : text (url)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-302" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="angellist : text (url)" vertex="1">
           <mxGeometry height="18" width="300" y="348" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-304" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="instagram : text (url)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-303" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="facebook : text (url)" vertex="1">
           <mxGeometry height="18" width="300" y="366" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-305" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="twitter : text (url)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-304" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="instagram : text (url)" vertex="1">
           <mxGeometry height="18" width="300" y="384" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-306" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="twitter_follower_count : int" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-305" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="twitter : text (url)" vertex="1">
           <mxGeometry height="18" width="300" y="402" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-307" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="foundation_date : date" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-306" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="twitter_follower_count : int" vertex="1">
           <mxGeometry height="18" width="300" y="420" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-308" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="employee_range : enum" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-307" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="foundation_date : date" vertex="1">
           <mxGeometry height="18" width="300" y="438" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-309" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ticket_size : enum" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-308" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="employee_range : enum" vertex="1">
           <mxGeometry height="18" width="300" y="456" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-311" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="lead_source : enum (Inbound / Outbound)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-309" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="ticket_size : enum" vertex="1">
           <mxGeometry height="18" width="300" y="474" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-312" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="linkedin : text (url)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-311" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="lead_source : enum (Inbound / Outbound)" vertex="1">
           <mxGeometry height="18" width="300" y="492" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-900" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="is_active : bool  (true = newest entry per duplicate name group)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-312" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="linkedin : text (url)" vertex="1">
           <mxGeometry height="18" width="300" y="510" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-535" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="logo_url : text (url)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-900" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="is_active : bool  (true = newest entry per duplicate name group)" vertex="1">
           <mxGeometry height="18" width="300" y="528" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-536" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="removed_at : timestamptz  (soft-delete, NULL = active)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-535" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="logo_url : text (url)" vertex="1">
           <mxGeometry height="18" width="300" y="546" as="geometry" />
         </mxCell>
-        <mxCell id="isTest_Organization" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFE6CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="is_test : bool  (ATTIO ONLY, no PG column)" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-536" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="removed_at : timestamptz  (soft-delete, NULL = active)" vertex="1">
           <mxGeometry height="18" width="300" y="564" as="geometry" />
+        </mxCell>
+        <mxCell id="isTest_Organization" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#FFE6CC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="is_test : bool  (ATTIO ONLY, no PG column)" vertex="1">
+          <mxGeometry height="18" width="300" y="582" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-19" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#5B7FB9;swimlaneFillColor=#FFFFFF;strokeColor=#5B7FB9;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="Person&lt;br&gt;&lt;font style=&#39;font-size:8px;font-weight:normal&#39;&gt;Attio · People object&lt;/font&gt;" vertex="1">
           <mxGeometry height="456" width="300" x="898" y="607" as="geometry" />

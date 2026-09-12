@@ -69,6 +69,7 @@ class OrganizationSummary(BaseModel):
     attio_id: str
     name: str
     hq_country: str | None = None
+    region: str | None = None
     geographic_focus: list[str] = []
     sector_focus: list[str] = []
     relationship_status: str | None = None

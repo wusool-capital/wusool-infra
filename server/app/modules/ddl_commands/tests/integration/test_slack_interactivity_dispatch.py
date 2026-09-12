@@ -81,6 +81,7 @@ def _fake_org(
         removed_at=removed_at,
         description=None,
         hq_country=None,
+        region=None,
         sector_focus=None,
         client_type=None,
         relationship_status=None,

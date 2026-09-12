@@ -39,6 +39,7 @@ Money-shaped JSONB columns (marked below) hold either `{"amount": ...,
 | stage_focus | text[] | no | `{}` | |
 | geographic_focus | text[] | no | `{}` | |
 | hq_country | text | yes | | |
+| region | text | yes | | macro HQ region, tool-populated |
 | domains | text[] | no | `{}` | GIN index |
 | categories | text[] | no | `{}` | |
 | relationship_status | text | yes | | |
