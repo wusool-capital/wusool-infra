@@ -144,7 +144,13 @@ def build_proposal_blocks(proposal: EnrichmentProposal) -> list[Block]:
             SectionBlock(
                 text=(
                     f"*{value.field_name}*\n"
-                    f"Proposed: *{_render_proposed_value(value.proposed)}*\n"
+                    # Not wrapped in `*...*` — Slack's bold markup doesn't
+                    # reliably apply across a multi-line value (a long
+                    # `description`) or around its own auto-linkified text
+                    # (a bare domain); both show up as literal asterisk
+                    # characters instead of being interpreted as bold
+                    # (confirmed live, both cases).
+                    f"Proposed: {_render_proposed_value(value.proposed)}\n"
                     f"Confidence: {value.confidence:.0%} — {sanitize_mrkdwn(value.rationale)}"
                 )
             )
