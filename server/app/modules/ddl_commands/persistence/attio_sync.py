@@ -189,13 +189,13 @@ _ORG_UPSERT = text(
     """
     INSERT INTO organizations(
         attio_id, name, description, type, client_type, sector_focus, stage_focus,
-        geographic_focus, hq_country, domains, categories, relationship_status,
+        geographic_focus, hq_country, region, domains, categories, relationship_status,
         connection_strength, owner_attio_id, last_interaction_at, funding_raised,
         estimated_arr, angellist, facebook, instagram, twitter, twitter_follower_count,
         foundation_date, ticket_size, lead_source, employee_range, linkedin, logo_url, raw_attio
     ) VALUES (
         :attio_id, :name, :description, :type, :client_type, :sector_focus, :stage_focus,
-        :geographic_focus, :hq_country, :domains, :categories, :relationship_status,
+        :geographic_focus, :hq_country, :region, :domains, :categories, :relationship_status,
         :connection_strength,
         CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :owner_attio_id)
              THEN :owner_attio_id ELSE NULL END,
@@ -208,7 +208,7 @@ _ORG_UPSERT = text(
         name=excluded.name, description=excluded.description, type=excluded.type,
         client_type=excluded.client_type, sector_focus=excluded.sector_focus,
         stage_focus=excluded.stage_focus, geographic_focus=excluded.geographic_focus,
-        hq_country=excluded.hq_country, domains=excluded.domains,
+        hq_country=excluded.hq_country, region=excluded.region, domains=excluded.domains,
         categories=excluded.categories, relationship_status=excluded.relationship_status,
         connection_strength=excluded.connection_strength, owner_attio_id=excluded.owner_attio_id,
         last_interaction_at=excluded.last_interaction_at, funding_raised=excluded.funding_raised,
@@ -252,6 +252,9 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
         "stage_focus": v.titles(values, "stage_focus"),
         "geographic_focus": v.titles(values, "geographic_focus"),
         "hq_country": v.first(values, "hq_country"),
+        # No SOURCE counterpart -- written into Attio by tooling, mirrored
+        # down here. Free text, so no title/option extraction.
+        "region": v.first(values, "region"),
         "domains": v.domains(values),
         "categories": v.titles(values, "categories"),
         "relationship_status": v.first(values, "relationship_status"),

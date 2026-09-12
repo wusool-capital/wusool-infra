@@ -54,6 +54,7 @@ from app.modules.ddl_commands.api.schemas import FieldSpec
 class OrganizationUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     hq_country: str | None = Field(default=None, max_length=100)
+    region: str | None = Field(default=None, max_length=100)
     sector_focus: list[str] | None = None
     client_type: str | None = Field(default=None, max_length=200)
     relationship_status: str | None = Field(default=None, max_length=100)
@@ -75,6 +76,7 @@ class OrganizationUpdate(BaseModel):
 ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("description", "Description", "multiline"),
     FieldSpec("hq_country", "HQ country", "text"),
+    FieldSpec("region", "Region", "text"),
     FieldSpec(
         "sector_focus",
         "Sector focus",

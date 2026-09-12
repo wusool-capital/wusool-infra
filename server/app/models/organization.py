@@ -58,6 +58,12 @@ class Organization(Base):
         ARRAY(Text), nullable=False, server_default="{}"
     )
     hq_country: Mapped[str | None] = mapped_column(Text)
+    # Added 2026-09-12: macro HQ region (MENA, GCC, Europe, ...) — one level
+    # above hq_country, and not geographic_focus (that is where the org
+    # invests). Mirrored from Attio organizations.region, which is written by
+    # tooling rather than migrated from SOURCE. Free text by decision — no
+    # controlled vocabulary, so values are whatever the producing tool writes.
+    region: Mapped[str | None] = mapped_column(Text)
     domains: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     categories: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     relationship_status: Mapped[str | None] = mapped_column(Text)
