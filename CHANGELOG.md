@@ -125,9 +125,11 @@ delivered state and outstanding items see
 - Diffbot's schemeless `linkedin`/`facebook` values (e.g.
   `"linkedin.com/company/acme"`, no `https://` prefix) now render as a
   clickable link the same way an `http(s)://`-prefixed value already did.
-  Previously, Slack auto-linkified the bare domain on its own but the
-  surrounding bold `*...*` markup showed up as literal asterisk characters
-  instead of being applied around it.
+  A proposed value is also no longer wrapped in `*...*` bold markup at
+  all — Slack's bold markup doesn't reliably apply either around its own
+  auto-linkified text (a bare domain) or across a multi-line value (a long
+  `description`); both showed up as literal asterisk characters instead of
+  being interpreted as bold (confirmed live, both cases).
 - The seller-add confirmation message's "Enrich" button is replaced with a
   `/enrich-seller <name>` hint, matching the match-result message's
   existing pattern. This was the only remaining UI surface emitting
