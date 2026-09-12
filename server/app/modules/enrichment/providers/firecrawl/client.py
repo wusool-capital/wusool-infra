@@ -32,11 +32,21 @@ class FirecrawlResearchClient:
 
         documents: list[SourceDocument] = []
         for item in getattr(result, "web", None) or []:
-            content = (getattr(item, "markdown", None) or getattr(item, "description", None) or "")[
-                :_MAX_CONTENT_CHARS
-            ]
-            url = getattr(item, "url", None)
-            title = getattr(item, "title", None)
+            # Firecrawl's real `Document` never populates `url`/`title`/
+            # `description` at the top level (confirmed live) — they only
+            # ever live on `item.metadata`. `getattr(item, "url", None)`
+            # alone silently returned `None` for every single result,
+            # every time, which meant this tier never actually produced
+            # any source material regardless of the search query's
+            # quality. Top-level attributes are still checked first, in
+            # case a different response shape ever does populate them.
+            metadata = getattr(item, "metadata", None)
+            url = getattr(item, "url", None) or getattr(metadata, "url", None)
+            title = getattr(item, "title", None) or getattr(metadata, "title", None)
+            description = getattr(item, "description", None) or getattr(
+                metadata, "description", None
+            )
+            content = (getattr(item, "markdown", None) or description or "")[:_MAX_CONTENT_CHARS]
             if not url or not content:
                 continue
             documents.append(SourceDocument(url=url, title=title or url, content=content))

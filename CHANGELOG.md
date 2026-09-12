@@ -11,6 +11,28 @@ delivered state and outstanding items see
 
 ## 2026-09-12
 
+### Fixed
+
+- **`enrichment`'s and `lead_magnets`' Firecrawl `search()` clients were
+  silently discarding every single result, every time, regardless of query
+  quality.** Both read `url`/`title`/`description` directly off the SDK's
+  `Document` object — confirmed live against a real account that these are
+  never populated at the top level; they only ever live on
+  `item.metadata` (a `DocumentMetadata`). `enrichment`'s client filtered
+  out any result with no `url`, which meant it discarded 100% of results
+  100% of the time (`"No new field values found from public sources"` on
+  every `/enrich-buyer`/`/enrich-seller` call, no matter how well-anchored
+  the query was — confirmed live: a properly domain/sector-anchored query
+  for Mubadala Investment Company still returned 0 documents until this
+  fix, then 5, including its own site and Wikipedia).
+  `lead_magnets`' client didn't filter, so it silently returned results
+  with empty `title`/`url`/`snippet` instead of failing outright. Both
+  clients (and their tests, which mirrored the same wrong assumption) now
+  read from `item.metadata` first, falling back to the top-level
+  attributes only if a future response shape ever populates them.
+  Discovery's Maps client is unaffected — it extracts into its own JSON
+  schema (`MapsExtraction`), not raw `Document` attributes.
+
 ### Changed
 
 - `/enrich-buyer`/`/enrich-seller`'s Firecrawl research query is no longer a

@@ -13,7 +13,12 @@ Slack-bot-only path must still boot.
 Signatures verified against the installed firecrawl-py 4.41.0 rather than
 its docs: `search` is dispatched dynamically (it is absent from
 `dir(AsyncFirecrawl)`), takes `query` plus `limit`/`sources`, and returns a
-`SearchData` whose `.web` entries carry `url`/`title`/`description`.
+`SearchData` whose `.web` entries are `Document`s. Confirmed live against a
+real account: `url`/`title`/`description` are never populated at the
+top level on a `Document` — they only ever live on `item.metadata`
+(a `DocumentMetadata`). Reading only the top-level attributes (the
+original assumption here, and in this file's own tests) silently
+produced an empty `url`/`title`/`snippet` for every single result.
 """
 
 import logging
@@ -40,14 +45,19 @@ class FirecrawlSearchClient:
             logger.warning("firecrawl_search_failed error=%s", exc, extra={"error": str(exc)})
             return []
 
-        return [
-            SearchResult(
-                title=getattr(item, "title", None) or "",
-                url=getattr(item, "url", None) or "",
-                snippet=getattr(item, "description", None) or "",
+        results = []
+        for item in getattr(data, "web", None) or []:
+            metadata = getattr(item, "metadata", None)
+            results.append(
+                SearchResult(
+                    title=getattr(item, "title", None) or getattr(metadata, "title", None) or "",
+                    url=getattr(item, "url", None) or getattr(metadata, "url", None) or "",
+                    snippet=getattr(item, "description", None)
+                    or getattr(metadata, "description", None)
+                    or "",
+                )
             )
-            for item in (getattr(data, "web", None) or [])
-        ]
+        return results
 
     async def scrape(self, url: str) -> str:
         """Markdown text of one page. Empty string on any failure, so
