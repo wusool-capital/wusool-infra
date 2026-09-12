@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from app.models.activity import Activity
 from app.models.seller_role import SellerRole
 from app.models.tool_run import ToolRun
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
@@ -83,6 +84,61 @@ async def test_finish_on_a_brand_new_org_does_not_fk_violate(db_session) -> None
     assert row.organization_attio_id == org_id
     assert row.person_attio_id == person_id
     assert row.finished_at is not None
+
+
+async def test_finish_with_a_resolved_org_writes_one_activity_row(db_session) -> None:
+    """Step 6: a successful Attio write gets a matching CRM timeline entry,
+    joined by `tool_run_id`."""
+    repo = ToolRunsRepository(db_session)
+    run_id, _ = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    org_id = f"org-{uuid4()}"
+
+    await repo.finish(
+        run_id, "succeeded", subjects=SubjectRefs(org_attio_id=org_id, org_name="Acme Trading LLC")
+    )
+
+    row = (
+        await db_session.execute(select(Activity).where(Activity.tool_run_id == run_id))
+    ).scalar_one()
+    assert row.subject_type == "Organization"
+    assert row.subject_attio_id == org_id
+    assert row.source == "lead_magnet"
+
+
+async def test_finish_without_a_subject_writes_no_activity_row(db_session) -> None:
+    """A failed run has no resolved Attio id — `activities` CHECKs that a
+    subject is present, so writing here would violate it. Must stay a no-op."""
+    repo = ToolRunsRepository(db_session)
+    run_id, _ = await repo.start(tool="readiness", payload={}, idempotency_key=_key())
+
+    await repo.finish(run_id, "failed", error="boom")
+
+    rows = (
+        (await db_session.execute(select(Activity).where(Activity.tool_run_id == run_id)))
+        .scalars()
+        .all()
+    )
+    assert rows == []
+
+
+async def test_finish_succeeds_even_when_the_activity_log_fails(db_session) -> None:
+    """The activity row is best-effort bookkeeping, not the ledger: a
+    `run_id` with no matching `tool_runs` row FK-violates the activity
+    insert, but `finish()` must still complete rather than raise."""
+    repo = ToolRunsRepository(db_session)
+    bogus_run_id = uuid4()  # never started via `start()`
+    org_id = f"org-{uuid4()}"
+
+    await repo.finish(  # must not raise
+        bogus_run_id, "succeeded", subjects=SubjectRefs(org_attio_id=org_id, org_name="Acme")
+    )
+
+    rows = (
+        (await db_session.execute(select(Activity).where(Activity.tool_run_id == bogus_run_id)))
+        .scalars()
+        .all()
+    )
+    assert rows == []  # the savepoint rolled back only the failed insert
 
 
 async def test_finish_leaves_role_fk_null_until_the_mirror_lands(db_session) -> None:
