@@ -19,11 +19,22 @@ before anything is saved.
 
 ## Example walkthrough
 
-You run:
+```
+/enrich-buyer Raoof Capital
+        │
+        ▼
+ Research empty fields from public sources
+        │
+        ├──▶ Values found ──▶ [Review & Save] ──▶ edit form, pre-filled
+        │                                              │
+        │                                              ▼
+        │                                        Adjust ──▶ submit ──▶ only kept fields saved
+        │
+        └──▶ Nothing found ──▶ "No new field values found from public sources."
+```
 
-> `/enrich-buyer Raoof Capital`
-
-A minute or so later, the bot posts:
+You run `/enrich-buyer Raoof Capital`. A minute or so later, the bot
+posts:
 
 > **Proposed enrichment for Raoof Capital**
 >

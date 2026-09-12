@@ -1,7 +1,6 @@
 # September 2026
 
-Delivery period: Aug 12 – Sep 12, 2026. Full technical detail for every
-item below is in [`CHANGELOG.md`](../../CHANGELOG.md).
+Delivery period: Aug 12 – Sep 12, 2026.
 
 ## Cost impact
 
