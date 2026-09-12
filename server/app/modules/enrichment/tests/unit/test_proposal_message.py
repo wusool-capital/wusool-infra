@@ -133,3 +133,90 @@ def test_url_shaped_proposed_value_renders_as_a_short_link() -> None:
 
     assert "<https://kg.diffbot.com/image/api/get?fetch=yes&url=abc123|View>" in field_block_text
     assert "kg.diffbot.com/image/api/get?fetch=yes&url=abc123*" not in field_block_text
+
+
+def test_schemeless_domain_proposed_value_renders_as_a_link_not_literal_asterisks() -> None:
+    """Diffbot's `linkedin`/`facebook` fields come back as bare domains
+    (no `https://` prefix). Left unrendered, Slack still auto-linkifies the
+    bare domain but the surrounding `*...*` bold markup shows up as literal
+    asterisk characters instead of being interpreted as bold (confirmed
+    live) — rendering it as an explicit link avoids that entirely.
+    """
+    proposal = _proposal(
+        (
+            ProposedFieldValue(
+                field_name="linkedin",
+                write_target=WriteTarget.ORGANIZATION,
+                current=None,
+                proposed="linkedin.com/company/camhatch",
+                source_url="https://example.com",
+                confidence=0.9,
+                rationale="Sourced from Diffbot.",
+            ),
+        )
+    )
+
+    blocks = build_proposal_blocks(proposal)
+    field_block_text = blocks[2].text.text
+
+    assert "<https://linkedin.com/company/camhatch|View>" in field_block_text
+    assert "*linkedin.com/company/camhatch*" not in field_block_text
+
+
+def test_ordinary_text_with_a_period_is_not_mistaken_for_a_domain() -> None:
+    """A description ending in an abbreviation like "Inc." must not be
+    linkified — only a value that is *entirely* a domain-shaped string
+    should be."""
+    proposal = _proposal(
+        (
+            ProposedFieldValue(
+                field_name="description",
+                write_target=WriteTarget.ORGANIZATION,
+                current=None,
+                proposed="A logistics company, formerly Acme Inc.",
+                source_url="https://example.com",
+                confidence=0.9,
+                rationale="Sourced from Diffbot.",
+            ),
+        )
+    )
+
+    blocks = build_proposal_blocks(proposal)
+    field_block_text = blocks[2].text.text
+
+    assert "Proposed: A logistics company, formerly Acme Inc." in field_block_text
+    assert "<https://" not in field_block_text
+
+
+def test_multiline_proposed_value_has_no_stray_asterisks() -> None:
+    """Slack's `*bold*` markup doesn't reliably apply across a multi-line
+    value — a long, multi-paragraph `description` used to be wrapped in
+    `*...*` anyway and showed literal asterisk characters around it
+    (confirmed live)."""
+    long_description = (
+        "CamHatch is the elegant solution to protect your online privacy. Why "
+        "would you choose a post-it or sticker to cover your webcam if you can "
+        "also choose an good-looking, unhackable and 100% secure solution?!\n"
+        "CamHatch has been specifically developed to offer a minimalistic, "
+        "easy-to-use solution for a 100% secure webcam."
+    )
+    proposal = _proposal(
+        (
+            ProposedFieldValue(
+                field_name="description",
+                write_target=WriteTarget.ORGANIZATION,
+                current=None,
+                proposed=long_description,
+                source_url="https://example.com",
+                confidence=0.9,
+                rationale="Sourced from Diffbot.",
+            ),
+        )
+    )
+
+    blocks = build_proposal_blocks(proposal)
+    field_block_text = blocks[2].text.text
+
+    assert f"Proposed: {long_description}" in field_block_text
+    assert "*CamHatch" not in field_block_text
+    assert "webcam.*" not in field_block_text

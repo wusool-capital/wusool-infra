@@ -15,7 +15,12 @@ from app.modules.discovery.providers.firecrawl.schemas import MapsExtraction
 
 logger = logging.getLogger(__name__)
 
-_PLACE_LINK_RE = re.compile(r"/maps/place/([^/]+)/")
+# A required trailing slash here used to reject any real place link that
+# ends at the slug (no trailing `/`) or is followed by a `?query` string —
+# both real shapes Google Maps returns — silently falling every such lead
+# back to the shared, un-resolved search URL instead. Optional trailing
+# slash, and stop at `?` too.
+_PLACE_LINK_RE = re.compile(r"/maps/place/([^/?]+)/?")
 
 
 def _is_google_maps_url(url: str) -> bool:

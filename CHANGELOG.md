@@ -104,6 +104,39 @@ delivered state and outstanding items see
   `discovery_leads_excluded`) — previously silent, correct but
   undiagnosable from logs alone.
 
+### Fixed (from live testing)
+
+- Discovery's free-text fallback search query (used when a buyer's
+  `RequirementProfile` lacks a clean `sector`/`geography`) and the
+  `client_type` fold added earlier today are now capped to a short phrase
+  before reaching Google Maps — an uncapped multi-clause description
+  produced a query Maps couldn't resolve at all ("can't find [the whole
+  sentence]"). Confirmed via comparison against `origin/prod`'s deleted
+  `web_search.py` that the query-construction code itself was unchanged
+  from prod; the underlying weakness was always there, just invisible on
+  prod, which silently dropped an empty search result instead of always
+  posting one.
+- `_match_place_link`'s regex required a trailing slash after a Google Maps
+  place-link slug, rejecting two real link shapes (no trailing slash, or a
+  trailing `?query` string) and silently falling every such lead back to
+  the shared, unresolved search URL — the direct cause of "View on Maps"
+  opening the same failed search for every lead in a batch instead of that
+  lead's own listing.
+- Diffbot's schemeless `linkedin`/`facebook` values (e.g.
+  `"linkedin.com/company/acme"`, no `https://` prefix) now render as a
+  clickable link the same way an `http(s)://`-prefixed value already did.
+  A proposed value is also no longer wrapped in `*...*` bold markup at
+  all — Slack's bold markup doesn't reliably apply either around its own
+  auto-linkified text (a bare domain) or across a multi-line value (a long
+  `description`); both showed up as literal asterisk characters instead of
+  being interpreted as bold (confirmed live, both cases).
+- The seller-add confirmation message's "Enrich" button is replaced with a
+  `/enrich-seller <name>` hint, matching the match-result message's
+  existing pattern. This was the only remaining UI surface emitting
+  `enrich_seller_from_match`, so the now-fully-dead
+  `handle_enrich_seller_from_match` handler and its only-real-caller-gone
+  `_enrich_and_notify` glue function are removed with it.
+
 ## 2026-09-11
 
 ### Added
