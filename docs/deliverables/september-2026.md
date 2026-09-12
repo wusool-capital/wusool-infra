@@ -1,0 +1,86 @@
+# September 2026
+
+Delivery period: Aug 12 – Sep 12, 2026. Full technical detail for every
+item below is in [`CHANGELOG.md`](../../CHANGELOG.md).
+
+## Cost impact
+
+- Bringing meeting summarization in-house (see WusoolScribe below) retired
+  the external Scribe backend dependency entirely — **saves ~$100/month**
+  in compute that would otherwise be spent on that separate service.
+
+## Wusool Toolkit (Slack bot)
+
+- Built the matching engine end-to-end: buyer/seller scoring, AI-assisted
+  reasoning via Bedrock, and Slack-based approvals, from scratch.
+- Added `/edit-seller`, `/edit-buyer`, `/add-seller`, `/add-buyer` — full
+  CRUD on buyer/seller profiles directly from Slack, writing to Attio then
+  the database.
+- Added `/enrich-seller` / `/enrich-buyer` — researches a company from
+  public sources and proposes values for empty fields, for review before
+  saving.
+- Added a Google Maps-backed seller discovery flow ("Find more sellers")
+  for buyers with no strong existing matches.
+- Merged the matching engine and the edit/add bot into one Slack bot
+  (`Wusool Toolkit`) with `/toolkit-status` and `/toolkit-help`.
+- Hardened match reasoning: fixed hard/soft requirement handling, JSON
+  recovery from messy LLM output, and fallback-threshold scoring.
+
+## Live-test fixes (this period's final week)
+
+- Fixed the enrichment/lead-magnet Firecrawl clients silently discarding
+  every search result due to a response-parsing bug — enrichment was
+  returning empty results for every company.
+- Fixed low-quality Google Maps search queries and unresolved "View on
+  Maps" links found during live testing.
+- Fixed Slack messages rendering literal asterisks instead of bold for
+  bare-domain and multi-line values.
+- Replaced a stale per-candidate "Enrich" button with a consistent
+  `/enrich-*` hint line across match results and seller-add confirmations.
+- Added missing success-path logging to Google Maps discovery, closing an
+  observability gap that made a live bug undiagnosable.
+
+## WusoolScribe (desktop meeting assistant)
+
+- Shipped the desktop app's auto-updater with its own S3/CloudFront
+  release feed and a versioning/release process.
+- Added push-based meeting summarization, replacing the old Scribe
+  backend dependency — cuts ~$100/month in compute costs by running
+  summarization in this repo instead of a separate hosted service.
+- Fixed a string of release-process, theming, and push-reliability bugs
+  found while rolling out updates (pnpm/lockfile mismatch, stale version
+  display, missing native-theme permission, timestamp/scroll bugs).
+
+## Lead Magnets
+
+- Migrated all four lead-magnet tools off Vercel/Render/Tally onto AWS.
+- Fixed embed height, PDF export, and the valuation gate; logged an
+  activity row in Attio after every lead-magnet write.
+- Fixed repeat-submission and valuation data gaps found after launch.
+
+## CRM / Data model
+
+- Added lead-magnet fields, `notes.primary_role`, and `organizations.region`
+  to both Attio and Postgres.
+- Retired the legacy Mandates concept in favor of Deal, and cleaned up
+  redundant/dead organization fields.
+- Converted buyer/seller/deal currency fields from AED to USD.
+- Renamed the `people` table to `person` for naming consistency, and
+  fixed the resulting webhook/nightly-sync fallout.
+- Rewrote the nightly Attio full-resync to fix N+1 queries and batch
+  writes.
+- Fixed several rounds of field-slug mismatches between Postgres and the
+  live Attio schema, surfaced by production traffic.
+
+## Infrastructure
+
+- Restructured Terraform into a stacks/modules layout with OIDC-based CD
+  and digest-pinned ECR deploys.
+- Put the Wusool Toolkit bot in an Auto Scaling Group with a reachability
+  alarm routed to Slack via AWS Chatbot.
+- Migrated schema changes onto Alembic, wired into the deploy pipeline.
+
+## Documentation
+
+- Restructured the docs into a client-facing GitBook, with worked
+  example walkthroughs added to every Slack command's user guide page.

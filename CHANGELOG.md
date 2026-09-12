@@ -13,6 +13,11 @@ delivered state and outstanding items see
 
 ### Added
 
+- Added a "Deliverables" section to the GitBook docs, summarizing what
+  shipped each rolling 30-day delivery period (running the 12th/13th of
+  one month to the 12th of the next, matching the client's billing
+  cycle) in a short, thematically-grouped list, linking back to this
+  changelog for detail. First entry covers Aug 12 – Sep 12, 2026.
 - Each Wusool Toolkit user-guide page (`/find-match`, `/edit-seller`/
   `/edit-buyer`, `/add-seller`/`/add-buyer`, `/enrich-seller`/
   `/enrich-buyer`) now includes a worked example walkthrough — a real
