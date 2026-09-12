@@ -133,3 +133,56 @@ def test_url_shaped_proposed_value_renders_as_a_short_link() -> None:
 
     assert "<https://kg.diffbot.com/image/api/get?fetch=yes&url=abc123|View>" in field_block_text
     assert "kg.diffbot.com/image/api/get?fetch=yes&url=abc123*" not in field_block_text
+
+
+def test_schemeless_domain_proposed_value_renders_as_a_link_not_literal_asterisks() -> None:
+    """Diffbot's `linkedin`/`facebook` fields come back as bare domains
+    (no `https://` prefix). Left unrendered, Slack still auto-linkifies the
+    bare domain but the surrounding `*...*` bold markup shows up as literal
+    asterisk characters instead of being interpreted as bold (confirmed
+    live) — rendering it as an explicit link avoids that entirely.
+    """
+    proposal = _proposal(
+        (
+            ProposedFieldValue(
+                field_name="linkedin",
+                write_target=WriteTarget.ORGANIZATION,
+                current=None,
+                proposed="linkedin.com/company/camhatch",
+                source_url="https://example.com",
+                confidence=0.9,
+                rationale="Sourced from Diffbot.",
+            ),
+        )
+    )
+
+    blocks = build_proposal_blocks(proposal)
+    field_block_text = blocks[2].text.text
+
+    assert "<https://linkedin.com/company/camhatch|View>" in field_block_text
+    assert "*linkedin.com/company/camhatch*" not in field_block_text
+
+
+def test_ordinary_text_with_a_period_is_not_mistaken_for_a_domain() -> None:
+    """A description ending in an abbreviation like "Inc." must not be
+    linkified — only a value that is *entirely* a domain-shaped string
+    should be."""
+    proposal = _proposal(
+        (
+            ProposedFieldValue(
+                field_name="description",
+                write_target=WriteTarget.ORGANIZATION,
+                current=None,
+                proposed="A logistics company, formerly Acme Inc.",
+                source_url="https://example.com",
+                confidence=0.9,
+                rationale="Sourced from Diffbot.",
+            ),
+        )
+    )
+
+    blocks = build_proposal_blocks(proposal)
+    field_block_text = blocks[2].text.text
+
+    assert "*A logistics company, formerly Acme Inc.*" in field_block_text
+    assert "<https://" not in field_block_text
