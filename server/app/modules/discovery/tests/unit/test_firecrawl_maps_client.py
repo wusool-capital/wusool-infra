@@ -101,3 +101,47 @@ async def test_does_not_log_when_nothing_was_excluded(caplog) -> None:
         )
 
     assert "discovery_leads_excluded" not in caplog.text
+
+
+async def test_logs_the_query_and_result_on_every_successful_run(caplog) -> None:
+    """A clean, non-excluded run previously left zero log trace of what
+    query ran or what it found — the only prior log lines fired on
+    failure or when an exclusion removed something."""
+    client = FirecrawlMapsClient(api_key="test-key")
+    client._client.scrape = AsyncMock(
+        return_value=_scrape_result([{"name": "Acme Clinics", "category": "Healthcare"}])
+    )
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(industry="Healthcare", geography="UAE", limit=5)
+
+    assert "discovery_maps_search_completed" in caplog.text
+    assert "query=Healthcare companies UAE" in caplog.text
+    assert "businesses_found=1" in caplog.text
+
+
+async def test_logs_zero_resolved_place_links_when_none_matched(caplog) -> None:
+    client = FirecrawlMapsClient(api_key="test-key")
+    client._client.scrape = AsyncMock(
+        return_value=_scrape_result([{"name": "Acme Clinics", "category": "Healthcare"}])
+    )
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(industry="Healthcare", geography="UAE", limit=5)
+
+    assert "resolved_place_links=0" in caplog.text
+
+
+async def test_logs_resolved_place_links_when_matched(caplog) -> None:
+    client = FirecrawlMapsClient(api_key="test-key")
+    client._client.scrape = AsyncMock(
+        return_value=_scrape_result(
+            [{"name": "Acme Clinics", "category": "Healthcare"}],
+            links=["https://www.google.com/maps/place/Acme+Clinics/@40.7,-74.0,15z"],
+        )
+    )
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(industry="Healthcare", geography="UAE", limit=5)
+
+    assert "resolved_place_links=1" in caplog.text
