@@ -9,4 +9,4 @@ calendar month. Every entry links back to [`CHANGELOG.md`](../../CHANGELOG.md)
 for full technical detail; this section stays to the point — a couple of
 lines per feature, fix, or improvement.
 
-* [Aug 12 – Sep 12, 2026](2026-08-12-to-2026-09-12.md)
+* [September 2026](september-2026.md)

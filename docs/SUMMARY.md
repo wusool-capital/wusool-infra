@@ -27,7 +27,7 @@
 ## Deliverables
 
 * [Overview](deliverables/README.md)
-* [Aug 12 – Sep 12, 2026](deliverables/2026-08-12-to-2026-09-12.md)
+* [September 2026](deliverables/september-2026.md)
 
 ## Technical Documentation
 

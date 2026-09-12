@@ -1,6 +1,13 @@
-# Aug 12 – Sep 12, 2026
+# September 2026
 
-Full technical detail for every item below is in [`CHANGELOG.md`](../../CHANGELOG.md).
+Delivery period: Aug 12 – Sep 12, 2026. Full technical detail for every
+item below is in [`CHANGELOG.md`](../../CHANGELOG.md).
+
+## Cost impact
+
+- Bringing meeting summarization in-house (see WusoolScribe below) retired
+  the external Scribe backend dependency entirely — **saves ~$100/month**
+  in compute that would otherwise be spent on that separate service.
 
 ## Wusool Toolkit (Slack bot)
 
@@ -38,7 +45,8 @@ Full technical detail for every item below is in [`CHANGELOG.md`](../../CHANGELO
 - Shipped the desktop app's auto-updater with its own S3/CloudFront
   release feed and a versioning/release process.
 - Added push-based meeting summarization, replacing the old Scribe
-  backend dependency.
+  backend dependency — cuts ~$100/month in compute costs by running
+  summarization in this repo instead of a separate hosted service.
 - Fixed a string of release-process, theming, and push-reliability bugs
   found while rolling out updates (pnpm/lockfile mismatch, stale version
   display, missing native-theme permission, timestamp/scroll bugs).
