@@ -13,8 +13,6 @@ from typing import Any
 from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
-from slack_sdk.models.blocks import ActionsBlock
-from slack_sdk.models.blocks.block_elements import ButtonElement
 from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.attio import AttioError, attio_is_test, get_attio_client
@@ -543,7 +541,7 @@ def register(app: AsyncApp) -> None:
 
         await ack()
         try:
-            seller_role_id = await _write_seller_add(
+            await _write_seller_add(
                 is_new_org=is_new_org,
                 org_attio_id=org_attio_id,
                 org_name=org_name,
@@ -567,19 +565,10 @@ def register(app: AsyncApp) -> None:
         await client.chat_postEphemeral(
             channel=channel_id,
             user=requested_by,
-            text=f"*Added* seller profile for *{org_name}*.",
-            blocks=[
-                ActionsBlock(
-                    block_id=f"seller_add_actions_{seller_role_id}",
-                    elements=[
-                        ButtonElement(
-                            text="Enrich",
-                            action_id="enrich_seller_from_match",
-                            value=seller_role_id,
-                        )
-                    ],
-                )
-            ],
+            text=(
+                f"*Added* seller profile for *{org_name}*.\n"
+                f"Run `/enrich-seller {org_name}` to research missing fields."
+            ),
         )
 
     @app.view("buyer_add_form_modal")
@@ -842,7 +831,7 @@ async def _write_seller_add(
     org_name: str | None,
     org_extracted: dict[str, Any],
     role_extracted: dict[str, Any],
-) -> str:
+) -> None:
     """Attio first, then Postgres — same principle as `_write_seller_edit`,
     extended to creates: when `is_new_org`, the organization itself is
     created in Attio before anything else, and its server-generated
@@ -913,7 +902,7 @@ async def _write_seller_add(
         table="seller_role", fields=SELLER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
     )
     try:
-        role = await ddl_commands_service().create_seller(
+        await ddl_commands_service().create_seller(
             org_attio_id=org_attio_id,
             entry_id=entry_id,
             is_new_org=is_new_org,
@@ -925,7 +914,6 @@ async def _write_seller_add(
         raise
     except Exception as exc:
         raise PartialWriteError(landed, exc) from exc
-    return str(role.id)
 
 
 async def _write_buyer_add(
@@ -936,10 +924,7 @@ async def _write_buyer_add(
     org_extracted: dict[str, Any],
     role_extracted: dict[str, Any],
 ) -> None:
-    """Mirrors `_write_seller_add`, buyer-typed — except the return value:
-    buyers have no post-add "Enrich" button today, so this doesn't need to
-    hand back the created role's id the way `_write_seller_add` does.
-    """
+    """Mirrors `_write_seller_add`, buyer-typed."""
     landed: list[str] = []
     attio_client = get_attio_client()
     is_test = attio_is_test()

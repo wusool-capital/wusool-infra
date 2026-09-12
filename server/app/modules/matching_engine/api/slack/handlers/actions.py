@@ -137,32 +137,6 @@ def register(app: AsyncApp) -> None:
             name=f"discover:{run_id}",
         )
 
-    @app.action("enrich_seller_from_match")
-    async def handle_enrich_seller_from_match(ack: AsyncAck, body: SlackInteractionBody) -> None:
-        await ack()
-        seller_role_id = body["actions"][0].get("value")
-        channel_id = body["channel"]["id"]
-        if not seller_role_id:
-            return
-        _task_runner.run(
-            lambda: _enrich_and_notify(
-                kind="seller", role_id=seller_role_id, channel_id=channel_id
-            ),
-            name=f"enrich-seller:{seller_role_id}",
-        )
-
-
-async def _enrich_and_notify(*, kind: str, role_id: str, channel_id: str) -> None:
-    """The per-candidate "Enrich" button on a match result lands here —
-    hands off to `enrichment`, which resolves the org itself and owns the
-    rest of the flow. Kind-agnostic (`/enrich-seller` and `/enrich-buyer`
-    reach the same enrichment pipeline through a different entry point,
-    `enrichment`'s own Slack commands).
-    """
-    from app.modules.enrichment import enrich_and_post
-
-    await enrich_and_post(kind=kind, role_id=role_id, channel_id=channel_id)
-
 
 async def _handle_decision(
     body: SlackInteractionBody, client: AsyncWebClient, respond: AsyncRespond, decision: str
