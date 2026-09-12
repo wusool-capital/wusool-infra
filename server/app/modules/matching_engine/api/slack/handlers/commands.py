@@ -17,7 +17,11 @@ from app.modules.matching_engine.api.dependencies import resolve_buyer
 from app.modules.matching_engine.api.slack.views.buyer_selection import (
     build_buyer_selection_modal,
 )
-from app.modules.notifications import SlackCommandPayload
+from app.modules.notifications import (
+    SlackCommandPayload,
+    build_notice_modal,
+    open_loading_modal,
+)
 from app.modules.utilities import get_shared_idempotency_store
 
 logger = logging.getLogger(__name__)
@@ -55,19 +59,24 @@ def register(app: AsyncApp) -> None:
             )
             return
 
+        view_id = await open_loading_modal(
+            client, trigger_id=command["trigger_id"], title="Find match"
+        )
+
         resolution = await resolve_buyer(buyer_name)
 
         if resolution.status == "none":
-            await client.chat_postEphemeral(
-                channel=channel_id,
-                user=user_id,
-                text=f"No buyer found for '{buyer_name}'. Try a different name.",
+            await client.views_update(
+                view_id=view_id,
+                view=build_notice_modal(
+                    "Find match", f"No buyer found for '{buyer_name}'. Try a different name."
+                ),
             )
             return
 
         assert resolution.candidates is not None
-        await client.views_open(
-            trigger_id=command["trigger_id"],
+        await client.views_update(
+            view_id=view_id,
             view=build_buyer_selection_modal(
                 resolution.candidates, requested_by=user_id, channel_id=channel_id
             ),
