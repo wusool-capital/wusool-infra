@@ -22,13 +22,19 @@ from app.modules.lead_magnets.api.schemas import (
     ReadinessResponse,
     RecommendationOut,
 )
-from app.modules.lead_magnets.bootstrap import build_llm, build_submission_service, run_completion
+from app.modules.lead_magnets.bootstrap import (
+    build_llm,
+    build_submission_service,
+    build_tool_runs,
+    run_completion,
+)
 from app.modules.lead_magnets.domain.readiness.readiness import (
     ReadinessAnswers,
     build_advisory_content,
 )
 from app.modules.lead_magnets.domain.shared.prompts import readiness_score_prompt
 from app.modules.lead_magnets.domain.shared.schemas import ReadinessResult
+from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 router = APIRouter(
     tags=["lead-magnets"],
@@ -62,16 +68,21 @@ async def readiness_score(
     # The model call is on the response path here, unlike every other tool:
     # the visitor's whole report is its output, so there is nothing to show
     # without it. The lead is already safe either way.
-    scored = await build_llm().score_readiness(
-        prompt=readiness_score_prompt(
-            founder=request.name,
-            business=request.company,
-            sector=request.sector,
-            revenue_range=request.revenue or "Not specified",
-            country=request.country or "Not specified",
-            answers=answers,
+    try:
+        scored = await build_llm().score_readiness(
+            prompt=readiness_score_prompt(
+                founder=request.name,
+                business=request.company,
+                sector=request.sector,
+                revenue_range=request.revenue or "Not specified",
+                country=request.country or "Not specified",
+                answers=answers,
+            )
         )
-    )
+    except BedrockInvocationError as exc:
+        await build_tool_runs(session).finish(run_id, "failed", error=str(exc))
+        await session.commit()
+        raise
     # Handed to the background half so the advisory note does not pay for a
     # second scoring call: `Pipelines._readiness` reuses `payload.score`.
     await _store_score(session, run_id, scored)
