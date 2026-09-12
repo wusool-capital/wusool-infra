@@ -410,8 +410,6 @@ each deliberately:
 
 ## Not built yet
 
-- The `activities` timeline row (step 6 — it needs a resolved subject, so
-  it cannot be written before the Attio write succeeds).
 - `POST /buyer/apply` and `POST /submit-lead` verified against a real
   Attio/Postgres pair — both built and unit-tested, but never exercised
   end to end the way `/benchmark` and `/readiness/score` have been.
