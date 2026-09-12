@@ -84,6 +84,11 @@ An accepted request returns a generated `meeting_id`, status
 the final typed summary. Invalid input returns `422`, an unknown company
 reference returns `422`, and a repeated install/recording pair returns `409`.
 
+The desktop client should retain the local meeting while polling. A
+`"completed"` status means the structured summary is available; a failed
+status should preserve the local transcript and surface a recovery action.
+The client must not create a new local recording ID merely to bypass `409`.
+
 ## Processing and failures
 
 Recordings and drafts persist locally, so a network failure does not erase the

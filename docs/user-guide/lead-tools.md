@@ -24,6 +24,20 @@ score and advice, Benchmark shows peer comparisons, and Buyer Network confirms
 the application. The submission is recorded before downstream CRM processing
 so a later integration failure does not discard the lead.
 
+## Example: complete a valuation
+
+An owner of **Example Manufacturing** enters current revenue, cash, debt, and
+contact details, accepts the consent statement, and submits the Valuation tool.
+
+**Expected result:** the page displays a low, midpoint, and high estimate with
+the methods used. A corresponding organization and seller context appear in
+Attio after processing. The figures are decision-support estimates, not a
+formal valuation.
+
+If the page reports a validation error, correct the highlighted field and
+submit again. If a result already appeared, do not submit a second time merely
+because Attio is still processing the record.
+
 ## Find the submission in Attio
 
 Search using the submitted email, company name, or domain. Valuation,

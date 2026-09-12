@@ -88,6 +88,20 @@ You can close the app while processing continues. Avoid pushing again merely
 because processing takes time. If it fails, verify destination settings and
 use [Troubleshooting](troubleshooting.md).
 
+## Example: file a client meeting
+
+After a call with **Example Manufacturing**, stop the recording and correct
+names, figures, decisions, and actions in the transcript and summary. Search
+for the company, select the matching Attio organization, and press **Push**.
+
+**Expected result:** the meeting first shows a processing status and later a
+completed status. Attio receives a structured note linked to the selected
+organization or role. The audio file remains local and is not uploaded.
+
+If processing fails, keep the local meeting, verify the destination, and retry
+through the app's supported recovery flow. Do not recreate the recording or
+push repeatedly while the first request is still processing.
+
 ## Updates and local data
 
 WusoolScribe checks for signed updates automatically. Accept the prompt or

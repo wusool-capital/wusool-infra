@@ -86,6 +86,11 @@ valuation figures, and the contributing methods. Validation errors return
 `422`, and rate limiting returns `429`. A later duplicate for the same identity
 returns `409`. A network replay with the same submission ID is idempotent.
 
+The browser should display the returned range once and retain the run context
+for support. On `422`, it should identify the invalid input. On `429`, it
+should ask the visitor to wait. On `409`, it must not imply that a second CRM
+lead was created.
+
 ## Processing and failures
 
 - A durable ledger row exists before AI or Attio work, so downstream failure

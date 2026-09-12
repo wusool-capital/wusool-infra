@@ -51,6 +51,18 @@ Operators can trigger the OpenTofu-managed SSM bootstrap document to refresh
 Compose configuration while preserving the volume. The stack outputs the URL,
 instance identifier, security group, secret name, and SSM document name.
 
+### Example failure investigation
+
+A webhook execution reaches n8n but fails in an external-service node. The
+operator first records the execution ID and checks the completed nodes for
+side effects. Application logs establish whether the request reached n8n;
+execution history identifies the failed node and its returned error. EC2 and
+CPU alarms only describe host health.
+
+Retry the execution only when the workflow's idempotency behavior and external
+state make that safe. If the webhook never reached n8n, check DNS, Caddy logs,
+and container health before changing the workflow.
+
 ## Processing and failures
 
 - Containers use `restart: always`; bootstrap retries transient Compose

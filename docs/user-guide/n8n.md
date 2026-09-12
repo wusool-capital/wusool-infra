@@ -34,6 +34,20 @@ sandbox mode.
 A failure identifies the node and error that stopped or partially completed
 the run.
 
+## Example: investigate a failed execution
+
+Suppose an active workflow stops at **Create CRM record**.
+
+1. Open the failed execution without retrying it.
+2. Inspect that node's input, output, credential reference, and error.
+3. Check whether the target CRM already contains the intended record.
+4. Correct the cause in development or with the workflow owner.
+5. Retry only after confirming that completed nodes will not duplicate work.
+
+**Expected result:** the retry completes once, or the owner receives the
+execution ID and exact failing node for escalation. Never treat a red final
+node as proof that earlier nodes made no external changes.
+
 ## Change a workflow safely
 
 - Confirm the owner and expected inputs and outputs.

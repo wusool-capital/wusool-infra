@@ -73,6 +73,19 @@ records.
 There are no remove commands and no public REST endpoints for match or profile
 data.
 
+### Example matching trace
+
+For `/find-match Example Holdings`, Slack first asks the user to confirm the
+buyer. After confirmation, the service creates a run, extracts requirements,
+filters and scores eligible sellers deterministically, and generates narrative
+reasoning for the shortlist. It commits the run and candidate results together
+before posting review actions to Slack.
+
+If requirement extraction or reasoning fails, the run stops and reports an
+error instead of inventing a result. If every CRM candidate scores below the
+discovery threshold, public seller discovery can offer unverified leads.
+None becomes a CRM seller until an operator completes the add-seller flow.
+
 ## Processing rules and failures
 
 - Attio failures before any remote write leave PostgreSQL unchanged. If an

@@ -25,6 +25,21 @@ notes, and activities according to your permissions.
 The exact lists and views depend on workspace configuration and permissions.
 Search the underlying record if a saved view does not show an expected lead.
 
+## Example: verify a Toolkit update
+
+Suppose Toolkit confirms that **Example Manufacturing** was updated after an
+operator changed its seller revenue.
+
+1. Search Attio for `Example Manufacturing`.
+2. Open the organization whose domain matches the company.
+3. Follow the linked seller record and confirm the new revenue.
+4. Check the activity time against the Toolkit confirmation.
+
+**Expected result:** the existing organization and seller show the updated
+value; no second organization was created. If the update is absent, wait for
+the normal synchronization delay, then report the record URL, field, and edit
+time. Do not create a replacement record to work around a delayed update.
+
 ## Edit safely
 
 - Update the existing organization when it is the same entity; avoid creating

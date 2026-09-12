@@ -56,6 +56,19 @@ The integration supports create/update synchronization for the approved model.
 It is not unrestricted CRM CRUD: Toolkit removal commands are absent, and
 record deletion is not a general client interface.
 
+### Example synchronization path
+
+An operator updates a seller field in Attio. The signed webhook validates the
+workspace and updates the matching PostgreSQL row. If delivery is missed or
+arrives out of order, the next full synchronization compares the approved
+fields and converges the mirror. A later `/find-match` request reads the
+corrected PostgreSQL value.
+
+If Attio shows the change but PostgreSQL does not, preserve the record ID,
+field, value, and edit time. Check webhook processing and full-sync validation
+before editing PostgreSQL directly, because the next sync can overwrite a
+database-only correction.
+
 ## Processing and failures
 
 - Invalid signatures or workspace IDs are rejected before mutation.

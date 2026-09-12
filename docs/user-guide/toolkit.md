@@ -46,6 +46,17 @@ Match results never contact an organization or change its profile or deal.
 Approval and rejection record the decision only. The bot rechecks current
 data before saving a decision made from an older Slack message.
 
+### Example: review a low-confidence match
+
+Run `/find-match Example Holdings` and select the buyer. Suppose the first
+seller has a strong fit score but low confidence. Open the full analysis and
+identify missing facts. Use `/enrich-seller`, review the sourced proposal,
+save only verified values, and run the match again.
+
+**Expected result:** the second result uses the reviewed CRM data. Approve it
+only if the evidence supports the recommendation; a higher score never sends
+a message to the seller or advances a deal automatically.
+
 ### If matching does not work
 
 - **Buyer not found:** use the exact Attio name or add it with `/add-buyer`.

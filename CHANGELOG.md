@@ -20,6 +20,8 @@ for current production evidence and open handover items.
 
 - Reorganized the GitBook around consolidated product guides, technical
   references, and operational handover runbooks.
+- Added text-based, end-to-end examples with expected results and recovery
+  guidance across every product guide.
 - Condensed the changelog into milestone summaries; commit-level detail remains
   available in Git history.
 
