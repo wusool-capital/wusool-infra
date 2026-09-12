@@ -1,9 +1,7 @@
 # Internal-only outstanding items
 
-> Split out of `docs/handover/README.md` §7 when the handover doc became a
-> client-facing GitBook page ([`docs/handover/outstanding.md`](../handover/outstanding.md)).
-> These items are internal housekeeping — not client-relevant delivery
-> status — so they stay here instead.
+> Internal engineering follow-ups that do not belong in the client-facing
+> [delivery status](../operations/delivery-status.md).
 
 | Area | Item |
 | --- | --- |

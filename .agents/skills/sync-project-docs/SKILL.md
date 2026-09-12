@@ -1,6 +1,6 @@
 ---
 name: sync-project-docs
-description: Keep the repo-wide documentation set synchronized with the actual state of the code, scripts, and Terraform — CHANGELOG.md, docs/handover/, docs/technical/, docs/user-guide/, and every README not owned by sync-terraform-docs or sync-crm-schema-docs. Use after finishing a unit of work (Terraform change, migration milestone, new script, new workstream, a user-facing behaviour change), whenever asked to refresh/update/sync documentation, and before ending a session that changed tracked files.
+description: Keep the repo-wide documentation set synchronized with the actual state of the code, scripts, and Terraform — CHANGELOG.md, docs/operations/, docs/technical/, docs/user-guide/, and every README not owned by sync-terraform-docs or sync-crm-schema-docs. Use after finishing a unit of work (Terraform change, migration milestone, new script, new workstream, a user-facing behaviour change), whenever asked to refresh/update/sync documentation, and before ending a session that changed tracked files.
 ---
 
 # Sync Project Docs
@@ -12,15 +12,14 @@ owns everything else:
 1. **`CHANGELOG.md`** — append meaningful changes under a dated heading,
    newest first, grouped Added / Changed / Fixed / Removed. One or two lines
    each, referencing the PR number. Not a diary — skip routine churn.
-2. **`docs/handover/README.md`** — the current delivered state. Update the
-   delivered-components table, environments/URLs, known limitations, and the
-   outstanding-items table when any of those actually change.
-3. **`docs/technical/README.md`** — architecture, deployment, config, and the
-   document map. Update when a module, an external service, a CI job, or the
-   deploy flow changes. Keep it a curated map — do not duplicate the root
-   `README.md` or the module READMEs into it.
-4. **`docs/user-guide/README.md`** — update only when the Slack bot's
-   user-visible behaviour changes (a command, a flow step, a rule or limit).
+2. **`docs/operations/`** — the current delivered state and operational
+   handover. Update environments, deployment and recovery procedures,
+   monitoring, ownership, dependencies, and open items when they change.
+3. **`docs/technical/`** — platform architecture plus one consolidated
+   technical reference per product. Update the affected product page when a
+   module, service, API, configuration value, or data flow changes.
+4. **`docs/user-guide/`** — one consolidated guide per product. Update the
+   affected page when a user-visible workflow, command, rule, or limit changes.
 5. **`docs/README.md`** — the docs index; update if a page is added or removed.
 6. **Every other README** not owned by the sibling skills — root `README.md`
    non-Terraform sections, `server/README.md` and the module READMEs under
@@ -45,15 +44,18 @@ owns everything else:
    describes (file names, flags, commands, prerequisites, directory trees).
    Correct anything stale. Do not invent capability that isn't in the code.
 4. Add a `CHANGELOG.md` entry for anything meaningful, and reflect it in
-   `docs/handover/README.md` (delivered state / limitations / outstanding)
-   and `docs/technical/README.md` (architecture / deployment / config) where
-   relevant.
+   `docs/operations/delivery-status.md` and the affected technical or user
+   guide where relevant.
 5. Run, if Terraform or scripts changed:
    ```powershell
    tofu fmt -check -recursive
    git diff --check
    ```
-6. Report what changed, or say explicitly that nothing needed updating.
+6. If client-facing GitBook files changed, run Vale using the paths in
+   `docs/dev/DOCUMENTATION_STYLE_GUIDE.md` and resolve errors. Review warnings
+   individually; do not shorten necessary safety or recovery information only
+   to satisfy a numeric target.
+7. Report what changed, or say explicitly that nothing needed updating.
 
 ## Source-of-truth rules
 

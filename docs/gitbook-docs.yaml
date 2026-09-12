@@ -5,7 +5,6 @@ site:
     - type: space
       key: platform-docs
       title: Wusool Capital Docs
-      path: undefined
       default: true
       content:
         directory: ./

@@ -1,0 +1,6 @@
+extends: occurrence
+message: "Split this paragraph into focused ideas (%d words)."
+level: warning
+scope: paragraph
+max: 100
+token: '\b\w+\b'
