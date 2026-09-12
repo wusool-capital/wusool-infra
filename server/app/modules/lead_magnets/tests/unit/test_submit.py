@@ -28,12 +28,12 @@ class _FakeToolRuns:
         self.started: list[tuple[str, str]] = []
         self.stages: list[tuple[str, JsonObject | None]] = []
         self.finished: list[tuple[str, str | None]] = []
-        self.is_new = True
+        self.outcome = "new"
 
     async def start(self, *, tool, payload, idempotency_key):
         self.calls.append("start")
         self.started.append((tool, idempotency_key))
-        return uuid4(), self.is_new
+        return uuid4(), self.outcome
 
     async def set_stage(self, run_id, *, stage, output=None):
         self.calls.append(f"set_stage:{stage}")
@@ -123,15 +123,17 @@ async def test_record_happens_before_any_provider_call() -> None:
     assert tool_runs.started[0] == ("readiness", "readiness|f@acme.com|acme.com")
 
 
-async def test_record_reports_a_replay_so_the_caller_stops() -> None:
+async def test_record_passes_the_outcome_through_untouched() -> None:
+    """`record` is a thin delegation — whatever `ToolRunsPort.start` decides
+    (`"new"`/`"replay"`/`"duplicate"`) reaches the caller verbatim."""
     tool_runs, attio = _FakeToolRuns(), _FakeAttio()
-    tool_runs.is_new = False
+    tool_runs.outcome = "duplicate"
     service, _ = _service(tool_runs, attio)
 
-    _, is_new = await service.record(
+    _, outcome = await service.record(
         tool="readiness", payload={}, email="f@acme.com", domain="acme.com"
     )
-    assert is_new is False
+    assert outcome == "duplicate"
 
 
 async def test_happy_path_order() -> None:

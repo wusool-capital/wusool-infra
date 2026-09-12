@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.modules.lead_magnets.domain.shared.tool_run import (
     Stage,
+    StartOutcome,
     SubjectRefs,
     Tool,
     ToolRunRecord,
@@ -19,7 +20,7 @@ from app.modules.utilities.domain.json_types import JsonObject
 class ToolRunsPort(Protocol):
     async def start(
         self, *, tool: Tool, payload: JsonObject, idempotency_key: str
-    ) -> tuple[UUID, bool]: ...
+    ) -> tuple[UUID, StartOutcome]: ...
 
     async def set_stage(
         self, run_id: UUID, *, stage: Stage, output: JsonObject | None = None

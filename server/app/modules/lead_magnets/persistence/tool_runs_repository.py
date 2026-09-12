@@ -22,6 +22,7 @@ from app.models.seller_role import SellerRole
 from app.models.tool_run import ToolRun
 from app.modules.lead_magnets.domain.shared.tool_run import (
     Stage,
+    StartOutcome,
     SubjectRefs,
     Tool,
     ToolRunRecord,
@@ -66,12 +67,25 @@ class ToolRunsRepository:
 
     async def start(
         self, *, tool: Tool, payload: JsonObject, idempotency_key: str
-    ) -> tuple[UUID, bool]:
-        """Step 1 of the write contract. Returns `(run_id, is_new)`.
+    ) -> tuple[UUID, StartOutcome]:
+        """Step 1 of the write contract. Returns `(run_id, outcome)`.
 
-        `is_new=False` means this exact submission is already in flight or
-        done — a double-clicked button or a retried POST — and the caller
-        must not run the pipeline again.
+        `idempotency_key` (`tool|email|domain`) is the only stored dedup
+        key — no separate column exists for the finer distinction below,
+        because `payload.submission_id` is already there for every tool
+        (it's part of the raw request dump), so a colliding row's own
+        payload is enough to tell the two cases apart without adding one:
+
+          "new"       -> no collision, insert succeeded.
+          "replay"    -> collision, but the existing row's own
+                         `submission_id` matches this request's — the
+                         exact same submission landed twice (a network
+                         retry), not a new person. The caller must not
+                         run the pipeline again, but this is not an error
+                         to show the visitor.
+          "duplicate" -> collision with a *different* `submission_id` —
+                         a genuine second visit from the same person for
+                         the same tool. The caller should tell them.
 
         `idempotency_key` is never allowed to be None here even though the
         column is nullable: Postgres permits unlimited NULLs in a UNIQUE
@@ -91,14 +105,25 @@ class ToolRunsRepository:
         )
         inserted = (await self._session.execute(stmt)).scalar_one_or_none()
         if inserted is not None:
-            return inserted, True
+            return inserted, "new"
 
-        existing = (
+        existing_id, existing_payload = (
             await self._session.execute(
-                select(ToolRun.id).where(ToolRun.idempotency_key == idempotency_key)
+                select(ToolRun.id, ToolRun.payload).where(
+                    ToolRun.idempotency_key == idempotency_key
+                )
             )
-        ).scalar_one()
-        return existing, False
+        ).one()
+        incoming_submission_id = payload.get("submission_id")
+        # `is not None`, not truthy: two payloads that both genuinely lack
+        # a submission_id must never compare equal and be treated as the
+        # same request — that would silently swallow a real second
+        # submission that just happened to be malformed the same way.
+        if incoming_submission_id is not None and (
+            existing_payload.get("submission_id") == incoming_submission_id
+        ):
+            return existing_id, "replay"
+        return existing_id, "duplicate"
 
     async def set_stage(
         self, run_id: UUID, *, stage: Stage, output: JsonObject | None = None

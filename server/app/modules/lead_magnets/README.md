@@ -194,6 +194,28 @@ Postgres is never written directly for entity data: the Attio→Postgres
 webhook mirror in `ddl_commands` already maps every lead-magnet and
 benchmark column, so this module writes Attio and lets the mirror follow.
 
+### Replay vs. duplicate — one column, no new storage
+
+`tool_runs.idempotency_key` (`tool|email|domain`) is the only stored dedup
+key, and a collision on it is *not* automatically an error. `start()`
+(`persistence/tool_runs_repository.py`) tells two different situations
+apart by comparing `payload.submission_id` — already stored for every
+tool, since it's part of the raw request dump — on the colliding row
+against the incoming request's own `submission_id`:
+
+- **Same `submission_id`** → a **replay**: the exact same request landed
+  twice (a network retry), not a new person. Silent — the caller must not
+  run the pipeline again, but must not tell the visitor anything either.
+  Readiness reuses the already-stored `payload.score` instead of paying
+  for Bedrock a second time; the other tools just recompute (they're
+  deterministic from the stored inputs, so it's free either way).
+- **Different `submission_id`** → a **duplicate**: a genuine second visit
+  from the same person, for the same tool. Rejected with `409` and
+  `"you have already completed this"`, visibly.
+
+No second column, no new table — `submission_id` was always in `payload`,
+this just started reading it back.
+
 ### Why `tool_runs` and not `activities`
 
 `activities` carries `CHECK (subject_attio_id IS NOT NULL OR subject_uuid IS

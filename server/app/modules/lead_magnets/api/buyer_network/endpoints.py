@@ -36,7 +36,7 @@ async def buyer_apply(
     fix.
     """
     service = build_submission_service(session)
-    run_id, is_new = await service.record(
+    run_id, outcome = await service.record(
         tool="buyer_network",
         payload=request.model_dump(),
         email=request.email,
@@ -44,8 +44,10 @@ async def buyer_apply(
     )
     await session.commit()
 
-    if not is_new:
+    if outcome == "duplicate":
         raise HTTPException(status.HTTP_409_CONFLICT, "you have already completed this")
+    # "replay" is handled like "new": `run_completion` is idempotent
+    # against a run that already finished.
 
     background.add_task(run_completion, run_id)
 

@@ -105,13 +105,13 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     attio, ai = _FakeAttio(), _Spy(output={"score": 55})
     service = _service(db_session, attio, ai)
 
-    run_id, is_new = await service.record(
+    run_id, outcome = await service.record(
         tool="benchmark",
         payload={"company_name": _CO, "contact_name": "Dana"},
         email="Dana@AcmeGroup.ae",
         domain="https://www.acmegroup.ae/about",
     )
-    assert is_new
+    assert outcome == "new"
     # Step 1 only — the visitor's response goes out here, before any provider.
     before = await _row(db_session, run_id)
     assert before.status == "running"
@@ -258,17 +258,17 @@ async def test_a_valuation_ai_failure_does_resume_from_its_fallback(db_session) 
 
 @pytest.mark.parametrize("clicks", [2, 3])
 async def test_repeat_submission_creates_one_row(db_session, clicks: int) -> None:
-    """No `submission_id` in the key any more, so this covers both a literal
-    double-click *and* a genuine second visit from the same person for the
-    same tool — either way, one row, and the caller is told `is_new=False`
-    rather than silently reprocessing."""
+    """Each call carries its own distinct `submission_id` — a genuine
+    second (and third) visit from the same person for the same tool, not
+    a retried POST of the same request. One row, and every repeat is a
+    "duplicate" (visible to the caller), not a silent "replay"."""
     attio, ai = _FakeAttio(), _Spy()
     service = _service(db_session, attio, ai)
 
     seen = [
         await service.record(
             tool="benchmark",
-            payload={"n": n},
+            payload={"n": n, "submission_id": f"s{n}"},
             email="d@acme.ae",
             domain="acme.ae",
         )
@@ -276,6 +276,110 @@ async def test_repeat_submission_creates_one_row(db_session, clicks: int) -> Non
     ]
     ids = {run_id for run_id, _ in seen}
     assert len(ids) == 1
-    assert [is_new for _, is_new in seen] == [True] + [False] * (clicks - 1)
+    assert [outcome for _, outcome in seen] == ["new"] + ["duplicate"] * (clicks - 1)
     # The first payload wins; a replay never overwrites it.
     assert (await _row(db_session, ids.pop())).payload["n"] == 0
+
+
+async def test_readiness_replay_reuses_the_stored_score_without_a_second_bedrock_call(
+    db_session, monkeypatch
+) -> None:
+    """The endpoint's own dedup check, not the write-contract's `Pipelines`
+    — readiness scores synchronously on the response path, so a retried
+    POST of the exact same request (same `submission_id`) must reuse the
+    already-stored score instead of paying for Bedrock twice, and must
+    return the identical result both times."""
+    from fastapi import BackgroundTasks
+
+    from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
+    from app.modules.lead_magnets.api.schemas import ReadinessAnswersIn, ReadinessRequest
+    from app.modules.lead_magnets.domain.shared.schemas import (
+        ReadinessDimension,
+        ReadinessRecommendation,
+        ReadinessResult,
+    )
+
+    fake_result = ReadinessResult(
+        overallScore=72.5,
+        scoreBand="Getting There",
+        summaryParagraph="A solid start.",
+        dimensions=[ReadinessDimension(name=f"Dim {i}", score=70, insight="x") for i in range(5)],
+        recommendations=[ReadinessRecommendation(title=f"Rec {i}", detail="y") for i in range(3)],
+    )
+    calls = {"n": 0}
+
+    class _FakeLlm:
+        async def score_readiness(self, prompt):
+            calls["n"] += 1
+            return fake_result
+
+    monkeypatch.setattr(readiness_endpoints, "build_llm", lambda: _FakeLlm())
+
+    request = ReadinessRequest(
+        submission_id="s-replay-1",
+        name="Sam",
+        company="Zeta Trading",
+        email="sam@zetatrading.ae",
+        sector="Contracting",
+        domain="zetatrading.ae",
+        answers=ReadinessAnswersIn(q1=2),
+    )
+
+    first = await readiness_endpoints.readiness_score(request, db_session, BackgroundTasks())
+    second = await readiness_endpoints.readiness_score(request, db_session, BackgroundTasks())
+
+    assert calls["n"] == 1, "Bedrock must not be re-billed for the exact same request"
+    assert first.run_id == second.run_id
+    assert second.overallScore == fake_result.overallScore
+    assert second.summaryParagraph == fake_result.summaryParagraph
+
+
+async def test_readiness_duplicate_is_rejected_without_calling_bedrock(
+    db_session, monkeypatch
+) -> None:
+    """A genuinely different visit (different `submission_id`) from the
+    same person must be rejected with a 409 — and must not touch Bedrock
+    at all, since the rejection happens before the model call."""
+    from fastapi import BackgroundTasks, HTTPException
+
+    from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
+    from app.modules.lead_magnets.api.schemas import ReadinessAnswersIn, ReadinessRequest
+    from app.modules.lead_magnets.domain.shared.schemas import (
+        ReadinessDimension,
+        ReadinessRecommendation,
+        ReadinessResult,
+    )
+
+    fake_result = ReadinessResult(
+        overallScore=50.0,
+        scoreBand="Early Stage",
+        summaryParagraph="x",
+        dimensions=[ReadinessDimension(name=f"Dim {i}", score=50, insight="x") for i in range(5)],
+        recommendations=[ReadinessRecommendation(title=f"Rec {i}", detail="y") for i in range(3)],
+    )
+    calls = {"n": 0}
+
+    class _FakeLlm:
+        async def score_readiness(self, prompt):
+            calls["n"] += 1
+            return fake_result
+
+    monkeypatch.setattr(readiness_endpoints, "build_llm", lambda: _FakeLlm())
+
+    def request(submission_id: str) -> ReadinessRequest:
+        return ReadinessRequest(
+            submission_id=submission_id,
+            name="Sam",
+            company="Eta Trading",
+            email="sam@etatrading.ae",
+            sector="Contracting",
+            domain="etatrading.ae",
+            answers=ReadinessAnswersIn(q1=2),
+        )
+
+    await readiness_endpoints.readiness_score(request("s-dup-1"), db_session, BackgroundTasks())
+    with pytest.raises(HTTPException) as excinfo:
+        await readiness_endpoints.readiness_score(request("s-dup-2"), db_session, BackgroundTasks())
+
+    assert excinfo.value.status_code == 409
+    assert calls["n"] == 1, "the duplicate must be rejected before any Bedrock call"

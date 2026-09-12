@@ -44,7 +44,7 @@ async def benchmark(
     Keeps the path the live page already posts to.
     """
     service = build_submission_service(session)
-    run_id, is_new = await service.record(
+    run_id, outcome = await service.record(
         tool="benchmark",
         payload=request.model_dump(),
         email=request.email,
@@ -59,8 +59,12 @@ async def benchmark(
     #      is invisible to it and the completion is skipped entirely.
     await session.commit()
 
-    if not is_new:
+    if outcome == "duplicate":
         raise HTTPException(status.HTTP_409_CONFLICT, "you have already completed this")
+    # "replay" (the exact same request landed twice) is handled exactly
+    # like "new" below — scoring is deterministic from the stored inputs,
+    # so recomputing it is harmless, and `run_completion` is itself
+    # idempotent against a run that already finished.
 
     background.add_task(run_completion, run_id)
 

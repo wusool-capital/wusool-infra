@@ -21,7 +21,12 @@ from uuid import UUID
 
 from app.modules.lead_magnets.application.shared.ports import AttioWriterPort, ToolRunsPort
 from app.modules.lead_magnets.domain.shared.dedup import idempotency_key
-from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs, Tool, ToolRunRecord
+from app.modules.lead_magnets.domain.shared.tool_run import (
+    StartOutcome,
+    SubjectRefs,
+    Tool,
+    ToolRunRecord,
+)
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
@@ -58,11 +63,12 @@ class SubmissionService:
         payload: JsonObject,
         email: str | None,
         domain: str | None,
-    ) -> tuple[UUID, bool]:
-        """Step 1. Returns `(run_id, is_new)`; `is_new=False` means this
-        person has already completed this tool — the caller must not run
-        the pipeline again, and should tell the visitor rather than quietly
-        reprocessing.
+    ) -> tuple[UUID, StartOutcome]:
+        """Step 1. Returns `(run_id, outcome)` — see `StartOutcome`: a
+        `"duplicate"` means the caller should tell the visitor; a
+        `"replay"` means the caller must not run the pipeline again but
+        must not show an error either, since it's the exact same request
+        as before, not a new person.
         """
         return await self._tool_runs.start(
             tool=tool,

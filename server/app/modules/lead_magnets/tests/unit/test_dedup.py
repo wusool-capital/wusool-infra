@@ -136,9 +136,11 @@ def test_domain_matches_is_false_for_an_empty_domain() -> None:
 
 
 def test_idempotency_key_is_identical_for_a_repeat_visit() -> None:
-    """No `submission_id` component any more — a second genuine visit from
-    the same person, for the same tool, must produce the exact same key so
-    it collides on purpose (`is_new=False`) rather than sailing through as
-    a new person the way it did when `submission_id` was part of the key."""
+    """No `submission_id` component — a second genuine visit from the same
+    person, for the same tool, must produce the exact same key so it
+    collides on purpose (`ToolRunsRepository.start` then tells `"replay"`
+    from `"duplicate"` by comparing `payload.submission_id` on the
+    colliding row) rather than sailing through as a new person the way it
+    did when `submission_id` was part of this key."""
     args = {"tool": "readiness", "email": "f@acme.com", "domain": "acme.com"}
     assert idempotency_key(**args) == idempotency_key(**args)
