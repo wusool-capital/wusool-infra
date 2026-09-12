@@ -13,6 +13,12 @@ delivered state and outstanding items see
 
 ### Fixed
 
+- Discovery's Google Maps client now logs the query, businesses found, and
+  how many got a resolved place link (vs. falling back to the shared
+  search URL) on every successful run — previously the only log lines
+  fired on failure or when an exclusion removed something, so a clean run
+  that still surfaced a wrong/mismatched lead (e.g. a "View on Maps" link
+  pointing at an unrelated search) left zero diagnosable trace.
 - **`enrichment`'s and `lead_magnets`' Firecrawl `search()` clients were
   silently discarding every single result, every time, regardless of query
   quality.** Both read `url`/`title`/`description` directly off the SDK's

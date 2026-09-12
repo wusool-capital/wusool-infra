@@ -86,6 +86,19 @@ class FirecrawlMapsClient:
             )
             for b in extracted.businesses
         ]
+        # A clean, non-excluded run otherwise leaves zero log trace of what
+        # query actually ran or what it found — the only prior log lines
+        # here fire on failure or when an exclusion removed something.
+        # `resolved_place_links` also directly answers "did 'View on Maps'
+        # point at the right listing, or fall back to the shared search
+        # URL" without needing a live repro.
+        resolved_place_links = sum(1 for lead in leads if lead.source_url != url)
+        logger.info(
+            "discovery_maps_search_completed query=%s businesses_found=%d resolved_place_links=%d",
+            query,
+            len(leads),
+            resolved_place_links,
+        )
         # Filter before slicing to `limit` — an excluded lead must not
         # consume a slot a genuinely qualifying one could have filled.
         filtered = filter_excluded_leads(leads, exclude_terms)
