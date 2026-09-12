@@ -24,10 +24,6 @@
   * [Updates](user-guide/scribe/updates.md)
 * [Getting help](user-guide/getting-help.md)
 
-## Deliverables
-
-* [September 2026](deliverables/september-2026.md)
-
 ## Technical Documentation
 
 * [Overview](technical/README.md)
@@ -50,3 +46,7 @@
 * [Ownership and support](handover/ownership-and-support.md)
 * [Known limitations](handover/limitations.md)
 * [Outstanding items](handover/outstanding.md)
+
+## Deliverables
+
+* [September 2026](deliverables/september-2026.md)
