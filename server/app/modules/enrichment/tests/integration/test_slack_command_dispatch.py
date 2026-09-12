@@ -81,6 +81,7 @@ def test_enrich_seller_ignores_a_buyer_only_match(monkeypatch) -> None:
     silently fall through to enriching the buyer role.
     """
     posted: list[dict] = []
+    updated: list[dict] = []
 
     async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
         posted.append(kwargs)
@@ -99,11 +100,20 @@ def test_enrich_seller_ignores_a_buyer_only_match(monkeypatch) -> None:
             )
         ]
 
+    async def fake_views_open(self, **kwargs):  # noqa: ANN001
+        return {"view": {"id": "V_TEST"}}
+
+    async def fake_views_update(self, **kwargs):  # noqa: ANN001
+        updated.append(kwargs)
+        return {"ok": True}
+
     monkeypatch.setattr(
         "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral",
         fake_chat_post_ephemeral,
     )
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
     monkeypatch.setattr(commands_module, "resolve_org_roles", fake_resolve_org_roles)
 
     settings = get_settings()
@@ -131,8 +141,13 @@ def test_enrich_seller_ignores_a_buyer_only_match(monkeypatch) -> None:
     )
 
     assert response.status_code == 200
-    assert len(posted) == 1
-    assert "No active seller found for *Blue Horizon*" in posted[0]["text"]
+    # The message moved into the modal the command already opened; an ephemeral
+    # would mean it fell through to the error path in `_run`.
+    assert posted == []
+    assert len(updated) == 1
+    assert "No active seller found for *Blue Horizon*" in str(
+        updated[0]["view"].blocks[0].text.text
+    )
 
 
 def test_enrich_buyer_with_no_text_posts_buyer_scoped_usage(monkeypatch) -> None:
@@ -189,6 +204,7 @@ def test_enrich_buyer_ignores_a_seller_only_match(monkeypatch) -> None:
     `/enrich-buyer`.
     """
     posted: list[dict] = []
+    updated: list[dict] = []
 
     async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
         posted.append(kwargs)
@@ -207,11 +223,20 @@ def test_enrich_buyer_ignores_a_seller_only_match(monkeypatch) -> None:
             )
         ]
 
+    async def fake_views_open(self, **kwargs):  # noqa: ANN001
+        return {"view": {"id": "V_TEST"}}
+
+    async def fake_views_update(self, **kwargs):  # noqa: ANN001
+        updated.append(kwargs)
+        return {"ok": True}
+
     monkeypatch.setattr(
         "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral",
         fake_chat_post_ephemeral,
     )
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
     monkeypatch.setattr(commands_module, "resolve_org_roles", fake_resolve_org_roles)
 
     settings = get_settings()
@@ -239,5 +264,8 @@ def test_enrich_buyer_ignores_a_seller_only_match(monkeypatch) -> None:
     )
 
     assert response.status_code == 200
-    assert len(posted) == 1
-    assert "No active buyer found for *Acme Rollup*" in posted[0]["text"]
+    # The message moved into the modal the command already opened; an ephemeral
+    # would mean it fell through to the error path in `_run`.
+    assert posted == []
+    assert len(updated) == 1
+    assert "No active buyer found for *Acme Rollup*" in str(updated[0]["view"].blocks[0].text.text)

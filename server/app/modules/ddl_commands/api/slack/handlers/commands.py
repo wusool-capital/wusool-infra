@@ -30,7 +30,11 @@ from app.modules.ddl_commands.api.slack.views.seller_add_form import build_selle
 from app.modules.ddl_commands.api.slack.views.seller_role_selection import (
     build_seller_selection_modal,
 )
-from app.modules.notifications import SlackCommandPayload
+from app.modules.notifications import (
+    SlackCommandPayload,
+    build_notice_modal,
+    open_loading_modal,
+)
 from app.modules.utilities import get_shared_idempotency_store
 
 logger = logging.getLogger(__name__)
@@ -143,19 +147,23 @@ async def _handle_seller_command(
         )
         return
 
+    title = action.replace("_", " ").capitalize()
+    view_id = await open_loading_modal(client, trigger_id=command["trigger_id"], title=title)
+
     resolution = await resolve_seller(seller_name)
 
     if resolution.status == "none":
-        await client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text=f"No seller found for *{seller_name}*. _Try a different name._",
+        await client.views_update(
+            view_id=view_id,
+            view=build_notice_modal(
+                title, f"No seller found for *{seller_name}*. _Try a different name._"
+            ),
         )
         return
 
     assert resolution.candidates is not None
-    await client.views_open(
-        trigger_id=command["trigger_id"],
+    await client.views_update(
+        view_id=view_id,
         view=build_seller_selection_modal(
             resolution.candidates, requested_by=user_id, channel_id=channel_id
         ),
@@ -183,19 +191,23 @@ async def _handle_buyer_command(
         )
         return
 
+    title = action.replace("_", " ").capitalize()
+    view_id = await open_loading_modal(client, trigger_id=command["trigger_id"], title=title)
+
     resolution = await resolve_buyer(buyer_name)
 
     if resolution.status == "none":
-        await client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text=f"No buyer found for *{buyer_name}*. _Try a different name._",
+        await client.views_update(
+            view_id=view_id,
+            view=build_notice_modal(
+                title, f"No buyer found for *{buyer_name}*. _Try a different name._"
+            ),
         )
         return
 
     assert resolution.candidates is not None
-    await client.views_open(
-        trigger_id=command["trigger_id"],
+    await client.views_update(
+        view_id=view_id,
         view=build_buyer_selection_modal(
             resolution.candidates, requested_by=user_id, channel_id=channel_id
         ),
@@ -222,20 +234,24 @@ async def _handle_add_command(
         )
         return
 
+    view_id = await open_loading_modal(
+        client, trigger_id=command["trigger_id"], title=f"Add {kind}"
+    )
+
     candidates = await search_organizations(org_name)
 
     if not candidates:
         build_form = build_seller_add_form_modal if kind == "seller" else build_buyer_add_form_modal
-        await client.views_open(
-            trigger_id=command["trigger_id"],
+        await client.views_update(
+            view_id=view_id,
             view=build_form(
                 org=None, requested_by=user_id, channel_id=channel_id, prefill_name=org_name
             ),
         )
         return
 
-    await client.views_open(
-        trigger_id=command["trigger_id"],
+    await client.views_update(
+        view_id=view_id,
         view=build_organization_selection_modal(
             candidates,
             kind=kind,

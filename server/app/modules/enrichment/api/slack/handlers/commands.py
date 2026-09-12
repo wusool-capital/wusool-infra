@@ -21,7 +21,11 @@ from app.modules.enrichment.api.dependencies import (
     target_from_resolved,
 )
 from app.modules.enrichment.api.slack.views.role_selection import build_role_selection_modal
-from app.modules.notifications import SlackCommandPayload
+from app.modules.notifications import (
+    SlackCommandPayload,
+    build_notice_modal,
+    open_loading_modal,
+)
 from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
 
 logger = logging.getLogger(__name__)
@@ -105,13 +109,17 @@ async def _handle_enrich_command(
         )
         return
 
+    title = f"Enrich {role_kind}"
+    view_id = await open_loading_modal(client, trigger_id=command["trigger_id"], title=title)
+
     candidates = [c for c in await resolve_org_roles(org_name) if c.kind == role_kind]
 
     if not candidates:
-        await client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text=f"No active {role_kind} found for *{org_name}*. _Try a different name._",
+        await client.views_update(
+            view_id=view_id,
+            view=build_notice_modal(
+                title, f"No active {role_kind} found for *{org_name}*. _Try a different name._"
+            ),
         )
         return
 
@@ -120,10 +128,19 @@ async def _handle_enrich_command(
             lambda: propose_and_post(target_from_resolved(candidates[0]), channel_id=channel_id),
             name=f"enrich:{candidates[0].role_id}",
         )
+        # The proposal arrives as a channel message, not in this modal — say so
+        # rather than leaving the operator on a spinner that never resolves.
+        await client.views_update(
+            view_id=view_id,
+            view=build_notice_modal(
+                title,
+                f"Researching *{org_name}*… the proposal will post in this channel shortly.",
+            ),
+        )
         return
 
-    await client.views_open(
-        trigger_id=command["trigger_id"],
+    await client.views_update(
+        view_id=view_id,
         view=build_role_selection_modal(
             candidates, search_term=org_name, requested_by=user_id, channel_id=channel_id
         ),
