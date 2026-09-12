@@ -1,0 +1,6 @@
+extends: occurrence
+message: "Keep a user-guide page at 900 words or fewer; split distinct tasks when longer (%d words)."
+level: warning
+scope: raw
+max: 900
+token: '\b\w+\b'

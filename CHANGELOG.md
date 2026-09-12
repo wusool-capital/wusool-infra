@@ -9,6 +9,14 @@ Entries are grouped by date, newest first, using the
 delivered state and outstanding items see
 [`docs/operations/delivery-status.md`](docs/operations/delivery-status.md).
 
+## 2026-09-13
+
+### Added
+
+- Added Vale-based documentation quality checks, Wusool terminology and
+  readability rules, page-length budgets, and a contributor style guide for
+  the client GitBook.
+
 ## 2026-09-12
 
 ### Added

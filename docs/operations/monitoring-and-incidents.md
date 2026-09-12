@@ -45,8 +45,8 @@ record contains enough evidence for follow-up without secrets or private data.
   destructive database changes, or security findings affecting production.
 - Escalate after one failed self-healing cycle, repeated external reachability
   alarms, an unavailable production database, or a failed rollback.
-- For a nightly sync failure, preserve the run URL and error, confirm whether
-  real-time sync continued, then rerun only after the failure cause is understood.
-  Reconcile Attio and PostgreSQL after recovery.
+- For a nightly sync failure, preserve the run URL and error. Confirm whether
+  real-time sync continued. Rerun only after you understand the failure, then
+  reconcile Attio and PostgreSQL.
 - If no alert arrived for a confirmed incident, treat alert delivery itself as
   impaired and verify SNS subscriptions and chat authorization.

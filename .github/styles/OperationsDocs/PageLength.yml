@@ -1,0 +1,6 @@
+extends: occurrence
+message: "Keep an operations page at 1,000 words or fewer; split independent runbooks when longer (%d words)."
+level: warning
+scope: raw
+max: 1000
+token: '\b\w+\b'

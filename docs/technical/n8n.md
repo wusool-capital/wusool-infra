@@ -9,8 +9,8 @@ are administered through its own authenticated interface.
 
 ## Components
 
-The environment-specific OpenTofu stack creates one EC2 instance with an
-encrypted GP3 root disk, Elastic IP, security group, IAM instance profile,
+The environment-specific OpenTofu stack creates one EC2 instance. It includes
+an encrypted GP3 root disk, Elastic IP, security group, IAM instance profile,
 Secrets Manager secret, CloudWatch log group, and status/CPU alarms. Docker
 Compose runs:
 

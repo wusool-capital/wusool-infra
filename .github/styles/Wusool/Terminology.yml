@@ -1,0 +1,10 @@
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+swap:
+  'Gitbook': GitBook
+  'Git Book': GitBook
+  'Wusool Scribe': WusoolScribe
+  'PostgresSQL': PostgreSQL
+  'Opentofu': OpenTofu

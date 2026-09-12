@@ -35,10 +35,10 @@ flowchart LR
   Cloudflare --> N8N
 ```
 
-An incident owner should follow the first failed boundary. For example, a
-healthy Toolkit with failed Slack requests starts with Slack request routing;
-a Toolkit database error starts with RDS reachability and credentials; missing
-CRM updates start with webhook/nightly execution and reconciliation.
+An incident owner should follow the first failed boundary. Failed Slack
+requests start with Slack request routing when Toolkit is healthy. Toolkit
+database errors start with RDS reachability and credentials. Missing CRM
+updates start with webhook/nightly execution and reconciliation.
 
 ## Handover completion checklist
 

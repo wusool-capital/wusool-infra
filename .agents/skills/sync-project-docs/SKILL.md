@@ -51,7 +51,11 @@ owns everything else:
    tofu fmt -check -recursive
    git diff --check
    ```
-6. Report what changed, or say explicitly that nothing needed updating.
+6. If client-facing GitBook files changed, run Vale using the paths in
+   `docs/dev/DOCUMENTATION_STYLE_GUIDE.md` and resolve errors. Review warnings
+   individually; do not shorten necessary safety or recovery information only
+   to satisfy a numeric target.
+7. Report what changed, or say explicitly that nothing needed updating.
 
 ## Source-of-truth rules
 

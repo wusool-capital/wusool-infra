@@ -52,6 +52,6 @@ transaction recommendation, financing offer, or promise of contact.
   refreshing.
 - Retry once after checking required fields and connectivity. Repeated
   submissions may be recognized as duplicates.
-- If a result appeared but Attio remains empty after a reasonable delay, send
-  support the tool name, time, company domain, and submitted email through an
-  approved private channel.
+- If a result appeared but Attio remains empty after a reasonable delay,
+  contact support through an approved private channel. Include the tool name,
+  time, company domain, and submitted email.

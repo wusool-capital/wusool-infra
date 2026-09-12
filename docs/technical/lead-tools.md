@@ -12,9 +12,9 @@ Four tools collect visitor details and provide an immediate business outcome:
 | Buyer Network | Registers acquisition interest | Optional AI qualification never blocks the application. |
 
 All tool pages and seven endpoints are implemented in the Toolkit runtime.
-Benchmark and Readiness have been verified over HTTP with live dependencies;
-Buyer Network and final valuation submission are built and tested but are not
-production-verified until an end-to-end Attio/PostgreSQL check is recorded.
+Benchmark and Readiness have been verified over HTTP with live dependencies.
+Buyer Network and final valuation submission are built and tested. They remain
+unverified in production until an end-to-end Attio/PostgreSQL check is recorded.
 
 ## Components and embedding
 
@@ -83,9 +83,8 @@ Content-Type: application/json
 
 A successful response contains `run_id`, the `low`, `mid`, and `high`
 valuation figures, and the contributing methods. Validation errors return
-`422`, rate limiting returns `429`, and a later duplicate submission for the
-same identity returns `409`; a network replay with the same submission ID is
-idempotent.
+`422`, and rate limiting returns `429`. A later duplicate for the same identity
+returns `409`. A network replay with the same submission ID is idempotent.
 
 ## Processing and failures
 

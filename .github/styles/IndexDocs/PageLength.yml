@@ -1,0 +1,6 @@
+extends: occurrence
+message: "Keep an index page at 350 words or fewer (%d words)."
+level: warning
+scope: raw
+max: 350
+token: '\b\w+\b'

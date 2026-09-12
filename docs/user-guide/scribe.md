@@ -1,13 +1,13 @@
 # WusoolScribe
 
 WusoolScribe is a desktop meeting assistant. It records and transcribes a
-meeting on your computer, can generate an editable summary, and can send a
+meeting on your computer and can generate an editable summary. You can send a
 completed transcript to the Wusool server for filing in Attio.
 
 Audio recording and speech-to-text processing stay on the computer. A cloud
-summary provider receives transcript text when you choose that provider, and
-the Wusool server receives the completed transcript when you push a meeting
-to the CRM. Audio is not part of the CRM push.
+summary provider receives transcript text only when you select it. The Wusool
+server receives the completed transcript when you push a meeting to the CRM.
+Audio is not part of the CRM push.
 
 ## Install and prepare the app
 
@@ -79,10 +79,10 @@ also shows the generated **Install ID**; include it in support requests.
 2. When it concerns a company, search for and select that organization.
 3. Press **Push**.
 
-**Expected result:** the app acknowledges the push, the server processes the
-transcript in the background, and status updates when the structured note is
-filed in Attio. With an organization selected, the note links to its buyer or
-seller record where one exists. A meeting without one becomes a general note.
+**Expected result:** the app acknowledges the push and processes the transcript
+in the background. Its status updates when the structured note reaches Attio.
+With an organization selected, the note links to an existing buyer or seller
+record. A meeting without one becomes a general note.
 
 You can close the app while processing continues. Avoid pushing again merely
 because processing takes time. If it fails, verify destination settings and

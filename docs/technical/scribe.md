@@ -2,8 +2,8 @@
 
 ## Purpose
 
-WusoolScribe records or imports meetings, transcribes audio on the user's
-computer, creates an editable summary, and can push the completed meeting to
+WusoolScribe records or imports meetings and transcribes audio on the user's
+computer. It creates an editable summary and can push the completed meeting to
 the Wusool backend for CRM filing.
 
 ## Components
@@ -34,7 +34,7 @@ Audio and transcription happen locally. Summary data leaves the device when a
 remote provider such as Claude, Groq, OpenRouter, or a custom endpoint is
 selected. Ollama can keep summary generation local when it points to a local
 instance. A CRM push sends the finished transcript and meeting metadata to the
-configured Wusool server; the server then summarizes through Bedrock and files
+configured Wusool server. The server then summarizes through Bedrock and files
 a note in Attio.
 
 ## Dependencies and configuration

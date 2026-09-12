@@ -62,6 +62,16 @@ tofu validate
 Set-Location ../../../..
 ```
 
+For changes to the published GitBook documentation, install Vale and run:
+
+```bash
+brew install vale
+vale docs/README.md docs/SUMMARY.md docs/user-guide docs/technical docs/operations docs/deliverables
+```
+
+Follow the page templates and content budgets in
+[`docs/dev/DOCUMENTATION_STYLE_GUIDE.md`](docs/dev/DOCUMENTATION_STYLE_GUIDE.md).
+
 When Terraform architecture changed:
 
 ```text

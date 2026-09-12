@@ -4,11 +4,11 @@ Application and infrastructure delivery is automated by GitHub Actions. A push
 to `dev` deploys development; a push to `prod` deploys production. Both can also
 be started manually. Production currently has no manual approval gate.
 
-The pipeline builds a Toolkit image, publishes it to that environment's ECR
-repository, applies changed OpenTofu stacks in dependency order, runs pending
-database migrations, deploys by immutable image digest, and verifies service
-health. n8n must return HTTP 200 from `/healthz`; Toolkit must return HTTP 200
-from `/health`. Lead-tool smoke checks also run when applicable.
+The pipeline builds a Toolkit image and publishes it to the environment's ECR
+repository. It applies changed OpenTofu stacks in dependency order, runs
+pending database migrations, and deploys an immutable image digest. Finally,
+it verifies `/healthz` for n8n and `/health` for Toolkit. Lead-tool smoke checks
+also run when applicable.
 
 ## Standard deployment
 
@@ -48,9 +48,9 @@ unexpected resource destruction to the infrastructure owner.
 
 Database migrations require a separate compatibility decision. The repository
 automatically applies forward migrations but contains no generic automated
-database rollback. Do not downgrade the application if the old version is
-incompatible with the migrated schema; use a forward fix or a reviewed recovery
-plan with the database owner.
+database rollback. Do not downgrade when the old application is incompatible
+with the migrated schema. Use a forward fix or a recovery plan reviewed by the
+database owner.
 
 ## Roll back infrastructure or n8n
 
