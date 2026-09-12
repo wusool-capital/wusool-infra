@@ -12,9 +12,9 @@ Delivery period: Aug 12 – Sep 12, 2026.
 
 - Built the matching engine end-to-end: buyer/seller scoring, AI-assisted
   reasoning via Bedrock, and Slack-based approvals, from scratch.
-- Added `/edit-seller`, `/edit-buyer`, `/add-seller`, `/add-buyer` — full
-  CRUD on buyer/seller profiles directly from Slack, writing to Attio then
-  the database.
+- Added `/edit-seller`, `/edit-buyer`, `/add-seller`, and `/add-buyer` for
+  creating and updating buyer/seller profiles from Slack, writing to Attio
+  and then the database. Role deletion is not supported from Slack.
 - Added `/enrich-seller` / `/enrich-buyer` — researches a company from
   public sources and proposes values for empty fields, for review before
   saving.
@@ -55,7 +55,9 @@ Delivery period: Aug 12 – Sep 12, 2026.
 - Migrated all four lead-magnet tools off Vercel/Render/Tally onto AWS.
 - Fixed embed height, PDF export, and the valuation gate; logged an
   activity row in Attio after every lead-magnet write.
-- Fixed repeat-submission and valuation data gaps found after launch.
+- Fixed repeat-submission and valuation data gaps found during end-to-end
+  testing. Production cutover remains subject to the checks in
+  [Delivery status](../operations/delivery-status.md).
 
 ## CRM / Data model
 

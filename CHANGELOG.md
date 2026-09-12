@@ -7,7 +7,7 @@ The project has no version tags: every merge to `dev` / `prod` deploys.
 Entries are grouped by date, newest first, using the
 [Keep a Changelog](https://keepachangelog.com/) categories. For the current
 delivered state and outstanding items see
-[`docs/handover/README.md`](docs/handover/README.md).
+[`docs/operations/delivery-status.md`](docs/operations/delivery-status.md).
 
 ## 2026-09-12
 
@@ -31,6 +31,8 @@ delivered state and outstanding items see
 
 ### Changed
 
+- Reorganized the client GitBook around tool-based user and technical guides,
+  with an operational handover and clearer task navigation.
 - `/add-*` and `/edit-*` now offer **HQ country** and **Region** as
   multi-selects instead of free-text boxes. Both stay `text` in Attio and
   Postgres — the picked titles are joined with `", "`, the same
