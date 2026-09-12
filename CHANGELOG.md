@@ -30,11 +30,14 @@ delivered state and outstanding items see
   multi-selects instead of free-text boxes. Both stay `text` in Attio and
   Postgres — the picked titles are joined with `", "`, the same
   `multi_select_as_text` shape `client_type` already uses, so no migration
-  and no Attio schema change. HQ country carries a 97-country subset (Slack
-  caps a multi-select at 100 options), weighted to GCC/MENA and the major
-  financial centres; a country outside it still renders as an editable
-  free-text box. Titles are .NET `RegionInfo.EnglishName` spellings, matching
-  what the SOURCE migration wrote into the column.
+  and no Attio schema change. HQ country carries 93 countries — `lead_magnets`'
+  own `ALL_GEOS` (the public valuation form's "Geography / HQ" select, wired
+  into this column by #154, so every value it can send stays pickable) plus the
+  GCC/MENA, Central Asian and offshore jurisdictions it omits, less its one
+  non-country entry, "Africa", which belongs in Region now. Slack caps a
+  multi-select at 100 options, so the list is necessarily a subset; a country
+  outside it still renders as an editable free-text box. A new repo-wide test
+  fails if the two lists drift apart.
 
 ### Fixed
 
