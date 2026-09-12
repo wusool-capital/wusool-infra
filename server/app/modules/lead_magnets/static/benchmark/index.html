@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wusool | GCC SME Benchmark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="00-styles.css?v=1">
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <img class="logo" src="../img/5ba450cc.png" alt="Wusool">
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">GCC Benchmark</div>
+    <h1>How does your business actually <em>compare</em>?</h1>
+  </section>
+
+  <div class="card" id="app">
+
+    <!-- STEP 1 -->
+    <div id="s1">
+      <div class="steps"><div class="pip on"></div><div class="pip"></div><div class="pip"></div></div>
+      <div class="step-label">Step 1 of 3</div>
+      <h2>Your business</h2>
+      <div class="modes">
+        <button type="button" id="m-sme" class="on" onclick="setMode('sme')">Established business<span class="sub3">Trading, profitable or near it</span></button>
+        <button type="button" id="m-tech" onclick="setMode('tech')">Tech-enabled or startup<span class="sub3">Software, platform, venture-backed</span></button>
+      </div>
+      <div class="grid">
+        <div class="full hide" id="stagewrap">
+          <label for="stage">Funding stage</label>
+          <select id="stage">
+            <option value="">Select your stage</option>
+            <option value="seed">Seed or pre-Series A</option>
+            <option value="seriesa">Series A</option>
+            <option value="seriesb">Series B or later</option>
+          </select>
+          <div class="errtext" id="e-stage">Select your stage to continue.</div>
+        </div>
+        <div class="full">
+          <label for="sector" id="lbl-sector">Sector</label>
+          <select id="sector"><option value="">Select your sector</option></select>
+          <div class="errtext" id="e-sector">Select a sector to continue.</div>
+        </div>
+        <div>
+          <label for="geo">Where you operate</label>
+          <select id="geo">
+            <option value="">Select</option>
+            <option selected>United Arab Emirates</option><option>Saudi Arabia</option><option>Qatar</option>
+            <option>Kuwait</option><option>Bahrain</option><option>Oman</option><option>Other</option>
+          </select>
+          <div class="errtext" id="e-geo">Select a location.</div>
+        </div>
+        <div>
+          <label for="years">Years active <span class="opt">optional</span></label>
+          <input type="number" id="years" min="0" max="99" placeholder="e.g. 8">
+          <div class="errtext" id="e-years">Enter how many years the business has been active.</div>
+        </div>
+      </div>
+      <div class="row"><button class="btn btn-p" onclick="go(2)">Continue</button></div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div id="s2" class="hide">
+      <div class="steps"><div class="pip on"></div><div class="pip on"></div><div class="pip"></div></div>
+      <div class="s2top">
+        <div>
+          <div class="step-label">Step 2 of 3</div>
+          <h2 id="s2h">Last financial year</h2>
+        </div>
+        <div class="curtog" id="curtog">
+          <button type="button" id="cur-AED" class="on" onclick="setCur('AED')">AED</button>
+          <button type="button" id="cur-USD" onclick="setCur('USD')">USD</button>
+        </div>
+      </div>
+      <p class="sub">Round numbers are fine. Nothing is stored against your name until you ask for the full report.</p>
+      <div class="grid">
+        <div>
+          <label for="rev" id="lbl-rev">Revenue, last full year</label>
+          <div class="prefix"><span class="cur">AED</span><input type="text" id="rev" inputmode="numeric" placeholder="5,000,000"></div>
+          <div class="errtext" id="e-rev">Enter last year's revenue.</div>
+        </div>
+        <div>
+          <label for="prev" id="lbl-prev">Revenue, year before <span class="opt">optional</span></label>
+          <div class="prefix"><span class="cur">AED</span><input type="text" id="prev" inputmode="numeric" placeholder="4,400,000"></div>
+          <div class="hint">Used for your growth percentile.</div>
+        </div>
+        <div>
+          <label for="gm">Gross margin <span class="opt">optional</span></label>
+          <div class="suffix"><span>%</span><input type="number" id="gm" min="0" max="100" placeholder="62"></div>
+          <div class="hint">Revenue minus cost of goods sold.</div>
+        </div>
+        <div>
+          <label for="ebitda">Operating profit</label>
+          <div class="prefix"><span class="cur">AED</span><input type="text" id="ebitda" inputmode="numeric" placeholder="700,000"></div>
+          <div class="hint">Profit, before interest, tax and depreciation.</div>
+          <div class="errtext" id="e-ebitda">Enter your operating profit.</div>
+        </div>
+        <div class="full">
+          <label>Does that figure already deduct your own salary?</label>
+          <div class="toggle">
+            <button type="button" id="sal-y" onclick="setSal(true)">Yes, my salary is deducted</button>
+            <button type="button" id="sal-n" class="on" onclick="setSal(false)">No, or I do not take one</button>
+          </div>
+        </div>
+        <div class="full" id="salwrap">
+          <label for="salary">Your annual salary and drawings</label>
+          <div class="prefix"><span class="cur">AED</span><input type="text" id="salary" inputmode="numeric" placeholder="360,000"></div>
+          <div class="hint">Added back so you are compared on the same basis as everyone else.</div>
+        </div>
+        <div id="rentwrap">
+          <label for="rent">Annual rent and premises cost <span class="opt">optional</span></label>
+          <div class="prefix"><span class="cur">AED</span><input type="text" id="rent" inputmode="numeric" placeholder="750,000"></div>
+          <div class="hint">Rent, service charge, utilities.</div>
+        </div>
+        <div>
+          <label for="staff">Total headcount</label>
+          <input type="number" id="staff" min="1" placeholder="24">
+          <div class="errtext" id="e-staff">Enter your headcount.</div>
+        </div>
+        <div id="raisedwrap" class="hide">
+          <label for="raised">Total capital raised to date <span class="opt">optional</span></label>
+          <div class="prefix"><span id="pfx-raised">USD</span><input type="text" id="raised" inputmode="numeric" placeholder="3,000,000"></div>
+          <div class="hint">Equity only. Drives your capital efficiency percentile.</div>
+        </div>
+      </div>
+      <div class="row"><button class="btn btn-p" onclick="go(3)">Continue</button><button class="btn btn-s" onclick="go(1)">Back</button></div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div id="s3" class="hide">
+      <div class="steps"><div class="pip on"></div><div class="pip on"></div><div class="pip on"></div></div>
+      <div class="step-label">Step 3 of 3</div>
+      <h2>Revenue quality</h2>
+      <p class="sub">These decide whether a buyer pays a premium or applies a discount. Leave anything blank and we will simply drop that line from your benchmark.</p>
+      <div class="grid">
+        <div>
+          <label for="conc">Largest customer, as share of revenue (%) <span class="opt">optional</span></label>
+          <div class="suffix"><span>%</span><input type="number" id="conc" min="0" max="100" placeholder="18"></div>
+          <div class="errtext" id="e-conc">Enter a figure between 0 and 100.</div>
+        </div>
+        <div>
+          <label for="recur" id="lbl-recur">Contracted or repeat revenue (%) <span class="opt">optional</span></label>
+          <div class="suffix"><span>%</span><input type="number" id="recur" min="0" max="100" placeholder="45"></div>
+          <div class="hint">Subscriptions, retainers, renewals.</div>
+        </div>
+        <div id="outwrap" class="hide">
+          <label for="outlets">Number of locations</label>
+          <input type="number" id="outlets" min="1" placeholder="3" value="1">
+        </div>
+        <div id="dsowrap" class="hide">
+          <label for="dso">Average days to get paid <span class="opt">optional</span></label>
+          <input type="number" id="dso" min="0" max="365" placeholder="65">
+          
+        </div>
+      </div>
+      <div class="row"><button class="btn btn-p" onclick="run()">See where you rank</button><button class="btn btn-s" onclick="go(2)">Back</button></div>
+    </div>
+
+    <!-- TEASER + GATE -->
+    <div id="s4" class="hide">
+      <div class="gate" style="border-top:none;margin-top:0;padding-top:0">
+        <h2>Get the full benchmark</h2>
+        <p class="sub">Your full peer ranges, quartile position, and the things a buyer would question. Sent as a PDF.</p>
+        <div class="grid">
+          <div><label for="g-name">Name</label><input type="text" id="g-name" placeholder="Full name"><div class="errtext" id="e-name">Enter your name.</div></div>
+          <div><label for="g-company">Company</label><input type="text" id="g-company" placeholder="Company name"></div>
+          <div><label for="g-email">Email</label><input type="email" id="g-email" placeholder="you@company.com"><div class="errtext" id="e-email">Enter a valid email.</div></div>
+          <div><label for="g-phone">Mobile <span class="hint" style="display:inline">optional</span></label><input type="tel" id="g-phone" placeholder="+971 50 000 0000"></div>
+        </div>
+        <div class="check">
+          <input type="checkbox" id="g-consent" onchange="clearConsentErr()">
+          <label for="g-consent">I agree to Wusool's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a> and consent to being contacted.</label>
+        </div>
+        <div class="errtext" id="e-consent">Please accept the Privacy Policy to continue.</div>
+        <div class="errtext" id="e-already">Sorry, you've already completed this before.</div>
+        <div class="row"><button class="btn btn-r" id="g-btn" onclick="unlock()">Show my full benchmark</button></div>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="s5" class="hide">
+      <h2 style="font-size:21px;margin-bottom:3px">Where you sit</h2>
+      <p class="sub" style="margin-bottom:14px">Your position against the peer set in your sector and size band.</p>
+      <div id="cover"></div>
+      <div id="metrics"></div>
+
+      <h2 style="font-size:19px;margin:32px 0 3px">What a buyer would ask about</h2>
+      <p class="sub" style="margin-bottom:4px">Generated from your position on each metric.</p>
+      <div id="flags"></div>
+
+      <div class="next">
+        <a class="book" id="lnk-call" href="#" target="_blank" rel="noopener">
+          <div>
+            <h5>Talk it through</h5>
+            <p>Thirty minutes with a Wusool team member on what your numbers mean for a sale, an acquisition, or a five year plan.</p>
+          </div>
+          <span class="btn btn-p" style="white-space:nowrap">Book a call</span>
+        </a>
+
+        <p class="sub2">Explore our other tools to determine what your business could be worth, and whether you are ready to start an exit process.</p>
+        <div class="tools">
+          <a class="tool" id="lnk-val" href="#" target="_blank" rel="noopener">
+            <h5>Valuation calculator</h5>
+            <p>An indicative enterprise value range, built on GCC transaction multiples.</p>
+          </a>
+          <a class="tool" id="lnk-ready" href="#" target="_blank" rel="noopener">
+            <h5>Exit readiness score</h5>
+            <p>Twenty questions on the things that stall a sale.</p>
+          </a>
+        </div>
+      </div>
+
+      <div class="meta" id="meta"></div>
+    </div>
+
+  </div>
+
+  <footer>Wusool Capital &middot; Dubai &middot; Benchmarks are indicative and do not constitute financial advice.</footer>
+  <div class="card hide" id="lm-fallback" style="text-align:center">
+    <p>This tool did not load correctly. Please try refreshing the page, or visit <a href="https://www.wusoolcapital.com">wusoolcapital.com</a> to get in touch directly.</p>
+  </div>
+</div>
+
+<script src="10-config.js?v=2" onerror="window.__lmFail=1"></script>
+<script src="20-data.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="30-helpers.js?v=3" onerror="window.__lmFail=1"></script>
+<script src="40-scoring.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="50-narrative.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="60-render.js?v=3" onerror="window.__lmFail=1"></script>
+<script src="../shared/height.js?v=2"></script>
+<script>
+  if(window.__lmFail || typeof render!=="function"){
+    document.getElementById("app").classList.add("hide");
+    document.getElementById("lm-fallback").classList.remove("hide");
+  }
+</script>
+</body>
+</html>

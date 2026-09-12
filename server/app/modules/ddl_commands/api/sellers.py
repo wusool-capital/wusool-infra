@@ -21,7 +21,10 @@ SOURCE Attio workspace (2026-08-30) via `GET /v2/lists/seller_role/attributes`
 and each attribute's `/options`. Two corrections came out of that:
 `funding_stage` is a `select`, not free text (a bare string 400s on write),
 and `last_attempt_channel` was missing Attio's "WhatsApp" option, so
-operators had no way to record it.
+operators had no way to record it. Re-verified live (2026-09-12): Attio no
+longer has a "WhatsApp" option on `last_attempt_channel` (5 options remain:
+Email, In Person, Instagram DM, LinkedIn InMail, Phone) — removed from our
+own list to match, since offering it would 400 on write.
 """
 
 import uuid
@@ -136,7 +139,7 @@ SELLER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
         "last_attempt_channel",
         "Last attempt channel",
         "select",
-        options=("Email", "In Person", "Instagram DM", "LinkedIn InMail", "Phone", "WhatsApp"),
+        options=("Email", "In Person", "Instagram DM", "LinkedIn InMail", "Phone"),
     ),
     FieldSpec(
         "last_attempt_outcome",

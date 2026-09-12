@@ -1,8 +1,10 @@
 """End-to-end Slack command dispatch through the **merged** app (`main.py`)
 — proves the actual thing this merge exists to fix: one process, one
-`AsyncApp`, all 5 commands (matching-engine's `/find-match` plus
-ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`)
-correctly registered and dispatching, with no cross-package collision.
+`AsyncApp`, all 9 commands (matching-engine's `/find-match`,
+ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`,
+enrichment's `/enrich-seller`/`/enrich-buyer`, and `main.py`'s own
+`/toolkit-help`/`/toolkit-status`) correctly registered and dispatching, with no
+cross-package collision.
 
 Each package's own test suite (`matching-engine/tests/`, `ddl-commands/tests/`)
 already covers its own business logic and Slack wiring in isolation via its
@@ -23,6 +25,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
+from app.modules.lead_magnets.api import dependencies as lead_magnet_deps
 from app.modules.matching_engine.config import get_settings
 
 
@@ -104,14 +107,25 @@ def _post_view_submission_raw(view: dict) -> TestClient:
 
 
 @pytest.mark.parametrize(
-    "command", ["/find-match", "/edit-seller", "/edit-buyer", "/add-seller", "/add-buyer"]
+    "command",
+    [
+        "/find-match",
+        "/edit-seller",
+        "/edit-buyer",
+        "/add-seller",
+        "/add-buyer",
+        "/enrich-seller",
+        "/enrich-buyer",
+    ],
 )
 def test_every_command_dispatches_off_the_one_shared_app(
     command: str, _mock_slack_web_client
 ) -> None:
-    """All 5 slash commands route correctly through the single merged
-    `AsyncApp` — the empty-text usage-message path touches neither the DB
-    nor any business logic, so this is a pure wiring check.
+    """Every slash command but `/toolkit-help` routes correctly through the single
+    merged `AsyncApp` — the empty-text usage-message path touches neither
+    the DB nor any business logic, so this is a pure wiring check. `/toolkit-help`
+    has no usage message (it always answers the same way regardless of
+    text) — covered separately below.
     """
     response = _post_command(command)
 
@@ -230,3 +244,115 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
     body = response.json()
     assert body["response_action"] == "update"
     assert body["view"]["callback_id"] == "buyer_field_picker_modal"
+
+
+def test_help_command_lists_every_command(_mock_slack_web_client) -> None:
+    """`/toolkit-help` isn't owned by any one module — `main.py`'s own
+    `_COMMAND_HELP` list is the single source of truth, so this pins that
+    every command actually registered on the app also appears in the help
+    text (catching the same class of staleness `SLACK_APP_SETUP.md` had
+    before it was updated to match).
+    """
+    response = _post_command("/toolkit-help")
+
+    assert response.status_code == 200
+    assert len(_mock_slack_web_client) == 1
+    text = _mock_slack_web_client[0]["text"]
+    for command, _hint, _description in main._COMMAND_HELP:
+        assert f"`{command}" in text
+
+
+def test_command_help_and_service_map_stay_in_sync() -> None:
+    """`_SERVICE_BY_TRIGGER` (dispatch logging) and `_COMMAND_HELP`
+    (`/toolkit-help`'s own text) are two independently hand-maintained
+    lists of the same command set — nothing else catches one going stale
+    relative to the other, so this does.
+    """
+    help_commands = {command for command, _hint, _description in main._COMMAND_HELP}
+    assert help_commands == set(main._SERVICE_BY_TRIGGER)
+
+
+def test_status_command_reports_healthy_database(monkeypatch, _mock_slack_web_client) -> None:
+    async def fake_check_database_connectivity() -> None:
+        return None
+
+    monkeypatch.setattr(main, "check_database_connectivity", fake_check_database_connectivity)
+    monkeypatch.setattr(main, "attio_is_test", lambda: True)
+
+    response = _post_command("/toolkit-status")
+
+    assert response.status_code == 200
+    text = _mock_slack_web_client[0]["text"]
+    assert "Database: reachable" in text
+    assert "Attio: test" in text
+
+
+def test_status_command_reports_unreachable_database(monkeypatch, _mock_slack_web_client) -> None:
+    async def fake_check_database_connectivity() -> None:
+        raise ConnectionError("no route to host")
+
+    monkeypatch.setattr(main, "check_database_connectivity", fake_check_database_connectivity)
+    monkeypatch.setattr(main, "attio_is_test", lambda: False)
+
+    response = _post_command("/toolkit-status")
+
+    assert response.status_code == 200
+    text = _mock_slack_web_client[0]["text"]
+    assert "Database: unreachable" in text
+    assert "Attio: production" in text
+
+
+def test_lead_magnet_static_mount_does_not_shadow_existing_routes() -> None:
+    """The static mount (`app.mount("/", ToolStatic(...))`) is the newest
+    thing merged into this app, registered last — the same collision risk
+    this file already exists to catch for the Slack handlers. Proven live
+    once: `GET /readiness` is a k8s-style DB-connectivity probe unrelated
+    to the readiness *tool*, which will eventually serve at `/readiness/`
+    (trailing slash) — exact-path route registration keeps them apart.
+    """
+    client = TestClient(main.app)
+
+    # `rate_limit`'s counter is a module-level singleton shared by every
+    # test in this process, keyed on TestClient's fixed "testclient" host —
+    # by the time this file's tests run, lead_magnets' own integration
+    # suite has already spent some of the hourly quota against that same
+    # key. Reset it so the three POSTs below are judged on their own,
+    # exactly as `test_api_guards.py` already does for its own assertions
+    # about this limiter.
+    lead_magnet_deps._limiter = None
+
+    assert client.get("/health").status_code == 200
+    # 503 here means "no real database in this test", not "route missing" —
+    # the k8s probe still answered, which is what this test checks.
+    assert client.get("/readiness").status_code in (200, 503)
+    assert client.get("/ready").status_code in (200, 503)
+
+    assert client.get("/embed.js").status_code == 200
+    assert client.get("/benchmark/", follow_redirects=False).status_code == 200
+    assert client.get("/readiness/", follow_redirects=False).status_code == 200
+    assert client.get("/valuation/", follow_redirects=False).status_code == 200
+    assert client.get("/buyers/", follow_redirects=False).status_code == 200
+    assert client.get("/img/5ba450cc.png").status_code == 200
+    assert client.get("/img/a0288d00.png").status_code == 200
+    assert client.get("/shared/height.js").status_code == 200
+    assert client.get("/valuation/10-data.js").status_code == 200
+    assert client.get("/buyers/10-main.js").status_code == 200
+
+    # POST /benchmark is the real submission API, at the same path prefix
+    # as the GET-only static page — different HTTP methods, no collision.
+    response = client.post("/benchmark", json={})
+    assert response.status_code == 422  # reaches request validation, not a 404
+
+    # /readiness/score is the real submission API for the readiness tool —
+    # a sibling path to the GET-only /readiness/ static page, not a
+    # collision.
+    response = client.post("/readiness/score", json={})
+    assert response.status_code == 422
+
+    # /buyer/apply (singular) is the real submission API; /buyers/
+    # (plural) is the static page — different path prefixes entirely, so
+    # this one was never even a near-collision like the other three.
+    response = client.post("/buyer/apply", json={})
+    assert response.status_code == 422
+
+    assert client.get("/this-path-does-not-exist/").status_code == 404

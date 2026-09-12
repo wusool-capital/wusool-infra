@@ -38,6 +38,16 @@ variable "toolkit_instance_type" {
   default     = "t2.micro"
 }
 
+# NOT named "extra_hostnames" or folded into "public_url" — envs/*.tfvars is
+# one flat file read by every stack, and public_url is already taken here by
+# this stack's own Slack Request URL host. Same collision rule as
+# toolkit_instance_type below.
+variable "toolkit_extra_hostnames" {
+  description = "Extra hostnames Caddy serves from the same toolkit container — the lead-magnet tools host. DNS for each must already resolve to the toolkit Elastic IP before apply; Caddy orders a certificate per name at config load."
+  type        = list(string)
+  default     = []
+}
+
 # NOT named "root_volume_size" - same shared-tfvars collision risk as
 # toolkit_instance_type above. Caught before it ever applied live: prod's
 # envs/prod.tfvars sets root_volume_size = 50 for n8n's disk, which would

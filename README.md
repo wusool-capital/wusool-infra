@@ -39,7 +39,7 @@ handover plan.
 
 See:
 
-- [Documentation index](docs/README.md) — user guide, technical docs, handover
+- [Documentation index](docs/README.md) — user, technical, and operations guides
 - [Changelog](CHANGELOG.md)
 - [Terraform stacks/modules/envs layout](infrastructure/terraform/README.md)
 - [Slack bot (`server/`) overview](server/README.md)
@@ -85,7 +85,7 @@ wusool-infra/
 |   |-- app/modules/           # matching_engine, ddl_commands, organizations, attio, notifications, utilities
 |   |-- scripts/docs/          # Cross-cutting schema documentation generators
 |   `-- scripts/postgres-sync/ # Attio -> PostgreSQL data sync (dev/ and prod/, operator PowerShell)
-|-- docs/dev/                  # Handover/contract/runbook docs that aren't tied to one folder's code
+|-- docs/dev/                  # Internal contracts and engineering runbooks
 `-- .github/                   # workflows/ (CI + OIDC-authenticated CD), actions/ (composite steps) — see below
 ```
 
@@ -330,7 +330,7 @@ per-stack change detection keeps blast radius small.
 ## Project status
 
 See [`CHANGELOG.md`](CHANGELOG.md) for what has changed and
-[`docs/handover/README.md`](docs/handover/README.md) for the current
+[`docs/operations/delivery-status.md`](docs/operations/delivery-status.md) for the current
 delivered state and outstanding items.
 
 ## Documentation synchronization

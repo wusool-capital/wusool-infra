@@ -1,8 +1,7 @@
 # Cutover runbook: one SOURCE Attio workspace
 
-> Moved from `docs/handover/README.md` §5 when the handover doc was split
-> into a client-facing GitBook (dev/prod internals don't belong there). This
-> content is unchanged from the original.
+> Internal execution detail retained outside the client-facing GitBook
+> navigation.
 
 `_deploy.yml` already applies the `toolkit` stack (it triggers on
 `infrastructure/terraform/modules/toolkit-ec2/**` and `server/**`, both of

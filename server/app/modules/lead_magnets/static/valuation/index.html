@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Business Valuation Tool | Wusool Capital M&A Advisory</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+<link rel="stylesheet" href="00-styles.css?v=3">
+<meta name="description" content="Instant business valuation for UAE founders.">
+</head>
+<body>
+<div id="root"></div>
+<div id="lm-fallback" style="display:none;max-width:480px;margin:80px auto;text-align:center;font-family:Inter,sans-serif;color:#666;font-size:14px">
+  <p>This tool did not load correctly. Please try refreshing the page, or visit <a href="https://www.wusoolcapital.com">wusoolcapital.com</a> to get in touch directly.</p>
+</div>
+<script src="10-data.js?v=1" onerror="window.__lmFail=1"></script>
+<script type="text/babel" src="20-helpers.js?v=3" onerror="window.__lmFail=1"></script>
+<script type="text/babel" src="30-components.js?v=6" onerror="window.__lmFail=1"></script>
+<script type="text/babel" src="40-main.js?v=5" onerror="window.__lmFail=1"></script>
+<script src="../shared/height.js?v=2"></script>
+</body>
+</html>

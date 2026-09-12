@@ -1,8 +1,11 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
-all 5 commands: `/find-match` (matching_engine module) and `/edit-seller`,
-`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl_commands module) — plus the
-`meetings` module's `/desktop/*` REST surface for the WusoolScribe desktop
-app (transcript ingestion, summarization, status polling; no Slack command).
+all 9 commands: `/find-match` (matching_engine module), `/enrich-seller`/
+`/enrich-buyer` (enrichment module), `/edit-seller`/`/edit-buyer`/
+`/add-seller`/`/add-buyer` (ddl_commands module), and `/toolkit-help`/
+`/toolkit-status` (answered directly here, since neither is owned by any
+one module) — plus the `meetings` module's `/desktop/*` REST surface for
+the WusoolScribe desktop app (transcript ingestion, summarization, status
+polling; no Slack command).
 
 Builds **one** `AsyncApp` and registers both Slack modules' handlers against
 it, so Slack's one-interactivity-URL-per-app requirement is satisfied by
@@ -11,10 +14,11 @@ construction, not by convention. Neither Slack module's own
 standalone (its own test suite) — this file is what actually gets deployed.
 """
 
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from functools import lru_cache
 from typing import Any
 
@@ -23,7 +27,9 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from slack_bolt.async_app import AsyncApp
+from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_bolt.response import BoltResponse
+from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.attio import attio_is_test
 from app.modules.ddl_commands.api.attio_sync import router as attio_sync_router
@@ -33,6 +39,21 @@ from app.modules.ddl_commands.api.slack.handlers import (
 from app.modules.ddl_commands.persistence.database import (
     import_all_models as import_ddl_commands_models,
 )
+from app.modules.ddl_commands.providers.discovery.seller_draft_adapter import (
+    DdlCommandsSellerDraftAdapter,
+)
+from app.modules.ddl_commands.providers.enrichment.review_adapter import DdlCommandsReviewAdapter
+from app.modules.discovery.api.dependencies import configure_seller_draft_port
+from app.modules.discovery.api.slack.handlers import (
+    register_handlers as register_discovery_handlers,
+)
+from app.modules.enrichment.api.dependencies import configure_review_port
+from app.modules.enrichment.api.slack.handlers import (
+    register_handlers as register_enrichment_handlers,
+)
+from app.modules.lead_magnets.api.router import router as lead_magnets_router
+from app.modules.lead_magnets.api.static import ToolStatic, static_dir
+from app.modules.lead_magnets.bootstrap import run_sweeper_forever
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
 )
@@ -45,7 +66,7 @@ from app.modules.meetings.api.router import router as meetings_router
 from app.modules.meetings.persistence.database import (
     import_all_models as import_meetings_models,
 )
-from app.modules.notifications import build_bolt_app
+from app.modules.notifications import SlackCommandPayload, build_bolt_app
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging, log_context
 
@@ -54,6 +75,14 @@ configure_logging(settings.log_level)
 import_matching_engine_models()
 import_ddl_commands_models()
 import_meetings_models()
+
+# Cross-module wiring for EnrichmentReviewPort/SellerDraftPort: enrichment
+# and discovery each declare a Port and never import ddl_commands themselves
+# (the dependency edge points ddl_commands -> {enrichment, discovery}); this
+# is the composition root that already imports both sides, so it is where
+# the two get connected — see enrichment/discovery's own `__init__.py`.
+configure_review_port(DdlCommandsReviewAdapter())
+configure_seller_draft_port(DdlCommandsSellerDraftAdapter())
 
 # Which service owns each command/interaction trigger Slack can send. Bolt's
 # own global error handler always logs a caught exception under its own
@@ -66,9 +95,41 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/edit-buyer": "ddl-commands",
     "/add-seller": "ddl-commands",
     "/add-buyer": "ddl-commands",
+    "/enrich-seller": "enrichment",
+    "/enrich-buyer": "enrichment",
+    "/toolkit-help": "help",
+    "/toolkit-status": "status",
 }
 _UNKNOWN_TRIGGER = "unknown"
 _slack_dispatch_logger = logging.getLogger("toolkit.slack_dispatch")
+
+# Process start, for `/toolkit-status`'s uptime — read once at import
+# time, not per request.
+_BOOT_TIME = time.monotonic()
+
+# (command, usage hint, description) for every command Slack can route to
+# this app — kept here, not in any one module, since no single module owns
+# the full list. Order matches `docs/dev/SLACK_APP_SETUP.md`'s table; keep
+# both in sync when a command is added, removed, or renamed.
+_COMMAND_HELP: tuple[tuple[str, str, str], ...] = (
+    ("/find-match", "<buyer org name>", "Find and score buyer-seller matches."),
+    (
+        "/enrich-seller",
+        "<seller org name>",
+        "Research and fill missing seller fields from public sources.",
+    ),
+    (
+        "/enrich-buyer",
+        "<buyer org name>",
+        "Research and fill missing buyer fields from public sources.",
+    ),
+    ("/edit-seller", "<seller org name>", "Edit an existing seller profile."),
+    ("/edit-buyer", "<buyer org name>", "Edit an existing buyer profile."),
+    ("/add-seller", "<organization name>", "Add a new seller."),
+    ("/add-buyer", "<organization name>", "Add a new buyer."),
+    ("/toolkit-status", "", "Show the bot's uptime, database, and Attio mode."),
+    ("/toolkit-help", "", "List every command and how to use it."),
+)
 
 # Bolt's own `ack_timeout` is 3s; warn a little under it so a request that is
 # merely close to the edge still shows up before it starts failing outright.
@@ -94,13 +155,27 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
         )
     else:
         logging.getLogger("app").info("ATTIO_IS_TEST=false — this instance owns production records")
-    yield
+
+    # Drains any lead-magnet submission the write contract left unfinished
+    # (a failed AI/Attio call) without waiting for a request to trigger it.
+    # See `lead_magnets/application/shared/sweeper.py`.
+    sweeper_task = asyncio.create_task(run_sweeper_forever())
+    try:
+        yield
+    finally:
+        sweeper_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await sweeper_task
 
 
 app = FastAPI(title="Wusool Toolkit Bot", lifespan=_lifespan)
 register_exception_handlers(app)
 app.include_router(attio_sync_router)
 app.include_router(meetings_router)
+# The four lead-magnet tools. Served on this same container behind a second
+# Caddy hostname (see modules/toolkit-ec2's `extra_hostnames`), not a
+# separate app.
+app.include_router(lead_magnets_router)
 
 
 @app.exception_handler(Exception)
@@ -161,9 +236,68 @@ def _extract_trigger(body: dict[str, Any]) -> str:
     return _UNKNOWN_TRIGGER
 
 
+def _help_line(command: str, usage_hint: str, description: str) -> str:
+    invocation = f"{command} {usage_hint}".strip()
+    return f"• `{invocation}` — {description}"
+
+
+def _register_help_command(bolt_app: AsyncApp) -> None:
+    @bolt_app.command("/toolkit-help")
+    async def handle_help(
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        lines = "\n".join(_help_line(*entry) for entry in _COMMAND_HELP)
+        await client.chat_postEphemeral(
+            channel=command["channel_id"],
+            user=command["user_id"],
+            text=f"*Available commands:*\n{lines}",
+        )
+
+
+def _format_uptime(seconds: float) -> str:
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+def _register_status_command(bolt_app: AsyncApp) -> None:
+    @bolt_app.command("/toolkit-status")
+    async def handle_status(
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        try:
+            await check_database_connectivity()
+            db_status = "reachable"
+        except Exception:
+            _slack_dispatch_logger.error("status_db_check_failed", exc_info=True)
+            db_status = "unreachable"
+
+        text = (
+            "*Bot status:*\n"
+            f"• Environment: `{settings.app_env}`\n"
+            f"• Uptime: {_format_uptime(time.monotonic() - _BOOT_TIME)}\n"
+            f"• Database: {db_status}\n"
+            f"• Attio: {'test' if attio_is_test() else 'production'}"
+        )
+        await client.chat_postEphemeral(
+            channel=command["channel_id"], user=command["user_id"], text=text
+        )
+
+
 def _register_all_handlers(bolt_app: AsyncApp) -> None:
     register_matching_engine_handlers(bolt_app)
     register_ddl_commands_handlers(bolt_app)
+    register_enrichment_handlers(bolt_app)
+    register_discovery_handlers(bolt_app)
+    _register_help_command(bolt_app)
+    _register_status_command(bolt_app)
 
 
 @lru_cache
@@ -227,11 +361,21 @@ def _slack_request_handler() -> AsyncSlackRequestHandler:
 
 @app.post("/slack/events")
 async def slack_events(req: Request) -> Response:
-    """The one Slack callback endpoint for all 5 commands. Signature
+    """The one Slack callback endpoint for all 9 commands. Signature
     verification happens inside Bolt via `SLACK_SIGNING_SECRET` — never
     trust a payload without it.
     """
     return await _slack_request_handler().handle(req)
+
+
+# Last: a catch-all, so it never shadows /health, /readiness, /ready,
+# /slack/events, /webhooks/attio, or /desktop/* — all registered above.
+# Static-file behind a trailing-slash directory path only ever matches a
+# request no earlier route claimed (verified against exact-path routes
+# like GET /readiness, which is unrelated to the readiness *tool* served
+# at /readiness/ — no collision, confirmed live: the two differ only by
+# the trailing slash and Starlette's exact-path matching keeps them apart).
+app.mount("/", ToolStatic(directory=static_dir(), html=True), name="lead_magnet_tools")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """Slack result message (§20) — concise: score, data confidence, a brief
-rationale per candidate, plus "View Full Analysis"/"Approve"/"Reject"
-actions. Block Kit builders only, no logic.
+rationale per candidate, plus "Enrich"/"View Full Analysis"/"Approve"/
+"Reject" actions. Block Kit builders only, no logic.
 
 Also builds the same message's *refreshed* state after an Approve/Reject
 action (`build_match_result_blocks_from_view`) — a decided candidate shows
@@ -38,7 +38,8 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
                     f"*{result.buyer_org_name}*\n"
                     "No qualifying seller candidates were available for this buyer."
                 )
-            )
+            ),
+            _discover_more_sellers_actions(result.run_id),
         ]
 
     blocks: list[Block] = [
@@ -54,6 +55,7 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
             _candidate_block(
                 run_id=result.run_id,
                 match_result_id=candidate.match_result_id,
+                seller_role_id=candidate.seller_role_id,
                 rank=candidate.rank,
                 seller_org_name=candidate.seller_org_name,
                 match_score=candidate.match_score,
@@ -65,6 +67,7 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
             )
         )
 
+    blocks.append(_discover_more_sellers_actions(result.run_id))
     return blocks
 
 
@@ -85,6 +88,7 @@ def build_match_result_blocks_from_view(view: MatchRunView) -> list[Block]:
             _candidate_block(
                 run_id=view.run_id,
                 match_result_id=candidate.match_result_id,
+                seller_role_id=candidate.seller_role_id,
                 rank=candidate.rank,
                 seller_org_name=candidate.seller_org_name,
                 match_score=candidate.match_score,
@@ -96,7 +100,22 @@ def build_match_result_blocks_from_view(view: MatchRunView) -> list[Block]:
             )
         )
 
+    blocks.append(_discover_more_sellers_actions(view.run_id))
     return blocks
+
+
+def _discover_more_sellers_actions(run_id: str) -> ActionsBlock:
+    """Operator-triggered counterpart to the automatic below-threshold
+    discovery call in `api.dependencies.trigger_seller_discovery` — same
+    search, available on demand rather than only when the CRM shortlist is
+    weak. Handled by `handlers/actions.py::handle_discover_more_sellers`.
+    """
+    return ActionsBlock(
+        block_id=f"discover_actions_{run_id}",
+        elements=[
+            ButtonElement(text="Find more sellers", action_id="discover_more_sellers", value=run_id)
+        ],
+    )
 
 
 def _fewer_than_three_context(count: int) -> ContextBlock:
@@ -116,6 +135,7 @@ def _candidate_block(
     *,
     run_id: str,
     match_result_id: str,
+    seller_role_id: str | None,
     rank: int,
     seller_org_name: str,
     match_score: float,
@@ -137,28 +157,33 @@ def _candidate_block(
     ]
 
     if status == "PENDING_REVIEW":
-        blocks.append(
-            ActionsBlock(
-                block_id=f"match_actions_{match_result_id}",
-                elements=[
-                    ButtonElement(
-                        text="View Full Analysis", action_id="view_full_analysis", value=run_id
-                    ),
-                    ButtonElement(
-                        text="Approve Match",
-                        action_id="approve_match",
-                        style="primary",
-                        value=match_result_id,
-                    ),
-                    ButtonElement(
-                        text="Reject Match",
-                        action_id="reject_match",
-                        style="danger",
-                        value=match_result_id,
-                    ),
-                ],
+        elements = [
+            ButtonElement(text="View Full Analysis", action_id="view_full_analysis", value=run_id),
+            ButtonElement(
+                text="Approve Match",
+                action_id="approve_match",
+                style="primary",
+                value=match_result_id,
+            ),
+            ButtonElement(
+                text="Reject Match",
+                action_id="reject_match",
+                style="danger",
+                value=match_result_id,
+            ),
+        ]
+        blocks.append(ActionsBlock(block_id=f"match_actions_{match_result_id}", elements=elements))
+        if seller_role_id:
+            blocks.append(
+                ContextBlock(
+                    elements=[
+                        MarkdownTextObject(
+                            text=f"Run `/enrich-seller {sanitize_mrkdwn(seller_org_name)}` "
+                            "to research missing fields."
+                        )
+                    ]
+                )
             )
-        )
     else:
         emoji = {"APPROVED": "✅", "REJECTED": "❌"}.get(decision or "", "•")
         who = f" by <@{approved_by}>" if approved_by else ""

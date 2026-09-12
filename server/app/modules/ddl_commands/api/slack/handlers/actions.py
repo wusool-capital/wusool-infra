@@ -415,7 +415,12 @@ def register(app: AsyncApp) -> None:
             return
 
         await client.chat_postEphemeral(
-            channel=channel_id, user=requested_by, text=f"*Updated* buyer profile for *{org_name}*."
+            channel=channel_id,
+            user=requested_by,
+            text=(
+                f"*Updated* buyer profile for *{org_name}*.\n"
+                f"Run `/find-match {org_name}` to see matches."
+            ),
         )
 
     @app.view("organization_selection_modal")
@@ -431,6 +436,10 @@ def register(app: AsyncApp) -> None:
         kind = metadata["kind"]
         search_term = metadata["search_term"]
         build_form = build_seller_add_form_modal if kind == "seller" else build_buyer_add_form_modal
+        # `prefill` only exists for sellers (`discovery`'s hand-off) —
+        # `build_buyer_add_form_modal` has no such parameter, so it's never
+        # passed for a buyer.
+        prefill_kwargs = {"prefill": metadata.get("prefill") or {}} if kind == "seller" else {}
 
         selected = view["state"]["values"]["organization_id"]["selected_organization"][
             "selected_option"
@@ -446,6 +455,7 @@ def register(app: AsyncApp) -> None:
                     channel_id=channel_id,
                     prefill_name=search_term,
                     duplicate_candidates=metadata.get("candidate_names") or [],
+                    **prefill_kwargs,
                 ),
             )
             return
@@ -476,7 +486,9 @@ def register(app: AsyncApp) -> None:
 
         await ack(
             response_action="update",
-            view=build_form(org=org, requested_by=requested_by, channel_id=channel_id),
+            view=build_form(
+                org=org, requested_by=requested_by, channel_id=channel_id, **prefill_kwargs
+            ),
         )
 
     @app.view("seller_add_form_modal")
@@ -551,7 +563,12 @@ def register(app: AsyncApp) -> None:
             return
 
         await client.chat_postEphemeral(
-            channel=channel_id, user=requested_by, text=f"*Added* seller profile for *{org_name}*."
+            channel=channel_id,
+            user=requested_by,
+            text=(
+                f"*Added* seller profile for *{org_name}*.\n"
+                f"Run `/enrich-seller {org_name}` to research missing fields."
+            ),
         )
 
     @app.view("buyer_add_form_modal")
@@ -907,7 +924,7 @@ async def _write_buyer_add(
     org_extracted: dict[str, Any],
     role_extracted: dict[str, Any],
 ) -> None:
-    """Mirrors `_write_seller_add` exactly, buyer-typed."""
+    """Mirrors `_write_seller_add`, buyer-typed."""
     landed: list[str] = []
     attio_client = get_attio_client()
     is_test = attio_is_test()

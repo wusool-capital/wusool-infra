@@ -62,6 +62,7 @@ class MatchRunResult:
 class MatchResultView:
     match_result_id: str
     rank: int
+    seller_role_id: str | None
     seller_org_name: str
     match_score: float
     data_confidence: float
@@ -304,6 +305,7 @@ class MatchingMixin(ServiceBase):
                 MatchResultView(
                     match_result_id=c.id,
                     rank=c.rank if c.rank is not None else 0,
+                    seller_role_id=c.seller_role_id,
                     seller_org_name=c.seller_org_name or (c.seller_attio_id or "Unknown"),
                     match_score=c.match_score if c.match_score is not None else 0.0,
                     data_confidence=c.data_confidence if c.data_confidence is not None else 0.0,

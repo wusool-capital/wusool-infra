@@ -1,6 +1,12 @@
 """`/edit-seller`'s dynamic edit form — step 3 of the flow: only the fields
 the operator picked in the field-picker modal are shown, pre-filled from
 the current row (organization fields from `org`, seller fields from `role`).
+
+`enrichment`'s review hand-off reuses this same form outside the normal
+field-picker flow — `prefill` lets it show its own proposed values instead
+of the row's current ones for exactly the fields it researched, so the
+operator reviews/edits the proposal in the real form rather than a
+bespoke UI.
 """
 
 import json
@@ -10,11 +16,15 @@ from slack_sdk.models.views import View
 
 from app.models import Organization, SellerRole
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
+from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.sellers import (
     GATED_SELLER_ROLE_FIELDS,
     SELLER_ROLE_FIELDS_BY_NAME,
 )
-from app.modules.ddl_commands.api.slack.views.dynamic_fields import render_field_block
+from app.modules.ddl_commands.api.slack.views.dynamic_fields import (
+    render_field_block,
+    wrap_prefill_value,
+)
 from app.modules.ddl_commands.api.slack.views.form_values import confirmation_checkbox_block
 
 
@@ -26,14 +36,23 @@ def build_seller_edit_form_modal(
     selected_role_fields: list[str],
     requested_by: str,
     channel_id: str,
+    prefill: dict[str, PrefillValue] | None = None,
 ) -> View:
+    prefill = prefill or {}
     blocks: list[Block] = []
     for name in selected_org_fields:
         spec = ORGANIZATION_FIELDS_BY_NAME[name]
-        blocks.append(render_field_block(spec, getattr(org, name), block_id_prefix="org_"))
+        # A proposed value wins over the org's current one — that's the
+        # point of a review form: showing what would change, not what's
+        # already there.
+        current = wrap_prefill_value(spec, prefill[name]) if name in prefill else getattr(org, name)
+        blocks.append(render_field_block(spec, current, block_id_prefix="org_"))
     for name in selected_role_fields:
         spec = SELLER_ROLE_FIELDS_BY_NAME[name]
-        blocks.append(render_field_block(spec, getattr(role, name)))
+        current = (
+            wrap_prefill_value(spec, prefill[name]) if name in prefill else getattr(role, name)
+        )
+        blocks.append(render_field_block(spec, current))
 
     gated_selected = GATED_SELLER_ROLE_FIELDS & set(selected_role_fields)
     if gated_selected:

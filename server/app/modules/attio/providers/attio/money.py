@@ -46,6 +46,13 @@ _CURRENCY_CODE_BY_FIELD = {
     ("seller_role", "revenue_last_full_year"): "USD",
     ("seller_role", "revenue_year_before"): "USD",
     ("seller_role", "annual_rent_cost"): "USD",
+    # Benchmark outputs. The columns landed with migration `f7a2c9e14b83`
+    # but had no writer until `lead_magnets`, so they were absent here and
+    # `serialize_money` raised `UnknownMoneyFieldError` on the first
+    # benchmark submission. `SCHEMA.md` already declares all three USD.
+    ("seller_role", "implied_ev_low"): "USD",
+    ("seller_role", "implied_ev_high"): "USD",
+    ("seller_role", "ebitda_adjusted"): "USD",
 }
 
 
@@ -70,12 +77,25 @@ def serialize_money(table: str, field: str, amount: float) -> AttioCurrencyWrite
     field slipping through unconfigured that every other caller of this
     module relies on, even though the returned code isn't part of the
     payload itself.
+
+    Rounded to 2 decimal places — Attio's API rejects a `currency_value`
+    with more than 4, and a blended figure computed by multiplying several
+    ratios together (e.g. a valuation blend) routinely produces more than
+    that; 2 is standard cents precision for any of these fields.
     """
     default_currency_code(table, field)
-    return {"currency_value": amount}
+    return {"currency_value": round(amount, 2)}
 
 
 def to_postgres_money(table: str, field: str, amount: float) -> MoneyJson:
     """Same fixed currency code as the Attio write, so the two can never
-    disagree on currency."""
-    return {"amount": amount, "currency": default_currency_code(table, field)}
+    disagree on currency — and now the same 2-decimal rounding as
+    `serialize_money`, so they can never disagree on the amount either.
+    Both functions are called with the same raw extracted value
+    (`ddl_commands/providers/attio/write_payload.py`'s `build_postgres_values`/
+    `build_attio_values`), so rounding only one of them silently drifted
+    Postgres and Attio apart for any amount with more than 2 decimal places
+    — exactly the blended-figure case `serialize_money`'s own rounding was
+    added for.
+    """
+    return {"amount": round(amount, 2), "currency": default_currency_code(table, field)}

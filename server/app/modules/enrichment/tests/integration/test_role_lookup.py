@@ -1,0 +1,118 @@
+"""Real-database coverage for `SqlAlchemyRoleReader` — confirms it reads
+the actual columns enrichment cares about off `seller_roles`/`organizations`,
+not just off a fake. Skips cleanly when no DB tunnel is open (see conftest).
+"""
+
+import uuid
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Organization, SellerRole
+from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
+from app.modules.enrichment.persistence.role_lookup import SqlAlchemyRoleReader
+
+
+async def test_load_reads_populated_and_missing_fields(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    org = Organization(
+        attio_id=f"test-org-{uuid.uuid4()}", name="Acme Co", hq_country="United Arab Emirates"
+    )
+    db_session.add(org)
+    await db_session.flush()
+
+    role = SellerRole(
+        id=uuid.uuid4(),
+        org_attio_id=org.attio_id,
+        est_revenue={"amount": 5_000_000, "currency": "USD"},
+        is_active=True,
+    )
+    db_session.add(role)
+    await db_session.flush()
+
+    target = EnrichmentTarget(
+        kind=EnrichmentTargetKind.SELLER,
+        role_id=role.id,
+        org_attio_id=org.attio_id,
+        org_name=org.name,
+    )
+    values, _ = await SqlAlchemyRoleReader(db_sessionmaker).load(target)
+
+    assert values["est_revenue"] == {"amount": 5_000_000, "currency": "USD"}
+    assert values["hq_country"] == "United Arab Emirates"
+    # Never populated on either row — must come back None, not KeyError.
+    assert values["location_count"] is None
+    assert values["linkedin"] is None
+
+
+async def test_load_for_a_missing_role_returns_none_for_role_fields(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Ghost Org")
+    db_session.add(org)
+    await db_session.flush()
+
+    target = EnrichmentTarget(
+        kind=EnrichmentTargetKind.SELLER,
+        role_id=uuid.uuid4(),  # no such role row exists
+        org_attio_id=org.attio_id,
+        org_name=org.name,
+    )
+    values, _ = await SqlAlchemyRoleReader(db_sessionmaker).load(target)
+
+    assert values["est_revenue"] is None
+
+
+async def test_load_reads_organization_disambiguators_in_the_same_call(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    """`values` and `context` come off one query, not two — see `load`'s
+    own docstring for why that matters (a real extra round trip per
+    research-tier enrichment call, previously)."""
+    org = Organization(
+        attio_id=f"test-org-{uuid.uuid4()}",
+        name="Raoof Plus",
+        domains=["raoofplus.com"],
+        sector_focus=["Utilities", "Cybersecurity"],
+        hq_country="US",
+        linkedin="https://linkedin.com/company/raoofplus",
+    )
+    db_session.add(org)
+    await db_session.flush()
+
+    role = SellerRole(id=uuid.uuid4(), org_attio_id=org.attio_id, is_active=True)
+    db_session.add(role)
+    await db_session.flush()
+
+    target = EnrichmentTarget(
+        kind=EnrichmentTargetKind.SELLER,
+        role_id=role.id,
+        org_attio_id=org.attio_id,
+        org_name=org.name,
+    )
+    values, context = await SqlAlchemyRoleReader(db_sessionmaker).load(target)
+
+    assert values["hq_country"] == "US"
+    assert context.domains == ("raoofplus.com",)
+    assert context.sector_focus == ("Utilities", "Cybersecurity")
+    assert context.hq_country == "US"
+    assert context.linkedin == "https://linkedin.com/company/raoofplus"
+
+
+async def test_load_for_a_missing_role_falls_back_to_bare_name_context(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Ghost Org")
+    db_session.add(org)
+    await db_session.flush()
+
+    target = EnrichmentTarget(
+        kind=EnrichmentTargetKind.SELLER,
+        role_id=uuid.uuid4(),  # no such role row exists
+        org_attio_id=org.attio_id,
+        org_name=org.name,
+    )
+    _, context = await SqlAlchemyRoleReader(db_sessionmaker).load(target)
+
+    assert context.org_name == "Ghost Org"
+    assert context.domains == ()

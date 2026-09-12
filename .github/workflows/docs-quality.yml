@@ -1,0 +1,35 @@
+name: Documentation quality
+
+on:
+  pull_request:
+    paths:
+      - 'CHANGELOG.md'
+      - '.vale.ini'
+      - '.github/styles/**'
+      - '.github/workflows/docs-quality.yml'
+      - 'docs/**'
+  push:
+    branches:
+      - dev
+      - prod
+    paths:
+      - 'CHANGELOG.md'
+      - '.vale.ini'
+      - '.github/styles/**'
+      - '.github/workflows/docs-quality.yml'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  vale:
+    name: Vale documentation quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vale-cli/vale-action@v3
+        with:
+          version: 3.17.0
+          sync: false
+          files: '["CHANGELOG.md", "docs/README.md", "docs/SUMMARY.md", "docs/user-guide", "docs/technical", "docs/operations", "docs/deliverables"]'

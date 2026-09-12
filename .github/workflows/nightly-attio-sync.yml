@@ -79,7 +79,7 @@ jobs:
       # Outstanding: a failed run is only visible in the Actions tab. Now that
       # this writes production it deserves an `if: failure()` notification, but
       # no workflow in this repo has one yet and inventing the mechanism here
-      # is out of scope -- tracked in docs/handover/README.md.
+          # is out of scope -- tracked in docs/operations/delivery-status.md.
       - name: No toolkit instance in prod
         if: steps.toolkit.outputs.instance_id == ''
         run: echo "::warning::No running toolkit instance found in prod (create_instance=false, or the ASG is mid-replacement) — skipping nightly resync. If this wasn't a deliberate create_instance=false, re-run this workflow."

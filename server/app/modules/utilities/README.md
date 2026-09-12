@@ -31,8 +31,10 @@ utilities/
     health.py                      # check_database_connectivity(engine)
     registry.py                      # import_all_models()
     schema_check.py                    # find_schema_drift()
-    idempotency.py                       # InMemoryIdempotencyStore (concrete)
-    task_runner.py                         # InProcessTaskRunner (concrete)
+    idempotency.py                       # InMemoryIdempotencyStore + get_shared_idempotency_store()
+    task_runner.py                         # InProcessTaskRunner + get_shared_task_runner()
+  providers/bedrock/retry.py    # invoke_bedrock_with_retry — reached directly, not via __all__
+                                   # (needs botocore; domain/bedrock.py stays framework-free)
   api/handlers.py               # register_exception_handlers — the one fastapi-dependent piece
 ```
 
@@ -42,8 +44,27 @@ utilities/
 `ValidationFailedError`, `Money`, `parse_usd_amount`, `retry_with_backoff`,
 `configure_logging`, `log_context`, `IdempotencyStore`,
 `InMemoryIdempotencyStore`, `TaskRunner`, `InProcessTaskRunner`,
+`get_shared_idempotency_store`, `get_shared_task_runner`,
 `check_database_connectivity`, `find_schema_drift`, `get_engine`,
 `get_sessionmaker`, `import_all_models`.
+
+`get_shared_idempotency_store()`/`get_shared_task_runner()` are `lru_cache`d
+factories returning one process-wide instance — every Slack handler module
+used to construct its own `InMemoryIdempotencyStore()`/`InProcessTaskRunner()`,
+fragmenting the same kind of state across up to six separate instances with
+no single place to tune the idempotency TTL or drain in-flight background
+tasks on shutdown. Every caller already prefixes its idempotency keys by its
+own command/action name, so sharing one store across modules carries no
+collision risk. Prefer these over constructing `InMemoryIdempotencyStore()`/
+`InProcessTaskRunner()` directly — the raw classes stay exported for tests
+that want an isolated instance.
+
+`invoke_bedrock_with_retry` (`providers/bedrock/retry.py`) is deliberately
+**not** in `__all__` — same reasoning as `register_exception_handlers`: it
+needs `botocore.exceptions`/`mypy_boto3_bedrock_runtime` typing, which
+`domain/bedrock.py` stays free of by design, so a consumer reaches it via
+`app.modules.utilities.providers.bedrock.retry` directly instead of the root
+facade.
 
 `register_exception_handlers` is deliberately **not** in `__all__` — a
 `bootstrap.py`-level consumer (which already imports `fastapi` itself)

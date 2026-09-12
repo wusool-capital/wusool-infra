@@ -160,3 +160,15 @@ def test_sector_focus_picker_renders_every_attio_option():
     spec = next(f for f in ORGANIZATION_FIELDS if f.name == "sector_focus")
     assert block["element"]["type"] == "multi_static_select"
     assert [o["value"] for o in block["element"]["options"]] == list(spec.options)
+
+
+@pytest.mark.parametrize("field", ["hq_country", "region"])
+def test_hq_country_and_region_render_as_multi_selects(field):
+    """Same wiring check as `sector_focus`: both are `text` in Attio, so losing
+    their options would silently degrade to a free-text box rather than fail.
+    """
+    view = build_buyer_add_form_modal(org=None, requested_by="U1", channel_id="C1").to_dict()
+    block = next(b for b in view["blocks"] if b.get("block_id") == f"org_{field}")
+    spec = next(f for f in ORGANIZATION_FIELDS if f.name == field)
+    assert block["element"]["type"] == "multi_static_select"
+    assert [o["value"] for o in block["element"]["options"]] == list(spec.options)

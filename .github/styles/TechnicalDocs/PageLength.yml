@@ -1,0 +1,6 @@
+extends: occurrence
+message: "Keep a technical page at 1,200 words or fewer; split distinct systems when longer (%d words)."
+level: warning
+scope: raw
+max: 1200
+token: '\b\w+\b'

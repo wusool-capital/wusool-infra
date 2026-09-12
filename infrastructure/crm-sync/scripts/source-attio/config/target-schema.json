@@ -33,6 +33,7 @@
         {"slug": "stage_focus", "attio_slug": "stage", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
         {"slug": "geographic_focus", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},
         {"slug": "hq_country", "type": "text", "ownership": "attio"},
+        {"slug": "region", "type": "text", "ownership": "attio", "purpose": "Macro HQ region (e.g. MENA, GCC, Europe) sitting above hq_country; distinct from geographic_focus, which is where the org invests. No SOURCE counterpart - written by tooling, so it has no source-to-target-mapping entry. Free text by decision 2026-09-12 - no Attio option list; the Slack field-picker constrains it to its own vocabulary instead."},
         {"slug": "domains", "type": "text[]", "attio_type": "text", "attio_serialization": "comma_delimited", "ownership": "attio", "platform_constraint": "Custom objects do not support domain attributes or multiselect text."},
         {"slug": "logo_url", "type": "text", "ownership": "attio", "purpose": "URL string; rendered as an image by the consuming client"},
         {"slug": "categories", "type": "enum[]", "ownership": "attio", "options_status": "needs_approval"},

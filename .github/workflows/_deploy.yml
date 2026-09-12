@@ -487,10 +487,19 @@ jobs:
           for i in $(seq 1 20); do
             C=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$URL/health" || echo 000)
             echo "attempt $i: HTTP $C"
-            [ "$C" = "200" ] && { echo "healthy"; exit 0; }
+            [ "$C" = "200" ] && break
             sleep 15
           done
-          echo "::error::$URL/health never returned 200 — deploy is NOT healthy"; exit 1
+          [ "$C" = "200" ] || { echo "::error::$URL/health never returned 200 — deploy is NOT healthy"; exit 1; }
+          echo "healthy"
+
+          # A wheel that lost server/app/modules/lead_magnets/static/ (e.g. a
+          # future pyproject.toml change that stops shipping non-.py files)
+          # boots fine — /health knows nothing about it — so a visitor hitting
+          # a 404 would be the first to find out. Check it here instead.
+          E=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$URL/embed.js" || echo 000)
+          [ "$E" = "200" ] || { echo "::error::$URL/embed.js returned $E — the lead-magnet tools did not ship in this image"; exit 1; }
+          echo "lead-magnet tools present"
 
       # Written last, and only on success: recording it earlier would make a
       # failed deploy look deployed to the next run's change detection.

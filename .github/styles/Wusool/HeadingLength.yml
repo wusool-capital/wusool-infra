@@ -1,0 +1,6 @@
+extends: occurrence
+message: "Shorten this heading so it remains easy to scan (%d words)."
+level: warning
+scope: heading
+max: 12
+token: '\b\w+\b'

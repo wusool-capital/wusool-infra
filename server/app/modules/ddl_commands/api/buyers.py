@@ -18,6 +18,10 @@ via `GET /v2/lists/buyer_role/attributes`: `prior_gcc_acquisition` is
 genuinely free text, while `relationship_warmth` is a `select` and carries
 Attio's own two options below. It had been guessed as `"text"`, which fails
 the Attio write with a 400 once an operator fills it in.
+
+`target_geography`'s options re-verified live (2026-09-12): Attio also has
+`Egypt` and `Global`, missing from the list below at the 2026-08-30 pass —
+added to match.
 """
 
 import uuid
@@ -113,7 +117,7 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
         "target_geography",
         "Target geography",
         "multi_select_text",
-        options=("UAE", "KSA", "Kuwait", "Bahrain", "Qatar", "Oman", "GCC-wide"),
+        options=("UAE", "KSA", "Kuwait", "Bahrain", "Qatar", "Oman", "GCC-wide", "Egypt", "Global"),
     ),
     FieldSpec("last_mandate_briefing_date", "Last mandate briefing date", "date"),
     FieldSpec("prior_gcc_acquisition", "Prior GCC acquisition", "text"),

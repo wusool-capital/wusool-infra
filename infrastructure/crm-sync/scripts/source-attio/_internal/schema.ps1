@@ -125,6 +125,12 @@ $fields = @(
   [pscustomobject]@{ Title = "Stage Focus"; Slug = "stage_focus"; Type = "select"; Multi = $true; Required = $false; Unique = $false; SourceOption = "stage" },
   [pscustomobject]@{ Title = "Geographic Focus"; Slug = "geographic_focus"; Type = "select"; Multi = $true; Required = $false; Unique = $false; SourceOption = "geographic_focus" },
   [pscustomobject]@{ Title = "HQ Country"; Slug = "hq_country"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  # Macro HQ region (e.g. MENA, GCC, Europe) -- one level ABOVE hq_country,
+  # and deliberately NOT geographic_focus (that is where an org invests, this
+  # is where it sits). No SOURCE counterpart, so SourceOption stays $null and
+  # there is no source-to-target-mapping entry: populated by tooling only.
+  # Free text by decision (2026-09-12) -- no fixed option list.
+  [pscustomobject]@{ Title = "Region"; Slug = "region"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Domains"; Slug = "domains"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Logo URL"; Slug = "logo_url"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   # Same URL as logo_url above, duplicated under this exact slug -- confirmed

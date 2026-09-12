@@ -18,6 +18,7 @@ from app.modules.matching_engine.api.dependencies import (
     matching_engine_service,
     run_match_and_post,
     to_match_analysis_schema,
+    trigger_seller_discovery,
 )
 from app.modules.matching_engine.api.slack.views.full_analysis import build_full_analysis_blocks
 from app.modules.matching_engine.api.slack.views.match_result import (
@@ -29,13 +30,12 @@ from app.modules.matching_engine.application.approvals import (
 )
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
-from app.modules.utilities import InProcessTaskRunner
-from app.modules.utilities.persistence.idempotency import InMemoryIdempotencyStore
+from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
 
 logger = logging.getLogger(__name__)
 
-_task_runner = InProcessTaskRunner()
-_submission_idempotency_store = InMemoryIdempotencyStore()
+_task_runner = get_shared_task_runner()
+_submission_idempotency_store = get_shared_idempotency_store()
 
 
 def register(app: AsyncApp) -> None:
@@ -123,12 +123,19 @@ def register(app: AsyncApp) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="reject")
 
-    @app.action("view_web_lead_source")
-    async def handle_view_web_lead_source(ack: AsyncAck) -> None:
-        # A `url` button still sends an interaction payload Slack requires
-        # this app to acknowledge, even though the browser opens the link
-        # independently — no server-side action needed beyond the ack.
+    @app.action("discover_more_sellers")
+    async def handle_discover_more_sellers(ack: AsyncAck, body: SlackInteractionBody) -> None:
         await ack()
+        run_id_raw = body["actions"][0].get("value")
+        channel_id = body["channel"]["id"]
+        try:
+            run_id = uuid.UUID(run_id_raw)
+        except (ValueError, TypeError):
+            return
+        _task_runner.run(
+            lambda: trigger_seller_discovery(run_id, channel_id=channel_id),
+            name=f"discover:{run_id}",
+        )
 
 
 async def _handle_decision(

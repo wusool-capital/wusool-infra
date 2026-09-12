@@ -36,6 +36,7 @@ class OrganizationParams(TypedDict):
     stage_focus: list[str]
     geographic_focus: list[str]
     hq_country: str | None
+    region: str | None
     domains: list[str]
     categories: list[str]
     relationship_status: str | None

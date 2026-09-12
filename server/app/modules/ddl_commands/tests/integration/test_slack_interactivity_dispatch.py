@@ -81,6 +81,7 @@ def _fake_org(
         removed_at=removed_at,
         description=None,
         hq_country=None,
+        region=None,
         sector_focus=None,
         client_type=None,
         relationship_status=None,
@@ -654,7 +655,11 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
 
     assert response.status_code == 200
     assert len(postgres_use_case.calls) == 1
-    assert "*Updated* buyer profile for *Blue Horizon*." in _mock_slack_web_client.posted[0]["text"]
+    text = _mock_slack_web_client.posted[0]["text"]
+    assert "*Updated* buyer profile for *Blue Horizon*." in text
+    # Every buyer save suggests re-running matching — a copy-pasteable
+    # command the operator pastes themselves, not an automatic continuation.
+    assert "`/find-match Blue Horizon`" in text
 
 
 # --------------------------------------------------------------------------
@@ -663,7 +668,11 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
 
 
 def _organization_selection_payload(
-    kind: str, search_term: str, selected_value: str, candidate_names: list[str] | None = None
+    kind: str,
+    search_term: str,
+    selected_value: str,
+    candidate_names: list[str] | None = None,
+    prefill: dict | None = None,
 ) -> dict:
     return {
         "type": "view_submission",
@@ -679,6 +688,7 @@ def _organization_selection_payload(
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
                     "candidate_names": candidate_names or [],
+                    "prefill": prefill or {},
                 }
             ),
             "state": {
@@ -739,6 +749,34 @@ def test_organization_selection_existing_org_opens_add_form(monkeypatch) -> None
     assert metadata["is_new_org"] is False
     assert metadata["org_attio_id"] == "org-attio-9"
     assert metadata["org_name"] == "Found Co"
+
+
+def test_organization_selection_existing_seller_org_without_role_carries_prefill(
+    monkeypatch,
+) -> None:
+    """`discovery`'s hand-off: the org already exists in Postgres (matched
+    by this search) but has no active seller role yet — the resulting add
+    form must still carry the discovered draft's *role*-level values, not
+    silently drop them (a real bug this test guards against: `prefill`
+    used to only be threaded through the "create new organization"
+    branch, never this one). Org-level fields deliberately still show the
+    org's own real value here, not the guess — see `seller_add_form.py`.
+    """
+    org = _fake_org(attio_id="org-attio-9", name="Found Co")
+    monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
+
+    payload = _organization_selection_payload(
+        "seller", "Found", "org-attio-9", prefill={"est_revenue": 5_000_000.0}
+    )
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "seller_add_form_modal"
+    revenue_block = next(b for b in body["view"]["blocks"] if b.get("block_id") == "est_revenue")
+    assert revenue_block["element"]["initial_value"] == "5000000.0"
 
 
 def test_organization_selection_existing_org_with_role_is_rejected(
@@ -817,11 +855,12 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
         return "entry-new-1"
 
     postgres_use_case = SimpleNamespace(calls=[])
+    created_role = SimpleNamespace(id="new-seller-role-id")
 
     async def fake_execute(**kwargs):
         call_order.append("postgres_write")
         postgres_use_case.calls.append(kwargs)
-        return SimpleNamespace()
+        return created_role
 
     monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
     monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
@@ -845,7 +884,9 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
     assert postgres_use_case.calls[0]["org_attio_id"] == "org-new-1"
     assert postgres_use_case.calls[0]["is_new_org"] is True
     assert postgres_use_case.calls[0]["org_name"] == "New Seller Co"
-    assert "*Added* seller profile for *New Seller Co*." in _mock_slack_web_client.posted[0]["text"]
+    posted = _mock_slack_web_client.posted[0]
+    assert "*Added* seller profile for *New Seller Co*." in posted["text"]
+    assert "Run `/enrich-seller New Seller Co` to research missing fields." in posted["text"]
 
 
 def test_seller_add_form_new_org_without_name_shows_error() -> None:
