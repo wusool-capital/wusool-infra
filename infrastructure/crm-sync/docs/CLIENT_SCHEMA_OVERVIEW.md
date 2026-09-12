@@ -54,7 +54,7 @@ Type: object | API identifier: `organizations`
 | `stage_focus` | `enum[]` | attio | - |
 | `geographic_focus` | `enum[]` | attio | - |
 | `hq_country` | `text` | attio | - |
-| `region` | `text` | attio | Macro HQ region (MENA, GCC, Europe, ...), above `hq_country`; not `geographic_focus`. Written by tooling — no SOURCE counterpart, so no mapping entry. Free text, no option list. |
+| `region` | `text` | attio | Macro HQ region (MENA, GCC, Europe, ...), above `hq_country`; not `geographic_focus`. Written by tooling — no SOURCE counterpart, so no mapping entry. Free text in Attio; the Slack field-picker offers a fixed vocabulary (GCC, MENA, Levant, ...) held in `ddl_commands.api.organizations`, not in Attio. |
 | `domains` | `text[]` | attio | - |
 | `logo_url` | `text` | attio | - |
 | `categories` | `enum[]` | attio | - |

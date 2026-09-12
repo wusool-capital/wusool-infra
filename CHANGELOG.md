@@ -24,8 +24,29 @@ delivered state and outstanding items see
   with `/enrich-seller`/`/enrich-buyer` hint text earlier today) that the
   docs hadn't caught up to.
 
+### Changed
+
+- `/add-*` and `/edit-*` now offer **HQ country** and **Region** as
+  multi-selects instead of free-text boxes. Both stay `text` in Attio and
+  Postgres — the picked titles are joined with `", "`, the same
+  `multi_select_as_text` shape `client_type` already uses, so no migration
+  and no Attio schema change. HQ country carries a 97-country subset (Slack
+  caps a multi-select at 100 options), weighted to GCC/MENA and the major
+  financial centres; a country outside it still renders as an editable
+  free-text box. Titles are .NET `RegionInfo.EnglishName` spellings, matching
+  what the SOURCE migration wrote into the column.
+
 ### Fixed
 
+- **A `multi_select_as_text` field was silently cleared whenever its stored
+  value fell outside the picker's vocabulary.** `multi_select_block` falls
+  back to a free-text box in that case, but extraction only ever read
+  `selected_options` — so the box submitted as `None` and wiped the column on
+  the next save of *any* field on that record. Affected `client_type` in
+  production; would have hit every out-of-vocabulary `hq_country`.
+- Matching's geography criterion compared a buyer's target against the whole
+  of `organizations.hq_country`, so an org headquartered in more than one
+  country scored `Fail` on every geography match. It now compares per value.
 - Discovery's Google Maps client now logs the query, businesses found, and
   how many got a resolved place link (vs. falling back to the shared
   search URL) on every successful run — previously the only log lines

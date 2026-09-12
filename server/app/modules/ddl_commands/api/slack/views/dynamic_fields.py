@@ -100,8 +100,15 @@ def extract_field_value(
             return []
         return [part.strip() for part in raw.split(",") if part.strip()]
     if spec.kind == "multi_select_as_text":
+        # `multi_select_block` degrades to a free-text box whenever a stored
+        # value isn't in `options` — routine for `hq_country`, whose picker
+        # carries a curated subset of countries. Reading only `selected_options`
+        # would extract that box as None and wipe the field on the next save.
+        state = values.get(block_id, {}).get(block_id, {})
+        if "selected_options" in state:
+            return ", ".join(get_multi_static_select(values, block_id, block_id)) or None
         # The column is nullable text, so nothing picked is NULL, not "".
-        return ", ".join(get_multi_static_select(values, block_id, block_id)) or None
+        return get_text(values, block_id, block_id)
     if spec.kind == "date":
         raw = get_date(values, block_id, block_id)
         return date.fromisoformat(raw) if raw else None

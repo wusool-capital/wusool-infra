@@ -20,6 +20,7 @@ FieldKind = Literal[
     "multiline",
     "select",
     "multi_select_text",
+    "multi_select_as_text",
     "currency",
     "date",
     "bool",
@@ -85,9 +86,11 @@ SELLER_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
     EnrichableField(
         "hq_country",
         "HQ country",
-        "text",
+        "multi_select_as_text",
         WriteTarget.ORGANIZATION,
-        "The country of the company's headquarters.",
+        "The country of the company's headquarters, as its full English name "
+        "('United Arab Emirates', not 'UAE' or 'AE'). Comma-separate only if the "
+        "company is genuinely headquartered in more than one country.",
     ),
     EnrichableField(
         "employee_range",

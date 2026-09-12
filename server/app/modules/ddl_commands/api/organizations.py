@@ -42,6 +42,23 @@ into a bare string — the shape the read path already writes into the same
 text column (`persistence/attio_sync.py`). The options below are therefore
 this codebase's own list, not Attio's: the live-schema test can't verify
 them, because a text attribute has none.
+
+`hq_country` and `region` are both `text` in Attio and both
+`multi_select_as_text` here, for the same reason as `client_type` — a fixed
+vocabulary operators shouldn't retype, stored as a bare joined string. An org
+can legitimately carry more than one (a holdco headquartered across two
+jurisdictions), which is why neither is a single-value `select`.
+
+`hq_country`'s titles are .NET `RegionInfo.EnglishName` strings, because that
+is what wrote the existing column: the SOURCE migration maps Attio's
+`primary_location` through `RegionInfo::new(country_code).EnglishName`
+(`infrastructure/crm-sync/scripts/source-attio/_internal/objects.ps1`), so
+picking any other spelling would stop matching the data already there. The
+list is a deliberate subset — Slack caps a multi-select at 100 options and
+there are ~250 countries — weighted to GCC/MENA and the financial centres
+this desk actually sees. A country outside it is not lost: `multi_select_block`
+degrades to the free-text box, which is why `extract_field_value` must read
+that shape back.
 """
 
 from datetime import date
@@ -53,8 +70,8 @@ from app.modules.ddl_commands.api.schemas import FieldSpec
 
 class OrganizationUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
-    hq_country: str | None = Field(default=None, max_length=100)
-    region: str | None = Field(default=None, max_length=100)
+    hq_country: str | None = Field(default=None, max_length=1000)
+    region: str | None = Field(default=None, max_length=300)
     sector_focus: list[str] | None = None
     client_type: str | None = Field(default=None, max_length=200)
     relationship_status: str | None = Field(default=None, max_length=100)
@@ -75,8 +92,131 @@ class OrganizationUpdate(BaseModel):
 
 ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("description", "Description", "multiline"),
-    FieldSpec("hq_country", "HQ country", "text"),
-    FieldSpec("region", "Region", "text"),
+    FieldSpec(
+        "hq_country",
+        "HQ country",
+        "multi_select_as_text",
+        options=(
+            "United Arab Emirates",
+            "Saudi Arabia",
+            "Qatar",
+            "Kuwait",
+            "Bahrain",
+            "Oman",
+            "Egypt",
+            "Jordan",
+            "Lebanon",
+            "Iraq",
+            "Syria",
+            "Yemen",
+            "Palestinian Authority",
+            "Israel",
+            "Türkiye",
+            "Iran",
+            "Morocco",
+            "Algeria",
+            "Tunisia",
+            "Libya",
+            "Sudan",
+            "Mauritania",
+            "Djibouti",
+            "Somalia",
+            "Nigeria",
+            "Kenya",
+            "South Africa",
+            "Ghana",
+            "Ethiopia",
+            "Tanzania",
+            "Uganda",
+            "Rwanda",
+            "Senegal",
+            "Côte d'Ivoire",
+            "Mozambique",
+            "Zambia",
+            "India",
+            "Pakistan",
+            "Bangladesh",
+            "Sri Lanka",
+            "Singapore",
+            "Malaysia",
+            "Indonesia",
+            "Thailand",
+            "Vietnam",
+            "Philippines",
+            "China",
+            "Hong Kong SAR",
+            "Japan",
+            "South Korea",
+            "Taiwan",
+            "Kazakhstan",
+            "Uzbekistan",
+            "Azerbaijan",
+            "Georgia",
+            "Armenia",
+            "United Kingdom",
+            "Ireland",
+            "France",
+            "Germany",
+            "Switzerland",
+            "Netherlands",
+            "Luxembourg",
+            "Belgium",
+            "Spain",
+            "Portugal",
+            "Italy",
+            "Austria",
+            "Sweden",
+            "Norway",
+            "Denmark",
+            "Finland",
+            "Poland",
+            "Czechia",
+            "Greece",
+            "Cyprus",
+            "Malta",
+            "Monaco",
+            "Liechtenstein",
+            "Romania",
+            "Hungary",
+            "Russia",
+            "Ukraine",
+            "United States",
+            "Canada",
+            "Mexico",
+            "Brazil",
+            "Argentina",
+            "Chile",
+            "Colombia",
+            "Peru",
+            "Panama",
+            "Cayman Islands",
+            "British Virgin Islands",
+            "Bermuda",
+            "Australia",
+            "New Zealand",
+        ),
+    ),
+    FieldSpec(
+        "region",
+        "Region",
+        "multi_select_as_text",
+        options=(
+            "GCC",
+            "MENA",
+            "Levant",
+            "North Africa",
+            "Sub-Saharan Africa",
+            "Europe",
+            "North America",
+            "Latin America",
+            "South Asia",
+            "Southeast Asia",
+            "East Asia",
+            "Central Asia",
+            "Oceania",
+            "Global",
+        ),
+    ),
     FieldSpec(
         "sector_focus",
         "Sector focus",

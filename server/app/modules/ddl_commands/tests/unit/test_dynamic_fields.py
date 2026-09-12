@@ -203,3 +203,18 @@ def test_multi_select_as_text_extracts_a_joined_string() -> None:
 def test_multi_select_as_text_extracts_nothing_picked_as_none() -> None:
     values = {"client_type": {"client_type": {"selected_options": []}}}
     assert extract_field_value(_CLIENT_TYPE_SPEC, values) is None
+
+
+# A stored value outside `options` makes `multi_select_block` fall back to the
+# free-text box. Extraction has to read that shape back: reading only
+# `selected_options` returned None, so saving any other field on an org whose
+# `hq_country` the picker doesn't carry silently cleared the column.
+def test_multi_select_as_text_extracts_the_free_text_fallback() -> None:
+    values = {"client_type": {"client_type": {"value": "Fundraising, Something Else"}}}
+    assert extract_field_value(_CLIENT_TYPE_SPEC, values) == "Fundraising, Something Else"
+
+
+def test_multi_select_as_text_renders_unknown_value_as_free_text() -> None:
+    block = render_field_block(_CLIENT_TYPE_SPEC, "Fundraising, Something Else")
+    assert block.element.type == "plain_text_input"
+    assert block.element.initial_value == "Fundraising, Something Else"

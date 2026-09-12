@@ -151,7 +151,10 @@ def _evaluate_criterion(
             return "Unknown", "unavailable", 50.0
         target = value.strip().lower()
         in_focus = any(target == g.strip().lower() for g in candidate.geographic_focus)
-        in_hq = bool(candidate.hq_country) and target == candidate.hq_country.strip().lower()
+        # `hq_country` is a ", "-joined multi-value (an org can be headquartered
+        # across jurisdictions), so an equality check on the whole string would
+        # score every multi-country org as Fail.
+        in_hq = any(target == c.strip().lower() for c in (candidate.hq_country or "").split(","))
         passes = in_focus or in_hq
         return ("Pass" if passes else "Fail"), "crm_field", (100.0 if passes else 0.0)
 
