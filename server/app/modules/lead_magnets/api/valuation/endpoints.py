@@ -7,7 +7,7 @@ submission to record. `/submit-lead` is the write-contract endpoint — the
 one that actually records the lead.
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
@@ -112,34 +112,41 @@ async def submit_lead(
 
     No model call here or in the background: the blend is entirely
     deterministic once `/compare`'s comparables and `/analyze`'s discount
-    overrides are in hand (or absent, in which case
-    `Pipelines._valuation_inputs`'s own 50% defaults apply), so the
-    response is computed inline rather than deferred. The background task
-    still exists — it writes the ledger row to Attio, exactly like every
-    other tool.
+    overrides are in hand (or absent, in which case `ValuationInputs`' own
+    per-method defaults apply), so the response is computed inline rather
+    than deferred. The background task still exists — it writes the ledger
+    row to Attio, exactly like every other tool.
     """
     service = build_submission_service(session)
-    run_id, is_new = await service.record(
+    run_id, outcome = await service.record(
         tool="valuation",
         payload=request.model_dump(),
         email=request.email,
         domain=request.domain,
-        submission_id=request.submission_id,
     )
     await session.commit()
 
-    if is_new:
-        background.add_task(run_completion, run_id)
+    if outcome == "duplicate":
+        raise HTTPException(status.HTTP_409_CONFLICT, "you have already completed this")
+    # "replay" is handled like "new": the blend is recomputed deterministically
+    # from the stored inputs regardless, and `run_completion` is idempotent
+    # against a run that already finished.
+
+    background.add_task(run_completion, run_id)
 
     # Omitted rather than passed as `None` when absent: `ValuationInputs`'
-    # own dataclass default (50%) already applies, and staying in sync with
-    # that default is free this way rather than duplicating the number here.
+    # own per-method defaults already apply, and staying in sync with those
+    # defaults is free this way rather than duplicating the numbers here.
+    # One AI-judged discount pair, when present, applies to both trading
+    # and transaction comps alike (the model gives one opinion, not four).
     haircuts: dict[str, float] = {}
     if request.discounts:
         if request.discounts.revenue_discount_pct is not None:
-            haircuts["haircut_revenue_pct"] = request.discounts.revenue_discount_pct
+            haircuts["trading_haircut_revenue_pct"] = request.discounts.revenue_discount_pct
+            haircuts["transaction_haircut_revenue_pct"] = request.discounts.revenue_discount_pct
         if request.discounts.ebitda_discount_pct is not None:
-            haircuts["haircut_ebitda_pct"] = request.discounts.ebitda_discount_pct
+            haircuts["trading_haircut_ebitda_pct"] = request.discounts.ebitda_discount_pct
+            haircuts["transaction_haircut_ebitda_pct"] = request.discounts.ebitda_discount_pct
 
     result = value_company(
         ValuationInputs(

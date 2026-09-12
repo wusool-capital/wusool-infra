@@ -21,6 +21,18 @@ Tool = Literal["valuation", "readiness", "benchmark", "buyer_network", "attio_we
 # a run that already paid for its AI output must never pay twice.
 Stage = Literal["ai", "attio"]
 
+# What `start()` found on an `idempotency_key` collision. No new column
+# for this distinction — `payload.submission_id` is already stored for
+# every tool (it's part of the raw request dump), so the conflicting
+# row's own payload is enough to tell the two cases apart:
+#   "new"       -> no collision, this is a genuinely first submission.
+#   "replay"    -> same submission_id as the existing row — the exact
+#                  same request landed twice (a network retry), not a
+#                  new person. Silent: nothing to tell the visitor.
+#   "duplicate" -> different submission_id, same identity — a real
+#                  second visit from the same person. Rejected, visibly.
+StartOutcome = Literal["new", "replay", "duplicate"]
+
 
 class UnknownToolError(ValueError):
     pass

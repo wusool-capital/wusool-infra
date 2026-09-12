@@ -5,7 +5,7 @@ then do everything that can fail in the background. Nothing after the
 response can lose the lead.
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
@@ -44,12 +44,11 @@ async def benchmark(
     Keeps the path the live page already posts to.
     """
     service = build_submission_service(session)
-    run_id, is_new = await service.record(
+    run_id, outcome = await service.record(
         tool="benchmark",
         payload=request.model_dump(),
         email=request.email,
         domain=request.domain,
-        submission_id=request.submission_id,
     )
     # Commit before anything that can fail, including the scoring below.
     # Two reasons, both load-bearing:
@@ -60,8 +59,14 @@ async def benchmark(
     #      is invisible to it and the completion is skipped entirely.
     await session.commit()
 
-    if is_new:
-        background.add_task(run_completion, run_id)
+    if outcome == "duplicate":
+        raise HTTPException(status.HTTP_409_CONFLICT, "you have already completed this")
+    # "replay" (the exact same request landed twice) is handled exactly
+    # like "new" below — scoring is deterministic from the stored inputs,
+    # so recomputing it is harmless, and `run_completion` is itself
+    # idempotent against a run that already finished.
+
+    background.add_task(run_completion, run_id)
 
     # Scored after the row exists, so even an unexpected failure here leaves
     # the lead recorded rather than losing it to a 500.

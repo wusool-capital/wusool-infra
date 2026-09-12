@@ -107,9 +107,11 @@ class Pipelines:
         does not. That is what makes a sweeper resume free — no model call,
         and the same figures either way for a given payload.
         """
-        result = value_company(_valuation_inputs(payload))
+        inputs = _valuation_inputs(payload)
+        result = value_company(inputs)
+        consent = ValuationPayload.model_validate(payload).consent
         return {
-            "entry_values": valuation_values(result),
+            "entry_values": valuation_values(result, inputs, consent=consent),
             "low": result.low,
             "mid": result.mid,
             "high": result.high,
@@ -223,20 +225,24 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
     Comparables and overrides are read from whatever `/compare` and
     `/analyze` put there. Their absence is the fallback case, not an error.
 
-    Discounts default to 50%/50% only when `discounts` (or a field on it) is
-    genuinely absent — an explicit 0% must survive, not collapse into the
-    default (`is not None`, not `or`), same as `api/valuation/endpoints.py`'s
-    synchronous response.
+    Omitted rather than passed as `None` when a discount is genuinely
+    absent — `ValuationInputs`' own per-method defaults already apply, and
+    staying in sync with those defaults is free this way rather than
+    duplicating the numbers here. When present, one AI-judged
+    revenue/EBITDA discount pair applies to both trading and transaction
+    comps alike (the model gives one opinion, not four).
     """
-
-    def haircut(pct: float | None) -> float:
-        return 50.0 if pct is None else pct
-
     parsed = ValuationPayload.model_validate(payload)
     comps = [ListedComp(**c.model_dump()) for c in parsed.comps]
     discounts = parsed.discounts
-    haircut_revenue = haircut(discounts.revenue_discount_pct if discounts else None)
-    haircut_ebitda = haircut(discounts.ebitda_discount_pct if discounts else None)
+
+    haircuts: dict[str, float] = {}
+    if discounts and discounts.revenue_discount_pct is not None:
+        haircuts["trading_haircut_revenue_pct"] = discounts.revenue_discount_pct
+        haircuts["transaction_haircut_revenue_pct"] = discounts.revenue_discount_pct
+    if discounts and discounts.ebitda_discount_pct is not None:
+        haircuts["trading_haircut_ebitda_pct"] = discounts.ebitda_discount_pct
+        haircuts["transaction_haircut_ebitda_pct"] = discounts.ebitda_discount_pct
 
     return ValuationInputs(
         revenue=parsed.revenue,
@@ -247,7 +253,6 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
         stage=parsed.stage,
         cash=parsed.cash,
         debt=parsed.debt,
-        haircut_revenue_pct=haircut_revenue,
-        haircut_ebitda_pct=haircut_ebitda,
         ai_comps=tuple(comps),
+        **haircuts,
     )

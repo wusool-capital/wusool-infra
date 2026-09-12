@@ -10,7 +10,7 @@ is where the write contract actually lives.
 from uuid import UUID
 
 from app.modules.lead_magnets.application.shared.base import ServiceBase
-from app.modules.lead_magnets.domain.shared.tool_run import Tool, ToolRunRecord
+from app.modules.lead_magnets.domain.shared.tool_run import StartOutcome, Tool, ToolRunRecord
 from app.modules.utilities.domain.json_types import JsonObject
 
 
@@ -22,14 +22,12 @@ class LeadMagnetService(ServiceBase):
         payload: JsonObject,
         email: str | None,
         domain: str | None,
-        submission_id: str,
-    ) -> tuple[UUID, bool]:
+    ) -> tuple[UUID, StartOutcome]:
         return await self._submissions.record(
             tool=tool,
             payload=payload,
             email=email,
             domain=domain,
-            submission_id=submission_id,
         )
 
     async def complete(self, run: ToolRunRecord) -> None:

@@ -99,6 +99,10 @@ async function submitBuyerForm(e){
 
   try{
     const r=await fetch("/buyer/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    if(r.status===409){
+      document.getElementById("e-already").classList.add("show");
+      return;
+    }
     if(!r.ok)throw new Error("buyer apply failed: "+r.status);
     document.getElementById("form-wrap").classList.add("hide");
     document.getElementById("success-wrap").classList.remove("hide");

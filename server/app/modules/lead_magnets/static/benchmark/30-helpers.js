@@ -5,7 +5,7 @@
 let MODE = "sme";
 let DISP = "AED";                 // entry + display currency (SME mode only)
 const FX = 3.6725;                // AED per USD, pegged
-let S = { salaryDeducted:false, inputs:{}, results:null, sent:false };
+let S = { salaryDeducted:false, inputs:{}, results:null, sent:false, already:false };
 // The engine computes in USD in both modes. The toggle governs entry and
 // display only, so a founder can still work in AED throughout.
 // entry currency -> USD

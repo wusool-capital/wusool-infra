@@ -109,7 +109,7 @@
             <button type="button" id="sal-n" class="on" onclick="setSal(false)">No, or I do not take one</button>
           </div>
         </div>
-        <div class="full hide" id="salwrap">
+        <div class="full" id="salwrap">
           <label for="salary">Your annual salary and drawings</label>
           <div class="prefix"><span class="cur">AED</span><input type="text" id="salary" inputmode="numeric" placeholder="360,000"></div>
           <div class="hint">Added back so you are compared on the same basis as everyone else.</div>
@@ -179,6 +179,7 @@
           <label for="g-consent">I agree to Wusool's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a> and consent to being contacted.</label>
         </div>
         <div class="errtext" id="e-consent">Please accept the Privacy Policy to continue.</div>
+        <div class="errtext" id="e-already">Sorry, you've already completed this before.</div>
         <div class="row"><button class="btn btn-r" id="g-btn" onclick="unlock()">Show my full benchmark</button></div>
       </div>
     </div>
@@ -227,12 +228,12 @@
   </div>
 </div>
 
-<script src="10-config.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="10-config.js?v=2" onerror="window.__lmFail=1"></script>
 <script src="20-data.js?v=1" onerror="window.__lmFail=1"></script>
-<script src="30-helpers.js?v=2" onerror="window.__lmFail=1"></script>
+<script src="30-helpers.js?v=3" onerror="window.__lmFail=1"></script>
 <script src="40-scoring.js?v=1" onerror="window.__lmFail=1"></script>
 <script src="50-narrative.js?v=1" onerror="window.__lmFail=1"></script>
-<script src="60-render.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="60-render.js?v=3" onerror="window.__lmFail=1"></script>
 <script src="../shared/height.js?v=2"></script>
 <script>
   if(window.__lmFail || typeof render!=="function"){

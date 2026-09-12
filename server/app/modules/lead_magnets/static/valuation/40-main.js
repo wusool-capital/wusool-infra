@@ -6,6 +6,8 @@ function App(){
   const [aiComps,setAiComps]=useState(null);
   const [aiCompsStatus,setAiCompsStatus]=useState("idle");
   const [resultsReady,setResultsReady]=useState(false);
+  const [alreadySubmitted,setAlreadySubmitted]=useState(false);
+  const [gateSubmitting,setGateSubmitting]=useState(false);
   // Never set anywhere — the report stays permanently locked, matching
   // readiness's gate. See the "Get Your Free Valuation Report Now" link.
   const [reportUnlocked]=useState(false);
@@ -20,7 +22,40 @@ function App(){
     indLow:0,indMid:0,indHigh:0
   });
 
-  const handleGate=data=>{
+  // Records the lead (and checks for a repeat) the moment the visitor
+  // submits the gate form — not after /analyze and /compare finish. This
+  // is the one place in the lead's life where an AI-enriched `comps` list
+  // could still have been attached (the old flow waited for it), but a
+  // duplicate check that only fires after the whole AI round trip is not
+  // a duplicate check at the submit button, so it's sent empty here and
+  // `value_company()`'s own static-sector fallback covers it — same
+  // deterministic path a sweeper resume already uses.
+  const handleGate=async data=>{
+    setGateSubmitting(true);
+    setAlreadySubmitted(false);
+    try{
+      const r=await fetch("/submit-lead",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          submission_id:(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`),
+          company:data.companyName||"",name:data.name||null,email:data.email||"",
+          domain:data.domain||null,description:data.description||null,sector:data.sector||null,
+          geography:data.geo||null,stage:data.stage||null,
+          revenue:data.revenue||0,profit_before_tax:data.profitBeforeTax||null,
+          owner_salary:data.ownerSalary||null,cash:0,debt:0,
+          comps:[],consent:!!data.consent
+        })
+      });
+      if(r.status===409){
+        setAlreadySubmitted(true);
+        setGateSubmitting(false);
+        return;
+      }
+    }catch(e){
+      // A recording failure must never block the visitor from seeing their
+      // own report — only a confirmed 409 does that.
+      console.warn("Lead submission failed:",e);
+    }
     setGate(data);
     const adjEBITDA=(data.profitBeforeTax||0)+(data.ownerSalary||0);
     const cfgData={revenue:data.revenue,ebitda:adjEBITDA};
@@ -89,32 +124,6 @@ function App(){
     })();
     return()=>{cancelled=true;};
   },[gated,gate]);
-
-  // Record the lead once results are ready, ~2s after (so the AI-powered
-  // comps have propagated into vd, for a viewing that matches the CRM
-  // snapshot). No blend is computed here any more: /submit-lead
-  // recomputes it server-side from the same raw inputs.
-  const submittedRef=useRef(false);
-  useEffect(()=>{
-    if(!resultsReady||!gate||submittedRef.current)return;
-    submittedRef.current=true;
-    const t=setTimeout(()=>{
-      if(!gate.domain)return;
-      fetch("/submit-lead",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          submission_id:(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`),
-          company:gate.companyName||"",name:gate.name||null,email:gate.email||"",
-          domain:gate.domain||null,description:gate.description||null,sector:gate.sector||null,
-          geography:gate.geo||null,stage:gate.stage||null,
-          revenue:cfg.revenue||0,profit_before_tax:gate.profitBeforeTax||null,
-          owner_salary:gate.ownerSalary||null,cash:0,debt:0,
-          comps:aiComps||[],consent:!!gate.consent
-        })
-      }).catch(e=>console.warn("Lead submission failed:",e));
-    },2000);
-    return()=>clearTimeout(t);
-  },[resultsReady,gate,cfg,aiComps]);
 
   // Failsafe: never let a hung /analyze call block the results reveal.
   useEffect(()=>{
@@ -287,7 +296,7 @@ function App(){
     }));
   },[aiComps,gate]);
 
-  if(!gated)return <Gate onSubmit={handleGate}/>;
+  if(!gated)return <Gate onSubmit={handleGate} submitting={gateSubmitting} alreadySubmitted={alreadySubmitted}/>;
 
   if(!resultsReady){
     return <ResultsLoadingScreen gate={gate} compsStatus={aiCompsStatus}/>;

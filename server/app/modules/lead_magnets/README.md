@@ -129,9 +129,12 @@ families of type live there:
 - **`attio_values.py` input models** (`ReadinessValuesInput`,
   `BuyerValuesInput`) bundle what `readiness_values()`/`buyer_values()`
   used to take as several loose keyword arguments into one validated
-  object. `benchmark_values()`/`valuation_values()` keep their existing
-  single-dataclass-argument signature — it was already the right type,
-  wrapping it again would be ceremony, not safety.
+  object. `benchmark_values()`/`valuation_values()` keep their domain
+  dataclass argument(s) as-is — already the right type, wrapping it again
+  would be ceremony, not safety. `valuation_values(result, inputs, *,
+  consent=...)` takes the raw `ValuationInputs` alongside the computed
+  `Valuation` so the visitor's own numbers (revenue, EBITDA, owner salary,
+  stage, consent) reach Attio too, not just the blended range.
 - **Generated report-copy models** (`FlagCopy`) — the benchmark report's
   client-facing paragraphs, quoted verbatim from the live tool. Pure data
   with no behaviour, so it lives here rather than as a plain dataclass.
@@ -190,6 +193,28 @@ The order is the whole point; it is what makes a lost lead impossible.
 Postgres is never written directly for entity data: the Attio→Postgres
 webhook mirror in `ddl_commands` already maps every lead-magnet and
 benchmark column, so this module writes Attio and lets the mirror follow.
+
+### Replay vs. duplicate — one column, no new storage
+
+`tool_runs.idempotency_key` (`tool|email|domain`) is the only stored dedup
+key, and a collision on it is *not* automatically an error. `start()`
+(`persistence/tool_runs_repository.py`) tells two different situations
+apart by comparing `payload.submission_id` — already stored for every
+tool, since it's part of the raw request dump — on the colliding row
+against the incoming request's own `submission_id`:
+
+- **Same `submission_id`** → a **replay**: the exact same request landed
+  twice (a network retry), not a new person. Silent — the caller must not
+  run the pipeline again, but must not tell the visitor anything either.
+  Readiness reuses the already-stored `payload.score` instead of paying
+  for Bedrock a second time; the other tools just recompute (they're
+  deterministic from the stored inputs, so it's free either way).
+- **Different `submission_id`** → a **duplicate**: a genuine second visit
+  from the same person, for the same tool. Rejected with `409` and
+  `"you have already completed this"`, visibly.
+
+No second column, no new table — `submission_id` was always in `payload`,
+this just started reading it back.
 
 ### Why `tool_runs` and not `activities`
 

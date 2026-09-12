@@ -9,16 +9,18 @@ businesses (a founder running two brands, an advisor submitting for several
 clients), and domain alone would merge them permanently. This is also why
 marking `organizations.domains` unique in Attio was rejected.
 
-`idempotency_key` decides whether *this exact submission* has already been
-processed, and is the only one of the three that carries the tool name.
-Putting the tool in the entity key instead would produce one organisation
-per tool — the opposite of dedup.
+`idempotency_key` decides whether this person has already completed this
+tool, and is the only one of the three that carries the tool name. Putting
+the tool in the entity key instead would produce one organisation per tool
+— the opposite of dedup.
 
-Note what the idempotency key does and does not catch: with
-`submission_id` minted once per page load, it collapses a double-click or a
-retried POST, but two genuine submissions from the same person get two
-rows. That is correct — the org-side query-then-write is what stops the
-second one creating a second Attio organisation.
+Deliberately **not** keyed on `submission_id`: an earlier version included
+it, which meant the key only ever caught a double-click or a retried POST
+of the exact same page load — a second genuine visit always minted a fresh
+`submission_id` and sailed straight through as if it were a new person. The
+key is now `tool|email|domain` alone, so a second real submission from the
+same person, for the same tool, collides on purpose — the caller is
+expected to treat that as "already completed," not silently reprocess it.
 """
 
 import re
@@ -112,5 +114,5 @@ def person_key(email: str | None) -> str:
     return normalise_email(email)
 
 
-def idempotency_key(*, tool: str, email: str | None, domain: str | None, submission_id: str) -> str:
-    return f"{tool}|{person_key(email)}|{normalise_domain(domain)}|{submission_id}"
+def idempotency_key(*, tool: str, email: str | None, domain: str | None) -> str:
+    return f"{tool}|{person_key(email)}|{normalise_domain(domain)}"

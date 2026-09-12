@@ -63,7 +63,16 @@ _MARGIN_CEILING_PCT = 45.0
 _NO_UPLIFT_ABOVE_MARGIN_PCT = 30.0
 
 _NEGATIVE_EBITDA_SURCHARGE_PCT = 20.0
-_DEFAULT_HAIRCUT_PCT = 50.0
+
+# The live tool's own illiquidity-discount sliders, confirmed against
+# `dopamine-valuation.html` — trading comps and transaction comps carry
+# different defaults there and always have; a single shared constant here
+# previously forced both to 50%, which matched neither.
+_DEFAULT_TRADING_HAIRCUT_PCT = 30.0
+_DEFAULT_TRANSACTION_REVENUE_HAIRCUT_PCT = 40.0
+_DEFAULT_TRANSACTION_EBITDA_HAIRCUT_PCT = 20.0
+# Same source: the VC-rounds discount slider.
+_DEFAULT_INDUSTRY_RESEARCH_DISCOUNT_PCT = 20.0
 
 
 @dataclass(frozen=True)
@@ -77,8 +86,10 @@ class ValuationInputs:
     cash: float = 0.0
     debt: float = 0.0
     dlom_pct: float = _DEFAULT_DLOM_PCT
-    haircut_revenue_pct: float = _DEFAULT_HAIRCUT_PCT
-    haircut_ebitda_pct: float = _DEFAULT_HAIRCUT_PCT
+    trading_haircut_revenue_pct: float = _DEFAULT_TRADING_HAIRCUT_PCT
+    trading_haircut_ebitda_pct: float = _DEFAULT_TRADING_HAIRCUT_PCT
+    transaction_haircut_revenue_pct: float = _DEFAULT_TRANSACTION_REVENUE_HAIRCUT_PCT
+    transaction_haircut_ebitda_pct: float = _DEFAULT_TRANSACTION_EBITDA_HAIRCUT_PCT
     # The model's comparables when it produced any; the static sector set
     # is used when it did not.
     ai_comps: tuple[ListedComp, ...] = field(default_factory=tuple)
@@ -339,8 +350,8 @@ def trading_comps(
         )
 
     return (
-        build(revenue_multiples, inputs.haircut_revenue_pct),
-        build(ebitda_multiples, inputs.haircut_ebitda_pct),
+        build(revenue_multiples, inputs.trading_haircut_revenue_pct),
+        build(ebitda_multiples, inputs.trading_haircut_ebitda_pct),
     )
 
 
@@ -373,12 +384,14 @@ def transaction_comps(inputs: ValuationInputs) -> tuple[MultipleRange, MultipleR
         )
 
     return (
-        build(revenue_multiples, inputs.haircut_revenue_pct),
-        build(ebitda_multiples, inputs.haircut_ebitda_pct),
+        build(revenue_multiples, inputs.transaction_haircut_revenue_pct),
+        build(ebitda_multiples, inputs.transaction_haircut_ebitda_pct),
     )
 
 
-def industry_research(inputs: ValuationInputs, *, discount_pct: float = 0.0) -> MultipleRange:
+def industry_research(
+    inputs: ValuationInputs, *, discount_pct: float = _DEFAULT_INDUSTRY_RESEARCH_DISCOUNT_PCT
+) -> MultipleRange:
     """Revenue multiples from matched venture rounds.
 
     The mid blends the current-year and forward multiples; the range comes

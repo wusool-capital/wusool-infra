@@ -30,12 +30,12 @@ async def _row(session, run_id) -> ToolRun:
 
 async def test_start_records_the_submission_before_anything_else(db_session) -> None:
     repo = ToolRunsRepository(db_session)
-    run_id, is_new = await repo.start(
+    run_id, outcome = await repo.start(
         tool="readiness",
         payload={"email": "f@acme.com", "answers": {"q1": 3}},
         idempotency_key=_key(),
     )
-    assert is_new
+    assert outcome == "new"
     row = await _row(db_session, run_id)
     assert row.status == "running"
     # The whole point: the lead is on disk with no subject resolved yet.
@@ -46,18 +46,55 @@ async def test_start_records_the_submission_before_anything_else(db_session) -> 
 
 
 async def test_replayed_idempotency_key_is_a_no_op(db_session) -> None:
-    """A double-clicked button or a retried POST must not run the pipeline
-    twice."""
+    """A retried POST of the exact same request (same `submission_id`) must
+    not run the pipeline twice — and is a silent "replay", not a rejected
+    "duplicate", since it's the same attempt, not a new person."""
     repo = ToolRunsRepository(db_session)
     key = _key()
-    first, first_new = await repo.start(tool="readiness", payload={"n": 1}, idempotency_key=key)
-    second, second_new = await repo.start(tool="readiness", payload={"n": 2}, idempotency_key=key)
+    first, first_outcome = await repo.start(
+        tool="readiness", payload={"n": 1, "submission_id": "s1"}, idempotency_key=key
+    )
+    second, second_outcome = await repo.start(
+        tool="readiness", payload={"n": 2, "submission_id": "s1"}, idempotency_key=key
+    )
 
     assert first == second
-    assert first_new is True
-    assert second_new is False
+    assert first_outcome == "new"
+    assert second_outcome == "replay"
     # The original payload wins; the replay does not overwrite it.
     assert (await _row(db_session, first)).payload["n"] == 1
+
+
+async def test_a_different_submission_id_is_a_duplicate_not_a_replay(db_session) -> None:
+    """Same identity (same `idempotency_key`), but a genuinely different
+    `submission_id` — a real second visit from the same person, not the
+    same request landing twice. Must be flagged, not silently absorbed."""
+    repo = ToolRunsRepository(db_session)
+    key = _key()
+    first, first_outcome = await repo.start(
+        tool="readiness", payload={"submission_id": "s1"}, idempotency_key=key
+    )
+    second, second_outcome = await repo.start(
+        tool="readiness", payload={"submission_id": "s2"}, idempotency_key=key
+    )
+
+    assert first == second
+    assert first_outcome == "new"
+    assert second_outcome == "duplicate"
+
+
+async def test_a_missing_submission_id_never_counts_as_a_replay(db_session) -> None:
+    """Two payloads that both genuinely lack a submission_id must not
+    compare equal to each other — that would silently swallow a real
+    second submission that just happened to be malformed the same way."""
+    repo = ToolRunsRepository(db_session)
+    key = _key()
+    first, first_outcome = await repo.start(tool="readiness", payload={}, idempotency_key=key)
+    second, second_outcome = await repo.start(tool="readiness", payload={}, idempotency_key=key)
+
+    assert first == second
+    assert first_outcome == "new"
+    assert second_outcome == "duplicate"
 
 
 async def test_finish_on_a_brand_new_org_does_not_fk_violate(db_session) -> None:

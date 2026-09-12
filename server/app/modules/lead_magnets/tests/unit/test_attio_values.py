@@ -21,7 +21,7 @@ from app.modules.lead_magnets.domain.shared.attio_values import (
     valuation_values,
 )
 from app.modules.lead_magnets.domain.shared.schemas import BuyerValuesInput, ReadinessValuesInput
-from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation
+from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation, ValuationInputs
 
 _BAND = Band(id="sme", label="SME", max_usd=None, ebitda_adj=1.0, rev_emp_mult=1.0, rent_mult=1.0)
 
@@ -121,10 +121,48 @@ def test_valuation_values_records_a_genuine_zero_rather_than_dropping_it() -> No
     method produces a usable row — `result.low or None` would make that
     indistinguishable in Attio from a valuation never attempted."""
     result = Valuation(low=0, mid=0, high=0, methods=(), dcf=None)
-    values = valuation_values(result)
+    inputs = ValuationInputs(revenue=0)
+    values = valuation_values(result, inputs)
     assert values["valuation_low"] == {"currency_value": 0.0}
     assert values["valuation_mid"] == {"currency_value": 0.0}
     assert values["valuation_high"] == {"currency_value": 0.0}
+    # `adjusted_ebitda` is never `None` (0+0 when both inputs are absent),
+    # so it is always written — same "record the real zero" reasoning.
+    assert values["ebitda_adjusted"] == {"currency_value": 0.0}
+
+
+def test_valuation_values_writes_the_raw_submission_alongside_the_blend() -> None:
+    """The three blended figures used to be all this wrote — the visitor's
+    own revenue/EBITDA/owner-salary/stage/consent never reached Attio at
+    all, despite the form collecting exactly those numbers."""
+    result = Valuation(low=1, mid=2, high=3, methods=(), dcf=None)
+    inputs = ValuationInputs(
+        revenue=500_000, profit_before_tax=80_000, owner_salary=40_000, stage="Series A"
+    )
+
+    values = valuation_values(result, inputs, consent=True)
+
+    assert values["est_revenue"] == {"currency_value": 500_000.0}
+    assert values["est_ebitda"] == {"currency_value": 80_000.0}
+    assert values["owner_salary"] == {"currency_value": 40_000.0}
+    assert values["ebitda_adjusted"] == {"currency_value": 120_000.0}
+    assert values["funding_stage"] == "Series A"
+    assert values["data_consent"] is True
+
+
+def test_valuation_values_drops_unentered_optional_fields() -> None:
+    """`profit_before_tax`/`owner_salary`/`stage` are genuinely optional on
+    the form — `None` must be omitted, not sent as a false zero/empty
+    string that would overwrite a value an earlier submission wrote."""
+    result = Valuation(low=1, mid=2, high=3, methods=(), dcf=None)
+    inputs = ValuationInputs(revenue=500_000)
+
+    values = valuation_values(result, inputs)
+
+    assert "est_ebitda" not in values
+    assert "owner_salary" not in values
+    assert "funding_stage" not in values
+    assert "data_consent" not in values
 
 
 def test_benchmark_quartile_falls_back_to_the_raw_value_when_unrecognised() -> None:
