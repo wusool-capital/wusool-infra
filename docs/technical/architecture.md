@@ -10,6 +10,7 @@ enforce this on every change.
 | Module | Responsibility |
 | --- | --- |
 | `matching_engine` | `/find-match` — requirement extraction, filtering, scoring, reasoning, persistence, Slack delivery. |
+| `lead_magnets` | The four public lead-magnet tools (Valuation, M&A Readiness, GCC SME Benchmark, Buyer Network) and their write-ahead-ledger submission flow. See [Lead Magnets](lead-magnets.md). |
 | `ddl_commands` | `/edit-seller`, `/edit-buyer`, `/add-seller`, `/add-buyer`, the inbound Attio webhook, and the nightly resync job. |
 | `enrichment` | `/enrich-seller`, `/enrich-buyer` — researches missing buyer/seller fields from public sources and hands the proposal to `ddl_commands`' own edit form for review; never writes to Attio or the database itself. |
 | `discovery` | Finds sellers outside the CRM via a public search when `/find-match` has no strong CRM candidate, and hands a chosen lead to `ddl_commands`' `/add-seller` flow; never writes to Attio or the database itself. |

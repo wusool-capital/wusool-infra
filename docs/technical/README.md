@@ -32,6 +32,7 @@ Slack ──/commands──▶ server ──▶ wusool_crm (PostgreSQL)
 | Topic | Page |
 | --- | --- |
 | Server modules, module layering | [Architecture](architecture.md) |
+| The four public lead-magnet tools (Valuation, Readiness, Benchmark, Buyer Network) | [Lead Magnets](lead-magnets.md) |
 | Database, schema authority | [Data model](data-model.md) |
 | Bedrock pipeline for matching and summarization | [AI / LLM architecture](ai-architecture.md) |
 | Attio, Slack, Bedrock, Firecrawl, n8n and other vendors | [Integrations](integrations.md) |

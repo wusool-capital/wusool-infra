@@ -19,6 +19,8 @@ the AWS platform they run on.
   and summarizes meetings, and can push a summary into the CRM.
 - **The Attio ↔ database platform** — Attio (the CRM) kept in sync with a
   structured database that powers matching and automation.
+- **Lead-magnet tools** — four public tools on wusoolcapital.com (Valuation,
+  M&A Readiness, GCC SME Benchmark, Buyer Network) that feed leads into Attio.
 - **n8n** — a workflow-automation platform for the team.
 
 All of it runs on AWS infrastructure managed as code and deployed

@@ -28,6 +28,7 @@
 
 * [Overview](technical/README.md)
 * [Architecture](technical/architecture.md)
+* [Lead Magnets](technical/lead-magnets.md)
 * [Data model](technical/data-model.md)
 * [AI / LLM architecture](technical/ai-architecture.md)
 * [Integrations](technical/integrations.md)
