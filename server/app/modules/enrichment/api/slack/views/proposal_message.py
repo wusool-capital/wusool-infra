@@ -11,6 +11,7 @@ ordinary edit-form write path.
 """
 
 import json
+import re
 import uuid
 from datetime import date
 
@@ -90,15 +91,35 @@ def decode_proposal(value: str) -> EnrichmentProposal:
     return EnrichmentProposal(target=target, values=tuple(values), generated_by_model="")
 
 
+# Diffbot's `linkedin`/`facebook` fields come back as bare, schemeless
+# domains (e.g. "linkedin.com/company/acme", never "https://..."). Anchored
+# full-string match so an ordinary sentence that happens to contain a dot
+# (a description ending in "Inc.", say) is never mistaken for a URL.
+_BARE_DOMAIN_RE = re.compile(
+    r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:/\S*)?$"
+)
+
+
 def _render_proposed_value(value: FieldValue) -> str:
     """A URL-shaped proposed value (logo_url, linkedin, twitter, etc.) is
     unreadable as raw text in Slack — Diffbot's own logo_url in particular
-    is an encoded image-proxy link, not a plain URL. Render any http(s) URL
-    as a short clickable link instead of dumping the raw string.
+    is an encoded image-proxy link, not a plain URL. Render any http(s) URL,
+    or a schemeless bare domain, as a short clickable link instead of
+    dumping the raw string.
+
+    A bare domain matters here specifically: left unrendered, it still gets
+    auto-linkified by Slack itself (its own link detection), but the
+    surrounding `*...*` bold markup this module's caller wraps every
+    proposed value in doesn't get interpreted as bold around that
+    auto-link — it shows up as literal asterisk characters instead
+    (confirmed live). Rendering it as an explicit `<url|View>` link
+    ourselves avoids relying on Slack's auto-linkification at all.
     """
     text = str(value)
     if text.startswith("http://") or text.startswith("https://"):
         return f"<{text}|View>"
+    if _BARE_DOMAIN_RE.match(text):
+        return f"<https://{text}|View>"
     return sanitize_mrkdwn(text)
 
 
