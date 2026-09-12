@@ -17,6 +17,8 @@ The delivered platform includes:
   sync with a structured database used for automation, enrichment, and the
   matching engine.
 - **n8n** — a workflow-automation platform.
+- **Four public lead-magnet tools** (Valuation, M&A Readiness, GCC SME
+  Benchmark, Buyer Network) on wusoolcapital.com, feeding leads into Attio.
 
 ## Delivered components
 
@@ -32,6 +34,7 @@ The delivered platform includes:
 | Attio → PostgreSQL sync | Live | Nightly full resync plus a real-time webhook, both verified end-to-end. |
 | AI matching (AWS Bedrock) | Live | See [AI / LLM architecture](../technical/ai-architecture.md). |
 | WusoolScribe → CRM (meeting summaries) | Live | The desktop app pushes a finished transcript to the server, which summarizes it and files a CRM note. |
+| Lead-magnet tools (Valuation, Readiness, Benchmark, Buyer Network) | Merged to `dev`, verified end-to-end | Production cutover (DNS + prod secret + prod deploy) not yet done. See [Lead Magnets](../technical/lead-magnets.md). |
 | Security & monitoring baseline | Live | See [Ownership and support](ownership-and-support.md). |
 
 ## Where to look
