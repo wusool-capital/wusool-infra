@@ -38,7 +38,7 @@ def test_prefill_populates_an_org_field_with_the_org_block_prefix() -> None:
     )
 
     block = _block(view, "org_hq_country")
-    assert block["element"]["initial_value"] == "United Arab Emirates"
+    assert [o["value"] for o in block["element"]["initial_options"]] == ["United Arab Emirates"]
 
 
 def test_prefill_matching_select_option_sets_initial_option() -> None:
@@ -88,9 +88,9 @@ def test_prefill_round_trips_through_extraction() -> None:
         prefill={"hq_country": "United Arab Emirates"},
     )
     block = _block(view, "org_hq_country")
-    initial_value = block["element"]["initial_value"]
+    selected = [{"value": o["value"]} for o in block["element"]["initial_options"]]
 
-    values = {"org_hq_country": {"org_hq_country": {"value": initial_value}}}
+    values = {"org_hq_country": {"org_hq_country": {"selected_options": selected}}}
     extracted = extract_field_value(
         ORGANIZATION_FIELDS_BY_NAME["hq_country"], values, block_id_prefix="org_"
     )
