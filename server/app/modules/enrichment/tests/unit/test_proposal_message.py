@@ -1,20 +1,25 @@
-"""Round-trip coverage for the "Review & Save" button's compact payload —
+"""Round-trip coverage for the "Review & Save" button's payload —
 `_encode_proposal`/`decode_proposal` are the only place a proposal survives
-a Slack round trip, and a `date`-kind field is the one value JSON can't
-carry natively.
+a Slack round trip. `_encode_proposal` returns an opaque store token, not
+the JSON itself (see `proposal_store.py`); a `date`-kind field is the one
+value that JSON can't carry natively.
 """
 
 import uuid
 from datetime import date
+
+import pytest
 
 from app.modules.enrichment.api.slack.views.proposal_message import (
     _encode_proposal,
     build_proposal_blocks,
     decode_proposal,
 )
+from app.modules.enrichment.api.slack.views.proposal_store import get_shared_proposal_store
 from app.modules.enrichment.domain.field_plans import WriteTarget
 from app.modules.enrichment.domain.proposals import EnrichmentProposal, ProposedFieldValue
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
+from app.modules.utilities import NotFoundError
 
 
 def _proposal(values: tuple[ProposedFieldValue, ...]) -> EnrichmentProposal:
@@ -74,10 +79,15 @@ def test_round_trip_preserves_a_date_value_as_a_real_date() -> None:
         )
     )
 
-    encoded = _encode_proposal(proposal)
-    assert "2015-03-01" in encoded  # confirms it went in JSON-safe, not raw
+    token = _encode_proposal(proposal)
+    # `token` is now an opaque store key, not the JSON itself (see
+    # `test_encode_proposal_returns_a_short_token_regardless_of_payload_size`)
+    # — confirm the *stored* payload went in JSON-safe, not raw.
+    stored_payload = get_shared_proposal_store().get(token)
+    assert stored_payload is not None
+    assert "2015-03-01" in stored_payload
 
-    decoded = decode_proposal(encoded)
+    decoded = decode_proposal(token)
 
     assert decoded.values[0].proposed == date(2015, 3, 1)
     assert isinstance(decoded.values[0].proposed, date)
@@ -85,8 +95,9 @@ def test_round_trip_preserves_a_date_value_as_a_real_date() -> None:
 
 def test_round_trip_drops_display_only_fields() -> None:
     """`current`/`source_url`/`confidence`/`rationale` are display-only —
-    the button payload deliberately omits them to stay well under Slack's
-    2000-char value limit regardless of how many fields were proposed.
+    the stored payload deliberately omits them to keep it small, though the
+    button's own `value` no longer depends on that trimming alone to stay
+    under Slack's limit (see the token-size test below).
     """
     proposal = _proposal(
         (
@@ -107,6 +118,43 @@ def test_round_trip_drops_display_only_fields() -> None:
     assert decoded.values[0].current is None
     assert decoded.values[0].source_url == ""
     assert decoded.values[0].rationale == ""
+
+
+def test_encode_proposal_returns_a_short_token_regardless_of_payload_size() -> None:
+    """Regression for a live failure: `/enrich-buyer Stripe` raised
+    `slack_sdk.errors.SlackObjectFormationError: value attribute cannot
+    exceed 2000 characters` — a well-documented org proposes most of
+    `ORGANIZATION_ENRICHABLE_FIELDS`/`SELLER_ENRICHABLE_FIELDS` at once, and
+    even with display-only fields dropped, the trimmed JSON itself can
+    exceed Slack's 2000-char button-value cap. `_encode_proposal` must
+    always return a short, storage-backed token, never the JSON, so the
+    button's `value` is never a function of how much was proposed.
+    """
+    long_description = "A " * 1000  # 2000 chars on its own
+    values = tuple(
+        ProposedFieldValue(
+            field_name=f"field_{i}",
+            write_target=WriteTarget.ORGANIZATION,
+            current=None,
+            proposed=long_description,
+            source_url="https://example.com",
+            confidence=0.9,
+            rationale="",
+        )
+        for i in range(20)
+    )
+
+    token = _encode_proposal(_proposal(values))
+
+    assert len(token) <= 2000
+    # Confirms the payload really was that large — the token being short
+    # is only meaningful if the underlying JSON wasn't.
+    assert len(get_shared_proposal_store().get(token) or "") > 2000
+
+
+def test_decode_proposal_raises_not_found_for_an_unknown_token() -> None:
+    with pytest.raises(NotFoundError):
+        decode_proposal("not-a-real-token")
 
 
 def test_url_shaped_proposed_value_renders_as_a_short_link() -> None:

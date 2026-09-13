@@ -18,6 +18,7 @@ from datetime import date
 from slack_sdk.models.blocks import Block, DividerBlock, SectionBlock
 from slack_sdk.models.blocks.block_elements import ButtonElement
 
+from app.modules.enrichment.api.slack.views.proposal_store import get_shared_proposal_store
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_by_name_for
 from app.modules.enrichment.domain.proposals import (
     EnrichmentProposal,
@@ -26,6 +27,7 @@ from app.modules.enrichment.domain.proposals import (
 )
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.notifications import sanitize_mrkdwn
+from app.modules.utilities import NotFoundError
 
 
 def _json_safe(value: FieldValue) -> FieldValue:
@@ -40,10 +42,16 @@ def _json_safe(value: FieldValue) -> FieldValue:
 def _encode_proposal(proposal: EnrichmentProposal) -> str:
     """Only what `EnrichmentReviewPort.open_review_form` actually needs to
     build the edit form — `current`/`source_url`/`confidence`/`rationale`
-    are display-only and dropped here to keep the button value well under
-    Slack's 2000-char limit regardless of how many fields were proposed.
+    are display-only and dropped here, same as before. That alone isn't
+    enough to fit the button's own `value` field any more, though: Slack
+    caps it at 2000 characters (`ButtonElement.value_max_length`), and with
+    20+ enrichable fields now on offer, a well-documented company's trimmed
+    JSON routinely exceeds that on its own (confirmed live, `/enrich-buyer
+    Stripe`: `SlackObjectFormationError`). So this JSON is stored
+    server-side (`get_shared_proposal_store`) and only the token it returns
+    goes in the button — `decode_proposal` resolves it back.
     """
-    return json.dumps(
+    payload = json.dumps(
         {
             "kind": proposal.target.kind.value,
             "role_id": str(proposal.target.role_id),
@@ -59,10 +67,19 @@ def _encode_proposal(proposal: EnrichmentProposal) -> str:
             ],
         }
     )
+    return get_shared_proposal_store().put(payload)
 
 
-def decode_proposal(value: str) -> EnrichmentProposal:
-    data = json.loads(value)
+def decode_proposal(token: str) -> EnrichmentProposal:
+    """Raises `NotFoundError` for a token the store no longer has (expired,
+    or the process restarted) — the caller (`actions.handle_review`) is
+    responsible for turning that into an operator-facing message, not this
+    function.
+    """
+    payload = get_shared_proposal_store().get(token)
+    if payload is None:
+        raise NotFoundError(f"No stored proposal for token {token!r}")
+    data = json.loads(payload)
     kind = data["kind"]
     fields_by_name = enrichable_fields_by_name_for(kind)
     target = EnrichmentTarget(

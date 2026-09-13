@@ -20,9 +20,14 @@ by name).
 5. `api/slack/views/proposal_message.py` — renders every proposed field for review, with
    one "Review & Save" button (not per-field buttons — the whole point is to open the
    real edit form, not build a second write UI).
-6. Operator clicks it → `handlers/actions.py::handle_review` → `decode_proposal` rebuilds
-   the proposal from the button's compact payload → `application/review.py
-   ::ReviewMixin.open_review_form` → `EnrichmentReviewPort`.
+6. Operator clicks it → `handlers/actions.py::handle_review` → `decode_proposal` resolves
+   the button's opaque token via `api/slack/views/proposal_store.py` (an in-memory,
+   TTL-evicted store — the full proposal JSON no longer fits directly in the button's
+   own `value`, which Slack caps at 2000 characters; a well-documented org now routinely
+   proposes enough fields to exceed that on its own) → `application/review.py
+   ::ReviewMixin.open_review_form` → `EnrichmentReviewPort`. An expired/unknown token
+   (store TTL passed, or the process restarted) surfaces a "run `/enrich-seller`/
+   `/enrich-buyer` again" message instead of a crash.
 7. `ddl_commands/providers/enrichment/review_adapter.py` implements that Port — resolves
    the real role+org, splits the proposed values into org-fields vs. role-fields, and
    opens `seller_form.py`/`buyer_form.py`'s real edit modal with `prefill` set to the
