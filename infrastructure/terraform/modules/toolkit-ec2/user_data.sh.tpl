@@ -56,11 +56,9 @@ aws ecr get-login-password --region "${aws_region}" \
 # overrides. github_token is no longer read here - nothing on this instance
 # clones a repository.
 #
-# Note the ordering below: this block writes Terraform-derived defaults, then
-# the `env: {}` passthrough is appended after it. Docker Compose's env_file is
-# last-wins, so an operator can override any of these (ATTIO_IS_TEST included)
-# via the secret without a `tofu apply` - while the default still comes from
-# var.environment rather than from someone remembering to set it.
+# The secret's `env: {}` passthrough is last-wins for operational settings,
+# including ATTIO_IS_TEST. APP_ENV is appended after it because deployment
+# identity comes from Terraform and must not drift through a stale secret.
 %{ for app in apps }
 # --- ${app.name} ---
 mkdir -p /opt/toolkit/${app.name}
@@ -76,6 +74,7 @@ ENVEOF
 chmod 600 "/opt/toolkit/${app.name}/.env.production"
 
 echo "$SECRET_JSON_${app.slug}" | jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' >> "/opt/toolkit/${app.name}/.env.production"
+echo 'APP_ENV=${app_env}' >> "/opt/toolkit/${app.name}/.env.production"
 chmod 600 "/opt/toolkit/${app.name}/.env.production"
 %{ endfor }
 
