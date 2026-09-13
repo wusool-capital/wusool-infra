@@ -209,7 +209,7 @@ lead-loss case this table exists to catch.
 | error | text | yes | | |
 | payload | jsonb | no | `{}` | submission + run metadata + intermediary AI output + raw Q1-Q15 answers |
 | organization_attio_id | text | yes | | FK → organizations.attio_id; indexed |
-| person_attio_id | text | yes | | FK → person.attio_id |
+| person_attio_id | text | yes | | FK → person.attio_id; populated by the lead-magnet person write (`providers/attio/person_writer.py`), NULL if the submission had no email or that write failed |
 | seller_role_id | uuid | yes | | FK → seller_roles.id |
 | buyer_role_id | uuid | yes | | FK → buyer_roles.id |
 | created_at | timestamptz | no | `now()` | |

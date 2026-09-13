@@ -383,3 +383,78 @@ async def test_readiness_duplicate_is_rejected_without_calling_bedrock(
 
     assert excinfo.value.status_code == 409
     assert calls["n"] == 1, "the duplicate must be rejected before any Bedrock call"
+
+
+async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> None:
+    """Wires the real `_RoleAttioWriter` (`AttioRoleWriter` +
+    `AttioPersonWriter`) over a fake `AttioClientProtocol` — the one seam
+    `_FakeAttio` above skips entirely — and confirms the person half of the
+    ordering trap resolves the same way the org half already does: the
+    Postgres `person` stub, `tool_runs.person_attio_id`, and an `activities`
+    row all land from a single Attio write."""
+    from app.models.activity import Activity
+    from app.models.person import Person
+    from app.modules.lead_magnets.bootstrap import _RoleAttioWriter
+    from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWriter
+    from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
+    from app.modules.organizations import OrganizationRepository
+
+    class _FakeAttioClient:
+        async def post(self, path: str, json_body: dict) -> dict:
+            if path == "/objects/organizations/records":
+                return {"data": {"id": {"record_id": "org-e2e-1"}}}
+            if path == "/lists/seller_role/entries/query":
+                return {"data": []}
+            if path == "/lists/seller_role/entries":
+                return {"data": {"id": {"entry_id": "entry-e2e-1"}}}
+            if path == "/objects/person/records/query":
+                return {"data": []}
+            if path == "/objects/person/records":
+                return {"data": {"id": {"record_id": "person-e2e-1"}}}
+            raise AssertionError(f"unexpected post {path}")
+
+        async def get(self, path: str) -> dict:
+            raise AssertionError(f"unexpected get {path}")
+
+        async def patch(self, path: str, json_body: dict) -> dict:
+            raise AssertionError(f"unexpected patch {path}")
+
+    client = _FakeAttioClient()
+    role_attio_writer = _RoleAttioWriter(
+        AttioRoleWriter(client, is_test=True),
+        OrganizationRepository(db_session),
+        AttioPersonWriter(client, is_test=True),
+    )
+    repo = ToolRunsRepository(db_session)
+    service = SubmissionService(
+        tool_runs=repo,
+        attio=role_attio_writer,
+        run_ai=_Spy(output={"entry_values": {}}).run,
+        fallback=lambda t, p: {"entry_values": {}},
+    )
+
+    run_id, outcome = await service.record(
+        tool="valuation",
+        payload={"company": "Zeta Fitout LLC", "email": "z@zetafitout.ae"},
+        email="z@zetafitout.ae",
+        domain="zetafitout.ae",
+    )
+    assert outcome == "new"
+
+    await service.complete(await repo.get(run_id))
+
+    row = await _row(db_session, run_id)
+    assert row.status == "succeeded"
+    assert row.organization_attio_id == "org-e2e-1"
+    assert row.person_attio_id == "person-e2e-1"
+
+    activity = (
+        await db_session.execute(select(Activity).where(Activity.tool_run_id == run_id))
+    ).scalar_one()
+    assert activity.subject_type == "Organization"
+    assert activity.subject_attio_id == "org-e2e-1"
+
+    person = (
+        await db_session.execute(select(Person).where(Person.attio_id == "person-e2e-1"))
+    ).scalar_one()
+    assert person.name
