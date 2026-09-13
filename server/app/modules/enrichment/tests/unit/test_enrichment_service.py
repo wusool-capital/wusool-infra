@@ -321,14 +321,77 @@ async def test_propose_tries_a_second_tier_only_for_fields_the_first_tier_missed
     assert "est_revenue" not in dict(pdl.calls)["Acme Co"]
 
 
-async def test_propose_never_tries_the_structured_tier_for_a_buyer(
+async def test_propose_never_asks_the_structured_tier_for_a_buyer_role_field(
     buyer_target: EnrichmentTarget,
 ) -> None:
+    """A company-data provider's schema is firmographic (organization-level)
+    — it has no concept of a buyer-role field like `investment_strategy`, so
+    the structured tier must never even be asked for one, regardless of
+    whether it runs for a buyer target at all (see the next test).
+    """
     diffbot = FakeCompanyDataClient(
         [
             CompanyDataField(
                 field_name="investment_strategy",
                 value="should never be proposed",
+                source_url="https://acme.com",
+                provider="Diffbot",
+            )
+        ]
+    )
+    service, _ = _service(
+        current_values={
+            # Only `investment_strategy` (a buyer-role field) missing —
+            # every organization field is already populated, so the
+            # structured tier has nothing organization-level to look up
+            # and `investment_strategy` must never be requested from it.
+            "estimated_aum": {"amount": 1},
+            "target_geography": ["UAE"],
+            "prior_gcc_acquisition": "x",
+            "deal_structure_tolerance": "Majority",
+            "ebitda_floor": {"amount": 1},
+            "check_size_min": {"amount": 1},
+            "check_size_max": {"amount": 1},
+            "ev_ceiling": {"amount": 1},
+            "ebitda_ceiling": {"amount": 1},
+            "description": "x",
+            "hq_country": "UAE",
+            "region": "GCC",
+            "sector_focus": ["Fintech"],
+            "estimated_arr": "$1M-$10M",
+            "funding_raised": 1.0,
+            "employee_range": "1-10",
+            "foundation_date": "2020-01-01",
+            "linkedin": "x",
+            "logo_url": "x",
+            "angellist": "x",
+            "facebook": "x",
+            "instagram": "x",
+            "twitter": "x",
+            "twitter_follower_count": 1,
+        },
+        extraction_response={"fields": []},
+        company_data_clients=(diffbot,),
+    )
+
+    proposal = await service.propose(buyer_target)
+
+    assert proposal.values == ()
+    assert diffbot.calls == []
+
+
+async def test_propose_uses_the_structured_tier_for_a_buyers_organization(
+    buyer_target: EnrichmentTarget,
+) -> None:
+    """A buyer's organization is the same `organizations` row shape a
+    seller's is, so the structured tier resolves an organization field for
+    a buyer target exactly as it does for a seller one.
+    """
+    diffbot = FakeCompanyDataClient(
+        [
+            CompanyDataField(
+                field_name="hq_country",
+                value="United Arab Emirates",
                 source_url="https://acme.com",
                 provider="Diffbot",
             )
@@ -342,8 +405,12 @@ async def test_propose_never_tries_the_structured_tier_for_a_buyer(
 
     proposal = await service.propose(buyer_target)
 
-    assert proposal.values == ()
-    assert diffbot.calls == []
+    by_field = {v.field_name: v for v in proposal.values}
+    assert by_field["hq_country"].proposed == "United Arab Emirates"
+    assert by_field["hq_country"].confidence == 0.9
+    # The structured tier was never even asked about a buyer-role field.
+    requested = {name for _, names in diffbot.calls for name in names}
+    assert "investment_strategy" not in requested
 
 
 async def test_propose_proposes_region_for_a_buyers_organization(

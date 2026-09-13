@@ -1,8 +1,8 @@
 """Builds an `EnrichmentProposal` for a target: read current values, skip
 fields that are already populated, try structured company-data providers
-(seller targets only — see `_structured_lookup`), then research + extract
-via the LLM path for whatever's still missing. Never writes anything — see
-`ReviewMixin` for that.
+(organization fields only, for either role — see `_structured_lookup`),
+then research + extract via the LLM path for whatever's still missing.
+Never writes anything — see `ReviewMixin` for that.
 """
 
 import json
@@ -11,6 +11,7 @@ from datetime import date
 from app.modules.enrichment.application.base import ServiceBase
 from app.modules.enrichment.domain.field_plans import (
     EnrichableField,
+    WriteTarget,
     enrichable_fields_by_name_for,
     enrichable_fields_for,
 )
@@ -186,13 +187,19 @@ class EnrichMixin(ServiceBase):
         missing: list[EnrichableField],
         current_values: JsonObject,
     ) -> list[ProposedFieldValue]:
-        """Seller targets only — none of `BUYER_ENRICHABLE_FIELDS` are
-        firmographic fields a company-data provider's schema tracks (AUM,
-        investment strategy, and a fund's own portfolio history aren't
-        things Diffbot/PDL answer), so calling them for a buyer target
-        would be a guaranteed-empty round trip on every proposal.
+        """A company-data provider's schema is firmographic — revenue,
+        employee count, HQ country, socials, years active, location count
+        — a seller target's `missing` fields already are entirely that
+        (`SELLER_ROLE`/`ORGANIZATION`, never anything else). A buyer
+        target's `missing` can also include `BUYER_ROLE` fields (AUM,
+        investment strategy, check sizes, deal structure tolerance, ...),
+        which no such provider's schema tracks, so those are filtered out
+        here first — leaving only the `ORGANIZATION` fields a buyer's
+        organization shares the same row shape for as a seller's.
         """
-        if target.kind is not EnrichmentTargetKind.SELLER or not missing:
+        if target.kind is EnrichmentTargetKind.BUYER:
+            missing = [f for f in missing if f.write_target is WriteTarget.ORGANIZATION]
+        if not missing:
             return []
 
         proposed: list[ProposedFieldValue] = []
