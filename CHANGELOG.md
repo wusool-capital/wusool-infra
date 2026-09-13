@@ -41,6 +41,10 @@ for current production evidence and open handover items.
   dropped before it ever reached the server — its own submit script never
   read the field into the request. Now carried through to the visitor's
   Attio person record.
+- The Valuation tool's revenue and profit before tax at the visitor's
+  last funding raise were computed client-side and shown back to the
+  visitor, but never included in the lead submission. Now reaches
+  `tool_runs.payload`.
 
 ## 2026-09-12
 
