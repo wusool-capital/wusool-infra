@@ -43,7 +43,13 @@ _FIELDS_BY_NAME_FOR_TARGET = {
 # proposed value against `ddl_commands`' picker subset.
 _EXEMPT_FROM_OPTIONS_CHECK = frozenset({"hq_country", "region"})
 
-_ALL_ENRICHABLE_FIELDS = SELLER_ENRICHABLE_FIELDS + BUYER_ENRICHABLE_FIELDS
+# Deduped by name: `ORGANIZATION_ENRICHABLE_FIELDS` is folded into both
+# `SELLER_ENRICHABLE_FIELDS` and `BUYER_ENRICHABLE_FIELDS` (see
+# `field_plans`'s module docstring), so the same `EnrichableField` object
+# would otherwise be checked twice under the same parametrize id.
+_ALL_ENRICHABLE_FIELDS = tuple(
+    {f.name: f for f in SELLER_ENRICHABLE_FIELDS + BUYER_ENRICHABLE_FIELDS}.values()
+)
 
 
 @pytest.mark.parametrize("field", _ALL_ENRICHABLE_FIELDS, ids=lambda f: f.name)

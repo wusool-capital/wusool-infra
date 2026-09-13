@@ -110,6 +110,83 @@ async def test_propose_keeps_high_confidence_values(target: EnrichmentTarget) ->
     assert proposal.values[0].proposed == 5000000.0
 
 
+async def test_propose_proposes_sector_focus_for_the_organization(
+    target: EnrichmentTarget,
+) -> None:
+    """`sector_focus` is a `multi_select_text` organization field (like
+    `target_geography` is for a buyer role) — an out-of-vocabulary member
+    alongside valid ones is dropped, not the whole field.
+    """
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "sector_focus",
+                    "value": "Fintech, Not A Real Sector",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "described as a fintech company on its site",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "sector_focus"
+    assert proposal.values[0].proposed == ["Fintech"]
+
+
+async def test_propose_proposes_funding_stage_for_a_seller(target: EnrichmentTarget) -> None:
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "funding_stage",
+                    "value": "Series B",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "reported in a funding announcement",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "funding_stage"
+    assert proposal.values[0].proposed == "Series B"
+
+
+async def test_propose_proposes_deal_criteria_for_a_buyer(buyer_target: EnrichmentTarget) -> None:
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "check_size_min",
+                    "value": "1000000",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "stated on the fund's site",
+                },
+                {
+                    "field_name": "deal_structure_tolerance",
+                    "value": "Majority",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "the fund states it only takes majority positions",
+                },
+            ]
+        },
+    )
+    proposal = await service.propose(buyer_target)
+    by_field = {v.field_name: v for v in proposal.values}
+    assert by_field["check_size_min"].proposed == 1_000_000.0
+    assert by_field["check_size_min"].write_target == WriteTarget.BUYER_ROLE
+    assert by_field["deal_structure_tolerance"].proposed == "Majority"
+
+
 async def test_propose_proposes_region_for_the_organization(target: EnrichmentTarget) -> None:
     """`region` (macro HQ region, e.g. 'GCC') has no structured-provider
     support — it only ever comes from the LLM path — and, like `hq_country`,
