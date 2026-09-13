@@ -134,7 +134,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
         <h1 className="gate-title" style={{textAlign:"center"}}>Valuation Tool</h1>
         <p className="gate-sub" style={{textAlign:"center"}}>Get an institutional-grade valuation for your company in minutes</p>
         <form onSubmit={sub}>
-          <div className="row2" style={{gridTemplateColumns:"1fr 1fr"}}>
+          <div className="row2">
             <div className="fg" style={{minWidth:0}}><label className="fl">Company Name *</label><input className="fi" name="companyName" value={f.companyName} onChange={ch} placeholder="e.g. Acme Corp"/>{err.companyName&&<div className="fe">{err.companyName}</div>}</div>
             <div className="fg" style={{minWidth:0}}><label className="fl">Your Name *</label><input className="fi" name="name" value={f.name} onChange={ch} placeholder="Full name"/>{err.name&&<div className="fe">{err.name}</div>}</div>
           </div>
@@ -159,7 +159,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
             <textarea ref={descRef} className={"fi"+(descAutoFilled&&f.description?" enriched":"")} name="description" value={f.description} onChange={ch} placeholder="e.g. We build AI-powered supply chain software for mid-market manufacturers" style={{minHeight:64,overflow:"hidden",resize:"none"}}/>
             {enrichFailed&&<div className="fh" style={{color:"#B45309",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 10px",marginTop:6}}>We could not auto-detect this company. Please write a short description and select the sector manually so we can match the right comparables.</div>}
           </div>
-          <div className="row2" style={{gridTemplateColumns:"1fr 1fr"}}>
+          <div className="row2">
             <div className="fg" style={{minWidth:0}}>
               <label className="fl">
                 Industry / Sector *
@@ -223,7 +223,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
                   {STAGES.map(s=><option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-              <div className="row2" style={{gridTemplateColumns:"1fr 1fr"}}>
+              <div className="row2">
                 <div className="fg" style={{minWidth:0}}>
                   <label className="fl">Annual Revenue at Last Fundraise ({gateCur}) <Tip text="Annual revenue at the time of your most recent round."/></label>
                   <input className="fi input-blue" name="lastRaiseRevenue" type="text" inputMode="numeric" value={fmtNumInput(f.lastRaiseRevenue)} onChange={chNum} placeholder="Optional"/>

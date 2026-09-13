@@ -106,7 +106,7 @@ buyers/
   10-main.js
 embed.js
 img/<sha8>.<ext>       # shared across tools — logo dedupes by content hash
-shared/height.js        # ResizeObserver -> parent.postMessage, every tool includes it
+shared/height.js        # ResizeObserver on <body> -> parent.postMessage, every tool includes it
 ```
 
 Every `<script src>`/`<link href>` carries a hand-bumped `?v=1` cache-buster
@@ -168,8 +168,26 @@ Three things the import has to do, not just a copy:
   from via `event.source === iframe.contentWindow`, not a shared id — the
   child has no way to learn an id the parent assigns after creating the
   iframe, so an earlier draft that required one silently never matched and
-  every embed stayed pinned at `fallbackHeight` forever. Caught before any
-  tool used it.
+  every embed stayed pinned at its placeholder height forever. Caught
+  before any tool used it.
+
+  The height is measured from **`document.body`**, never
+  `document.documentElement`. `documentElement.scrollHeight` is the
+  scrolling element's scroll area, which inside an iframe can never report
+  less than the iframe's own viewport — so every tool's first report was
+  just the height the iframe already had, the observer never fired again,
+  and all four embeds sat pinned there with the rest of the form clipped
+  and, under the `scrolling="no"` the loader used to set, unreachable.
+  `<body>` is a plain auto-height block and measures real content.
+
+  For the same reason `embed.js` carries **no fixed dimensions**: no
+  per-tool `fallbackHeight`, no `scrolling` attribute. The pre-handshake
+  placeholder is `100vh`, which is right at every screen size, and leaving
+  scrolling at the browser default means a late or wrong height degrades
+  to an inner scrollbar instead of a dead end. `embed.js` also sets its own
+  host container to `height:auto` — Webflow's embed containers ship a fixed
+  `height:100vh` that the grown iframe overflows, putting the bottom of
+  every form behind the footer.
 
 Everything under here is served by `ToolStatic`, which sets the CSP
 `frame-ancestors` and the two-tier cache policy. `embed.js` is deliberately

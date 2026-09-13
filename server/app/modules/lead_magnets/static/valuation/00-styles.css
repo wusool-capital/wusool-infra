@@ -1,5 +1,4 @@
-<style>
-*{font-family:'Inter',sans-serif;box-sizing:border-box;margin:0;padding:0}
+*{font-family:'DM Sans',sans-serif;box-sizing:border-box;margin:0;padding:0}
 :root{--sb:#000523;--sp:#DC2626;--ng:#16DA80;--ab:#C6E1EE;--bw:#ffffff;--bb:#000523;--gg:#888888;--db:#1A1A1A}
 body{background:#fff;color:var(--bb)}
 
@@ -18,7 +17,7 @@ body{background:#fff;color:var(--bb)}
    overlap. A no-op everywhere `.fg` isn't a grid item, so safe globally. */
 .fg{margin-bottom:20px;min-width:0}
 .fl{font-size:12px;font-weight:600;color:var(--bb);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.fi{width:100%;padding:11px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;font-family:'Inter',sans-serif;transition:border-color 0.2s;background:#fff;color:var(--bb)}
+.fi{width:100%;padding:11px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;transition:border-color 0.2s;background:#fff;color:var(--bb)}
 .fi:focus{outline:none;border-color:#000523}
 .fi.calc{background:#f8f8f8;color:var(--bb);border-color:#e8e8e8;cursor:default}
 .fi.input-blue{color:#0000FF}
@@ -31,7 +30,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .consent-check input{width:16px;height:16px;margin-top:2px;flex-shrink:0;accent-color:#000523;cursor:pointer}
 .consent-check label{font-size:12.5px;color:var(--gg);font-weight:400;line-height:1.45;margin:0;cursor:pointer}
 .consent-check label a{color:var(--bb);text-decoration:underline;text-underline-offset:2px}
-.btn-primary{width:100%;padding:14px;background:#000523;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:background 0.2s;font-family:'Inter',sans-serif;letter-spacing:-0.2px}
+.btn-primary{width:100%;padding:14px;background:#000523;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:background 0.2s;font-family:'DM Sans',sans-serif;letter-spacing:-0.2px}
 .btn-primary:hover{background:#222}
 .sep{height:1px;background:#f0f0f0;margin:24px 0}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
@@ -58,7 +57,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .app-wrap{display:flex;min-height:calc(100vh - 65px)}
 .main{flex:1;padding:24px 40px 80px;max-width:980px;margin:0 auto;width:100%}
 .page-hdr{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #f0f0f0}
-.scroll-hint{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none;background:none;border:none;font-family:'Inter',sans-serif}
+.scroll-hint{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:40;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none;background:none;border:none;font-family:'DM Sans',sans-serif}
 .scroll-hint .sh-label{writing-mode:vertical-rl;text-orientation:mixed;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#000523;opacity:0.55}
 .scroll-hint .sh-track{width:3px;height:90px;background:#dfe3ec;border-radius:3px;position:relative;overflow:hidden}
 .scroll-hint .sh-fill{position:absolute;top:0;left:0;right:0;height:0;background:#000523;border-radius:3px;transition:height 0.15s ease-out}
@@ -117,7 +116,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .dt td:first-child{text-align:left}
 .dt td.calc{color:#555;background:#fafafa}
 .dt tr:last-child td{border-bottom:none}
-.dt input{border:1px solid #e0e0e0;border-radius:6px;padding:4px 6px;font-size:12px;text-align:right;font-family:'Inter',sans-serif;width:90px;background:#fff;color:#0000FF}
+.dt input{border:1px solid #e0e0e0;border-radius:6px;padding:4px 6px;font-size:12px;text-align:right;font-family:'DM Sans',sans-serif;width:90px;background:#fff;color:#0000FF}
 .scroll-table{overflow-x:auto}
 
 /* ── STAT GRID ── */
@@ -133,7 +132,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .sum-card .val{font-size:20px;font-weight:800}
 
 /* ── SMALL BUTTONS ── */
-.btn-sm{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;border:none}
+.btn-sm{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:none}
 .btn-add{background:#f0f0f0;color:#000;margin-top:8px}
 .btn-add:hover{background:#e8e8e8}
 
@@ -142,8 +141,8 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .divider{border-top:1px solid #f0f0f0;padding-top:16px;margin-top:16px}
 .auto-est-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;background:#f0fff8;border:1px solid rgba(22,218,128,0.3);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px}
 .auto-est-bar label{font-weight:600;color:var(--bb);font-size:11px}
-.auto-est-bar input{width:70px;border:1px solid #e0e0e0;border-radius:6px;padding:4px 6px;font-size:12px;font-family:'Inter',sans-serif;color:#0000FF}
-.auto-est{background:#000523;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-left:auto;white-space:nowrap}
+.auto-est-bar input{width:70px;border:1px solid #e0e0e0;border-radius:6px;padding:4px 6px;font-size:12px;font-family:'DM Sans',sans-serif;color:#0000FF}
+.auto-est{background:#000523;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-left:auto;white-space:nowrap}
 .auto-est:disabled{opacity:0.3;cursor:not-allowed}
 .wt-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .wt-row label{font-size:12px;font-weight:600;width:160px;flex-shrink:0}
@@ -162,7 +161,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .dcf-auto-note{background:#f0fff8;border:1px solid rgba(22,218,128,0.4);border-radius:8px;padding:10px 14px;font-size:12px;color:#007a50;margin-bottom:14px;line-height:1.5}
 .damod-badge{display:flex;align-items:center;gap:8px;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px}
 .cur-toggle{display:flex;gap:6px;margin-bottom:20px}
-.cur-btn{padding:6px 14px;border-radius:8px;border:1px solid #e0e0e0;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;background:#fff;color:var(--gg)}
+.cur-btn{padding:6px 14px;border-radius:8px;border:1px solid #e0e0e0;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;background:#fff;color:var(--gg)}
 .cur-btn.active{background:#000523;color:#fff;border-color:#000523}
 
 /* ── PAYWALL ── */
@@ -170,12 +169,12 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .paywall-blur{filter:blur(5px);pointer-events:none;user-select:none;opacity:0.55}
 .paywall-gate{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;z-index:10;background:rgba(255,255,255,0.5);backdrop-filter:blur(3px)}
 .paywall-card{background:#fff;border:1px solid #ebebeb;border-radius:8px;padding:36px 40px;text-align:center;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.08)}
-.paywall-logo{width:48px;height:48px;background:#0077B5;border-radius:8px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff;font-size:26px;font-weight:900;font-family:'Inter',sans-serif}
+.paywall-logo{width:48px;height:48px;background:#0077B5;border-radius:8px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff;font-size:26px;font-weight:900;font-family:'DM Sans',sans-serif}
 .paywall-title{font-size:18px;font-weight:800;color:var(--bb);margin-bottom:8px}
 .paywall-sub{font-size:13px;color:var(--gg);line-height:1.6;margin-bottom:24px}
-.paywall-btn-li{display:inline-flex;align-items:center;gap:8px;background:#0077B5;color:#fff;border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;transition:background 0.2s}
+.paywall-btn-li{display:inline-flex;align-items:center;gap:8px;background:#0077B5;color:#fff;border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:none;transition:background 0.2s}
 .paywall-btn-li:hover{background:#005f94}
-.paywall-btn-done{display:block;width:100%;margin-top:10px;background:transparent;border:1.5px solid var(--ng);color:#007a50;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:background 0.15s}
+.paywall-btn-done{display:block;width:100%;margin-top:10px;background:transparent;border:1.5px solid var(--ng);color:#007a50;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background 0.15s}
 .paywall-btn-done:hover{background:#f0fff8}
 
 /* ── STRATEGIC ANALYSIS ── */
@@ -199,7 +198,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .strat-item-text strong{font-weight:700;display:block;margin-bottom:2px;font-size:12px}
 
 /* ── PDF BUTTON ── */
-.pdf-btn{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.4);color:#fff;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.2s;margin-top:16px;backdrop-filter:blur(4px)}
+.pdf-btn{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.4);color:#fff;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;margin-top:16px;backdrop-filter:blur(4px)}
 .pdf-btn:hover{background:rgba(255,255,255,0.22);border-color:#fff}
 .pdf-btn:disabled{opacity:0.35;cursor:not-allowed}
 .pdf-btn svg{flex-shrink:0}
@@ -233,7 +232,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 
 /* ── CURRENCY TOGGLE ── */
 .gate-cur-toggle{display:inline-flex;gap:0;border:1.5px solid #e0e0e0;border-radius:8px;overflow:hidden;margin-left:auto;flex-shrink:0}
-.gate-cur-btn{padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:#fff;color:var(--gg);border:none;transition:all 0.15s}
+.gate-cur-btn{padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;background:#fff;color:var(--gg);border:none;transition:all 0.15s}
 .gate-cur-btn.active{background:#000523;color:#fff}
 
 /* ── LOADING SCREEN ── */
