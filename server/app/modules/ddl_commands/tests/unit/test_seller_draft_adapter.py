@@ -23,10 +23,14 @@ def _normalize(values: dict) -> dict:
     return module.normalize_prefill(values, module._SELLER_FIELDS_BY_NAME)
 
 
-def test_normalize_drops_select_value_not_in_vocabulary() -> None:
-    normalized = _normalize({"funding_stage": "Angel round"})  # not a real option title
+def test_normalize_drops_select_value_not_in_vocabulary(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("WARNING"):
+        normalized = _normalize({"funding_stage": "Angel round"})  # not a real option title
 
     assert normalized == {}
+    assert "funding_stage" in caplog.text
 
 
 def test_normalize_keeps_valid_select_value() -> None:
@@ -41,10 +45,14 @@ def test_normalize_filters_multi_select_text_to_valid_subset() -> None:
     assert normalized == {"sector_focus": ["Retail / E-Commerce"]}
 
 
-def test_normalize_drops_multi_select_text_with_no_valid_values() -> None:
-    normalized = _normalize({"sector_focus": ["Not A Real Sector"]})
+def test_normalize_drops_multi_select_text_with_no_valid_values(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("WARNING"):
+        normalized = _normalize({"sector_focus": ["Not A Real Sector"]})
 
     assert normalized == {}
+    assert "sector_focus" in caplog.text
 
 
 def test_normalize_drops_none_values() -> None:

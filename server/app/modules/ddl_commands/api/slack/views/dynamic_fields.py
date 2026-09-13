@@ -7,6 +7,7 @@ share a column name — org fields get an `"org_"` block_id prefix so a form
 that shows both can never collide.
 """
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -28,6 +29,8 @@ from app.modules.ddl_commands.api.slack.views.form_values import (
     text_input_block,
 )
 from app.modules.utilities.domain.json_types import JsonObject
+
+logger = logging.getLogger(__name__)
 
 
 def _block_id(spec: FieldSpec, block_id_prefix: str) -> str:
@@ -151,7 +154,10 @@ def wrap_prefill_value(spec: FieldSpec, value: PrefillValue | None) -> Any:
 
 
 def normalize_prefill(
-    values: dict[str, PrefillValue], fields_by_name: dict[str, FieldSpec]
+    values: dict[str, PrefillValue],
+    fields_by_name: dict[str, FieldSpec],
+    *,
+    warn_on_drop: bool = True,
 ) -> dict[str, PrefillValue]:
     """Drops any value not in a `select`/`multi_select_text` field's fixed
     vocabulary (never passed through as free text) — Slack silently drops an
@@ -160,19 +166,36 @@ def normalize_prefill(
     keeps the rendered form predictable either way. Shared by every prefill
     source (`discovery`'s draft, `enrichment`'s proposal) — previously two
     near-identical private copies, one per adapter.
+
+    For `enrichment` (the default, `warn_on_drop=True`), a drop here is meant
+    to be a backstop, not the primary guard: it's expected to constrain its
+    own values against the real vocabulary before calling this
+    (`enrichment.application.enrich._constrain_to_options`) — if one still
+    reaches here, its copy of the vocabulary has drifted, so it's logged.
+    `discovery`'s draft has no such constraining step and isn't expected to
+    — it offers a free-text Google Maps category as a `sector_focus` guess
+    by design, routinely outside the fixed vocabulary (see
+    `discovery.domain.drafts.draft_from_lead`'s docstring) — so its caller
+    passes `warn_on_drop=False` to keep this backstop's log reserved for the
+    case it actually means something.
     """
     normalized: dict[str, PrefillValue] = {}
+    dropped: list[str] = []
     for name, value in values.items():
         spec = fields_by_name.get(name)
         if spec is None or value is None:
             continue
         if spec.kind == "select" and value not in spec.options:
+            dropped.append(name)
             continue
         if spec.kind == "multi_select_text":
             kept = [v for v in value if v in spec.options] if isinstance(value, list) else []
             if not kept:
+                dropped.append(name)
                 continue
             normalized[name] = kept
             continue
         normalized[name] = value
+    if dropped and warn_on_drop:
+        logger.warning("prefill_values_dropped_not_in_vocabulary fields=%s", dropped)
     return normalized

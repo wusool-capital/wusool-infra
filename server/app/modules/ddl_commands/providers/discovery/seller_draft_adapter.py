@@ -32,7 +32,11 @@ class DdlCommandsSellerDraftAdapter:
         self, *, trigger_id: str, draft: SellerDraft, channel_id: str, requested_by: str
     ) -> None:
         client = get_slack_client(get_settings().slack_bot_token)
-        prefill = normalize_prefill(draft.values, _SELLER_FIELDS_BY_NAME)
+        # `warn_on_drop=False`: `draft.values["sector_focus"]` is a free-text
+        # Google Maps category offered as a guess (see `SellerDraft`'s own
+        # `draft_from_lead` docstring) — landing outside the fixed vocabulary
+        # is the routine case, not vocabulary drift worth a warning.
+        prefill = normalize_prefill(draft.values, _SELLER_FIELDS_BY_NAME, warn_on_drop=False)
 
         candidates = await search_organizations(draft.org_name)
         if candidates:
