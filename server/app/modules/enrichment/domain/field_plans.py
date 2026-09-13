@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
+from app.modules.enrichment.domain.employee_bands import EMPLOYEE_RANGE_OPTIONS
+
 FieldKind = Literal[
     "text",
     "multiline",
@@ -42,8 +44,16 @@ class EnrichableField:
     kind: FieldKind
     write_target: WriteTarget
     # Guidance folded into the extraction prompt — what "good" looks like
-    # for this field, not a user-facing string.
+    # for this field, not a user-facing string. When `options` is non-empty,
+    # it — not this hint — is the authoritative vocabulary folded into the
+    # prompt (see `enrich._field_line`); the hint stays as extra guidance.
     prompt_hint: str
+    # Fixed vocabulary for a `select`/`multi_select_text` field, mirroring
+    # `ddl_commands.api.schemas.FieldSpec.options` — empty for every field
+    # without one. Kept in sync with `ddl_commands`' own `FieldSpec.options`
+    # by `tests/test_enrichment_field_vocabulary.py`, since this module must
+    # never import `ddl_commands` to check directly.
+    options: tuple[str, ...] = ()
 
 
 SELLER_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
@@ -97,7 +107,9 @@ SELLER_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
         "Employee range",
         "select",
         WriteTarget.ORGANIZATION,
-        "One of Attio's fixed employee-count bands (e.g. '11-50').",
+        "The company's approximate employee-count band, from its own stated "
+        "or reported headcount.",
+        options=EMPLOYEE_RANGE_OPTIONS,
     ),
     EnrichableField(
         "foundation_date",
@@ -170,8 +182,18 @@ BUYER_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
         "Target geography",
         "multi_select_text",
         WriteTarget.BUYER_ROLE,
-        "Countries/regions the buyer targets, from its own stated investment "
-        "scope. Multiple values, comma-separated (e.g. 'UAE, Saudi Arabia').",
+        "Countries/regions the buyer targets, from its own stated investment scope.",
+        options=(
+            "UAE",
+            "KSA",
+            "Kuwait",
+            "Bahrain",
+            "Qatar",
+            "Oman",
+            "GCC-wide",
+            "Egypt",
+            "Global",
+        ),
     ),
     EnrichableField(
         "prior_gcc_acquisition",

@@ -70,11 +70,58 @@ def _coerce_proposed_value(kind: str, raw_value: str) -> FieldValue:
     if kind == "multi_select_text":
         # The extraction schema's `value` is always one `str` per field —
         # never a real list — so a multi-value answer (e.g. `target_geography`)
-        # comes back comma-separated; without this split, `_normalize`'s
+        # comes back comma-separated; without this split, `normalize_prefill`'s
         # `isinstance(value, list)` check fails and the whole field is
         # silently dropped from the review form.
         return [v.strip() for v in raw_value.split(",") if v.strip()]
     return raw_value
+
+
+def _constrain_to_options(field: EnrichableField, value: FieldValue) -> FieldValue | None:
+    """A `select`/`multi_select_text` field's proposed value must already be
+    one of its fixed options, or `normalize_prefill` drops it — silently,
+    after the operator has already seen it in the Slack proposal message
+    (`ddl_commands.api.slack.views.dynamic_fields.normalize_prefill`). The
+    prompt (`_field_line`) asks the model to stick to the vocabulary, but
+    this is the actual enforcement: matched case-insensitively (LLM casing
+    is unreliable), never by synonym — "Saudi Arabia" is not silently
+    rewritten to "KSA", it's dropped. For `multi_select_text`, a partial
+    match keeps the surviving subset rather than dropping the whole field.
+    Fields with no fixed vocabulary (`options == ()`) pass through
+    unchanged, including `multi_select_as_text` (e.g. `hq_country`), which
+    intentionally accepts free text.
+    """
+    if not field.options:
+        return value
+    canonical_by_casefold = {o.casefold(): o for o in field.options}
+    if field.kind == "multi_select_text":
+        assert isinstance(value, list)
+        kept = [
+            canonical_by_casefold[v.casefold()]
+            for v in value
+            if v.casefold() in canonical_by_casefold
+        ]
+        return kept or None
+    assert isinstance(value, str)
+    return canonical_by_casefold.get(value.casefold())
+
+
+def _field_line(field: EnrichableField) -> str:
+    """A field with no fixed vocabulary is free text — just its hint. One
+    with `options` gets those exact labels folded in too, since the hint
+    alone (e.g. "a fixed employee-count band") doesn't tell the model what
+    the bands actually are, and an unmatched proposal is silently dropped
+    before the operator ever sees the review form (`normalize_prefill`).
+    """
+    if not field.options:
+        return f"- {field.name}: {field.prompt_hint}"
+    allowed = " | ".join(field.options)
+    multi = " Comma-separate if more than one applies." if field.kind == "multi_select_text" else ""
+    return (
+        f"- {field.name}: {field.prompt_hint} Choose ONLY from these exact labels: "
+        f"{allowed}. Do not invent or paraphrase a label; omit the field entirely "
+        f"if none of them apply.{multi}"
+    )
 
 
 def _build_prompt(
@@ -83,7 +130,7 @@ def _build_prompt(
     sources: list[str],
     context: CompanyContext,
 ) -> str:
-    field_lines = "\n".join(f"- {f.name}: {f.prompt_hint}" for f in missing)
+    field_lines = "\n".join(_field_line(f) for f in missing)
     source_lines = "\n\n".join(sources) if sources else "(no source material found)"
     known_facts_block = build_known_facts_block(context)
     return (
@@ -153,6 +200,10 @@ class EnrichMixin(ServiceBase):
         for client in self._company_data_clients:
             if not remaining:
                 break
+            # No `_constrain_to_options` call needed here: `employee_range`
+            # is this path's only option-bearing field, and every
+            # `CompanyDataClient` already emits it via `bucket_employee_count`
+            # — never a value outside the fixed bands.
             fields = await client.lookup(org_name=target.org_name, fields=tuple(remaining))
             for field in fields:
                 if field.field_name not in {f.name for f in remaining}:
@@ -212,6 +263,13 @@ class EnrichMixin(ServiceBase):
                 # drop it rather than propose a value that would fail at
                 # write time with a much less clear error.
                 continue
+            constrained_value = _constrain_to_options(field, proposed_value)
+            if constrained_value is None:
+                # A `select`/`multi_select_text` field whose value(s) don't
+                # match the fixed vocabulary — proposing it anyway would show
+                # the operator a value the review form silently can't prefill.
+                continue
+            proposed_value = constrained_value
             proposed.append(
                 ProposedFieldValue(
                     field_name=field.name,

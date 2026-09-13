@@ -7,6 +7,7 @@ share a column name — org fields get an `"org_"` block_id prefix so a form
 that shows both can never collide.
 """
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -28,6 +29,8 @@ from app.modules.ddl_commands.api.slack.views.form_values import (
     text_input_block,
 )
 from app.modules.utilities.domain.json_types import JsonObject
+
+logger = logging.getLogger(__name__)
 
 
 def _block_id(spec: FieldSpec, block_id_prefix: str) -> str:
@@ -160,19 +163,31 @@ def normalize_prefill(
     keeps the rendered form predictable either way. Shared by every prefill
     source (`discovery`'s draft, `enrichment`'s proposal) — previously two
     near-identical private copies, one per adapter.
+
+    A drop here is meant to be a backstop, not the primary guard: each
+    prefill source is expected to constrain its own values against the real
+    vocabulary before calling this (e.g. `enrichment.application.enrich
+    ._constrain_to_options`) — if one still reaches here, that source's copy
+    of the vocabulary has drifted, so it's logged rather than silently
+    swallowed a second time.
     """
     normalized: dict[str, PrefillValue] = {}
+    dropped: list[str] = []
     for name, value in values.items():
         spec = fields_by_name.get(name)
         if spec is None or value is None:
             continue
         if spec.kind == "select" and value not in spec.options:
+            dropped.append(name)
             continue
         if spec.kind == "multi_select_text":
             kept = [v for v in value if v in spec.options] if isinstance(value, list) else []
             if not kept:
+                dropped.append(name)
                 continue
             normalized[name] = kept
             continue
         normalized[name] = value
+    if dropped:
+        logger.warning("prefill_values_dropped_not_in_vocabulary fields=%s", dropped)
     return normalized
