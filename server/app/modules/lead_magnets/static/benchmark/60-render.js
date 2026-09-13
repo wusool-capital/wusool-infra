@@ -35,6 +35,7 @@ function unlock(){
     company: $("g-company").value.trim(),
     name: $("g-name").value.trim() || null,
     email: $("g-email").value.trim().toLowerCase(),
+    phone: $("g-phone").value.trim() || null,
     domain: null,
     geography: S.inputs.geo || null,
     consent: $("g-consent").checked,

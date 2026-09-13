@@ -261,3 +261,16 @@ def test_person_values_builds_the_record_reference_array() -> None:
     )
     assert values["company"] == [{"target_object": "organizations", "target_record_id": "org-1"}]
     assert values["linkedin"] == "https://x"
+
+
+def test_person_values_includes_phone_only_when_given() -> None:
+    with_phone = person_values(
+        name="Dana",
+        email="dana@acme.com",
+        organization_attio_id=None,
+        phone="+971500000000",
+    )
+    without_phone = person_values(name="Dana", email="dana@acme.com", organization_attio_id=None)
+
+    assert with_phone["phone"] == "+971500000000"
+    assert "phone" not in without_phone

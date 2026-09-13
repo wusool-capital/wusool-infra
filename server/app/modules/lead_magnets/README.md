@@ -444,12 +444,12 @@ same reason as `resolve_role_entry_id`: Attio's checkbox filter has no "is
 empty", so a server-side filter would silently miss a pre-migration record
 and create an unwanted duplicate.
 
-**Fill-blanks-only on a match, never overwrite.** `company`/`linkedin` are
-patched only when the matched record's own value for that attribute is
+**Fill-blanks-only on a match, never overwrite.** `company`/`linkedin`/`phone`
+are patched only when the matched record's own value for that attribute is
 currently empty; `name` is never touched on a match at all. A lead magnet
-can only ever add a `company`/`linkedin` a hand-curated contact never had,
-never relabel one that is already there. If a match already has everything
-filled in, nothing is written.
+can only ever add a `company`/`linkedin`/`phone` a hand-curated contact
+never had, never relabel one that is already there. If a match already has
+everything filled in, nothing is written.
 
 **Best-effort.** A person-write failure is logged and swallowed
 (`bootstrap.py::_RoleAttioWriter._with_person`) — the org/role write has

@@ -8,8 +8,8 @@ upsert, so this is query-then-create-or-patch rather than a `PUT
 ?matching_attribute=`.
 
 Fill-blanks-only on a match, never overwrite: a lead magnet only ever adds
-a `company`/`linkedin` a hand-curated contact never had. `name` is never
-touched on a match — it's the field most likely to carry a human's
+a `company`/`linkedin`/`phone` a hand-curated contact never had. `name` is
+never touched on a match — it's the field most likely to carry a human's
 deliberate correction, and it's `is_required` on the object so it's never
 genuinely blank. This is deliberately more conservative than
 `role_writer.py`'s organisation writes, which do patch on every match:
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 _COMPANY_FIELD = "company"
 _LINKEDIN_FIELD = "linkedin"
+_PHONE_FIELD = "phone"
 
 
 class AttioPersonWriter:
@@ -47,6 +48,7 @@ class AttioPersonWriter:
         email: str | None,
         organization_attio_id: str | None,
         linkedin: str | None = None,
+        phone: str | None = None,
     ) -> tuple[str, str] | None:
         """Returns `(person_attio_id, person_name)`, or `None` if there is
         no email to write against — not an error, since not every stored
@@ -68,6 +70,7 @@ class AttioPersonWriter:
                 email=normalised_email,
                 organization_attio_id=organization_attio_id,
                 linkedin=linkedin,
+                phone=phone,
             )
             person_id = await entries.create_person(self._client, values, is_test=self._is_test)
             return person_id, resolved_name
@@ -91,6 +94,8 @@ class AttioPersonWriter:
             ]
         if linkedin and not v.first(matched_values, _LINKEDIN_FIELD):
             patch[_LINKEDIN_FIELD] = linkedin
+        if phone and not v.first(matched_values, _PHONE_FIELD):
+            patch[_PHONE_FIELD] = phone
         if patch:
             await entries.patch_person(self._client, v.record_id(matched), patch)
         return v.record_id(matched), str(matched_name)

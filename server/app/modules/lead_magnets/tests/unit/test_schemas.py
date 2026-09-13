@@ -45,11 +45,21 @@ def test_attio_identity_payload_picks_email_and_name_out_of_a_benchmark_request(
             "peer_key": "seed",
             "email": "f@acme.com",
             "name": "Dana",
+            "phone": "+971500000000",
             "geography": "UAE",
         }
     )
     assert parsed.email == "f@acme.com"
     assert parsed.name == "Dana"
+    assert parsed.phone == "+971500000000"
+
+
+def test_attio_identity_payload_phone_defaults_none() -> None:
+    """Valuation/readiness requests carry no `phone` field at all — a
+    stored payload from either must not error, and must not read as an
+    empty-string phone number."""
+    parsed = AttioIdentityPayload.model_validate({"company": "Acme"})
+    assert parsed.phone is None
 
 
 def test_attio_identity_payload_reads_readiness_country() -> None:
