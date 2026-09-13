@@ -16,7 +16,7 @@ There is no separate website or login.
 | `/edit-seller <name>` / `/edit-buyer <name>` | Edit an existing profile |
 | `/add-seller <organization>` / `/add-buyer <organization>` | Add a role |
 | `/enrich-seller <name>` / `/enrich-buyer <name>` | Propose missing values |
-| `/toolkit-status` | Service, database, and Attio status |
+| `/toolkit-status` | Environment, uptime, database, and Attio status |
 | `/toolkit-help` | Command help |
 
 ## Find matches
@@ -115,12 +115,24 @@ role removal.
 
 ```mermaid
 flowchart TD
-  enrich["/enrich-buyer or /enrich-seller"] --> research["Research public sources"]
-  research --> values{"Values found?"}
+  enrich["/enrich-buyer or /enrich-seller"] --> diffbot["1. Diffbot"]
+  diffbot --> pdl["2. People Data Labs"]
+  pdl --> firecrawl["3. Firecrawl and Bedrock"]
+  firecrawl --> values{"Values found?"}
   values -- "No" --> none["No changes"]
   values -- "Yes" --> review["Review proposal"] --> edit["Edit and submit"]
   edit --> save["Save reviewed fields"] --> attio["Attio"] --> database["Database"]
 ```
+
+Research follows this three-tier waterfall:
+
+1. **Diffbot** checks structured company data first.
+2. **People Data Labs** checks organization fields Diffbot did not resolve.
+3. **Firecrawl** searches public sources, then Bedrock extracts remaining values.
+
+Each field keeps its first supported value; later tiers do not overwrite it.
+Missing credentials skip that tier. Buyer-specific fields go directly to
+Firecrawl because structured company providers do not cover them.
 
 1. Run `/enrich-seller <name>` or `/enrich-buyer <name>` and select the
    intended record if asked.

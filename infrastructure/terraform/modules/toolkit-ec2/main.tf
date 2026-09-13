@@ -240,16 +240,18 @@ locals {
     logs = { logs_collected = { files = { collect_list = local.cloudwatch_log_entries } } }
   })
 
-  # One SOURCE Attio workspace serves both environments; ATTIO_IS_TEST is the
-  # only thing separating them, so it is derived from the environment rather
-  # than being a second knob that can disagree with it. Only prod owns
-  # production records.
-  attio_is_test = var.environment == "prod" ? "false" : "true"
+  # Keep deployment identity and the safe Attio default on one environment
+  # classification. ATTIO_IS_TEST remains operator-overridable at runtime;
+  # APP_ENV does not, because status must identify the deployment itself.
+  is_production = var.environment == "prod"
+  app_env       = local.is_production ? "production" : "development"
+  attio_is_test = local.is_production ? "false" : "true"
 
   user_data_rendered = replace(templatefile("${path.module}/user_data.sh.tpl", {
     apps                    = local.apps_resolved
     ecr_registry            = local.ecr_registry
     aws_region              = var.aws_region
+    app_env                 = local.app_env
     attio_is_test           = local.attio_is_test
     cloudwatch_agent_config = local.cloudwatch_agent_config
     cloudwatch_log_group    = aws_cloudwatch_log_group.wusool_toolkit.name

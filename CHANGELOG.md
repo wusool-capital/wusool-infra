@@ -27,6 +27,11 @@ for current production evidence and open handover items.
 - Condensed the changelog into milestone summaries; commit-level detail remains
   available in Git history.
 
+### Fixed
+
+- Corrected `/toolkit-status` to report the deployed development or production
+  environment instead of falling back to `development` in production.
+
 ## 2026-09-12
 
 This release period is summarized in
