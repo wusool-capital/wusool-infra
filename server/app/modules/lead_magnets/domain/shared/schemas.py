@@ -141,6 +141,8 @@ class ValuationPayload(_Payload):
     sector: str | None = None
     geography: str | None = None
     stage: str | None = None
+    last_raise_revenue: float | None = None
+    last_raise_pbt: float | None = None
     cash: float = 0.0
     debt: float = 0.0
     comps: list[ValuationCompPayload] = []
