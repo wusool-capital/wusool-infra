@@ -252,8 +252,7 @@ ORGANIZATION_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
         "Employee range",
         "select",
         WriteTarget.ORGANIZATION,
-        "The company's approximate employee-count band, from its own stated "
-        "or reported headcount.",
+        "The company's approximate employee-count band, from its own stated or reported headcount.",
         options=EMPLOYEE_RANGE_OPTIONS,
     ),
     EnrichableField(
@@ -310,8 +309,7 @@ ORGANIZATION_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
         "Twitter follower count",
         "number",
         WriteTarget.ORGANIZATION,
-        "The company's Twitter/X follower count, read directly off its public "
-        "profile page.",
+        "The company's Twitter/X follower count, read directly off its public profile page.",
     ),
 )
 
@@ -469,16 +467,14 @@ BUYER_ROLE_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
         "Check size - min (USD)",
         "currency",
         WriteTarget.BUYER_ROLE,
-        "The buyer's minimum per-deal check size in USD, from its own stated "
-        "investment criteria.",
+        "The buyer's minimum per-deal check size in USD, from its own stated investment criteria.",
     ),
     EnrichableField(
         "check_size_max",
         "Check size - max (USD)",
         "currency",
         WriteTarget.BUYER_ROLE,
-        "The buyer's maximum per-deal check size in USD, from its own stated "
-        "investment criteria.",
+        "The buyer's maximum per-deal check size in USD, from its own stated investment criteria.",
     ),
     EnrichableField(
         "ev_ceiling",
