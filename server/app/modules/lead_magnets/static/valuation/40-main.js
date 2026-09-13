@@ -41,6 +41,8 @@ function App(){
           company:data.companyName||"",name:data.name||null,email:data.email||"",
           domain:data.domain||null,description:data.description||null,sector:data.sector||null,
           geography:data.geo||null,stage:data.stage||null,
+          last_raise_revenue:data.lastRaiseRevenue||null,
+          last_raise_pbt:data.lastRaisePBT||null,
           revenue:data.revenue||0,profit_before_tax:data.profitBeforeTax||null,
           owner_salary:data.ownerSalary||null,cash:0,debt:0,
           comps:[],consent:!!data.consent

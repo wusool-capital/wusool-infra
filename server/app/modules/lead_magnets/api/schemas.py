@@ -351,6 +351,15 @@ class ValuationRequest(_Strict):
     sector: str | None = Field(default=None, max_length=200)
     geography: str | None = Field(default=None, max_length=100)
     stage: str | None = Field(default=None, max_length=100)
+    # Revenue/profit at the visitor's last funding raise — collected by the
+    # Gate form's two conditional fields under "Has your company raised
+    # funding?", computed client-side, but until now never sent to any
+    # endpoint at all. `raised` itself is deliberately not mirrored here —
+    # it already reaches `/analyze` for its own fundraise-readiness insight,
+    # and the lead record intentionally doesn't duplicate it (same as
+    # `AnalyzeRequest.raised`'s own note on this split).
+    last_raise_revenue: float | None = Field(default=None, ge=0)
+    last_raise_pbt: float | None = None
     revenue: float = Field(ge=0)
     profit_before_tax: float | None = None
     owner_salary: float | None = Field(default=None, ge=0)

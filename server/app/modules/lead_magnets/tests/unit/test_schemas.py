@@ -124,6 +124,27 @@ def test_valuation_payload_defaults_when_discounts_absent() -> None:
     assert parsed.comps == []
 
 
+def test_valuation_payload_parses_fundraising_history() -> None:
+    """These used to have nowhere to go at all — the Gate form's two
+    conditional fields under "Has your company raised funding?" were
+    computed client-side and shown back to the visitor, never sent to
+    `/submit-lead`. `raised` itself is deliberately not on this model —
+    see `ValuationPayload`'s field comment."""
+    parsed = ValuationPayload.model_validate(
+        {"revenue": 1.0, "last_raise_revenue": 500_000, "last_raise_pbt": -50_000}
+    )
+    assert parsed.last_raise_revenue == 500_000
+    assert parsed.last_raise_pbt == -50_000
+
+
+def test_valuation_payload_fundraising_history_defaults() -> None:
+    """A resumed payload from before this field existed has no key at
+    all — must read as `None`, not error."""
+    parsed = ValuationPayload.model_validate({"revenue": 1.0})
+    assert parsed.last_raise_revenue is None
+    assert parsed.last_raise_pbt is None
+
+
 def test_buyer_network_payload_parses_the_real_request_shape() -> None:
     parsed = BuyerNetworkPayload.model_validate(
         {
