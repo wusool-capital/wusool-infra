@@ -8,21 +8,21 @@
   "use strict";
 
   var TOOLS = {
-    benchmark: { src: "/benchmark/", fallbackHeight: 1400 },
-    readiness: { src: "/readiness/", fallbackHeight: 1000 },
-    valuation: { src: "/valuation/", fallbackHeight: 1600 },
-    buyers: { src: "/buyers/", fallbackHeight: 1200 },
+    benchmark: "/benchmark/",
+    readiness: "/readiness/",
+    valuation: "/valuation/",
+    buyers: "/buyers/",
   };
 
   var script = document.currentScript;
   if (!script) return;
 
   var tool = script.getAttribute("data-tool");
-  var config = TOOLS[tool];
-  // Unknown tool name: no-op. `config.src` always comes from this map,
-  // never from the attribute itself, so a bad value can't be turned into
-  // an iframe src.
-  if (!config) return;
+  var src = TOOLS[tool];
+  // Unknown tool name: no-op. The path always comes from this map, never
+  // from the attribute itself, so a bad value can't be turned into an
+  // iframe src.
+  if (!src) return;
 
   // Derived, not hardcoded: the same script works from a dev bare-IP host
   // or the prod hostname without a build-time swap. This is where the
@@ -31,22 +31,36 @@
   var toolsOrigin = new URL(script.src, window.location.href).origin;
 
   var iframe = document.createElement("iframe");
-  // Absolute, built from toolsOrigin — config.src is root-relative
+  // Absolute, built from toolsOrigin — the map's paths are root-relative
   // ("/benchmark/"), which a bare assignment would resolve against the
   // *parent* page's own origin (Webflow's), not the tools host. That
   // would silently send the iframe to e.g. wusoolcapital.com/benchmark/
   // instead of the tools server, 404ing on the parent site.
-  iframe.src = toolsOrigin + config.src;
+  iframe.src = toolsOrigin + src;
   iframe.title = "Wusool " + tool + " tool";
-  iframe.setAttribute("scrolling", "no");
   iframe.style.border = "0";
-  iframe.style.width = "100%";
   iframe.style.display = "block";
-  iframe.style.height = config.fallbackHeight + "px";
+  iframe.style.width = "100%";
+  iframe.style.maxWidth = "100%";
+  // Viewport-relative placeholder, not a per-tool pixel guess: it is only
+  // what shows for the frame or two before shared/height.js reports the
+  // real content height, and it is right at every screen size.
+  iframe.style.height = "100vh";
+  // No `scrolling="no"`. It is what turned a wrong height into *unreachable*
+  // content — a lead form that simply ended mid-field with no way to reach
+  // the rest. Default scrolling degrades the same failure to an inner
+  // scrollbar. With a correct height there is no overflow, so none appears.
 
-  script.parentNode.insertBefore(iframe, script);
+  var host = script.parentNode;
+  host.insertBefore(iframe, script);
+  // Webflow's embed containers ship a fixed `height:100vh` that the iframe
+  // then overflows, so everything past one screen was painted over by the
+  // footer. The iframe sizes itself; the container must just get out of the
+  // way, here rather than in the Designer so it cannot silently regress.
+  host.style.height = "auto";
 
-  var minHeight = config.fallbackHeight / 4;
+  // Sanity bound only — not a layout value. Stops a pathological page from
+  // asking for a million-pixel iframe.
   var maxHeight = 20000;
 
   // event.source === iframe.contentWindow is what disambiguates this
@@ -60,7 +74,6 @@
     if (!data || data.type !== "wusool:height") return;
     var height = Number(data.height);
     if (!isFinite(height) || height <= 0) return;
-    height = Math.max(minHeight, Math.min(maxHeight, height));
-    iframe.style.height = height + "px";
+    iframe.style.height = Math.min(maxHeight, height) + "px";
   });
 })();

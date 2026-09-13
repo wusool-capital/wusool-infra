@@ -29,6 +29,22 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- Every embedded lead-magnet tool was cut off partway down the form with no
+  way to scroll to the rest, losing any visitor who had not already finished.
+  The embedded page measured its height from a value that, inside an iframe,
+  can never report less than the iframe already was, so the iframe never grew
+  past its placeholder; the loader then set `scrolling="no"`, which turned the
+  clipped remainder into unreachable content rather than a scrollbar. Height
+  is now measured from the page body, the embed carries no fixed dimensions at
+  any screen size, and it clears the fixed height the marketing site puts on
+  its embed containers.
+- The four tools now use the marketing site's DM Sans rather than Inter and
+  JetBrains Mono. The Valuation tool in particular was rendering in the
+  browser's default serif with form fields overflowing their card: a stray
+  `<style>` tag at the top of its stylesheet made the browser discard the rule
+  carrying both its font and its box-sizing reset.
+- The Valuation form's paired fields no longer stay side by side on a phone —
+  inline styles were overriding the small-screen breakpoint.
 - Corrected `/toolkit-status` to report the deployed development or production
   environment instead of falling back to `development` in production.
 - Lead-magnet submissions (Valuation, M&A Readiness, GCC SME Benchmark, Buyer
