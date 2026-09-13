@@ -10,9 +10,14 @@ There is no separate website or login.
   present.
 - Type `/toolkit-help` in Slack to see the available commands.
 
-The main workflows are matching, editing, adding, and enrichment. Use
-`/toolkit-status` for service, database, and Attio-mode status, and
-`/toolkit-help` for command help.
+| Command | Result |
+| --- | --- |
+| `/find-match <buyer name>` | Ranked seller shortlist |
+| `/edit-seller <name>` / `/edit-buyer <name>` | Edit an existing profile |
+| `/add-seller <organization>` / `/add-buyer <organization>` | Add a role |
+| `/enrich-seller <name>` / `/enrich-buyer <name>` | Propose missing values |
+| `/toolkit-status` | Service, database, and Attio status |
+| `/toolkit-help` | Command help |
 
 ## Find matches
 
@@ -37,10 +42,8 @@ flowchart TD
 4. Use **View Full Analysis** to inspect the reasoning.
 5. Choose **Approve Match** or **Reject Match** when you have decided.
 
-**Expected result:** Slack shows one or more scored sellers. The fit score
-combines factors such as strategy, size, and sector. Confidence describes how
-much supporting CRM data was available. A high score with low confidence
-needs human verification.
+**Expected result:** Slack shows scored sellers with fit and data-confidence
+scores. Verify high scores when confidence is low.
 
 If no CRM seller clears the internal threshold, the bot can show up to three
 unverified leads from a public web search. **Add as seller** opens the normal
@@ -48,8 +51,7 @@ add-seller flow; the lead is not saved until you complete that flow. **Find
 more sellers** repeats the public search.
 
 Match results never contact an organization or change its profile or deal.
-Approval and rejection record the decision only. The bot rechecks current
-data before saving a decision made from an older Slack message.
+Approval and rejection record only the decision, after a current-data check.
 
 ### If matching does not work
 
@@ -78,13 +80,11 @@ flowchart TD
 2. Tick only the organization or profile fields you need to change.
 3. Continue to the pre-filled form, update the values, and press **Save**.
 
-**Expected result:** the bot confirms the update. It writes to Attio first
-and then to the database. A partial-failure message states what was and was
-not saved.
+**Expected result:** the bot confirms the update after writing to Attio and
+then the database. Partial failures identify what saved.
 
-System-managed scores and pipeline values do not appear in the form. People
-references, such as owner or key contact, are not editable from Slack.
-`Intake source` requires the correction checkbox before it can be changed.
+System-managed scores, pipeline values, and people references are not editable
+from Slack. `Intake source` requires the correction checkbox.
 
 ### Add a buyer or seller
 
@@ -105,10 +105,8 @@ flowchart TD
    filled later.
 4. Review duplicate warnings and press **Save**.
 
-**Expected result:** the organization, when new, and its buyer or seller role
-are created in Attio and then the database. If the organization already has
-that role, edit it instead. Two simultaneous add requests can create a
-duplicate, so coordinate bulk entry.
+**Expected result:** the organization and role are created in Attio, then the
+database. If the role exists, edit it instead. Coordinate simultaneous adds.
 
 There is no `/remove-seller` or `/remove-buyer`. Ask the CRM owner to handle
 role removal.
@@ -131,8 +129,8 @@ flowchart TD
 3. Press **Review & Save**, correct or clear anything you do not want, and
    submit the normal edit form.
 
-**Expected result:** only reviewed values you submit are saved. A proposal
-never changes Attio by itself, and existing non-empty fields are left alone.
+**Expected result:** only reviewed values are saved. Proposals never change
+Attio, and existing non-empty fields remain untouched.
 
 ## Rules to remember
 
