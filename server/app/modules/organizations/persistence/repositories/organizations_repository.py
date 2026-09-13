@@ -9,7 +9,7 @@ transaction boundary.
 
 from typing import Unpack
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,8 +17,35 @@ from sqlalchemy.orm import selectinload
 from app.models import Organization
 from app.modules.organizations.application.ports.organizations import OrganizationFields
 
-# Same rationale as SellerRepository's/BuyerRepository's constant.
 _TRIGRAM_SIMILARITY_THRESHOLD = 0.3
+
+
+def org_name_trigram_predicate(term: str) -> tuple[ColumnElement[bool], ColumnElement[float]]:
+    """Case-insensitive, typo-tolerant name-match predicate + similarity
+    column to order by — the one canonical implementation, reused by every
+    module that searches organizations by name (this repository's own
+    `search_by_name`, `ddl_commands`' seller/buyer role search,
+    `matching_engine`'s buyer search). `pg_trgm` (001_extensions.sql, GIN
+    index in 007_org_name_trgm_index.sql) ranks by trigram similarity, so a
+    misspelled name still surfaces a match — but the plain `ILIKE`
+    substring match is always included too (`OR`), so an exact/partial
+    typed name never regresses to relying on a similarity score.
+
+    The threshold is an explicit constant, not `pg_trgm`'s own `%`
+    similarity operator: that operator depends on a session-level GUC
+    (`pg_trgm.similarity_threshold`), while comparing `func.similarity(...)`
+    against a literal is equivalent to that operator's own default and
+    doesn't depend on session state.
+
+    Kept here, not in a `domain/` module: `organizations` has none (it's a
+    full-access peer, see this module's own `__init__.py` docstring), and
+    the predicate is a SQLAlchemy construct, not framework-free logic.
+    """
+    similarity = func.similarity(Organization.name, term)
+    return (
+        or_(Organization.name.ilike(f"%{term}%"), similarity > _TRIGRAM_SIMILARITY_THRESHOLD),
+        similarity,
+    )
 
 
 class OrganizationRepository:  # implements OrganizationRepositoryPort
@@ -44,26 +71,19 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def search_by_name(self, term: str, limit: int = 10) -> list[Organization]:
-        """Case-insensitive, typo-tolerant name match directly against
-        `organizations` — same pg_trgm pattern as
-        `SellerRepository.search_by_organization_name`, but no join, since
-        `/add-*`'s search-before-create step is about the organization
-        itself, not an existing role on it. Reuses the same
+        """`org_name_trigram_predicate` directly against `organizations` —
+        no join, since `/add-*`'s search-before-create step is about the
+        organization itself, not an existing role on it. Reuses the same
         `ix_organizations_name_trgm` GIN index.
 
         Eager-loads `seller_roles`/`buyer_roles` — the org-selection-or-create
         modal needs to know, for each match, whether it already has the role
         kind being added, without a lazy-load per candidate.
         """
-        similarity = func.similarity(Organization.name, term)
+        predicate, similarity = org_name_trigram_predicate(term)
         stmt = (
             select(Organization)
-            .where(
-                or_(
-                    Organization.name.ilike(f"%{term}%"),
-                    similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
-                )
-            )
+            .where(predicate)
             .options(
                 selectinload(Organization.seller_roles), selectinload(Organization.buyer_roles)
             )

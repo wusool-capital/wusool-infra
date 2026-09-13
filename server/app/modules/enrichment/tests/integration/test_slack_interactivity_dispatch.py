@@ -8,26 +8,16 @@ delivery would spawn two background research runs (real Bedrock/Firecrawl/
 Diffbot/PDL cost) and post two duplicate proposal messages.
 """
 
-import hashlib
-import hmac
 import json
-import time
-from urllib.parse import urlencode
-
-from fastapi.testclient import TestClient
 
 from app.modules.enrichment.api.slack.handlers import actions as actions_module
 from app.modules.enrichment.bootstrap import create_app
 from app.modules.enrichment.config import get_settings
 from app.modules.enrichment.domain.targets import ResolvedOrgRole
+from tests.slack_test_helpers import mock_slack_auth, mock_slack_ephemeral
+from tests.slack_test_helpers import post_interactivity as _shared_post_interactivity
 
 app = create_app()
-
-
-def _sign(body: str, timestamp: str, signing_secret: str) -> str:
-    basestring = f"v0:{timestamp}:{body}".encode()
-    digest = hmac.new(signing_secret.encode(), basestring, hashlib.sha256).hexdigest()
-    return f"v0={digest}"
 
 
 def _role_selection_payload(view_id: str) -> dict:
@@ -54,20 +44,8 @@ def _role_selection_payload(view_id: str) -> dict:
     }
 
 
-def _post_interactivity(payload: dict, settings) -> None:
-    body = urlencode({"payload": json.dumps(payload)})
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-    client = TestClient(app)
-    return client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
-    )
+def _post_interactivity(payload: dict, settings):
+    return _shared_post_interactivity(app, settings.slack_signing_secret, payload)
 
 
 def test_duplicate_role_selection_submission_only_proposes_once(monkeypatch) -> None:
@@ -87,13 +65,7 @@ def test_duplicate_role_selection_submission_only_proposes_once(monkeypatch) -> 
         calls.append(name)
         coro_factory().close()  # never actually awaited — avoid a real research call
 
-    class _FakeAuthTestResponse(dict):
-        headers: dict = {}
-
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
-
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    mock_slack_auth(monkeypatch)
     monkeypatch.setattr(
         "app.modules.enrichment.api.dependencies.resolve_org_roles", fake_resolve_org_roles
     )
@@ -117,7 +89,8 @@ def test_stale_selection_notifies_the_operator_instead_of_silently_no_oping(
     submitted (a role deactivated, an org renamed) — the operator must see
     something went wrong, not a modal that just closes with no result.
     """
-    posted: list[dict] = []
+    posted = mock_slack_ephemeral(monkeypatch)
+    mock_slack_auth(monkeypatch)
 
     async def fake_resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
         return []  # nothing matches anymore
@@ -125,20 +98,6 @@ def test_stale_selection_notifies_the_operator_instead_of_silently_no_oping(
     def fail_if_called(coro_factory, *, name: str) -> None:
         raise AssertionError("must not propose anything for a stale selection")
 
-    class _FakeAuthTestResponse(dict):
-        headers: dict = {}
-
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral", fake_chat_post_ephemeral
-    )
     monkeypatch.setattr(
         "app.modules.enrichment.api.dependencies.resolve_org_roles", fake_resolve_org_roles
     )

@@ -6,68 +6,26 @@ monkeypatched — no network calls leave the process. Mirrors
 `ddl_commands`'/`matching_engine`'s own `test_slack_command_dispatch.py`.
 """
 
-import hashlib
-import hmac
-import time
-from urllib.parse import urlencode
-
-from fastapi.testclient import TestClient
-
 from app.modules.enrichment.api.slack.handlers import commands as commands_module
 from app.modules.enrichment.bootstrap import create_app
 from app.modules.enrichment.config import get_settings
 from app.modules.enrichment.domain.targets import ResolvedOrgRole
+from tests.slack_test_helpers import mock_slack_auth, mock_slack_ephemeral, post_slack_command
 
 app = create_app()
 
 
-def _sign(body: str, timestamp: str, signing_secret: str) -> str:
-    basestring = f"v0:{timestamp}:{body}".encode()
-    digest = hmac.new(signing_secret.encode(), basestring, hashlib.sha256).hexdigest()
-    return f"v0={digest}"
-
-
 def test_enrich_seller_with_no_text_posts_seller_scoped_usage(monkeypatch) -> None:
-    posted: list[dict] = []
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    class _FakeAuthTestResponse(dict):
-        headers: dict = {}
-
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
-
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral",
-        fake_chat_post_ephemeral,
-    )
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    posted = mock_slack_ephemeral(monkeypatch)
+    mock_slack_auth(monkeypatch)
 
     settings = get_settings()
-    body = urlencode(
-        {
-            "command": "/enrich-seller",
-            "text": "",
-            "channel_id": "C_TEST",
-            "user_id": "U_TEST",
-            "trigger_id": "trigger.123",
-        }
-    )
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-
-    client = TestClient(app)
-    response = client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
+    response = post_slack_command(
+        app,
+        settings.slack_signing_secret,
+        command="/enrich-seller",
+        text="",
+        trigger_id="trigger.123",
     )
 
     assert response.status_code == 200
@@ -80,18 +38,9 @@ def test_enrich_seller_ignores_a_buyer_only_match(monkeypatch) -> None:
     `/enrich-seller` — the kind filter should leave zero candidates, not
     silently fall through to enriching the buyer role.
     """
-    posted: list[dict] = []
+    posted = mock_slack_ephemeral(monkeypatch)
+    mock_slack_auth(monkeypatch)
     updated: list[dict] = []
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    class _FakeAuthTestResponse(dict):
-        headers: dict = {}
-
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
 
     async def fake_resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
         return [
@@ -107,37 +56,17 @@ def test_enrich_seller_ignores_a_buyer_only_match(monkeypatch) -> None:
         updated.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral",
-        fake_chat_post_ephemeral,
-    )
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
     monkeypatch.setattr(commands_module, "resolve_org_roles", fake_resolve_org_roles)
 
     settings = get_settings()
-    body = urlencode(
-        {
-            "command": "/enrich-seller",
-            "text": "Blue Horizon",
-            "channel_id": "C_TEST",
-            "user_id": "U_TEST",
-            "trigger_id": "trigger.456",
-        }
-    )
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-
-    client = TestClient(app)
-    response = client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
+    response = post_slack_command(
+        app,
+        settings.slack_signing_secret,
+        command="/enrich-seller",
+        text="Blue Horizon",
+        trigger_id="trigger.456",
     )
 
     assert response.status_code == 200
@@ -151,46 +80,16 @@ def test_enrich_seller_ignores_a_buyer_only_match(monkeypatch) -> None:
 
 
 def test_enrich_buyer_with_no_text_posts_buyer_scoped_usage(monkeypatch) -> None:
-    posted: list[dict] = []
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    class _FakeAuthTestResponse(dict):
-        headers: dict = {}
-
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
-
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral",
-        fake_chat_post_ephemeral,
-    )
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    posted = mock_slack_ephemeral(monkeypatch)
+    mock_slack_auth(monkeypatch)
 
     settings = get_settings()
-    body = urlencode(
-        {
-            "command": "/enrich-buyer",
-            "text": "",
-            "channel_id": "C_TEST",
-            "user_id": "U_TEST",
-            "trigger_id": "trigger.789",
-        }
-    )
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-
-    client = TestClient(app)
-    response = client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
+    response = post_slack_command(
+        app,
+        settings.slack_signing_secret,
+        command="/enrich-buyer",
+        text="",
+        trigger_id="trigger.789",
     )
 
     assert response.status_code == 200
@@ -203,18 +102,9 @@ def test_enrich_buyer_ignores_a_seller_only_match(monkeypatch) -> None:
     with only a seller role must not be treated as a candidate for
     `/enrich-buyer`.
     """
-    posted: list[dict] = []
+    posted = mock_slack_ephemeral(monkeypatch)
+    mock_slack_auth(monkeypatch)
     updated: list[dict] = []
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    class _FakeAuthTestResponse(dict):
-        headers: dict = {}
-
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
 
     async def fake_resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
         return [
@@ -230,37 +120,17 @@ def test_enrich_buyer_ignores_a_seller_only_match(monkeypatch) -> None:
         updated.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral",
-        fake_chat_post_ephemeral,
-    )
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
     monkeypatch.setattr(commands_module, "resolve_org_roles", fake_resolve_org_roles)
 
     settings = get_settings()
-    body = urlencode(
-        {
-            "command": "/enrich-buyer",
-            "text": "Acme Rollup",
-            "channel_id": "C_TEST",
-            "user_id": "U_TEST",
-            "trigger_id": "trigger.101",
-        }
-    )
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-
-    client = TestClient(app)
-    response = client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
+    response = post_slack_command(
+        app,
+        settings.slack_signing_secret,
+        command="/enrich-buyer",
+        text="Acme Rollup",
+        trigger_id="trigger.101",
     )
 
     assert response.status_code == 200

@@ -18,6 +18,7 @@ import logging
 from dataclasses import asdict
 
 from app.modules.lead_magnets.application.shared.ports import LeadLLMPort, SearchPort
+from app.modules.lead_magnets.domain.shared.dedup import normalise_domain
 from app.modules.lead_magnets.domain.shared.prompts import (
     analyze_prompt,
     compare_query_prompt,
@@ -198,5 +199,11 @@ class ValuationAi:
 
 
 def _company_from_domain(domain: str) -> str:
-    host = domain.replace("https://", "").replace("http://", "").split("/")[0]
-    return host.removeprefix("www.").rsplit(".", 1)[0].replace("-", " ").replace("_", " ")
+    """A guessed company name for the enrichment prompt, from a bare
+    domain — TLD dropped, hyphens/underscores read as spaces.
+    `normalise_domain` does the actual host-extraction (lowercasing,
+    `www.`/port/trailing-dot handling); this only does the part that's
+    genuinely its own.
+    """
+    host = normalise_domain(domain)
+    return host.rsplit(".", 1)[0].replace("-", " ").replace("_", " ")

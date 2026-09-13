@@ -15,11 +15,7 @@ verification is exercised, not bypassed. The Slack Web API client is
 monkeypatched — no network calls leave the process.
 """
 
-import hashlib
-import hmac
 import json
-import time
-from urllib.parse import urlencode
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,83 +23,35 @@ from fastapi.testclient import TestClient
 import main
 from app.modules.lead_magnets.api import dependencies as lead_magnet_deps
 from app.modules.matching_engine.config import get_settings
-
-
-def _sign(body: str, timestamp: str, signing_secret: str) -> str:
-    basestring = f"v0:{timestamp}:{body}".encode()
-    digest = hmac.new(signing_secret.encode(), basestring, hashlib.sha256).hexdigest()
-    return f"v0={digest}"
-
-
-class _FakeAuthTestResponse(dict):
-    """Bolt reads both dict-style (`["user_id"]`) and `.headers` off the
-    `auth.test` result — a plain dict fails on the latter.
-    """
-
-    headers: dict = {}
+from tests.slack_test_helpers import mock_slack_auth, mock_slack_ephemeral
+from tests.slack_test_helpers import post_interactivity as _post_interactivity
+from tests.slack_test_helpers import post_slack_command as _post_slack_command
 
 
 @pytest.fixture(autouse=True)
 def _mock_slack_web_client(monkeypatch):
-    posted: list[dict] = []
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
-
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral", fake_chat_post_ephemeral
-    )
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    posted = mock_slack_ephemeral(monkeypatch)
+    mock_slack_auth(monkeypatch)
     return posted
 
 
 def _post_command(command: str, text: str = "") -> TestClient:
     settings = get_settings()
-    body = urlencode(
-        {
-            "command": command,
-            "text": text,
-            "channel_id": "C_TEST",
-            "user_id": "U_TEST",
-            "trigger_id": f"trigger-{command}-{text}",
-            "team_id": "T_TEST",
-            "response_url": "https://hooks.slack.test/x",
-        }
-    )
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-    client = TestClient(main.app)
-    return client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
+    return _post_slack_command(
+        main.app,
+        settings.slack_signing_secret,
+        command=command,
+        text=text,
+        trigger_id=f"trigger-{command}-{text}",
+        team_id="T_TEST",
+        response_url="https://hooks.slack.test/x",
     )
 
 
 def _post_view_submission_raw(view: dict) -> TestClient:
     settings = get_settings()
     payload = {"type": "view_submission", "user": {"id": "U_TEST"}, "view": view}
-    body = urlencode({"payload": json.dumps(payload)})
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-    client = TestClient(main.app)
-    return client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
-    )
+    return _post_interactivity(main.app, settings.slack_signing_secret, payload)
 
 
 @pytest.mark.parametrize(

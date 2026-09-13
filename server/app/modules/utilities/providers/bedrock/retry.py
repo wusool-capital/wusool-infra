@@ -1,10 +1,11 @@
 """Shared bounded-retry-with-logging wrapper around one Bedrock `converse`
-call. `enrichment`'s and `lead_magnets`' own clients each carried a
-byte-identical `_is_retryable`/`_delay_seconds`/`_invoke` scaffolding around
-`retry_with_backoff` despite differing in the validation policy layered on
-top (single-attempt-raise vs. validate-repair-retry) — this factors out
-exactly the identical part, the same reasoning `domain/bedrock.py`'s own
-docstring gives for `converse_kwargs`/`extract_json`.
+call. `enrichment`'s, `lead_magnets`' and `meetings`' own clients each
+carried a byte-identical `_is_retryable`/`_delay_seconds`/`_invoke`
+scaffolding around `retry_with_backoff` despite differing in the
+validation policy layered on top (single-attempt-raise vs.
+validate-repair-retry) — this factors out exactly the identical part, the
+same reasoning `domain/bedrock.py`'s own docstring gives for
+`converse_kwargs`/`extract_json`.
 
 Lives in `providers/`, not `domain/bedrock.py`: this needs
 `botocore.exceptions` to classify a retryable failure, and `domain/bedrock.py`
