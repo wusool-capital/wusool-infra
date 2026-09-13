@@ -221,3 +221,63 @@ async def create_role_entry(
         },
     )
     return response["data"]["id"]["entry_id"]
+
+
+_PERSON_OBJECT = "person"
+
+
+async def find_people_by_email(
+    client: AttioClientProtocol, email: str, *, is_test: bool
+) -> list[AttioRecord]:
+    """Every `person` record whose `email` equals `email`, oldest first,
+    filtered to this process's half of the shared workspace.
+
+    `person.email` on this workspace is a plain `text` attribute,
+    single-valued and **not** unique — not Attio's standard multi-valued
+    `email_addresses` type (the same finding `ddl_commands`'s
+    `_person_params` already documents on its read side). That rules out
+    `PUT ?matching_attribute=` entirely, which is why this is a query
+    rather than an upsert. Attio's text `$eq` filter is case-insensitive
+    (verified live 2026-09-13), so a mixed-case address entered by hand
+    still matches a normalised one.
+
+    `is_test` is filtered client-side, same reasoning as
+    `resolve_role_entry_id`: Attio's checkbox filter has no "is empty",
+    and an absent `is_test` reads as production (`domain/scope.py`'s null
+    policy) — a server-side filter would silently miss a pre-migration
+    record and create an unwanted duplicate next to a real contact.
+
+    `sorts` is explicit and required: without one, Attio returns matches
+    in "deterministic random order" — unacceptable for a path the sweeper
+    can re-enter and must resolve to the same person every time.
+    """
+    response = await client.post(
+        f"/objects/{_PERSON_OBJECT}/records/query",
+        {
+            "filter": {"email": {"$eq": email}},
+            "sorts": [{"attribute": "created_at", "direction": "asc"}],
+            "limit": _PAGE_SIZE,
+        },
+    )
+    return [r for r in response.get("data", []) if _record_is_test(r) is is_test]
+
+
+async def create_person(client: AttioClientProtocol, values: dict, *, is_test: bool) -> str:
+    """Exact mirror of `create_organization` — see its docstring for why
+    `is_test` is stamped here rather than by the caller."""
+    response = await client.post(
+        f"/objects/{_PERSON_OBJECT}/records",
+        {"data": {"values": {**values, "is_test": is_test}}},
+    )
+    return response["data"]["id"]["record_id"]
+
+
+async def patch_person(client: AttioClientProtocol, attio_id: str, values: dict) -> None:
+    """Only ever called with the fields a matched person's own record is
+    currently missing — see `lead_magnets/providers/attio/person_writer.py`.
+    Never sent `name`: it is `is_required` on this object, so it is never
+    the empty field, and a lead magnet must never relabel a contact's
+    existing name."""
+    await client.patch(
+        f"/objects/{_PERSON_OBJECT}/records/{attio_id}", {"data": {"values": values}}
+    )

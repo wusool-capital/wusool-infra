@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.modules.lead_magnets import bootstrap
+from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 
 
 class _FakeSettings:
@@ -82,17 +83,39 @@ class _FakeRoleWriter:
 
     async def write_seller_role(self, **kwargs):
         self.seller_calls.append(kwargs)
-        return object()
+        return SubjectRefs(
+            org_attio_id=kwargs.get("organization_attio_id") or "org-new",
+            org_name=kwargs["organization_name"],
+        )
 
     async def write_buyer_role(self, **kwargs):
         self.buyer_calls.append(kwargs)
-        return object()
+        return SubjectRefs(
+            org_attio_id=kwargs.get("organization_attio_id") or "org-new",
+            org_name=kwargs["organization_name"],
+        )
+
+
+class _FakePersonWriter:
+    """Defaults to "nothing to write" (`None`) so every pre-existing test
+    stays about organisation dedup, not the person write."""
+
+    def __init__(self, *, result: tuple[str, str] | None = None, raises: bool = False) -> None:
+        self.calls: list[dict] = []
+        self._result = result
+        self._raises = raises
+
+    async def write(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._raises:
+            raise RuntimeError("Attio 503")
+        return self._result
 
 
 async def test_write_reuses_an_existing_org_matched_by_name_and_domain() -> None:
     organizations = _FakeOrganizations([_Candidate(attio_id="org-1", domains=["acme.com"])])
     writer = _FakeRoleWriter()
-    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations)
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations, _FakePersonWriter())
 
     await role_attio_writer.write(
         tool="valuation",
@@ -109,7 +132,7 @@ async def test_write_creates_new_when_no_domain_matches() -> None:
     not the same one under a new domain."""
     organizations = _FakeOrganizations([_Candidate(attio_id="org-1", domains=["other.com"])])
     writer = _FakeRoleWriter()
-    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations)
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations, _FakePersonWriter())
 
     await role_attio_writer.write(
         tool="valuation", payload={"company": "Acme", "domain": "acme.com"}, ai={}
@@ -123,7 +146,7 @@ async def test_write_skips_dedup_entirely_when_no_domain_given() -> None:
     attempted, and `search_by_name` isn't even called."""
     organizations = _FakeOrganizations([_Candidate(attio_id="org-1", domains=["acme.com"])])
     writer = _FakeRoleWriter()
-    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations)
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations, _FakePersonWriter())
 
     await role_attio_writer.write(
         tool="valuation", payload={"company": "Acme", "domain": None}, ai={}
@@ -136,7 +159,7 @@ async def test_write_skips_dedup_entirely_when_no_domain_given() -> None:
 async def test_write_dedups_buyer_role_the_same_way() -> None:
     organizations = _FakeOrganizations([_Candidate(attio_id="org-1", domains=["acme.com"])])
     writer = _FakeRoleWriter()
-    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations)
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations, _FakePersonWriter())
 
     await role_attio_writer.write(
         tool="buyer_network", payload={"org_name": "Acme", "domain": "acme.com"}, ai={}
@@ -152,7 +175,9 @@ async def test_write_prefers_sector_over_peer_key_for_tech_mode_benchmark() -> N
     submission. The form now also sends `sector` (the real tech sector);
     this pins that it wins over `peer_key` when both are present."""
     writer = _FakeRoleWriter()
-    role_attio_writer = bootstrap._RoleAttioWriter(writer, _FakeOrganizations([]))
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        writer, _FakeOrganizations([]), _FakePersonWriter()
+    )
 
     await role_attio_writer.write(
         tool="benchmark",
@@ -167,7 +192,9 @@ async def test_write_falls_back_to_peer_key_for_sme_mode_benchmark() -> None:
     """SME mode never sends a separate `sector` — `peer_key` there already
     is the CRM sector, and must still be used."""
     writer = _FakeRoleWriter()
-    role_attio_writer = bootstrap._RoleAttioWriter(writer, _FakeOrganizations([]))
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        writer, _FakeOrganizations([]), _FakePersonWriter()
+    )
 
     await role_attio_writer.write(
         tool="benchmark",
@@ -183,7 +210,9 @@ async def test_write_rejects_a_non_string_org_type_entry() -> None:
     manual `isinstance` filter — a malformed stored row now fails loudly
     instead of silently dropping the bad entry, matching this module's
     established "raise rather than default" rule (`UnmappedSectorError`)."""
-    role_attio_writer = bootstrap._RoleAttioWriter(_FakeRoleWriter(), _FakeOrganizations([]))
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        _FakeRoleWriter(), _FakeOrganizations([]), _FakePersonWriter()
+    )
 
     with pytest.raises(ValidationError):
         await role_attio_writer.write(
@@ -191,3 +220,124 @@ async def test_write_rejects_a_non_string_org_type_entry() -> None:
             payload={"org_name": "Acme", "org_type": ["PE Fund", 123]},
             ai={},
         )
+
+
+async def test_write_resolves_person_name_per_tool() -> None:
+    """Benchmark/valuation read an optional `name`; readiness's is required
+    at the API but still flows through the same `AttioIdentityPayload.name`
+    field; buyer_network reads its own `full_name`."""
+    person = _FakePersonWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        _FakeRoleWriter(), _FakeOrganizations([]), person
+    )
+
+    await role_attio_writer.write(
+        tool="benchmark",
+        payload={
+            "company": "Acme",
+            "peer_key": "itservices",
+            "name": "Dana",
+            "email": "d@acme.com",
+        },
+        ai={},
+    )
+    await role_attio_writer.write(
+        tool="readiness",
+        payload={"company": "Acme", "name": "Sam", "email": "s@acme.com"},
+        ai={},
+    )
+    await role_attio_writer.write(
+        tool="buyer_network",
+        payload={"org_name": "Acme", "full_name": "Robin", "email": "r@acme.com"},
+        ai={},
+    )
+
+    assert [call["name"] for call in person.calls] == ["Dana", "Sam", "Robin"]
+
+
+async def test_write_person_name_is_blank_when_not_collected() -> None:
+    """Benchmark/valuation don't require a name from the visitor —
+    `AttioIdentityPayload.name` defaults to `""` (same default as its
+    other optional fields), and `AttioPersonWriter` (not this seam) is
+    what falls back to the email for a blank name."""
+    person = _FakePersonWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        _FakeRoleWriter(), _FakeOrganizations([]), person
+    )
+
+    await role_attio_writer.write(
+        tool="valuation", payload={"company": "Acme", "email": "v@acme.com"}, ai={}
+    )
+
+    assert person.calls[0]["name"] == ""
+
+
+async def test_write_passes_the_just_written_org_id_to_the_person_writer() -> None:
+    organizations = _FakeOrganizations([_Candidate(attio_id="org-1", domains=["acme.com"])])
+    person = _FakePersonWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(_FakeRoleWriter(), organizations, person)
+
+    await role_attio_writer.write(
+        tool="valuation",
+        payload={"company": "Acme", "domain": "acme.com", "email": "v@acme.com"},
+        ai={},
+    )
+
+    assert person.calls[0]["organization_attio_id"] == "org-1"
+
+
+async def test_write_survives_a_person_write_failure() -> None:
+    """A person-write failure must not lose the org/role write that already
+    landed, and must not propagate to the caller — see this module's
+    README, "Person dedupe"."""
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        _FakeRoleWriter(), _FakeOrganizations([]), _FakePersonWriter(raises=True)
+    )
+
+    subjects = await role_attio_writer.write(
+        tool="valuation", payload={"company": "Acme", "email": "v@acme.com"}, ai={}
+    )
+
+    assert subjects.org_attio_id is not None
+    assert subjects.person_attio_id is None
+
+
+async def test_write_fills_in_person_refs_on_success() -> None:
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        _FakeRoleWriter(),
+        _FakeOrganizations([]),
+        _FakePersonWriter(result=("person-1", "Dana")),
+    )
+
+    subjects = await role_attio_writer.write(
+        tool="valuation",
+        payload={"company": "Acme", "email": "v@acme.com", "name": "Dana"},
+        ai={},
+    )
+
+    assert subjects.person_attio_id == "person-1"
+    assert subjects.person_name == "Dana"
+    # Org/role refs from the writer are preserved, not clobbered.
+    assert subjects.org_attio_id is not None
+
+
+async def test_write_passes_capital_raised_and_readiness_country_through() -> None:
+    """`capital_raised` -> `organizations.funding_raised`; readiness's own
+    `country` field reaches `hq_country` the same way benchmark/valuation's
+    `geography` already does."""
+    writer = _FakeRoleWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        writer, _FakeOrganizations([]), _FakePersonWriter()
+    )
+
+    await role_attio_writer.write(
+        tool="benchmark",
+        payload={"company": "Acme", "peer_key": "itservices", "capital_raised": 250000.0},
+        ai={},
+    )
+    await role_attio_writer.write(
+        tool="readiness", payload={"company": "Acme", "country": "United Arab Emirates"}, ai={}
+    )
+
+    assert writer.seller_calls[0]["funding_raised"] == 250000.0
+    assert writer.seller_calls[1]["hq_country"] == "United Arab Emirates"

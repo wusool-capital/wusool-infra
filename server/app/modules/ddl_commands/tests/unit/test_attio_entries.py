@@ -5,8 +5,11 @@ from app.modules.attio.providers.attio.entries import (
     ScopeMismatchError,
     assert_organization_in_scope,
     create_organization,
+    create_person,
     create_role_entry,
+    find_people_by_email,
     patch_organization,
+    patch_person,
     patch_role_entry,
     resolve_role_entry_id,
 )
@@ -344,3 +347,111 @@ async def test_assert_organization_in_scope_reads_unset_is_test_as_production() 
 
     with pytest.raises(ScopeMismatchError):
         await assert_organization_in_scope(client, "org-1", is_test=True)
+
+
+# ---------------------------------------------------------------------------
+# person — query-then-create/patch, not an upsert (email isn't unique)
+# ---------------------------------------------------------------------------
+
+
+def _person_record(record_id: str, *, is_test: bool | None = None) -> dict:
+    values: dict = {}
+    if is_test is not None:
+        values["is_test"] = [{"active_until": None, "value": is_test}]
+    return {"id": {"record_id": record_id}, "values": values}
+
+
+class _FakeQueryClient:
+    def __init__(self, response: dict) -> None:
+        self._response = response
+        self.post_calls: list[tuple[str, dict]] = []
+
+    async def post(self, path: str, json_body: dict) -> dict:
+        self.post_calls.append((path, json_body))
+        return self._response
+
+    async def get(self, path: str) -> dict:
+        raise AssertionError("not used by this test")
+
+    async def patch(self, path: str, json_body: dict) -> dict:
+        raise AssertionError("not used by this test")
+
+
+async def test_find_people_by_email_queries_the_person_object() -> None:
+    client = _FakeQueryClient({"data": [_person_record("person-1", is_test=False)]})
+
+    matches = await find_people_by_email(client, "dana@acme.com", is_test=False)
+
+    path, body = client.post_calls[0]
+    assert path == "/objects/person/records/query"
+    assert body == {
+        "filter": {"email": {"$eq": "dana@acme.com"}},
+        "sorts": [{"attribute": "created_at", "direction": "asc"}],
+        "limit": 500,
+    }
+    assert [r["id"]["record_id"] for r in matches] == ["person-1"]
+
+
+async def test_find_people_by_email_filters_out_the_other_scope() -> None:
+    client = _FakeQueryClient(
+        {
+            "data": [
+                _person_record("person-test", is_test=True),
+                _person_record("person-prod", is_test=False),
+            ]
+        }
+    )
+
+    prod = await find_people_by_email(client, "dana@acme.com", is_test=False)
+    test = await find_people_by_email(client, "dana@acme.com", is_test=True)
+
+    assert [r["id"]["record_id"] for r in prod] == ["person-prod"]
+    assert [r["id"]["record_id"] for r in test] == ["person-test"]
+
+
+async def test_find_people_by_email_reads_unset_is_test_as_production() -> None:
+    """Same null policy as `assert_organization_in_scope` — a pre-migration
+    person record with no `is_test` at all must still be found by the
+    production instance, or it gets duplicated."""
+    client = _FakeQueryClient({"data": [_person_record("person-1")]})
+
+    prod = await find_people_by_email(client, "dana@acme.com", is_test=False)
+    test = await find_people_by_email(client, "dana@acme.com", is_test=True)
+
+    assert [r["id"]["record_id"] for r in prod] == ["person-1"]
+    assert test == []
+
+
+async def test_create_person_targets_records_endpoint_and_returns_record_id() -> None:
+    client = _FakeCreateClient({"data": {"id": {"record_id": "person-new-1"}}})
+
+    record_id = await create_person(
+        client, {"name": "Dana", "email": "dana@acme.com"}, is_test=False
+    )
+
+    path, body = client.post_calls[0]
+    assert path == "/objects/person/records"
+    assert body == {
+        "data": {"values": {"name": "Dana", "email": "dana@acme.com", "is_test": False}}
+    }
+    assert record_id == "person-new-1"
+
+
+@pytest.mark.parametrize("is_test", [True, False])
+async def test_create_person_stamps_the_scope(is_test: bool) -> None:
+    client = _FakeCreateClient({"data": {"id": {"record_id": "person-new-2"}}})
+
+    await create_person(client, {"name": "Dana"}, is_test=is_test)
+
+    _, body = client.post_calls[0]
+    assert body["data"]["values"]["is_test"] is is_test
+
+
+async def test_patch_person_targets_records_endpoint() -> None:
+    client = _FakeClient()
+
+    await patch_person(client, "person-1", {"linkedin": "https://linkedin.com/in/dana"})
+
+    path, body = client.patch_calls[0]
+    assert path == "/objects/person/records/person-1"
+    assert body == {"data": {"values": {"linkedin": "https://linkedin.com/in/dana"}}}

@@ -19,6 +19,7 @@ import logging
 
 from app.modules.attio import AttioClientProtocol
 from app.modules.attio.providers.attio import entries
+from app.modules.attio.providers.attio.money import serialize_money
 from app.modules.lead_magnets.domain.buyer_network.buyer_network import (
     validate_org_type,
     validate_sector_focus,
@@ -78,6 +79,7 @@ class AttioRoleWriter:
         sector: str | None = None,
         description: str | None = None,
         hq_country: str | None = None,
+        funding_raised: float | None = None,
         organization_attio_id: str | None = None,
     ) -> SubjectRefs:
         """Creates or updates the organisation, then its `seller_role` entry."""
@@ -94,6 +96,10 @@ class AttioRoleWriter:
             org_values["description"] = description
         if hq_country:
             org_values["hq_country"] = hq_country
+        if funding_raised is not None:
+            org_values["funding_raised"] = serialize_money(
+                "organizations", "funding_raised", funding_raised
+            )
 
         org_id = await self._upsert_organization(
             org_values=org_values, organization_attio_id=organization_attio_id

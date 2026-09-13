@@ -390,10 +390,10 @@ class BuyerApplyRequest(_Strict):
     (a coarse bucket) was deliberately dropped from the schema in
     migration `a4f9e61c3d78` in favour of these two real USD figures.
 
-    `full_name` and `linkedin_url` have nowhere to go in Attio yet: no
-    `person` write path exists for any tool in this module today (a
-    pre-existing gap, not new here) — they land in `tool_runs.payload` for
-    the record, same as every other tool's `name` field.
+    `full_name`, `email` and `linkedin_url` feed the Attio `person` write
+    (`providers/attio/person_writer.py`, wired in via
+    `bootstrap.py::_RoleAttioWriter`) as well as landing in
+    `tool_runs.payload`, same as every other tool's `name` field.
     """
 
     submission_id: str = Field(min_length=1, max_length=64)

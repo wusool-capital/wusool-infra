@@ -426,12 +426,43 @@ each deliberately:
   written.
 - `person` — a stub insert (`attio_id`, `name`) `ON CONFLICT DO NOTHING`,
   so `tool_runs.person_attio_id` has something to point at until the mirror
-  lands the full record. **This one is a known wart:** `ddl_commands` owns
-  `person` and writes it with raw SQL in `persistence/attio_sync.py`, but
-  exposes no repository or facade for it, so there is nothing to go through.
-  The alternative — adding a person facade to `ddl_commands` — is a larger
-  change than this module should be making. Worth revisiting if a second
-  caller ever needs the same stub.
+  lands the full record. `providers/attio/person_writer.py` is what now
+  populates that id (a real Attio `person` create/patch), same shape as
+  `AttioRoleWriter` for organisations — `ddl_commands` still owns the
+  Postgres side of `person` (raw SQL in `persistence/attio_sync.py`), this
+  module still only seeds the stub `finish()` always seeded.
+
+### Person dedupe — why not an upsert
+
+`person.email` on this workspace is a plain **text** attribute, single-valued
+and **not unique** — not Attio's standard multi-valued `email_addresses`
+type. That rules out an atomic `PUT ?matching_attribute=` upsert entirely:
+the dedupe is a `POST /objects/person/records/query` filtering `email`
+(case-insensitive on this attribute), sorted by `created_at` so a retry
+always resolves the same person, then filtered client-side on `is_test` —
+same reason as `resolve_role_entry_id`: Attio's checkbox filter has no "is
+empty", so a server-side filter would silently miss a pre-migration record
+and create an unwanted duplicate.
+
+**Fill-blanks-only on a match, never overwrite.** `company`/`linkedin` are
+patched only when the matched record's own value for that attribute is
+currently empty; `name` is never touched on a match at all. A lead magnet
+can only ever add a `company`/`linkedin` a hand-curated contact never had,
+never relabel one that is already there. If a match already has everything
+filled in, nothing is written.
+
+**Best-effort.** A person-write failure is logged and swallowed
+(`bootstrap.py::_RoleAttioWriter._with_person`) — the org/role write has
+already landed by that point, and this module's sweeper would otherwise
+re-enter the whole write on a retry, risking a duplicate organisation (see
+"The subject-FK ordering trap" above). The email is already durable in
+`tool_runs.payload` before any Attio call runs, so a person-write failure
+never loses the lead, only a CRM convenience:
+```sql
+SELECT id, tool FROM tool_runs
+WHERE status = 'succeeded' AND person_attio_id IS NULL
+  AND coalesce(payload->>'email', '') <> '';
+```
 
 ## Not built yet
 

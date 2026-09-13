@@ -3,6 +3,7 @@ manual `payload.get(key)` + `isinstance` parsing.
 """
 
 from app.modules.lead_magnets.domain.shared.schemas import (
+    AttioIdentityPayload,
     BenchmarkPayload,
     BuyerNetworkPayload,
     ReadinessPayload,
@@ -20,11 +21,44 @@ def test_benchmark_payload_parses_the_real_request_shape() -> None:
             "email": "f@acme.com",
             "revenue": 1_000_000,
             "headcount": 12,
+            "consent": True,
         }
     )
     assert parsed.mode == "tech"
     assert parsed.revenue == 1_000_000
     assert parsed.headcount == 12
+    assert parsed.consent is True
+
+
+def test_benchmark_payload_consent_defaults_false() -> None:
+    """A stored payload from before `consent` existed on this model must
+    not be read as consent given."""
+    parsed = BenchmarkPayload.model_validate({"peer_key": "seed"})
+    assert parsed.consent is False
+
+
+def test_attio_identity_payload_picks_email_and_name_out_of_a_benchmark_request() -> None:
+    parsed = AttioIdentityPayload.model_validate(
+        {
+            "submission_id": "s1",
+            "company": "Acme",
+            "peer_key": "seed",
+            "email": "f@acme.com",
+            "name": "Dana",
+            "geography": "UAE",
+        }
+    )
+    assert parsed.email == "f@acme.com"
+    assert parsed.name == "Dana"
+
+
+def test_attio_identity_payload_reads_readiness_country() -> None:
+    """Readiness sends `country`, not `geography` — a distinct field, not a
+    fallback for the same key, since a stored payload could in principle
+    carry both."""
+    parsed = AttioIdentityPayload.model_validate({"company": "Acme", "country": "UAE"})
+    assert parsed.country == "UAE"
+    assert parsed.geography is None
 
 
 def test_payload_models_ignore_write_contract_bookkeeping_keys() -> None:
@@ -89,7 +123,13 @@ def test_buyer_network_payload_parses_the_real_request_shape() -> None:
             "target_geography": ["UAE"],
             "check_size_min": 1_000_000,
             "check_size_max": 5_000_000,
+            "full_name": "Robin",
+            "email": "robin@acme.com",
+            "linkedin_url": "https://linkedin.com/in/robin",
         }
     )
     assert parsed.org_type == ["Private Equity"]
     assert parsed.check_size_min == 1_000_000
+    assert parsed.full_name == "Robin"
+    assert parsed.email == "robin@acme.com"
+    assert parsed.linkedin_url == "https://linkedin.com/in/robin"

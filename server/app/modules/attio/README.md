@@ -38,7 +38,7 @@ attio/
     signature.py                         # verify_attio_signature — webhook signature check
     registry.py                          # object/list id -> api_slug lookups
     retry.py                             # retry policy for the webhook-sync path only
-    entries.py                           # create/patch organization + list-entry helpers
+    entries.py                           # create/patch organization + list-entry + person helpers
     notes.py                             # AttioNoteWriter — best-effort note write, never
                                             # raises into its caller; note_type per caller
 ```

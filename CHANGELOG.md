@@ -31,6 +31,12 @@ for current production evidence and open handover items.
 
 - Corrected `/toolkit-status` to report the deployed development or production
   environment instead of falling back to `development` in production.
+- Lead-magnet submissions (Valuation, M&A Readiness, GCC SME Benchmark, Buyer
+  Network) now create or reuse an Attio person record for the visitor's
+  email, so a lead lands attached to a CRM contact instead of only an
+  organization. Benchmark submissions also now carry their raw financial
+  figures, consent flag, and funding stage through to Attio, and M&A
+  Readiness's country now reaches the organization record.
 
 ## 2026-09-12
 

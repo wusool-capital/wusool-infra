@@ -91,9 +91,14 @@ class Pipelines:
 
     def _benchmark(self, payload: JsonObject) -> JsonObject:
         parsed = BenchmarkPayload.model_validate(payload)
-        result = evaluate(BenchmarkInputs(**parsed.model_dump()))
+        # `consent` lives on the stored payload for the write contract's own
+        # sake (Attio) but has no place on `BenchmarkInputs` — it isn't a
+        # scoring input, same reason `valuation_values()` takes `consent` as
+        # a separate keyword rather than off `ValuationInputs`.
+        inputs = BenchmarkInputs(**parsed.model_dump(exclude={"consent"}))
+        result = evaluate(inputs)
         return {
-            "entry_values": benchmark_values(result, headcount=parsed.headcount),
+            "entry_values": benchmark_values(result, inputs, consent=parsed.consent),
             "score": result.score,
             "band": result.band,
         }

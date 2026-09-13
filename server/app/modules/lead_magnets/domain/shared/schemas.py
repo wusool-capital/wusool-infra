@@ -91,6 +91,7 @@ class BenchmarkPayload(_Payload):
     days_to_get_paid: int | None = None
     email: str | None = None
     geography: str | None = None
+    consent: bool = False
 
 
 class ReadinessAnswersPayload(_Payload):
@@ -159,12 +160,16 @@ class BuyerNetworkPayload(_Payload):
     check_size_max: float | None = None
     prior_gcc_acquisition: str | None = None
     domain: str | None = None
+    email: str = ""
+    full_name: str = ""
+    linkedin_url: str | None = None
 
 
 class AttioIdentityPayload(_Payload):
-    """The organisation-identity fields `bootstrap.py::_RoleAttioWriter.write`
-    reads from a benchmark/valuation/readiness payload to route the write and
-    run Postgres-side dedup — a separate, smaller model from
+    """The organisation- and person-identity fields
+    `bootstrap.py::_RoleAttioWriter.write` reads from a
+    benchmark/valuation/readiness payload to route the write and run
+    Postgres-side dedup — a separate, smaller model from
     `BenchmarkPayload`/`ValuationPayload`/`ReadinessPayload` above rather than
     added fields on all three, since none of those exist to serve this call
     site (they mirror what each tool's own scoring/AI step reads).
@@ -176,11 +181,25 @@ class AttioIdentityPayload(_Payload):
     funding stage, not a sector — `sector` there is what `sector_mapping.py`
     can actually resolve. See `BenchmarkRequest.sector`'s own docstring.
 
-    `description`/`geography` are org-level fields (`organizations.description`,
-    `organizations.hq_country`), not entry-level like the rest of this
-    module's field mappings — they belong here rather than on a tool's own
-    payload model because this is what `write_seller_role`'s `org_values`
-    is built from."""
+    `description`/`geography`/`country` are org-level fields
+    (`organizations.description`, `organizations.hq_country`), not
+    entry-level like the rest of this module's field mappings — they belong
+    here rather than on a tool's own payload model because this is what
+    `write_seller_role`'s `org_values` is built from. `geography` and
+    `country` both resolve to `hq_country`: benchmark/valuation send
+    `geography`, readiness sends `country` — two request field names for the
+    same org attribute, read with `geography` taking priority when both are
+    present (never the case today; kept symmetric with the `peer_key`/
+    `sector` precedence above).
+
+    `email`/`name` feed the Attio `person` write — the same identity fields
+    every one of these three tools' own request models already carries.
+
+    `capital_raised` is benchmark-only (its own dropdown asks for it;
+    valuation and readiness don't collect it) — kept here rather than
+    added as a fourth call site because `write_seller_role`'s
+    `funding_raised` kwarg needs one typed, optional source regardless of
+    which tool it came from, same reasoning as `sector`/`peer_key` above."""
 
     domain: str | None = None
     company: str = ""
@@ -188,6 +207,10 @@ class AttioIdentityPayload(_Payload):
     sector: str | None = None
     description: str | None = None
     geography: str | None = None
+    country: str | None = None
+    email: str = ""
+    name: str = ""
+    capital_raised: float | None = None
 
 
 # ===== Bedrock response models — see the module docstring =====

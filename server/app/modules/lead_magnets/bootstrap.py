@@ -7,6 +7,7 @@ one to `BackgroundTasks` would use it after close.
 """
 
 import asyncio
+import dataclasses
 import logging
 from uuid import UUID
 
@@ -29,6 +30,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.database import get_sessionmaker
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
+from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWriter
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
@@ -50,22 +52,32 @@ def build_role_writer() -> AttioRoleWriter:
     return AttioRoleWriter(get_attio_client(), is_test=attio_is_test())
 
 
+def build_person_writer() -> AttioPersonWriter:
+    return AttioPersonWriter(get_attio_client(), is_test=attio_is_test())
+
+
 def build_tool_runs(session: AsyncSession) -> ToolRunsRepository:
     return ToolRunsRepository(session)
 
 
 class _RoleAttioWriter:
-    """Adapts `AttioRoleWriter` to `AttioWriterPort`.
+    """Adapts `AttioRoleWriter` (+ `AttioPersonWriter`) to `AttioWriterPort`.
 
     The port is tool-agnostic — `submit.py` knows nothing about seller or
-    buyer roles — so the per-tool value mapping, and which Attio list a tool
-    writes to, is resolved here, at the composition root, rather than
-    leaking into the use case.
+    buyer roles, or people — so the per-tool value mapping, and which Attio
+    list/object a tool writes to, is resolved here, at the composition
+    root, rather than leaking into the use case.
     """
 
-    def __init__(self, writer: AttioRoleWriter, organizations: OrganizationRepository) -> None:
+    def __init__(
+        self,
+        writer: AttioRoleWriter,
+        organizations: OrganizationRepository,
+        person: AttioPersonWriter,
+    ) -> None:
         self._writer = writer
         self._organizations = organizations
+        self._person = person
 
     async def _find_existing_org(self, *, name: str, domain: str | None) -> str | None:
         """Postgres-side dedup, per `domain/shared/dedup.py`'s own docstring:
@@ -97,7 +109,7 @@ class _RoleAttioWriter:
         if tool == "buyer_network":
             buyer = BuyerNetworkPayload.model_validate(payload)
             name = buyer.org_name or "Unknown"
-            return await self._writer.write_buyer_role(
+            subjects = await self._writer.write_buyer_role(
                 organization_name=name,
                 domain=buyer.domain,
                 org_type=buyer.org_type,
@@ -105,13 +117,19 @@ class _RoleAttioWriter:
                 entry_values=entry_values,
                 organization_attio_id=await self._find_existing_org(name=name, domain=buyer.domain),
             )
+            return await self._with_person(
+                subjects,
+                name=buyer.full_name,
+                email=buyer.email,
+                linkedin=buyer.linkedin_url,
+            )
 
         seller = AttioIdentityPayload.model_validate(payload)
         # `company_name` is not a field any real request ever sends — kept as
         # a raw fallback rather than promoted onto `AttioIdentityPayload`,
         # matching the pre-existing behaviour exactly.
         name = seller.company or payload.get("company_name") or "Unknown"
-        return await self._writer.write_seller_role(
+        subjects = await self._writer.write_seller_role(
             organization_name=name,
             domain=seller.domain,
             entry_values=entry_values,
@@ -125,8 +143,44 @@ class _RoleAttioWriter:
             # ever actually present for them.
             sector=seller.sector or seller.peer_key,
             description=seller.description,
-            hq_country=seller.geography,
+            # `geography` wins when present (benchmark/valuation); `country`
+            # is readiness's own name for the same org attribute — never
+            # both at once today, kept symmetric with the `sector`/`peer_key`
+            # precedence above rather than routing by tool name.
+            hq_country=seller.geography or seller.country,
+            funding_raised=seller.capital_raised,
             organization_attio_id=await self._find_existing_org(name=name, domain=seller.domain),
+        )
+        return await self._with_person(subjects, name=seller.name, email=seller.email)
+
+    async def _with_person(
+        self,
+        subjects: SubjectRefs,
+        *,
+        name: str | None,
+        email: str | None,
+        linkedin: str | None = None,
+    ) -> SubjectRefs:
+        """Best-effort: a person-write failure must never lose the lead the
+        org/role write above already landed, and must never make the
+        sweeper re-enter this whole method — see `person_writer.py`'s
+        module docstring and this module's README for why.
+        """
+        try:
+            person = await self._person.write(
+                name=name,
+                email=email,
+                organization_attio_id=subjects.org_attio_id,
+                linkedin=linkedin,
+            )
+        except Exception as exc:  # noqa: BLE001 - the org/role write already succeeded
+            logger.warning("lead_magnet_person_write_failed error=%s", exc)
+            return subjects
+        if person is None:
+            return subjects
+        person_attio_id, person_name = person
+        return dataclasses.replace(
+            subjects, person_attio_id=person_attio_id, person_name=person_name
         )
 
 
@@ -139,7 +193,9 @@ def build_submission_service(session: AsyncSession) -> LeadMagnetService:
     same service serves a fresh request and a sweeper resume."""
     return LeadMagnetService(
         tool_runs=build_tool_runs(session),
-        attio=_RoleAttioWriter(build_role_writer(), OrganizationRepository(session)),
+        attio=_RoleAttioWriter(
+            build_role_writer(), OrganizationRepository(session), build_person_writer()
+        ),
         llm=build_llm(),
     )
 
