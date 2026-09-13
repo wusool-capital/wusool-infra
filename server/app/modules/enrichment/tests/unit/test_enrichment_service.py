@@ -4,6 +4,7 @@ import pytest
 
 from app.modules.enrichment.application.ports.company_data import CompanyDataField
 from app.modules.enrichment.application.service import EnrichmentService
+from app.modules.enrichment.domain.field_plans import WriteTarget
 from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.enrichment.tests.fakes.company_data import FakeCompanyDataClient
@@ -266,6 +267,34 @@ async def test_propose_never_tries_the_structured_tier_for_a_buyer(
 
     assert proposal.values == ()
     assert diffbot.calls == []
+
+
+async def test_propose_proposes_region_for_a_buyers_organization(
+    buyer_target: EnrichmentTarget,
+) -> None:
+    """`region` writes to `WriteTarget.ORGANIZATION`, the same as it does for
+    a seller — a buyer firm's own organization row is enriched too, not just
+    its buyer-role fields.
+    """
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "region",
+                    "value": "MENA",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "HQ'd in Cairo, per the firm's site",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(buyer_target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "region"
+    assert proposal.values[0].write_target == WriteTarget.ORGANIZATION
+    assert proposal.values[0].proposed == "MENA"
 
 
 async def test_propose_drops_target_geography_entirely_when_no_value_matches_vocabulary(

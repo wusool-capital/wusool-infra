@@ -6,9 +6,12 @@ are redeclared here rather than shared.
 
 Seller fields are read by `matching_engine.domain.matching.scoring
 .CRITERION_REGISTRY` (`est_revenue`, `est_ebitda`, geography, sector) and
-are publicly discoverable — buyer fields have no such scoring leverage
-today (buyer criteria are LLM-extracted from the buyer's own free text),
-so the buyer set below is smaller and ships after seller is proven out.
+are publicly discoverable — buyer *role* fields (`investment_strategy`,
+`estimated_aum`, ...) have no such scoring leverage today (buyer criteria are
+LLM-extracted from the buyer's own free text), so that part of the buyer set
+is smaller and ships after seller is proven out. Buyer *organization* fields
+(`WriteTarget.ORGANIZATION`, e.g. `region`) are the exact same `organizations`
+row shape a seller's org uses, so those are enriched for both roles.
 """
 
 from dataclasses import dataclass
@@ -210,6 +213,21 @@ BUYER_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
         "text",
         WriteTarget.BUYER_ROLE,
         "A prior acquisition the buyer made in the GCC region, if publicly known.",
+    ),
+    # Org-level, not buyer-role-level: the macro region the buyer FIRM itself
+    # is HQ'd in — distinct from `target_geography` above, which is where the
+    # buyer *invests*. Same field/write-target as `SELLER_ENRICHABLE_FIELDS`'
+    # own `region` entry; a buyer's organization is the same `organizations`
+    # row shape as a seller's, and this is at least as useful for matching
+    # (geography is already a scoring criterion) as it is for a seller.
+    EnrichableField(
+        "region",
+        "Region",
+        "multi_select_as_text",
+        WriteTarget.ORGANIZATION,
+        "The macro region the buyer firm's HQ sits in (e.g. 'GCC', 'MENA', "
+        "'Europe', 'North America'), one level above its HQ country — "
+        "inferred from that country, not the region(s) it invests in.",
     ),
 )
 
