@@ -1,9 +1,9 @@
 """Role-selection modal submission, and the "Review & Save" button from the
 proposal message. That button carries an opaque, server-generated token
 (never operator-editable Slack input) resolved back to the real proposal by
-`decode_proposal` — see `proposal_store.py` for why it's a token and not the
-proposal itself — and opens `ddl_commands`' real edit form for review; this
-module never writes anything itself.
+`decode_proposal` — see `proposal_message.py`'s `_encode_proposal` for why
+it's a token and not the proposal itself — and opens `ddl_commands`' real
+edit form for review; this module never writes anything itself.
 """
 
 import json

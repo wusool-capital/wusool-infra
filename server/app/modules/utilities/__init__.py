@@ -1,8 +1,9 @@
 """Cross-cutting infrastructure shared by every other module — logging,
 base exceptions, retry, `Money`, DB engine/session wiring, idempotency,
-background-task running. Not a bounded context (no business rules of its
-own), but kept in the same domain/application/persistence/api shape as
-every other module for consistency.
+background-task running, ephemeral Slack round-trip storage. Not a bounded
+context (no business rules of its own), but kept in the same
+domain/application/persistence/api shape as every other module for
+consistency.
 
 Public cross-module facade — see the module-boundary rule in
 `server/tests/test_architecture.py`: other modules may only import names
@@ -14,6 +15,7 @@ already imports `fastapi` itself) reaches it directly via
 `app.modules.utilities.api.handlers` instead.
 """
 
+from app.modules.utilities.application.ports.ephemeral_store import EphemeralStore
 from app.modules.utilities.application.ports.idempotency import IdempotencyStore
 from app.modules.utilities.application.ports.task_runner import TaskRunner
 from app.modules.utilities.domain.errors import AppError, NotFoundError, ValidationFailedError
@@ -22,6 +24,10 @@ from app.modules.utilities.domain.money import Money, parse_usd_amount
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 from app.modules.utilities.domain.retry import retry_with_backoff
 from app.modules.utilities.persistence.engine import get_engine, get_sessionmaker
+from app.modules.utilities.persistence.ephemeral_store import (
+    InMemoryEphemeralStore,
+    get_shared_ephemeral_store,
+)
 from app.modules.utilities.persistence.health import check_database_connectivity
 from app.modules.utilities.persistence.idempotency import (
     InMemoryIdempotencyStore,
@@ -37,7 +43,9 @@ from app.modules.utilities.persistence.task_runner import (
 __all__ = [
     "AppError",
     "BedrockInvocationError",
+    "EphemeralStore",
     "IdempotencyStore",
+    "InMemoryEphemeralStore",
     "InMemoryIdempotencyStore",
     "InProcessTaskRunner",
     "Money",
@@ -49,6 +57,7 @@ __all__ = [
     "find_schema_drift",
     "get_engine",
     "get_sessionmaker",
+    "get_shared_ephemeral_store",
     "get_shared_idempotency_store",
     "get_shared_task_runner",
     "import_all_models",

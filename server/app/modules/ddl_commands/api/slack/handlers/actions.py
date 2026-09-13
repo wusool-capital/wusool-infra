@@ -64,6 +64,7 @@ from app.modules.ddl_commands.api.slack.views.form_values import (
 )
 from app.modules.ddl_commands.api.slack.views.organization_selection import (
     NEW_ORGANIZATION_VALUE,
+    decode_selection_payload,
 )
 from app.modules.ddl_commands.api.slack.views.seller_add_form import build_seller_add_form_modal
 from app.modules.ddl_commands.api.slack.views.seller_form import build_seller_edit_form_modal
@@ -435,11 +436,16 @@ def register(app: AsyncApp) -> None:
         channel_id = metadata["channel_id"]
         kind = metadata["kind"]
         search_term = metadata["search_term"]
+        # `.get`, not `metadata["payload_token"]`: a modal already open when
+        # this deploy ships was built by the previous version's schema,
+        # which has no such key — must degrade like an expired token, not
+        # raise `KeyError` out of an otherwise try/except-free handler.
+        candidate_names, prefill = decode_selection_payload(metadata.get("payload_token"))
         build_form = build_seller_add_form_modal if kind == "seller" else build_buyer_add_form_modal
         # `prefill` only exists for sellers (`discovery`'s hand-off) —
         # `build_buyer_add_form_modal` has no such parameter, so it's never
         # passed for a buyer.
-        prefill_kwargs = {"prefill": metadata.get("prefill") or {}} if kind == "seller" else {}
+        prefill_kwargs = {"prefill": prefill} if kind == "seller" else {}
 
         selected = view["state"]["values"]["organization_id"]["selected_organization"][
             "selected_option"
@@ -454,7 +460,7 @@ def register(app: AsyncApp) -> None:
                     requested_by=requested_by,
                     channel_id=channel_id,
                     prefill_name=search_term,
-                    duplicate_candidates=metadata.get("candidate_names") or [],
+                    duplicate_candidates=candidate_names,
                     **prefill_kwargs,
                 ),
             )

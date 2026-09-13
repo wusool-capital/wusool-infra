@@ -126,6 +126,19 @@ def test_constrain_to_options_multi_select_as_text_is_never_constrained() -> Non
     assert _constrain_to_options(_HQ_COUNTRY, "Atlantis") == "Atlantis"
 
 
+def test_constrain_to_options_select_with_a_list_value_passes_through_unchanged() -> None:
+    """A `select`/`multi_select_text` field's `kind` should always agree
+    with its value's shape, but every caller of this function drops one bad
+    field rather than aborting the whole proposal over it — so a shape
+    mismatch must never itself be what crashes that caller.
+    """
+    assert _constrain_to_options(_EMPLOYEE_RANGE, ["11-50"]) == ["11-50"]
+
+
+def test_constrain_to_options_multi_select_text_with_a_str_value_passes_through_unchanged() -> None:
+    assert _constrain_to_options(_TARGET_GEOGRAPHY, "UAE") == "UAE"
+
+
 def test_field_line_without_options_is_unchanged() -> None:
     expected = f"- notable_investments: {_NOTABLE_INVESTMENTS.prompt_hint}"
     assert _field_line(_NOTABLE_INVESTMENTS) == expected

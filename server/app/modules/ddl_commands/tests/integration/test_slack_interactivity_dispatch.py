@@ -25,6 +25,7 @@ import app.modules.ddl_commands.api.slack.handlers.actions as actions_module
 from app.modules.attio import AttioError
 from app.modules.ddl_commands.api.slack.views.organization_selection import (
     NEW_ORGANIZATION_VALUE,
+    _encode_selection_payload,
 )
 from app.modules.ddl_commands.bootstrap import create_app
 from app.modules.ddl_commands.config import get_settings
@@ -687,8 +688,9 @@ def _organization_selection_payload(
                     "search_term": search_term,
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
-                    "candidate_names": candidate_names or [],
-                    "prefill": prefill or {},
+                    "payload_token": _encode_selection_payload(
+                        candidate_names or [], prefill or {}
+                    ),
                 }
             ),
             "state": {
@@ -716,6 +718,46 @@ def test_organization_selection_new_option_opens_add_form() -> None:
     assert metadata["org_attio_id"] is None
     name_block = next(b for b in body["view"]["blocks"] if b["block_id"] == "name")
     assert name_block["element"]["initial_value"] == "Acme"
+
+
+def test_organization_selection_submission_from_a_pre_deploy_modal_does_not_crash() -> None:
+    """A modal already open when a deploy ships `payload_token` was built by
+    the previous version, whose `private_metadata` has no such key at all —
+    the submission must still succeed (with no duplicate-candidates warning
+    or prefill, since neither survived), not 500.
+    """
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V5",
+            "callback_id": "organization_selection_modal",
+            "private_metadata": json.dumps(
+                {
+                    "kind": "seller",
+                    "search_term": "Acme",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                }
+            ),
+            "state": {
+                "values": {
+                    "organization_id": {
+                        "selected_organization": {
+                            "selected_option": {"value": NEW_ORGANIZATION_VALUE}
+                        }
+                    }
+                }
+            },
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["view"]["callback_id"] == "seller_add_form_modal"
 
 
 def test_organization_selection_new_option_with_candidates_shows_duplicate_warning() -> None:

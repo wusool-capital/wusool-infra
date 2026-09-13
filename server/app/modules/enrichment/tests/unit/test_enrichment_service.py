@@ -413,6 +413,34 @@ async def test_propose_uses_the_structured_tier_for_a_buyers_organization(
     assert "investment_strategy" not in requested
 
 
+async def test_structured_tier_constrains_an_option_bearing_field(target: EnrichmentTarget) -> None:
+    """`sector_focus`/`estimated_arr` are option-bearing `ORGANIZATION`
+    fields reachable through the structured tier too, not just
+    `employee_range` — a provider returning an out-of-vocabulary value for
+    one must still be constrained (dropped, here, since nothing matches),
+    the same as the LLM path already is.
+    """
+    diffbot = FakeCompanyDataClient(
+        [
+            CompanyDataField(
+                field_name="sector_focus",
+                value=["Not A Real Sector"],
+                source_url="https://acme.com",
+                provider="Diffbot",
+            )
+        ]
+    )
+    service, _ = _service(
+        current_values={},
+        extraction_response={"fields": []},
+        company_data_clients=(diffbot,),
+    )
+
+    proposal = await service.propose(target)
+
+    assert "sector_focus" not in {v.field_name for v in proposal.values}
+
+
 async def test_propose_proposes_region_for_a_buyers_organization(
     buyer_target: EnrichmentTarget,
 ) -> None:

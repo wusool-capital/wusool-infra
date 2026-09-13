@@ -3,7 +3,7 @@ seller), which Slack requires as an `ActionsBlock` since a `SectionBlock`
 allows only one accessory button.
 """
 
-from app.modules.discovery.api.dependencies import encode_lead
+from app.modules.discovery.api.dependencies import decode_lead
 from app.modules.discovery.api.slack.views import build_lead_blocks
 from app.modules.discovery.domain.leads import DiscoveredLead
 
@@ -36,7 +36,9 @@ def test_each_lead_gets_a_view_on_maps_and_add_as_seller_button() -> None:
 
     assert add_as_seller["action_id"] == "discover_add_seller"
     assert add_as_seller["text"]["text"] == "Add as seller"
-    assert add_as_seller["value"] == encode_lead(lead)
+    # `encode_lead` now returns a fresh store token each call, not a
+    # deterministic encoding of `lead` — compare by decoding it back.
+    assert decode_lead(add_as_seller["value"]) == lead
 
 
 def test_multiple_leads_each_get_their_own_actions_block() -> None:

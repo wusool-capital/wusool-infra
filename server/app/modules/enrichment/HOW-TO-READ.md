@@ -21,10 +21,12 @@ by name).
    one "Review & Save" button (not per-field buttons — the whole point is to open the
    real edit form, not build a second write UI).
 6. Operator clicks it → `handlers/actions.py::handle_review` → `decode_proposal` resolves
-   the button's opaque token via `api/slack/views/proposal_store.py` (an in-memory,
-   TTL-evicted store — the full proposal JSON no longer fits directly in the button's
-   own `value`, which Slack caps at 2000 characters; a well-documented org now routinely
-   proposes enough fields to exceed that on its own) → `application/review.py
+   the button's opaque token via `utilities`' shared, in-memory, TTL-evicted
+   `EphemeralStore` (`get_shared_ephemeral_store`) — the full proposal JSON no longer
+   fits directly in the button's own `value`, which Slack caps at 2000 characters; a
+   well-documented org now routinely proposes enough fields to exceed that on its own
+   (`ddl_commands`' organization-selection modal and `discovery`'s lead-add button use
+   the same store for the same reason) → `application/review.py
    ::ReviewMixin.open_review_form` → `EnrichmentReviewPort`. An expired/unknown token
    (store TTL passed, or the process restarted) surfaces a "run `/enrich-seller`/
    `/enrich-buyer` again" message instead of a crash.
