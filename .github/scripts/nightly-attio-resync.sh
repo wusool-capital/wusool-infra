@@ -38,8 +38,13 @@ if [[ "$PING" != Online ]]; then
   exit 1
 fi
 
+# The app container is found by its Compose service label, not by name:
+# Compose names it <project>-<service>-<index> (toolkit-toolkit-1), so an
+# exact `name=^/toolkit$` filter matched nothing and failed every run from
+# 2026-09-03 to 2026-09-12 with "toolkit container is not running". The
+# label is the part Compose actually guarantees; the name is not.
 COMMANDS_JSON=$(jq -n \
-  --arg image_cmd 'CID=$(docker ps --filter "name=^/toolkit$" --format "{{.ID}}" | head -1); test -n "$CID" || { echo "toolkit container is not running" >&2; exit 1; }; IMAGE=$(docker inspect --format="{{.Image}}" "$CID"); test -n "$IMAGE"' \
+  --arg image_cmd 'CID=$(docker ps --filter "label=com.docker.compose.service=toolkit" --format "{{.ID}}" | head -1); test -n "$CID" || { echo "toolkit container is not running" >&2; exit 1; }; IMAGE=$(docker inspect --format="{{.Image}}" "$CID"); test -n "$IMAGE"' \
   --arg run_cmd 'test -z "$(docker ps --filter "name=^/toolkit-nightly-attio-resync$" --format "{{.ID}}")" || { echo "nightly resync already running" >&2; exit 75; }; timeout --signal=TERM --kill-after=30s 15m docker run --rm --name toolkit-nightly-attio-resync --memory=384m --memory-swap=384m --cpus=0.75 --env-file /opt/toolkit/toolkit/.env.production "$IMAGE" python -m app.modules.ddl_commands.scripts.attio_sync_full_resync' \
   '["set -Eeuo pipefail", $image_cmd, $run_cmd]')
 PARAMETERS_JSON=$(jq -n --argjson commands "$COMMANDS_JSON" \

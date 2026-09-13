@@ -36,4 +36,10 @@ grep -q 'toolkit-nightly-attio-resync' "$AWS_CALLS_FILE"
 grep -q 'executionTimeout' "$AWS_CALLS_FILE"
 grep -q 'timeout-seconds 120' "$AWS_CALLS_FILE"
 
+# The app container is located by Compose label, never by exact container name
+# -- the name carries a project/index suffix and silently matched nothing for
+# ten nights (2026-09-03 to 2026-09-12).
+grep -q 'com.docker.compose.service=toolkit' "$AWS_CALLS_FILE"
+! grep -qF 'name=^/toolkit$' "$AWS_CALLS_FILE"
+
 echo 'nightly workflow orchestration test passed'

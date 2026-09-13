@@ -17,9 +17,11 @@ accepted them or that chat authorization remains active.
 | GuardDuty or Security Hub finding | Potential security issue | Security notification |
 
 The nightly Attio-to-PostgreSQL resync runs in GitHub Actions at 02:00
-Asia/Dubai. It currently has **no automatic failure notification**; operators
-must inspect its run history. The real-time Attio webhook complements this job
-but does not remove the need to check missed or failed nightly runs.
+Asia/Dubai. A failed run now publishes to the environment alert topic and so
+reaches the same email and chat recipients as the infrastructure alarms. That
+path is implemented but not yet proven by a deliberate failure, so confirm
+delivery during handover. The real-time Attio webhook complements this job but
+does not remove the need to check missed or failed nightly runs.
 
 ## Incident procedure
 

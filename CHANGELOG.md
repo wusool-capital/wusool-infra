@@ -10,8 +10,18 @@ for current production evidence and open handover items.
 
 ## 2026-09-13
 
+### Fixed
+
+- Restored the nightly Attio full resync, which had failed every night from
+  2026-09-03 to 2026-09-12 without alerting anyone. It located the Toolkit
+  container by exact name, but Compose names that container with a project and
+  index suffix, so the lookup matched nothing and each run aborted before doing
+  any work. It is now found by its Compose service label.
+
 ### Added
 
+- A failed nightly Attio resync now raises an alert on the environment alert
+  topic instead of being visible only in the Actions tab.
 - Added a Vale quality gate for the client GitBook, including terminology,
   readability, structure, and page-length rules.
 - Added a contributor-facing documentation style guide.
