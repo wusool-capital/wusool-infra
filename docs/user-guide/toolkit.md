@@ -8,21 +8,26 @@ There is no separate website or login.
 
 - Join the Slack workspace and a channel or direct message where the bot is
   present.
-- Use the organization's name as it appears in Attio when possible.
 - Type `/toolkit-help` in Slack to see the available commands.
-- Slash-command replies are visible only to you unless Slack indicates
-  otherwise.
 
-| Command | Result |
-| --- | --- |
-| `/find-match <buyer name>` | Ranked seller shortlist |
-| `/edit-seller <name>` / `/edit-buyer <name>` | Edit an existing profile |
-| `/add-seller <organization>` / `/add-buyer <organization>` | Add a role to an existing or new organization |
-| `/enrich-seller <name>` / `/enrich-buyer <name>` | Research empty fields and propose values |
-| `/toolkit-status` | Service, database, and Attio-mode status |
-| `/toolkit-help` | Command help inside Slack |
+The main workflows are matching, editing, adding, and enrichment. Use
+`/toolkit-status` for service, database, and Attio-mode status, and
+`/toolkit-help` for command help.
 
 ## Find matches
+
+```mermaid
+flowchart TD
+  find["/find-match buyer"] --> confirm{"Buyer confirmed?"}
+  confirm -- "No" --> stop["Correct name or add buyer"]
+  confirm -- "Yes" --> score["Score eligible sellers"]
+  score --> result["Ranked shortlist"]
+  result --> decision{"Review decision"}
+  decision --> approve["Approve or reject"]
+  decision -- "Low confidence" --> enrich["/enrich-seller"]
+  enrich --> score
+  score -- "No strong CRM match" --> discover["Unverified web leads"]
+```
 
 1. Run `/find-match <buyer name>`, for example `/find-match Raoof Capital`.
 2. If several buyers have similar names, select the intended record. If none
@@ -46,17 +51,6 @@ Match results never contact an organization or change its profile or deal.
 Approval and rejection record the decision only. The bot rechecks current
 data before saving a decision made from an older Slack message.
 
-### Example: review a low-confidence match
-
-Run `/find-match Example Holdings` and select the buyer. Suppose the first
-seller has a strong fit score but low confidence. Open the full analysis and
-identify missing facts. Use `/enrich-seller`, review the sourced proposal,
-save only verified values, and run the match again.
-
-**Expected result:** the second result uses the reviewed CRM data. Approve it
-only if the evidence supports the recommendation; a higher score never sends
-a message to the seller or advances a deal automatically.
-
 ### If matching does not work
 
 - **Buyer not found:** use the exact Attio name or add it with `/add-buyer`.
@@ -70,6 +64,14 @@ a message to the seller or advances a deal automatically.
 ## Maintain buyer and seller records
 
 ### Edit an existing profile
+
+```mermaid
+flowchart TD
+  edit["/edit-buyer or /edit-seller"] --> select["Select record and fields"]
+  select --> form["Review pre-filled form"] --> save["Save"]
+  save --> attio["Write to Attio"] --> database["Update database"]
+  attio -- "Partial failure" --> report["Report what saved"]
+```
 
 1. Run `/edit-seller <name>` or `/edit-buyer <name>` and select the intended
    record if asked.
@@ -85,6 +87,16 @@ references, such as owner or key contact, are not editable from Slack.
 `Intake source` requires the correction checkbox before it can be changed.
 
 ### Add a buyer or seller
+
+```mermaid
+flowchart TD
+  add["/add-buyer or /add-seller"] --> org{"Organization exists?"}
+  org -- "Yes" --> role["Attach role"]
+  org -- "No" --> create["Create organization"]
+  create --> role
+  role --> save["Complete form and save"] --> attio["Attio"] --> database["Database"]
+  org -- "Role already exists" --> edit["Use /edit-* instead"]
+```
 
 1. Run `/add-seller <organization name>` or `/add-buyer <organization name>`.
 2. Select an existing organization if it is the same business. Otherwise
@@ -103,6 +115,15 @@ role removal.
 
 ## Research missing details
 
+```mermaid
+flowchart TD
+  enrich["/enrich-buyer or /enrich-seller"] --> research["Research public sources"]
+  research --> values{"Values found?"}
+  values -- "No" --> none["No changes"]
+  values -- "Yes" --> review["Review proposal"] --> edit["Edit and submit"]
+  edit --> save["Save reviewed fields"] --> attio["Attio"] --> database["Database"]
+```
+
 1. Run `/enrich-seller <name>` or `/enrich-buyer <name>` and select the
    intended record if asked.
 2. Wait for the background research. The bot lists proposed values with
@@ -113,17 +134,8 @@ role removal.
 **Expected result:** only reviewed values you submit are saved. A proposal
 never changes Attio by itself, and existing non-empty fields are left alone.
 
-Seller research can cover company description, finances, size, locations,
-founding date, and social links. Buyer research focuses on investment
-strategy, notable investments, assets under management, target geography,
-and previous GCC acquisitions. When public evidence is unavailable, the bot
-reports that it found no new values.
-
 ## Rules to remember
 
-- Records created directly in Attio are copied to the database by the
-  synchronization process.
-- Any Slack workspace member can currently run the commands; there is no
-  separate per-user Toolkit permission list.
-- Treat generated scores, explanations, and researched values as decision
-  support. A person remains responsible for checking the result.
+Records created directly in Attio are copied to the database. Generated scores,
+explanations, and researched values are decision support; a person remains
+responsible for checking each result.
