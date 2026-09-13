@@ -338,7 +338,7 @@ function App(){
                   any booking was actually confirmed — which permanently
                   unblurred the full AI-generated report in this tab, visible
                   on return from the booking page. */}
-              <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"Inter,sans-serif",boxSizing:"border-box"}}>Get Your Free Valuation Report Now →</a>
+              <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box"}}>Get Your Free Valuation Report Now →</a>
               <div style={{fontSize:11,color:"#aaa",marginTop:9}}>Free · No commitment · Response within 24 hours</div>
             </div>
           </div>
