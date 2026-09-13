@@ -4,6 +4,7 @@ import pytest
 
 from app.modules.enrichment.application.ports.company_data import CompanyDataField
 from app.modules.enrichment.application.service import EnrichmentService
+from app.modules.enrichment.domain.field_plans import WriteTarget
 from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.enrichment.tests.fakes.company_data import FakeCompanyDataClient
@@ -107,6 +108,109 @@ async def test_propose_keeps_high_confidence_values(target: EnrichmentTarget) ->
     # `est_revenue` is a currency-kind field — coerced from the LLM's raw
     # string to a float before it can reach the Attio/Postgres write path.
     assert proposal.values[0].proposed == 5000000.0
+
+
+async def test_propose_proposes_sector_focus_for_the_organization(
+    target: EnrichmentTarget,
+) -> None:
+    """`sector_focus` is a `multi_select_text` organization field (like
+    `target_geography` is for a buyer role) — an out-of-vocabulary member
+    alongside valid ones is dropped, not the whole field.
+    """
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "sector_focus",
+                    "value": "Fintech, Not A Real Sector",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "described as a fintech company on its site",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "sector_focus"
+    assert proposal.values[0].proposed == ["Fintech"]
+
+
+async def test_propose_proposes_funding_stage_for_a_seller(target: EnrichmentTarget) -> None:
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "funding_stage",
+                    "value": "Series B",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "reported in a funding announcement",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "funding_stage"
+    assert proposal.values[0].proposed == "Series B"
+
+
+async def test_propose_proposes_deal_criteria_for_a_buyer(buyer_target: EnrichmentTarget) -> None:
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "check_size_min",
+                    "value": "1000000",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "stated on the fund's site",
+                },
+                {
+                    "field_name": "deal_structure_tolerance",
+                    "value": "Majority",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "the fund states it only takes majority positions",
+                },
+            ]
+        },
+    )
+    proposal = await service.propose(buyer_target)
+    by_field = {v.field_name: v for v in proposal.values}
+    assert by_field["check_size_min"].proposed == 1_000_000.0
+    assert by_field["check_size_min"].write_target == WriteTarget.BUYER_ROLE
+    assert by_field["deal_structure_tolerance"].proposed == "Majority"
+
+
+async def test_propose_proposes_region_for_the_organization(target: EnrichmentTarget) -> None:
+    """`region` (macro HQ region, e.g. 'GCC') has no structured-provider
+    support — it only ever comes from the LLM path — and, like `hq_country`,
+    carries no fixed `options` in `EnrichableField`, so a plain free-text
+    answer passes through `_constrain_to_options` unchanged.
+    """
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "region",
+                    "value": "GCC",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "HQ'd in the UAE, per the company site",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "region"
+    assert proposal.values[0].proposed == "GCC"
 
 
 async def test_propose_uses_the_structured_tier_before_the_llm_for_a_seller(
@@ -217,14 +321,77 @@ async def test_propose_tries_a_second_tier_only_for_fields_the_first_tier_missed
     assert "est_revenue" not in dict(pdl.calls)["Acme Co"]
 
 
-async def test_propose_never_tries_the_structured_tier_for_a_buyer(
+async def test_propose_never_asks_the_structured_tier_for_a_buyer_role_field(
     buyer_target: EnrichmentTarget,
 ) -> None:
+    """A company-data provider's schema is firmographic (organization-level)
+    — it has no concept of a buyer-role field like `investment_strategy`, so
+    the structured tier must never even be asked for one, regardless of
+    whether it runs for a buyer target at all (see the next test).
+    """
     diffbot = FakeCompanyDataClient(
         [
             CompanyDataField(
                 field_name="investment_strategy",
                 value="should never be proposed",
+                source_url="https://acme.com",
+                provider="Diffbot",
+            )
+        ]
+    )
+    service, _ = _service(
+        current_values={
+            # Only `investment_strategy` (a buyer-role field) missing —
+            # every organization field is already populated, so the
+            # structured tier has nothing organization-level to look up
+            # and `investment_strategy` must never be requested from it.
+            "estimated_aum": {"amount": 1},
+            "target_geography": ["UAE"],
+            "prior_gcc_acquisition": "x",
+            "deal_structure_tolerance": "Majority",
+            "ebitda_floor": {"amount": 1},
+            "check_size_min": {"amount": 1},
+            "check_size_max": {"amount": 1},
+            "ev_ceiling": {"amount": 1},
+            "ebitda_ceiling": {"amount": 1},
+            "description": "x",
+            "hq_country": "UAE",
+            "region": "GCC",
+            "sector_focus": ["Fintech"],
+            "estimated_arr": "$1M-$10M",
+            "funding_raised": 1.0,
+            "employee_range": "1-10",
+            "foundation_date": "2020-01-01",
+            "linkedin": "x",
+            "logo_url": "x",
+            "angellist": "x",
+            "facebook": "x",
+            "instagram": "x",
+            "twitter": "x",
+            "twitter_follower_count": 1,
+        },
+        extraction_response={"fields": []},
+        company_data_clients=(diffbot,),
+    )
+
+    proposal = await service.propose(buyer_target)
+
+    assert proposal.values == ()
+    assert diffbot.calls == []
+
+
+async def test_propose_uses_the_structured_tier_for_a_buyers_organization(
+    buyer_target: EnrichmentTarget,
+) -> None:
+    """A buyer's organization is the same `organizations` row shape a
+    seller's is, so the structured tier resolves an organization field for
+    a buyer target exactly as it does for a seller one.
+    """
+    diffbot = FakeCompanyDataClient(
+        [
+            CompanyDataField(
+                field_name="hq_country",
+                value="United Arab Emirates",
                 source_url="https://acme.com",
                 provider="Diffbot",
             )
@@ -238,8 +405,89 @@ async def test_propose_never_tries_the_structured_tier_for_a_buyer(
 
     proposal = await service.propose(buyer_target)
 
+    by_field = {v.field_name: v for v in proposal.values}
+    assert by_field["hq_country"].proposed == "United Arab Emirates"
+    assert by_field["hq_country"].confidence == 0.9
+    # The structured tier was never even asked about a buyer-role field.
+    requested = {name for _, names in diffbot.calls for name in names}
+    assert "investment_strategy" not in requested
+
+
+async def test_propose_proposes_region_for_a_buyers_organization(
+    buyer_target: EnrichmentTarget,
+) -> None:
+    """`region` writes to `WriteTarget.ORGANIZATION`, the same as it does for
+    a seller — a buyer firm's own organization row is enriched too, not just
+    its buyer-role fields.
+    """
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "region",
+                    "value": "MENA",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "HQ'd in Cairo, per the firm's site",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(buyer_target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "region"
+    assert proposal.values[0].write_target == WriteTarget.ORGANIZATION
+    assert proposal.values[0].proposed == "MENA"
+
+
+async def test_propose_drops_target_geography_entirely_when_no_value_matches_vocabulary(
+    buyer_target: EnrichmentTarget,
+) -> None:
+    """Regression for the Investcorp bug: the LLM proposed regions outside
+    `target_geography`'s fixed vocabulary, and the field silently vanished
+    between the Slack proposal message and the edit form.
+    """
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "target_geography",
+                    "value": "Gulf Cooperation Council (GCC) countries, North America, "
+                    "Europe, Asia",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "stated client base",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(buyer_target)
     assert proposal.values == ()
-    assert diffbot.calls == []
+
+
+async def test_propose_keeps_only_the_valid_members_of_a_partially_matching_target_geography(
+    buyer_target: EnrichmentTarget,
+) -> None:
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "target_geography",
+                    "value": "GCC-wide, North America",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "stated client base",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(buyer_target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "target_geography"
+    assert proposal.values[0].proposed == ["GCC-wide"]
 
 
 async def test_research_query_falls_back_to_bare_name_with_no_context(

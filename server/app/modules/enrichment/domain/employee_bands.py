@@ -4,6 +4,9 @@ module must never import it — see the package docstring) — these band
 boundaries mirror `ddl_commands.api.organizations.ORGANIZATION_FIELDS`'s
 `employee_range` options, which are Attio's own fixed vocabulary and change
 about as often as the `FieldKind` literals already duplicated the same way.
+`EMPLOYEE_RANGE_OPTIONS` is that same vocabulary, in order — used to constrain
+the LLM extraction prompt for the one path (`_research_and_extract`) that
+doesn't already go through `bucket_employee_count`.
 """
 
 _BANDS: tuple[tuple[int, int | None, str], ...] = (
@@ -17,6 +20,8 @@ _BANDS: tuple[tuple[int, int | None, str], ...] = (
     (50_001, 100_000, "50K-100K"),
     (100_001, None, "100K+"),
 )
+
+EMPLOYEE_RANGE_OPTIONS: tuple[str, ...] = tuple(label for _, _, label in _BANDS)
 
 
 def bucket_employee_count(count: int) -> str | None:
