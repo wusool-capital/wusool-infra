@@ -123,6 +123,10 @@ class BenchmarkRequest(_Strict):
     company: str = Field(min_length=1, max_length=200)
     name: str | None = Field(default=None, max_length=200)
     email: str = Field(min_length=3, max_length=320)
+    # Optional: the only lead-magnet form that asks for one today. Feeds the
+    # Attio `person` write (`AttioIdentityPayload.phone`) — see
+    # `domain/shared/attio_values.py::person_values`.
+    phone: str | None = Field(default=None, max_length=50)
     domain: str | None = Field(default=None, max_length=253)
     geography: str | None = Field(default=None, max_length=100)
     consent: bool = False

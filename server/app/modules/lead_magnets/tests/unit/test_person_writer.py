@@ -18,6 +18,7 @@ def _person(
     email: str | None = None,
     company: str | None = None,
     linkedin: str | None = None,
+    phone: str | None = None,
     is_test: bool = False,
 ) -> dict:
     values: dict = {"is_test": [{"active_until": None, "value": is_test}]}
@@ -29,6 +30,8 @@ def _person(
         values["company"] = [{"active_until": None, "target_record_id": company}]
     if linkedin is not None:
         values["linkedin"] = [{"active_until": None, "value": linkedin}]
+    if phone is not None:
+        values["phone"] = [{"active_until": None, "value": phone}]
     return {"id": {"record_id": record_id}, "values": values}
 
 
@@ -112,6 +115,20 @@ async def test_linkedin_only_sent_when_given() -> None:
     assert client.create_calls[0]["linkedin"] == "https://linkedin.com/in/robin"
 
 
+async def test_phone_only_sent_when_given() -> None:
+    client = _FakeClient(matches=[])
+    writer = AttioPersonWriter(client, is_test=False)
+
+    await writer.write(
+        name="Robin",
+        email="robin@acme.com",
+        organization_attio_id=None,
+        phone="+971500000000",
+    )
+
+    assert client.create_calls[0]["phone"] == "+971500000000"
+
+
 async def test_match_with_blank_fields_gets_them_patched() -> None:
     client = _FakeClient(matches=[_person("person-1", name="Sam")])
     writer = AttioPersonWriter(client, is_test=False)
@@ -121,6 +138,7 @@ async def test_match_with_blank_fields_gets_them_patched() -> None:
         email="sam@acme.com",
         organization_attio_id="org-1",
         linkedin="https://linkedin.com/in/sam",
+        phone="+971500000000",
     )
 
     # The matched record's own name wins — never patched, never relabeled.
@@ -130,12 +148,21 @@ async def test_match_with_blank_fields_gets_them_patched() -> None:
     assert values == {
         "company": [{"target_object": "organizations", "target_record_id": "org-1"}],
         "linkedin": "https://linkedin.com/in/sam",
+        "phone": "+971500000000",
     }
 
 
 async def test_match_with_everything_already_filled_writes_nothing() -> None:
     client = _FakeClient(
-        matches=[_person("person-1", name="Sam", company="org-existing", linkedin="https://x")]
+        matches=[
+            _person(
+                "person-1",
+                name="Sam",
+                company="org-existing",
+                linkedin="https://x",
+                phone="+971500000000",
+            )
+        ]
     )
     writer = AttioPersonWriter(client, is_test=False)
 
@@ -144,6 +171,7 @@ async def test_match_with_everything_already_filled_writes_nothing() -> None:
         email="sam@acme.com",
         organization_attio_id="org-1",
         linkedin="https://linkedin.com/in/sam",
+        phone="+971511111111",
     )
 
     assert result == ("person-1", "Sam")

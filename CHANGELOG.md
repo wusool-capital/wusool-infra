@@ -37,6 +37,10 @@ for current production evidence and open handover items.
   organization. Benchmark submissions also now carry their raw financial
   figures, consent flag, and funding stage through to Attio, and M&A
   Readiness's country now reaches the organization record.
+- The GCC SME Benchmark form's optional mobile number field was silently
+  dropped before it ever reached the server — its own submit script never
+  read the field into the request. Now carried through to the visitor's
+  Attio person record.
 
 ## 2026-09-12
 

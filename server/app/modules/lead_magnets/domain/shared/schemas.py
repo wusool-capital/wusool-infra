@@ -199,7 +199,10 @@ class AttioIdentityPayload(_Payload):
     valuation and readiness don't collect it) — kept here rather than
     added as a fourth call site because `write_seller_role`'s
     `funding_raised` kwarg needs one typed, optional source regardless of
-    which tool it came from, same reasoning as `sector`/`peer_key` above."""
+    which tool it came from, same reasoning as `sector`/`peer_key` above.
+
+    `phone` is benchmark-only too (`BenchmarkRequest.phone`) — feeds the
+    Attio `person` write the same way `email`/`name` do."""
 
     domain: str | None = None
     company: str = ""
@@ -211,6 +214,7 @@ class AttioIdentityPayload(_Payload):
     email: str = ""
     name: str = ""
     capital_raised: float | None = None
+    phone: str | None = None
 
 
 # ===== Bedrock response models — see the module docstring =====

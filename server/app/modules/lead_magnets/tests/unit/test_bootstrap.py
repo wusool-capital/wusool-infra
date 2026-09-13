@@ -286,6 +286,32 @@ async def test_write_passes_the_just_written_org_id_to_the_person_writer() -> No
     assert person.calls[0]["organization_attio_id"] == "org-1"
 
 
+async def test_write_passes_benchmarks_phone_to_the_person_writer() -> None:
+    """`phone` is benchmark-only — no other tool's form asks for it, so
+    every other tool's call must pass `None` rather than error."""
+    person = _FakePersonWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        _FakeRoleWriter(), _FakeOrganizations([]), person
+    )
+
+    await role_attio_writer.write(
+        tool="benchmark",
+        payload={
+            "company": "Acme",
+            "peer_key": "itservices",
+            "email": "d@acme.com",
+            "phone": "+971500000000",
+        },
+        ai={},
+    )
+    await role_attio_writer.write(
+        tool="valuation", payload={"company": "Acme", "email": "v@acme.com"}, ai={}
+    )
+
+    assert person.calls[0]["phone"] == "+971500000000"
+    assert person.calls[1]["phone"] is None
+
+
 async def test_write_survives_a_person_write_failure() -> None:
     """A person-write failure must not lose the org/role write that already
     landed, and must not propagate to the caller — see this module's

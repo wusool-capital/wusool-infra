@@ -151,7 +151,9 @@ class _RoleAttioWriter:
             funding_raised=seller.capital_raised,
             organization_attio_id=await self._find_existing_org(name=name, domain=seller.domain),
         )
-        return await self._with_person(subjects, name=seller.name, email=seller.email)
+        return await self._with_person(
+            subjects, name=seller.name, email=seller.email, phone=seller.phone
+        )
 
     async def _with_person(
         self,
@@ -160,6 +162,7 @@ class _RoleAttioWriter:
         name: str | None,
         email: str | None,
         linkedin: str | None = None,
+        phone: str | None = None,
     ) -> SubjectRefs:
         """Best-effort: a person-write failure must never lose the lead the
         org/role write above already landed, and must never make the
@@ -172,6 +175,7 @@ class _RoleAttioWriter:
                 email=email,
                 organization_attio_id=subjects.org_attio_id,
                 linkedin=linkedin,
+                phone=phone,
             )
         except Exception as exc:  # noqa: BLE001 - the org/role write already succeeded
             logger.warning("lead_magnet_person_write_failed error=%s", exc)
