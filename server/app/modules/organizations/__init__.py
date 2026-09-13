@@ -14,6 +14,7 @@ directly, not a narrow Port worth hiding behind an adapter.
 from app.modules.organizations.application.ports.organizations import OrganizationRepositoryPort
 from app.modules.organizations.persistence.repositories.organizations_repository import (
     OrganizationRepository,
+    org_name_trigram_predicate,
 )
 
-__all__ = ["OrganizationRepository", "OrganizationRepositoryPort"]
+__all__ = ["OrganizationRepository", "OrganizationRepositoryPort", "org_name_trigram_predicate"]

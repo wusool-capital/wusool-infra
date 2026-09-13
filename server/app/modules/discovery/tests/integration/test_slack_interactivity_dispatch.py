@@ -8,57 +8,29 @@ and `discovery_service()` is monkeypatched at its import site in
 draft was handed to `SellerDraftPort`.
 """
 
-import hashlib
-import hmac
-import json
-import time
-from urllib.parse import urlencode
-
 import pytest
-from fastapi.testclient import TestClient
 
 import app.modules.discovery.api.slack.handlers as handlers_module
 from app.modules.discovery.api.dependencies import encode_lead
 from app.modules.discovery.bootstrap import create_app
 from app.modules.discovery.config import get_settings
 from app.modules.discovery.domain.leads import DiscoveredLead
+from tests.slack_test_helpers import (
+    mock_slack_auth,
+    mock_slack_ephemeral,
+)
+from tests.slack_test_helpers import post_interactivity as _shared_post_interactivity
 
 app = create_app()
 
 
-class _FakeAuthTestResponse(dict):
-    headers: dict = {}
-
-
 @pytest.fixture(autouse=True)
 def _mock_slack_auth(monkeypatch):
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
-
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    mock_slack_auth(monkeypatch)
 
 
-def _sign(body: str, timestamp: str, signing_secret: str) -> str:
-    basestring = f"v0:{timestamp}:{body}".encode()
-    digest = hmac.new(signing_secret.encode(), basestring, hashlib.sha256).hexdigest()
-    return f"v0={digest}"
-
-
-def _post_interactivity(payload: dict) -> "TestClient":
-    settings = get_settings()
-    body = urlencode({"payload": json.dumps(payload)})
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-    client = TestClient(app)
-    return client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
-    )
+def _post_interactivity(payload: dict):
+    return _shared_post_interactivity(app, get_settings().slack_signing_secret, payload)
 
 
 def _block_action_payload(lead: DiscoveredLead) -> dict:
@@ -103,15 +75,7 @@ def test_discover_add_seller_opens_the_confirm_form_with_the_lead_mapped_to_a_dr
 
 
 def test_discover_add_seller_reports_failure_without_crashing(monkeypatch) -> None:
-    posted: list[dict] = []
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral", fake_chat_post_ephemeral
-    )
+    posted = mock_slack_ephemeral(monkeypatch)
 
     class _FailingService:
         async def open_confirm_form(self, **_kwargs):
@@ -133,15 +97,7 @@ def test_discover_add_seller_reports_a_malformed_button_value_without_crashing(
     `DiscoveredLead`'s shape) must surface an ephemeral message, not fail
     silently after `ack()` has already fired.
     """
-    posted: list[dict] = []
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral", fake_chat_post_ephemeral
-    )
+    posted = mock_slack_ephemeral(monkeypatch)
 
     payload = {
         "type": "block_actions",

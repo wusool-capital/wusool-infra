@@ -16,10 +16,14 @@ from collections.abc import Mapping
 
 from app.modules.attio.providers.attio.money import serialize_money
 from app.modules.lead_magnets.domain.benchmark.benchmark import PERCENTILE_COLUMNS
-from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkResult
+from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
+    BenchmarkInputs,
+    BenchmarkResult,
+)
 from app.modules.lead_magnets.domain.buyer_network.buyer_network import validate_target_geography
 from app.modules.lead_magnets.domain.readiness.readiness import attio_band
 from app.modules.lead_magnets.domain.shared.schemas import BuyerValuesInput, ReadinessValuesInput
+from app.modules.lead_magnets.domain.shared.sector_mapping import to_funding_stage
 from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation, ValuationInputs
 
 # What a `seller_role` attribute can hold on the write side. A money field
@@ -99,8 +103,23 @@ def _values(
     return out
 
 
-def benchmark_values(result: BenchmarkResult, *, headcount: int | None) -> dict[str, object]:
-    """The benchmark's own output, as `seller_role` attributes."""
+def benchmark_values(
+    result: BenchmarkResult, inputs: BenchmarkInputs, *, consent: bool = False
+) -> dict[str, object]:
+    """The benchmark's own output, as `seller_role` attributes, plus the raw
+    form inputs it was computed from.
+
+    Those raw figures — `revenue`, `owner_salary`, `gross_margin_pct` and the
+    rest — used to be folded into percentiles and then discarded, so a real
+    submission's own numbers never reached Attio at all; the same gap
+    `valuation_values()` already closed for its own raw inputs. `consent` is
+    passed the same way `valuation_values()` takes it, not read off `inputs`
+    — it isn't a scoring input, so it has no place on `BenchmarkInputs`.
+
+    `funding_stage` only applies in tech mode, where `peer_key` is a funding
+    stage rather than a sector (see `BenchmarkRequest.sector`'s docstring);
+    SME mode's `peer_key` is a sector, mapped elsewhere via `to_sector_focus`.
+    """
     percentiles = {
         PERCENTILE_COLUMNS[key]: value
         for key, value in result.percentiles.items()
@@ -115,7 +134,7 @@ def benchmark_values(result: BenchmarkResult, *, headcount: int | None) -> dict[
             # as a failed Attio option lookup, not a silently wrong value.
             "benchmark_quartile": _QUARTILE_TITLES.get(result.quartile, str(result.quartile)),
             "ebitda_adjusted": result.ebitda_adjusted,
-            "headcount": headcount,
+            "headcount": inputs.headcount,
             "lead_priority": result.routing.priority,
             "routing_reason": result.routing.reason,
             "quality_check": result.quality.check,
@@ -123,6 +142,20 @@ def benchmark_values(result: BenchmarkResult, *, headcount: int | None) -> dict[
             "headline_flag": result.headline,
             "implied_ev_low": result.implied_ev.low if result.implied_ev else None,
             "implied_ev_high": result.implied_ev.high if result.implied_ev else None,
+            "data_consent": consent,
+            "revenue_last_full_year": inputs.revenue,
+            "revenue_year_before": inputs.prev_revenue,
+            "est_ebitda": inputs.ebitda_reported,
+            "owner_salary": inputs.owner_salary,
+            "ebitda_deducts_salary": inputs.salary_deducted,
+            "gross_margin_pct": inputs.gross_margin_pct,
+            "annual_rent_cost": inputs.rent_cost,
+            "largest_customer_revenue_pct": inputs.top_customer_pct,
+            "repeat_revenue_pct": inputs.recurring_pct,
+            "years_active": inputs.years_active,
+            "location_count": inputs.outlets,
+            "days_to_get_paid": inputs.days_to_get_paid,
+            "funding_stage": (to_funding_stage(inputs.peer_key) if inputs.mode == "tech" else None),
             **percentiles,
         }
     )
@@ -200,4 +233,38 @@ def buyer_values(data: BuyerValuesInput) -> dict[str, object]:
     )
     if data.target_geography:
         values["target_geography"] = validate_target_geography(data.target_geography)
+    return values
+
+
+def display_name(name: str | None, email: str) -> str:
+    """`person.name` is required in Attio; benchmark and valuation don't
+    require a name from the visitor, so this must never return an empty
+    string. Falls back to the email address itself — not invented, this
+    already matches real records in the live workspace, created the same
+    way by the existing Attio<->Postgres sync bot for a person with no
+    name on file.
+    """
+    stripped = (name or "").strip()
+    return stripped or email
+
+
+def person_values(
+    *, name: str, email: str, organization_attio_id: str | None, linkedin: str | None = None
+) -> dict[str, object]:
+    """The write shape for a `person` create — see
+    `providers/attio/person_writer.py` for the dedupe/patch-blanks rule
+    this feeds into.
+
+    `company` is a record-reference: Attio's own array shape, matching the
+    one write elsewhere in this repo that already builds it
+    (`attio/providers/attio/notes.py`'s `associated_deals`). Omitted
+    entirely — never sent as `null` — when there is no organisation id.
+    """
+    values: dict[str, object] = {"name": name, "email": email}
+    if organization_attio_id:
+        values["company"] = [
+            {"target_object": "organizations", "target_record_id": organization_attio_id}
+        ]
+    if linkedin:
+        values["linkedin"] = linkedin
     return values

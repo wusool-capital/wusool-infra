@@ -1,10 +1,12 @@
 """The live `organizations.sector_focus` option titles — generated.
 
 Extracted from `ddl_commands/api/organizations.py`'s `FieldSpec`, which is
-this repo's authoritative copy of the workspace's own select options and is
-already covered by `test_field_specs_match_attio_registries.py`. Duplicated
-here rather than imported so `domain/` does not reach into another module's
-`api/` layer, and regenerated from that spec if the option set changes.
+this repo's authoritative copy of the workspace's own select options.
+Duplicated here rather than imported so `domain/` does not reach into
+another module's `api/` layer, and regenerated from that spec if the
+option set changes — kept in sync by `tests/test_sector_focus_vocabulary.py`
+(`test_field_specs_match_attio_registries.py` only checks `ddl_commands`
+against live Attio, never against this copy).
 
 `SectorFocus` exists so `sector_mapping.py`'s ~250 mapping targets are
 checked at definition time rather than at the `_assert_targets_are_live()`

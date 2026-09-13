@@ -10,13 +10,9 @@ right function got called with the right arguments, in the right order* —
 Attio before Postgres, and never Postgres at all if Attio fails.
 """
 
-import hashlib
-import hmac
 import json
-import time
 import uuid
 from types import SimpleNamespace
-from urllib.parse import urlencode
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,34 +21,18 @@ import app.modules.ddl_commands.api.slack.handlers.actions as actions_module
 from app.modules.attio import AttioError
 from app.modules.ddl_commands.api.slack.views.organization_selection import (
     NEW_ORGANIZATION_VALUE,
+    _encode_selection_payload,
 )
 from app.modules.ddl_commands.bootstrap import create_app
 from app.modules.ddl_commands.config import get_settings
+from tests.slack_test_helpers import mock_slack_auth, mock_slack_ephemeral
+from tests.slack_test_helpers import post_interactivity as _shared_post_interactivity
 
 app = create_app()
 
 
-def _sign(body: str, timestamp: str, signing_secret: str) -> str:
-    basestring = f"v0:{timestamp}:{body}".encode()
-    digest = hmac.new(signing_secret.encode(), basestring, hashlib.sha256).hexdigest()
-    return f"v0={digest}"
-
-
 def _post_interactivity(payload: dict) -> TestClient:
-    settings = get_settings()
-    body = urlencode({"payload": json.dumps(payload)})
-    timestamp = str(int(time.time()))
-    signature = _sign(body, timestamp, settings.slack_signing_secret)
-    client = TestClient(app)
-    return client.post(
-        "/slack/events",
-        content=body,
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Slack-Request-Timestamp": timestamp,
-            "X-Slack-Signature": signature,
-        },
-    )
+    return _shared_post_interactivity(app, get_settings().slack_signing_secret, payload)
 
 
 def _async_returning(value):
@@ -161,22 +141,8 @@ def _fake_buyer_role(role_id: str, *, org=None):
 
 @pytest.fixture(autouse=True)
 def _mock_slack_web_client(monkeypatch):
-    posted: list[dict] = []
-
-    async def fake_chat_post_ephemeral(self, **kwargs):  # noqa: ANN001
-        posted.append(kwargs)
-        return {"ok": True}
-
-    class _FakeAuthTestResponse(dict):
-        headers: dict = {}
-
-    async def fake_auth_test(self, **kwargs):  # noqa: ANN001
-        return _FakeAuthTestResponse(ok=True, user_id="U_BOT", team_id="T_TEST", bot_id="B_TEST")
-
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.chat_postEphemeral", fake_chat_post_ephemeral
-    )
-    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.auth_test", fake_auth_test)
+    posted = mock_slack_ephemeral(monkeypatch)
+    mock_slack_auth(monkeypatch)
     return SimpleNamespace(posted=posted)
 
 
@@ -687,8 +653,9 @@ def _organization_selection_payload(
                     "search_term": search_term,
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
-                    "candidate_names": candidate_names or [],
-                    "prefill": prefill or {},
+                    "payload_token": _encode_selection_payload(
+                        candidate_names or [], prefill or {}
+                    ),
                 }
             ),
             "state": {
@@ -716,6 +683,46 @@ def test_organization_selection_new_option_opens_add_form() -> None:
     assert metadata["org_attio_id"] is None
     name_block = next(b for b in body["view"]["blocks"] if b["block_id"] == "name")
     assert name_block["element"]["initial_value"] == "Acme"
+
+
+def test_organization_selection_submission_from_a_pre_deploy_modal_does_not_crash() -> None:
+    """A modal already open when a deploy ships `payload_token` was built by
+    the previous version, whose `private_metadata` has no such key at all —
+    the submission must still succeed (with no duplicate-candidates warning
+    or prefill, since neither survived), not 500.
+    """
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V5",
+            "callback_id": "organization_selection_modal",
+            "private_metadata": json.dumps(
+                {
+                    "kind": "seller",
+                    "search_term": "Acme",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                }
+            ),
+            "state": {
+                "values": {
+                    "organization_id": {
+                        "selected_organization": {
+                            "selected_option": {"value": NEW_ORGANIZATION_VALUE}
+                        }
+                    }
+                }
+            },
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["view"]["callback_id"] == "seller_add_form_modal"
 
 
 def test_organization_selection_new_option_with_candidates_shows_duplicate_warning() -> None:

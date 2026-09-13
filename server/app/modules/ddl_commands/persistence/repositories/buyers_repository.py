@@ -7,19 +7,14 @@ Implements `application.ports.buyers.BuyerRepositoryPort`.
 from datetime import UTC, datetime
 from typing import Unpack
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import BuyerRole, Organization
 from app.modules.ddl_commands.application.ports.buyers import BuyerRoleFields
-
-# pg_trgm's own `%` similarity operator depends on a session-level GUC
-# (pg_trgm.similarity_threshold); comparing func.similarity(...) against an
-# explicit constant is equivalent to that operator's own default and doesn't
-# depend on session state.
-_TRIGRAM_SIMILARITY_THRESHOLD = 0.3
+from app.modules.organizations import org_name_trigram_predicate
 
 
 class BuyerRepository:
@@ -82,29 +77,18 @@ class BuyerRepository:
         return role
 
     async def search_by_organization_name(self, term: str, limit: int = 10) -> list[BuyerRole]:
-        """Case-insensitive, typo-tolerant name match.
-
-        `pg_trgm` (001_extensions.sql, GIN index in 007_org_name_trgm_index.sql)
-        ranks by trigram similarity, so a misspelled name still surfaces a
-        match — but the plain `ILIKE` substring match is always included too
-        (`OR`), so an exact/partial typed name never regresses to relying on
-        a similarity score. Results are ordered most-similar-first. Filters
-        to `is_active` roles only — an org can hold stale/duplicate rows
-        post-migration, and `/edit-buyer`'s resolution must never hand the
-        operator an inactive duplicate as a pickable candidate
-        indistinguishable from the real one.
+        """`org_name_trigram_predicate` joined against `organizations`.
+        Results are ordered most-similar-first. Filters to `is_active`
+        roles only — an org can hold stale/duplicate rows post-migration,
+        and `/edit-buyer`'s resolution must never hand the operator an
+        inactive duplicate as a pickable candidate indistinguishable from
+        the real one.
         """
-        similarity = func.similarity(Organization.name, term)
+        predicate, similarity = org_name_trigram_predicate(term)
         stmt = (
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
-            .where(
-                BuyerRole.is_active.is_(True),
-                or_(
-                    Organization.name.ilike(f"%{term}%"),
-                    similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
-                ),
-            )
+            .where(BuyerRole.is_active.is_(True), predicate)
             .options(selectinload(BuyerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)

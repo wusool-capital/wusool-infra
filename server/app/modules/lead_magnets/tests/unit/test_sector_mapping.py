@@ -14,7 +14,9 @@ from app.modules.lead_magnets.domain.shared.sector_mapping import (
     BENCHMARK_SECTORS,
     READINESS_SECTORS,
     VALUATION_SECTORS,
+    UnmappedFundingStageError,
     UnmappedSectorError,
+    to_funding_stage,
     to_sector_focus,
 )
 from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
@@ -203,3 +205,28 @@ def test_every_valuation_label_is_now_mapped() -> None:
     assert unmapped == []
     assert len(valuation_sectors()) == 225
     assert len(VALUATION_SECTORS) == 204
+
+
+# ---------------------------------------------------------------------------
+# to_funding_stage — benchmark tech-mode's own `peer_key` -> funding_stage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("stage_key", "title"),
+    [("seed", "Seed"), ("seriesa", "Series A"), ("seriesb", "Series B")],
+)
+def test_to_funding_stage_maps_every_tech_mode_stage_key(stage_key: str, title: str) -> None:
+    assert to_funding_stage(stage_key) == title
+
+
+def test_to_funding_stage_none_in_none_out() -> None:
+    assert to_funding_stage(None) is None
+    assert to_funding_stage("") is None
+
+
+def test_to_funding_stage_raises_rather_than_defaults() -> None:
+    """An SME-mode `peer_key` (a sector key like "itservices") must never
+    silently resolve to a funding stage."""
+    with pytest.raises(UnmappedFundingStageError):
+        to_funding_stage("itservices")

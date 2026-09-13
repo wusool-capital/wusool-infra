@@ -426,6 +426,62 @@ def to_sector_focus(value: str | None) -> str | None:
     raise UnmappedSectorError(raw)
 
 
+# The benchmark tech-mode dropdown's `peer_key` (a funding stage, not a
+# sector — see `BenchmarkRequest.sector`'s own docstring) -> `seller_role`'s
+# `funding_stage` option title. Only benchmark's tech mode ever calls this;
+# SME mode's `peer_key` is a sector, mapped via `to_sector_focus` instead.
+_FUNDING_STAGES = {
+    "seed": "Seed",
+    "seriesa": "Series A",
+    "seriesb": "Series B",
+}
+
+# `seller_role.funding_stage`'s live option titles (`registry.py`-style
+# hardcoded literal, not generated — a 7-option set, unlike sector_focus's
+# 85, does not warrant sector_options.py's generated-enum machinery).
+_FUNDING_STAGE_OPTIONS = frozenset(
+    {"Bootstrapped", "Not Applicable", "Pre-Seed", "Seed", "Series A", "Series B", "Series C+"}
+)
+
+
+class UnmappedFundingStageError(ValueError):
+    """Same rationale as `UnmappedSectorError`: Attio rejects an undefined
+    select option, and a raised error surfaces that at write time instead of
+    a silently dropped `funding_stage`."""
+
+    def __init__(self, value: str) -> None:
+        super().__init__(
+            f"no funding_stage mapping for {value!r}. Add it to "
+            f"_FUNDING_STAGES in domain/sector_mapping.py rather than defaulting"
+        )
+        self.value = value
+
+
+def to_funding_stage(value: str | None) -> str | None:
+    """The `funding_stage` option title for benchmark tech-mode's own
+    `peer_key` stage value.
+
+    `None` in, `None` out — an unanswered/absent field is not an error.
+    """
+    if value is None or not value.strip():
+        return None
+    raw = value.strip()
+    if raw in _FUNDING_STAGES:
+        return _FUNDING_STAGES[raw]
+    if raw in _FUNDING_STAGE_OPTIONS:
+        return raw
+    raise UnmappedFundingStageError(raw)
+
+
+def _assert_funding_stage_targets_are_live() -> None:
+    unknown = sorted(set(_FUNDING_STAGES.values()) - _FUNDING_STAGE_OPTIONS)
+    if unknown:
+        raise RuntimeError(f"funding_stage mapping targets are not live options: {unknown}")
+
+
+_assert_funding_stage_targets_are_live()
+
+
 def _assert_targets_are_live() -> None:
     """Every target must be a real option, checked at import.
 

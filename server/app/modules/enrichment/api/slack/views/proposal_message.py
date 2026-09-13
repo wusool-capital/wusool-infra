@@ -18,7 +18,6 @@ from datetime import date
 from slack_sdk.models.blocks import Block, DividerBlock, SectionBlock
 from slack_sdk.models.blocks.block_elements import ButtonElement
 
-from app.modules.enrichment.api.slack.views.proposal_store import get_shared_proposal_store
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_by_name_for
 from app.modules.enrichment.domain.proposals import (
     EnrichmentProposal,
@@ -27,7 +26,7 @@ from app.modules.enrichment.domain.proposals import (
 )
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.notifications import sanitize_mrkdwn
-from app.modules.utilities import NotFoundError
+from app.modules.utilities import NotFoundError, get_shared_ephemeral_store
 
 
 def _json_safe(value: FieldValue) -> FieldValue:
@@ -48,8 +47,10 @@ def _encode_proposal(proposal: EnrichmentProposal) -> str:
     20+ enrichable fields now on offer, a well-documented company's trimmed
     JSON routinely exceeds that on its own (confirmed live, `/enrich-buyer
     Stripe`: `SlackObjectFormationError`). So this JSON is stored
-    server-side (`get_shared_proposal_store`) and only the token it returns
-    goes in the button — `decode_proposal` resolves it back.
+    server-side (`utilities.get_shared_ephemeral_store`) and only the token
+    it returns goes in the button — `decode_proposal` resolves it back.
+    Shared, not a private copy — `ddl_commands.organization_selection` and
+    `discovery.encode_lead` use the same store for the same reason.
     """
     payload = json.dumps(
         {
@@ -67,7 +68,7 @@ def _encode_proposal(proposal: EnrichmentProposal) -> str:
             ],
         }
     )
-    return get_shared_proposal_store().put(payload)
+    return get_shared_ephemeral_store().put(payload)
 
 
 def decode_proposal(token: str) -> EnrichmentProposal:
@@ -76,7 +77,7 @@ def decode_proposal(token: str) -> EnrichmentProposal:
     responsible for turning that into an operator-facing message, not this
     function.
     """
-    payload = get_shared_proposal_store().get(token)
+    payload = get_shared_ephemeral_store().get(token)
     if payload is None:
         raise NotFoundError(f"No stored proposal for token {token!r}")
     data = json.loads(payload)

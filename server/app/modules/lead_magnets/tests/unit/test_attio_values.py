@@ -12,11 +12,16 @@ import pytest
 from app.modules.attio.providers.attio.money import UnknownMoneyFieldError
 from app.modules.lead_magnets.domain.benchmark.benchmark import Band
 from app.modules.lead_magnets.domain.benchmark.benchmark_routing import Quality, Routing
-from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkResult
+from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
+    BenchmarkInputs,
+    BenchmarkResult,
+)
 from app.modules.lead_magnets.domain.readiness.readiness import AdvisoryContent
 from app.modules.lead_magnets.domain.shared.attio_values import (
     benchmark_values,
     buyer_values,
+    display_name,
+    person_values,
     readiness_values,
     valuation_values,
 )
@@ -24,6 +29,11 @@ from app.modules.lead_magnets.domain.shared.schemas import BuyerValuesInput, Rea
 from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation, ValuationInputs
 
 _BAND = Band(id="sme", label="SME", max_usd=None, ebitda_adj=1.0, rev_emp_mult=1.0, rent_mult=1.0)
+
+
+def _benchmark_inputs(**overrides: object) -> BenchmarkInputs:
+    defaults: dict[str, object] = {"mode": "sme", "peer_key": "itservices"}
+    return BenchmarkInputs(**{**defaults, **overrides})
 
 
 def _benchmark_result(*, quartile: int) -> BenchmarkResult:
@@ -112,7 +122,7 @@ def test_benchmark_quartile_maps_to_the_real_attio_option_title(quartile: int, t
     option with title "2"` — `benchmark_quartile` is a select on the real
     workspace, not free text, and the raw 1-4 int isn't one of its options.
     """
-    values = benchmark_values(_benchmark_result(quartile=quartile), headcount=None)
+    values = benchmark_values(_benchmark_result(quartile=quartile), _benchmark_inputs())
     assert values["benchmark_quartile"] == title
 
 
@@ -169,5 +179,85 @@ def test_benchmark_quartile_falls_back_to_the_raw_value_when_unrecognised() -> N
     """Same fallback shape as `attio_band()`: an out-of-range quartile
     surfaces as a failed Attio option lookup rather than a silently wrong
     value."""
-    values = benchmark_values(_benchmark_result(quartile=5), headcount=None)
+    values = benchmark_values(_benchmark_result(quartile=5), _benchmark_inputs())
     assert values["benchmark_quartile"] == "5"
+
+
+def test_benchmark_values_writes_the_raw_form_inputs_alongside_the_score() -> None:
+    """These used to be folded into percentiles and then discarded — a real
+    submission's own figures never reached Attio at all, same gap
+    `valuation_values` already closed for its own raw inputs."""
+    inputs = _benchmark_inputs(
+        headcount=12,
+        revenue=1_000_000,
+        prev_revenue=800_000,
+        ebitda_reported=150_000,
+        owner_salary=60_000,
+        salary_deducted=True,
+        gross_margin_pct=45.0,
+        rent_cost=90_000,
+        top_customer_pct=30.0,
+        recurring_pct=55.0,
+        years_active=6.0,
+        outlets=3,
+        days_to_get_paid=45,
+    )
+
+    values = benchmark_values(_benchmark_result(quartile=3), inputs, consent=True)
+
+    assert values["headcount"] == 12
+    assert values["revenue_last_full_year"] == {"currency_value": 1_000_000.0}
+    assert values["revenue_year_before"] == {"currency_value": 800_000.0}
+    assert values["est_ebitda"] == {"currency_value": 150_000.0}
+    assert values["owner_salary"] == {"currency_value": 60_000.0}
+    assert values["ebitda_deducts_salary"] is True
+    assert values["gross_margin_pct"] == 45.0
+    assert values["annual_rent_cost"] == {"currency_value": 90_000.0}
+    assert values["largest_customer_revenue_pct"] == 30.0
+    assert values["repeat_revenue_pct"] == 55.0
+    assert values["years_active"] == 6.0
+    assert values["location_count"] == 3
+    assert values["days_to_get_paid"] == 45
+    assert values["data_consent"] is True
+
+
+def test_benchmark_values_drops_unentered_optional_figures() -> None:
+    values = benchmark_values(_benchmark_result(quartile=3), _benchmark_inputs())
+    assert "revenue_last_full_year" not in values
+    assert "data_consent" in values  # bool, defaults False, always written
+    assert values["data_consent"] is False
+
+
+def test_benchmark_values_maps_tech_mode_funding_stage() -> None:
+    inputs = _benchmark_inputs(mode="tech", peer_key="seriesa")
+    values = benchmark_values(_benchmark_result(quartile=3), inputs)
+    assert values["funding_stage"] == "Series A"
+
+
+def test_benchmark_values_never_maps_sme_mode_peer_key_as_a_funding_stage() -> None:
+    """SME mode's `peer_key` is a sector, not a stage — `to_funding_stage`
+    has no entry for "itservices" and must never be called with it."""
+    values = benchmark_values(_benchmark_result(quartile=3), _benchmark_inputs())
+    assert "funding_stage" not in values
+
+
+def test_display_name_prefers_a_real_name() -> None:
+    assert display_name("Dana", "dana@acme.com") == "Dana"
+
+
+def test_display_name_falls_back_to_the_email_when_blank() -> None:
+    assert display_name(None, "dana@acme.com") == "dana@acme.com"
+    assert display_name("   ", "dana@acme.com") == "dana@acme.com"
+
+
+def test_person_values_omits_company_and_linkedin_when_absent() -> None:
+    values = person_values(name="Dana", email="dana@acme.com", organization_attio_id=None)
+    assert values == {"name": "Dana", "email": "dana@acme.com"}
+
+
+def test_person_values_builds_the_record_reference_array() -> None:
+    values = person_values(
+        name="Dana", email="dana@acme.com", organization_attio_id="org-1", linkedin="https://x"
+    )
+    assert values["company"] == [{"target_object": "organizations", "target_record_id": "org-1"}]
+    assert values["linkedin"] == "https://x"

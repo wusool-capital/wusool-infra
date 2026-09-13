@@ -17,6 +17,7 @@ from app.modules.discovery.bootstrap import build_discovery_service, build_lead_
 from app.modules.discovery.config import get_settings
 from app.modules.discovery.domain.leads import DiscoveredLead
 from app.modules.discovery.providers.firecrawl.client import FirecrawlMapsClient
+from app.modules.utilities import NotFoundError, get_shared_ephemeral_store
 
 logger = logging.getLogger(__name__)
 
@@ -56,15 +57,29 @@ def discovery_service() -> DiscoveryService:
 
 
 def encode_lead(lead: DiscoveredLead) -> str:
-    """Serializes a lead into a Slack button `value` — small enough (well
-    under Slack's 2000-char button-value limit) to round-trip through a
-    single button click rather than a server-side stash. `asdict` instead
-    of a hand-written literal keeps this in sync with `DiscoveredLead`'s
-    actual fields by construction — a field added there without a matching
-    update here was the exact class of bug this replaces.
+    """Serializes a lead and stores it server-side, returning a short token
+    for the "Add as seller" button's `value` — `DiscoveredLead`'s 4 fields
+    are fixed (never grows the way `enrichment`'s proposed-field list did),
+    but an unusually long `name`/`address` from a Maps result is still real
+    data, not something to truncate, so this goes through the same
+    `utilities.get_shared_ephemeral_store` token indirection as
+    `enrichment`'s proposal and `ddl_commands`' organization-selection
+    payload rather than trusting the button value to always stay small.
+    `asdict` instead of a hand-written literal keeps the stored JSON in
+    sync with `DiscoveredLead`'s actual fields by construction — a field
+    added there without a matching update here was the exact class of bug
+    this replaces.
     """
-    return json.dumps(asdict(lead))
+    return get_shared_ephemeral_store().put(json.dumps(asdict(lead)))
 
 
-def decode_lead(value: str) -> DiscoveredLead:
-    return DiscoveredLead(**json.loads(value))
+def decode_lead(token: str) -> DiscoveredLead:
+    """Raises `NotFoundError` for an expired/unknown token — the caller
+    (`handlers.handle_discover_add_seller`) already treats any decode
+    failure as "couldn't process that lead," so no new handling is needed
+    there.
+    """
+    payload = get_shared_ephemeral_store().get(token)
+    if payload is None:
+        raise NotFoundError(f"No stored lead for token {token!r}")
+    return DiscoveredLead(**json.loads(payload))

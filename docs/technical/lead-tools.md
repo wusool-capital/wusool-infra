@@ -31,8 +31,9 @@ Ledger-backed submissions follow this contract:
 1. Validate the request and commit a `tool_runs` row before promising success.
 2. Return the result when that tool's required calculation is available.
 3. Complete non-blocking AI work where applicable.
-4. Create/update the organization and seller/buyer entry in Attio with an
-   explicit `is_test` value.
+4. Create/update the organization, seller/buyer entry, and person in Attio
+   with an explicit `is_test` value. The person write is best-effort — a
+   failure there does not fail the run, since the lead is already durable.
 5. Finish the run, add its activity, and let Attio sync the entity to Postgres.
 6. A sweeper resumes stale unfinished runs.
 

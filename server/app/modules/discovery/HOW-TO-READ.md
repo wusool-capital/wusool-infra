@@ -11,8 +11,10 @@ Follow the "find more sellers" flow end to end.
    `providers/firecrawl/client.py::FirecrawlMapsClient` (Google Maps scrape, moved
    verbatim from `matching_engine`'s old web fallback).
 3. `api/slack/views.py::build_lead_blocks` — one "Add as seller" button per lead, the
-   lead itself encoded in the button value (`api/dependencies.py::encode_lead`) so the
-   click needs no server-side lookup.
+   lead stored server-side and an opaque token encoded in the button value instead
+   (`api/dependencies.py::encode_lead`/`decode_lead`, via `utilities`' shared ephemeral
+   store — same reason `enrichment`'s proposal button does this, see its own
+   `HOW-TO-READ.md`).
 4. Operator clicks a lead → `api/slack/handlers.py::handle_discover_add_seller` →
    `domain/drafts.py::draft_from_lead` (pure mapping — a scraped category becomes a
    `sector_focus` guess; a street address maps to nothing, since there's no organization
