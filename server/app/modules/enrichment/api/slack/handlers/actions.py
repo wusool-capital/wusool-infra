@@ -1,7 +1,9 @@
 """Role-selection modal submission, and the "Review & Save" button from the
-proposal message. That button carries a compact, server-generated payload
-(never operator-editable Slack input) and opens `ddl_commands`' real edit
-form for review — this module never writes anything itself.
+proposal message. That button carries an opaque, server-generated token
+(never operator-editable Slack input) resolved back to the real proposal by
+`decode_proposal` — see `proposal_store.py` for why it's a token and not the
+proposal itself — and opens `ddl_commands`' real edit form for review; this
+module never writes anything itself.
 """
 
 import json
@@ -14,7 +16,11 @@ from slack_sdk.web.async_client import AsyncWebClient
 from app.modules.enrichment.api.dependencies import propose_and_post, target_from_resolved
 from app.modules.enrichment.api.slack.views.proposal_message import decode_proposal
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
-from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
+from app.modules.utilities import (
+    NotFoundError,
+    get_shared_idempotency_store,
+    get_shared_task_runner,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +95,20 @@ def register(app: AsyncApp) -> None:
 
         from app.modules.enrichment.api.dependencies import enrichment_service
 
-        proposal = decode_proposal(action["value"])
+        try:
+            proposal = decode_proposal(action["value"])
+        except NotFoundError:
+            # The proposal store's TTL expired, or the process restarted
+            # since it was posted — the button itself is otherwise fine,
+            # there's just nothing left to resolve it to.
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=user_id,
+                text="This proposal has expired — run `/enrich-seller` or "
+                "`/enrich-buyer` again to regenerate it.",
+            )
+            return
+
         try:
             await enrichment_service().open_review_form(
                 trigger_id=trigger_id,
