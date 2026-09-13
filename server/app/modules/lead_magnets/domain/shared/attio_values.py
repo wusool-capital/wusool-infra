@@ -249,7 +249,12 @@ def display_name(name: str | None, email: str) -> str:
 
 
 def person_values(
-    *, name: str, email: str, organization_attio_id: str | None, linkedin: str | None = None
+    *,
+    name: str,
+    email: str,
+    organization_attio_id: str | None,
+    linkedin: str | None = None,
+    phone: str | None = None,
 ) -> dict[str, object]:
     """The write shape for a `person` create — see
     `providers/attio/person_writer.py` for the dedupe/patch-blanks rule
@@ -267,4 +272,6 @@ def person_values(
         ]
     if linkedin:
         values["linkedin"] = linkedin
+    if phone:
+        values["phone"] = phone
     return values
