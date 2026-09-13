@@ -1,8 +1,8 @@
 """Round-trip coverage for the "Review & Save" button's payload —
 `_encode_proposal`/`decode_proposal` are the only place a proposal survives
-a Slack round trip. `_encode_proposal` returns an opaque store token, not
-the JSON itself (see `proposal_store.py`); a `date`-kind field is the one
-value that JSON can't carry natively.
+a Slack round trip. `_encode_proposal` returns an opaque token from
+`utilities`' shared `EphemeralStore`, not the JSON itself; a `date`-kind
+field is the one value that JSON can't carry natively.
 """
 
 import uuid
@@ -15,11 +15,10 @@ from app.modules.enrichment.api.slack.views.proposal_message import (
     build_proposal_blocks,
     decode_proposal,
 )
-from app.modules.enrichment.api.slack.views.proposal_store import get_shared_proposal_store
 from app.modules.enrichment.domain.field_plans import WriteTarget
 from app.modules.enrichment.domain.proposals import EnrichmentProposal, ProposedFieldValue
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
-from app.modules.utilities import NotFoundError
+from app.modules.utilities import NotFoundError, get_shared_ephemeral_store
 
 
 def _proposal(values: tuple[ProposedFieldValue, ...]) -> EnrichmentProposal:
@@ -83,7 +82,7 @@ def test_round_trip_preserves_a_date_value_as_a_real_date() -> None:
     # `token` is now an opaque store key, not the JSON itself (see
     # `test_encode_proposal_returns_a_short_token_regardless_of_payload_size`)
     # — confirm the *stored* payload went in JSON-safe, not raw.
-    stored_payload = get_shared_proposal_store().get(token)
+    stored_payload = get_shared_ephemeral_store().get(token)
     assert stored_payload is not None
     assert "2015-03-01" in stored_payload
 
@@ -149,7 +148,7 @@ def test_encode_proposal_returns_a_short_token_regardless_of_payload_size() -> N
     assert len(token) <= 2000
     # Confirms the payload really was that large — the token being short
     # is only meaningful if the underlying JSON wasn't.
-    assert len(get_shared_proposal_store().get(token) or "") > 2000
+    assert len(get_shared_ephemeral_store().get(token) or "") > 2000
 
 
 def test_decode_proposal_raises_not_found_for_an_unknown_token() -> None:

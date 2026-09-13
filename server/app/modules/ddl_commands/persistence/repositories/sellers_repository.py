@@ -7,16 +7,14 @@ Implements `application.ports.sellers.SellerRepositoryPort`.
 from datetime import UTC, datetime
 from typing import Unpack
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Organization, SellerRole
 from app.modules.ddl_commands.application.ports.sellers import SellerRoleFields
-
-# Same rationale as BuyerRepository's constant — see that file's comment.
-_TRIGRAM_SIMILARITY_THRESHOLD = 0.3
+from app.modules.organizations import org_name_trigram_predicate
 
 
 class SellerRepository:
@@ -79,26 +77,19 @@ class SellerRepository:
         return role
 
     async def search_by_organization_name(self, term: str, limit: int = 10) -> list[SellerRole]:
-        """Case-insensitive, typo-tolerant name match — same pg_trgm pattern
-        as `BuyerRepository.search_by_organization_name`, reusing the same
-        `ix_organizations_name_trgm` GIN index (it's on `organizations.name`,
-        not buyer/seller-scoped). Filters to `is_active` roles only — an
-        org can hold stale/duplicate rows post-migration, and
-        `/edit-seller`'s resolution must never hand the operator an
-        inactive duplicate as a pickable candidate indistinguishable from
-        the real one.
+        """`org_name_trigram_predicate` joined against `organizations`,
+        reusing the same `ix_organizations_name_trgm` GIN index (it's on
+        `organizations.name`, not buyer/seller-scoped). Filters to
+        `is_active` roles only — an org can hold stale/duplicate rows
+        post-migration, and `/edit-seller`'s resolution must never hand the
+        operator an inactive duplicate as a pickable candidate
+        indistinguishable from the real one.
         """
-        similarity = func.similarity(Organization.name, term)
+        predicate, similarity = org_name_trigram_predicate(term)
         stmt = (
             select(SellerRole)
             .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
-            .where(
-                SellerRole.is_active.is_(True),
-                or_(
-                    Organization.name.ilike(f"%{term}%"),
-                    similarity > _TRIGRAM_SIMILARITY_THRESHOLD,
-                ),
-            )
+            .where(SellerRole.is_active.is_(True), predicate)
             .options(selectinload(SellerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)

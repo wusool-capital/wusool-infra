@@ -2,9 +2,9 @@
 result of a lead search as a message — each lead gets a "View on Maps" link
 (`lead.source_url`, opened by Slack directly — no handler registered, same
 as any other URL button) and an "Add as seller" button,
-`action_id="discover_add_seller"` (registered in `handlers.py`), carrying
-the lead itself as the button value so the click needs no server-side
-lookup to act on it (see `api/dependencies.encode_lead`). Two buttons per
+`action_id="discover_add_seller"` (registered in `handlers.py`), carrying an
+opaque token for the lead as the button value — resolved back server-side
+on click (see `api/dependencies.encode_lead`/`decode_lead`). Two buttons per
 lead means `ActionsBlock`, not a `SectionBlock` accessory — Slack allows
 only one accessory per section.
 """

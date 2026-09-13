@@ -346,7 +346,15 @@ async def test_compare_skips_selection_when_no_queries_come_back() -> None:
 
 @pytest.mark.parametrize(
     "domain,expected",
-    [("acme.ae", "acme"), ("www.acme-group.co", "acme group"), ("https://a_b.io/x", "a b")],
+    [
+        ("acme.ae", "acme"),
+        ("www.acme-group.co", "acme group"),
+        ("https://a_b.io/x", "a b"),
+        # No path, only a query string — regression: `_company_from_domain`
+        # used to split on "/" only, so this whole string (including
+        # "?utm=x") was mistaken for the host.
+        ("acme.ae?utm=x", "acme"),
+    ],
 )
 async def test_company_name_is_derived_from_the_domain_when_absent(domain, expected) -> None:
     llm = _FakeLlm()

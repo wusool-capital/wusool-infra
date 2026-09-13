@@ -91,19 +91,28 @@ def _constrain_to_options(field: EnrichableField, value: FieldValue) -> FieldVal
     Fields with no fixed vocabulary (`options == ()`) pass through
     unchanged, including `multi_select_as_text` (e.g. `hq_country`), which
     intentionally accepts free text.
+
+    A shape that disagrees with `field.kind` (a `select` field somehow
+    handed a list, say) is passed through unconstrained rather than
+    raising — every caller's whole point in calling this is to drop one bad
+    field without aborting the rest of the proposal, so this must never be
+    the thing that aborts it; `normalize_prefill`'s own backstop is still
+    there downstream if the unconstrained value turns out to be invalid.
     """
     if not field.options:
         return value
     canonical_by_casefold = {o.casefold(): o for o in field.options}
     if field.kind == "multi_select_text":
-        assert isinstance(value, list)
+        if not isinstance(value, list):
+            return value
         kept = [
             canonical_by_casefold[v.casefold()]
             for v in value
-            if v.casefold() in canonical_by_casefold
+            if isinstance(v, str) and v.casefold() in canonical_by_casefold
         ]
         return kept or None
-    assert isinstance(value, str)
+    if not isinstance(value, str):
+        return value
     return canonical_by_casefold.get(value.casefold())
 
 
@@ -207,21 +216,28 @@ class EnrichMixin(ServiceBase):
         for client in self._company_data_clients:
             if not remaining:
                 break
-            # No `_constrain_to_options` call needed here: `employee_range`
-            # is this path's only option-bearing field, and every
-            # `CompanyDataClient` already emits it via `bucket_employee_count`
-            # — never a value outside the fixed bands.
             fields = await client.lookup(org_name=target.org_name, fields=tuple(remaining))
             for field in fields:
                 if field.field_name not in {f.name for f in remaining}:
                     continue
                 enrichable = enrichable_fields_by_name_for(target.kind.value)[field.field_name]
+                # Today's clients only ever emit `employee_range` among
+                # option-bearing fields (via `bucket_employee_count`, always
+                # a valid band) — but `sector_focus`/`estimated_arr` are
+                # also option-bearing `ORGANIZATION` fields reachable
+                # through this same path, so a future/other provider
+                # returning one of those still gets constrained here rather
+                # than silently vanishing between the proposal and the
+                # review form the way the LLM path's values used to.
+                constrained_value = _constrain_to_options(enrichable, field.value)
+                if constrained_value is None:
+                    continue
                 proposed.append(
                     ProposedFieldValue(
                         field_name=field.field_name,
                         write_target=enrichable.write_target,
                         current=current_values.get(field.field_name),
-                        proposed=field.value,
+                        proposed=constrained_value,
                         source_url=field.source_url,
                         confidence=_STRUCTURED_PROVIDER_CONFIDENCE,
                         rationale=f"Sourced from {field.provider}.",
