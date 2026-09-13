@@ -56,6 +56,46 @@ Delivery period: Aug 12 – Sep 12, 2026.
   testing. Production cutover remains subject to the checks in
   [Delivery status](../operations/delivery-status.md).
 
+### Before and after
+
+| Area | Before | New platform |
+| --- | --- | --- |
+| Hosting | Vercel, Render, and Tally | One container on the existing AWS Toolkit instance |
+| Region | Ohio, USA | Frankfurt, Germany |
+| AI access | Anthropic API key exposed through the browser path | Bedrock through the instance role; no provider key in the browser |
+| Lead safety | Readiness lost the submission when AI failed | A durable run is recorded before AI or Attio work |
+| Database | Tool records did not reach Postgres | Attio writes are mirrored into Postgres |
+| Deployment | Separate pages, backends, and provider-specific releases | One service, loaded into Webflow through `embed.js` |
+| External hosting | Approximately $14 per month | Removed; the tools use shared AWS capacity |
+
+### Benefits
+
+- The submission ledger protects a lead before any AI or CRM call can fail.
+  Idempotency handles network replays, while a sweeper resumes unfinished runs.
+- Bedrock uses the EC2 instance role, removing AI provider keys and instructions
+  from the browser.
+- Attio remains the team's working system, while its webhook mirrors tool data
+  into Postgres.
+- Valuation and Benchmark retain deterministic results when optional AI fails.
+  Buyer Network accepts applications without waiting for AI qualification.
+- After the initial Webflow paste, `embed.js` controls tool addresses, sizing,
+  cutover, and rollback without another page edit.
+
+### Trade-offs
+
+- The lead tools share compute with the Slack bot. An outage, restart, or
+  resource bottleneck can affect both products, so production uses a larger
+  instance.
+- Readiness still requires Bedrock to produce its score and report. A failed AI
+  call preserves the lead but cannot provide a fallback result.
+- Firecrawl becomes a separate dependency and cost for comparable-company
+  research, which Bedrock does not provide itself.
+- Initial cutover still requires coordinated DNS, Secrets Manager, and Webflow
+  changes. Buyer Network must replace Tally without both writing simultaneously.
+- Migrating historical records from the old Attio lists was outside this work.
+  Buyer Network and final Valuation still required recorded production checks
+  at the end of the delivery period.
+
 ## CRM / Data model
 
 - Added lead-magnet fields, `notes.primary_role`, and `organizations.region`

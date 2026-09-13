@@ -52,6 +52,8 @@ environment. Firecrawl enables discovery and free-text enrichment; Diffbot and
 People Data Labs are optional enrichment tiers.
 
 Use the standard AWS credential provider chain in deployed environments.
+Terraform derives `APP_ENV` as `development` or `production` from the deployed
+environment; secret overrides cannot change this status label.
 `ATTIO_IS_TEST` separates test and production records inside the shared SOURCE
 Attio workspace; development stamps test records and refuses production
 records.
@@ -65,7 +67,7 @@ records.
 | `/edit-buyer <name>` / `/edit-seller <name>` | Selects and updates eligible fields. |
 | `/enrich-buyer <name>` / `/enrich-seller <name>` | Produces a reviewable research proposal. |
 | `/toolkit-help` | Lists usage guidance. |
-| `/toolkit-status` | Reports uptime, database reachability, and Attio mode. |
+| `/toolkit-status` | Reports environment, uptime, database reachability, and Attio mode. |
 | `POST /slack/events` | Receives Slack events and interactions; Slack Bolt verifies signatures. |
 | `GET /health` | Process liveness. |
 | `GET /readiness` and `GET /ready` | Database readiness. |
