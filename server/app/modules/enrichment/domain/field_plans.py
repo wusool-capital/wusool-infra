@@ -103,6 +103,15 @@ SELLER_ENRICHABLE_FIELDS: tuple[EnrichableField, ...] = (
         "company is genuinely headquartered in more than one country.",
     ),
     EnrichableField(
+        "region",
+        "Region",
+        "multi_select_as_text",
+        WriteTarget.ORGANIZATION,
+        "The macro region the company's HQ sits in (e.g. 'GCC', 'MENA', 'Europe', "
+        "'North America'), one level above its HQ country — inferred from that "
+        "country, not the region(s) it does business in.",
+    ),
+    EnrichableField(
         "employee_range",
         "Employee range",
         "select",

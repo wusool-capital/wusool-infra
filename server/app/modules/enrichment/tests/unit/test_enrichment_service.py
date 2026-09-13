@@ -109,6 +109,32 @@ async def test_propose_keeps_high_confidence_values(target: EnrichmentTarget) ->
     assert proposal.values[0].proposed == 5000000.0
 
 
+async def test_propose_proposes_region_for_the_organization(target: EnrichmentTarget) -> None:
+    """`region` (macro HQ region, e.g. 'GCC') has no structured-provider
+    support — it only ever comes from the LLM path — and, like `hq_country`,
+    carries no fixed `options` in `EnrichableField`, so a plain free-text
+    answer passes through `_constrain_to_options` unchanged.
+    """
+    service, _ = _service(
+        current_values={},
+        extraction_response={
+            "fields": [
+                {
+                    "field_name": "region",
+                    "value": "GCC",
+                    "source_url": "https://example.com",
+                    "confidence": "high",
+                    "rationale": "HQ'd in the UAE, per the company site",
+                }
+            ]
+        },
+    )
+    proposal = await service.propose(target)
+    assert len(proposal.values) == 1
+    assert proposal.values[0].field_name == "region"
+    assert proposal.values[0].proposed == "GCC"
+
+
 async def test_propose_uses_the_structured_tier_before_the_llm_for_a_seller(
     target: EnrichmentTarget,
 ) -> None:

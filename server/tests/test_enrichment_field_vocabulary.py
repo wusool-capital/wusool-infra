@@ -35,13 +35,13 @@ _FIELDS_BY_NAME_FOR_TARGET = {
     WriteTarget.BUYER_ROLE: BUYER_ROLE_FIELDS_BY_NAME,
 }
 
-# `hq_country` is `multi_select_as_text` — a picker with a curated subset of
-# countries that intentionally degrades to free text for anything outside it
-# (see `dynamic_fields.render_field_block` and `test_hq_country_vocabulary.py`,
-# which already owns that list). `enrichment` deliberately carries no
-# `options` for it and nothing constrains its proposed value against
-# `ddl_commands`' picker subset.
-_EXEMPT_FROM_OPTIONS_CHECK = frozenset({"hq_country"})
+# `hq_country` and `region` are both `multi_select_as_text` — a picker with a
+# curated option subset that intentionally degrades to free text for anything
+# outside it (see `dynamic_fields.render_field_block`; `hq_country`'s list is
+# further governed by `test_hq_country_vocabulary.py`). `enrichment`
+# deliberately carries no `options` for either, so nothing constrains its
+# proposed value against `ddl_commands`' picker subset.
+_EXEMPT_FROM_OPTIONS_CHECK = frozenset({"hq_country", "region"})
 
 _ALL_ENRICHABLE_FIELDS = SELLER_ENRICHABLE_FIELDS + BUYER_ENRICHABLE_FIELDS
 
