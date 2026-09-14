@@ -337,6 +337,24 @@ resource "aws_autoscaling_group" "wusool_toolkit" {
     version = "$Latest"
   }
 
+  # Without this, a launch-template-only change (2026-09-14: dev's
+  # instance_type t3.micro -> t3.small) applies cleanly but never reaches
+  # the already-running instance — the ASG only launches new instances from
+  # the updated template, it doesn't replace the current one on its own.
+  # `min_healthy_percentage = 0`: min_size = max_size = 1 leaves no headroom
+  # for AWS's default "launch new, then terminate old" rollout, so the
+  # refresh must be allowed to terminate the old instance before the
+  # replacement is up — brief downtime, acceptable for this single-instance
+  # group (same trade-off the ASG's own self-healing replacement already
+  # accepts on an unplanned termination).
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 0
+      instance_warmup        = 300
+    }
+  }
+
   tag {
     key                 = "Name"
     value               = "${var.project}-${var.environment}-toolkit"
