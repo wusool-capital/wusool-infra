@@ -49,6 +49,11 @@ image_digest = "sha256:ad9e212f7c868cda1dabd4bc1c41da068b6448b32c13219d4bf6198dc
 
 # 2026-08-19: t2.micro hit InsufficientInstanceCapacity in eu-central-1a mid-
 # deploy, leaving wusool-dev-toolkit stopped. Switched to the documented
-# fallback (see toolkit-ec2/variables.tf's instance_type description) so the
-# next apply doesn't fight the manual AWS-CLI workaround used to unblock it.
-toolkit_instance_type = "t3.micro"
+# fallback (see toolkit-ec2/variables.tf's instance_type description) to
+# unblock it — t3.micro's 1 GiB RAM and 10%-of-a-core baseline turned every
+# deploy's image pull + `docker-compose` restart + migration container into
+# a 13+ minute wait (vs. prod's t3.small: ~1 minute for the same steps,
+# confirmed from actual deploy-dev.yml/deploy-prod.yml run timings).
+# 2026-09-14: bumped to match prod's size — same fix without reintroducing
+# the capacity risk t2.micro hit.
+toolkit_instance_type = "t3.small"
