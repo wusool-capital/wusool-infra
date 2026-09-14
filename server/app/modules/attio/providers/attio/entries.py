@@ -40,12 +40,47 @@ id at `data.id.entry_id` (`lists.ps1`, e.g. line ~984) — not inferred from
 docs alone.
 """
 
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+
 from app.modules.attio.application.ports.client import AttioClientProtocol
 from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.domain.scope import record_scope
 from app.modules.attio.providers.attio import values as v
 
 _PAGE_SIZE = 500
+
+
+class _SortSpec(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    attribute: str
+    direction: Literal["asc", "desc"]
+
+
+class _RecordsQueryBody(BaseModel):
+    """Body for `POST .../records/query` or `.../entries/query`. `filter`
+    stays a bare dict — its shape genuinely varies by attribute type, and
+    (see this module's own opening docstring) there is no single verified
+    schema for it in this repo; everything else here has one fixed,
+    well-understood shape worth actually typing.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    filter: dict[str, object] | None = None
+    sorts: list[_SortSpec] = []
+    limit: int
+    # `None`, not `0`: `find_people_by_email` never paginates and its
+    # original body never sent this key at all — an explicit `offset: 0`
+    # would be a request-shape change `exclude_none` alone can't catch,
+    # since `0` is not `None`. `resolve_role_entry_id`/`find_deals_by_party`
+    # always pass a real value here, `0` included, so they still send it.
+    offset: int | None = None
+
+    def to_json_body(self) -> dict[str, object]:
+        return self.model_dump(exclude_none=True)
 
 
 class OrgRecordNotFoundError(Exception):
@@ -117,7 +152,8 @@ async def resolve_role_entry_id(
     matches: list[dict] = []
     while True:
         response = await client.post(
-            f"/lists/{list_slug}/entries/query", {"limit": _PAGE_SIZE, "offset": offset}
+            f"/lists/{list_slug}/entries/query",
+            _RecordsQueryBody(limit=_PAGE_SIZE, offset=offset).to_json_body(),
         )
         page = response.get("data", [])
         for entry in page:
@@ -253,11 +289,11 @@ async def find_people_by_email(
     """
     response = await client.post(
         f"/objects/{_PERSON_OBJECT}/records/query",
-        {
-            "filter": {"email": {"$eq": email}},
-            "sorts": [{"attribute": "created_at", "direction": "asc"}],
-            "limit": _PAGE_SIZE,
-        },
+        _RecordsQueryBody(
+            filter={"email": {"$eq": email}},
+            sorts=[_SortSpec(attribute="created_at", direction="asc")],
+            limit=_PAGE_SIZE,
+        ).to_json_body(),
     )
     return [r for r in response.get("data", []) if _record_is_test(r) is is_test]
 
@@ -310,11 +346,11 @@ async def find_deals_by_party(
     while True:
         response = await client.post(
             f"/objects/{_DEAL_OBJECT}/records/query",
-            {
-                "sorts": [{"attribute": "created_at", "direction": "asc"}],
-                "limit": _PAGE_SIZE,
-                "offset": offset,
-            },
+            _RecordsQueryBody(
+                sorts=[_SortSpec(attribute="created_at", direction="asc")],
+                limit=_PAGE_SIZE,
+                offset=offset,
+            ).to_json_body(),
         )
         page = response.get("data", [])
         for record in page:

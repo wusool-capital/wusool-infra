@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from typing import Literal
 
 from app.modules.attio.providers.attio.money import serialize_money
+from app.modules.attio.providers.attio.write_values import ActorReferenceValue, RecordReferenceValue
 from app.modules.lead_magnets.domain.benchmark.benchmark import PERCENTILE_COLUMNS
 from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
     BenchmarkInputs,
@@ -268,9 +269,9 @@ def person_values(
     """
     values: dict[str, object] = {"name": name, "email": email}
     if organization_attio_id:
-        values["company"] = [
-            {"target_object": "organizations", "target_record_id": organization_attio_id}
-        ]
+        values["company"] = RecordReferenceValue(
+            target_object="organizations", target_record_id=organization_attio_id
+        ).as_value()
     if linkedin:
         values["linkedin"] = linkedin
     if phone:
@@ -310,10 +311,10 @@ def deal_values(
         "deal_name": name,
         "deal_stage": INBOUND_STAGE,
         "deal_type": deal_type,
-        "deal_owner": [
-            {"referenced_actor_type": "workspace-member", "referenced_actor_id": owner_id}
-        ],
-        DEAL_PARTY_FIELD[deal_type]: [
-            {"target_object": "organizations", "target_record_id": org_attio_id}
-        ],
+        "deal_owner": ActorReferenceValue(
+            referenced_actor_type="workspace-member", referenced_actor_id=owner_id
+        ).as_value(),
+        DEAL_PARTY_FIELD[deal_type]: RecordReferenceValue(
+            target_object="organizations", target_record_id=org_attio_id
+        ).as_value(),
     }
