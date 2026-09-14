@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
 respective environments. See [Delivery status](docs/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-14
+
+### Changed
+
+- Replaced `discovery`'s Firecrawl Google Maps scrape with Google's Places
+  API (New) and Geocoding API. Seller leads now carry a real place link
+  (`googleMapsUri`) instead of one recovered by regex-matching scraped
+  links, and a buyer's geography is enforced against each result's country
+  rather than only appearing as words in the search query.
+
 ## 2026-09-13
 
 ### Added

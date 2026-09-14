@@ -67,6 +67,7 @@ def _fake_org(
         relationship_status=None,
         estimated_arr=None,
         funding_raised=None,
+        domains=None,
         linkedin=None,
         logo_url=None,
         angellist=None,

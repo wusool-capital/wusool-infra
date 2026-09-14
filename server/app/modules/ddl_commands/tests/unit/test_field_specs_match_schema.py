@@ -8,13 +8,17 @@ columns, so a schema change lands as a failing test rather than a runtime
 error on someone's `/add-seller`.
 """
 
+from typing import Any
+
 import pytest
 from sqlalchemy import ARRAY, Boolean, Date, Integer, Numeric, Text
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import TypeEngine
 
 from app.models import BuyerRole, Organization, SellerRole
 from app.modules.ddl_commands.api.buyers import BUYER_ROLE_FIELDS
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
+from app.modules.ddl_commands.api.schemas import FieldKind
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
 
 _SPECS = [
@@ -24,14 +28,19 @@ _SPECS = [
 ]
 
 # What each FieldSpec kind reads from and writes to Postgres. `select` is an
-# Attio option title stored as text, `multi_select_text` a text array of them;
-# `currency` is the `{"amount", "currency"}` JSONB shape.
-_EXPECTED_COLUMN_TYPE = {
+# Attio option title stored as text, `multi_select_text`/`text_list` a text
+# array of them (unlike `multi_select_text`, `text_list` has no fixed
+# vocabulary to pick from); `currency` is the `{"amount", "currency"}` JSONB
+# shape. Keyed by `FieldKind` itself (not a bare `str`) so a typo'd or
+# renamed kind here — or a new one added to `FieldKind` without a matching
+# entry — is a type error, not a silent `KeyError` at test time.
+_EXPECTED_COLUMN_TYPE: dict[FieldKind, type[TypeEngine[Any]]] = {
     "text": Text,
     "multiline": Text,
     "select": Text,
     "multi_select_text": ARRAY,
     "multi_select_as_text": Text,
+    "text_list": ARRAY,
     "currency": JSONB,
     "date": Date,
     "bool": Boolean,

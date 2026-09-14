@@ -14,19 +14,19 @@ from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from app.modules.discovery.application.ports.seller_draft import SellerDraftPort
 from app.modules.discovery.application.service import DiscoveryService
 from app.modules.discovery.config import get_settings
-from app.modules.discovery.providers.firecrawl.client import FirecrawlMapsClient
+from app.modules.discovery.providers.google_places.client import GooglePlacesClient
 from app.modules.notifications import build_bolt_app
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging
 
 
-def build_lead_search_client(api_key: str) -> FirecrawlMapsClient:
-    return FirecrawlMapsClient(api_key)
+def build_lead_search_client(api_key: str) -> GooglePlacesClient:
+    return GooglePlacesClient(api_key)
 
 
 def build_discovery_service(
     *,
-    lead_search_client: FirecrawlMapsClient | None,
+    lead_search_client: GooglePlacesClient | None,
     seller_draft_port: SellerDraftPort,
 ) -> DiscoveryService:
     return DiscoveryService(

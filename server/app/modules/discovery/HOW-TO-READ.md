@@ -8,18 +8,19 @@ Follow the "find more sellers" flow end to end.
    way it lands on this module's `find_and_post_leads` (its one public entry point).
 2. `api/lead_flow.py::find_and_post_leads` — posts a placeholder, then
    `application/discover.py::DiscoverMixin.find_leads` →
-   `providers/firecrawl/client.py::FirecrawlMapsClient` (Google Maps scrape, moved
-   verbatim from `matching_engine`'s old web fallback).
+   `providers/google_places/client.py::GooglePlacesClient` (Google Places API Text
+   Search, geocoded and country-restricted to `geography` — replaces the old
+   `FirecrawlMapsClient` Google Maps scrape).
 3. `api/slack/views.py::build_lead_blocks` — one "Add as seller" button per lead, the
    lead stored server-side and an opaque token encoded in the button value instead
    (`api/dependencies.py::encode_lead`/`decode_lead`, via `utilities`' shared ephemeral
    store — same reason `enrichment`'s proposal button does this, see its own
    `HOW-TO-READ.md`).
 4. Operator clicks a lead → `api/slack/handlers.py::handle_discover_add_seller` →
-   `domain/drafts.py::draft_from_lead` (pure mapping — a scraped category becomes a
-   `sector_focus` guess; a street address maps to nothing, since there's no organization
-   field for it) → `application/confirm.py::ConfirmMixin.open_confirm_form` →
-   `SellerDraftPort`.
+   `domain/drafts.py::draft_from_lead` (pure mapping — a Places category becomes a
+   `sector_focus` guess, a Places country becomes an `hq_country` prefill; a street
+   address maps to nothing, since there's no organization field for it) →
+   `application/confirm.py::ConfirmMixin.open_confirm_form` → `SellerDraftPort`.
 5. `ddl_commands/providers/discovery/seller_draft_adapter.py` implements that Port — it
    runs its *own* org search (the same one `/add-seller` always runs) and either opens
    `organization_selection_modal` (an org already fuzzy-matches — that flow's existing

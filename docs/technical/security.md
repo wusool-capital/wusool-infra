@@ -31,7 +31,9 @@ scope and channel access as part of the authorization boundary.
 Buyer, seller, meeting-note, and match data is read from PostgreSQL and Attio.
 Requirement extraction, shortlist reasoning, enrichment normalization, and
 server-side meeting summaries go to configured Bedrock models. Firecrawl,
-Diffbot, and People Data Labs receive only enabled lookup inputs.
+Diffbot, and People Data Labs receive only enabled lookup inputs. Seller
+discovery sends a buyer's industry/geography terms to Google's Places and
+Geocoding APIs.
 
 ### WusoolScribe
 

@@ -1,5 +1,5 @@
-"""Test fixtures. No real Slack/Firecrawl credentials are required to run
-this suite by default — dummy env vars are set at import time.
+"""Test fixtures. No real Slack/Google Places credentials are required to
+run this suite by default — dummy env vars are set at import time.
 """
 
 import os
