@@ -18,6 +18,21 @@ for current production evidence and open handover items.
   links, and a buyer's geography is enforced against each result's country
   rather than only appearing as words in the search query.
 
+### Fixed
+
+- Buyer requirement extraction now sees a buyer's `target_geography`,
+  `ebitda_ceiling`, and several other already-structured `buyer_roles`/
+  `organizations` fields that were silently dropped between the database
+  row and the Bedrock prompt. A buyer with a real, populated
+  `target_geography` (e.g. "GCC-wide, Global") could still trigger a fully
+  unrestricted seller-discovery search, because nothing ever told the
+  extraction step it existed — traced live from a UK-HQ'd buyer's search
+  surfacing Frankfurt/Cologne results with no geography signal anywhere in
+  the query. Also fixes a buyer with no free-text investment strategy/notes
+  on file: the prompt used to show the literal placeholder `Unknown` for a
+  blank field, which the model would sometimes echo back as if it were real
+  buyer data (a search for "Unknown companies").
+
 ## 2026-09-13
 
 ### Added
