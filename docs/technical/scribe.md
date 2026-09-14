@@ -57,15 +57,17 @@ a note in Attio.
 | `GET /desktop/meetings/{meeting_id}` | Returns one pushed meeting's processing state. |
 | `GET /desktop/meetings?install_id=…` | Lists meetings associated with an installation. |
 | `GET /desktop/companies/search` | Searches CRM organizations for meeting association. |
-| `POST /desktop/feedback` | Relays in-app feedback (message, category, optional contact) by email. |
+| `POST /desktop/feedback` | Records in-app feedback (message, category, optional contact) and emails it. |
 
 Every `/desktop/*` request uses `Authorization: Bearer <desktop-api-key>`.
 Internal Tauri commands are not a public integration API.
 
-`POST /desktop/feedback` sends synchronously via SES and persists nothing;
-it returns `503` if the server's email delivery isn't configured and `502`
-if SES rejects the send, so the desktop app can keep the user's typed text
-and retry.
+`POST /desktop/feedback` writes the submission to `feedback_submissions`
+first — that row is the source of truth, so a `200` means the feedback is
+never lost. The SES email notification that follows is best-effort: if it
+fails or isn't configured, the request still returns `200` and the row's
+`email_sent` stays `false`, rather than returning an error the desktop app
+would need to handle.
 
 ### Meeting submission example
 

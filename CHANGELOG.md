@@ -13,9 +13,11 @@ for current production evidence and open handover items.
 ### Added
 
 - WusoolScribe desktop app: a "Send feedback" bug icon in the sidebar opens
-  a form (category, message, optional contact) that emails the team via a
-  new `POST /desktop/feedback` route on the `meetings` module and AWS SES
-  — no email credential ships in the desktop binary.
+  a form (category, message, optional contact) that a new
+  `POST /desktop/feedback` route on the `meetings` module durably records
+  in a new `feedback_submissions` table and best-effort emails via AWS SES
+  (`notifications` module) — no email credential ships in the desktop
+  binary, and a submission is never lost even if SES delivery fails.
 
 ### Changed
 
