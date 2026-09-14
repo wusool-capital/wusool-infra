@@ -1170,6 +1170,12 @@ foreach($r in $dev){$legacy=Value $r.values "legacy_attio_id";if($legacy){if($by
 
 $statusMap=@{}
 foreach($x in @((Request Get $dh "/objects/deal/attributes/$stageSlug/statuses" $null).data|Where-Object{-not$_.is_archived})){$statusMap[[string]$x.title]=[string]$x.id.status_id}
+# SOURCE stage titles are written verbatim below, so a SOURCE stage spelled
+# differently in the V2 pipeline would force a duplicate stage to exist.
+# Mapped across via deal_stage_aliases (config/migration-decisions.json);
+# must stay in step with schema.ps1's seeding, which reads the same table.
+$dealStageAliases=@{}
+if($decisions.deal_stage_aliases){foreach($k in $decisions.deal_stage_aliases.PSObject.Properties){if($k.Name-ne"_note"){$dealStageAliases[[string]$k.Name]=[string]$k.Value}}}
 $teaserMap=@{}
 foreach($x in @((Request Get $dh "/objects/deal/attributes/teaser_status/options" $null).data|Where-Object{-not$_.is_archived})){$teaserMap[[string]$x.title]=[string]$x.id.option_id}
 $ndaStatusMap=@{}
@@ -1204,7 +1210,11 @@ foreach($s in $source){
   $ownerResolution=if(-not$sourceOwnerId){"missing_source_owner"}elseif($resolvedOwnerId){"resolved"}else{"unsupported_owner_actor_type:$sourceOwnerType"}
   if($resolvedOwnerId){$values.deal_owner=@{referenced_actor_type=$sourceOwnerType;referenced_actor_id=$resolvedOwnerId}}
   $sourceStageValue=ActiveValue $s.values "stage"
-  $stage=Value $s.values "stage";if($stage){$values[$stageSlug]=[string]$stage}
+  $stage=Value $s.values "stage"
+  # Aliased before anything downstream reads it, so the update-vs-DEV stage
+  # comparison below sees the same title that was written last run.
+  if($stage-and$dealStageAliases.ContainsKey([string]$stage)){$stage=$dealStageAliases[[string]$stage]}
+  if($stage){$values[$stageSlug]=[string]$stage}
   if($action-eq"update"-and$stage){
     $devStage=Value $existing.values $stageSlug
     $devStageChangedAt=Value $existing.values "stage_changed_at"
@@ -1338,16 +1348,22 @@ if($MigrateMandates){
   # Every entry here is inherently buy-side (the list itself is scoped to
   # buy-side only -- there's no per-entry "side" field, unlike DEV's older
   # assumption). Each entry becomes its own Deal record in the target "deal"
-  # object at the "Mandate Active" stage. Idempotent via source_mandate_
-  # entry_id: safe to re-run, already-migrated entries are skipped.
-  if(-not$statusMap.ContainsKey("Mandate Active")){
+  # object at the "(Buyer) Mandate Active" stage. Idempotent via source_
+  # mandate_entry_id: safe to re-run, already-migrated entries are skipped.
+  #
+  # Title must match schema.ps1's seed exactly. A bare "Mandate Active" was
+  # used here until 2026-09-14 and produced a duplicate stage next to the
+  # "(Buyer) Mandate Active" this object already had; the duplicate is
+  # archived and must not come back.
+  $MandateActiveStageTitle="(Buyer) Mandate Active"
+  if(-not$statusMap.ContainsKey($MandateActiveStageTitle)){
     if($Apply){
-      Request Post $dh "/objects/deal/attributes/$stageSlug/statuses" @{data=@{title="Mandate Active"}}|Out-Null
-      Write-Host "CREATED STAGE: Mandate Active"
+      Request Post $dh "/objects/deal/attributes/$stageSlug/statuses" @{data=@{title=$MandateActiveStageTitle}}|Out-Null
+      Write-Host "CREATED STAGE: $MandateActiveStageTitle"
       foreach($x in @((Request Get $dh "/objects/deal/attributes/$stageSlug/statuses" $null).data|Where-Object{-not$_.is_archived})){$statusMap[[string]$x.title]=[string]$x.id.status_id}
-    }else{Write-Host "DRY RUN: would create deal stage 'Mandate Active'."}
+    }else{Write-Host "DRY RUN: would create deal stage '$MandateActiveStageTitle'."}
   }
-  $mandateActiveStatusId=$statusMap["Mandate Active"]
+  $mandateActiveStatusId=$statusMap[$MandateActiveStageTitle]
   function OptionMap($path){$m=@{};foreach($o in @((Request Get $dh $path $null).data|Where-Object{-not$_.is_archived})){$m[[string]$o.title]=[string]$o.id.option_id};return $m}
   $dealTypeOptions=OptionMap "/objects/deal/attributes/deal_type/options"
   $mandateAdvisorOptions=OptionMap "/objects/deal/attributes/assigned_advisor/options"

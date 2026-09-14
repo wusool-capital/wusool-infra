@@ -97,5 +97,9 @@
   "system_objects": {
     "companies": "empty_and_leave_unused",
     "people": "empty_and_leave_unused"
+  },
+  "deal_stage_aliases": {
+    "_note": "SOURCE deals.stage titles are written verbatim into the V2 pipeline, so a SOURCE stage whose V2 counterpart is spelled differently would force a duplicate stage to exist alongside it. Added 2026-09-14 after 'Due Diligence' was created next to the V2 object's own 'LOI signed/Due Diligence'. Keys are SOURCE stage titles, values the V2 title to use instead; anything unlisted passes through unchanged. Read by both _internal/schema.ps1 (seeding) and _internal/objects.ps1 (record writes) - they must agree.",
+    "Due Diligence": "LOI signed/Due Diligence"
   }
 }
