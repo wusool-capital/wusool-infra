@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # assigned to. Every deal in the live workspace has an owner, so a
     # lead-magnet deal without one would be the only unassigned card in the
     # pipeline — which is most of what this write exists to avoid.
+    # `.env.example` lists this key blank rather than mirroring this real
+    # value, unlike this file's other defaults — a workspace member id is
+    # someone's identity, not a fixed infra fact like a model id or a rate
+    # limit, so it lives here as a default only, not duplicated there.
     lead_magnet_deal_owner_id: str = "bb40387a-b57b-491e-b8a6-9ba593d6e97d"  # Ramzy Osman
     # Used only when a create is *rejected* with the primary owner — they
     # leave the workspace, say. Without it that failure is silent: the deal
