@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wusool | Get Started</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="00-styles.css?v=1">
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <img class="logo" src="../img/a0288d00.png" alt="Wusool">
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">Get Started</div>
+    <h1>Tell us about <em>your business</em></h1>
+    <p class="lede">A few details to get the conversation started. Our team reviews every submission and comes back to you directly.</p>
+  </section>
+
+  <div class="card" id="app">
+    <div id="form-wrap">
+      <form id="get-started-form">
+        <div class="grid">
+          <div class="fg"><label for="name">Full name *</label><input class="fi" type="text" id="name" name="name" placeholder="Jane Doe" required></div>
+          <div class="fg"><label for="company">Company name *</label><input class="fi" type="text" id="company" name="company" placeholder="Acme Trading LLC" required></div>
+        </div>
+        <div class="grid">
+          <div class="fg"><label for="domain">Business website *</label><input class="fi" type="text" id="domain" name="domain" placeholder="acme.com" required></div>
+          <div class="fg"><label for="email">Email *</label><input class="fi" type="email" id="email" name="email" placeholder="you@acme.com" required></div>
+        </div>
+
+        <div class="grid">
+          <div class="fg">
+            <label for="geography">Country *</label>
+            <select class="fi" id="geography" required>
+              <option value="">Select</option>
+              <option value="UAE">UAE</option>
+              <option value="Saudi Arabia">Saudi Arabia</option>
+              <option value="Egypt">Egypt</option>
+              <option value="Kuwait">Kuwait</option>
+              <option value="Qatar">Qatar</option>
+              <option value="Bahrain">Bahrain</option>
+              <option value="Oman">Oman</option>
+              <option value="Other MENA">Other MENA</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label for="sector">Sector *</label>
+            <select class="fi" id="sector" required>
+              <option value="">Select</option>
+              <option value="Technology">Technology</option>
+              <option value="F&amp;B">F&amp;B</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Business Services">Business Services</option>
+              <option value="Manufacturing">Manufacturing</option>
+              <option value="Home &amp; Facility Services">Home &amp; Facility Services</option>
+              <option value="Retail/Consumer">Retail/Consumer</option>
+              <option value="Logistics">Logistics</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="fg" id="sector-other-wrap" hidden>
+          <label for="sectorOther">Which sector? *</label>
+          <input class="fi" type="text" id="sectorOther" name="sectorOther" placeholder="Tell us what your business does" maxlength="200">
+        </div>
+
+        <div class="grid">
+          <div class="fg"><label for="revenue">Annual revenue (AED) *</label><input class="fi" type="text" inputmode="numeric" id="revenue" name="revenue" placeholder="e.g. 12,000,000" required></div>
+          <div class="fg"><label for="ebitda">Annual EBITDA (AED) *</label><input class="fi" type="text" inputmode="numeric" id="ebitda" name="ebitda" placeholder="e.g. 2,400,000" required></div>
+        </div>
+
+        <div class="grid">
+          <div class="fg"><label for="yearsActive">Years in business *</label><input class="fi" type="text" inputmode="numeric" id="yearsActive" name="yearsActive" placeholder="e.g. 8" required></div>
+          <div class="fg">
+            <label for="sellTimeline">When are you looking to sell? *</label>
+            <select class="fi" id="sellTimeline" required>
+              <option value="">Select</option>
+              <option value="Immediate">Immediate</option>
+              <option value="Within 6 Months">Within 6 Months</option>
+              <option value="6-12 Months">6-12 Months</option>
+              <option value="12-24 Months">12-24 Months</option>
+              <option value="Not Selling">Not Selling</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="check">
+          <input type="checkbox" id="consent" onchange="clearConsentErr()">
+          <label for="consent">I agree to Wusool Capital's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a> and consent to being contacted.</label>
+        </div>
+        <div class="errtext" id="e-consent">Please accept the Privacy Policy to continue.</div>
+        <div class="errtext" id="e-form">Please fill in every required field above.</div>
+        <div class="errtext" id="e-already">Sorry, you've already completed this before.</div>
+
+        <div class="row"><button class="btn btn-p" type="submit" id="submit-btn">Submit</button></div>
+      </form>
+    </div>
+
+    <div id="success-wrap" class="hide">
+      <h2>Thanks &mdash; we've got it</h2>
+      <p class="sub">Your details are with our team. We'll review them and get back to you directly.</p>
+    </div>
+  </div>
+
+  <footer>Wusool Capital &middot; Dubai &middot; Everything you share is treated in confidence.</footer>
+
+  <div id="lm-fallback" class="hide">
+    <p>This tool did not load correctly. Please try refreshing the page, or visit <a href="https://www.wusoolcapital.com">wusoolcapital.com</a> to get in touch directly.</p>
+  </div>
+</div>
+
+<script src="../shared/submission-id.js?v=1"></script>
+<script src="10-main.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="../shared/height.js?v=3"></script>
+<script>
+  if(window.__lmFail || typeof submitGetStartedForm!=="function"){
+    document.getElementById("app").classList.add("hide");
+    document.getElementById("lm-fallback").classList.remove("hide");
+  }
+</script>
+</body>
+</html>

@@ -281,7 +281,9 @@ async def test_attio_failure_marks_the_run_failed_without_raising() -> None:
     assert "attio down" in (tool_runs.finished[0][1] or "")
 
 
-@pytest.mark.parametrize("tool", ["valuation", "readiness", "benchmark", "buyer_network"])
+@pytest.mark.parametrize(
+    "tool", ["valuation", "readiness", "benchmark", "buyer_network", "get_started"]
+)
 async def test_complete_never_raises_for_any_tool(tool: Tool) -> None:
     tool_runs, attio = _FakeToolRuns(), _FakeAttio(fail=True)
     service, _ = _service(tool_runs, attio, ai_raises=True, fallback=None)

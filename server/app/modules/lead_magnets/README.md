@@ -1,7 +1,8 @@
 # lead_magnets
 
-The four lead-magnet tools — **Valuation**, **M&A Readiness**, **GCC SME
-Benchmark** and the **Buyer Network** — and the AI endpoints behind them.
+The five lead-magnet tools — **Valuation**, **M&A Readiness**, **GCC SME
+Benchmark**, the **Buyer Network** and **Get Started** — and the AI endpoints
+behind them.
 Replaces a Vercel + Render + Tally arrangement that called Anthropic
 directly from the browser and wrote only to legacy Attio lists the Postgres
 mirror does not read.
@@ -12,15 +13,18 @@ second Caddy hostname pointing at the same container.
 
 ## Status
 
-All seven endpoints serve, wired into `server/main.py`. `POST /benchmark`
+All eight endpoints serve, wired into `server/main.py`. `POST /benchmark`
 and `POST /readiness/score` are verified over HTTP against a real Postgres
 and live Bedrock. `POST /buyer/apply` and `POST /submit-lead` are built and
 unit-tested but unverified against a real Attio/Postgres pair.
 
-All four tools now serve (see `static/README.md`): benchmark, readiness
+All five tools now serve (see `static/README.md`): benchmark, readiness
 and valuation were ported from the live tools and repointed off their old
 Render relays; buyers is a new page (no live tool existed — the network
 only ever ran on Tally) at `/buyers/`, posting to `POST /buyer/apply`.
+Get Started is the second Tally replacement, at `/get-started/`, posting to
+`POST /get-started` — and the first tool embedded as a **modal** rather than
+inline, because the CTA it replaces opens an overlay (see `static/README.md`).
 
 ## Structure
 
@@ -59,6 +63,9 @@ lead_magnets/
     buyer_network/
       buyer_network.py             # org type / sector focus / target geography validation
       email.py                     # confirmation + internal email content
+    get_started/
+      get_started.py               # sell_timeline option validation
+      email.py                     # confirmation + internal email content
     shared/                        # used by 2+ tools — see the note above
       dedup.py                     # normalisation + key composition (pure)
       tool_run.py                  # the ledger's own vocabulary (Tool, Stage, …)
@@ -92,6 +99,7 @@ lead_magnets/
     benchmark/endpoints.py          # /benchmark
     readiness/endpoints.py          # /readiness/score
     buyer_network/endpoints.py      # /buyer/apply
+    get_started/endpoints.py        # /get-started
   tests/
 ```
 
@@ -167,6 +175,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /analyze` | serves | Sonnet 4.6; sector judgement, discounts, DCF overrides, strategic read, scorecard — falls back to a deterministic pros/cons/insights on failure |
 | `POST /compare` | serves | Haiku plans queries, Firecrawl runs them, Sonnet selects; shortfall filled from static data |
 | `POST /buyer/apply` | serves | No blocking model call; a best-effort Haiku qualification note, never shown to the applicant |
+| `POST /get-started` | serves | No model at all — pure seller lead capture; the form's own figures go straight to `seller_role` |
 | `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
@@ -174,8 +183,8 @@ visitor reads while still in the tool, long before there is a submission to
 record. `/analyze` and `/compare` are meant to run in parallel — the split is
 what makes the preview ready when the loading screen ends.
 
-All three ledger-backed endpoints (`/benchmark`, `/readiness/score`,
-`/buyer/apply`) commit the ledger row **before** responding, not at
+All four ledger-backed endpoints (`/benchmark`, `/readiness/score`,
+`/buyer/apply`, `/get-started`) commit the ledger row **before** responding, not at
 dependency teardown. Two reasons, both load-bearing: the contract is that
 the lead is durable before the visitor is told anything, and the background
 completion opens its own session, so an uncommitted row is invisible to it.

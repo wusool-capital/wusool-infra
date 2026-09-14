@@ -181,3 +181,166 @@ def test_submit_lead_with_comps_and_discounts_passes_validation(client) -> None:
         ),
     )
     assert response.status_code != 422
+
+
+def _get_started_payload(**overrides) -> dict:
+    unique = uuid.uuid4().hex[:8]
+    body = {
+        "submission_id": str(uuid.uuid4()),
+        "name": "Dana Faris",
+        "company": "Acme Trading LLC",
+        "email": f"dana+{unique}@acmetrading.ae",
+        "geography": "UAE",
+        "sector": "Logistics",
+        "revenue": 3_268_209,
+        "ebitda": 653_641,
+        "years_active": 8,
+        "sell_timeline": "Within 6 Months",
+        "domain": f"https://www.acmetrading-{unique}.ae",
+        "consent": True,
+    }
+    return {**body, **overrides}
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "name",
+        "company",
+        "email",
+        "geography",
+        "sector",
+        "revenue",
+        "ebitda",
+        "years_active",
+        "sell_timeline",
+        "consent",
+    ],
+)
+def test_get_started_requires_every_form_field(client, missing: str) -> None:
+    """`domain` is the one omission that must not 422 — it is optional by
+    decision, since a blank website weakens dedup but must never lose the
+    lead."""
+    body = _get_started_payload()
+    del body[missing]
+    assert client.post("/get-started", json=body).status_code == 422
+
+
+def test_get_started_accepts_a_missing_domain(client) -> None:
+    body = _get_started_payload()
+    del body["domain"]
+    assert client.post("/get-started", json=body).status_code != 422
+
+
+def test_get_started_rejects_an_unticked_consent(client) -> None:
+    response = client.post("/get-started", json=_get_started_payload(consent=False))
+    assert response.status_code == 422
+    assert "consent is required" in response.text
+
+
+def test_get_started_rejects_an_unknown_field(client) -> None:
+    """`_Strict` is `extra="forbid"`: a page field renamed on one side only
+    must fail loudly rather than be dropped and recorded as blank."""
+    body = _get_started_payload(full_name="Dana Faris")
+    assert client.post("/get-started", json=body).status_code == 422
+
+
+def test_get_started_accepts_a_negative_ebitda(client) -> None:
+    """A loss-making business is a real submission. `revenue` keeps its
+    `ge=0`; `ebitda` deliberately has none."""
+    response = client.post("/get-started", json=_get_started_payload(ebitda=-120_000))
+    assert response.status_code != 422
+
+
+def test_get_started_rejects_a_negative_revenue(client) -> None:
+    assert client.post("/get-started", json=_get_started_payload(revenue=-1)).status_code == 422
+
+
+def test_get_started_rejects_a_fractional_years_active(client) -> None:
+    """The mirrored Postgres column is `integer` and `attio_sync` reads it
+    with `v.integer`, so a float would be silently truncated downstream."""
+    assert (
+        client.post("/get-started", json=_get_started_payload(years_active=7.5)).status_code == 422
+    )
+
+
+def test_get_started_sector_other_only_lands_in_description_when_sector_is_other() -> None:
+    """The page clears `sectorOther` whenever a real sector is picked, but a
+    request need not come from the page. A crafted submission carrying both
+    a real `sector` and `sector_other` text must not have the free text
+    overwrite the organisation's description — that would misfile the
+    company under a sector-that-isn't while claiming it's self-described as
+    something else.
+
+    Own local app rather than the module's `client` fixture: this needs a
+    dependency override for `get_session`, which must not leak into the
+    other tests sharing that fixture.
+    """
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.modules.lead_magnets.api.dependencies import get_session
+    from app.modules.lead_magnets.api.get_started import endpoints as get_started_endpoints
+    from app.modules.lead_magnets.api.router import router
+
+    captured: list[dict] = []
+
+    class _FakeService:
+        async def record(self, *, tool, payload, email, domain):
+            captured.append(payload)
+            return uuid.uuid4(), "new"
+
+    def _fake_build_submission_service(session):
+        return _FakeService()
+
+    async def _noop_run_completion(run_id):
+        return None
+
+    class _FakeSession:
+        async def commit(self) -> None:
+            pass
+
+    async def _fake_get_session():
+        # The fake service ignores this; only `endpoints.py`'s own
+        # `await session.commit()` after `record()` touches it.
+        yield _FakeSession()
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_session] = _fake_get_session
+    with (
+        TestClient(app, raise_server_exceptions=True) as client,
+        pytest.MonkeyPatch.context() as mp,
+    ):
+        mp.setattr(
+            get_started_endpoints, "build_submission_service", _fake_build_submission_service
+        )
+        mp.setattr(get_started_endpoints, "run_completion", _noop_run_completion)
+
+        # sector == "Other": description IS derived.
+        r1 = client.post(
+            "/get-started",
+            json=_get_started_payload(
+                sector="Other",
+                sector_other="pool maintenance",
+            ),
+        )
+        assert r1.status_code == 200
+        assert captured[-1]["description"] == "Sector (self-described): pool maintenance"
+
+        # sector is a real option, sector_other also present: description must
+        # NOT be derived from the stray text.
+        r2 = client.post(
+            "/get-started",
+            json=_get_started_payload(
+                sector="Technology",
+                sector_other="pool maintenance",
+            ),
+        )
+        assert r2.status_code == 200
+        assert "description" not in captured[-1]
+
+        # Neither present: no description key at all.
+        r3 = client.post("/get-started", json=_get_started_payload(sector="Technology"))
+        assert r3.status_code == 200
+        assert "description" not in captured[-1]

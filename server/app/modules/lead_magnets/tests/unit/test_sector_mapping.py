@@ -230,3 +230,29 @@ def test_to_funding_stage_raises_rather_than_defaults() -> None:
     silently resolve to a funding stage."""
     with pytest.raises(UnmappedFundingStageError):
         to_funding_stage("itservices")
+
+
+def test_every_get_started_option_is_mapped() -> None:
+    """The Get Started dropdown is a fixed 9-value `<select>`; an unmapped
+    one raises at write time, after the visitor has been told they're done."""
+    from app.modules.lead_magnets.domain.shared.sector_mapping import GET_STARTED_SECTORS
+
+    for option in GET_STARTED_SECTORS:
+        assert to_sector_focus(option) in SECTOR_FOCUS_OPTIONS
+
+
+def test_get_started_options_agree_with_the_other_tools_where_they_overlap() -> None:
+    """`_MAPPED_SECTORS` merges all four vocabularies into one dict, so a
+    shared key with a different target would silently retarget whichever
+    tool is spread first — invisible everywhere else."""
+    from app.modules.lead_magnets.domain.shared.sector_mapping import (
+        BENCHMARK_SECTORS,
+        GET_STARTED_SECTORS,
+        READINESS_SECTORS,
+        VALUATION_SECTORS,
+    )
+
+    others = {**BENCHMARK_SECTORS, **READINESS_SECTORS, **VALUATION_SECTORS}
+    for key, target in GET_STARTED_SECTORS.items():
+        if key in others:
+            assert others[key] == target, f"{key!r} disagrees with an existing vocabulary"

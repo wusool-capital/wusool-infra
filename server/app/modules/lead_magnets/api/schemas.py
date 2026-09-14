@@ -385,6 +385,73 @@ class ValuationResponse(BaseModel):
     methods: list[MethodRowOut]
 
 
+class GetStartedRequest(_Strict):
+    """The Get Started form — the site's main CTA, ported off Tally.
+
+    Pure lead capture: nothing is computed and nothing is returned to the
+    visitor but an acknowledgement.
+
+    Field names are the integration. `bootstrap.py`'s seller branch validates
+    the stored payload with `AttioIdentityPayload`, so `name`, `email`,
+    `company`, `domain`, `sector` and `geography` must be spelled exactly
+    this way for the organisation and `person` writes to pick them up —
+    `name` in particular, not `full_name` (that spelling is the buyer
+    branch's, read from `BuyerNetworkPayload`). Renaming any of them stops
+    the corresponding Attio write silently, with nothing else failing.
+
+    `geography` rather than `country`: both resolve to
+    `organizations.hq_country` with `geography` taking priority, matching
+    benchmark and valuation.
+
+    `sell_timeline` is **not** a `Literal` here, for the same reason as
+    `BuyerApplyRequest.org_type`: it maps onto a CRM select option but is
+    needed to compute nothing the visitor sees, so an unmapped value must
+    fail the background Attio write (`UnmappedSellTimelineError`), never the
+    record.
+
+    `ebitda` carries no `ge=0` — a loss-making business is a real
+    submission, and the benchmark tool's own `ebitda_reported` is unbounded
+    for the same reason. `years_active` is an `int`: the mirrored Postgres
+    column is `integer` and `attio_sync` reads it with `v.integer`.
+
+    Revenue and EBITDA arrive in **USD**. The page collects AED — the label
+    the live Tally form uses — and divides by the peg before posting, the
+    same conversion `static/benchmark/30-helpers.js`'s `toCalc` already
+    does. Nothing server-side converts.
+    """
+
+    submission_id: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=200)
+    company: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=320)
+    geography: str = Field(min_length=1, max_length=100)
+    sector: str = Field(min_length=1, max_length=200)
+    # Free text revealed by the "Other" sector option. Not conditionally
+    # required here — the page enforces it, and a blank one must never cost
+    # the lead. The endpoint folds it into `description`.
+    sector_other: str | None = Field(default=None, max_length=200)
+    revenue: float = Field(ge=0)
+    ebitda: float
+    years_active: int = Field(ge=0)
+    sell_timeline: str = Field(min_length=1, max_length=100)
+    # Optional by the same decision as every other tool: a blank domain only
+    # weakens deduplication, never loses the lead.
+    domain: str | None = Field(default=None, max_length=253)
+    consent: bool = Field(...)
+
+    @field_validator("consent")
+    @classmethod
+    def consent_given(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("consent is required")
+        return value
+
+
+class GetStartedResponse(BaseModel):
+    ok: bool
+    run_id: str
+
+
 class BuyerApplyRequest(_Strict):
     """The Buyer Network form's nine fields plus consent.
 

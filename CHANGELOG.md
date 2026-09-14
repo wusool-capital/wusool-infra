@@ -132,6 +132,13 @@ for current production evidence and open handover items.
   back to Inbound. Each deal is assigned to an advisor on creation, with a
   configured fallback so the write cannot silently stop if that advisor
   leaves the workspace.
+- The site's **Get Started** form is now served by the platform instead of
+  Tally, as the fifth lead-magnet tool. A submission records the lead before
+  anything else can fail, then writes the company, the contact and the
+  seller's own figures — revenue, EBITDA, years in business and sell timeline
+  — to the CRM. It embeds as a modal, so the existing button opens it in
+  place and the page's URL never changes; the visitor now sees a
+  confirmation instead of the form silently vanishing.
 
 ### Changed
 
@@ -155,6 +162,11 @@ for current production evidence and open handover items.
   on file: the prompt used to show the literal placeholder `Unknown` for a
   blank field, which the model would sometimes echo back as if it were real
   buyer data (a search for "Unknown companies").
+- A visitor who retried a lead-magnet form after a dropped network response
+  was told they had already completed it. Each click generated a new
+  submission id, so the retry looked like a second visit rather than the same
+  one. The id is now fixed for the life of the page, which the Buyer Network
+  and M&A Readiness forms could both hit.
 
 ## 2026-09-13
 
