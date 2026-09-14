@@ -26,6 +26,7 @@ import logging
 from app.modules.attio import AttioClientProtocol
 from app.modules.attio.providers.attio import entries
 from app.modules.attio.providers.attio import values as v
+from app.modules.attio.providers.attio.write_values import RecordReferenceValue
 from app.modules.lead_magnets.domain.shared.attio_values import display_name, person_values
 from app.modules.lead_magnets.domain.shared.dedup import normalise_email
 
@@ -89,9 +90,9 @@ class AttioPersonWriter:
         matched_name = v.first(matched_values, "name") or display_name(name, normalised_email)
         patch: dict[str, object] = {}
         if organization_attio_id and not v.ref(matched_values, _COMPANY_FIELD):
-            patch[_COMPANY_FIELD] = [
-                {"target_object": "organizations", "target_record_id": organization_attio_id}
-            ]
+            patch[_COMPANY_FIELD] = RecordReferenceValue(
+                target_object="organizations", target_record_id=organization_attio_id
+            ).as_value()
         if linkedin and not v.first(matched_values, _LINKEDIN_FIELD):
             patch[_LINKEDIN_FIELD] = linkedin
         if phone and not v.first(matched_values, _PHONE_FIELD):

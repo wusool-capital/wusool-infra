@@ -391,16 +391,27 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
     `_FakeAttio` above skips entirely — and confirms the person half of the
     ordering trap resolves the same way the org half already does: the
     Postgres `person` stub, `tool_runs.person_attio_id`, and an `activities`
-    row all land from a single Attio write."""
+    row all land from a single Attio write. Also pins that the `deal` write
+    rides the same pass and survives the `asdict` -> JSONB -> `SubjectRefs`
+    round trip."""
     from app.models.activity import Activity
     from app.models.person import Person
     from app.modules.lead_magnets.bootstrap import _RoleAttioWriter
+    from app.modules.lead_magnets.providers.attio.deal_writer import AttioDealWriter
     from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWriter
     from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
     from app.modules.organizations import OrganizationRepository
 
     class _FakeAttioClient:
+        def __init__(self) -> None:
+            self.deals_created = 0
+
         async def post(self, path: str, json_body: dict) -> dict:
+            if path == "/objects/deal/records/query":
+                return {"data": []}
+            if path == "/objects/deal/records":
+                self.deals_created += 1
+                return {"data": {"id": {"record_id": "deal-e2e-1"}}}
             if path == "/objects/organizations/records":
                 return {"data": {"id": {"record_id": "org-e2e-1"}}}
             if path == "/lists/seller_role/entries/query":
@@ -424,6 +435,7 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
         AttioRoleWriter(client, is_test=True),
         OrganizationRepository(db_session),
         AttioPersonWriter(client, is_test=True),
+        AttioDealWriter(client, is_test=True, owner_id="owner-1", fallback_owner_id="owner-2"),
     )
     repo = ToolRunsRepository(db_session)
     service = SubmissionService(
@@ -458,3 +470,11 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
         await db_session.execute(select(Person).where(Person.attio_id == "person-e2e-1"))
     ).scalar_one()
     assert person.name
+
+    assert row.payload["attio"]["deal_attio_id"] == "deal-e2e-1"
+
+    # A resume reads `payload.attio` back and must not write Attio again —
+    # without that, a crash between `set_stage` and `finish` would drop a
+    # second card into the pipeline.
+    await service.complete(await repo.get(run_id))
+    assert client.deals_created == 1

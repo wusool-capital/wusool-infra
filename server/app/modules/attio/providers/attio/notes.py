@@ -21,6 +21,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.modules.attio.providers.attio.client import AttioClient, get_attio_client
+from app.modules.attio.providers.attio.write_values import RecordReferenceValue
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +96,9 @@ class AttioNoteWriter:
             # target_object alongside target_record_id -- the read-side
             # shape (domain/records.py's AttioValueEntry.target_record_id)
             # only carries the id back, not the object it points to.
-            values["organization_id"] = [
-                {"target_object": "organizations", "target_record_id": organization_attio_id}
-            ]
+            values["organization_id"] = RecordReferenceValue(
+                target_object="organizations", target_record_id=organization_attio_id
+            ).as_value()
         if primary_role is not None:
             values["primary_role"] = primary_role
         if buyer_role_entry_id is not None:
