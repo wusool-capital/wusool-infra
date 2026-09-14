@@ -13,7 +13,9 @@ client-side at all.
 import pytest
 
 from app.modules.attio.providers.attio.client import AttioError
+from app.modules.attio.providers.attio.write_values import ActorReferenceValue
 from app.modules.lead_magnets.providers.attio.deal_writer import AttioDealWriter
+from app.modules.lead_magnets.tests.attio_fixtures import RefValueEntry, ValueEntry
 
 _RAMZY = "owner-ramzy"
 _JULES = "owner-jules"
@@ -25,7 +27,9 @@ def _writer(client, *, is_test: bool = False) -> AttioDealWriter:
 
 
 def _owner(owner_id: str) -> list[dict]:
-    return [{"referenced_actor_type": "workspace-member", "referenced_actor_id": owner_id}]
+    return ActorReferenceValue(
+        referenced_actor_type="workspace-member", referenced_actor_id=owner_id
+    ).as_value()
 
 
 def _deal_record(
@@ -35,11 +39,11 @@ def _deal_record(
     buyer_id: str | None = None,
     is_test: bool = False,
 ) -> dict:
-    values: dict = {"is_test": [{"active_until": None, "value": is_test}]}
+    values: dict = {"is_test": ValueEntry(value=is_test).as_entries()}
     if seller_id is not None:
-        values["seller_id"] = [{"active_until": None, "target_record_id": seller_id}]
+        values["seller_id"] = RefValueEntry(target_record_id=seller_id).as_entries()
     if buyer_id is not None:
-        values["buyer_id"] = [{"active_until": None, "target_record_id": buyer_id}]
+        values["buyer_id"] = RefValueEntry(target_record_id=buyer_id).as_entries()
     return {"id": {"record_id": record_id}, "values": values}
 
 

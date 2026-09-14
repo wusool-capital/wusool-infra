@@ -9,6 +9,7 @@ against it, same "fakes only at network seams" convention as
 import pytest
 
 from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWriter
+from app.modules.lead_magnets.tests.attio_fixtures import RefValueEntry, ValueEntry
 
 
 def _person(
@@ -21,17 +22,17 @@ def _person(
     phone: str | None = None,
     is_test: bool = False,
 ) -> dict:
-    values: dict = {"is_test": [{"active_until": None, "value": is_test}]}
+    values: dict = {"is_test": ValueEntry(value=is_test).as_entries()}
     if name is not None:
-        values["name"] = [{"active_until": None, "value": name}]
+        values["name"] = ValueEntry(value=name).as_entries()
     if email is not None:
-        values["email"] = [{"active_until": None, "value": email}]
+        values["email"] = ValueEntry(value=email).as_entries()
     if company is not None:
-        values["company"] = [{"active_until": None, "target_record_id": company}]
+        values["company"] = RefValueEntry(target_record_id=company).as_entries()
     if linkedin is not None:
-        values["linkedin"] = [{"active_until": None, "value": linkedin}]
+        values["linkedin"] = ValueEntry(value=linkedin).as_entries()
     if phone is not None:
-        values["phone"] = [{"active_until": None, "value": phone}]
+        values["phone"] = ValueEntry(value=phone).as_entries()
     return {"id": {"record_id": record_id}, "values": values}
 
 
