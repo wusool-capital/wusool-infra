@@ -49,6 +49,11 @@ _EXPECTED_ATTIO_TYPE = {
     "select": "select",
     "multi_select_text": "select",
     "multi_select_as_text": "text",
+    # Verified live (2026-09-14): `organizations.domains` reports Attio type
+    # "text", not a distinct "domain" type — Attio's own multi-value plumbing
+    # for it lives outside this `type` field entirely (confirmed against
+    # `attribute["type"]` directly, not inferred from docs).
+    "text_list": "text",
     "currency": "currency",
     "date": "date",
     "bool": "checkbox",

@@ -41,6 +41,27 @@ def test_each_lead_gets_a_view_on_maps_and_add_as_seller_button() -> None:
     assert decode_lead(add_as_seller["value"]) == lead
 
 
+def test_a_lead_with_a_website_shows_it_below_the_detail_line() -> None:
+    lead = DiscoveredLead(
+        name="Acme Co",
+        source_url="https://maps.example.com/acme",
+        address="123 Main St",
+        website="https://acme.example.com",
+    )
+
+    blocks = build_lead_blocks([lead])
+
+    assert "https://acme.example.com" in blocks[2].to_dict()["text"]["text"]
+
+
+def test_a_lead_with_no_website_omits_it() -> None:
+    lead = DiscoveredLead(name="Acme Co", source_url="https://maps.example.com/acme")
+
+    blocks = build_lead_blocks([lead])
+
+    assert blocks[2].to_dict()["text"]["text"].count("\n") == 1
+
+
 def test_multiple_leads_each_get_their_own_actions_block() -> None:
     leads = [
         DiscoveredLead(name="Acme Co", source_url="https://maps.example.com/acme"),

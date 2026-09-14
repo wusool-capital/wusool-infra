@@ -1,6 +1,7 @@
-"""The provider-agnostic seam `DiscoverMixin` depends on. Never imports
-`firecrawl` directly here — swapping providers later means writing a new
-implementation of this Protocol, not touching the application layer.
+"""The provider-agnostic seam `DiscoverMixin` depends on. Never imports a
+vendor SDK/client directly here — swapping providers (Firecrawl -> Google
+Places, see `providers/google_places/`) means writing a new implementation
+of this Protocol, not touching the application layer.
 """
 
 from typing import Protocol

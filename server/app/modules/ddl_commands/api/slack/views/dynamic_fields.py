@@ -8,6 +8,7 @@ that shows both can never collide.
 """
 
 import logging
+from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
@@ -58,6 +59,11 @@ def render_field_block(
     if spec.kind == "multi_select_as_text":
         selected = [part.strip() for part in current_value.split(",")] if current_value else []
         return multi_select_block(block_id, spec.label, selected, spec.options)
+    if spec.kind == "text_list":
+        # No `options` at all — `multi_select_block`'s `not options` branch
+        # always takes the comma-separated free-text fallback, never the
+        # real Slack multi-select.
+        return multi_select_block(block_id, spec.label, current_value, ())
     if spec.kind == "date":
         return date_input_block(block_id, spec.label, current_value)
     if spec.kind == "currency":
@@ -112,6 +118,16 @@ def extract_field_value(
             return ", ".join(get_multi_static_select(values, block_id, block_id)) or None
         # The column is nullable text, so nothing picked is NULL, not "".
         return get_text(values, block_id, block_id)
+    if spec.kind == "text_list":
+        # `text_list` has no `options`, so `multi_select_block` always
+        # rendered the free-text fallback — never `selected_options`, so no
+        # branch on it like `multi_select_text`/`multi_select_as_text` above.
+        # The column is `NOT NULL`, so nothing typed extracts to `[]`, not
+        # `None` (contrast `multi_select_as_text`'s nullable-text column).
+        raw = get_text(values, block_id, block_id)
+        if not raw:
+            return []
+        return [part.strip() for part in raw.split(",") if part.strip()]
     if spec.kind == "date":
         raw = get_date(values, block_id, block_id)
         return date.fromisoformat(raw) if raw else None
@@ -133,28 +149,39 @@ def extract_field_value(
     raise ValueError(f"Unsupported field kind for extraction: {spec.kind!r}")
 
 
-def wrap_prefill_value(spec: FieldSpec, value: PrefillValue | None) -> Any:
+def wrap_prefill_value(spec: FieldSpec, value: PrefillValue | None) -> PrefillValue | None:
     """Shapes a raw prefill value (`discovery`'s draft, `enrichment`'s
     proposal) the way `render_field_block` expects for `spec.kind` —
     doesn't decide *whether* to use it over a current value, only how to
-    shape it once a caller has already decided to. Returns `Any`, not
-    `PrefillValue`, since its one job is producing exactly what
-    `render_field_block`'s dynamic dispatch wants — see that function's
-    own docstring for why that boundary stays untyped.
+    shape it once a caller has already decided to. The wrapped dict below
+    is itself a `JsonObject`, one of `PrefillValue`'s own union members, so
+    the return type stays `PrefillValue | None` even though
+    `render_field_block`'s own `current_value` parameter (the eventual
+    consumer) stays `Any` — see that function's docstring for why.
 
     `render_field_block`'s `currency` branch expects the same
-    `{"amount": ...}` shape an existing role's ORM column already carries
-    — a prefill source instead supplies a bare amount, matching
-    `extract_field_value`'s own output shape, so it is wrapped here rather
-    than at every caller.
+    `{"amount": ..., "currency": ...}` shape an existing role's ORM column
+    already carries (`attio.providers.attio.money.MoneyJson`) — a prefill
+    source instead supplies a bare amount, matching `extract_field_value`'s
+    own output shape, so it is wrapped here rather than at every caller.
+    `currency` is hardcoded `"USD"` rather than threaded through from the
+    field's `(table, field)` (`money.default_currency_code`, which this
+    function has neither arg for): every entry in that registry maps to
+    `"USD"` today, the same project-wide invariant
+    `utilities.domain.money.Money.currency: Literal["USD"]` enforces — not
+    a guess specific to this one call site. `render_field_block`'s own
+    `currency` branch only ever reads the `"amount"` key, so this key was
+    previously omitted with no visible effect — added now so a prefill's
+    wrapped value and a stored role's real ORM value are the same shape,
+    not merely close.
     """
     if spec.kind == "currency" and isinstance(value, (int, float)):
-        return {"amount": value}
+        return {"amount": value, "currency": "USD"}
     return value
 
 
 def normalize_prefill(
-    values: dict[str, PrefillValue],
+    values: Mapping[str, PrefillValue],
     fields_by_name: dict[str, FieldSpec],
     *,
     warn_on_drop: bool = True,

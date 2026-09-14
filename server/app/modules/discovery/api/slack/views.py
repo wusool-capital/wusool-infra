@@ -37,9 +37,10 @@ def build_lead_blocks(leads: list[DiscoveredLead]) -> list[Block]:
     ]
     for rank, lead in enumerate(leads, start=1):
         detail = lead.address or lead.category or "No further details available."
-        blocks.append(
-            SectionBlock(text=f"*{rank}. {sanitize_mrkdwn(lead.name)}*\n{sanitize_mrkdwn(detail)}")
-        )
+        text = f"*{rank}. {sanitize_mrkdwn(lead.name)}*\n{sanitize_mrkdwn(detail)}"
+        if lead.website:
+            text += f"\n{sanitize_mrkdwn(lead.website)}"
+        blocks.append(SectionBlock(text=text))
         blocks.append(
             ActionsBlock(
                 elements=[

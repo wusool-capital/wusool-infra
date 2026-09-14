@@ -11,9 +11,12 @@ this one list, so there's exactly one place that decides eligibility, and
 Deliberately excluded (see plan.md Part C): `connection_strength`
 (Attio-system-managed, never writable regardless of what the API permits),
 `owner` (actor-reference type), `last_interaction_at`, and the multi-select
-org fields other than `sector_focus` (`type`, `stage_focus`,
-`geographic_focus`, `domains`, `categories`) — deferred, not built this pass.
-`is_active` — bot-managed reconciliation state, set `True` explicitly by
+org fields other than `sector_focus`/`domains` (`type`, `stage_focus`,
+`geographic_focus`, `categories`) — deferred, not built this pass. `domains`
+was the same deferral (no fixed vocabulary to build a Slack multi-select
+over) until `discovery` needed a website prefill target — see the
+`text_list` `FieldKind` for how it's exposed without one. `is_active` —
+bot-managed reconciliation state, set `True` explicitly by
 `DdlCommandsService.create_seller`/`create_buyer` on create, never
 operator-editable. `name` is shown as read-only context (the modal title),
 never editable here.
@@ -98,6 +101,7 @@ class OrganizationUpdate(BaseModel):
     ticket_size: str | None = Field(default=None, max_length=100)
     lead_source: str | None = Field(default=None, max_length=100)
     employee_range: str | None = Field(default=None, max_length=100)
+    domains: list[str] | None = None
 
 
 ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
@@ -354,6 +358,7 @@ ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
         ),
     ),
     FieldSpec("funding_raised", "Funding raised (USD)", "currency"),
+    FieldSpec("domains", "Website / domains", "text_list"),
     FieldSpec("linkedin", "LinkedIn", "text"),
     FieldSpec("logo_url", "Logo URL", "text"),
     FieldSpec("angellist", "AngelList", "text"),
