@@ -27,8 +27,32 @@ class BuyerContext:
     notes: str | None
     contact_person_id: str | None
     meeting_notes: list[MeetingNote] = field(default_factory=list)
+    # `buyer_roles` columns that exist in Postgres but were never carried
+    # into this object — found 2026-09-14 tracing why a buyer with a real,
+    # populated `target_geography` still produced an unrestricted seller
+    # search: `BuyerRequirementExtractionService._build_prompt` can only see
+    # what's on this dataclass, and these were silently absent from it
+    # entirely (not just from the prompt). `target_geography` is the
+    # structured value for the `geography` criterion; `ebitda_ceiling` is
+    # `ebitda_floor`'s sibling bound, same JSONB money shape, added in the
+    # same migration. The rest are free-text qualitative signal with no
+    # single criterion of their own — folded into the prompt's context
+    # section rather than `known_fields`.
+    target_geography: list[str] = field(default_factory=list)
+    ebitda_ceiling: Money | None = None
+    notable_investments: str | None = None
+    key_personnel: str | None = None
+    acquisition_enrichment: str | None = None
+    prior_gcc_acquisition: str | None = None
     # Organization-derived fields, needed only by the search-result view
     # (`application/buyers.py`'s `BuyerCandidate`) — optional/defaulted so
-    # every other construction of `BuyerContext` is unaffected.
+    # every other construction of `BuyerContext` is unaffected. `org_hq_country`
+    # is the buyer's own HQ, not their target market — never treat it as a
+    # `geography` criterion value (a UK-HQ'd buyer can mandate GCC-only deals;
+    # `target_geography` above is the field that actually says so).
     org_hq_country: str | None = None
     org_sector_focus: list[str] = field(default_factory=list)
+    org_description: str | None = None
+    org_type: list[str] = field(default_factory=list)
+    org_categories: list[str] = field(default_factory=list)
+    org_region: str | None = None
