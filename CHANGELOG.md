@@ -12,6 +12,8 @@ for current production evidence and open handover items.
 
 ### Added
 
+- A failed nightly Attio resync now raises an alert on the environment alert
+  topic instead of being visible only in the Actions tab.
 - Added a Vale quality gate for the client GitBook, including terminology,
   readability, structure, and page-length rules.
 - Added a contributor-facing documentation style guide.
@@ -29,6 +31,10 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- Restored the nightly Attio-to-PostgreSQL full resync, which had failed every
+  night from 2026-09-03 to 2026-09-12. Production PostgreSQL relied on the
+  real-time webhook alone for that period and should be reconciled against
+  Attio.
 - Every embedded lead-magnet tool was cut off partway down the form with no
   way to scroll to the rest, losing any visitor who had not already finished.
   The embedded page measured its height from a value that, inside an iframe,

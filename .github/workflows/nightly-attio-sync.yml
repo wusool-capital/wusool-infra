@@ -76,10 +76,20 @@ jobs:
           ./.github/scripts/nightly-attio-resync.sh \
             "$IID" "${{ github.run_id }}" "/wusool/prod/toolkit"
 
-      # Outstanding: a failed run is only visible in the Actions tab. Now that
-      # this writes production it deserves an `if: failure()` notification, but
-      # no workflow in this repo has one yet and inventing the mechanism here
-          # is out of scope -- tracked in docs/operations/delivery-status.md.
       - name: No toolkit instance in prod
         if: steps.toolkit.outputs.instance_id == ''
         run: echo "::warning::No running toolkit instance found in prod (create_instance=false, or the ASG is mid-replacement) — skipping nightly resync. If this wasn't a deliberate create_instance=false, re-run this workflow."
+
+      # A failed run used to be visible only in the Actions tab, which is how
+      # ten consecutive failures (2026-09-03 to 2026-09-12) went unnoticed.
+      # Reuses the SNS topic every CloudWatch alarm already publishes to, so
+      # this reaches the existing email and #infra-alerts subscribers instead
+      # of introducing a second alerting mechanism.
+      - name: Notify on failure
+        if: failure()
+        run: |
+          aws sns publish \
+            --region eu-central-1 \
+            --topic-arn arn:aws:sns:eu-central-1:030179310793:wusool-prod-infrastructure-alerts \
+            --subject "Nightly Attio resync FAILED (prod)" \
+            --message "$(printf 'The nightly Attio -> Postgres full resync failed.\n\nRun: %s/%s/actions/runs/%s\n\nProduction Postgres may be drifting from Attio. The real-time webhook covers live changes but does not backfill deliveries dropped while it was unavailable.\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
