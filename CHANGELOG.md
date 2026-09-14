@@ -10,6 +10,13 @@ for current production evidence and open handover items.
 
 ## 2026-09-14
 
+### Added
+
+- WusoolScribe desktop app: a "Send feedback" bug icon in the sidebar opens
+  a form (category, message, optional contact) that emails the team via a
+  new `POST /desktop/feedback` route on the `meetings` module and AWS SES
+  — no email credential ships in the desktop binary.
+
 ### Changed
 
 - Replaced `discovery`'s Firecrawl Google Maps scrape with Google's Places

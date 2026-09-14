@@ -11,8 +11,10 @@ faster-whisper, its own Postgres) for the one thing the desktop app still
 needs from a server: turning an already-recorded, already-locally-
 transcribed meeting into a structured summary. The desktop app itself is
 unchanged — it still records and transcribes locally and only pushes a
-finished transcript here; recording/audio storage (S3) is out of scope, and
-so is Slack delivery (the desktop app displays the summary itself).
+finished transcript here; recording/audio storage (S3) is out of scope.
+`POST /desktop/feedback` is the one exception to "no other delivery": it
+relays the desktop app's in-app feedback form to email via SES (see
+`api/feedback.py`), synchronously and without persisting anything.
 
 `GET /desktop/verify` lets the desktop app's Push Destination settings
 check a server URL + API key before saving them — the route body does

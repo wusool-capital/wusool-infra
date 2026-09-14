@@ -102,6 +102,15 @@ If processing fails, keep the local meeting, verify the destination, and retry
 through the app's supported recovery flow. Do not recreate the recording or
 push repeatedly while the first request is still processing.
 
+## Send feedback
+
+Click the bug icon at the top of the sidebar (next to the collapse icon) to
+open the feedback form. Choose a category (bug, feature request,
+transcription quality, or other), describe what happened, and optionally
+leave an email or name so the team can follow up. Submitting emails the team
+through the same server connection configured under **Settings → Push
+Destination** — if that isn't set up yet, the form links you there first.
+
 ## Updates and local data
 
 WusoolScribe checks for signed updates automatically. Accept the prompt or
