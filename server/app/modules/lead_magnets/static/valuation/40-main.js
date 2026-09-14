@@ -38,7 +38,7 @@ function App(){
       const r=await fetch("/submit-lead",{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          submission_id:(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`),
+          submission_id:window.WUSOOL_SUBMISSION_ID,
           company:data.companyName||"",name:data.name||null,email:data.email||"",
           domain:data.domain||null,description:data.description||null,sector:data.sector||null,
           geography:data.geo||null,stage:data.stage||null,
