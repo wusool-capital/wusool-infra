@@ -167,6 +167,11 @@ for current production evidence and open handover items.
   submission id, so the retry looked like a second visit rather than the same
   one. The id is now fixed for the life of the page, which the Buyer Network
   and M&A Readiness forms could both hit.
+- A stale lead-magnet submission stuck in the retry queue could abort the
+  entire sweep instead of just itself, rolling back every other lead the
+  same pass had already finished. The write contract's own promise that a
+  failure "never" escapes the retry step wasn't quite true for the Buyer
+  Network's target geography, which has been live since it shipped.
 
 ## 2026-09-13
 

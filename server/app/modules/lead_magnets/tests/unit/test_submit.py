@@ -377,3 +377,73 @@ async def test_internal_failure_after_confirmation_does_not_resend_confirmation(
     await healthy_mailer_service.complete(_run(payload=resumed_payload))
 
     assert tool_runs.calls == ["set_stage:email_internal", "finish:succeeded"]
+
+
+@pytest.mark.parametrize(
+    ("tool", "payload"),
+    [
+        (
+            "get_started",
+            {
+                "company": "Acme",
+                "sell_timeline": "Sometime, maybe",  # not one of the live 5 options
+                "consent": True,
+            },
+        ),
+        (
+            "buyer_network",
+            {
+                "org_name": "Acme",
+                "org_type": ["Private Equity"],
+                "sector_focus": ["Fintech"],
+                "target_geography": ["Mars"],  # not one of the live 7 options
+                "email": "x@x.com",
+            },
+        ),
+    ],
+)
+async def test_complete_never_raises_on_a_real_domain_vocabulary_error(
+    tool: Tool, payload: JsonObject
+) -> None:
+    """The regression this file's fakes could not catch.
+
+    `test_complete_never_raises_for_any_tool` above proves `complete` is
+    safe when `run_ai` raises `BedrockInvocationError` — but its fake
+    `run_ai` can *only* ever raise that one type, so it says nothing about
+    a pipeline's own domain-vocabulary error (`UnmappedSellTimelineError`,
+    `UnmappedTargetGeographyError`), which is built inside the real
+    `entry_values` construction, not inside any model call. This uses the
+    real `Pipelines` so the real exception is the one under test.
+
+    Before `_ensure_ai` was broadened past `BedrockInvocationError`, this
+    exact scenario propagated straight out of `complete()`, breaking its
+    own "never raises" contract — and since `sweep_once` claims several
+    stale rows per pass with no per-row isolation, a sweeper resume hitting
+    this would have aborted the whole pass, not just this one row.
+
+    Constructs `SubmissionService` directly rather than via `_service()`:
+    that helper always builds its own fake `run_ai`/`fallback` closures, and
+    this test specifically needs the real `Pipelines` so the real exception
+    is the one under test. The failure happens inside `_ensure_ai`, before
+    any Attio or email stage runs, so the mailer/email settings below are
+    never touched either way — `_service()`'s own defaults, kept only for
+    consistency with every other test in this file.
+    """
+    from app.modules.lead_magnets.application.shared.pipelines import Pipelines
+
+    tool_runs, attio = _FakeToolRuns(), _FakeAttio()
+    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]  # never reached
+    service = SubmissionService(
+        tool_runs=tool_runs,
+        attio=attio,
+        run_ai=pipelines.run,
+        fallback=pipelines.fallback,
+        mailer=_FakeMailer(),
+        email_from="tech@wusoolcapital.com",
+        email_to=_INTERNAL_TO,
+    )
+
+    await service.complete(_run(tool, payload=payload))
+
+    assert tool_runs.calls == ["finish:failed"]
+    assert attio.writes == 0
