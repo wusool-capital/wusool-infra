@@ -1,27 +1,27 @@
-"""POST /desktop/feedback — relays in-app feedback from the desktop app to
-an email inbox via SES. No row is ever written (see
-`application/errors.py`'s `FeedbackDeliveryNotConfiguredError`/
-`FeedbackDeliveryFailedError` docstrings): the inbox is the triage
-mechanism, so delivery happens synchronously and a failure is a real
-error, not `BackgroundTasks` fire-and-forget -- backgrounding it would let
-the client see 200 while the user's typed text is silently lost.
+"""POST /desktop/feedback — durably records in-app feedback from the
+desktop app in `feedback_submissions`, then best-effort emails it via SES.
+
+The database write is the source of truth and must succeed (a normal 500
+if Postgres itself is down, same as any other write endpoint here). Email
+is a notification about a row that already exists, not the record itself
+-- its failure is logged, not raised, so a misconfigured or briefly-down
+SES never loses a user's feedback. See `app/models/feedback_submission.py`
+for the `email_sent`/`email_sent_at` columns that make a failed
+notification visible without failing the request.
 """
 
 import logging
 import time
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.modules.meetings.api.auth import require_desktop_api_key
-from app.modules.meetings.api.dependencies import FeedbackMailerDep
+from app.modules.meetings.api.dependencies import FeedbackMailerDep, FeedbackRepositoryDep
 from app.modules.meetings.api.schemas import (
     DesktopFeedbackRequest,
     DesktopFeedbackResponse,
     FeedbackCategory,
-)
-from app.modules.meetings.application.errors import (
-    FeedbackDeliveryFailedError,
-    FeedbackDeliveryNotConfiguredError,
 )
 from app.modules.meetings.config import get_settings
 
@@ -45,7 +45,7 @@ class _FeedbackRateLimiter:
     can't import -- its `__init__.py` declares no `__all__`), so an
     in-process counter is accurate rather than merely convenient. The
     shared `DESKTOP_API_KEY` means any install can otherwise spam this
-    inbox.
+    table (and, while configured, the inbox behind it).
     """
 
     def __init__(self, *, limit: int, window_s: int = 3600) -> None:
@@ -96,30 +96,46 @@ def build_feedback_email_body(request: DesktopFeedbackRequest) -> str:
 
 @router.post("/feedback")
 async def submit_feedback(
-    request: DesktopFeedbackRequest, mailer: FeedbackMailerDep
+    request: DesktopFeedbackRequest, repo: FeedbackRepositoryDep, mailer: FeedbackMailerDep
 ) -> DesktopFeedbackResponse:
-    settings = get_settings()
-    recipients = settings.feedback_email_to.split()
-    if not recipients or not settings.feedback_email_from:
-        raise FeedbackDeliveryNotConfiguredError("Feedback delivery is not configured")
-
     if not _limiter.check(request.install_id):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many feedback submissions",
         )
 
-    try:
-        await mailer.send(
-            to=recipients,
-            from_addr=settings.feedback_email_from,
-            subject=build_feedback_email_subject(request),
-            body=build_feedback_email_body(request),
+    submission_id = uuid4()
+    await repo.create(
+        id=submission_id,
+        category=request.category.value,
+        message=request.message,
+        contact=request.contact,
+        install_id=request.install_id,
+        app_version=request.app_version,
+        platform=request.platform,
+    )
+
+    settings = get_settings()
+    recipients = settings.feedback_email_to.split()
+    if recipients and settings.feedback_email_from:
+        try:
+            await mailer.send(
+                to=recipients,
+                from_addr=settings.feedback_email_from,
+                subject=build_feedback_email_subject(request),
+                body=build_feedback_email_body(request),
+            )
+        except Exception:
+            logger.exception(
+                "desktop_feedback_email_failed",
+                extra={"install_id": request.install_id, "submission_id": str(submission_id)},
+            )
+        else:
+            await repo.mark_email_sent(id=submission_id)
+    else:
+        logger.info(
+            "desktop_feedback_email_not_configured",
+            extra={"submission_id": str(submission_id)},
         )
-    except Exception as exc:
-        logger.exception(
-            "desktop_feedback_delivery_failed", extra={"install_id": request.install_id}
-        )
-        raise FeedbackDeliveryFailedError("Could not deliver feedback by email") from exc
 
     return DesktopFeedbackResponse()

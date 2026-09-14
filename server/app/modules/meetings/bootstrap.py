@@ -24,6 +24,7 @@ from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
 from app.modules.meetings.config import get_settings
 from app.modules.meetings.persistence.database import get_sessionmaker
+from app.modules.meetings.persistence.feedback_repository import FeedbackRepository
 from app.modules.meetings.persistence.meetings_repository import MeetingsRepository
 from app.modules.meetings.persistence.notes_repository import NotesRepository
 from app.modules.meetings.persistence.organization_lookup import OrganizationLookup
@@ -47,6 +48,10 @@ def build_organization_lookup(session: AsyncSession) -> OrganizationLookup:
 
 def build_role_lookup(session: AsyncSession) -> RoleLookup:
     return RoleLookup(session)
+
+
+def build_feedback_repository(session: AsyncSession) -> FeedbackRepository:
+    return FeedbackRepository(session)
 
 
 def build_bedrock_client() -> BedrockConverseClient:

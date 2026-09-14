@@ -1,14 +1,24 @@
-"""POST /desktop/feedback -- no DB involved, so this runs as a plain unit
-test against a bare app built from just the feedback router, matching
-`test_verify_api.py`'s pattern. A `_FakeMailer` replaces `feedback_mailer`
-via `dependency_overrides` so no real SES call is ever made.
+"""POST /desktop/feedback against a real database (`db_session`, rolled
+back at teardown) plus a `_FakeMailer` overriding `feedback_mailer` so no
+real SES call is ever made. Skips cleanly when no database is reachable
+(see `conftest.py`).
+
+Uses `httpx.AsyncClient` + `ASGITransport`, not Starlette's `TestClient`:
+`TestClient` runs the ASGI app through `anyio`'s `BlockingPortal`, which
+executes in a *different* event loop than the one that created
+`db_session` -- asyncpg's connection is loop-bound, so a request through
+`TestClient` raises "Future attached to a different loop" the moment the
+endpoint touches the session. `AsyncClient` calls the app in-process, on
+this same test's event loop, avoiding the boundary entirely.
 """
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
-from app.modules.meetings.api.dependencies import feedback_mailer
+from app.models import FeedbackSubmission
+from app.modules.meetings.api.dependencies import feedback_mailer, get_session
 from app.modules.meetings.api.feedback import _limiter
 from app.modules.meetings.api.feedback import router as feedback_router
 from app.modules.meetings.config import get_settings
@@ -36,21 +46,29 @@ class _FakeMailer:
         self.calls.append({"to": to, "from_addr": from_addr, "subject": subject, "body": body})
 
 
-def _make_client(mailer: _FakeMailer | None = None) -> TestClient:
+def _make_client(db_session, mailer: _FakeMailer) -> AsyncClient:
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(feedback_router)
-    if mailer is not None:
-        app.dependency_overrides[feedback_mailer] = lambda: mailer
-    return TestClient(app)
+    app.dependency_overrides[feedback_mailer] = lambda: mailer
+
+    async def _override_get_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = _override_get_session
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver")
+
+
+async def _only_row(db_session) -> FeedbackSubmission:
+    result = await db_session.execute(select(FeedbackSubmission))
+    return result.scalar_one()
 
 
 @pytest.fixture(autouse=True)
 def _configured_delivery(monkeypatch: pytest.MonkeyPatch):
-    """Feedback delivery is optional-config by design (§ config.py), so
-    every test that isn't specifically exercising the unconfigured case
-    must configure it itself -- get_settings() is lru_cache'd, so clear it
-    on both sides of the test."""
+    """Most tests want delivery configured; the two that don't override it
+    themselves. `get_settings()` is `lru_cache`'d, so clear it on both
+    sides of the test."""
     monkeypatch.setenv("FEEDBACK_EMAIL_TO", "team-a@example.com team-b@example.com")
     monkeypatch.setenv("FEEDBACK_EMAIL_FROM", "scribe@example.com")
     get_settings.cache_clear()
@@ -64,26 +82,37 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {_VALID_KEY}"}
 
 
-def test_missing_authorization_header_is_rejected() -> None:
-    response = _make_client(_FakeMailer()).post("/desktop/feedback", json=_VALID_PAYLOAD)
+async def test_missing_authorization_header_is_rejected(db_session) -> None:
+    async with _make_client(db_session, _FakeMailer()) as client:
+        response = await client.post("/desktop/feedback", json=_VALID_PAYLOAD)
     assert response.status_code == 401
 
 
-def test_wrong_key_is_rejected() -> None:
-    response = _make_client(_FakeMailer()).post(
-        "/desktop/feedback", json=_VALID_PAYLOAD, headers={"Authorization": "Bearer wrong-key"}
-    )
+async def test_wrong_key_is_rejected(db_session) -> None:
+    async with _make_client(db_session, _FakeMailer()) as client:
+        response = await client.post(
+            "/desktop/feedback",
+            json=_VALID_PAYLOAD,
+            headers={"Authorization": "Bearer wrong-key"},
+        )
     assert response.status_code == 401
 
 
-def test_happy_path_sends_to_every_configured_recipient() -> None:
+async def test_happy_path_persists_the_row_and_emails_every_recipient(db_session) -> None:
     mailer = _FakeMailer()
-    response = _make_client(mailer).post(
-        "/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers()
-    )
+    async with _make_client(db_session, mailer) as client:
+        response = await client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+    row = await _only_row(db_session)
+    assert row.category == "bug"
+    assert row.message == _VALID_PAYLOAD["message"]
+    assert row.install_id == "install-abc-123"
+    assert row.email_sent is True
+    assert row.email_sent_at is not None
+
     assert len(mailer.calls) == 1
     call = mailer.calls[0]
     assert call["to"] == ["team-a@example.com", "team-b@example.com"]
@@ -92,73 +121,85 @@ def test_happy_path_sends_to_every_configured_recipient() -> None:
     assert call["body"]
 
 
-def test_whitespace_only_message_is_rejected() -> None:
+async def test_whitespace_only_message_is_rejected(db_session) -> None:
     payload = {**_VALID_PAYLOAD, "message": "   "}
-    response = _make_client(_FakeMailer()).post(
-        "/desktop/feedback", json=payload, headers=_headers()
-    )
+    async with _make_client(db_session, _FakeMailer()) as client:
+        response = await client.post("/desktop/feedback", json=payload, headers=_headers())
     assert response.status_code == 422
 
 
-def test_unknown_category_is_rejected() -> None:
+async def test_unknown_category_is_rejected(db_session) -> None:
     payload = {**_VALID_PAYLOAD, "category": "not-a-real-category"}
-    response = _make_client(_FakeMailer()).post(
-        "/desktop/feedback", json=payload, headers=_headers()
-    )
+    async with _make_client(db_session, _FakeMailer()) as client:
+        response = await client.post("/desktop/feedback", json=payload, headers=_headers())
     assert response.status_code == 422
 
 
-def test_missing_install_id_is_rejected() -> None:
+async def test_missing_install_id_is_rejected(db_session) -> None:
     payload = {k: v for k, v in _VALID_PAYLOAD.items() if k != "install_id"}
-    response = _make_client(_FakeMailer()).post(
-        "/desktop/feedback", json=payload, headers=_headers()
-    )
+    async with _make_client(db_session, _FakeMailer()) as client:
+        response = await client.post("/desktop/feedback", json=payload, headers=_headers())
     assert response.status_code == 422
 
 
-def test_delivery_unconfigured_returns_503(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_unconfigured_delivery_still_persists_and_skips_email(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("FEEDBACK_EMAIL_TO", "")
     get_settings.cache_clear()
-    response = _make_client(_FakeMailer()).post(
-        "/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers()
-    )
-    assert response.status_code == 503
+    mailer = _FakeMailer()
+
+    async with _make_client(db_session, mailer) as client:
+        response = await client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
+
+    assert response.status_code == 200
+    row = await _only_row(db_session)
+    assert row.email_sent is False
+    assert mailer.calls == []
 
 
-def test_whitespace_only_email_to_is_treated_as_unconfigured(
-    monkeypatch: pytest.MonkeyPatch,
+async def test_whitespace_only_email_to_is_treated_as_unconfigured(
+    db_session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("FEEDBACK_EMAIL_TO", "   ")
     get_settings.cache_clear()
-    response = _make_client(_FakeMailer()).post(
-        "/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers()
-    )
-    assert response.status_code == 503
+    mailer = _FakeMailer()
+
+    async with _make_client(db_session, mailer) as client:
+        response = await client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
+
+    assert response.status_code == 200
+    assert mailer.calls == []
 
 
-def test_ses_delivery_failure_returns_502() -> None:
+async def test_email_failure_still_returns_200_and_row_is_not_marked_sent(db_session) -> None:
     mailer = _FakeMailer(raise_error=True)
-    response = _make_client(mailer).post(
-        "/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers()
-    )
-    assert response.status_code == 502
+    async with _make_client(db_session, mailer) as client:
+        response = await client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
+
+    assert response.status_code == 200
+    row = await _only_row(db_session)
+    assert row.email_sent is False
+    assert row.email_sent_at is None
 
 
-def test_rate_limit_blocks_the_sixth_submission_for_the_same_install() -> None:
-    client = _make_client(_FakeMailer())
-    for _ in range(5):
-        response = client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
-        assert response.status_code == 200
+async def test_rate_limit_blocks_the_sixth_submission_for_the_same_install(db_session) -> None:
+    async with _make_client(db_session, _FakeMailer()) as client:
+        for _ in range(5):
+            response = await client.post(
+                "/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers()
+            )
+            assert response.status_code == 200
 
-    sixth = client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
+        sixth = await client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
     assert sixth.status_code == 429
 
 
-def test_rate_limit_is_scoped_per_install_id() -> None:
-    client = _make_client(_FakeMailer())
-    for _ in range(5):
-        client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
+async def test_rate_limit_is_scoped_per_install_id(db_session) -> None:
+    async with _make_client(db_session, _FakeMailer()) as client:
+        for _ in range(5):
+            await client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
 
-    other_install = {**_VALID_PAYLOAD, "install_id": "a-different-install"}
-    response = client.post("/desktop/feedback", json=other_install, headers=_headers())
+        other_install = {**_VALID_PAYLOAD, "install_id": "a-different-install"}
+        response = await client.post("/desktop/feedback", json=other_install, headers=_headers())
     assert response.status_code == 200

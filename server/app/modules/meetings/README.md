@@ -13,8 +13,10 @@ transcribed meeting into a structured summary. The desktop app itself is
 unchanged — it still records and transcribes locally and only pushes a
 finished transcript here; recording/audio storage (S3) is out of scope.
 `POST /desktop/feedback` is the one exception to "no other delivery": it
-relays the desktop app's in-app feedback form to email via SES (see
-`api/feedback.py`), synchronously and without persisting anything.
+durably records the desktop app's in-app feedback form in
+`feedback_submissions` and best-effort emails it via SES (see
+`api/feedback.py`) — the row is the source of truth, the email is a
+notification about it.
 
 `GET /desktop/verify` lets the desktop app's Push Destination settings
 check a server URL + API key before saving them — the route body does
@@ -66,9 +68,11 @@ Deliberately NOT wired to `matching_engine` — that module keeps reading
 ## Database
 
 Connects to the shared `wusool_crm` PostgreSQL database (models in
-`app/models/`, migrations in `alembic/`). This module never creates tables
-or runs migrations itself. Reads/writes the existing `meetings` and `notes`
-tables through its own repositories only.
+`app/models/`, migrations in `alembic/`). Reads/writes the existing
+`meetings` and `notes` tables through its own repositories only. The one
+exception: `feedback_submissions` (migration `d3f49e19fd35`) is a table
+this module's `POST /desktop/feedback` genuinely owns — see
+`persistence/feedback_repository.py` and `SCHEMA.md`.
 
 Every meeting files a note at publish time, `org_id` or not — an org-less
 note (internal/general/investor, or a company that never resolved) still
