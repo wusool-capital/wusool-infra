@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     # an empty Authorization: Bearer  header would then authenticate.
     desktop_api_key: str = Field(..., min_length=1)
 
+    # Email delivery for POST /desktop/feedback only, via SES. Both optional
+    # on purpose: this module's real job (ingest/summarize) must not fail
+    # to boot over credentials one auxiliary endpoint needs. With either
+    # unset the feedback route returns 503 rather than silently dropping
+    # the user's text. feedback_email_from must be an SES-verified identity
+    # in this account/region, or SES rejects the send at request time.
+    feedback_email_to: str = ""
+    feedback_email_from: str = ""
+
     # AWS Bedrock. Access key/secret are optional: the standard AWS
     # credential provider chain (IAM role, ECS/EC2 task role, local profile,
     # env) applies when unset.

@@ -40,3 +40,21 @@ class InvalidDesktopApiKeyError(AppError):
     doesn't match `Settings.desktop_api_key`."""
 
     status_code = 401
+
+
+class FeedbackDeliveryNotConfiguredError(AppError):
+    """Raised when `POST /desktop/feedback` is called but
+    `Settings.feedback_email_to`/`feedback_email_from` is unset. This
+    module's main job (ingest/summarize) must not fail to boot over
+    credentials only this one auxiliary endpoint needs, so those settings
+    are optional -- this is what surfaces the gap at request time instead.
+    """
+
+    status_code = 503
+
+
+class FeedbackDeliveryFailedError(AppError):
+    """Raised when SES rejects the send or can't be reached. Deliberately
+    synchronous and not swallowed -- see `api/feedback.py`."""
+
+    status_code = 502

@@ -86,6 +86,32 @@ module "bedrock" {
   models        = var.bedrock_models
 }
 
+# Lets the toolkit send POST /desktop/feedback's email via SES
+# (app/modules/meetings/providers/ses). Resource "*" rather than an
+# identity ARN: unlike Bedrock's InvokeModel, classic SES SendEmail has no
+# resource-level ARN to scope to short of the newer SESv2 API, and SES
+# itself already refuses to send from anything but a verified identity
+# regardless of this policy -- verifying FEEDBACK_EMAIL_FROM in the SES
+# console is the real gate, not this grant. Unconditional on
+# var.enable_bedrock: the two features are unrelated.
+resource "aws_iam_role_policy" "ses_send" {
+  count = var.create_instance ? 1 : 0
+  name  = "${var.project}-${var.environment}-toolkit-ses-send"
+  role  = module.wusool_toolkit[0].iam_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SendFeedbackEmail"
+        Effect   = "Allow"
+        Action   = ["ses:SendEmail", "ses:SendRawEmail"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # ---------------------------------------------------------------------------
 # Container registry - ONE REPOSITORY PER ENVIRONMENT.
 #
