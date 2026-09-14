@@ -12,11 +12,10 @@ for current production evidence and open handover items.
 
 ### Fixed
 
-- Restored the nightly Attio full resync, which had failed every night from
-  2026-09-03 to 2026-09-12 without alerting anyone. It located the Toolkit
-  container by exact name, but Compose names that container with a project and
-  index suffix, so the lookup matched nothing and each run aborted before doing
-  any work. It is now found by its Compose service label.
+- Restored the nightly Attio-to-PostgreSQL full resync, which had failed every
+  night from 2026-09-03 to 2026-09-12. Production PostgreSQL relied on the
+  real-time webhook alone for that period and should be reconciled against
+  Attio.
 
 ### Added
 
