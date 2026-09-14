@@ -18,11 +18,11 @@ class SesMailer:
     def __init__(self) -> None:
         self._client = get_ses_client()
 
-    async def send(self, *, to: str, from_addr: str, subject: str, body: str) -> None:
+    async def send(self, *, to: list[str], from_addr: str, subject: str, body: str) -> None:
         def send_email() -> None:
             self._client.send_email(
                 Source=from_addr,
-                Destination={"ToAddresses": [to]},
+                Destination={"ToAddresses": to},
                 Message={
                     "Subject": {"Data": subject, "Charset": "UTF-8"},
                     "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},

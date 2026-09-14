@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     # unset the feedback route returns 503 rather than silently dropping
     # the user's text. feedback_email_from must be an SES-verified identity
     # in this account/region, or SES rejects the send at request time.
+    # feedback_email_to is space-separated (same convention as
+    # LEAD_MAGNET_FRAME_ANCESTORS) -- one or more recipients.
     feedback_email_to: str = ""
     feedback_email_from: str = ""
 

@@ -30,7 +30,7 @@ class _FakeMailer:
         self.raise_error = raise_error
         self.calls: list[dict] = []
 
-    async def send(self, *, to: str, from_addr: str, subject: str, body: str) -> None:
+    async def send(self, *, to: list[str], from_addr: str, subject: str, body: str) -> None:
         if self.raise_error:
             raise RuntimeError("ses is down")
         self.calls.append({"to": to, "from_addr": from_addr, "subject": subject, "body": body})
@@ -51,7 +51,7 @@ def _configured_delivery(monkeypatch: pytest.MonkeyPatch):
     every test that isn't specifically exercising the unconfigured case
     must configure it itself -- get_settings() is lru_cache'd, so clear it
     on both sides of the test."""
-    monkeypatch.setenv("FEEDBACK_EMAIL_TO", "team@example.com")
+    monkeypatch.setenv("FEEDBACK_EMAIL_TO", "team-a@example.com team-b@example.com")
     monkeypatch.setenv("FEEDBACK_EMAIL_FROM", "scribe@example.com")
     get_settings.cache_clear()
     _limiter._hits.clear()
@@ -76,7 +76,7 @@ def test_wrong_key_is_rejected() -> None:
     assert response.status_code == 401
 
 
-def test_happy_path_sends_to_the_configured_address() -> None:
+def test_happy_path_sends_to_every_configured_recipient() -> None:
     mailer = _FakeMailer()
     response = _make_client(mailer).post(
         "/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers()
@@ -86,7 +86,7 @@ def test_happy_path_sends_to_the_configured_address() -> None:
     assert response.json() == {"status": "ok"}
     assert len(mailer.calls) == 1
     call = mailer.calls[0]
-    assert call["to"] == "team@example.com"
+    assert call["to"] == ["team-a@example.com", "team-b@example.com"]
     assert call["from_addr"] == "scribe@example.com"
     assert call["subject"]
     assert call["body"]
@@ -118,6 +118,17 @@ def test_missing_install_id_is_rejected() -> None:
 
 def test_delivery_unconfigured_returns_503(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FEEDBACK_EMAIL_TO", "")
+    get_settings.cache_clear()
+    response = _make_client(_FakeMailer()).post(
+        "/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers()
+    )
+    assert response.status_code == 503
+
+
+def test_whitespace_only_email_to_is_treated_as_unconfigured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEEDBACK_EMAIL_TO", "   ")
     get_settings.cache_clear()
     response = _make_client(_FakeMailer()).post(
         "/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers()

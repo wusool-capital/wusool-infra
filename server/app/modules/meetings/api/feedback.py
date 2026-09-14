@@ -99,7 +99,8 @@ async def submit_feedback(
     request: DesktopFeedbackRequest, mailer: FeedbackMailerDep
 ) -> DesktopFeedbackResponse:
     settings = get_settings()
-    if not settings.feedback_email_to or not settings.feedback_email_from:
+    recipients = settings.feedback_email_to.split()
+    if not recipients or not settings.feedback_email_from:
         raise FeedbackDeliveryNotConfiguredError("Feedback delivery is not configured")
 
     if not _limiter.check(request.install_id):
@@ -110,7 +111,7 @@ async def submit_feedback(
 
     try:
         await mailer.send(
-            to=settings.feedback_email_to,
+            to=recipients,
             from_addr=settings.feedback_email_from,
             subject=build_feedback_email_subject(request),
             body=build_feedback_email_body(request),
