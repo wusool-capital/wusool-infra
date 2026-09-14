@@ -440,11 +440,18 @@ each deliberately:
 ### Deal dedupe — one per organisation, not per submission
 
 A company that runs the valuation tool and then the benchmark is one inbound
-lead, not two. `providers/attio/deal_writer.py` queries `deal` on
-`seller_id`/`buyer_id` before creating (same query-then-create shape, and the
-same reason, as the person write below), and returns a matched deal
-**untouched** — its stage is a human's working state, and a later lead magnet
-must never drag a `Qualified` deal back to `Inbound`.
+lead, not two. `providers/attio/deal_writer.py` queries `deal` before
+creating (same query-then-create shape, and the same reason, as the person
+write below), and returns a matched deal **untouched** — its stage is a
+human's working state, and a later lead magnet must never drag a `Qualified`
+deal back to `Inbound`.
+
+The match against `seller_id`/`buyer_id` happens client-side: `entries.py`'s
+own opening docstring already documents that this codebase has no verified
+filter syntax for a record-reference attribute, so `find_deals_by_party`
+pages every `deal` instead of trusting a guessed filter body — the same
+trade `resolve_role_entry_id` makes for `parent_record_id`, and cheap at
+this scale for the same reason.
 
 Which side the submitting organisation goes in follows the tool: the three
 seller tools write `seller_id` + `deal_type: Sell-side`; `buyer_network` is
