@@ -185,7 +185,10 @@ The order is the whole point; it is what makes a lost lead impossible.
 3. **AI work.** Valuation and Benchmark fall back to their own
    deterministic calculations. Readiness has none by decision, which is
    precisely why step 1 exists.
-4. **Write to Attio**, `is_test` always set.
+4. **Write to Attio**, `is_test` always set. One `organizations` record,
+   one `seller_role`/`buyer_role` entry, one `person`, and one `deal` at
+   stage **Inbound** so the lead lands in the pipeline rather than waiting
+   for someone to key it in by hand.
 5. **`tool_runs.finish(...)`**, then one `activities` row joined by
    `tool_run_id`.
 6. A **sweeper** replays anything left unfinished.
@@ -424,6 +427,8 @@ each deliberately:
 - `seller_roles` / `buyer_roles` — read only, as a `legacy_entry_id`
   subquery resolving this module's own foreign keys. No role data is read or
   written.
+- `deals` — not touched at all. The `deal` record is written to Attio and
+  the `ddl_commands` webhook mirror (`sync_deal`) lands the Postgres row.
 - `person` — a stub insert (`attio_id`, `name`) `ON CONFLICT DO NOTHING`,
   so `tool_runs.person_attio_id` has something to point at until the mirror
   lands the full record. `providers/attio/person_writer.py` is what now
@@ -431,6 +436,24 @@ each deliberately:
   `AttioRoleWriter` for organisations — `ddl_commands` still owns the
   Postgres side of `person` (raw SQL in `persistence/attio_sync.py`), this
   module still only seeds the stub `finish()` always seeded.
+
+### Deal dedupe — one per organisation, not per submission
+
+A company that runs the valuation tool and then the benchmark is one inbound
+lead, not two. `providers/attio/deal_writer.py` queries `deal` on
+`seller_id`/`buyer_id` before creating (same query-then-create shape, and the
+same reason, as the person write below), and returns a matched deal
+**untouched** — its stage is a human's working state, and a later lead magnet
+must never drag a `Qualified` deal back to `Inbound`.
+
+Which side the submitting organisation goes in follows the tool: the three
+seller tools write `seller_id` + `deal_type: Sell-side`; `buyer_network` is
+an acquirer applying to the network, so it writes `buyer_id` + `Buy-side`.
+
+`SubjectRefs.deal_attio_id` is deliberately **not** a `tool_runs` column,
+unlike the four subject ids next to it. It is only ever read back out of
+`payload.attio`, which is what makes a sweeper resume skip the deal write —
+no migration, and a row stored before the field existed simply defaults it.
 
 ### Person dedupe — why not an upsert
 

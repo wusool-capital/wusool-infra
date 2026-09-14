@@ -75,3 +75,8 @@ class SubjectRefs:
     person_name: str | None = None
     seller_role_entry_id: str | None = None
     buyer_role_entry_id: str | None = None
+    # Not a `tool_runs` column, unlike the four above: this one is only ever
+    # read back out of `payload.attio`, which is what makes a sweeper resume
+    # skip the deal write. A row stored before this field existed simply
+    # defaults it.
+    deal_attio_id: str | None = None

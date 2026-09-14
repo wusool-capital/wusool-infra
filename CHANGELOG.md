@@ -10,6 +10,14 @@ for current production evidence and open handover items.
 
 ## 2026-09-14
 
+### Added
+
+- Every lead-magnet submission now creates an Attio deal at stage
+  **Inbound**, so a new lead lands in the pipeline instead of waiting to be
+  keyed in by hand. One deal per organisation: a company that runs two tools
+  is one lead, and a deal an advisor has already advanced is never dragged
+  back to Inbound.
+
 ### Changed
 
 - Replaced `discovery`'s Firecrawl Google Maps scrape with Google's Places

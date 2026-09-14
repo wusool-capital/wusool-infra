@@ -18,6 +18,7 @@ from app.modules.lead_magnets.application.shared.service import LeadMagnetServic
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
+from app.modules.lead_magnets.domain.shared.attio_values import DealType
 from app.modules.lead_magnets.domain.shared.dedup import (
     domain_matches,
     normalise_domain,
@@ -30,6 +31,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.database import get_sessionmaker
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
+from app.modules.lead_magnets.providers.attio.deal_writer import AttioDealWriter
 from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWriter
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
@@ -56,6 +58,10 @@ def build_person_writer() -> AttioPersonWriter:
     return AttioPersonWriter(get_attio_client(), is_test=attio_is_test())
 
 
+def build_deal_writer() -> AttioDealWriter:
+    return AttioDealWriter(get_attio_client(), is_test=attio_is_test())
+
+
 def build_tool_runs(session: AsyncSession) -> ToolRunsRepository:
     return ToolRunsRepository(session)
 
@@ -74,10 +80,12 @@ class _RoleAttioWriter:
         writer: AttioRoleWriter,
         organizations: OrganizationRepository,
         person: AttioPersonWriter,
+        deal: AttioDealWriter,
     ) -> None:
         self._writer = writer
         self._organizations = organizations
         self._person = person
+        self._deal = deal
 
     async def _find_existing_org(self, *, name: str, domain: str | None) -> str | None:
         """Postgres-side dedup, per `domain/shared/dedup.py`'s own docstring:
@@ -117,12 +125,13 @@ class _RoleAttioWriter:
                 entry_values=entry_values,
                 organization_attio_id=await self._find_existing_org(name=name, domain=buyer.domain),
             )
-            return await self._with_person(
+            subjects = await self._with_person(
                 subjects,
                 name=buyer.full_name,
                 email=buyer.email,
                 linkedin=buyer.linkedin_url,
             )
+            return await self._with_deal(subjects, deal_type="Buy-side")
 
         seller = AttioIdentityPayload.model_validate(payload)
         # `company_name` is not a field any real request ever sends — kept as
@@ -151,9 +160,10 @@ class _RoleAttioWriter:
             funding_raised=seller.capital_raised,
             organization_attio_id=await self._find_existing_org(name=name, domain=seller.domain),
         )
-        return await self._with_person(
+        subjects = await self._with_person(
             subjects, name=seller.name, email=seller.email, phone=seller.phone
         )
+        return await self._with_deal(subjects, deal_type="Sell-side")
 
     async def _with_person(
         self,
@@ -187,6 +197,24 @@ class _RoleAttioWriter:
             subjects, person_attio_id=person_attio_id, person_name=person_name
         )
 
+    async def _with_deal(self, subjects: SubjectRefs, *, deal_type: DealType) -> SubjectRefs:
+        """Best-effort, same rule as `_with_person`: the org/role write above
+        has already landed the lead, and a deal failure must not make the
+        sweeper re-enter this whole method.
+        """
+        try:
+            deal_attio_id = await self._deal.write(
+                org_attio_id=subjects.org_attio_id,
+                org_name=subjects.org_name or "Unknown",
+                deal_type=deal_type,
+            )
+        except Exception as exc:  # noqa: BLE001 - the org/role write already succeeded
+            logger.warning("lead_magnet_deal_write_failed error=%s", exc)
+            return subjects
+        if deal_attio_id is None:
+            return subjects
+        return dataclasses.replace(subjects, deal_attio_id=deal_attio_id)
+
 
 def build_valuation_ai() -> ValuationAi:
     return ValuationAi(build_llm(), build_search())
@@ -198,7 +226,10 @@ def build_submission_service(session: AsyncSession) -> LeadMagnetService:
     return LeadMagnetService(
         tool_runs=build_tool_runs(session),
         attio=_RoleAttioWriter(
-            build_role_writer(), OrganizationRepository(session), build_person_writer()
+            build_role_writer(),
+            OrganizationRepository(session),
+            build_person_writer(),
+            build_deal_writer(),
         ),
         llm=build_llm(),
     )

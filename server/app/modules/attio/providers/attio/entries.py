@@ -281,3 +281,41 @@ async def patch_person(client: AttioClientProtocol, attio_id: str, values: dict)
     await client.patch(
         f"/objects/{_PERSON_OBJECT}/records/{attio_id}", {"data": {"values": values}}
     )
+
+
+_DEAL_OBJECT = "deal"
+
+
+async def find_deals_by_party(
+    client: AttioClientProtocol, *, field: str, org_attio_id: str, is_test: bool
+) -> list[AttioRecord]:
+    """Every `deal` record whose `field` (`seller_id` or `buyer_id`) points at
+    `org_attio_id`, oldest first, filtered to this process's half of the
+    shared workspace.
+
+    Same three constraints as `find_people_by_email`, for the same reasons:
+    a query rather than an upsert (neither reference attribute is unique),
+    `is_test` filtered client-side (Attio's checkbox filter has no "is
+    empty", and an absent flag reads as production), and an explicit
+    `sorts` so a sweeper re-entry resolves to the same deal every time
+    rather than Attio's "deterministic random order".
+    """
+    response = await client.post(
+        f"/objects/{_DEAL_OBJECT}/records/query",
+        {
+            "filter": {field: {"target_object": "organizations", "target_record_id": org_attio_id}},
+            "sorts": [{"attribute": "created_at", "direction": "asc"}],
+            "limit": _PAGE_SIZE,
+        },
+    )
+    return [r for r in response.get("data", []) if _record_is_test(r) is is_test]
+
+
+async def create_deal(client: AttioClientProtocol, values: dict, *, is_test: bool) -> str:
+    """Exact mirror of `create_organization` — see its docstring for why
+    `is_test` is stamped here rather than by the caller."""
+    response = await client.post(
+        f"/objects/{_DEAL_OBJECT}/records",
+        {"data": {"values": {**values, "is_test": is_test}}},
+    )
+    return response["data"]["id"]["record_id"]
