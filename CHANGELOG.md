@@ -16,7 +16,9 @@ for current production evidence and open handover items.
   **Inbound**, so a new lead lands in the pipeline instead of waiting to be
   keyed in by hand. One deal per organisation: a company that runs two tools
   is one lead, and a deal an advisor has already advanced is never dragged
-  back to Inbound.
+  back to Inbound. Each deal is assigned to an advisor on creation, with a
+  configured fallback so the write cannot silently stop if that advisor
+  leaves the workspace.
 
 ### Changed
 

@@ -54,6 +54,19 @@ class Settings(BaseSettings):
     # Per-IP, per-hour cap on the endpoints that spend money.
     lead_magnet_rate_per_hour: int = 20
 
+    # Attio `workspace_membership_id` of the advisor a new inbound deal is
+    # assigned to. Every deal in the live workspace has an owner, so a
+    # lead-magnet deal without one would be the only unassigned card in the
+    # pipeline — which is most of what this write exists to avoid.
+    lead_magnet_deal_owner_id: str = "bb40387a-b57b-491e-b8a6-9ba593d6e97d"  # Ramzy Osman
+    # Used only when a create is *rejected* with the primary owner — they
+    # leave the workspace, say. Without it that failure is silent: the deal
+    # write is best-effort, so every lead-magnet deal would simply stop
+    # being created and nothing would surface it but a log line.
+    lead_magnet_deal_owner_fallback_id: str = (
+        "bd1fdd66-b15b-4601-9fce-949fb7b2da4d"  # Jules Chasles
+    )
+
     lead_magnet_sweeper_interval_s: int = 300
     lead_magnet_sweeper_stale_after_s: int = 300
 

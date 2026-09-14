@@ -435,7 +435,7 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
         AttioRoleWriter(client, is_test=True),
         OrganizationRepository(db_session),
         AttioPersonWriter(client, is_test=True),
-        AttioDealWriter(client, is_test=True),
+        AttioDealWriter(client, is_test=True, owner_id="owner-1", fallback_owner_id="owner-2"),
     )
     repo = ToolRunsRepository(db_session)
     service = SubmissionService(

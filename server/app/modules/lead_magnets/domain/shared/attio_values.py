@@ -292,7 +292,9 @@ INBOUND_STAGE = "Inbound"
 DEAL_PARTY_FIELD: Mapping[DealType, str] = {"Sell-side": "seller_id", "Buy-side": "buyer_id"}
 
 
-def deal_values(*, name: str, org_attio_id: str, deal_type: DealType) -> dict[str, object]:
+def deal_values(
+    *, name: str, org_attio_id: str, deal_type: DealType, owner_id: str
+) -> dict[str, object]:
     """The write shape for a `deal` create — see
     `providers/attio/deal_writer.py` for the dedupe rule this feeds into.
 
@@ -301,12 +303,16 @@ def deal_values(*, name: str, org_attio_id: str, deal_type: DealType) -> dict[st
     otherwise substitute `Unnamed Deal [<record id>]`.
 
     Select and status attributes take their option *title* directly, same as
-    `role_writer.py`'s `sector_focus`.
+    `role_writer.py`'s `sector_focus`. `deal_owner` is an actor-reference —
+    the shape `values.actor` reads back on the mirror's side.
     """
     return {
         "deal_name": name,
         "deal_stage": INBOUND_STAGE,
         "deal_type": deal_type,
+        "deal_owner": [
+            {"referenced_actor_type": "workspace-member", "referenced_actor_id": owner_id}
+        ],
         DEAL_PARTY_FIELD[deal_type]: [
             {"target_object": "organizations", "target_record_id": org_attio_id}
         ],

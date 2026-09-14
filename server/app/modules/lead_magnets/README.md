@@ -450,6 +450,18 @@ Which side the submitting organisation goes in follows the tool: the three
 seller tools write `seller_id` + `deal_type: Sell-side`; `buyer_network` is
 an acquirer applying to the network, so it writes `buyer_id` + `Buy-side`.
 
+`deal_owner` is always set, from `LEAD_MAGNET_DEAL_OWNER_ID`. Attio does not
+mark the attribute required, but every deal in the live workspace has an
+owner, so an unowned one would be the only unassigned card in the pipeline.
+A create Attio *rejects* is retried once with
+`LEAD_MAGNET_DEAL_OWNER_FALLBACK_ID`: the primary advisor leaving the
+workspace would otherwise silently stop every lead-magnet deal from being
+created, visible only as a log line, since this write is best-effort.
+
+`deal_value` is deliberately never written. No `Inbound` deal in the live
+workspace carries one — value is set by a human as the deal advances, and a
+self-reported figure from the valuation tool is not that.
+
 `SubjectRefs.deal_attio_id` is deliberately **not** a `tool_runs` column,
 unlike the four subject ids next to it. It is only ever read back out of
 `payload.attio`, which is what makes a sweeper resume skip the deal write —

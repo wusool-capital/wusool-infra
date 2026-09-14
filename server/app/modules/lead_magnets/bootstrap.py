@@ -59,7 +59,13 @@ def build_person_writer() -> AttioPersonWriter:
 
 
 def build_deal_writer() -> AttioDealWriter:
-    return AttioDealWriter(get_attio_client(), is_test=attio_is_test())
+    settings = get_settings()
+    return AttioDealWriter(
+        get_attio_client(),
+        is_test=attio_is_test(),
+        owner_id=settings.lead_magnet_deal_owner_id,
+        fallback_owner_id=settings.lead_magnet_deal_owner_fallback_id,
+    )
 
 
 def build_tool_runs(session: AsyncSession) -> ToolRunsRepository:
