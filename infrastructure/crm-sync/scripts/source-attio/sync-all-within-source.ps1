@@ -164,12 +164,44 @@ Write-Host ""
 # transient Attio error, anything) must never abort the migration itself --
 # that would be strictly worse than the wasted-reconciliation-churn problem
 # it exists to prevent. Any failure here just warns and proceeds unpaused.
+# The captured subscription list is ALSO written to disk before pausing, and
+# read back if the live webhook is already empty. Without that stash the list
+# lived only in this process's memory: a run killed before the `finally`
+# below left the webhook paused with no record anywhere of what to restore,
+# and the NEXT run then captured that empty list and faithfully restored
+# empty -- silently making the outage permanent. Happened twice on
+# 2026-09-14. The stash makes a kill recoverable and stops an already-paused
+# webhook from being baked in as the new truth.
+$webhookStashPath = Join-Path $PSScriptRoot "..\..\..\..\outputsttio-webhook-subscriptions.json"
 $devWebhook = $null
 $webhookPaused = $false
 if ($Apply -and -not $SkipWebhookPause) {
   try {
     $devWebhook = Get-DevWebhook
     if ($null -ne $devWebhook) {
+      $liveSubs = @($devWebhook.subscriptions)
+      if ($liveSubs.Count -eq 0) {
+        # Already paused (or bricked). Never snapshot that -- recover instead.
+        if (Test-Path $webhookStashPath) {
+          $stashed = @((Get-Content $webhookStashPath -Raw | ConvertFrom-Json).subscriptions)
+          if ($stashed.Count -gt 0) {
+            Write-Warning "Attio webhook has 0 subscriptions -- restoring $($stashed.Count) from the stash instead of capturing the empty list."
+            $devWebhook | Add-Member -NotePropertyName subscriptions -NotePropertyValue $stashed -Force
+          }
+        } else {
+          Write-Warning "Attio webhook has 0 subscriptions and no stash exists -- this run will NOT be able to restore it. Re-add the events in Attio, then re-run."
+        }
+      } else {
+        $stashDir = Split-Path $webhookStashPath -Parent
+        if (-not (Test-Path $stashDir)) { New-Item -ItemType Directory -Force -Path $stashDir | Out-Null }
+        @{
+          webhook_id    = [string]$devWebhook.id.webhook_id
+          target_url    = [string]$devWebhook.target_url
+          captured_at   = (Get-Date).ToUniversalTime().ToString("o")
+          subscriptions = $liveSubs
+        } | ConvertTo-Json -Depth 8 | Set-Content -Path $webhookStashPath -Encoding utf8
+        Write-Host "Stashed $($liveSubs.Count) webhook subscription(s) to $webhookStashPath"
+      }
       Write-Host "Pausing Attio webhook $($devWebhook.id.webhook_id) for the duration of this run..."
       Invoke-AttioRequest -Method Patch -Path "/webhooks/$($devWebhook.id.webhook_id)" -Body @{
         data = @{ target_url = $devWebhook.target_url; subscriptions = @() }

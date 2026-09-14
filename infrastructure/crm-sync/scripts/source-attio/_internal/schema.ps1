@@ -823,17 +823,29 @@ foreach($field in @($fields|Where-Object{$_.Type-eq"select"-and$_.PSObject.Prope
 # object's is, so it's discovered dynamically here (same technique
 # objects.ps1 uses). Ensures every SOURCE native Deals pipeline stage
 # exists as an option here too (read live, not hardcoded, so it tracks
-# SOURCE if that pipeline ever changes) plus "Mandate Active" (used only
-# by the mandate migration -- SOURCE has no such stage of its own) -- so a
-# regular Deal sync never hits "Missing deal stage option" for a
-# legitimate SOURCE stage.
+# SOURCE if that pipeline ever changes) plus the buy-side mandate stage
+# (used only by the mandate migration -- SOURCE has no such stage of its
+# own) -- so a regular Deal sync never hits "Missing deal stage option"
+# for a legitimate SOURCE stage.
+#
+# The mandate stage is "(Buyer) Mandate Active", the title this object
+# already carries. It used to be seeded as a bare "Mandate Active", which
+# created a second, semantically identical stage alongside it (2026-09-14)
+# -- the duplicate has been archived and must not be reintroduced. Keep
+# this in step with objects.ps1's $MandateActiveStageTitle.
 $dealAttributesForStage=@((Request Get "/objects/deal/attributes" $null).data)
 $targetStageAttr=@($dealAttributesForStage|Where-Object{[string]$_.type-eq"status"}|Select-Object -First 1)
 if(-not$targetStageAttr){throw "The deal object has no Status-type attribute -- create the pipeline stage field first (see the Kanban setup notes)."}
 $stageSlug=[string]$targetStageAttr.api_slug
 $sourceStageTitles=[Collections.Generic.List[string]]::new()
-foreach($o in @((Request Get "/objects/deals/attributes/stage/statuses" $null).data|Where-Object{-not$_.is_archived})){$sourceStageTitles.Add([string]$o.title)}
-$sourceStageTitles.Add("Mandate Active")
+$dealStageAliases=@{}
+if($decisions.deal_stage_aliases){foreach($k in $decisions.deal_stage_aliases.PSObject.Properties){if($k.Name-ne"_note"){$dealStageAliases[[string]$k.Name]=[string]$k.Value}}}
+foreach($o in @((Request Get "/objects/deals/attributes/stage/statuses" $null).data|Where-Object{-not$_.is_archived})){
+  $t=[string]$o.title
+  if($dealStageAliases.ContainsKey($t)){$t=$dealStageAliases[$t]}
+  $sourceStageTitles.Add($t)
+}
+$sourceStageTitles.Add("(Buyer) Mandate Active")
 $existingStageTitles=@{}
 foreach($o in @((Request Get "/objects/deal/attributes/$stageSlug/statuses" $null).data|Where-Object{-not$_.is_archived})){$existingStageTitles[[string]$o.title.Trim().ToLowerInvariant()]=$true}
 foreach($title in $sourceStageTitles){
