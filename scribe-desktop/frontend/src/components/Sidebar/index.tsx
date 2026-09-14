@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, PanelLeft, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Folder } from 'lucide-react';
+import { Bug, ChevronDown, ChevronRight, File, Settings, PanelLeft, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Folder } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar, TAG_FOLDER_PREFIX } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button';
 
 import Logo from '../Logo';
 import { ComplianceNotification } from '../ComplianceNotification';
+import { FeedbackDialog } from '../FeedbackDialog';
 import { Input } from '../ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
 import { ScrollArea } from '../ui/scroll-area';
@@ -100,6 +101,7 @@ const Sidebar: React.FC = () => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [modelConfig, setModelConfig] = useState<ModelConfig>({
     provider: 'ollama',
     model: '',
@@ -751,21 +753,38 @@ const Sidebar: React.FC = () => {
               <div className="flex items-center mb-3">
                 <Logo isCollapsed={isCollapsed} />
                 <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={toggleCollapse}
-                        className="h-10 w-10 ml-auto rounded-lg text-muted-foreground flex-shrink-0"
-                      >
-                        <PanelLeft className="w-5 h-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>Collapse sidebar</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setShowFeedback(true)}
+                          className="h-10 w-10 rounded-lg text-muted-foreground"
+                        >
+                          <Bug className="w-5 h-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Send feedback</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={toggleCollapse}
+                          className="h-10 w-10 rounded-lg text-muted-foreground"
+                        >
+                          <PanelLeft className="w-5 h-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>Collapse sidebar</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </TooltipProvider>
               </div>
 
@@ -951,6 +970,8 @@ const Sidebar: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <FeedbackDialog open={showFeedback} onOpenChange={setShowFeedback} />
     </div>
   );
 };
