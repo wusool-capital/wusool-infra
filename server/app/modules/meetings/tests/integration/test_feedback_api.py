@@ -98,7 +98,20 @@ async def test_wrong_key_is_rejected(db_session) -> None:
     assert response.status_code == 401
 
 
-async def test_happy_path_persists_the_row_and_emails_every_recipient(db_session) -> None:
+async def test_happy_path_persists_the_row_and_schedules_email_to_every_recipient(
+    db_session,
+) -> None:
+    """The row's `email_sent` flip is deliberately NOT asserted here: the
+    background task (`bootstrap.send_feedback_email`) marks it via its OWN
+    session/connection, invisible to `db_session`'s still-open transaction
+    -- the same reason `test_role_lookup.py`'s fixture exists in the first
+    place. That write path is covered directly by
+    `test_feedback_repository.py::test_mark_email_sent_sets_both_columns`
+    and by `test_bootstrap_feedback_email.py`'s orchestration tests. This
+    test only asserts what's actually observable through this connection:
+    the row exists with the right fields, and the background task ran
+    (proven by the fake mailer receiving the call).
+    """
     mailer = _FakeMailer()
     async with _make_client(db_session, mailer) as client:
         response = await client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
@@ -110,8 +123,6 @@ async def test_happy_path_persists_the_row_and_emails_every_recipient(db_session
     assert row.category == "bug"
     assert row.message == _VALID_PAYLOAD["message"]
     assert row.install_id == "install-abc-123"
-    assert row.email_sent is True
-    assert row.email_sent_at is not None
 
     assert len(mailer.calls) == 1
     call = mailer.calls[0]
@@ -172,15 +183,21 @@ async def test_whitespace_only_email_to_is_treated_as_unconfigured(
     assert mailer.calls == []
 
 
-async def test_email_failure_still_returns_200_and_row_is_not_marked_sent(db_session) -> None:
+async def test_email_failure_in_the_background_task_still_returns_200(db_session) -> None:
+    """The exception raised inside the scheduled background task must not
+    surface as a 500 -- `submit_feedback` itself never awaits the send, so
+    there's nothing in the request path left to fail. Whether
+    `mark_email_sent` correctly gets skipped on a raised send is asserted
+    directly, without a background task or a second DB connection, in
+    `test_bootstrap_feedback_email.py`.
+    """
     mailer = _FakeMailer(raise_error=True)
     async with _make_client(db_session, mailer) as client:
         response = await client.post("/desktop/feedback", json=_VALID_PAYLOAD, headers=_headers())
 
     assert response.status_code == 200
     row = await _only_row(db_session)
-    assert row.email_sent is False
-    assert row.email_sent_at is None
+    assert row.category == "bug"
 
 
 async def test_rate_limit_blocks_the_sixth_submission_for_the_same_install(db_session) -> None:

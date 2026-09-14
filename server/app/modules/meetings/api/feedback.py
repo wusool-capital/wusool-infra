@@ -1,20 +1,24 @@
 """POST /desktop/feedback — durably records in-app feedback from the
-desktop app in `feedback_submissions`, then best-effort emails it via SES.
+desktop app in `feedback_submissions`, then best-effort emails it via SES
+in the background.
 
 The database write is the source of truth and must succeed (a normal 500
 if Postgres itself is down, same as any other write endpoint here). Email
 is a notification about a row that already exists, not the record itself
--- its failure is logged, not raised, so a misconfigured or briefly-down
-SES never loses a user's feedback. See `app/models/feedback_submission.py`
-for the `email_sent`/`email_sent_at` columns that make a failed
-notification visible without failing the request.
+-- it's scheduled via `BackgroundTasks` (see `bootstrap.send_feedback_email`)
+rather than awaited here, so a misconfigured, throttled, or briefly-down
+SES neither loses a user's feedback nor makes them wait for a retry loop
+that has nothing to do with whether their submission succeeded. See
+`app/models/feedback_submission.py` for the `email_sent`/`email_sent_at`
+columns that make a failed notification visible without failing the
+request.
 """
 
 import logging
 import time
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from app.modules.meetings.api.auth import require_desktop_api_key
 from app.modules.meetings.api.dependencies import FeedbackMailerDep, FeedbackRepositoryDep
@@ -23,6 +27,7 @@ from app.modules.meetings.api.schemas import (
     DesktopFeedbackResponse,
     FeedbackCategory,
 )
+from app.modules.meetings.bootstrap import send_feedback_email
 from app.modules.meetings.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -96,7 +101,10 @@ def build_feedback_email_body(request: DesktopFeedbackRequest) -> str:
 
 @router.post("/feedback")
 async def submit_feedback(
-    request: DesktopFeedbackRequest, repo: FeedbackRepositoryDep, mailer: FeedbackMailerDep
+    request: DesktopFeedbackRequest,
+    repo: FeedbackRepositoryDep,
+    mailer: FeedbackMailerDep,
+    background_tasks: BackgroundTasks,
 ) -> DesktopFeedbackResponse:
     if not _limiter.check(request.install_id):
         raise HTTPException(
@@ -118,20 +126,15 @@ async def submit_feedback(
     settings = get_settings()
     recipients = settings.feedback_email_to.split()
     if recipients and settings.feedback_email_from:
-        try:
-            await mailer.send(
-                to=recipients,
-                from_addr=settings.feedback_email_from,
-                subject=build_feedback_email_subject(request),
-                body=build_feedback_email_body(request),
-            )
-        except Exception:
-            logger.exception(
-                "desktop_feedback_email_failed",
-                extra={"install_id": request.install_id, "submission_id": str(submission_id)},
-            )
-        else:
-            await repo.mark_email_sent(id=submission_id)
+        background_tasks.add_task(
+            send_feedback_email,
+            mailer=mailer,
+            submission_id=submission_id,
+            to=recipients,
+            from_addr=settings.feedback_email_from,
+            subject=build_feedback_email_subject(request),
+            body=build_feedback_email_body(request),
+        )
     else:
         logger.info(
             "desktop_feedback_email_not_configured",

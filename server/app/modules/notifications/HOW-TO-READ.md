@@ -99,6 +99,15 @@ The one concrete implementation of `EmailSenderPort`, built on a plain
 is synchronous like every boto3 call, so `send` runs it on a worker thread
 via `asyncio.to_thread`.
 
+Retries a transient failure (throttling, a momentary AWS-side outage) up
+to 3 times with exponential backoff, through the same generic loop
+Bedrock's client retries through (`utilities.domain.retry.retry_with_backoff`
+— `utilities` is a documented full-access module). A permanent failure
+(`MessageRejected`, an unverified identity, a paused account) is never
+retried. This is entirely `send`'s own concern — callers just `await
+send(...)`, the same way `BedrockConverseClient.summarize` hides its own
+retry from its callers.
+
 ### `providers/ses/client.py` — `get_ses_client`
 
 Where that `SESClient` actually comes from: one shared, `lru_cache`d

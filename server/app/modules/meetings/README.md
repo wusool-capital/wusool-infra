@@ -14,9 +14,13 @@ unchanged — it still records and transcribes locally and only pushes a
 finished transcript here; recording/audio storage (S3) is out of scope.
 `POST /desktop/feedback` is the one exception to "no other delivery": it
 durably records the desktop app's in-app feedback form in
-`feedback_submissions` and best-effort emails it via SES (see
-`api/feedback.py`) — the row is the source of truth, the email is a
-notification about it.
+`feedback_submissions` (row committed before the response returns), then
+schedules a `BackgroundTasks` email via SES (`bootstrap.send_feedback_email`)
+— the row is the source of truth, the email is a notification about it
+that runs off the request path entirely. `SesMailer` retries a transient
+SES failure internally, up to 3 attempts with backoff
+(`notifications/providers/ses/mailer.py`); backgrounding is what makes
+that retry free of charge to the request.
 
 `GET /desktop/verify` lets the desktop app's Push Destination settings
 check a server URL + API key before saving them — the route body does

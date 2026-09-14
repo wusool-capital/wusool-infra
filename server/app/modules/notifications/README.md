@@ -54,10 +54,13 @@ Consumers (`matching_engine`, `ddl_commands`, `enrichment`, `discovery`,
 (`SlackWebClientNotifier(get_slack_client(bot_token))`) and injects
 `SlackNotifierPort` into whatever use case needs to post. Each module's own
 `api/slack/bolt_app.py` calls `build_bolt_app` with its own settings and
-`register_handlers`. `meetings/api/dependencies.py::feedback_mailer`
+`register_handlers`. `meetings/bootstrap.py::build_feedback_mailer`
 constructs the email counterpart the same way
-(`SesMailer(get_ses_client(region_name=..., aws_access_key_id=..., aws_secret_access_key=...))`)
-and injects `EmailSenderPort`.
+(`SesMailer(get_ses_client(region_name=..., aws_access_key_id=..., aws_secret_access_key=...))`),
+consumed by `api/dependencies.py::feedback_mailer` and injected as
+`EmailSenderPort` — matching this module's own rule (see
+`bootstrap.py`'s docstring) that concrete provider construction belongs
+in `bootstrap.py`, not inline in `api/dependencies.py`.
 
 Neither `get_slack_client` nor `get_ses_client` reads any module's
 `Settings` — every credential is a parameter, so this module has zero

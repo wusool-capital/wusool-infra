@@ -22,11 +22,14 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.meetings.application.service import MeetingsService
-from app.modules.meetings.bootstrap import build_feedback_repository, build_meetings_service
-from app.modules.meetings.config import get_settings
+from app.modules.meetings.bootstrap import (
+    build_feedback_mailer,
+    build_feedback_repository,
+    build_meetings_service,
+)
 from app.modules.meetings.persistence.database import get_sessionmaker
 from app.modules.meetings.persistence.feedback_repository import FeedbackRepository
-from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
+from app.modules.notifications import EmailSenderPort
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
@@ -68,13 +71,7 @@ FeedbackRepositoryDep = Annotated[FeedbackRepository, Depends(get_feedback_repos
 
 
 def feedback_mailer() -> EmailSenderPort:
-    settings = get_settings()
-    client = get_ses_client(
-        region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-    )
-    return SesMailer(client)
+    return build_feedback_mailer()
 
 
 FeedbackMailerDep = Annotated[EmailSenderPort, Depends(feedback_mailer)]
