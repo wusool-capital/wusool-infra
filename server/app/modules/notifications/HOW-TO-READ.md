@@ -7,10 +7,11 @@ concept that actually matters.
 
 ## The one-sentence version
 
-This module holds Slack-related code that's generic enough to be shared
-by both `matching_engine` and `ddl_commands` — it has no Slack commands of
-its own, no database, and nothing that runs standalone. It's a toolbox,
-not a service.
+This module holds outbound-messaging code that's generic enough to be
+shared across other modules — Slack (used by `matching_engine` and
+`ddl_commands`) and email via SES (used by `meetings`) — it has no Slack
+commands or endpoints of its own, no database, and nothing that runs
+standalone. It's a toolbox, not a service.
 
 ## The one thing worth understanding: in-request vs. out-of-band
 
@@ -84,10 +85,36 @@ syntax). Framework-free — it's genuinely Slack-format-specific, not a
 generic string-sanitizing primitive, which is why it lives in `domain/`
 rather than `utilities`.
 
+### `application/ports/email.py` — `EmailSenderPort`
+
+The email counterpart to `SlackNotifierPort`: one method, `send`. There's
+no in-request/out-of-band distinction to make here the way there is for
+Slack — email has no live request to reply into, so this Port is always
+the right thing when a module needs to send one.
+
+### `providers/ses/mailer.py` — `SesMailer`
+
+The one concrete implementation of `EmailSenderPort`, built on a plain
+`SESClient` (a thin boto3 client, not a framework of its own). `send_email`
+is synchronous like every boto3 call, so `send` runs it on a worker thread
+via `asyncio.to_thread`.
+
+### `providers/ses/client.py` — `get_ses_client`
+
+Where that `SESClient` actually comes from: one shared, `lru_cache`d
+instance per (region, access key, secret key) — mirrors
+`providers/slack/client.py`'s `get_slack_client` exactly, including the
+"credentials are a parameter, never read from a module's own config"
+rule. SES itself, not IAM, is what actually enforces a verified `Source`
+address; this client only constructs the boto3 handle.
+
 ## Where to go next
 
 - Posting something from a background task (not a live Slack request) →
   `SlackNotifierPort` + `SlackWebClientNotifier`.
+- Sending an email from anywhere → `EmailSenderPort` + `SesMailer` (see
+  `meetings/api/dependencies.py::feedback_mailer` for the construction
+  pattern).
 - Building a new module's own Bolt app → `build_bolt_app`, and look at
   how `matching_engine`'s or `ddl_commands`' own
   `api/slack/bolt_app.py` calls it.

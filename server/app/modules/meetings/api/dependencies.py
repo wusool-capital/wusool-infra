@@ -21,11 +21,11 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.meetings.application.ports.email import EmailSenderPort
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.bootstrap import build_meetings_service
+from app.modules.meetings.config import get_settings
 from app.modules.meetings.persistence.database import get_sessionmaker
-from app.modules.meetings.providers.ses.mailer import SesMailer
+from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
@@ -60,7 +60,13 @@ MeetingsServiceDep = Annotated[MeetingsService, Depends(get_meetings_service)]
 
 
 def feedback_mailer() -> EmailSenderPort:
-    return SesMailer()
+    settings = get_settings()
+    client = get_ses_client(
+        region_name=settings.aws_region,
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+    )
+    return SesMailer(client)
 
 
 FeedbackMailerDep = Annotated[EmailSenderPort, Depends(feedback_mailer)]
