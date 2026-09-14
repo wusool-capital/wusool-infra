@@ -293,22 +293,39 @@ async def find_deals_by_party(
     `org_attio_id`, oldest first, filtered to this process's half of the
     shared workspace.
 
-    Same three constraints as `find_people_by_email`, for the same reasons:
-    a query rather than an upsert (neither reference attribute is unique),
-    `is_test` filtered client-side (Attio's checkbox filter has no "is
-    empty", and an absent flag reads as production), and an explicit
-    `sorts` so a sweeper re-entry resolves to the same deal every time
-    rather than Attio's "deterministic random order".
+    No server-side filter on `field`: it is a record-reference attribute,
+    same class as `parent_record_id` above, and this module's own opening
+    docstring already flags that this repo has no verified precedent for
+    that filter's syntax. Paging every `deal` and matching with `v.ref` —
+    the exact shape `_deal_params` already reads in production off this
+    same object — client-side is the same trade `resolve_role_entry_id`
+    makes above, and for the same reason: a wrong guess at the filter body
+    either 400s or silently matches nothing, and either failure mode here
+    means a duplicate `Inbound` deal per submission, which is the one thing
+    this write exists to prevent. `is_test` is filtered client-side for the
+    usual reason (no "is empty" operator, absent reads as production).
     """
-    response = await client.post(
-        f"/objects/{_DEAL_OBJECT}/records/query",
-        {
-            "filter": {field: {"target_object": "organizations", "target_record_id": org_attio_id}},
-            "sorts": [{"attribute": "created_at", "direction": "asc"}],
-            "limit": _PAGE_SIZE,
-        },
-    )
-    return [r for r in response.get("data", []) if _record_is_test(r) is is_test]
+    offset = 0
+    matches: list[AttioRecord] = []
+    while True:
+        response = await client.post(
+            f"/objects/{_DEAL_OBJECT}/records/query",
+            {
+                "sorts": [{"attribute": "created_at", "direction": "asc"}],
+                "limit": _PAGE_SIZE,
+                "offset": offset,
+            },
+        )
+        page = response.get("data", [])
+        for record in page:
+            if v.ref(v.vals(record), field) != org_attio_id:
+                continue
+            if _record_is_test(record) is is_test:
+                matches.append(record)
+        if len(page) < _PAGE_SIZE:
+            break
+        offset += _PAGE_SIZE
+    return matches
 
 
 async def create_deal(client: AttioClientProtocol, values: dict, *, is_test: bool) -> str:

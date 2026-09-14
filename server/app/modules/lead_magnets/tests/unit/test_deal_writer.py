@@ -2,7 +2,12 @@
 
 Fakes only at the network seam (`AttioClientProtocol`) — `entries.py`'s real
 `find_deals_by_party`/`create_deal` run against it, same convention as
-`test_person_writer.py`.
+`test_person_writer.py`. The fake never pre-filters by party: it returns
+whatever page of raw `deal` records was asked for, exactly like the real
+Attio API would, so these tests exercise `find_deals_by_party`'s actual
+client-side `v.ref` matching rather than a hand-rolled substitute for it —
+see `entries.py::find_deals_by_party`'s docstring for why matching happens
+client-side at all.
 """
 
 import pytest
@@ -12,6 +17,7 @@ from app.modules.lead_magnets.providers.attio.deal_writer import AttioDealWriter
 
 _RAMZY = "owner-ramzy"
 _JULES = "owner-jules"
+_PAGE_SIZE = 500  # must match entries.py's own `_PAGE_SIZE`
 
 
 def _writer(client, *, is_test: bool = False) -> AttioDealWriter:
@@ -22,22 +28,30 @@ def _owner(owner_id: str) -> list[dict]:
     return [{"referenced_actor_type": "workspace-member", "referenced_actor_id": owner_id}]
 
 
-def _deal(record_id: str, *, is_test: bool = False) -> dict:
-    return {
-        "id": {"record_id": record_id},
-        "values": {"is_test": [{"active_until": None, "value": is_test}]},
-    }
+def _deal_record(
+    record_id: str,
+    *,
+    seller_id: str | None = None,
+    buyer_id: str | None = None,
+    is_test: bool = False,
+) -> dict:
+    values: dict = {"is_test": [{"active_until": None, "value": is_test}]}
+    if seller_id is not None:
+        values["seller_id"] = [{"active_until": None, "target_record_id": seller_id}]
+    if buyer_id is not None:
+        values["buyer_id"] = [{"active_until": None, "target_record_id": buyer_id}]
+    return {"id": {"record_id": record_id}, "values": values}
 
 
 class _FakeClient:
     def __init__(
         self,
         *,
-        matches: list[dict] | None = None,
+        records: list[dict] | None = None,
         created_id: str = "deal-new",
         reject_owner: str | None = None,
     ) -> None:
-        self._matches = matches or []
+        self._records = records or []
         self._created_id = created_id
         self._reject_owner = reject_owner
         self.queries: list[dict] = []
@@ -45,8 +59,10 @@ class _FakeClient:
 
     async def post(self, path: str, json_body: dict) -> dict:
         if path == "/objects/deal/records/query":
-            self.queries.append(json_body["filter"])
-            return {"data": self._matches}
+            self.queries.append(json_body)
+            offset = json_body["offset"]
+            limit = json_body["limit"]
+            return {"data": self._records[offset : offset + limit]}
         if path == "/objects/deal/records":
             values = json_body["data"]["values"]
             self.create_calls.append(values)
@@ -66,9 +82,8 @@ class _FakeClient:
 
 async def test_no_organisation_skips_the_write_entirely() -> None:
     client = _FakeClient()
-    writer = _writer(client, is_test=False)
 
-    result = await writer.write(org_attio_id=None, org_name="Acme", deal_type="Sell-side")
+    result = await _writer(client).write(org_attio_id=None, org_name="Acme", deal_type="Sell-side")
 
     assert result is None
     assert client.queries == []
@@ -76,10 +91,11 @@ async def test_no_organisation_skips_the_write_entirely() -> None:
 
 
 async def test_no_match_creates_an_inbound_sell_side_deal() -> None:
-    client = _FakeClient(matches=[])
-    writer = _writer(client, is_test=False)
+    client = _FakeClient(records=[])
 
-    result = await writer.write(org_attio_id="org-1", org_name="Acme", deal_type="Sell-side")
+    result = await _writer(client).write(
+        org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
+    )
 
     assert result == "deal-new"
     assert client.create_calls == [
@@ -95,14 +111,13 @@ async def test_no_match_creates_an_inbound_sell_side_deal() -> None:
 
 
 async def test_buyer_network_writes_buy_side_against_buyer_id() -> None:
-    client = _FakeClient(matches=[])
-    writer = _writer(client, is_test=True)
+    client = _FakeClient(records=[], created_id="deal-buy")
 
-    await writer.write(org_attio_id="org-9", org_name="Fund", deal_type="Buy-side")
+    result = await _writer(client, is_test=True).write(
+        org_attio_id="org-9", org_name="Fund", deal_type="Buy-side"
+    )
 
-    assert client.queries == [
-        {"buyer_id": {"target_object": "organizations", "target_record_id": "org-9"}}
-    ]
+    assert result == "deal-buy"
     values = client.create_calls[0]
     assert values["deal_type"] == "Buy-side"
     assert values["buyer_id"] == [{"target_object": "organizations", "target_record_id": "org-9"}]
@@ -112,47 +127,70 @@ async def test_buyer_network_writes_buy_side_against_buyer_id() -> None:
 
 async def test_existing_deal_is_reused_untouched() -> None:
     """A second tool from the same company must not add a second card, and
-    must not drag a deal a human has already advanced back to `Inbound`."""
-    client = _FakeClient(matches=[_deal("deal-old"), _deal("deal-newer")])
-    writer = _writer(client, is_test=False)
+    must not drag a deal a human has already advanced back to `Inbound`. A
+    decoy deal on a different organisation proves the match is real, not
+    just "whatever the fake returned"."""
+    client = _FakeClient(
+        records=[
+            _deal_record("deal-old", seller_id="org-1"),
+            _deal_record("deal-decoy", seller_id="org-other"),
+            _deal_record("deal-newer", seller_id="org-1"),
+        ]
+    )
 
-    result = await writer.write(org_attio_id="org-1", org_name="Acme", deal_type="Sell-side")
+    result = await _writer(client).write(
+        org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
+    )
 
     assert result == "deal-old"
     assert client.create_calls == []
 
 
 async def test_the_other_half_of_the_workspace_is_ignored() -> None:
-    client = _FakeClient(matches=[_deal("deal-prod", is_test=False)])
-    writer = _writer(client, is_test=True)
+    client = _FakeClient(records=[_deal_record("deal-prod", seller_id="org-1", is_test=False)])
 
-    result = await writer.write(org_attio_id="org-1", org_name="Acme", deal_type="Sell-side")
+    result = await _writer(client, is_test=True).write(
+        org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
+    )
 
     assert result == "deal-new"
     assert client.create_calls[0]["is_test"] is True
 
 
+async def test_paginates_across_more_than_one_page_of_deals() -> None:
+    """A match sitting on page 2 must still be found — the whole reason
+    `find_deals_by_party` pages every `deal` rather than trusting a single
+    filtered request (see its docstring)."""
+    filler = [_deal_record(f"filler-{i}", seller_id="org-other") for i in range(_PAGE_SIZE)]
+    target = _deal_record("deal-on-page-2", seller_id="org-1")
+    client = _FakeClient(records=[*filler, target])
+
+    result = await _writer(client).write(
+        org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
+    )
+
+    assert result == "deal-on-page-2"
+    assert len(client.queries) == 2
+    assert client.create_calls == []
+
+
 async def test_a_rejected_primary_owner_retries_once_with_the_fallback() -> None:
     """The primary advisor leaving the workspace would otherwise silently
     stop every lead-magnet deal from being created."""
-    client = _FakeClient(matches=[], reject_owner=_RAMZY)
+    client = _FakeClient(records=[], reject_owner=_RAMZY)
 
     result = await _writer(client).write(
         org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
     )
 
     assert result == "deal-new"
-    assert [call["deal_owner"] for call in client.create_calls] == [
-        _owner(_RAMZY),
-        _owner(_JULES),
-    ]
+    assert [call["deal_owner"] for call in client.create_calls] == [_owner(_RAMZY), _owner(_JULES)]
 
 
 async def test_a_rejected_fallback_owner_is_not_retried_forever() -> None:
-    client = _FakeClient(matches=[], reject_owner=None)
-    client._reject_owner = _RAMZY  # both ids reject below
-
+    client = _FakeClient(records=[], reject_owner=_RAMZY)
     writer = AttioDealWriter(client, is_test=False, owner_id=_RAMZY, fallback_owner_id=_RAMZY)
+
     with pytest.raises(AttioError):
         await writer.write(org_attio_id="org-1", org_name="Acme", deal_type="Sell-side")
 
