@@ -19,6 +19,9 @@ def test_round_trips_every_field() -> None:
         source_url="https://example.com/acme",
         address="123 Main St",
         category="logistics",
+        country="United Arab Emirates",
+        website="https://acme.example.com",
+        types=("point_of_interest", "establishment"),
     )
 
     assert decode_lead(encode_lead(lead)) == lead
@@ -28,6 +31,21 @@ def test_round_trips_optional_fields_left_unset() -> None:
     lead = DiscoveredLead(name="Acme Rollup", source_url="https://example.com/acme")
 
     assert decode_lead(encode_lead(lead)) == lead
+
+
+def test_types_round_trips_as_a_tuple_not_a_list() -> None:
+    """JSON has no tuple type — `types` must come back a `tuple` for the
+    frozen dataclass to compare equal, not the `list` the store round-trip
+    would otherwise leave it as.
+    """
+    lead = DiscoveredLead(
+        name="Acme Rollup", source_url="https://example.com/acme", types=("dentist",)
+    )
+
+    decoded = decode_lead(encode_lead(lead))
+
+    assert decoded == lead
+    assert isinstance(decoded.types, tuple)
 
 
 def test_encode_lead_returns_a_short_token_even_for_an_unusually_long_lead() -> None:

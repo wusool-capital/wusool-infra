@@ -40,6 +40,7 @@ _CURRENCY = FieldSpec("est_revenue", "Est. revenue", "currency")
 _BOOL = FieldSpec("profitable_only", "Profitable only", "bool")
 _NUMBER = FieldSpec("twitter_follower_count", "Twitter follower count", "number")
 _PERCENT = FieldSpec("gross_margin_pct", "Gross margin %", "percent")
+_TEXT_LIST = FieldSpec("domains", "Website / domains", "text_list")
 
 
 async def test_build_attio_values_resolves_select_to_option_id() -> None:
@@ -160,6 +161,30 @@ async def test_build_attio_values_passes_percent_through() -> None:
         extracted={"gross_margin_pct": 12.5},
     )
     assert result == {"gross_margin_pct": 12.5}
+
+
+async def test_build_attio_values_passes_text_list_through_as_a_bare_list() -> None:
+    # No `get_option_id` lookup, unlike `multi_select_text` above — `domains`
+    # is an Attio domain-type attribute, not a select.
+    client = _FakeClient({})
+    result = await build_attio_values(
+        client,
+        target_kind="objects",
+        target_slug="organizations",
+        table="organizations",
+        fields={"domains": _TEXT_LIST},
+        extracted={"domains": ["acme.com", "acme.io"]},
+    )
+    assert result == {"domains": ["acme.com", "acme.io"]}
+
+
+def test_build_postgres_values_passes_text_list_through_unchanged() -> None:
+    result = build_postgres_values(
+        table="organizations",
+        fields={"domains": _TEXT_LIST},
+        extracted={"domains": ["acme.com"]},
+    )
+    assert result == {"domains": ["acme.com"]}
 
 
 def test_build_postgres_values_wraps_currency_with_fixed_code() -> None:

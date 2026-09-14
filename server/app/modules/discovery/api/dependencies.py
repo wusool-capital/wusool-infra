@@ -16,7 +16,7 @@ from app.modules.discovery.application.service import DiscoveryService
 from app.modules.discovery.bootstrap import build_discovery_service, build_lead_search_client
 from app.modules.discovery.config import get_settings
 from app.modules.discovery.domain.leads import DiscoveredLead
-from app.modules.discovery.providers.firecrawl.client import FirecrawlMapsClient
+from app.modules.discovery.providers.google_places.client import GooglePlacesClient
 from app.modules.utilities import NotFoundError, get_shared_ephemeral_store
 
 logger = logging.getLogger(__name__)
@@ -39,12 +39,12 @@ def _seller_draft_port() -> SellerDraftPort:
 
 
 @lru_cache
-def _lead_search_client() -> FirecrawlMapsClient | None:
-    api_key = get_settings().firecrawl_api_key
+def _lead_search_client() -> GooglePlacesClient | None:
+    api_key = get_settings().google_places_api_key
     if not api_key:
         logger.warning(
-            "firecrawl_api_key_unset — seller discovery is disabled; "
-            "set FIRECRAWL_API_KEY to enable it"
+            "google_places_api_key_unset — seller discovery is disabled; "
+            "set GOOGLE_PLACES_API_KEY to enable it"
         )
         return None
     return build_lead_search_client(api_key)
@@ -58,10 +58,10 @@ def discovery_service() -> DiscoveryService:
 
 def encode_lead(lead: DiscoveredLead) -> str:
     """Serializes a lead and stores it server-side, returning a short token
-    for the "Add as seller" button's `value` — `DiscoveredLead`'s 4 fields
+    for the "Add as seller" button's `value` — `DiscoveredLead`'s fields
     are fixed (never grows the way `enrichment`'s proposed-field list did),
-    but an unusually long `name`/`address` from a Maps result is still real
-    data, not something to truncate, so this goes through the same
+    but an unusually long `name`/`address` from a Places result is still
+    real data, not something to truncate, so this goes through the same
     `utilities.get_shared_ephemeral_store` token indirection as
     `enrichment`'s proposal and `ddl_commands`' organization-selection
     payload rather than trusting the button value to always stay small.
@@ -77,9 +77,13 @@ def decode_lead(token: str) -> DiscoveredLead:
     """Raises `NotFoundError` for an expired/unknown token — the caller
     (`handlers.handle_discover_add_seller`) already treats any decode
     failure as "couldn't process that lead," so no new handling is needed
-    there.
+    there. `types` is rebuilt as a tuple — JSON has no tuple type, so it
+    round-trips through the store as a list, which would otherwise never
+    compare equal to the frozen dataclass's own tuple field.
     """
     payload = get_shared_ephemeral_store().get(token)
     if payload is None:
         raise NotFoundError(f"No stored lead for token {token!r}")
-    return DiscoveredLead(**json.loads(payload))
+    fields = json.loads(payload)
+    fields["types"] = tuple(fields.get("types", ()))
+    return DiscoveredLead(**fields)

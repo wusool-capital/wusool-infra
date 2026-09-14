@@ -61,6 +61,15 @@ def test_normalize_drops_none_values() -> None:
     assert normalized == {}
 
 
+def test_normalize_keeps_a_text_list_value_unfiltered() -> None:
+    """`text_list` has no fixed vocabulary — unlike `select`/`multi_select_text`
+    above, `normalize_prefill` never filters or drops it.
+    """
+    normalized = _normalize({"domains": ["acme.com"]})
+
+    assert normalized == {"domains": ["acme.com"]}
+
+
 async def test_open_confirm_form_with_no_existing_org_opens_prefilled_add_form(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

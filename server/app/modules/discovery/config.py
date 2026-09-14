@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Optional: local dev without a key just disables the lead search
     # (returns no leads) rather than requiring a key to boot — same
     # convention as matching_engine's own web fallback.
-    firecrawl_api_key: str | None = None
+    google_places_api_key: str | None = None
     discovery_lead_search_limit: int = 3
 
 

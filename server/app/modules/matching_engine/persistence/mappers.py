@@ -56,8 +56,18 @@ def to_buyer_context(role: BuyerRole) -> BuyerContext:
         investment_strategy=role.investment_strategy,
         notes=role.notes,
         contact_person_id=role.key_contact_attio_id,
+        target_geography=list(role.target_geography or []),
+        ebitda_ceiling=_money(role.ebitda_ceiling),
+        notable_investments=role.notable_investments,
+        key_personnel=role.key_personnel,
+        acquisition_enrichment=role.acquisition_enrichment,
+        prior_gcc_acquisition=role.prior_gcc_acquisition,
         org_hq_country=role.organization.hq_country,
         org_sector_focus=list(role.organization.sector_focus or []),
+        org_description=role.organization.description,
+        org_type=list(role.organization.type or []),
+        org_categories=list(role.organization.categories or []),
+        org_region=role.organization.region,
     )
 
 

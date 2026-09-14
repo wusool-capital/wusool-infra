@@ -25,12 +25,19 @@ from app.modules.utilities.domain.json_types import JsonObject
 # attribute the operators pick into — titles joined with ", " on the way out,
 # split back on the way in. `organizations.client_type` is the latter: text in
 # Attio, so a bare string, but a fixed vocabulary operators shouldn't retype.
+# "text_list" is neither: no fixed vocabulary at all (`organizations.domains`
+# is free-form), so it always renders the comma-separated text box
+# `multi_select_text`/`multi_select_as_text` only fall back to, and its Attio
+# write is a bare `list[str]` — `domains` is a plain Attio `text` attribute
+# taking multiple raw strings (verified live), never a select, so there's no
+# `{"option": id}` to resolve.
 FieldKind = Literal[
     "text",
     "multiline",
     "select",
     "multi_select_text",
     "multi_select_as_text",
+    "text_list",
     "currency",
     "date",
     "bool",
@@ -50,8 +57,15 @@ class FieldSpec:
 # Every shape a field's value can take across `FieldKind`, at either its
 # already-stored ORM-column shape or a prefill source's raw shape (a bare
 # currency amount before `wrap_prefill_value` wraps it into the
-# `{"amount": ...}` shape a stored role/org row already carries). Mirrors
-# `enrichment.domain.proposals.FieldValue` — same underlying concept
+# `{"amount": ..., "currency": ...}` shape a stored role/org row already
+# carries — matches `attio.providers.attio.money.MoneyJson`'s shape exactly,
+# but stays the generic `JsonObject` rather than that type itself:
+# `normalize_prefill`'s one other caller is `enrichment`'s proposal, whose
+# own `FieldValue` (deliberately Attio-agnostic — see
+# `providers/enrichment/review_adapter.py`'s module docstring) uses the same
+# `JsonObject` escape hatch for identically-shaped currency proposals, and
+# the two must stay structurally interchangeable at that shared boundary.
+# Mirrors `enrichment.domain.proposals.FieldValue` — same underlying concept
 # (whatever a dynamically-typed field's value looks like), kept as this
 # module's own type rather than a cross-module import since `FieldKind`
 # here is `ddl_commands`' own vocabulary, not enrichment's.

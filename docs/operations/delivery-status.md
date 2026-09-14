@@ -11,7 +11,7 @@ release.
 | Toolkit and Slack workflows | Application modules and production Toolkit infrastructure are present | Delivered; verify Slack routing live |
 | PostgreSQL | Private encrypted RDS, deletion protection, managed credentials, seven-day backups | Delivered; restore test outstanding |
 | Attio real-time sync | Signed webhook implementation | Delivered; verify current webhook subscription live |
-| Attio nightly full resync | Scheduled production workflow | Delivered; automatic failure notification outstanding |
+| Attio nightly full resync | Scheduled production workflow | Delivered; failure notification implemented, live delivery unverified |
 | n8n | Dev/prod infrastructure, HTTPS configuration, pinned images, logs and alarms | Delivered; recovery procedure outstanding |
 | WusoolScribe | Application integration and update infrastructure are documented | Production environment and release state require live verification |
 | Website lead tools | Production hostname and Toolkit hosting configuration are present | Production DNS, secret, deploy, and end-to-end status require live verification |
@@ -22,7 +22,7 @@ release.
 | Priority | Item | Completion evidence |
 | --- | --- | --- |
 | High | Assign primary and backup client owners and document access/escalation routes | Completed ownership register and access review |
-| High | Add failure notification for the nightly Attio resync | Deliberately failed test run produces an acknowledged alert |
+| High | Verify the nightly Attio resync failure notification end to end | Deliberately failed test run produces an acknowledged alert |
 | High | Define recovery targets and test PostgreSQL restore | Approved RTO/RPO and dated restore-test record |
 | High | Define, implement, and test n8n data backup/recovery | Successful isolated restore with documented data coverage |
 | High | Reconcile Attio and PostgreSQL and confirm all current migrations in production | Signed reconciliation and migration evidence |

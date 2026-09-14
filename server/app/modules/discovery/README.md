@@ -13,7 +13,7 @@ _New to this codebase's layering? See
 ```
 domain/            # DiscoveredLead, SellerDraft, draft_from_lead
 application/        # DiscoverMixin (search), ConfirmMixin (hand-off), ports/
-providers/          # Firecrawl Google-Maps client (moved from matching_engine)
+providers/          # Google Places client (replaced the Firecrawl Maps scraper)
 api/                # find_and_post_leads (called by matching_engine), discover_add_seller handler
 ```
 
@@ -45,13 +45,13 @@ the *only* dedupe in this pipeline.
 
 ## Setup
 
-See `server/.env.example`'s `discovery` section. `FIRECRAWL_API_KEY` is
-shared with `matching_engine`/`enrichment` — optional; lead search is
-disabled without it.
+See `server/.env.example`'s `discovery` section. `GOOGLE_PLACES_API_KEY`
+covers both Places Text Search and the Geocoding API (billed to the same
+Google Cloud project/key) — optional; lead search is disabled without it.
 
 ## Testing
 
-`uv run pytest app/modules/discovery/tests` — no real Slack/Firecrawl
+`uv run pytest app/modules/discovery/tests` — no real Slack/Google Places
 credentials required; `tests/fakes/` stands in for both.
 
 ## Where to go next

@@ -8,10 +8,47 @@ The project has no version tags: merges to `dev` and `prod` deploy their
 respective environments. See [Delivery status](docs/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-14
+
+### Added
+
+- Every lead-magnet submission now creates an Attio deal at stage
+  **Inbound**, so a new lead lands in the pipeline instead of waiting to be
+  keyed in by hand. One deal per organisation: a company that runs two tools
+  is one lead, and a deal an advisor has already advanced is never dragged
+  back to Inbound. Each deal is assigned to an advisor on creation, with a
+  configured fallback so the write cannot silently stop if that advisor
+  leaves the workspace.
+
+### Changed
+
+- Replaced `discovery`'s Firecrawl Google Maps scrape with Google's Places
+  API (New) and Geocoding API. Seller leads now carry a real place link
+  (`googleMapsUri`) instead of one recovered by regex-matching scraped
+  links, and a buyer's geography is enforced against each result's country
+  rather than only appearing as words in the search query.
+
+### Fixed
+
+- Buyer requirement extraction now sees a buyer's `target_geography`,
+  `ebitda_ceiling`, and several other already-structured `buyer_roles`/
+  `organizations` fields that were silently dropped between the database
+  row and the Bedrock prompt. A buyer with a real, populated
+  `target_geography` (e.g. "GCC-wide, Global") could still trigger a fully
+  unrestricted seller-discovery search, because nothing ever told the
+  extraction step it existed — traced live from a UK-HQ'd buyer's search
+  surfacing Frankfurt/Cologne results with no geography signal anywhere in
+  the query. Also fixes a buyer with no free-text investment strategy/notes
+  on file: the prompt used to show the literal placeholder `Unknown` for a
+  blank field, which the model would sometimes echo back as if it were real
+  buyer data (a search for "Unknown companies").
+
 ## 2026-09-13
 
 ### Added
 
+- A failed nightly Attio resync now raises an alert on the environment alert
+  topic instead of being visible only in the Actions tab.
 - Added a Vale quality gate for the client GitBook, including terminology,
   readability, structure, and page-length rules.
 - Added a contributor-facing documentation style guide.
@@ -29,6 +66,10 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- Restored the nightly Attio-to-PostgreSQL full resync, which had failed every
+  night from 2026-09-03 to 2026-09-12. Production PostgreSQL relied on the
+  real-time webhook alone for that period and should be reconciled against
+  Attio.
 - Every embedded lead-magnet tool was cut off partway down the form with no
   way to scroll to the rest, losing any visitor who had not already finished.
   The embedded page measured its height from a value that, inside an iframe,

@@ -32,8 +32,8 @@ Slack service per command.
    cannot alter their scores.
 5. The run and candidate results are committed atomically, then posted to
    Slack with review actions.
-6. A weak result can trigger Firecrawl seller discovery. Selecting a result
-   opens the ordinary, prefilled add-seller form.
+6. A weak result can trigger Google Places seller discovery. Selecting a
+   result opens the ordinary, prefilled add-seller form.
 
 ### Profile changes and enrichment
 
@@ -48,8 +48,8 @@ evidence. It only proposes values; saving still follows the edit flow.
 The runtime requires PostgreSQL, Slack credentials, Attio credentials, and
 Bedrock access. Matching model IDs, scoring weights, confidence penalties,
 meeting-note limits, and discovery thresholds are configured in the server
-environment. Firecrawl enables discovery and free-text enrichment; Diffbot and
-People Data Labs are optional enrichment tiers.
+environment. Google Places enables discovery; Firecrawl enables free-text
+enrichment; Diffbot and People Data Labs are optional enrichment tiers.
 
 Use the standard AWS credential provider chain in deployed environments.
 Terraform derives `APP_ENV` as `development` or `production` from the deployed
@@ -97,7 +97,7 @@ None becomes a CRM seller until an operator completes the add-seller flow.
   should avoid parallel submissions and reconcile duplicates in Attio.
 - Bedrock extraction or reasoning failures stop the matching run and surface an
   operator-facing error; deterministic scoring cannot invent missing facts.
-- Discovery is unavailable without Firecrawl and enrichment skips any missing
-  optional provider.
+- Discovery is unavailable without Google Places and enrichment skips any
+  missing optional provider.
 - Slack forms exclude system-managed, reference, and pipeline-owned fields that
   the interface cannot safely update.

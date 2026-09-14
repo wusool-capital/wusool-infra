@@ -2,6 +2,7 @@ from app.modules.ddl_commands.api.schemas import FieldSpec
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import (
     extract_field_value,
     render_field_block,
+    wrap_prefill_value,
 )
 
 # Was a "bool_as_text" spec until #53 made the column a real boolean. The
@@ -218,3 +219,53 @@ def test_multi_select_as_text_renders_unknown_value_as_free_text() -> None:
     block = render_field_block(_CLIENT_TYPE_SPEC, "Fundraising, Something Else")
     assert block.element.type == "plain_text_input"
     assert block.element.initial_value == "Fundraising, Something Else"
+
+
+# `organizations.domains` has no fixed vocabulary at all (unlike
+# `client_type`/`sector_focus` above), so `text_list` always renders the
+# free-text fallback and, unlike `multi_select_as_text`, extracts to a real
+# `list[str]` — Attio's `domains` attribute takes bare strings, not option IDs.
+_DOMAINS_SPEC = FieldSpec("domains", "Website / domains", "text_list")
+
+
+def test_text_list_always_renders_the_free_text_fallback() -> None:
+    block = render_field_block(_DOMAINS_SPEC, ["acme.com"])
+    assert block.element.type == "plain_text_input"
+    assert block.element.initial_value == "acme.com"
+
+
+def test_text_list_extracts_comma_separated_values_as_a_list() -> None:
+    values = {"domains": {"domains": {"value": "acme.com, acme.io"}}}
+    assert extract_field_value(_DOMAINS_SPEC, values) == ["acme.com", "acme.io"]
+
+
+def test_text_list_extracts_blank_as_empty_list_not_none() -> None:
+    """The column is `NOT NULL DEFAULT '{}'`, same invariant as
+    `multi_select_text` above — a blank box must never extract to `None`.
+    """
+    values = {"domains": {"domains": {"value": None}}}
+    assert extract_field_value(_DOMAINS_SPEC, values) == []
+
+
+_REVENUE_SPEC = FieldSpec("est_revenue", "Est. revenue", "currency")
+
+
+def test_wrap_prefill_value_wraps_a_bare_currency_amount_with_currency() -> None:
+    """The wrapped shape must match a stored role's real ORM value
+    (`attio.providers.attio.money.MoneyJson`) exactly, not just its
+    `"amount"` key — `render_field_block`'s own currency branch only reads
+    `"amount"` today, but a partial shape here would silently diverge from
+    the one an existing row already carries.
+    """
+    assert wrap_prefill_value(_REVENUE_SPEC, 500_000.0) == {
+        "amount": 500_000.0,
+        "currency": "USD",
+    }
+
+
+def test_wrap_prefill_value_passes_non_currency_values_through_unchanged() -> None:
+    assert wrap_prefill_value(FieldSpec("outreach_tier", "Tier", "select"), "Tier 1") == "Tier 1"
+
+
+def test_wrap_prefill_value_passes_none_through_unchanged() -> None:
+    assert wrap_prefill_value(_REVENUE_SPEC, None) is None
