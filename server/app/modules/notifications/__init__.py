@@ -4,6 +4,7 @@ listed in `__all__` here, never reach into `.providers`/`.application`
 directly.
 """
 
+from app.modules.notifications.application.ports.email import EmailSenderPort
 from app.modules.notifications.application.ports.slack import SlackNotifierPort
 from app.modules.notifications.domain.slack_payloads import (
     SlackCommandPayload,
@@ -11,6 +12,8 @@ from app.modules.notifications.domain.slack_payloads import (
     SlackViewSubmissionPayload,
 )
 from app.modules.notifications.domain.text import sanitize_mrkdwn
+from app.modules.notifications.providers.ses.client import get_ses_client
+from app.modules.notifications.providers.ses.mailer import SesMailer
 from app.modules.notifications.providers.slack.bolt_app import build_bolt_app
 from app.modules.notifications.providers.slack.client import get_slack_client
 from app.modules.notifications.providers.slack.modals import (
@@ -21,6 +24,8 @@ from app.modules.notifications.providers.slack.modals import (
 from app.modules.notifications.providers.slack.notifier import SlackWebClientNotifier
 
 __all__ = [
+    "EmailSenderPort",
+    "SesMailer",
     "SlackCommandPayload",
     "SlackInteractionBody",
     "SlackNotifierPort",
@@ -29,6 +34,7 @@ __all__ = [
     "build_bolt_app",
     "build_loading_modal",
     "build_notice_modal",
+    "get_ses_client",
     "get_slack_client",
     "open_loading_modal",
     "sanitize_mrkdwn",

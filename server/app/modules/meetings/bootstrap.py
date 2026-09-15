@@ -24,11 +24,13 @@ from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
 from app.modules.meetings.config import get_settings
 from app.modules.meetings.persistence.database import get_sessionmaker
+from app.modules.meetings.persistence.feedback_repository import FeedbackRepository
 from app.modules.meetings.persistence.meetings_repository import MeetingsRepository
 from app.modules.meetings.persistence.notes_repository import NotesRepository
 from app.modules.meetings.persistence.organization_lookup import OrganizationLookup
 from app.modules.meetings.persistence.role_lookup import RoleLookup
 from app.modules.meetings.providers.bedrock.client import BedrockConverseClient
+from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,20 @@ def build_organization_lookup(session: AsyncSession) -> OrganizationLookup:
 
 def build_role_lookup(session: AsyncSession) -> RoleLookup:
     return RoleLookup(session)
+
+
+def build_feedback_repository(session: AsyncSession) -> FeedbackRepository:
+    return FeedbackRepository(session)
+
+
+def build_feedback_mailer() -> EmailSenderPort:
+    settings = get_settings()
+    client = get_ses_client(
+        region_name=settings.aws_region,
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+    )
+    return SesMailer(client)
 
 
 def build_bedrock_client() -> BedrockConverseClient:
@@ -129,3 +145,54 @@ async def run_summarize_and_publish(meeting_id: UUID) -> None:
         except Exception:
             await session.rollback()
             logger.error("run_summarize_and_publish_failed", extra={"meeting_id": str(meeting_id)})
+
+
+async def send_feedback_email(
+    *,
+    mailer: EmailSenderPort,
+    submission_id: UUID,
+    to: list[str],
+    from_addr: str,
+    subject: str,
+    body: str,
+) -> None:
+    """The `BackgroundTasks` entrypoint for `POST /desktop/feedback`'s
+    email notification — scheduled only after the feedback row already
+    committed (see `api/feedback.py`), so nothing here can lose the
+    submission itself; it only decides whether `email_sent` ends up
+    `True`. `mailer` is passed in (the same `FeedbackMailerDep` the
+    request already resolved) rather than built here, so tests can still
+    substitute a fake via `dependency_overrides` the normal way.
+
+    Runs off the request path entirely, same reasoning as
+    `run_summarize_and_publish`: a request-scoped session is committed and
+    closed as soon as the triggering request's dependency generator
+    resumes, not guaranteed to still be open once a scheduled background
+    task actually runs. `SesMailer.send` already retries a transient SES
+    failure internally (`providers/ses/mailer.py`) — backgrounding this
+    step is what makes that retry (with real backoff delays) free: no
+    request is waiting on it.
+
+    Never raises — logged only, since this runs detached from any request
+    with no one to hand an exception to. A submission whose email
+    ultimately failed simply keeps `email_sent=False`, which is the
+    intended, queryable signal (see `app/models/feedback_submission.py`).
+    """
+    try:
+        await mailer.send(to=to, from_addr=from_addr, subject=subject, body=body)
+    except Exception:
+        logger.exception(
+            "desktop_feedback_email_failed", extra={"submission_id": str(submission_id)}
+        )
+        return
+
+    async with get_sessionmaker()() as session:
+        try:
+            await build_feedback_repository(session).mark_email_sent(id=submission_id)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.error(
+                "desktop_feedback_mark_email_sent_failed",
+                extra={"submission_id": str(submission_id)},
+            )

@@ -320,6 +320,31 @@ shortlisted candidate row (candidate-level columns meaningful).
 
 Constraint: `uq_match_results_run_header` — unique `run_id` where `rank IS NULL`.
 
+### `feedback_submissions` (`feedback_submission.py`) — new, 2026-09-14
+
+Durable record of in-app feedback pushed by the WusoolScribe desktop app
+(`POST /desktop/feedback`, `meetings` module). The row is the source of
+truth; a best-effort SES email notification follows and does not gate the
+response — `email_sent`/`email_sent_at` keep that failure mode visible
+instead of silent. No FK to any CRM entity; a submission isn't tied to an
+organization/role.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| category | text | no | | CHECK: `bug`, `feature_request`, `transcription_quality`, `other` |
+| message | text | no | | |
+| contact | text | yes | | optional email or name the reporter left |
+| install_id | text | no | | indexed; the desktop app's persisted per-install UUID |
+| app_version | text | no | | |
+| platform | text | no | | e.g. `macos 15.6 (aarch64)` |
+| email_sent | boolean | no | `false` | set once the SES notification succeeds |
+| email_sent_at | timestamptz | yes | | |
+| created_at | timestamptz | no | `now()` | indexed (DESC) |
+
+Indexes: `idx_feedback_submissions_created_at` (DESC),
+`idx_feedback_submissions_install_id`.
+
 ---
 
 ## Static-analysis draft tables

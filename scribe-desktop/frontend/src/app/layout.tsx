@@ -4,7 +4,7 @@
 // on the library's runtime inline-style injection.
 import 'sonner/dist/styles.css'
 import './globals.css'
-import { Source_Sans_3 } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
 import MainContent from '@/components/MainContent'
@@ -30,10 +30,13 @@ import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 
 
-const sourceSans3 = Source_Sans_3({
+// Inter, matching www.wusoolcapital.com's own brand font (its Webflow
+// project defines --_wusool-capital-brand---font-body/heading: Inter,
+// loaded at the same 100-900 weight range used there).
+const inter = Inter({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-source-sans-3',
+  weight: ['100', '200', '300', '400', '500', '600', '700', '800', '900'],
+  variable: '--font-inter',
 })
 
 // Module-level component — stable reference across RootLayout re-renders.
@@ -276,7 +279,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${sourceSans3.variable} font-sans antialiased`}
+        className={`${inter.variable} font-sans antialiased`}
         style={isPopupWindow ? { background: 'transparent' } : undefined}
       >
         {isPopupWindow ? (

@@ -10,7 +10,6 @@ throttle.
 """
 
 import logging
-import time
 from collections.abc import AsyncIterator
 from typing import Annotated
 
@@ -19,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.persistence.database import get_sessionmaker
+from app.modules.utilities import FixedWindowRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -72,31 +72,6 @@ async def require_allowed_origin(origin: Annotated[str | None, Header()] = None)
     if origin is None or origin not in allowed:
         logger.warning("lead_magnet_origin_rejected origin=%s", origin)
         raise HTTPException(status.HTTP_403_FORBIDDEN, "origin not allowed")
-
-
-class FixedWindowRateLimiter:
-    """Per-IP fixed window, in process.
-
-    ponytail: one container per environment, so an in-process counter is
-    accurate rather than merely convenient. It resets on deploy and does not
-    survive a second instance — move it to Redis or a WAF rule only if
-    either of those becomes true.
-    """
-
-    def __init__(self, *, limit: int, window_s: int = 3600) -> None:
-        self._limit = limit
-        self._window_s = window_s
-        self._hits: dict[str, tuple[float, int]] = {}
-
-    def check(self, key: str, *, now: float | None = None) -> bool:
-        now = time.monotonic() if now is None else now
-        started, count = self._hits.get(key, (now, 0))
-        if now - started >= self._window_s:
-            started, count = now, 0
-        if count >= self._limit:
-            return False
-        self._hits[key] = (started, count + 1)
-        return True
 
 
 _limiter: FixedWindowRateLimiter | None = None

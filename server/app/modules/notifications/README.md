@@ -1,15 +1,17 @@
 # notifications
 
-Slack-specific infra shared by both `matching_engine` and `ddl_commands`:
-out-of-band outbound messaging, and generic Bolt `AsyncApp` construction. No
-`api/`, no `bootstrap.py` — this is a peer module other modules call into
-directly, not a deployable app of its own.
+Out-of-band outbound messaging infra shared across modules: Slack (plus
+generic Bolt `AsyncApp` construction) and email via SES. No `api/`, no
+`bootstrap.py` — this is a peer module other modules call into directly,
+not a deployable app of its own.
 
-**Not for in-request replies.** A Slack command/action/view-submission
-handler already has Bolt's own injected `client`/`ack`/`respond` — use
-those directly inside the handler. Reach for `SlackNotifierPort` only when
-posting happens outside that request context (e.g. a background task
-finishing a match run and posting the result).
+**Not for in-request Slack replies.** A Slack command/action/view-
+submission handler already has Bolt's own injected `client`/`ack`/
+`respond` — use those directly inside the handler. Reach for
+`SlackNotifierPort` only when posting happens outside that request context
+(e.g. a background task finishing a match run and posting the result).
+Email has no in-request counterpart — `EmailSenderPort` is always the
+right thing.
 
 ## Structure
 
@@ -23,36 +25,57 @@ notifications/
                                           # payloads — every handler narrows Bolt's untyped
                                           # dict to these at the boundary
     text.py                             # sanitize_mrkdwn — Slack mrkdwn text escaping
-  application/ports/slack.py         # SlackNotifierPort Protocol
-  providers/slack/
-    client.py                          # get_slack_client(bot_token) — one shared AsyncWebClient, lru_cached
-    notifier.py                          # SlackWebClientNotifier — implements the Port
-    bolt_app.py                          # build_bolt_app(bot_token, signing_secret, register_fn) —
-                                            # both modules' own api/slack/bolt_app.py call this instead
-                                            # of duplicating the same three lines
+  application/ports/
+    slack.py                           # SlackNotifierPort Protocol
+    email.py                           # EmailSenderPort Protocol
+  providers/
+    slack/
+      client.py                          # get_slack_client(bot_token) — one shared AsyncWebClient, lru_cached
+      notifier.py                          # SlackWebClientNotifier — implements SlackNotifierPort
+      bolt_app.py                          # build_bolt_app(bot_token, signing_secret, register_fn) —
+                                              # both modules' own api/slack/bolt_app.py call this instead
+                                              # of duplicating the same three lines
+    ses/
+      client.py                          # get_ses_client(region_name, ...) — one shared SES client, lru_cached
+      mailer.py                            # SesMailer — implements EmailSenderPort
 ```
 
 ## Public contract
 
-Consumers (`matching_engine`, `ddl_commands`) import only from
-`app.modules.notifications` — the module's `__all__`:
-`SlackNotifierPort`, `SlackWebClientNotifier`, `build_bolt_app`,
+Consumers (`matching_engine`, `ddl_commands`, `enrichment`, `discovery`,
+`meetings`) import only from `app.modules.notifications` — the module's
+`__all__`: `SlackNotifierPort`, `SlackWebClientNotifier`, `build_bolt_app`,
 `get_slack_client`, `sanitize_mrkdwn`, `SlackCommandPayload`,
-`SlackInteractionBody`, `SlackViewSubmissionPayload`. Nobody reaches into
-`.providers`/`.application`/`.domain` directly.
-`matching_engine/bootstrap.py` constructs the concrete notifier once
+`SlackInteractionBody`, `SlackViewSubmissionPayload`, `EmailSenderPort`,
+`SesMailer`, `get_ses_client`. Nobody reaches into `.providers`/
+`.application`/`.domain` directly.
+
+`matching_engine/bootstrap.py` constructs the concrete Slack notifier once
 (`SlackWebClientNotifier(get_slack_client(bot_token))`) and injects
 `SlackNotifierPort` into whatever use case needs to post. Each module's own
 `api/slack/bolt_app.py` calls `build_bolt_app` with its own settings and
-`register_handlers`.
+`register_handlers`. `meetings/bootstrap.py::build_feedback_mailer`
+constructs the email counterpart the same way
+(`SesMailer(get_ses_client(region_name=..., aws_access_key_id=..., aws_secret_access_key=...))`),
+consumed by `api/dependencies.py::feedback_mailer` and injected as
+`EmailSenderPort` — matching this module's own rule (see
+`bootstrap.py`'s docstring) that concrete provider construction belongs
+in `bootstrap.py`, not inline in `api/dependencies.py`.
+
+Neither `get_slack_client` nor `get_ses_client` reads any module's
+`Settings` — every credential is a parameter, so this module has zero
+config of its own; each caller supplies its own bot token / AWS
+credentials.
 
 ## Testing
 
-No integration tests of its own — `providers/slack/notifier.py` is
-exercised indirectly through `matching_engine`'s own tests (fakes implement
-`SlackNotifierPort` there). `tests/test_architecture.py` enforces this
-module's own `application/` never imports `providers/`/`fastapi`/
-`pydantic`/`sqlalchemy` directly.
+No integration tests of its own — `providers/slack/notifier.py` and
+`providers/ses/mailer.py` are exercised indirectly through their
+consumers' own tests (fakes implement `SlackNotifierPort`/
+`EmailSenderPort` there — see `meetings/tests/integration/
+test_feedback_api.py`'s `_FakeMailer`). `tests/test_architecture.py`
+enforces this module's own `application/` never imports `providers/`/
+`fastapi`/`pydantic`/`sqlalchemy` directly.
 
 ## Where to go next
 

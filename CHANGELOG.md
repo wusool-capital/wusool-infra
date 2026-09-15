@@ -29,6 +29,12 @@ for current production evidence and open handover items.
 
 ### Added
 
+- WusoolScribe desktop app: a "Send feedback" bug icon in the sidebar opens
+  a form (category, message, optional contact) that a new
+  `POST /desktop/feedback` route on the `meetings` module durably records
+  in a new `feedback_submissions` table and best-effort emails via AWS SES
+  (`notifications` module) — no email credential ships in the desktop
+  binary, and a submission is never lost even if SES delivery fails.
 - Every lead-magnet submission now creates an Attio deal at stage
   **Inbound**, so a new lead lands in the pipeline instead of waiting to be
   keyed in by hand. One deal per organisation: a company that runs two tools

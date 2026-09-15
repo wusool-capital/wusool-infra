@@ -41,6 +41,7 @@ pub mod audio;
 pub mod config;
 pub mod console_utils;
 pub mod database;
+pub mod feedback;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
@@ -747,6 +748,7 @@ pub fn run() {
             push::search_companies,
             push::get_saved_summary,
             push::sync_pushed_meetings,
+            feedback::submit_feedback,
             audio::recording_preferences::get_recording_preferences,
             audio::recording_preferences::set_recording_preferences,
             audio::recording_preferences::get_default_recordings_folder_path,
