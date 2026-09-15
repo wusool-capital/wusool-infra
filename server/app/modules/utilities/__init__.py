@@ -22,6 +22,7 @@ from app.modules.utilities.domain.errors import AppError, NotFoundError, Validat
 from app.modules.utilities.domain.logging import configure_logging, log_context
 from app.modules.utilities.domain.money import Money, parse_usd_amount
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
+from app.modules.utilities.domain.rate_limit import FixedWindowRateLimiter
 from app.modules.utilities.domain.retry import retry_with_backoff
 from app.modules.utilities.persistence.engine import get_engine, get_sessionmaker
 from app.modules.utilities.persistence.ephemeral_store import (
@@ -44,6 +45,7 @@ __all__ = [
     "AppError",
     "BedrockInvocationError",
     "EphemeralStore",
+    "FixedWindowRateLimiter",
     "IdempotencyStore",
     "InMemoryEphemeralStore",
     "InMemoryIdempotencyStore",

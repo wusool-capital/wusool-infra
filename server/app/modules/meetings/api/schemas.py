@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
 from app.modules.meetings.domain.organization_ref import OrganizationRef
@@ -125,6 +126,47 @@ class DesktopCompanyCandidate(BaseModel):
 class DesktopCompanySearchResponse(BaseModel):
     candidates: list[DesktopCompanyCandidate]
     org_names: dict[str, str]
+
+
+class FeedbackCategory(StrEnum):
+    """Kept in sync BY HAND with two other copies -- there is no shared
+    codegen across these three languages. Changing a member here means
+    also updating `CATEGORIES` in
+    `scribe-desktop/frontend/src-tauri/src/feedback/mod.rs` and
+    `FEEDBACK_CATEGORIES` in `scribe-desktop/frontend/src/lib/feedback.ts`.
+    """
+
+    BUG = "bug"
+    FEATURE_REQUEST = "feature_request"
+    TRANSCRIPTION_QUALITY = "transcription_quality"
+    OTHER = "other"
+
+
+class DesktopFeedbackRequest(BaseModel):
+    """In-app feedback from the desktop app. Durably recorded in
+    `feedback_submissions` (see `api/feedback.py`) before anything else
+    happens -- that row is the source of truth. A best-effort SES email
+    notification is scheduled afterward and never gates the response, so
+    the request always returns 200 once the row is written.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    # message/contact's max_length are kept in sync BY HAND with
+    # MAX_MESSAGE_CHARS/MAX_CONTACT_CHARS (feedback/mod.rs) and
+    # MAX_FEEDBACK_CHARS (lib/feedback.ts).
+    message: str = Field(..., min_length=1, max_length=4000)
+    category: FeedbackCategory
+    # "email or name" -- free text by design, so no EmailStr (and
+    # email-validator isn't a dependency of this project).
+    contact: str | None = Field(default=None, max_length=200)
+    install_id: str = Field(..., min_length=1, max_length=64)
+    app_version: str = Field(..., min_length=1, max_length=32)
+    platform: str = Field(..., min_length=1, max_length=120)
+
+
+class DesktopFeedbackResponse(BaseModel):
+    status: str = "ok"
 
 
 def to_summary_note_schema(note: SummaryNote) -> SummaryNoteSchema:

@@ -30,6 +30,7 @@ from app.models.buyer_role import BuyerRole
 from app.models.deal import Deal
 from app.models.deal_stage_event import DealStageEvent
 from app.models.document import Document
+from app.models.feedback_submission import FeedbackSubmission
 from app.models.graph_edge import GraphEdge
 from app.models.investor_lender_role import InvestorLenderRole
 from app.models.match_result import MatchResult
@@ -55,6 +56,7 @@ __all__ = [
     "Deal",
     "DealStageEvent",
     "Document",
+    "FeedbackSubmission",
     "GraphEdge",
     "InvestorLenderRole",
     "MatchResult",

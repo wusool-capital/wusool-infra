@@ -65,7 +65,7 @@ impl Default for PushConfig {
     }
 }
 
-fn load_push_config<R: Runtime>(app: &AppHandle<R>) -> PushConfig {
+pub(crate) fn load_push_config<R: Runtime>(app: &AppHandle<R>) -> PushConfig {
     let store = match app.store(PUSH_CONFIG_STORE) {
         Ok(store) => store,
         Err(e) => {

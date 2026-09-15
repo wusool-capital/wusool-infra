@@ -1,9 +1,10 @@
 """Architecture fitness test: `application/` (excluding its own `tests/`)
 may only import stdlib, `domain/`, and `application/ports/` — never
 `persistence/`, `providers/`, `.api`, `fastapi`, `pydantic`, or
-`sqlalchemy`. No `domain/`/`persistence/`/`api/` here by design — this
-module is a thin Slack-notification peer with no entities or tables of its
-own (see `application/ports/slack.py`'s docstring).
+`sqlalchemy`. No `persistence/`/`api/` here by design — this module is a
+thin outbound-messaging peer (Slack, email) with no entities or tables of
+its own (see `application/ports/slack.py`'s and `.../email.py`'s
+docstrings).
 """
 
 import ast

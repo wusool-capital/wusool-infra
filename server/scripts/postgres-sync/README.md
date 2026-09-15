@@ -225,10 +225,15 @@ organizations    fetched=3225 test_excluded=1 unstamped=3224
 
 **Read those numbers before adding `-Apply`.** `sync-source-to-prod.ps1`
 reconciles — `organizations` and `person` are soft-deleted via `removed_at`,
-but `deals`, `buyer_roles` and `seller_roles` are **hard deletes with no
-`removed_at` column**, so a record wrongly flagged `is_test` loses its row and
-its `raw_attio` permanently. Recovery is an RDS point-in-time restore. A
-greater-than-10% exclusion rate aborts the run rather than purging.
+but `deals`, `buyer_roles` and `seller_roles` are still **hard deletes**, so a
+record wrongly flagged `is_test` loses its row and its `raw_attio`
+permanently. Recovery is an RDS point-in-time restore. A greater-than-10%
+exclusion rate aborts the run rather than purging.
+
+All six tables now *have* a `removed_at` column (migration `b8c41e7d09a2`) —
+**this script has not been switched over to it.** Until it is, the warning
+above stands in full: the column existing does not make this script's deletes
+recoverable.
 
 ```powershell
 ./prod/sync-all-to-prod.ps1            # dry run

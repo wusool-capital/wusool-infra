@@ -10,7 +10,7 @@ module.exports = {
   	extend: {
   		fontFamily: {
   			sans: [
-  				'var(--font-source-sans-3)',
+  				'var(--font-inter)',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',

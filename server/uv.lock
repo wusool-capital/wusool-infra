@@ -249,6 +249,9 @@ wheels = [
 bedrock-runtime = [
     { name = "mypy-boto3-bedrock-runtime" },
 ]
+ses = [
+    { name = "mypy-boto3-ses" },
+]
 
 [[package]]
 name = "botocore"
@@ -902,6 +905,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/26/78/542f5804cf0f9e3c1ccbf30917eaa3b4b6002b91965de02d065d7441fc93/mypy_boto3_bedrock_runtime-1.43.62.tar.gz", hash = "sha256:beb70b08ef72cdfd5036bcd3270f2fbac0a2ce5e40f70dfc1d87c4f139d4d7ff", size = 31492, upload-time = "2026-07-31T19:54:15.291Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d9/b2/e3bff20acd290b909f1c28856d6d8d7984f7f7d5bda299d5957f64e97bb3/mypy_boto3_bedrock_runtime-1.43.62-py3-none-any.whl", hash = "sha256:603d9df54da5029fc0d0e3c09b6db33733af53182bee030c0c7af99e88ed3b39", size = 37865, upload-time = "2026-07-31T19:54:13.959Z" },
+]
+
+[[package]]
+name = "mypy-boto3-ses"
+version = "1.43.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7c/23/b139e107c39a505d6150707b33c06708c9dfe8fd9f5e8e9ea08cdc705f3c/mypy_boto3_ses-1.43.0.tar.gz", hash = "sha256:24ef4c9ba75326e1676f2473b9268fa53da5bc335a494325b295a0787f9bb793", size = 31133, upload-time = "2026-04-29T23:06:00.456Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/ea/de8628a7797bc1099513a1ccc95204c1c70948cc00cf169dc97b0ea03ab3/mypy_boto3_ses-1.43.0-py3-none-any.whl", hash = "sha256:f24478534a9d7ba573801dc06c9724e4228e1b465083dff542bccc912a37f364", size = 39388, upload-time = "2026-04-29T23:05:57.702Z" },
 ]
 
 [[package]]
@@ -1729,7 +1741,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "boto3-stubs", extra = ["bedrock-runtime"] },
+    { name = "boto3-stubs", extra = ["bedrock-runtime", "ses"] },
     { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1756,7 +1768,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "boto3-stubs", extras = ["bedrock-runtime"], specifier = ">=1.43.87" },
+    { name = "boto3-stubs", extras = ["bedrock-runtime", "ses"], specifier = ">=1.43.87" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "pytest", specifier = ">=8.3.0" },
     { name = "pytest-asyncio", specifier = ">=0.24.0" },

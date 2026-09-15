@@ -80,6 +80,13 @@ class Note(Base):
     # manual note, and any note backfilled before 2026-09-07, has no role.
     primary_role: Mapped[str | None] = mapped_column(_MeetingRole)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Attio-owned soft-delete marker, mirroring organizations/person. Set by
+    # the webhook's `record.deleted` handler, cleared again when the note
+    # reappears. Postgres-only -- there is no Attio attribute behind it.
+    # Until this column existed nothing removed a note row at all: the webhook
+    # ignored the event and the nightly resync does not touch this table, so a
+    # note deleted in Attio stayed here indefinitely.
+    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
