@@ -38,7 +38,7 @@
         {"source": "foundation_date", "target": "foundation_date", "transform": "attio_native", "status": "confirmed"},
         {"source": "employee_range", "target": "employee_range", "transform": null, "status": "needs_band_decision_source_bands_do_not_align_to_requested_target_bands"},
         {"source": "ticket_size", "target": "ticket_size", "transform": "attio_native", "status": "confirmed"},
-        {"source": "lead_source", "target": "lead_source", "transform": "single_select_title_or_report_multiple", "status": "confirmed"}
+        {"source": "lead_source", "target": "lead_source_detail", "transform": "latest_active_from_wins", "status": "confirmed", "note": "Retargeted 2026-09-15. Was declared as lead_source -> lead_source, which the code never implemented: the target's own lead_source is the unrelated Inbound/Outbound flag, written as a constant by objects.ps1, and SOURCE's value was read by nothing. SOURCE's attribute is a multiselect, so Get-LatestLeadSourceDetail keeps the value with the most recent active_from and throws on a tie rather than guessing"}
       ]
     },
     "people": {

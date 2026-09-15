@@ -12,6 +12,18 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Organizations now record **which lead-magnet a lead came in through** —
+  Valuation Tool, M&A Readiness Tool, Buyer Form, or GCC SME Benchmark — in a
+  new `lead_source_detail` field on both Attio and Postgres. The existing
+  `lead_source` only ever said Inbound or Outbound, so "which leads came from
+  the Valuation Tool?" could not be answered outside the legacy workspace.
+
+  The tool name had never been lost in translation: the migration simply never
+  read it, even though the mapping configuration had described carrying it
+  across since the beginning. Where a company used two tools, the most recent
+  one is recorded, and a genuinely ambiguous pair (identical timestamps) is
+  reported rather than guessed at.
+
 - A record deleted in Attio now disappears from Postgres for **all six**
   mirrored objects, not just two. Deals, notes, buyer roles and seller roles
   had no way to record a deletion at all: a deal deleted from the CRM stayed

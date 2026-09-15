@@ -22,6 +22,7 @@ def test_newer_fields_round_trip() -> None:
             "foundation_date": date(2010, 1, 1),
             "ticket_size": "$1M-$10M",
             "lead_source": "Referral",
+            "lead_source_detail": "M&A Readiness Tool",
             "employee_range": "11-50",
         }
     )
@@ -30,4 +31,5 @@ def test_newer_fields_round_trip() -> None:
     assert validated.foundation_date == date(2010, 1, 1)
     assert validated.ticket_size == "$1M-$10M"
     assert validated.lead_source == "Referral"
+    assert validated.lead_source_detail == "M&A Readiness Tool"
     assert validated.employee_range == "11-50"

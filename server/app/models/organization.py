@@ -94,6 +94,16 @@ class Organization(Base):
     foundation_date: Mapped[date | None] = mapped_column()
     ticket_size: Mapped[str | None] = mapped_column(Text)
     lead_source: Mapped[str | None] = mapped_column(Text)
+    # Added 2026-09-15: which lead-magnet the company arrived through
+    # (Valuation Tool, M&A Readiness Tool, Buyer Form, GCC SME Benchmark) —
+    # the detail `lead_source` above cannot carry, since it only distinguishes
+    # Inbound from Outbound. Single-valued even though SOURCE's attribute is a
+    # multiselect: crm-sync's Get-LatestLeadSourceDetail collapses several
+    # tools to the most recent by `active_from`, so a company that ran two
+    # tools is recorded as the later one and the earlier stays in SOURCE and
+    # `tool_runs`. The vocabulary is Attio's select options, copied from
+    # SOURCE, not restated here — hence plain text with no CHECK.
+    lead_source_detail: Mapped[str | None] = mapped_column(Text)
     # Added 2026-08-19: SOURCE's own bands adopted as-is (1-10, 11-50, 51-250,
     # 251-1K, 1K-5K, 5K-10K, 10K-50K, 50K-100K, 100K+) — the earlier requested
     # target bands were dropped in favor of not needing a reconciliation table.
