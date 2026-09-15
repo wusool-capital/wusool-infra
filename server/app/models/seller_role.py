@@ -125,6 +125,16 @@ class SellerRole(Base):
     # The Readiness tool's companion internal_advisory_note is not here -- it
     # goes to the note object instead.
     recommended_referral: Mapped[str | None] = mapped_column(Text)
+    # Attio-owned soft-delete marker, mirroring organizations/person, and
+    # distinct from `is_active` above: is_active says "superseded by a newer
+    # submission", removed_at says "no longer exists in Attio". Set by the
+    # webhook's `list-entry.deleted` handler and the nightly reconciliation,
+    # cleared again when the entry reappears. Postgres-only -- no Attio
+    # attribute behind it. Soft rather than a hard DELETE for two reasons:
+    # `match_results` cascades off this row and exists nowhere in Attio, and
+    # `notes.seller_role_id`/`tool_runs.seller_role_id` declare no ON DELETE,
+    # so a hard delete raises a foreign-key violation once either references it.
+    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

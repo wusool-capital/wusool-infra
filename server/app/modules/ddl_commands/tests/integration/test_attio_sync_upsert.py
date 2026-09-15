@@ -10,7 +10,7 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import Organization, Person
+from app.models import BuyerRole, Deal, Note, Organization, Person, SellerRole
 from app.modules.ddl_commands.persistence import attio_sync as upsert
 
 
@@ -497,3 +497,292 @@ async def test_sync_note_is_idempotent(
             )
         ).scalar_one()
     assert count == 1
+
+
+async def _removed_at(
+    db_sessionmaker: async_sessionmaker[AsyncSession], table: str, key_col: str, key: str
+) -> object:
+    async with db_sessionmaker() as session:
+        return (
+            await session.execute(
+                text(f"SELECT removed_at FROM {table} WHERE {key_col} = :key"),  # noqa: S608
+                {"key": key},
+            )
+        ).scalar_one()
+
+
+async def test_delete_organization_sets_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    org_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="Doomed Org"))
+        await session.commit()
+
+    await upsert.delete_organization(org_id)
+
+    assert await _removed_at(db_sessionmaker, "organizations", "attio_id", org_id) is not None
+
+
+async def test_delete_deal_sets_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    deal_id = f"test-deal-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Deal(attio_id=deal_id, name="Doomed Deal"))
+        await session.commit()
+
+    await upsert.delete_deal(deal_id)
+
+    assert await _removed_at(db_sessionmaker, "deals", "attio_id", deal_id) is not None
+
+
+async def test_delete_note_sets_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    """Keyed on `id`, not `attio_id` -- `notes` has no `attio_id` column; for
+    an Attio-originated note the primary key *is* the Attio record id."""
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    note_id = str(uuid.uuid4())
+    async with db_sessionmaker() as session:
+        session.add(Note(id=uuid.UUID(note_id), note_type="Manual", content="Doomed note"))
+        await session.commit()
+
+    await upsert.delete_note(note_id)
+
+    assert await _removed_at(db_sessionmaker, "notes", "id", note_id) is not None
+
+
+async def test_delete_note_leaves_a_locally_minted_note_alone(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    """A note whose Attio push failed keeps a local `gen_random_uuid()` that no
+    Attio record id can ever equal, so a deletion in Attio must not touch it.
+    Guards the meeting summaries that exist only in Postgres.
+    """
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    local_only = uuid.uuid4()
+    deleted_in_attio = str(uuid.uuid4())
+    async with db_sessionmaker() as session:
+        session.add(Note(id=local_only, note_type="Meeting", content="Unpushed summary"))
+        await session.commit()
+
+    await upsert.delete_note(deleted_in_attio)
+
+    assert await _removed_at(db_sessionmaker, "notes", "id", str(local_only)) is None
+
+
+async def test_delete_buyer_role_sets_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    """Keyed on `legacy_entry_id`: `list-entry.deleted` reports the entry, and
+    since the 2026-08-28 pluralization one org can hold several of them."""
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    org_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="Test Org"))
+        session.add(BuyerRole(org_attio_id=org_id, legacy_entry_id="entry-doomed"))
+        session.add(BuyerRole(org_attio_id=org_id, legacy_entry_id="entry-survivor"))
+        await session.commit()
+
+    await upsert.delete_buyer_role("entry-doomed")
+
+    assert (
+        await _removed_at(db_sessionmaker, "buyer_roles", "legacy_entry_id", "entry-doomed")
+        is not None
+    )
+    # The sibling entry on the same org is untouched -- the delete is per
+    # entry, not per organization.
+    assert (
+        await _removed_at(db_sessionmaker, "buyer_roles", "legacy_entry_id", "entry-survivor")
+        is None
+    )
+
+
+async def test_delete_seller_role_sets_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    org_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="Test Org"))
+        session.add(SellerRole(org_attio_id=org_id, legacy_entry_id="entry-doomed"))
+        session.add(SellerRole(org_attio_id=org_id, legacy_entry_id="entry-survivor"))
+        await session.commit()
+
+    await upsert.delete_seller_role("entry-doomed")
+
+    assert (
+        await _removed_at(db_sessionmaker, "seller_roles", "legacy_entry_id", "entry-doomed")
+        is not None
+    )
+    assert (
+        await _removed_at(db_sessionmaker, "seller_roles", "legacy_entry_id", "entry-survivor")
+        is None
+    )
+
+
+async def test_sync_organization_clears_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    """Re-creating a deleted record in Attio must bring the row back live --
+    otherwise every `removed_at IS NULL` query keeps hiding a record that
+    exists again. The batch path has its own test above
+    (`test_upsert_batch_still_clears_removed_at_when_content_is_unchanged`);
+    this is the per-event webhook path.
+    """
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    org_id = f"test-org-{uuid.uuid4()}"
+    client = _FakeClient(
+        {
+            f"/objects/organizations/records/{org_id}": {
+                "data": {"id": {"record_id": org_id}, "values": {"name": [_item(value="Reborn")]}}
+            }
+        }
+    )
+    await upsert.sync_organization(client, org_id)
+    await upsert.delete_organization(org_id)
+    assert await _removed_at(db_sessionmaker, "organizations", "attio_id", org_id) is not None
+
+    await upsert.sync_organization(client, org_id)
+
+    assert await _removed_at(db_sessionmaker, "organizations", "attio_id", org_id) is None
+
+
+async def test_sync_person_clears_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    person_id = f"test-person-{uuid.uuid4()}"
+    client = _FakeClient(
+        {
+            f"/objects/person/records/{person_id}": {
+                "data": {"id": {"record_id": person_id}, "values": {"name": [_item(value="Ada")]}}
+            }
+        }
+    )
+    await upsert.sync_person(client, person_id)
+    await upsert.delete_person(person_id)
+    assert await _removed_at(db_sessionmaker, "person", "attio_id", person_id) is not None
+
+    await upsert.sync_person(client, person_id)
+
+    assert await _removed_at(db_sessionmaker, "person", "attio_id", person_id) is None
+
+
+async def test_sync_deal_clears_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    deal_id = f"test-deal-{uuid.uuid4()}"
+    client = _FakeClient(
+        {
+            f"/objects/deal/records/{deal_id}": {
+                "data": {
+                    "id": {"record_id": deal_id},
+                    "values": {"deal_name": [_item(value="Reborn Deal")]},
+                }
+            }
+        }
+    )
+    await upsert.sync_deal(client, deal_id)
+    await upsert.delete_deal(deal_id)
+    assert await _removed_at(db_sessionmaker, "deals", "attio_id", deal_id) is not None
+
+    await upsert.sync_deal(client, deal_id)
+
+    assert await _removed_at(db_sessionmaker, "deals", "attio_id", deal_id) is None
+
+
+async def test_sync_note_clears_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    note_id = str(uuid.uuid4())
+    client = _FakeClient(
+        {
+            f"/objects/note/records/{note_id}": {
+                "data": {
+                    "id": {"record_id": note_id},
+                    "values": {
+                        "note_type": [_item(value="Manual")],
+                        "content": [_item(value="Reborn note")],
+                    },
+                }
+            }
+        }
+    )
+    await upsert.sync_note(client, note_id)
+    await upsert.delete_note(note_id)
+    assert await _removed_at(db_sessionmaker, "notes", "id", note_id) is not None
+
+    await upsert.sync_note(client, note_id)
+
+    assert await _removed_at(db_sessionmaker, "notes", "id", note_id) is None
+
+
+async def test_sync_buyer_role_clears_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    org_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="Test Org"))
+        await session.commit()
+
+    entry = {
+        "id": {"entry_id": "entry-reborn"},
+        "parent_record_id": {"record_id": org_id},
+        "created_at": "2024-01-01T00:00:00Z",
+        "entry_values": {"model": [_item(option={"title": "Financial"})]},
+    }
+    client = _FakeClient({"/lists/buyer_role/entries/entry-reborn": {"data": entry}})
+    client.add_entry_pages("buyer_role", [[entry]])
+
+    await upsert.sync_buyer_role(client, "entry-reborn")
+    await upsert.delete_buyer_role("entry-reborn")
+    assert (
+        await _removed_at(db_sessionmaker, "buyer_roles", "legacy_entry_id", "entry-reborn")
+        is not None
+    )
+
+    await upsert.sync_buyer_role(client, "entry-reborn")
+
+    assert (
+        await _removed_at(db_sessionmaker, "buyer_roles", "legacy_entry_id", "entry-reborn") is None
+    )
+
+
+async def test_sync_seller_role_clears_removed_at(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    org_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="Test Org"))
+        await session.commit()
+
+    entry = {
+        "id": {"entry_id": "entry-reborn"},
+        "parent_record_id": {"record_id": org_id},
+        "created_at": "2024-01-01T00:00:00Z",
+        "entry_values": {"outreach_tier": [_item(option={"title": "Tier 1"})]},
+    }
+    client = _FakeClient({"/lists/seller_role/entries/entry-reborn": {"data": entry}})
+    client.add_entry_pages("seller_role", [[entry]])
+
+    await upsert.sync_seller_role(client, "entry-reborn")
+    await upsert.delete_seller_role("entry-reborn")
+    assert (
+        await _removed_at(db_sessionmaker, "seller_roles", "legacy_entry_id", "entry-reborn")
+        is not None
+    )
+
+    await upsert.sync_seller_role(client, "entry-reborn")
+
+    assert (
+        await _removed_at(db_sessionmaker, "seller_roles", "legacy_entry_id", "entry-reborn")
+        is None
+    )

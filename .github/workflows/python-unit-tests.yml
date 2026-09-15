@@ -6,6 +6,12 @@ on:
 
 permissions:
   contents: read
+  # `dorny/paths-filter` reads the PR's changed-file list from the
+  # pulls/{n}/files API on `pull_request` events, which needs this on a
+  # private repo. Without it the `changes` job fails with "Resource not
+  # accessible by integration", every downstream job skips, and the
+  # required gates fail having run no tests at all.
+  pull-requests: read
 
 jobs:
   changes:

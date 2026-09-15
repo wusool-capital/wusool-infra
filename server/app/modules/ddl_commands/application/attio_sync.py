@@ -29,6 +29,18 @@ _LIST_SYNC_METHODS = {
     "seller_role": "sync_seller_role",
 }
 
+_LIST_DELETE_METHODS = {
+    "buyer_role": "delete_buyer_role",
+    "seller_role": "delete_seller_role",
+}
+
+_RECORD_DELETE_METHODS = {
+    "organizations": "delete_organization",
+    "person": "delete_person",
+    "deal": "delete_deal",
+    "note": "delete_note",
+}
+
 
 async def dispatch_event(
     upsert: AttioSyncRepositoryPort,
@@ -63,10 +75,9 @@ async def _dispatch_record_event(
         return  # object outside this sync's scope
 
     if event_type == "record.deleted":
-        if slug == "organizations":
-            await upsert.delete_organization(record_id)
-        elif slug == "person":
-            await upsert.delete_person(record_id)
+        method_name = _RECORD_DELETE_METHODS.get(slug)
+        if method_name:
+            await getattr(upsert, method_name)(record_id)
         else:
             _logger.info("ignoring record.deleted for %s (no deletion handling)", slug)
         return
@@ -97,7 +108,13 @@ async def _dispatch_list_entry_event(
         return  # list outside this sync's scope
 
     if event_type == "list-entry.deleted":
-        _logger.info("ignoring list-entry.deleted for %s (no deletion handling)", slug)
+        # No client argument: the entry is already gone, so there is nothing to
+        # fetch and no sibling `is_active` reconciliation to run against it.
+        method_name = _LIST_DELETE_METHODS.get(slug)
+        if method_name:
+            await getattr(upsert, method_name)(entry_id)
+        else:
+            _logger.info("ignoring list-entry.deleted for %s (no deletion handling)", slug)
         return
 
     method_name = _LIST_SYNC_METHODS.get(slug)

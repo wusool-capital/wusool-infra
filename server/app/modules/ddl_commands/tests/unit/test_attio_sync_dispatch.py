@@ -82,6 +82,18 @@ class _FakeUpsert:
     async def delete_person(self, record_id: str) -> None:
         self.calls.append(("delete_person", record_id))
 
+    async def delete_deal(self, record_id: str) -> None:
+        self.calls.append(("delete_deal", record_id))
+
+    async def delete_note(self, record_id: str) -> None:
+        self.calls.append(("delete_note", record_id))
+
+    async def delete_buyer_role(self, entry_id: str) -> None:
+        self.calls.append(("delete_buyer_role", entry_id))
+
+    async def delete_seller_role(self, entry_id: str) -> None:
+        self.calls.append(("delete_seller_role", entry_id))
+
 
 async def test_record_created_dispatches_to_matching_sync_fn() -> None:
     upsert = _FakeUpsert()
@@ -167,17 +179,45 @@ async def test_person_record_deleted_dispatches_to_delete_fn() -> None:
     assert upsert.calls == [("delete_person", "person-1")]
 
 
-async def test_record_deleted_for_table_without_delete_handling_is_a_noop() -> None:
+async def test_deal_record_deleted_dispatches_to_delete_fn() -> None:
     upsert = _FakeUpsert()
 
     await dispatch.dispatch_event(
         upsert,
         _FakeRegistry(),
         _FakeClient(),
-        _event("record.deleted", object_id="deals-object-uuid", record_id="deal-1"),
+        _event("record.deleted", object_id="deal-object-uuid", record_id="deal-1"),
     )
 
-    assert upsert.calls == []  # sync_fn must not run for a deleted record
+    assert upsert.calls == [("delete_deal", "deal-1")]
+
+
+async def test_note_record_deleted_dispatches_to_delete_fn() -> None:
+    upsert = _FakeUpsert()
+
+    await dispatch.dispatch_event(
+        upsert,
+        _FakeRegistry(),
+        _FakeClient(),
+        _event("record.deleted", object_id="note-object-uuid", record_id="note-1"),
+    )
+
+    assert upsert.calls == [("delete_note", "note-1")]
+
+
+async def test_record_deleted_for_known_but_unsynced_slug_is_a_noop() -> None:
+    """`tasks` is a real slug the registry knows but this sync does not mirror,
+    so a deletion there must not fall through to any handler."""
+    upsert = _FakeUpsert()
+
+    await dispatch.dispatch_event(
+        upsert,
+        _FakeRegistry(),
+        _FakeClient(),
+        _event("record.deleted", object_id="tasks-object-uuid", record_id="task-1"),
+    )
+
+    assert upsert.calls == []
 
 
 async def test_unknown_object_is_ignored() -> None:
@@ -206,10 +246,7 @@ async def test_list_entry_created_dispatches_to_matching_sync_fn() -> None:
     assert upsert.calls == [("sync_buyer_role", "entry-1")]
 
 
-async def test_list_entry_deleted_is_a_noop() -> None:
-    """No table's list-entry deletion is handled yet — see `upsert.py`'s
-    module docstring for why this mirrors sync-postgres.ps1's existing gap
-    rather than introducing a new one."""
+async def test_buyer_role_list_entry_deleted_dispatches_to_delete_fn() -> None:
     upsert = _FakeUpsert()
 
     await dispatch.dispatch_event(
@@ -217,6 +254,36 @@ async def test_list_entry_deleted_is_a_noop() -> None:
         _FakeRegistry(),
         _FakeClient(),
         _event("list-entry.deleted", list_id="buyer-role-list-uuid", entry_id="entry-1"),
+    )
+
+    # No client argument: the entry is gone, so there is nothing to fetch and
+    # no sibling `is_active` reconciliation to run against it.
+    assert upsert.calls == [("delete_buyer_role", "entry-1")]
+
+
+async def test_seller_role_list_entry_deleted_dispatches_to_delete_fn() -> None:
+    upsert = _FakeUpsert()
+
+    await dispatch.dispatch_event(
+        upsert,
+        _FakeRegistry(),
+        _FakeClient(),
+        _event("list-entry.deleted", list_id="seller-role-list-uuid", entry_id="entry-2"),
+    )
+
+    assert upsert.calls == [("delete_seller_role", "entry-2")]
+
+
+async def test_list_entry_deleted_for_unhandled_list_is_a_noop() -> None:
+    """`mandates` is a known list this sync does not mirror, so a deletion
+    there must not fall through to a handler."""
+    upsert = _FakeUpsert()
+
+    await dispatch.dispatch_event(
+        upsert,
+        _FakeRegistry(),
+        _FakeClient(),
+        _event("list-entry.deleted", list_id="mandates-list-uuid", entry_id="entry-3"),
     )
 
     assert upsert.calls == []

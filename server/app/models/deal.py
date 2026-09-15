@@ -113,6 +113,14 @@ class Deal(Base):
     # workflows/crm-sync/scripts/_internal/objects.ps1) -- not a business
     # field, lets that migration re-run without creating duplicate Deals.
     source_mandate_entry_id: Mapped[str | None] = mapped_column(Text, unique=True)
+    # Attio-owned soft-delete marker, mirroring organizations/person. Set by
+    # the webhook's `record.deleted` handler and by the nightly resync's
+    # reconciliation, cleared again when the deal reappears in Attio.
+    # Postgres-only -- there is no Attio attribute behind it. Soft rather than
+    # a hard DELETE because `deal_stage_events` and `documents` cascade off
+    # this row and exist nowhere in Attio, so a cascade would destroy history
+    # no resync could rebuild.
+    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     raw_attio: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")

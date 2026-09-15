@@ -10,7 +10,27 @@ for current production evidence and open handover items.
 
 ## 2026-09-15
 
+### Added
+
+- A record deleted in Attio now disappears from Postgres for **all six**
+  mirrored objects, not just two. Deals, notes, buyer roles and seller roles
+  had no way to record a deletion at all: a deal deleted from the CRM stayed
+  in Postgres indefinitely, so matching, reporting and Slack search kept
+  counting and offering records nobody could see in Attio any more. The
+  webhook now marks them removed within seconds, and a record re-created in
+  Attio comes back live on its own.
+
+  The removal is recoverable by design — rows are marked, never erased,
+  because their Postgres-side children (deal-stage history, generated
+  documents, match results) are computed here and could not be rebuilt from
+  Attio. Deletion stays authored in Attio only; there is still no way to
+  delete a record from Slack or from Postgres.
+
 ### Fixed
+
+- A person deleted in Attio and then re-created in it came back invisible:
+  the deletion marker was never cleared on re-appearance, so the row was
+  present but skipped by everything that filters out deleted records.
 
 - Seller discovery's geography restriction silently produced wrong results
   for a buyer whose `target_geography` includes a multi-country region:

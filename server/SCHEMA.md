@@ -3,7 +3,7 @@
 Generated from `wusool_db/models/*.py` (2026-08-29) — that package is the
 source Alembic's `--autogenerate` diffs against, so it is the closest thing
 this repo has to a single source of truth for the schema. Current Alembic
-head: **`f5cd5212e82e`** (`add_primary_role_and_meetings_note_id`).
+head: **`b8c41e7d09a2`** (`add_removed_at_to_deals_notes_roles`).
 
 **Two tiers of confidence — read this before trusting any table below:**
 
@@ -21,6 +21,17 @@ head: **`f5cd5212e82e`** (`add_primary_role_and_meetings_note_id`).
 
 Money-shaped JSONB columns (marked below) hold either `{"amount": ...,
 "currency": ...}` or `NULL` — never a fabricated value when Attio has none.
+
+**Soft delete.** The six Attio-mirrored tables — `organizations`, `person`,
+`deals`, `notes`, `buyer_roles`, `seller_roles` — carry `removed_at`. It is
+**Postgres-only**: no Attio attribute corresponds to it. The webhook's delete
+handlers stamp it when a record is deleted in Attio, and every upsert resets it
+to `NULL` when that record reappears, so any query over live data must filter
+`removed_at IS NULL`. Nothing hard-deletes these rows — their `ON DELETE
+CASCADE` children (`deal_stage_events`, `documents`, `match_results`) are
+computed in Postgres and could not be rebuilt from Attio, and
+`notes.{buyer,seller}_role_id` / `tool_runs.{buyer,seller}_role_id` declare no
+`ON DELETE` at all, so a hard delete of a referenced role would raise instead.
 
 ---
 
@@ -48,7 +59,7 @@ Money-shaped JSONB columns (marked below) hold either `{"amount": ...,
 | last_interaction_at | timestamptz | yes | | |
 | estimated_arr | text | yes | | |
 | funding_raised | jsonb | yes | | money-shaped |
-| removed_at | timestamptz | yes | | Attio-owned soft-delete marker |
+| removed_at | timestamptz | yes | | Postgres-only soft-delete marker; no Attio attribute behind it |
 | angellist / facebook / instagram / twitter | text | yes | | |
 | twitter_follower_count | integer | yes | | |
 | foundation_date | date | yes | | |
@@ -83,7 +94,7 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 | job_title / contact_type / phone / avatar_url | text | yes | | |
 | angellist / facebook / instagram / twitter | text | yes | | |
 | twitter_follower_count | integer | yes | | |
-| removed_at | timestamptz | yes | | soft-delete (FKs use ON DELETE NO ACTION) |
+| removed_at | timestamptz | yes | | Postgres-only soft-delete marker; no Attio attribute behind it |
 | raw_attio | jsonb | no | `{}` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
 
@@ -120,6 +131,7 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 | mandate_start_date / mandate_expiry_date | date | yes | | |
 | retainer_amount | jsonb | yes | | money-shaped |
 | source_mandate_entry_id | text | yes | unique | idempotency key, mandate→deal migration |
+| removed_at | timestamptz | yes | | Postgres-only soft-delete marker; no Attio attribute behind it |
 | raw_attio | jsonb | no | `{}` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
 | time_in_stage | interval | yes | | |
@@ -148,6 +160,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 | prior_gcc_acquisition | text | yes | | |
 | is_active | boolean | yes | | current vs. stale duplicate |
 | legacy_entry_id | text | yes | unique | one row per SOURCE Attio entry |
+| removed_at | timestamptz | yes | | Postgres-only soft-delete marker; no Attio attribute behind it |
 | raw_attio | jsonb | no | `{}` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
 
@@ -183,6 +196,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 | data_consent / include_in_benchmark | boolean | yes | | `include_in_benchmark` is set by a human in Attio, never by the tool |
 | lead_priority / routing_reason / quality_check / benchmark_review / review_note / headline_flag | text | yes | | Benchmark routing and dataset governance |
 | recommended_referral | text | yes | | M&A Readiness AI referral; its companion `internal_advisory_note` goes to `notes` |
+| removed_at | timestamptz | yes | | Postgres-only soft-delete marker; no Attio attribute behind it |
 | raw_attio | jsonb | no | `{}` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
 
@@ -229,6 +243,7 @@ Indexes: `idx_tool_runs_tool`, `idx_tool_runs_status`,
 | note_type | text | no | | CHECK: `Manual` or `Meeting` |
 | primary_role | enum(`seller`,`buyer`,`investor`,`internal`,`general`) | yes | | Native Postgres enum `meeting_role` (migration `b4e1d7c0f3a2`) — the `MeetingRole` values (`meetings/domain/roles.py`), lowercase, matching the Attio select's option titles exactly and shared with `meetings.primary_role`. Set by the meeting-summary pipeline from the meeting's own `primary_role`; null on manual notes and on anything backfilled before 2026-09-07 |
 | content | text | no | | |
+| removed_at | timestamptz | yes | | Postgres-only soft-delete marker; no Attio attribute behind it |
 | created_at | timestamptz | no | `now()` | |
 
 Populated by `workflows/crm-sync/scripts/source-attio/backfill-notes.ps1`
