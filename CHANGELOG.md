@@ -8,6 +8,23 @@ The project has no version tags: merges to `dev` and `prod` deploy their
 respective environments. See [Delivery status](docs/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-15
+
+### Fixed
+
+- Seller discovery's geography restriction silently produced wrong results
+  for a buyer whose `target_geography` includes a multi-country region:
+  geocoding the bare string `"GCC-wide"` (or the raw `"GCC-wide, Global"`
+  buyers actually carry) matched an unrelated US institution commonly
+  abbreviated "GCC" with `status: OK` and no error, restricting the search
+  to Glendale, CA instead of the Gulf states the buyer meant — traced live
+  from a buyer with `target_geography: ["GCC-wide", "Global"]` returning
+  only German sellers. Geocode results are now validated against Google's
+  own place-type and partial-match signals before they're trusted, and
+  `target_geography`'s known multi-country regions (GCC, MENA) and
+  explicit no-restriction terms (Global, Worldwide) resolve from a fixed
+  table instead of a single geocode call that can't answer them correctly.
+
 ## 2026-09-14
 
 ### Added
