@@ -19,7 +19,7 @@ from sqlalchemy import select
 
 from app.models import FeedbackSubmission
 from app.modules.meetings.api.dependencies import feedback_mailer, get_session
-from app.modules.meetings.api.feedback import _limiter
+from app.modules.meetings.api.feedback import _install_limiter, _ip_limiter
 from app.modules.meetings.api.feedback import router as feedback_router
 from app.modules.meetings.config import get_settings
 from app.modules.utilities.api.handlers import register_exception_handlers
@@ -72,10 +72,12 @@ def _configured_delivery(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("FEEDBACK_EMAIL_TO", "team-a@example.com team-b@example.com")
     monkeypatch.setenv("FEEDBACK_EMAIL_FROM", "scribe@example.com")
     get_settings.cache_clear()
-    _limiter._hits.clear()
+    _install_limiter._hits.clear()
+    _ip_limiter._hits.clear()
     yield
     get_settings.cache_clear()
-    _limiter._hits.clear()
+    _install_limiter._hits.clear()
+    _ip_limiter._hits.clear()
 
 
 def _headers() -> dict[str, str]:
@@ -220,3 +222,19 @@ async def test_rate_limit_is_scoped_per_install_id(db_session) -> None:
         other_install = {**_VALID_PAYLOAD, "install_id": "a-different-install"}
         response = await client.post("/desktop/feedback", json=other_install, headers=_headers())
     assert response.status_code == 200
+
+
+async def test_rotating_install_id_cannot_bypass_the_rate_limit(db_session) -> None:
+    """A caller holding the shared DESKTOP_API_KEY could otherwise defeat
+    an install_id-only limit by sending a fresh id on every request --
+    `_ip_limiter` is what actually bounds this, since every request here
+    comes from the same client/IP regardless of install_id."""
+    async with _make_client(db_session, _FakeMailer()) as client:
+        for i in range(20):
+            payload = {**_VALID_PAYLOAD, "install_id": f"install-{i}"}
+            response = await client.post("/desktop/feedback", json=payload, headers=_headers())
+            assert response.status_code == 200
+
+        payload = {**_VALID_PAYLOAD, "install_id": "install-20-never-seen-before"}
+        response = await client.post("/desktop/feedback", json=payload, headers=_headers())
+    assert response.status_code == 429

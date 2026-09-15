@@ -15,10 +15,9 @@ request.
 """
 
 import logging
-import time
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from app.modules.meetings.api.auth import require_desktop_api_key
 from app.modules.meetings.api.dependencies import FeedbackMailerDep, FeedbackRepositoryDep
@@ -29,6 +28,7 @@ from app.modules.meetings.api.schemas import (
 )
 from app.modules.meetings.bootstrap import send_feedback_email
 from app.modules.meetings.config import get_settings
+from app.modules.utilities import FixedWindowRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -44,32 +44,28 @@ _CATEGORY_LABELS: dict[FeedbackCategory, str] = {
 }
 
 
-class _FeedbackRateLimiter:
-    """Per-install-id fixed window, in process. One container per
-    environment (same reasoning as lead_magnets' copy, which this module
-    can't import -- its `__init__.py` declares no `__all__`), so an
-    in-process counter is accurate rather than merely convenient. The
-    shared `DESKTOP_API_KEY` means any install can otherwise spam this
-    table (and, while configured, the inbox behind it).
+def _client_ip(request: Request) -> str:
+    """The **last** `X-Forwarded-For` entry, not the first -- same
+    reasoning as `lead_magnets/api/dependencies.py::client_ip`: Caddy sits
+    in front and appends the real peer, so the rightmost value is the
+    trustworthy one.
     """
-
-    def __init__(self, *, limit: int, window_s: int = 3600) -> None:
-        self._limit = limit
-        self._window_s = window_s
-        self._hits: dict[str, tuple[float, int]] = {}
-
-    def check(self, key: str, *, now: float | None = None) -> bool:
-        now = time.monotonic() if now is None else now
-        started, count = self._hits.get(key, (now, 0))
-        if now - started >= self._window_s:
-            started, count = now, 0
-        if count >= self._limit:
-            return False
-        self._hits[key] = (started, count + 1)
-        return True
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[-1].strip()
+    return request.client.host if request.client else "unknown"
 
 
-_limiter = _FeedbackRateLimiter(limit=5)
+# Two independent limiters, not one: `install_id` is entirely
+# client-supplied (Pydantic only caps its length -- see schemas.py) and
+# every desktop install shares one `DESKTOP_API_KEY`, so a caller holding
+# that key can trivially defeat an install_id-only limit by sending a
+# fresh random id on every request. `_ip_limiter` is the one that actually
+# bounds abuse (an IP is far more expensive to rotate); `_install_limiter`
+# stays as a courtesy cap on a single well-behaved install retry-looping.
+# Either tripping blocks the request.
+_install_limiter = FixedWindowRateLimiter(limit=5)
+_ip_limiter = FixedWindowRateLimiter(limit=20)
 
 
 def build_feedback_email_subject(request: DesktopFeedbackRequest) -> str:
@@ -102,11 +98,17 @@ def build_feedback_email_body(request: DesktopFeedbackRequest) -> str:
 @router.post("/feedback")
 async def submit_feedback(
     request: DesktopFeedbackRequest,
+    http_request: Request,
     repo: FeedbackRepositoryDep,
     mailer: FeedbackMailerDep,
     background_tasks: BackgroundTasks,
 ) -> DesktopFeedbackResponse:
-    if not _limiter.check(request.install_id):
+    # Both checked unconditionally (not `or`-short-circuited) so a request
+    # that trips one limiter still counts against the other -- neither
+    # counter should undercount just because the other one fired first.
+    ip_allowed = _ip_limiter.check(_client_ip(http_request))
+    install_allowed = _install_limiter.check(request.install_id)
+    if not ip_allowed or not install_allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many feedback submissions",
