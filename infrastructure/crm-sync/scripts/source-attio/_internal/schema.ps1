@@ -169,6 +169,18 @@ $fields = @(
   # never tracked here until now (same class of gap noted elsewhere in this
   # file for other fields).
   [pscustomobject]@{ Title = "Lead Source"; Slug = "lead_source"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @("Inbound", "Outbound") },
+  # Added 2026-09-15: which lead-magnet the company arrived through -- the
+  # detail `lead_source` above deliberately does not carry, since it only
+  # distinguishes Inbound from Outbound. SourceOption copies SOURCE's own
+  # option titles verbatim so the migration cannot mistranslate them, and keeps
+  # following any option SOURCE adds later; FixedOptions adds the GCC SME
+  # Benchmark tool, which postdates SOURCE and so has no historical data but
+  # needs somewhere for new leads to land. The two option loops below are
+  # additive and independent -- `type` above already relies on that pairing.
+  # Single-value on purpose: SOURCE's attribute is a multiselect and one
+  # company (Arto) genuinely holds two tools, so objects.ps1 collapses them to
+  # the most recent by `active_from`.
+  [pscustomobject]@{ Title = "Lead Source Detail"; Slug = "lead_source_detail"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "lead_source"; FixedOptions = @("GCC SME Benchmark") },
   # Environment discriminator, added 2026-09-06: one SOURCE workspace now
   # serves both dev and prod, true = dev/test, false = prod. Attio cannot
   # enforce NOT NULL on a checkbox and its filter offers only "is true"/"is

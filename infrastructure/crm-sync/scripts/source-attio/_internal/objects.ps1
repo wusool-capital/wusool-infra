@@ -248,6 +248,53 @@ function Get-NormalizedRelationshipStatus {
   return [string]$ordered[0].Target
 }
 
+function Get-LatestLeadSourceDetail {
+  param([object]$Values)
+
+  # SOURCE `companies.lead_source` is a multiselect (Valuation Tool, M&A
+  # Readiness Tool, Buyer Form) while the target `lead_source_detail` is a
+  # single select, so several tools have to collapse to one. The rule is the
+  # most recent `active_from`, matching Get-NormalizedRelationshipStatus above:
+  # a company that ran the Valuation Tool and then came back for M&A Readiness
+  # 16 minutes later (Arto, 2026-04-09) is recorded as M&A Readiness. The
+  # earlier tool is not lost outright -- it stays in SOURCE, and `tool_runs`
+  # is the per-invocation record.
+  #
+  # Unlike Get-NormalizedRelationshipStatus this filters on `active_until`:
+  # only values Attio still considers current may win. Titles pass through
+  # verbatim -- the target's options are copied from this same SOURCE
+  # attribute (see schema.ps1), so there is nothing to translate.
+  $mapped = @()
+  foreach ($item in @($Values.lead_source | Where-Object { $null -eq $_.active_until })) {
+    $title = [string](Get-ScalarValue -Item $item)
+    if ([string]::IsNullOrWhiteSpace($title)) { continue }
+
+    $activeFrom = $null
+    if ($item.active_from) {
+      $parsed = [datetimeoffset]::MinValue
+      if ([datetimeoffset]::TryParse([string]$item.active_from, [ref]$parsed)) {
+        $activeFrom = $parsed
+      }
+    }
+    $mapped += [pscustomobject]@{ Title = $title.Trim(); ActiveFrom = $activeFrom }
+  }
+
+  if ($mapped.Count -eq 0) { return $null }
+  $distinct = @($mapped.Title | Sort-Object -Unique)
+  if ($distinct.Count -eq 1) { return [string]$distinct[0] }
+
+  if (@($mapped | Where-Object { $null -eq $_.ActiveFrom }).Count -gt 0) {
+    throw "Conflicting Lead Source values have a missing active_from timestamp: $($mapped.Title -join ', ')."
+  }
+
+  $ordered = @($mapped | Sort-Object ActiveFrom -Descending)
+  if ($ordered.Count -gt 1 -and $ordered[0].ActiveFrom -eq $ordered[1].ActiveFrom -and
+      $ordered[0].Title -ne $ordered[1].Title) {
+    throw "Conflicting Lead Source values have tied active_from timestamps: $($mapped.Title -join ', ')."
+  }
+  return [string]$ordered[0].Title
+}
+
 function Get-SourceReferenceIds {
   param([object]$Values, [string[]]$Slugs)
 
@@ -444,7 +491,13 @@ $fieldMappings = if ($isPerson) {
     [pscustomobject]@{ Source = "foundation_date"; Target = "foundation_date" },
     [pscustomobject]@{ Source = "ticket_size"; Target = "ticket_size" },
     [pscustomobject]@{ Source = "employee_range"; Target = "employee_range" },
-    [pscustomobject]@{ Source = "linkedin"; Target = "linkedin" }
+    [pscustomobject]@{ Source = "linkedin"; Target = "linkedin" },
+    # Added 2026-09-15. Note the slugs differ: SOURCE's `lead_source` carries
+    # the tool name, while the target's own `lead_source` is the unrelated
+    # Inbound/Outbound flag written unconditionally further down. Handled by a
+    # dedicated branch in the mapping loop because the multiselect has to
+    # collapse to one value -- see Get-LatestLeadSourceDetail.
+    [pscustomobject]@{ Source = "lead_source"; Target = "lead_source_detail" }
   )
 }
 
@@ -593,6 +646,22 @@ foreach ($record in $sourceRecords) {
           $payload[$mapping.Target] = Convert-TargetValue `
             -TargetSlug $mapping.Target `
             -Values @($normalizedStatus) `
+            -TargetAttributes $targetAttributes `
+            -OptionMaps $optionMaps
+        }
+      } catch {
+        $recordErrors += $_.Exception.Message
+      }
+      continue
+    }
+
+    if ($mapping.Target -eq "lead_source_detail") {
+      try {
+        $leadSourceDetail = Get-LatestLeadSourceDetail -Values $record.values
+        if (-not [string]::IsNullOrWhiteSpace($leadSourceDetail)) {
+          $payload[$mapping.Target] = Convert-TargetValue `
+            -TargetSlug $mapping.Target `
+            -Values @($leadSourceDetail) `
             -TargetAttributes $targetAttributes `
             -OptionMaps $optionMaps
         }

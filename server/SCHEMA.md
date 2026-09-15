@@ -3,7 +3,7 @@
 Generated from `wusool_db/models/*.py` (2026-08-29) — that package is the
 source Alembic's `--autogenerate` diffs against, so it is the closest thing
 this repo has to a single source of truth for the schema. Current Alembic
-head: **`b8c41e7d09a2`** (`add_removed_at_to_deals_notes_roles`).
+head: **`e1f7a3c95b28`** (`add_organizations_lead_source_detail`).
 
 **Two tiers of confidence — read this before trusting any table below:**
 
@@ -64,7 +64,8 @@ computed in Postgres and could not be rebuilt from Attio, and
 | twitter_follower_count | integer | yes | | |
 | foundation_date | date | yes | | |
 | ticket_size | text | yes | | |
-| lead_source | text | yes | | |
+| lead_source | text | yes | | Inbound/Outbound only — the tool name is `lead_source_detail` |
+| lead_source_detail | text | yes | | which lead-magnet the lead arrived through; latest-wins collapse of SOURCE's multiselect |
 | employee_range | text | yes | | SOURCE's own bands, e.g. `1-10`, `100K+` |
 | linkedin | text | yes | | |
 | logo_url | text | yes | | |
