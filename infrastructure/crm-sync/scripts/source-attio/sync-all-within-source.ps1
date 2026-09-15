@@ -172,7 +172,7 @@ Write-Host ""
 # empty -- silently making the outage permanent. Happened twice on
 # 2026-09-14. The stash makes a kill recoverable and stops an already-paused
 # webhook from being baked in as the new truth.
-$webhookStashPath = Join-Path $PSScriptRoot "..\..\..\..\outputsttio-webhook-subscriptions.json"
+$webhookStashPath = Join-Path $PSScriptRoot (Join-Path ".." (Join-Path ".." (Join-Path ".." (Join-Path ".." (Join-Path "outputs" "attio-webhook-subscriptions.json")))))
 $devWebhook = $null
 $webhookPaused = $false
 if ($Apply -and -not $SkipWebhookPause) {
