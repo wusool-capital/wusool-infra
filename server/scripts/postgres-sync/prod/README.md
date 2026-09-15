@@ -75,7 +75,11 @@ three role/deal tables reconcile by **hard delete**:
 | Table | Not-fetched rows are |
 | --- | --- |
 | `organizations`, `person` | soft-deleted (`removed_at = now()`), recoverable |
-| `deals`, `buyer_roles`, `seller_roles` | **`DELETE`d — no `removed_at` column** |
+| `deals`, `buyer_roles`, `seller_roles` | **`DELETE`d — unrecoverable** |
+
+All six tables now carry a `removed_at` column (migration `b8c41e7d09a2`), but
+**this script still issues `DELETE` for the three above** — it has not been
+switched over. The column existing does not make these deletes recoverable.
 
 So a record wrongly flagged `is_test` loses its row and its `raw_attio`
 permanently, and recovery is an RDS point-in-time restore. A non-zero

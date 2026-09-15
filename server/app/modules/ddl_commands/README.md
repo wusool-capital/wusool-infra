@@ -87,6 +87,39 @@ protection would get silently overwritten by the next sync cycle. Writing
 to Attio first means the sync's source of truth already agrees with what
 Postgres is about to store — the next sync converges instead of clobbering.
 
+## Deletions: Attio is the only place a record can be deleted
+
+Postgres is a mirror of Attio for six tables — `organizations`, `person`,
+`deals`, `notes`, `buyer_roles`, `seller_roles`. A record deleted in Attio
+must disappear from Postgres too, and the mirror runs **one way only**: there
+is no Postgres-originated delete, no `/remove-*` command, and
+`AttioClientProtocol` has no `delete` verb at all. Deleting Postgres-first
+would be worse than useless — the nightly resync re-reads Attio and
+resurrects the row.
+
+The mirror is a **soft delete**. Each of the six tables carries a
+Postgres-only `removed_at timestamptz` (no Attio attribute corresponds to
+it). `record.deleted` / `list-entry.deleted` stamps it via
+`persistence/attio_sync.py`'s `delete_*` functions, dispatched from
+`application/attio_sync.py`'s `_RECORD_DELETE_METHODS` /
+`_LIST_DELETE_METHODS`; every upsert resets it to `NULL`, so a record
+re-created in Attio comes back live rather than staying flagged. Consumers
+must therefore filter `removed_at IS NULL`.
+
+Soft rather than hard delete because a `DELETE` here destroys data Attio
+cannot rebuild: `deals` cascades into `deal_stage_events` and `documents`,
+both role tables cascade into `match_results`, and
+`notes.{buyer,seller}_role_id` / `tool_runs.{buyer,seller}_role_id` declare
+no `ON DELETE` at all — so deleting a referenced role raises a foreign-key
+violation instead. The `ON DELETE CASCADE` clauses are left in place
+deliberately: with nothing hard-deleting these rows they are unreachable.
+
+Two keys differ from the sync path's usual `attio_id`: `notes` is keyed on
+`id` (which holds the Attio record id verbatim for Attio-originated notes),
+and the role deletes are keyed on **`legacy_entry_id`**, because
+`list-entry.deleted` reports the list entry and that id is the only
+Attio-derived identity those rows have.
+
 ## Excluded fields
 
 Not every column on `organizations`/`seller_roles`/`buyer_roles` is
@@ -153,6 +186,13 @@ An earlier version of this bot added a `bot_managed_at`/`bot_managed_by`/
 sign-off. That was wrong — schema changes aren't this bot's call. Both were
 reverted. The sync-collision problem those guard columns existed to solve
 is now handled by writing to Attio first instead (see above).
+
+`removed_at` has since come back to those two tables, and to `deals`/`notes`,
+in migration `b8c41e7d09a2` — with sign-off, and for a different reason: it
+mirrors a deletion **authored in Attio** (see "Deletions" above), not one
+authored by this bot. `bot_managed_at`/`bot_managed_by` and the `/remove-*`
+commands stay reverted, and nothing about that reversal is being
+re-litigated.
 
 ## Known limitation: concurrent writes to the same organization
 
