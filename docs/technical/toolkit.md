@@ -99,5 +99,11 @@ None becomes a CRM seller until an operator completes the add-seller flow.
   operator-facing error; deterministic scoring cannot invent missing facts.
 - Discovery is unavailable without Google Places and enrichment skips any
   missing optional provider.
+- Discovery's geography filter reads only the buyer's `Target geography`
+  field. HQ country and region never narrow it — they describe the buyer,
+  not their target market. A blank field, or a value including `Global`,
+  searches worldwide. `GCC-wide`, `MENA`, and `Middle East` resolve to a
+  fixed country list. Other values geocode live and fall back to worldwide
+  rather than restrict to a wrong match.
 - Slack forms exclude system-managed, reference, and pipeline-owned fields that
   the interface cannot safely update.
