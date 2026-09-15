@@ -11,6 +11,11 @@ use tauri::{AppHandle, Runtime};
 
 use crate::push::load_push_config;
 
+// Kept in sync BY HAND with two other copies -- there is no shared
+// codegen across these three languages. Changing a value here means also
+// updating `frontend/src/lib/feedback.ts`'s `MAX_FEEDBACK_CHARS`/
+// `FEEDBACK_CATEGORIES` and `server/app/modules/meetings/api/schemas.py`'s
+// `DesktopFeedbackRequest`/`FeedbackCategory`.
 const MAX_MESSAGE_CHARS: usize = 4000;
 const MAX_CONTACT_CHARS: usize = 200;
 const CATEGORIES: [&str; 4] = ["bug", "feature_request", "transcription_quality", "other"];
@@ -102,9 +107,10 @@ pub async fn submit_feedback<R: Runtime>(
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
         return Err("Too many feedback submissions -- please try again later.".to_string());
     }
-    if status == reqwest::StatusCode::SERVICE_UNAVAILABLE {
-        return Err("Feedback delivery isn't configured on the server yet.".to_string());
-    }
+    // No 503/502 branch: the server durably writes the feedback row first
+    // and always returns 200 once that succeeds -- email delivery is
+    // best-effort and never surfaces as an error to this client (see
+    // server/app/modules/meetings/api/feedback.py).
     if !status.is_success() {
         warn!(
             "submit_feedback: {} returned {}: {}",

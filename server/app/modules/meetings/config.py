@@ -26,12 +26,13 @@ class Settings(BaseSettings):
 
     # Email delivery for POST /desktop/feedback only, via SES. Both optional
     # on purpose: this module's real job (ingest/summarize) must not fail
-    # to boot over credentials one auxiliary endpoint needs. With either
-    # unset the feedback route returns 503 rather than silently dropping
-    # the user's text. feedback_email_from must be an SES-verified identity
-    # in this account/region, or SES rejects the send at request time.
-    # feedback_email_to is space-separated (same convention as
-    # LEAD_MAGNET_FRAME_ANCESTORS) -- one or more recipients.
+    # to boot over credentials one auxiliary endpoint needs. The feedback
+    # row is durable regardless -- with either unset, the route just skips
+    # scheduling the background email (see api/feedback.py) and still
+    # returns 200. feedback_email_from must be an SES-verified identity in
+    # this account/region, or SES rejects the send. feedback_email_to is
+    # space-separated (same convention as LEAD_MAGNET_FRAME_ANCESTORS) --
+    # one or more recipients.
     feedback_email_to: str = ""
     feedback_email_from: str = ""
 

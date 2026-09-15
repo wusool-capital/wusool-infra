@@ -87,7 +87,7 @@ module "bedrock" {
 }
 
 # Lets the toolkit send POST /desktop/feedback's email via SES
-# (app/modules/meetings/providers/ses). Resource "*" rather than an
+# (app/modules/notifications/providers/ses). Resource "*" rather than an
 # identity ARN: unlike Bedrock's InvokeModel, classic SES SendEmail has no
 # resource-level ARN to scope to short of the newer SESv2 API, and SES
 # itself already refuses to send from anything but a verified identity

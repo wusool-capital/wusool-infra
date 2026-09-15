@@ -3,6 +3,13 @@
 // Rust command (`src-tauri/src/feedback/mod.rs::submit_feedback`) mirrors
 // these caps and does its own validation too -- never trust the client
 // alone.
+//
+// MAX_FEEDBACK_CHARS/FEEDBACK_CATEGORIES are kept in sync BY HAND with two
+// other copies -- there is no shared codegen across these three languages.
+// Changing a value here means also updating `src-tauri/src/feedback/mod.rs`'s
+// `MAX_MESSAGE_CHARS`/`CATEGORIES` and
+// `server/app/modules/meetings/api/schemas.py`'s
+// `DesktopFeedbackRequest`/`FeedbackCategory`.
 
 import { invoke } from '@tauri-apps/api/core';
 

@@ -49,11 +49,24 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   useEffect(() => {
     if (!open) return;
+    // Guards against a rapid close-then-reopen: if this effect's own check
+    // is superseded before it resolves, its result must not overwrite
+    // whatever the newer (or current) check already set.
+    let cancelled = false;
     setCheckingConfig(true);
     invoke<PushConfig>('get_push_config')
-      .then((config) => setConfigured(isFeedbackConfigured(config)))
-      .catch(() => setConfigured(false))
-      .finally(() => setCheckingConfig(false));
+      .then((config) => {
+        if (!cancelled) setConfigured(isFeedbackConfigured(config));
+      })
+      .catch(() => {
+        if (!cancelled) setConfigured(false);
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingConfig(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const resetForm = () => {
