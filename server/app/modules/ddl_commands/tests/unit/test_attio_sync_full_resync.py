@@ -237,7 +237,7 @@ async def test_run_raises_systemexit_on_any_failure(monkeypatch) -> None:
     async def noop_reconcile(client, list_slug, entries, build_params):
         return [], 0
 
-    async def noop_streaming(client, model, table, path, mapper):
+    async def noop_streaming(client, model, table, path, mapper, seen_ids=None):
         return 0, 0
 
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
@@ -270,7 +270,7 @@ async def test_run_raises_systemexit_when_a_table_has_failures(monkeypatch) -> N
     async def failing_write(model, table, rows, expected_count):
         return 0, 1
 
-    async def noop_streaming(client, model, table, path, mapper):
+    async def noop_streaming(client, model, table, path, mapper, seen_ids=None):
         return 0, 0
 
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
@@ -314,6 +314,12 @@ async def test_run_continues_past_a_failed_entity_listing(monkeypatch) -> None:
     async def no_ids(table):
         return set()
 
+    # This test is about run() surviving a failed listing, not about
+    # reconciliation -- which has its own tests below and would otherwise try
+    # to open a real connection here.
+    async def no_reconcile(table, live_ids):
+        return (0, 0)
+
     write_calls = []
 
     async def recording_batch(model, rows):
@@ -326,6 +332,7 @@ async def test_run_continues_past_a_failed_entity_listing(monkeypatch) -> None:
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
     monkeypatch.setattr(full_resync, "_page_through", flaky_page)
     monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
+    monkeypatch.setattr(full_resync, "_reconcile_deletions", no_reconcile)
     monkeypatch.setattr(full_resync, "_write_batches_concurrently", recording_batch)
     monkeypatch.setattr(full_resync, "_count", count)
 
@@ -429,3 +436,142 @@ async def test_streaming_entity_skips_out_of_scope_records(monkeypatch) -> None:
 
     assert mapped == ["prod-1"]
     assert (ok, failed) == (1, 0)
+
+
+class _FakeResult:
+    def __init__(self, value) -> None:
+        self._value = value
+
+    def scalar_one(self):
+        return self._value
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self._value
+
+
+class _FakeSession:
+    """Records every statement `_reconcile_deletions` runs and answers the
+    counting queries from canned values, so the guard can be tested without a
+    database. `scalars` is answered with a list for the sample query."""
+
+    def __init__(self, answers: list) -> None:
+        self._answers = list(answers)
+        self.statements: list[str] = []
+        self.committed = False
+
+    async def execute(self, statement, params=None):
+        sql = " ".join(str(statement).split())
+        self.statements.append(sql)
+        if self._answers:
+            return _FakeResult(self._answers.pop(0))
+        return _FakeResult(0)
+
+    async def commit(self) -> None:
+        self.committed = True
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        return None
+
+
+def _install_session(monkeypatch, session: _FakeSession) -> None:
+    monkeypatch.setattr(full_resync, "get_sessionmaker", lambda: lambda: session)
+
+
+def _updates(session: _FakeSession) -> list[str]:
+    return [s for s in session.statements if s.startswith("UPDATE")]
+
+
+async def test_reconcile_refuses_when_attio_returns_zero_ids(monkeypatch) -> None:
+    """The whole-mirror wipe case: an empty page-through must never be read as
+    "everything was deleted". Mirrors sync-source-to-prod.ps1's own guard."""
+    session = _FakeSession([])
+    _install_session(monkeypatch, session)
+
+    assert await full_resync._reconcile_deletions("organizations", set()) == (0, 0)
+    # Not one statement ran -- it bailed before touching the database.
+    assert session.statements == []
+    assert not session.committed
+
+
+async def test_reconcile_refuses_when_stale_share_exceeds_allowance(monkeypatch) -> None:
+    """A partial page-through is the realistic failure: Attio returns half the
+    records, so the rest look deleted. 500 stale of 1000 live is far above the
+    2% allowance, so it must report and write nothing."""
+    session = _FakeSession([500, 1000, ["a", "b"]])
+    _install_session(monkeypatch, session)
+
+    assert await full_resync._reconcile_deletions("person", {"keep-1"}) == (0, 0)
+    assert _updates(session) == []
+    assert not session.committed
+
+
+async def test_reconcile_writes_when_within_allowance(monkeypatch) -> None:
+    session = _FakeSession([3, 1000, 2])  # stale=3, live=1000 (allow 20), cleared=2
+    _install_session(monkeypatch, session)
+
+    assert await full_resync._reconcile_deletions("deals", {"keep-1", "keep-2"}) == (3, 2)
+    updates = _updates(session)
+    assert len(updates) == 2
+    assert "SET removed_at = now()" in updates[0]
+    assert "SET removed_at = NULL" in updates[1]
+    assert session.committed
+
+
+async def test_reconcile_allows_a_small_absolute_count_on_a_tiny_table(monkeypatch) -> None:
+    """2% of a 20-row table is 0, which would make every deletion implausible.
+    The absolute floor keeps small tables (deals, roles in DEV) reconcilable."""
+    session = _FakeSession([4, 20, 0])  # 4 stale of 20 live: over 2%, under the floor of 10
+    _install_session(monkeypatch, session)
+
+    assert await full_resync._reconcile_deletions("seller_roles", {"keep"}) == (4, 0)
+    assert len(_updates(session)) == 2
+
+
+async def test_reconcile_keys_roles_on_legacy_entry_id(monkeypatch) -> None:
+    """Roles must reconcile on the same key the webhook's delete handlers use;
+    keying on org_attio_id would wipe every sibling entry of one org."""
+    session = _FakeSession([0, 100, 0])
+    _install_session(monkeypatch, session)
+
+    await full_resync._reconcile_deletions("buyer_roles", {"entry-1"})
+
+    assert all("legacy_entry_id = ANY" in s for s in _updates(session))
+    assert not any("org_attio_id" in s for s in session.statements)
+
+
+async def test_streaming_entity_collects_ids_for_reconciliation(monkeypatch) -> None:
+    """The id set feeding reconciliation is gathered during the same
+    page-through that writes, so no second pass over Attio is needed."""
+
+    async def pages(client, path):
+        yield [{"id": {"record_id": "org-1"}}, {"id": {"record_id": "org-2"}}]
+        yield [{"id": {"record_id": "org-3"}}]
+
+    async def write(model, rows):
+        return (len(rows), 0, {})
+
+    async def count(table):
+        return 3
+
+    monkeypatch.setattr(full_resync, "_page_through", pages)
+    monkeypatch.setattr(full_resync, "_write_batches_concurrently", write)
+    monkeypatch.setattr(full_resync, "_count", count)
+    monkeypatch.setattr(full_resync.upsert, "in_scope", lambda record: True)
+
+    seen: set[str] = set()
+    await full_resync._sync_streaming_entity(
+        object(),
+        Organization,
+        "organizations",
+        "/objects/organizations/records/query",
+        lambda r: {"attio_id": r["id"]["record_id"], "raw_attio": r},
+        seen,
+    )
+
+    assert seen == {"org-1", "org-2", "org-3"}
