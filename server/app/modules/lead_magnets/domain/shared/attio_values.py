@@ -13,8 +13,10 @@ whose `*_aed` slugs the Postgres mirror never reads.
 """
 
 from collections.abc import Mapping
+from typing import Literal
 
 from app.modules.attio.providers.attio.money import serialize_money
+from app.modules.attio.providers.attio.write_values import ActorReferenceValue, RecordReferenceValue
 from app.modules.lead_magnets.domain.benchmark.benchmark import PERCENTILE_COLUMNS
 from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
     BenchmarkInputs,
@@ -267,11 +269,52 @@ def person_values(
     """
     values: dict[str, object] = {"name": name, "email": email}
     if organization_attio_id:
-        values["company"] = [
-            {"target_object": "organizations", "target_record_id": organization_attio_id}
-        ]
+        values["company"] = RecordReferenceValue(
+            target_object="organizations", target_record_id=organization_attio_id
+        ).as_value()
     if linkedin:
         values["linkedin"] = linkedin
     if phone:
         values["phone"] = phone
     return values
+
+
+# Attio's `deal.deal_type` option titles, and the pipeline stage every
+# lead-magnet deal lands in. Both are live option titles on the custom
+# `deal` object (verified 2026-09-14); `deal_stage` is `is_required` there,
+# so a create that omits it is rejected outright.
+DealType = Literal["Buy-side", "Sell-side"]
+INBOUND_STAGE = "Inbound"
+
+# Which reference attribute the submitting organisation goes in. A seller
+# tool's visitor is the company that might sell; a buyer-network applicant
+# is the acquirer. `seller_id` accepts `organizations` only, `buyer_id`
+# accepts `organizations` or `person` — both are given an organisation here.
+DEAL_PARTY_FIELD: Mapping[DealType, str] = {"Sell-side": "seller_id", "Buy-side": "buyer_id"}
+
+
+def deal_values(
+    *, name: str, org_attio_id: str, deal_type: DealType, owner_id: str
+) -> dict[str, object]:
+    """The write shape for a `deal` create — see
+    `providers/attio/deal_writer.py` for the dedupe rule this feeds into.
+
+    `deal_name` is always sent even though Attio does not require it: the
+    Postgres mirror's `deals.name` is `NOT NULL`, and `_deal_params` would
+    otherwise substitute `Unnamed Deal [<record id>]`.
+
+    Select and status attributes take their option *title* directly, same as
+    `role_writer.py`'s `sector_focus`. `deal_owner` is an actor-reference —
+    the shape `values.actor` reads back on the mirror's side.
+    """
+    return {
+        "deal_name": name,
+        "deal_stage": INBOUND_STAGE,
+        "deal_type": deal_type,
+        "deal_owner": ActorReferenceValue(
+            referenced_actor_type="workspace-member", referenced_actor_id=owner_id
+        ).as_value(),
+        DEAL_PARTY_FIELD[deal_type]: RecordReferenceValue(
+            target_object="organizations", target_record_id=org_attio_id
+        ).as_value(),
+    }

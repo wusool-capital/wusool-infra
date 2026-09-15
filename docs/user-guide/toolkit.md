@@ -60,6 +60,9 @@ Approval and rejection record only the decision, after a current-data check.
   `/enrich-seller`, review the proposal, and match again.
 - **No strong CRM match:** treat web leads as unverified and review their
   source before adding one.
+- **Unexpected countries in web leads:** discovery searches worldwide
+  unless the buyer's **Target geography** is set. Edit it with
+  `/edit-buyer`.
 - **Error or timeout:** avoid repeatedly submitting changes. Check
   `/toolkit-status`, then use [Troubleshooting](troubleshooting.md).
 

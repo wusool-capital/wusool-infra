@@ -183,6 +183,63 @@ async def test_prompt_unchanged_when_no_meeting_notes() -> None:
     assert "Recent meeting notes" not in fake.structured_calls[0]
 
 
+async def test_prompt_includes_target_geography_as_a_known_field() -> None:
+    """`target_geography` used to be dropped entirely between the ORM row
+    and `BuyerContext` — a buyer with a real, populated value still produced
+    an unrestricted seller search, since nothing told the LLM it existed.
+    """
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    buyer = replace(_buyer(), target_geography=["GCC-wide", "Global"])
+
+    await service.extract(buyer, next_version=1)
+
+    prompt = fake.structured_calls[0]
+    known_fields_start = prompt.index("Known structured buyer fields")
+    context_start = prompt.index("Additional buyer/organization context")
+    assert known_fields_start < prompt.index("GCC-wide") < context_start
+
+
+async def test_prompt_never_labels_org_hq_country_as_target_geography() -> None:
+    """`org_hq_country` is the buyer's own HQ, not their target market — it
+    must land in the context section, never in `known_fields`, or the LLM
+    could mistake "buyer is UK-based" for "buyer wants UK-based sellers"."""
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    buyer = replace(_buyer(), org_hq_country="United Kingdom", target_geography=["GCC-wide"])
+
+    await service.extract(buyer, next_version=1)
+
+    prompt = fake.structured_calls[0]
+    known_fields_line = next(line for line in prompt.splitlines() if "Known structured" in line)
+    assert "United Kingdom" not in known_fields_line
+    assert "NOT their target geography" in prompt
+
+
+async def test_missing_free_text_renders_as_not_provided_not_unknown() -> None:
+    """The prompt used to literally show `Unknown` for a blank
+    investment_strategy/notes — Bedrock would echo that placeholder back as
+    a real `strategic_thesis`/`ideal_target_description` value for a buyer
+    with no free text at all. `(not provided)` reads unambiguously as "no
+    data", not as content to repeat.
+    """
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    buyer = replace(_buyer(), investment_strategy=None, notes=None)
+
+    await service.extract(buyer, next_version=1)
+
+    prompt = fake.structured_calls[0]
+    assert "(not provided)" in prompt
+    assert "Unknown" not in prompt
+
+
 async def test_prompt_includes_labeled_meeting_notes_section_when_present() -> None:
     fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
     service = BuyerRequirementExtractionService(

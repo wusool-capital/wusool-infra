@@ -8,6 +8,23 @@ The project has no version tags: merges to `dev` and `prod` deploy their
 respective environments. See [Delivery status](docs/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-15
+
+### Fixed
+
+- Seller discovery's geography restriction silently produced wrong results
+  for a buyer whose `target_geography` includes a multi-country region:
+  geocoding the bare string `"GCC-wide"` (or the raw `"GCC-wide, Global"`
+  buyers actually carry) matched an unrelated US institution commonly
+  abbreviated "GCC" with `status: OK` and no error, restricting the search
+  to Glendale, CA instead of the Gulf states the buyer meant — traced live
+  from a buyer with `target_geography: ["GCC-wide", "Global"]` returning
+  only German sellers. Geocode results are now validated against Google's
+  own place-type and partial-match signals before they're trusted, and
+  `target_geography`'s known multi-country regions (GCC, MENA) and
+  explicit no-restriction terms (Global, Worldwide) resolve from a fixed
+  table instead of a single geocode call that can't answer them correctly.
+
 ## 2026-09-14
 
 ### Added
@@ -18,6 +35,13 @@ for current production evidence and open handover items.
   in a new `feedback_submissions` table and best-effort emails via AWS SES
   (`notifications` module) — no email credential ships in the desktop
   binary, and a submission is never lost even if SES delivery fails.
+- Every lead-magnet submission now creates an Attio deal at stage
+  **Inbound**, so a new lead lands in the pipeline instead of waiting to be
+  keyed in by hand. One deal per organisation: a company that runs two tools
+  is one lead, and a deal an advisor has already advanced is never dragged
+  back to Inbound. Each deal is assigned to an advisor on creation, with a
+  configured fallback so the write cannot silently stop if that advisor
+  leaves the workspace.
 
 ### Changed
 
@@ -26,6 +50,21 @@ for current production evidence and open handover items.
   (`googleMapsUri`) instead of one recovered by regex-matching scraped
   links, and a buyer's geography is enforced against each result's country
   rather than only appearing as words in the search query.
+
+### Fixed
+
+- Buyer requirement extraction now sees a buyer's `target_geography`,
+  `ebitda_ceiling`, and several other already-structured `buyer_roles`/
+  `organizations` fields that were silently dropped between the database
+  row and the Bedrock prompt. A buyer with a real, populated
+  `target_geography` (e.g. "GCC-wide, Global") could still trigger a fully
+  unrestricted seller-discovery search, because nothing ever told the
+  extraction step it existed — traced live from a UK-HQ'd buyer's search
+  surfacing Frankfurt/Cologne results with no geography signal anywhere in
+  the query. Also fixes a buyer with no free-text investment strategy/notes
+  on file: the prompt used to show the literal placeholder `Unknown` for a
+  blank field, which the model would sometimes echo back as if it were real
+  buyer data (a search for "Unknown companies").
 
 ## 2026-09-13
 

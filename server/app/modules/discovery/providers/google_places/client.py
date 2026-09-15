@@ -3,16 +3,25 @@
 against Google's typed Places API (New) + Geocoding API instead of scraping
 a Google Maps search page.
 
-Two calls per `find_potential_sellers`, sharing one `aiohttp.ClientSession`:
-`_geocode` resolves `geography` to a viewport (for `locationRestriction`) and
-a country (for a hard post-filter — see module docstring on
-`find_potential_sellers` for why the viewport alone isn't a real guarantee),
-then `_search_places` runs the actual text search — `geography` always stays
-in the query text too, restricted or not, since `locationRestriction` narrows
-a categorical search rather than replacing the text hint entirely. A
-`geography` that fails to geocode (empty string, or anything but
-`status: "OK"`) falls back to an unrestricted, unfiltered search — the same
-unbounded behavior the old Firecrawl scrape always had.
+`_resolve_geography` splits `geography` on commas and resolves each token —
+via `domain.geography.resolve_known`'s controlled-vocabulary table first
+(multi-country regions and explicit "no restriction" terms a single geocode
+call can't answer correctly, e.g. `"GCC-wide"`), then a live `_geocode` call
+for anything left — into one `GeographyScope`: a country set for the
+post-search filter, and at most one `locationRestriction` viewport (see that
+function's own docstring for why more than one collapses to none). A
+`_geocode` result that isn't validated as a real place — anything but a
+`status: "OK"`, non-`country`/`administrative_area`/`locality`-shaped, or
+Google's own `partial_match: true` — is rejected before it ever reaches
+`GeographyScope`, not just logged: a bare word like `"GCC"` confidently
+matches an unrelated US institution abbreviated the same way (verified
+live), and that match must never silently become a locationRestriction/
+country filter. A `geography` that resolves to nothing at all (empty string,
+or every token rejected) falls back to an unrestricted, unfiltered search —
+the same unbounded behavior the old Firecrawl scrape always had.
+
+`_search_places` runs the actual text search, sharing one
+`aiohttp.ClientSession` with the geocode calls above it.
 """
 
 import logging
@@ -20,6 +29,12 @@ from urllib.parse import quote
 
 import aiohttp
 
+from app.modules.discovery.domain.geography import (
+    GeographyScope,
+    LatLng,
+    Rectangle,
+    resolve_known,
+)
 from app.modules.discovery.domain.leads import DiscoveredLead, filter_excluded_leads
 from app.modules.discovery.providers.google_places.schemas import (
     GeocodeResponse,
@@ -53,6 +68,26 @@ _REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=15)
 # result — so ask for the max and let `filter_excluded_leads` + `[:limit]`
 # narrow it down without spending a second call.
 _PAGE_SIZE = 20
+# Google's Geocoding API `types` taxonomy for a real place hierarchy —
+# country down to city/town — as opposed to a business/POI/establishment
+# match. `colloquial_area` covers a real supra-national region Google itself
+# recognizes (e.g. "Middle East") with no single country of its own.
+# Deliberately excludes `street_address`/`route`/`point_of_interest`/
+# `establishment`/etc. — those are exactly what a bare business term like
+# "GCC" false-matches (verified live: "GCC" -> Glendale Community College,
+# `types: ["book_store","establishment","point_of_interest","store",
+# "university"]`).
+_ACCEPTED_GEOCODE_TYPES = frozenset(
+    {
+        "country",
+        "administrative_area_level_1",
+        "administrative_area_level_2",
+        "locality",
+        "sublocality",
+        "postal_town",
+        "colloquial_area",
+    }
+)
 
 
 def _place_country(place: Place) -> str | None:
@@ -72,17 +107,43 @@ class GooglePlacesClient:
         text_query = f"{industry} companies {geography}".strip()
 
         async with aiohttp.ClientSession(timeout=_REQUEST_TIMEOUT) as session:
-            viewport, country = await self._geocode(session, geography)
+            scope = await self._resolve_geography(session, geography)
             places = await self._search_places(
-                session, text_query=text_query, location_restriction=viewport
+                session, text_query=text_query, location_restriction=scope.viewport
+            )
+        # `GeographyScope.unrestricted=True` (an explicit "Global") and an
+        # empty scope (nothing resolved at all) both skip the country-filter
+        # block below identically — without this, the two are
+        # indistinguishable in production logs, exactly the ambiguity
+        # `GeographyScope`'s own docstring says must not happen. Silent when
+        # `geography` was empty to begin with (the routine "no geography
+        # criterion at all" case) — only worth a line when something was
+        # actually provided.
+        if scope.unrestricted:
+            logger.info("discovery_geography_resolved query=%s mode=unrestricted", text_query)
+        elif scope.countries:
+            logger.info(
+                "discovery_geography_resolved query=%s mode=restricted countries=%s "
+                "has_viewport=%s",
+                text_query,
+                ",".join(sorted(scope.countries)),
+                scope.viewport is not None,
+            )
+        elif geography.strip():
+            logger.info(
+                "discovery_geography_unresolved query=%s geography=%s has_viewport=%s",
+                text_query,
+                geography,
+                scope.viewport is not None,
             )
         if places is None:
             return []
 
-        if country:
+        if scope.countries:
             kept: list[Place] = []
             dropped = 0
             unverified = 0
+            expected = ",".join(sorted(scope.countries))
             for p in places:
                 place_country = _place_country(p)
                 if place_country is None:
@@ -93,23 +154,23 @@ class GooglePlacesClient:
                     # logs as a known gap in the geography guarantee.
                     unverified += 1
                     kept.append(p)
-                elif place_country == country:
+                elif place_country in scope.countries:
                     kept.append(p)
                 else:
                     dropped += 1
             if dropped:
                 logger.info(
-                    "discovery_leads_out_of_country query=%s expected_country=%s dropped=%d",
+                    "discovery_leads_out_of_country query=%s expected_countries=%s dropped=%d",
                     text_query,
-                    country,
+                    expected,
                     dropped,
                 )
             if unverified:
                 logger.info(
-                    "discovery_leads_unverified_country query=%s expected_country=%s "
+                    "discovery_leads_unverified_country query=%s expected_countries=%s "
                     "kept_without_verification=%d",
                     text_query,
-                    country,
+                    expected,
                     unverified,
                 )
             places = kept
@@ -150,20 +211,63 @@ class GooglePlacesClient:
             types=tuple(place.types),
         )
 
-    async def _geocode(
+    async def _resolve_geography(
         self, session: aiohttp.ClientSession, geography: str
-    ) -> tuple[LocationRestrictionRectangle | None, str | None]:
-        if not geography.strip():
+    ) -> GeographyScope:
+        """Splits `geography` on commas and resolves each token — a known
+        region/unrestricted term first (`domain.geography.resolve_known`),
+        a live geocode for anything left — into one merged scope. Any
+        unrestricted token makes the whole scope unrestricted: a buyer who
+        lists `"GCC-wide, Global"` together is stating Global as an
+        acceptable superset, so the union is genuinely unrestricted, not a
+        case to work around. More than one resolved viewport collapses to
+        none — `locationRestriction` takes a single rectangle, and
+        `countries` (not the viewport) is what actually enforces
+        correctness, so losing a tight box across several known geographies
+        only widens the initial Places search, it never lets a wrong-country
+        result through.
+        """
+        tokens = [t.strip() for t in geography.split(",") if t.strip()]
+        if not tokens:
+            return GeographyScope()
+
+        countries: set[str] = set()
+        viewports: list[Rectangle] = []
+        for token in tokens:
+            known = resolve_known(token)
+            if known is not None:
+                if known.unrestricted:
+                    return GeographyScope(unrestricted=True)
+                countries |= known.countries
+                if known.viewport is not None:
+                    viewports.append(known.viewport)
+                continue
+
+            viewport, country = await self._geocode(session, token)
+            if country:
+                countries.add(country)
+            if viewport is not None:
+                viewports.append(viewport)
+
+        return GeographyScope(
+            countries=frozenset(countries),
+            viewport=viewports[0] if len(viewports) == 1 else None,
+        )
+
+    async def _geocode(
+        self, session: aiohttp.ClientSession, token: str
+    ) -> tuple[Rectangle | None, str | None]:
+        if not token.strip():
             return None, None
 
         try:
             async with session.get(
-                _GEOCODE_URL, params={"address": geography, "key": self._api_key}
+                _GEOCODE_URL, params={"address": token, "key": self._api_key}
             ) as resp:
                 if resp.status != 200:
                     logger.warning(
                         "discovery_geocode_failed geography=%s status=%d",
-                        geography,
+                        token,
                         resp.status,
                     )
                     return None, None
@@ -179,7 +283,7 @@ class GooglePlacesClient:
             # the key never should be.
             logger.warning(
                 "discovery_geocode_error geography=%s error_type=%s",
-                geography,
+                token,
                 type(exc).__name__,
             )
             return None, None
@@ -187,20 +291,37 @@ class GooglePlacesClient:
         try:
             parsed = GeocodeResponse.model_validate(raw)
         except Exception:
-            logger.warning("discovery_geocode_unparseable geography=%s", geography)
+            logger.warning("discovery_geocode_unparseable geography=%s", token)
             return None, None
 
         if parsed.status != "OK" or not parsed.results:
-            # Expected, not an error: a region-shaped `geography` (e.g.
-            # "MENA") or an unrecognized string legitimately has no single
-            # geocode result — the caller falls back to a text-only search.
-            logger.info(
-                "discovery_geocode_no_result geography=%s status=%s", geography, parsed.status
-            )
+            # Expected, not an error: an unrecognized string legitimately
+            # has no geocode result — the caller falls back to a
+            # text-only search for this token.
+            logger.info("discovery_geocode_no_result geography=%s status=%s", token, parsed.status)
             return None, None
 
         result = parsed.results[0]
-        viewport: LocationRestrictionRectangle | None = None
+
+        # `status: "OK"` only means Google matched *something* — not that
+        # it's the kind of place a "geography" value means. A bare business
+        # term (e.g. "GCC") can match an unrelated street address or
+        # institution with high confidence and no error (verified live:
+        # "GCC" -> "Glendale Community College", 1500 N Verdugo Rd —
+        # `types` was `["book_store","establishment",...]`, not a
+        # country/region at all). Reject anything outside
+        # `_ACCEPTED_GEOCODE_TYPES`, and reject Google's own
+        # `partial_match: true` ("didn't fully match the input").
+        if result.partial_match or not (set(result.types) & _ACCEPTED_GEOCODE_TYPES):
+            logger.info(
+                "discovery_geocode_rejected geography=%s types=%s partial_match=%s",
+                token,
+                result.types,
+                result.partial_match,
+            )
+            return None, None
+
+        viewport: Rectangle | None = None
         if result.geometry and result.geometry.viewport:
             ne, sw = result.geometry.viewport.northeast, result.geometry.viewport.southwest
             if (
@@ -211,9 +332,9 @@ class GooglePlacesClient:
                 and sw.lat is not None
                 and sw.lng is not None
             ):
-                viewport = LocationRestrictionRectangle(
-                    low=PlaceLatLng(latitude=sw.lat, longitude=sw.lng),
-                    high=PlaceLatLng(latitude=ne.lat, longitude=ne.lng),
+                viewport = Rectangle(
+                    low=LatLng(latitude=sw.lat, longitude=sw.lng),
+                    high=LatLng(latitude=ne.lat, longitude=ne.lng),
                 )
 
         country = next(
@@ -231,12 +352,23 @@ class GooglePlacesClient:
         session: aiohttp.ClientSession,
         *,
         text_query: str,
-        location_restriction: LocationRestrictionRectangle | None,
+        location_restriction: Rectangle | None,
     ) -> list[Place] | None:
         request = PlacesSearchRequest(
             textQuery=text_query,
             pageSize=_PAGE_SIZE,
-            locationRestriction=LocationRestriction(rectangle=location_restriction)
+            locationRestriction=LocationRestriction(
+                rectangle=LocationRestrictionRectangle(
+                    low=PlaceLatLng(
+                        latitude=location_restriction.low.latitude,
+                        longitude=location_restriction.low.longitude,
+                    ),
+                    high=PlaceLatLng(
+                        latitude=location_restriction.high.latitude,
+                        longitude=location_restriction.high.longitude,
+                    ),
+                )
+            )
             if location_restriction is not None
             else None,
         )
