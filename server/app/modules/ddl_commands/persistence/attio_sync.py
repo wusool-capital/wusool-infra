@@ -12,9 +12,14 @@ background-task handler or nightly resync -- `legacy_entry_id`, not
 `org_attio_id`, is the actual uniqueness key since the 2026-08-28
 pluralization (see `BuyerRole`/`SellerRole`).
 
-`organizations`/`person` support soft-delete (`removed_at`); every other
-table's `record.deleted`/`list-entry.deleted` is out of scope here, matching
-the existing bulk script's own gap -- not a regression this sync introduces.
+All six mirrored tables support soft-delete (`removed_at`), set by the
+matching `delete_*` below and cleared again by every upsert's
+`removed_at=NULL` when the record reappears. `organizations`/`person` have had
+it since 87320bb9dc8d/b7c2e419d5a3; `deals`/`notes`/`buyer_roles`/
+`seller_roles` gained it in b8c41e7d09a2, replacing the previous behaviour
+where a deletion either sat unrecorded (notes) or was hard-deleted by the
+bulk script -- which cascaded into Postgres-only tables and could violate the
+unguarded FKs from `notes`/`tool_runs`.
 
 Each entity has a pure params-mapper (`_organization_params`, etc. -- no
 I/O) and a thin fetch-then-write wrapper (`sync_organization`, etc.) for the
@@ -331,7 +336,7 @@ _PERSON_UPSERT = text(
         avatar_url=excluded.avatar_url, angellist=excluded.angellist,
         facebook=excluded.facebook, instagram=excluded.instagram, twitter=excluded.twitter,
         twitter_follower_count=excluded.twitter_follower_count,
-        raw_attio=excluded.raw_attio, updated_at=now()
+        raw_attio=excluded.raw_attio, updated_at=now(), removed_at=NULL
     """
 )
 
@@ -448,7 +453,7 @@ _DEAL_UPSERT = text(
         retainer_amount=excluded.retainer_amount,
         source_mandate_entry_id=excluded.source_mandate_entry_id,
         raw_attio=excluded.raw_attio,
-        updated_at=now()
+        updated_at=now(), removed_at=NULL
     """
 )
 
@@ -522,6 +527,15 @@ async def sync_deal(client: AttioClientProtocol, record_id: str) -> None:
     async with get_sessionmaker()() as session:
         await session.execute(_DEAL_UPSERT, _for_text_sql("deals", params))
         await _log_activity(session, "Deal", subject_attio_id=params["attio_id"])
+        await session.commit()
+
+
+async def delete_deal(record_id: str) -> None:
+    async with get_sessionmaker()() as session:
+        await session.execute(
+            text("UPDATE deals SET removed_at = now() WHERE attio_id = :attio_id"),
+            {"attio_id": record_id},
+        )
         await session.commit()
 
 
@@ -660,7 +674,7 @@ _BUYER_ROLE_UPSERT = text(
         last_mandate_briefing_date=excluded.last_mandate_briefing_date,
         prior_gcc_acquisition=excluded.prior_gcc_acquisition,
         is_active=excluded.is_active,
-        raw_attio=excluded.raw_attio, updated_at=now()
+        raw_attio=excluded.raw_attio, updated_at=now(), removed_at=NULL
     RETURNING id
     """
 )
@@ -724,6 +738,27 @@ async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
             if v.entry_id(entry) == entry_id:
                 triggering_row_id = row_id
         await _log_activity(session, "BuyerRole", subject_uuid=triggering_row_id)
+        await session.commit()
+
+
+async def delete_buyer_role(entry_id: str) -> None:
+    """Keyed on `legacy_entry_id`, which despite its name holds the entry's own
+    live V2 `entry_id` (see `_buyer_role_params`) -- the same value the webhook
+    reports. Not `id`, which is a local `gen_random_uuid()` no Attio id can
+    match, and not `org_attio_id`, which stopped being unique in the 2026-08-28
+    pluralization and would soft-delete every one of the org's entries.
+
+    Deliberately does not reconcile `is_active` across the surviving siblings:
+    that requires PATCHing Attio, and the entry this event is about is already
+    gone. The nightly resync re-reconciles the org.
+    """
+    async with get_sessionmaker()() as session:
+        await session.execute(
+            text(
+                "UPDATE buyer_roles SET removed_at = now() WHERE legacy_entry_id = :legacy_entry_id"
+            ),
+            {"legacy_entry_id": entry_id},
+        )
         await session.commit()
 
 
@@ -811,7 +846,7 @@ _SELLER_ROLE_UPSERT = text(
         include_in_benchmark=excluded.include_in_benchmark,
         review_note=excluded.review_note, headline_flag=excluded.headline_flag,
         recommended_referral=excluded.recommended_referral,
-        raw_attio=excluded.raw_attio, updated_at=now()
+        raw_attio=excluded.raw_attio, updated_at=now(), removed_at=NULL
     RETURNING id
     """
 )
@@ -915,6 +950,21 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
         await session.commit()
 
 
+async def delete_seller_role(entry_id: str) -> None:
+    """Keyed on `legacy_entry_id` for the same reasons as `delete_buyer_role`
+    -- see that docstring.
+    """
+    async with get_sessionmaker()() as session:
+        await session.execute(
+            text(
+                "UPDATE seller_roles SET removed_at = now() "
+                "WHERE legacy_entry_id = :legacy_entry_id"
+            ),
+            {"legacy_entry_id": entry_id},
+        )
+        await session.commit()
+
+
 # ---------------------------------------------------------------------------
 # note — the unified notes object, api_slug "note" (a literal: one
 # workspace, one object). `notes.id` reuses the Attio
@@ -946,7 +996,8 @@ _NOTE_UPSERT = text(
         buyer_role_id=excluded.buyer_role_id, seller_role_id=excluded.seller_role_id,
         note_type=excluded.note_type, primary_role=excluded.primary_role,
         content=excluded.content,
-        created_at=COALESCE(excluded.created_at, notes.created_at)
+        created_at=COALESCE(excluded.created_at, notes.created_at),
+        removed_at=NULL
     """
 )
 
@@ -980,6 +1031,23 @@ async def sync_note(client: AttioClientProtocol, record_id: str) -> None:
     async with get_sessionmaker()() as session:
         await session.execute(_NOTE_UPSERT, params)
         await _log_activity(session, "Note", subject_attio_id=params["id"])
+        await session.commit()
+
+
+async def delete_note(record_id: str) -> None:
+    """`notes.id` is the Attio record id verbatim (see `_NOTE_UPSERT`), so the
+    webhook's record id addresses the row directly.
+
+    Only ever reaches rows that originated in Attio. A note whose Attio push
+    failed keeps a locally-minted `gen_random_uuid()` (`meetings`' publish
+    path), which no Attio record id can match -- correctly leaving it alone,
+    since Attio never held it.
+    """
+    async with get_sessionmaker()() as session:
+        await session.execute(
+            text("UPDATE notes SET removed_at = now() WHERE id = :id"),
+            {"id": record_id},
+        )
         await session.commit()
 
 
@@ -1065,6 +1133,10 @@ _CONFLICT_COL: dict[SyncModel, str] = {
 # its default in `excluded`). Set it explicitly instead of relying on that.
 _EXTRA_UPDATE_COLS = {
     Organization: {"removed_at": None},
+    Person: {"removed_at": None},
+    Deal: {"removed_at": None},
+    BuyerRole: {"removed_at": None},
+    SellerRole: {"removed_at": None},
 }
 # Never derive these from `excluded.<col>` -- `rows` never carries a value
 # for any of them (they're all server-generated), so the generic derivation
@@ -1256,3 +1328,15 @@ class AttioSyncRepository:
 
     async def delete_person(self, record_id: str) -> None:
         await delete_person(record_id)
+
+    async def delete_deal(self, record_id: str) -> None:
+        await delete_deal(record_id)
+
+    async def delete_note(self, record_id: str) -> None:
+        await delete_note(record_id)
+
+    async def delete_buyer_role(self, entry_id: str) -> None:
+        await delete_buyer_role(entry_id)
+
+    async def delete_seller_role(self, entry_id: str) -> None:
+        await delete_seller_role(entry_id)

@@ -415,6 +415,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `connection_strength` | `text` | Yes | - | - | - |
 | `owner_attio_id` | `text` | Yes | - | `users.attio_id` | - |
 | `last_interaction_at` | `timestamptz` | Yes | - | - | - |
+| `removed_at` | `timestamptz` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
@@ -436,6 +437,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `education` | `jsonb` | No | - | - | `'[]'::jsonb` |
 | `enrichment` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `last_interaction_at` | `timestamptz` | Yes | - | - | - |
+| `removed_at` | `timestamptz` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
@@ -478,6 +480,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `mandate_expiry_date` | `date` | Yes | - | - | - |
 | `retainer_amount` | `jsonb` | Yes | - | - | - |
 | `source_mandate_entry_id` | `text` | Yes | Unique | - | - |
+| `removed_at` | `timestamptz` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
@@ -524,6 +527,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `prior_gcc_acquisition` | `text` | Yes | - | - | - |
 | `is_active` | `boolean` | Yes | - | - | - |
 | `legacy_entry_id` | `text` | Yes | - | - | - |
+| `removed_at` | `timestamptz` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
@@ -557,6 +561,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `re_engage_date` | `date` | Yes | - | - | - |
 | `is_active` | `boolean` | Yes | - | - | - |
 | `legacy_entry_id` | `text` | Yes | - | - | - |
+| `removed_at` | `timestamptz` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
@@ -730,6 +735,7 @@ mirrored into PostgreSQL by
 | `note_type` | `text` | No | - | - | - |
 | `primary_role` | `meeting_role` | Yes | - | - | - |
 | `content` | `text` | No | - | - | - |
+| `removed_at` | `timestamptz` | Yes | - | - | - |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 
 `organization_id` is nullable (2026-08-29): a note whose only anchor is a
@@ -973,6 +979,14 @@ Notable rules:
 | PostgreSQL | Platform, enrichment, analytical, and automation data |
 | Shared | Operational data synchronized between both platforms |
 | Key | Record identifiers and relationship references |
+
+### Record deletion
+
+Deletion is authored in Attio only. There is no way to delete one of the six mirrored records from PostgreSQL or from Slack, and nothing in the platform deletes an Attio record on PostgreSQL's behalf.
+
+When a record is deleted in Attio, the mirrored PostgreSQL row is **marked** rather than erased: `organizations`, `person`, `deals`, `notes`, `buyer_roles`, and `seller_roles` each carry a `removed_at` timestamp for this. The column is PostgreSQL-only — there is no corresponding Attio field — and is set by the Attio webhook within seconds of the deletion, or by the nightly synchronization at the latest. Recreating the record in Attio clears it again, so the row becomes live rather than staying marked.
+
+Rows are marked rather than erased because PostgreSQL holds derived records that reference them — deal-stage history, generated documents, and match results are computed here and could not be rebuilt from Attio. Reports and queries over current data therefore read only rows where `removed_at` is empty.
 
 ## Summary
 
