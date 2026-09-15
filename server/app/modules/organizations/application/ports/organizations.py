@@ -45,6 +45,7 @@ class OrganizationFields(TypedDict, total=False):
     foundation_date: date | None
     ticket_size: str | None
     lead_source: str | None
+    lead_source_detail: str | None
     employee_range: str | None
     linkedin: str | None
     logo_url: str | None

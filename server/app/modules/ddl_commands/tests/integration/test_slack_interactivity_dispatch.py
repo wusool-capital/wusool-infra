@@ -78,6 +78,7 @@ def _fake_org(
         foundation_date=None,
         ticket_size=None,
         lead_source=None,
+        lead_source_detail=None,
         employee_range=None,
         seller_roles=seller_roles or [],
         buyer_roles=buyer_roles or [],

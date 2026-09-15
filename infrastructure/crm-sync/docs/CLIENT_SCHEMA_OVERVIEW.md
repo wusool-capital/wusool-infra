@@ -73,7 +73,8 @@ Type: object | API identifier: `organizations`
 | `employee_range` | `enum` | attio | - |
 | `linkedin` | `text` | attio | - |
 | `ticket_size` | `text` | attio | - |
-| `lead_source` | `enum` (Inbound / Outbound) | attio | - |
+| `lead_source` | `enum` (Inbound / Outbound) | attio | How the organization reached us, not which tool. Every migrated record is written Inbound; Outbound is reserved for manual outreach going forward |
+| `lead_source_detail` | `enum` (Valuation Tool / M&A Readiness Tool / Buyer Form / GCC SME Benchmark) | attio | Added 2026-09-15. Which lead-magnet the company arrived through. Titles copied verbatim from SOURCE `companies.lead_source`, plus GCC SME Benchmark which postdates SOURCE. SOURCE's attribute is a multiselect, so the migration keeps the value with the most recent `active_from` |
 | `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
 | `is_active` | `boolean` | attio | - |
 
@@ -415,10 +416,16 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `connection_strength` | `text` | Yes | - | - | - |
 | `owner_attio_id` | `text` | Yes | - | `users.attio_id` | - |
 | `last_interaction_at` | `timestamptz` | Yes | - | - | - |
+| `lead_source` | `text` | Yes | - | - | - |
+| `lead_source_detail` | `text` | Yes | - | - | - |
 | `removed_at` | `timestamptz` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
+
+`lead_source` holds Inbound/Outbound; `lead_source_detail` (added 2026-09-15) holds which lead-magnet the company arrived through. SOURCE's own attribute is a multiselect, so the migration keeps the value with the most recent `active_from` — a company that ran two tools is recorded as the later one.
+
+This column list is abridged: it omits the 2026-08-19 handover block (`estimated_arr`, the social profiles, `foundation_date`, `ticket_size`, `employee_range`, `linkedin`, `logo_url`) and `is_active`. See `server/SCHEMA.md` for the authoritative list.
 
 ### person
 

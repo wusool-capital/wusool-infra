@@ -100,6 +100,7 @@ class OrganizationUpdate(BaseModel):
     foundation_date: date | None = None
     ticket_size: str | None = Field(default=None, max_length=100)
     lead_source: str | None = Field(default=None, max_length=100)
+    lead_source_detail: str | None = Field(default=None, max_length=100)
     employee_range: str | None = Field(default=None, max_length=100)
     domains: list[str] | None = None
 
@@ -369,6 +370,22 @@ ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("foundation_date", "Foundation date", "date"),
     FieldSpec("ticket_size", "Ticket size", "text"),
     FieldSpec("lead_source", "Lead source", "select", options=("Inbound", "Outbound")),
+    # Which lead-magnet the company arrived through, added 2026-09-15. Options
+    # are copied from SOURCE's own `lead_source` attribute plus the Benchmark
+    # tool that postdates it — keep this tuple in step with
+    # `crm-sync/scripts/source-attio/_internal/schema.ps1`, since
+    # `test_attio_schema_matches_field_specs` checks it against live Attio.
+    FieldSpec(
+        "lead_source_detail",
+        "Lead source detail",
+        "select",
+        options=(
+            "Valuation Tool",
+            "M&A Readiness Tool",
+            "Buyer Form",
+            "GCC SME Benchmark",
+        ),
+    ),
     FieldSpec(
         "employee_range",
         "Employee range",

@@ -197,7 +197,8 @@ _ORG_UPSERT = text(
         geographic_focus, hq_country, region, domains, categories, relationship_status,
         connection_strength, owner_attio_id, last_interaction_at, funding_raised,
         estimated_arr, angellist, facebook, instagram, twitter, twitter_follower_count,
-        foundation_date, ticket_size, lead_source, employee_range, linkedin, logo_url, raw_attio
+        foundation_date, ticket_size, lead_source, lead_source_detail, employee_range,
+        linkedin, logo_url, raw_attio
     ) VALUES (
         :attio_id, :name, :description, :type, :client_type, :sector_focus, :stage_focus,
         :geographic_focus, :hq_country, :region, :domains, :categories, :relationship_status,
@@ -206,7 +207,8 @@ _ORG_UPSERT = text(
              THEN :owner_attio_id ELSE NULL END,
         :last_interaction_at, CAST(:funding_raised AS jsonb), :estimated_arr,
         :angellist, :facebook, :instagram, :twitter, :twitter_follower_count,
-        :foundation_date, :ticket_size, :lead_source, :employee_range, :linkedin, :logo_url,
+        :foundation_date, :ticket_size, :lead_source, :lead_source_detail, :employee_range,
+        :linkedin, :logo_url,
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (attio_id) DO UPDATE SET
@@ -221,7 +223,8 @@ _ORG_UPSERT = text(
         facebook=excluded.facebook, instagram=excluded.instagram, twitter=excluded.twitter,
         twitter_follower_count=excluded.twitter_follower_count,
         foundation_date=excluded.foundation_date, ticket_size=excluded.ticket_size,
-        lead_source=excluded.lead_source, employee_range=excluded.employee_range,
+        lead_source=excluded.lead_source, lead_source_detail=excluded.lead_source_detail,
+        employee_range=excluded.employee_range,
         linkedin=excluded.linkedin, logo_url=excluded.logo_url, raw_attio=excluded.raw_attio,
         updated_at=now(), removed_at=NULL
     """
@@ -277,6 +280,9 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
         "foundation_date": v.date(values, "foundation_date"),
         "ticket_size": v.first(values, "ticket_size"),
         "lead_source": v.first(values, "lead_source"),
+        # Single-select in Attio, so `first` -- crm-sync already collapsed
+        # SOURCE's multiselect to the most recent tool before writing it there.
+        "lead_source_detail": v.first(values, "lead_source_detail"),
         "employee_range": v.first(values, "employee_range"),
         "linkedin": v.first(values, "linkedin"),
         "logo_url": v.first(values, "logo_url"),
