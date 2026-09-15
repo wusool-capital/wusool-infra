@@ -59,9 +59,9 @@ _MAX_CONCURRENT = 5
 _COUNT_QUERY = {
     "organizations": text("SELECT count(*) FROM organizations WHERE removed_at IS NULL"),
     "person": text("SELECT count(*) FROM person WHERE removed_at IS NULL"),
-    "deals": text("SELECT count(*) FROM deals"),
-    "buyer_roles": text("SELECT count(*) FROM buyer_roles"),
-    "seller_roles": text("SELECT count(*) FROM seller_roles"),
+    "deals": text("SELECT count(*) FROM deals WHERE removed_at IS NULL"),
+    "buyer_roles": text("SELECT count(*) FROM buyer_roles WHERE removed_at IS NULL"),
+    "seller_roles": text("SELECT count(*) FROM seller_roles WHERE removed_at IS NULL"),
 }
 _ID_QUERY = {
     "organizations": text("SELECT attio_id FROM organizations"),
@@ -144,8 +144,16 @@ async def _sync_streaming_entity(
     table: str,
     path: str,
     mapper: Callable[[AttioRecord], JsonObject],
+    seen_ids: set[str] | None = None,
 ) -> tuple[int, int]:
-    """Map and write one Attio page at a time, retaining no full listing."""
+    """Map and write one Attio page at a time, retaining no full listing.
+
+    `seen_ids`, when given, accumulates every in-scope record's conflict-column
+    value for deletion reconciliation. That is the one thing kept across pages,
+    and deliberately so: the largest entity is `person` at ~4.8k ids of ~36
+    chars, well under a megabyte, so it does not threaten the bounded-memory
+    property the page-at-a-time streaming exists to protect.
+    """
     total_ok = total_failed = total_records = 0
     try:
         async for page in _iter_source_pages(_page_through(client, path)):
@@ -161,6 +169,8 @@ async def _sync_streaming_entity(
                 continue
             ok, failed, returned = await _write_batches_concurrently(model, rows)
             conflict_col = upsert._CONFLICT_COL[model]
+            if seen_ids is not None:
+                seen_ids.update(r[conflict_col] for r in rows if r.get(conflict_col))
             mismatches = [
                 key
                 for key, intended in ((r[conflict_col], r["raw_attio"]) for r in rows)
@@ -192,6 +202,132 @@ async def _existing_ids(table: str) -> set[str]:
     async with get_sessionmaker()() as session:
         rows = await session.execute(_ID_QUERY[table])
         return {r[0] for r in rows}
+
+
+# The key each table is reconciled on -- the same one the webhook's delete
+# handlers match (`persistence/attio_sync.py`), so the nightly and the live
+# path cannot disagree about identity. `notes` is deliberately absent: a note
+# whose Attio push failed keeps a local `gen_random_uuid()` that no Attio
+# record id can equal, and Attio record ids are UUIDs too, so a set difference
+# would mark every failed-push meeting summary removed. Notes needs a
+# discriminator column before it can join this.
+_RECONCILE_KEY = {
+    "organizations": "attio_id",
+    "person": "attio_id",
+    "deals": "attio_id",
+    "buyer_roles": "legacy_entry_id",
+    "seller_roles": "legacy_entry_id",
+}
+
+# A partial page-through -- an API hiccup halfway -- would otherwise stamp every
+# unreturned row as deleted. The zero-fetch guard below only catches a total
+# failure, so anything above this share of live rows is treated as implausible
+# and reported instead of written. Same shape as
+# `scripts/postgres-sync/prod/sync-source-to-prod.ps1`'s own >10% abort.
+_MAX_STALE_SHARE = 0.02
+_MIN_STALE_ALLOWANCE = 10
+
+
+async def _reconcile_deletions(table: str, live_ids: set[str]) -> tuple[int, int]:
+    """Mirror Attio deletions into `removed_at`, returning (stamped, cleared).
+
+    Soft delete only -- nothing is physically removed, so a wrong call is
+    reversible with `UPDATE <table> SET removed_at = NULL`. That is why this
+    can run unattended where the hard `DELETE`s it replaces could not.
+    """
+    key = _RECONCILE_KEY[table]
+    if not live_ids:
+        _logger.error(
+            "full resync: %s returned zero ids from Attio -- refusing to mark all rows "
+            "removed. Reconciliation skipped for this table.",
+            table,
+        )
+        return (0, 0)
+
+    ids = list(live_ids)
+    async with get_sessionmaker()() as session:
+        stale = (
+            await session.execute(
+                text(
+                    f"SELECT count(*) FROM {table} "  # noqa: S608 - table from _RECONCILE_KEY
+                    f"WHERE removed_at IS NULL AND NOT ({key} = ANY(:ids))"
+                ),
+                {"ids": ids},
+            )
+        ).scalar_one()
+        live = (
+            await session.execute(
+                text(f"SELECT count(*) FROM {table} WHERE removed_at IS NULL")  # noqa: S608
+            )
+        ).scalar_one()
+
+        allowance = max(_MIN_STALE_ALLOWANCE, int(live * _MAX_STALE_SHARE))
+        if stale > allowance:
+            sample = (
+                (
+                    await session.execute(
+                        text(
+                            f"SELECT {key} FROM {table} "  # noqa: S608
+                            f"WHERE removed_at IS NULL AND NOT ({key} = ANY(:ids)) LIMIT 10"
+                        ),
+                        {"ids": ids},
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            _logger.error(
+                "full resync: %s would mark %d of %d live rows removed, above the %d "
+                "allowance -- refusing. Attio returned %d ids. Sample: %s",
+                table,
+                stale,
+                live,
+                allowance,
+                len(ids),
+                sample,
+            )
+            return (0, 0)
+
+        # Counted with SELECTs rather than the UPDATEs' rowcount: the async
+        # `Result` does not expose it, and `stale` is already measured above
+        # for the guard, so this needs one extra query rather than a cast.
+        cleared = (
+            await session.execute(
+                text(
+                    f"SELECT count(*) FROM {table} "  # noqa: S608
+                    f"WHERE removed_at IS NOT NULL AND {key} = ANY(:ids)"
+                ),
+                {"ids": ids},
+            )
+        ).scalar_one()
+        await session.execute(
+            text(
+                f"UPDATE {table} SET removed_at = now() "  # noqa: S608
+                f"WHERE removed_at IS NULL AND NOT ({key} = ANY(:ids))"
+            ),
+            {"ids": ids},
+        )
+        await session.execute(
+            text(
+                f"UPDATE {table} SET removed_at = NULL "  # noqa: S608
+                f"WHERE removed_at IS NOT NULL AND {key} = ANY(:ids)"
+            ),
+            {"ids": ids},
+        )
+        await session.commit()
+        stamped = stale
+
+    if stamped or cleared:
+        _logger.warning(
+            "full resync: %s reconciled -- %d marked removed, %d restored (%d live in Attio)",
+            table,
+            stamped,
+            cleared,
+            len(ids),
+        )
+    else:
+        _logger.info("full resync: %s already mirrors Attio (%d records)", table, len(ids))
+    return (stamped, cleared)
 
 
 async def _count(table: str) -> int:
@@ -390,25 +526,31 @@ async def _run(client: AttioClientProtocol) -> None:
     _logger.info("full resync: users — synced=%d", users_synced)
     user_ids = await _existing_ids("users")
 
+    live_org_ids: set[str] = set()
     summary["organizations"] = await _sync_streaming_entity(
         client,
         Organization,
         "organizations",
         "/objects/organizations/records/query",
         lambda r: dict(upsert._organization_batch_params(r, user_ids)),
+        live_org_ids,
     )
+    await _reconcile_deletions("organizations", live_org_ids)
     org_ids = await _existing_ids("organizations")
 
     # People and deals have no hard foreign-key dependency on each other, so
     # stream both concurrently after organizations are available. Each stream
     # still retains at most one page, keeping memory bounded on the micro host.
     person_ids = await _existing_ids("person")
+    live_person_ids: set[str] = set()
+    live_deal_ids: set[str] = set()
     person_task = _sync_streaming_entity(
         client,
         Person,
         "person",
         "/objects/person/records/query",
         lambda r: dict(upsert._person_batch_params(r, org_ids, user_ids)),
+        live_person_ids,
     )
     deal_task = _sync_streaming_entity(
         client,
@@ -416,6 +558,7 @@ async def _run(client: AttioClientProtocol) -> None:
         "deals",
         "/objects/deal/records/query",
         lambda r: dict(upsert._deal_batch_params(r, org_ids, person_ids, user_ids)),
+        live_deal_ids,
     )
     if _can_run_db_tasks_concurrently():
         person_result, deal_result = await asyncio.gather(person_task, deal_task)
@@ -424,6 +567,10 @@ async def _run(client: AttioClientProtocol) -> None:
         deal_result = await deal_task
     summary["person"] = person_result
     summary["deals"] = deal_result
+    # After both streams, so a failed page-through leaves the id set short and
+    # trips the guard rather than stamping the difference.
+    await _reconcile_deletions("person", live_person_ids)
+    await _reconcile_deletions("deals", live_deal_ids)
 
     # Roles stay collected because reconciliation needs sibling entries across
     # page boundaries; this list is deliberately small in DEV.
@@ -452,6 +599,9 @@ async def _run(client: AttioClientProtocol) -> None:
         )
         ok, write_failed = await _write_and_verify(BuyerRole, "buyer_roles", rows, len(rows))
         summary["buyer_role"] = (ok, reconcile_failed + write_failed)
+        await _reconcile_deletions(
+            "buyer_roles", {r["legacy_entry_id"] for r in rows if r.get("legacy_entry_id")}
+        )
 
     if seller_entries is None:
         summary["seller_role"] = (0, 1)
@@ -466,6 +616,9 @@ async def _run(client: AttioClientProtocol) -> None:
         )
         ok, write_failed = await _write_and_verify(SellerRole, "seller_roles", rows, len(rows))
         summary["seller_role"] = (ok, reconcile_failed + write_failed)
+        await _reconcile_deletions(
+            "seller_roles", {r["legacy_entry_id"] for r in rows if r.get("legacy_entry_id")}
+        )
 
     summary["note"] = await _sync_notes_full(client)
 
