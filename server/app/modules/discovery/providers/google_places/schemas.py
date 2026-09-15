@@ -68,6 +68,13 @@ class GeocodeGeometry(BaseModel):
 class GeocodeResult(BaseModel):
     geometry: GeocodeGeometry | None = None
     address_components: list[GeocodeAddressComponent] = []
+    # Both feed the false-match guard in `client.py::_geocode` — a bare
+    # business/CRM term (e.g. "GCC") can match an unrelated street address
+    # or institution with `status: OK` and no error; `types` distinguishes
+    # a real country/region match from a business/POI one, and
+    # `partial_match` is Google's own "didn't fully match the input" flag.
+    types: list[str] = []
+    partial_match: bool = False
 
 
 class GeocodeResponse(BaseModel):

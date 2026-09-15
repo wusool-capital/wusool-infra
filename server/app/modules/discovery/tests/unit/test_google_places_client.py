@@ -32,6 +32,7 @@ def _geocode_ok(*, country: str = "United Arab Emirates") -> FakeAiohttpResponse
                         }
                     },
                     "address_components": [{"long_name": country, "types": ["country"]}],
+                    "types": ["country", "political"],
                 }
             ],
         },
@@ -40,6 +41,54 @@ def _geocode_ok(*, country: str = "United Arab Emirates") -> FakeAiohttpResponse
 
 def _geocode_zero_results() -> FakeAiohttpResponse:
     return FakeAiohttpResponse(200, {"status": "ZERO_RESULTS", "results": []})
+
+
+def _geocode_false_match() -> FakeAiohttpResponse:
+    """Shaped like the real "GCC" -> Glendale Community College match:
+    `status: OK`, no error, but `types` is a business/POI shape, not a
+    place — this is exactly what `_ACCEPTED_GEOCODE_TYPES` must reject."""
+    return FakeAiohttpResponse(
+        200,
+        {
+            "status": "OK",
+            "results": [
+                {
+                    "geometry": {
+                        "viewport": {
+                            "northeast": {"lat": 34.2, "lng": -118.2},
+                            "southwest": {"lat": 34.1, "lng": -118.3},
+                        }
+                    },
+                    "address_components": [{"long_name": "United States", "types": ["country"]}],
+                    "types": ["book_store", "establishment", "point_of_interest"],
+                }
+            ],
+        },
+    )
+
+
+def _geocode_partial_match() -> FakeAiohttpResponse:
+    return FakeAiohttpResponse(
+        200,
+        {
+            "status": "OK",
+            "results": [
+                {
+                    "geometry": {
+                        "viewport": {
+                            "northeast": {"lat": 25.4, "lng": 55.6},
+                            "southwest": {"lat": 24.8, "lng": 54.9},
+                        }
+                    },
+                    "address_components": [
+                        {"long_name": "United Arab Emirates", "types": ["country"]}
+                    ],
+                    "types": ["country", "political"],
+                    "partial_match": True,
+                }
+            ],
+        },
+    )
 
 
 def _places(businesses: list[dict]) -> FakeAiohttpResponse:
@@ -233,6 +282,177 @@ async def test_zero_results_geocode_falls_back_to_a_text_only_search(monkeypatch
     leads = await client.find_potential_sellers(industry="Healthcare", geography="Nowhere", limit=5)
 
     assert len(leads) == 1
+
+
+async def test_a_false_match_geocode_result_is_rejected_and_falls_back(monkeypatch, caplog) -> None:
+    """Regression for the live incident: geocoding the bare string "GCC"
+    matched "Glendale Community College" with `status: OK` and no error —
+    `types` is the only signal that tells the two apart. Uses a token
+    outside `resolve_known`'s own table (which now short-circuits "GCC"
+    itself before ever reaching the network — see `test_geography.py`) so
+    this actually exercises `_geocode`'s own rejection path: a rejection
+    here must degrade to the unrestricted fallback, not silently restrict
+    to the wrong place."""
+    patch_aiohttp_session(
+        monkeypatch,
+        FakeAiohttpSession(get=_geocode_false_match(), post=_places([_business("Acme Clinics")])),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    with caplog.at_level("INFO"):
+        leads = await client.find_potential_sellers(
+            industry="Healthcare", geography="Some Business Abbreviation", limit=5
+        )
+
+    assert len(leads) == 1
+    assert "discovery_geocode_rejected" in caplog.text
+
+
+async def test_a_partial_match_geocode_result_is_rejected(monkeypatch, caplog) -> None:
+    patch_aiohttp_session(
+        monkeypatch,
+        FakeAiohttpSession(get=_geocode_partial_match(), post=_places([_business("Acme Clinics")])),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    with caplog.at_level("INFO"):
+        leads = await client.find_potential_sellers(
+            industry="Healthcare", geography="Some Place", limit=5
+        )
+
+    assert len(leads) == 1
+    assert "discovery_geocode_rejected" in caplog.text
+    assert "partial_match=True" in caplog.text
+
+
+async def test_gcc_wide_resolves_to_the_six_gcc_countries_without_a_geocode_call(
+    monkeypatch,
+) -> None:
+    """`target_geography`'s own controlled vocabulary (see
+    `ddl_commands.api.buyers.BUYER_ROLE_FIELDS`) includes "GCC-wide" — a
+    real multi-country region with no single coordinate to geocode.
+    `FakeAiohttpSession` has no `get=` scripted, so any unexpected geocode
+    call raises — this is what confirms `resolve_known` short-circuits
+    before the network."""
+    patch_aiohttp_session(
+        monkeypatch,
+        FakeAiohttpSession(
+            post=_places(
+                [
+                    _business("Acme UAE", country="United Arab Emirates"),
+                    _business("Acme Riyadh", country="Saudi Arabia"),
+                    _business("Acme Berlin", country="Germany"),
+                ]
+            )
+        ),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    leads = await client.find_potential_sellers(
+        industry="Healthcare", geography="GCC-wide", limit=5
+    )
+
+    assert {lead.name for lead in leads} == {"Acme UAE", "Acme Riyadh"}
+
+
+async def test_mena_resolves_via_the_known_region_table(monkeypatch) -> None:
+    patch_aiohttp_session(
+        monkeypatch,
+        FakeAiohttpSession(
+            post=_places(
+                [
+                    _business("Acme Cairo", country="Egypt"),
+                    _business("Acme Berlin", country="Germany"),
+                ]
+            )
+        ),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    leads = await client.find_potential_sellers(industry="Healthcare", geography="MENA", limit=5)
+
+    assert [lead.name for lead in leads] == ["Acme Cairo"]
+
+
+async def test_global_is_fully_unrestricted_without_a_geocode_call(monkeypatch) -> None:
+    patch_aiohttp_session(
+        monkeypatch,
+        FakeAiohttpSession(
+            post=_places(
+                [
+                    _business("Acme UAE", country="United Arab Emirates"),
+                    _business("Acme Berlin", country="Germany"),
+                ]
+            )
+        ),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    leads = await client.find_potential_sellers(industry="Healthcare", geography="Global", limit=5)
+
+    assert {lead.name for lead in leads} == {"Acme UAE", "Acme Berlin"}
+
+
+async def test_gcc_wide_global_together_resolve_to_fully_unrestricted(monkeypatch) -> None:
+    """Investcorp's real, logged `target_geography` value. "Global" is an
+    acceptable superset of "GCC-wide", so the mathematically correct
+    reading of the pair together is unrestricted — not a bug to work
+    around, and not the same as the prior incident, where the *raw string*
+    "GCC-wide, Global" was geocoded as one blob and false-matched Glendale,
+    CA."""
+    patch_aiohttp_session(
+        monkeypatch,
+        FakeAiohttpSession(
+            post=_places(
+                [
+                    _business("Acme UAE", country="United Arab Emirates"),
+                    _business("Acme Berlin", country="Germany"),
+                ]
+            )
+        ),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    leads = await client.find_potential_sellers(
+        industry="Healthcare", geography="GCC-wide, Global", limit=5
+    )
+
+    assert {lead.name for lead in leads} == {"Acme UAE", "Acme Berlin"}
+
+
+async def test_multiple_geocoded_countries_are_unioned_with_no_viewport(monkeypatch) -> None:
+    """Two individually-geocoded single countries can't collapse to one
+    `locationRestriction` rectangle — `countries` (not the viewport) is
+    what enforces correctness, so losing the viewport only widens the
+    initial Places search."""
+    call_count = 0
+
+    class _RoundRobinSession(FakeAiohttpSession):
+        def get(self, url: str, **kwargs: object) -> FakeAiohttpResponse:
+            nonlocal call_count
+            call_count += 1
+            return _geocode_ok(country="United Arab Emirates" if call_count == 1 else "Egypt")
+
+    patch_aiohttp_session(
+        monkeypatch,
+        _RoundRobinSession(
+            post=_places(
+                [
+                    _business("Acme UAE", country="United Arab Emirates"),
+                    _business("Acme Cairo", country="Egypt"),
+                    _business("Acme Berlin", country="Germany"),
+                ]
+            )
+        ),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    leads = await client.find_potential_sellers(
+        industry="Healthcare", geography="UAE, Egypt", limit=5
+    )
+
+    assert {lead.name for lead in leads} == {"Acme UAE", "Acme Cairo"}
+    assert call_count == 2
 
 
 async def test_an_out_of_country_place_is_dropped_and_logged(monkeypatch, caplog) -> None:
