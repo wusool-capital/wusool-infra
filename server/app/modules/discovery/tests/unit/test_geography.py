@@ -35,6 +35,21 @@ def test_mena_resolves_to_a_multi_country_region() -> None:
     assert scope.unrestricted is False
 
 
+def test_middle_east_resolves_via_the_known_table_not_a_live_geocode() -> None:
+    """Left unresolved here, "Middle East" geocodes live to a real
+    `colloquial_area` result with no country component at all (verified
+    live) — a real place, so `_ACCEPTED_GEOCODE_TYPES` doesn't reject it,
+    but it silently produces a viewport with zero country enforcement.
+    Routing it through this table instead gives it the same real
+    country-list enforcement as GCC/MENA.
+    """
+    scope = resolve_known("Middle East")
+
+    assert scope is not None
+    assert scope.countries == resolve_known("MENA").countries
+    assert scope.unrestricted is False
+
+
 def test_global_resolves_to_unrestricted_with_no_countries() -> None:
     scope = resolve_known("Global")
 

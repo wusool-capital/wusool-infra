@@ -111,6 +111,31 @@ class GooglePlacesClient:
             places = await self._search_places(
                 session, text_query=text_query, location_restriction=scope.viewport
             )
+        # `GeographyScope.unrestricted=True` (an explicit "Global") and an
+        # empty scope (nothing resolved at all) both skip the country-filter
+        # block below identically — without this, the two are
+        # indistinguishable in production logs, exactly the ambiguity
+        # `GeographyScope`'s own docstring says must not happen. Silent when
+        # `geography` was empty to begin with (the routine "no geography
+        # criterion at all" case) — only worth a line when something was
+        # actually provided.
+        if scope.unrestricted:
+            logger.info("discovery_geography_resolved query=%s mode=unrestricted", text_query)
+        elif scope.countries:
+            logger.info(
+                "discovery_geography_resolved query=%s mode=restricted countries=%s "
+                "has_viewport=%s",
+                text_query,
+                ",".join(sorted(scope.countries)),
+                scope.viewport is not None,
+            )
+        elif geography.strip():
+            logger.info(
+                "discovery_geography_unresolved query=%s geography=%s has_viewport=%s",
+                text_query,
+                geography,
+                scope.viewport is not None,
+            )
         if places is None:
             return []
 

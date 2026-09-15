@@ -120,6 +120,18 @@ _KNOWN_REGIONS: dict[str, GeographyScope] = {
     "middle east and north africa": GeographyScope(
         countries=_MENA_COUNTRIES, viewport=_MENA_VIEWPORT
     ),
+    # Treated as a MENA synonym, not a stricter Middle-East-only list
+    # (excluding North Africa) — the distinction is genuinely fuzzy in
+    # casual usage, and the country filter degrading to a few extra
+    # eligible countries is a minor cost. Not just a cheap addition: left
+    # off this table, "Middle East" geocodes live to a real
+    # `colloquial_area` result with no country component at all (verified
+    # live) — `_ACCEPTED_GEOCODE_TYPES` accepts it (it's a real place, not
+    # a false match), so it silently produces a viewport with zero country
+    # enforcement, the exact "viewport alone isn't a real guarantee" gap
+    # this module exists to close. Routing it through this table instead
+    # gives it the same real country-list enforcement as GCC/MENA.
+    "middle east": GeographyScope(countries=_MENA_COUNTRIES, viewport=_MENA_VIEWPORT),
 }
 
 

@@ -455,6 +455,78 @@ async def test_multiple_geocoded_countries_are_unioned_with_no_viewport(monkeypa
     assert call_count == 2
 
 
+async def test_logs_unrestricted_mode_for_an_explicit_global(monkeypatch, caplog) -> None:
+    """An explicit "Global" and "nothing resolved at all" both skip the
+    country filter identically — without a distinguishing log line they're
+    indistinguishable in production, exactly what `GeographyScope`'s own
+    docstring says must not happen."""
+    patch_aiohttp_session(
+        monkeypatch, FakeAiohttpSession(post=_places([_business("Acme Clinics")]))
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(industry="Healthcare", geography="Global", limit=5)
+
+    assert "discovery_geography_resolved" in caplog.text
+    assert "mode=unrestricted" in caplog.text
+
+
+async def test_logs_restricted_mode_with_the_resolved_countries(monkeypatch, caplog) -> None:
+    patch_aiohttp_session(
+        monkeypatch,
+        FakeAiohttpSession(get=_geocode_ok(), post=_places([_business("Acme Clinics")])),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(industry="Healthcare", geography="UAE", limit=5)
+
+    assert "discovery_geography_resolved" in caplog.text
+    assert "mode=restricted" in caplog.text
+    assert "countries=United Arab Emirates" in caplog.text
+
+
+async def test_logs_unresolved_when_geography_was_provided_but_nothing_resolved(
+    monkeypatch, caplog
+) -> None:
+    """The residual case this whole fix is about closing: `geography` was
+    non-empty, but every token failed validation — must be distinguishable
+    from both the explicit-unrestricted and the routine-empty-geography
+    cases in logs."""
+    patch_aiohttp_session(
+        monkeypatch,
+        FakeAiohttpSession(get=_geocode_false_match(), post=_places([_business("Acme Clinics")])),
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(
+            industry="Healthcare", geography="Some Business Abbreviation", limit=5
+        )
+
+    assert "discovery_geography_unresolved" in caplog.text
+    assert "discovery_geography_resolved" not in caplog.text
+
+
+async def test_does_not_log_geography_resolution_when_geography_is_empty(
+    monkeypatch, caplog
+) -> None:
+    """The routine "buyer stated no geography criterion at all" case must
+    not be logged the same as a real degradation — it's the common path,
+    not a gap worth flagging."""
+    patch_aiohttp_session(
+        monkeypatch, FakeAiohttpSession(post=_places([_business("Acme Clinics")]))
+    )
+    client = GooglePlacesClient(api_key="test-key")
+
+    with caplog.at_level("INFO"):
+        await client.find_potential_sellers(industry="Healthcare", geography="", limit=5)
+
+    assert "discovery_geography_resolved" not in caplog.text
+    assert "discovery_geography_unresolved" not in caplog.text
+
+
 async def test_an_out_of_country_place_is_dropped_and_logged(monkeypatch, caplog) -> None:
     patch_aiohttp_session(
         monkeypatch,
