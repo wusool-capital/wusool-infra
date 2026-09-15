@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import {
   Select,
@@ -111,7 +112,20 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
         <DialogTitle>Send feedback</DialogTitle>
 
         {checkingConfig ? (
-          <div className="py-6 text-sm text-muted-foreground">Checking configuration…</div>
+          // Matches the real form's rough footprint (category + message +
+          // contact + footer) so this dialog doesn't visibly grow the
+          // instant the config check resolves -- Radix centers on the
+          // content's own height, so a short "Checking…" line here would
+          // otherwise make the dialog open small and then jump/expand to
+          // its full centered size a moment later.
+          <div className="space-y-4 py-2">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-[124px] w-full" />
+            <Skeleton className="h-9 w-full" />
+            <div className="flex justify-end pt-2">
+              <Skeleton className="h-8 w-32" />
+            </div>
+          </div>
         ) : !configured ? (
           <div className="py-4 space-y-4">
             <p className="text-sm text-muted-foreground">
