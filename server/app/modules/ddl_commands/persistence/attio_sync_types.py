@@ -19,7 +19,7 @@ populated is genuinely attribute-type-dependent, already safely resolved
 field-by-field via `attio.providers.attio.values`.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import TypedDict
 
 from app.modules.attio.domain.records import AttioRecord
@@ -55,6 +55,7 @@ class OrganizationParams(TypedDict):
     ticket_size: str | None
     lead_source: str | None
     lead_source_detail: str | None
+    is_active: bool | None
     employee_range: str | None
     linkedin: str | None
     logo_url: str | None
@@ -88,6 +89,7 @@ class DealParams(TypedDict):
     name: str
     stage: str | None
     stage_changed_at: datetime | None
+    time_in_stage: timedelta | None
     buyer_id: str | None
     seller_id: str | None
     owner_attio_id: str | None
