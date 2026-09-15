@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from app.modules.ddl_commands.persistence.attio_sync import _deal_params
 
 
@@ -48,3 +50,43 @@ def test_deal_params_falls_back_to_placeholder_when_unnamed() -> None:
     params = _deal_params(data)
 
     assert params["name"] == "Unnamed Deal [deal-1]"
+
+
+def test_deal_params_converts_time_in_stage_days_to_an_interval() -> None:
+    """Attio's attribute is "Time In Stage (Days)", a plain number, while the
+    Postgres column is an interval. Binding the bare number would be read as
+    microseconds, so 12 days would silently land as 12 microseconds."""
+    data = {
+        "id": {"record_id": "deal-1"},
+        "values": {
+            "deal_name": [_item(value="Deal X")],
+            "time_in_stage": [_item(value=12)],
+        },
+    }
+
+    params = _deal_params(data)
+
+    assert params["time_in_stage"] == timedelta(days=12)
+
+
+def test_deal_params_leaves_time_in_stage_null_when_absent() -> None:
+    """A deal that has never changed stage has no value in Attio; it must stay
+    NULL rather than becoming a zero-length interval, which would read as
+    "arrived in this stage just now"."""
+    data = {"id": {"record_id": "deal-1"}, "values": {"deal_name": [_item(value="Deal X")]}}
+
+    assert _deal_params(data)["time_in_stage"] is None
+
+
+def test_deal_params_accepts_a_fractional_day_count() -> None:
+    """The Attio attribute is a number, not an integer -- a deal that moved
+    stage hours ago carries a fraction."""
+    data = {
+        "id": {"record_id": "deal-1"},
+        "values": {
+            "deal_name": [_item(value="Deal X")],
+            "time_in_stage": [_item(value=1.5)],
+        },
+    }
+
+    assert _deal_params(data)["time_in_stage"] == timedelta(hours=36)

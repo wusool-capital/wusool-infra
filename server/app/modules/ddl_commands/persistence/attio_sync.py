@@ -31,6 +31,7 @@ its own bulk page-through instead of going through the wrapper -- see
 import json
 import logging
 from collections.abc import Mapping
+from datetime import timedelta
 from typing import Any, cast
 
 from sqlalchemy import TextClause, func, text
@@ -198,7 +199,7 @@ _ORG_UPSERT = text(
         connection_strength, owner_attio_id, last_interaction_at, funding_raised,
         estimated_arr, angellist, facebook, instagram, twitter, twitter_follower_count,
         foundation_date, ticket_size, lead_source, lead_source_detail, employee_range,
-        linkedin, logo_url, raw_attio
+        linkedin, logo_url, is_active, raw_attio
     ) VALUES (
         :attio_id, :name, :description, :type, :client_type, :sector_focus, :stage_focus,
         :geographic_focus, :hq_country, :region, :domains, :categories, :relationship_status,
@@ -208,7 +209,7 @@ _ORG_UPSERT = text(
         :last_interaction_at, CAST(:funding_raised AS jsonb), :estimated_arr,
         :angellist, :facebook, :instagram, :twitter, :twitter_follower_count,
         :foundation_date, :ticket_size, :lead_source, :lead_source_detail, :employee_range,
-        :linkedin, :logo_url,
+        :linkedin, :logo_url, :is_active,
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (attio_id) DO UPDATE SET
@@ -225,7 +226,8 @@ _ORG_UPSERT = text(
         foundation_date=excluded.foundation_date, ticket_size=excluded.ticket_size,
         lead_source=excluded.lead_source, lead_source_detail=excluded.lead_source_detail,
         employee_range=excluded.employee_range,
-        linkedin=excluded.linkedin, logo_url=excluded.logo_url, raw_attio=excluded.raw_attio,
+        linkedin=excluded.linkedin, logo_url=excluded.logo_url,
+        is_active=excluded.is_active, raw_attio=excluded.raw_attio,
         updated_at=now(), removed_at=NULL
     """
 )
@@ -283,6 +285,11 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
         # Single-select in Attio, so `first` -- crm-sync already collapsed
         # SOURCE's multiselect to the most recent tool before writing it there.
         "lead_source_detail": v.first(values, "lead_source_detail"),
+        # Until 2026-09-16 only `sync-source-to-prod.ps1` wrote this, so the
+        # nightly left it to drift and retiring that script would have stopped
+        # it being written at all. Nullable on both sides: an organization that
+        # predates the flag has no value rather than a false one.
+        "is_active": v.boolean(values, "is_active"),
         "employee_range": v.first(values, "employee_range"),
         "linkedin": v.first(values, "linkedin"),
         "logo_url": v.first(values, "logo_url"),
@@ -407,7 +414,7 @@ async def delete_person(record_id: str) -> None:
 _DEAL_UPSERT = text(
     """
     INSERT INTO deals(
-        attio_id, name, stage, stage_changed_at, buyer_organization_attio_id,
+        attio_id, name, stage, stage_changed_at, time_in_stage, buyer_organization_attio_id,
         buyer_person_attio_id, seller_organization_attio_id, owner_attio_id, value,
         teaser_status, nda_count, cim_ready, deal_memo_ready, contract_signed_date,
         exclusivity_date, data_room_substatus, nda_status,
@@ -417,7 +424,7 @@ _DEAL_UPSERT = text(
         mandate_start_date, mandate_expiry_date, retainer_amount,
         source_mandate_entry_id, raw_attio
     ) VALUES (
-        :attio_id, :name, :stage, :stage_changed_at,
+        :attio_id, :name, :stage, :stage_changed_at, :time_in_stage,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :buyer_id)
              THEN :buyer_id ELSE NULL END,
         CASE WHEN EXISTS (SELECT 1 FROM person WHERE attio_id = :buyer_id)
@@ -437,6 +444,7 @@ _DEAL_UPSERT = text(
     )
     ON CONFLICT (attio_id) DO UPDATE SET
         name=excluded.name, stage=excluded.stage, stage_changed_at=excluded.stage_changed_at,
+        time_in_stage=excluded.time_in_stage,
         buyer_organization_attio_id=excluded.buyer_organization_attio_id,
         buyer_person_attio_id=excluded.buyer_person_attio_id,
         seller_organization_attio_id=excluded.seller_organization_attio_id,
@@ -464,6 +472,13 @@ _DEAL_UPSERT = text(
 )
 
 
+def _days_to_interval(days: float | None) -> timedelta | None:
+    """Attio reports time-in-stage as a number of days; Postgres stores an
+    interval. Returns None for a missing value so the column stays NULL rather
+    than becoming a spurious zero-length interval."""
+    return None if days is None else timedelta(days=float(days))
+
+
 def _deal_params(data: AttioRecord) -> DealParams:
     values = v.vals(data)
     rid = v.record_id(data)
@@ -477,6 +492,10 @@ def _deal_params(data: AttioRecord) -> DealParams:
         "name": v.first(values, "deal_name") or f"Unnamed Deal [{rid}]",
         "stage": v.first(values, "deal_stage"),
         "stage_changed_at": v.timestamp(values, "stage_changed_at"),
+        # Attio's attribute is "Time In Stage (Days)", a plain number; the
+        # Postgres column is an interval. Converting here rather than binding
+        # the bare number, which Postgres would read as microseconds.
+        "time_in_stage": _days_to_interval(v.number(values, "time_in_stage")),
         # Resolved against the real tables below, at write time, since a
         # buyer/seller id here can point at either an organization or a
         # person depending on the deal -- see the CASE WHEN EXISTS guards in
