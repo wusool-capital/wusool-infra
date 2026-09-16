@@ -135,7 +135,10 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     assert after.status == "succeeded"
     assert after.organization_attio_id is not None
     assert after.person_attio_id is not None
-    assert after.payload["stage"] == "attio"
+    # "email_internal", not "attio" — the last-completed stage marker moves
+    # past both email stages once they exist, even with email unconfigured
+    # (email_from="" in `_service` above, so both are permanent no-ops).
+    assert after.payload["stage"] == "email_internal"
     assert after.finished_at is not None
     assert attio.calls(_CO) == 1
 
