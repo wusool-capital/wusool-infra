@@ -62,6 +62,7 @@ _COUNT_QUERY = {
     "deals": text("SELECT count(*) FROM deals WHERE removed_at IS NULL"),
     "buyer_roles": text("SELECT count(*) FROM buyer_roles WHERE removed_at IS NULL"),
     "seller_roles": text("SELECT count(*) FROM seller_roles WHERE removed_at IS NULL"),
+    "notes": text("SELECT count(*) FROM notes WHERE removed_at IS NULL AND attio_id IS NOT NULL"),
 }
 _ID_QUERY = {
     "organizations": text("SELECT attio_id FROM organizations"),
@@ -222,6 +223,12 @@ _RECONCILE_KEY = {
     "deals": "attio_id",
     "buyer_roles": "legacy_entry_id",
     "seller_roles": "legacy_entry_id",
+    # Keyed on `attio_id`, never `id`. A note the meetings pipeline authored
+    # whose Attio push failed keeps a local gen_random_uuid() `id` and a NULL
+    # `attio_id`, and `NULL = ANY(...)` is never true -- so such a row can
+    # never be selected for stamping. Structural protection, not a special
+    # case someone has to remember.
+    "notes": "attio_id",
 }
 
 # A partial page-through -- an API hiccup halfway -- would otherwise stamp every
@@ -260,10 +267,28 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> int:
     """
     key = _RECONCILE_KEY[table]
     if not live_ids:
+        # Zero ids is only alarming if there is something to lose. An empty
+        # Attio listing alongside an empty table means the two agree -- a fresh
+        # environment, or an object genuinely not in use -- and failing the
+        # nightly for that would make it permanently red for no reason. Zero
+        # ids while rows exist is the dangerous case the guard is for.
+        async with get_sessionmaker()() as session:
+            live = (
+                await session.execute(
+                    text(
+                        f"SELECT count(*) FROM {table} "  # noqa: S608
+                        f"WHERE removed_at IS NULL AND {key} IS NOT NULL"
+                    )
+                )
+            ).scalar_one()
+        if live == 0:
+            _logger.info("full resync: %s has nothing to reconcile (empty on both sides)", table)
+            return 0
         _logger.error(
-            "full resync: %s returned zero ids from Attio -- refusing to mark all rows "
-            "removed. Reconciliation skipped for this table.",
+            "full resync: %s returned zero ids from Attio while %d live rows exist -- "
+            "refusing to mark them all removed. Reconciliation skipped for this table.",
             table,
+            live,
         )
         return 1
 
@@ -273,14 +298,18 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> int:
             await session.execute(
                 text(
                     f"SELECT count(*) FROM {table} "  # noqa: S608 - table from _RECONCILE_KEY
-                    f"WHERE removed_at IS NULL AND NOT ({key} = ANY(:ids))"
+                    f"WHERE removed_at IS NULL AND {key} IS NOT NULL "
+                    f"AND NOT ({key} = ANY(:ids))"
                 ),
                 {"ids": ids},
             )
         ).scalar_one()
         live = (
             await session.execute(
-                text(f"SELECT count(*) FROM {table} WHERE removed_at IS NULL")  # noqa: S608
+                text(
+                    f"SELECT count(*) FROM {table} "  # noqa: S608
+                    f"WHERE removed_at IS NULL AND {key} IS NOT NULL"
+                )
             )
         ).scalar_one()
 
@@ -291,7 +320,8 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> int:
                     await session.execute(
                         text(
                             f"SELECT {key} FROM {table} "  # noqa: S608
-                            f"WHERE removed_at IS NULL AND NOT ({key} = ANY(:ids)) LIMIT 10"
+                            f"WHERE removed_at IS NULL AND {key} IS NOT NULL "
+                            f"AND NOT ({key} = ANY(:ids)) LIMIT 10"
                         ),
                         {"ids": ids},
                     )
@@ -328,7 +358,8 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> int:
         await session.execute(
             text(
                 f"UPDATE {table} SET removed_at = now() "  # noqa: S608
-                f"WHERE removed_at IS NULL AND NOT ({key} = ANY(:ids))"
+                f"WHERE removed_at IS NULL AND {key} IS NOT NULL "
+                f"AND NOT ({key} = ANY(:ids))"
             ),
             {"ids": ids},
         )
@@ -359,7 +390,10 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> int:
     async with get_sessionmaker()() as session:
         final = (
             await session.execute(
-                text(f"SELECT count(*) FROM {table} WHERE removed_at IS NULL")  # noqa: S608
+                text(
+                    f"SELECT count(*) FROM {table} "  # noqa: S608
+                    f"WHERE removed_at IS NULL AND {key} IS NOT NULL"
+                )
             )
         ).scalar_one()
     if final != len(ids):
@@ -515,7 +549,9 @@ async def _reconcile_roles(
     return rows, failed_orgs
 
 
-async def _sync_notes_full(client: AttioClientProtocol) -> tuple[int, int]:
+async def _sync_notes_full(
+    client: AttioClientProtocol, seen_ids: set[str] | None = None
+) -> tuple[int, int]:
     """Plain per-row loop, not the batched `_upsert_batch` path: `notes` has
     no `raw_attio` column (unlike every other table here), so it can't share
     that machinery's content-comparison/RETURNING contract. Note volume is
@@ -527,6 +563,8 @@ async def _sync_notes_full(client: AttioClientProtocol) -> tuple[int, int]:
         _logger.error("full resync: failed to list note records", exc_info=True)
         return 0, 1
     records = [record for record in fetched if upsert.in_scope(record)]
+    if seen_ids is not None:
+        seen_ids.update(upsert.v.record_id(r) for r in records if upsert.v.record_id(r))
     ok = failed = 0
     async with get_sessionmaker()() as session:
         for record in records:
@@ -686,7 +724,11 @@ async def _run(client: AttioClientProtocol) -> None:
             {r["legacy_entry_id"] for r in rows if r.get("legacy_entry_id")},
         )
 
-    summary["note"] = await _sync_notes_full(client)
+    live_note_ids: set[str] = set()
+    summary["note"] = await _sync_notes_full(client, live_note_ids)
+    # Safe now that `notes.attio_id` exists: rows the meetings pipeline
+    # authored without reaching Attio have a NULL key and cannot match.
+    await _reconcile_into(summary, "note", "notes", live_note_ids)
 
     total_ok = sum(ok for ok, _ in summary.values())
     total_failed = sum(failed for _, failed in summary.values())

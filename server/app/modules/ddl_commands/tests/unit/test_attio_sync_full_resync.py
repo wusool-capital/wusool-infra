@@ -382,6 +382,14 @@ async def test_run_reports_users_sync_failure(monkeypatch) -> None:
     monkeypatch.setattr(full_resync, "_write_and_verify", noop_write)
     monkeypatch.setattr(full_resync, "_reconcile_roles", noop_reconcile)
 
+    # This test is about the users step failing; reconciliation now reads the
+    # live row count even on the zero-ids path, which would open a real
+    # connection here.
+    async def _no_reconcile(table, live_ids):
+        return 0
+
+    monkeypatch.setattr(full_resync, "_reconcile_deletions", _no_reconcile)
+
     with pytest.raises(SystemExit):
         await full_resync.run()
 
@@ -502,13 +510,28 @@ def _updates(session: _FakeSession) -> list[str]:
 async def test_reconcile_refuses_when_attio_returns_zero_ids(monkeypatch) -> None:
     """The whole-mirror wipe case: an empty page-through must never be read as
     "everything was deleted". Mirrors sync-source-to-prod.ps1's own guard."""
-    session = _FakeSession([])
+    session = _FakeSession([3366])  # rows exist, so zero ids is implausible
     _install_session(monkeypatch, session)
 
     # A refusal is a failure: the mirror is knowingly unconverged.
     assert await full_resync._reconcile_deletions("organizations", set()) == 1
-    # Not one statement ran -- it bailed before touching the database.
-    assert session.statements == []
+    # It looked, but wrote nothing.
+    assert not any(s.startswith("UPDATE") for s in session.statements)
+    assert not session.committed
+
+
+async def test_reconcile_is_a_noop_when_both_sides_are_empty(monkeypatch) -> None:
+    """Zero ids only matters if there is something to lose. An empty Attio
+    listing next to an empty table means the two agree -- a fresh environment,
+    or an object not in use -- and must not fail the nightly forever. Caught by
+    CI on 2026-09-16: the e2e resync test has no notes on either side and the
+    blunter guard failed the whole job.
+    """
+    session = _FakeSession([0])
+    _install_session(monkeypatch, session)
+
+    assert await full_resync._reconcile_deletions("notes", set()) == 0
+    assert not any(s.startswith("UPDATE") for s in session.statements)
     assert not session.committed
 
 
@@ -640,3 +663,34 @@ async def test_pending_deletions_do_not_fail_before_reconciliation(monkeypatch) 
 
     assert failed == 0, "a pending deletion must not fail the sync step itself"
     assert ok == 2
+
+
+async def test_notes_reconcile_ignores_locally_authored_rows(monkeypatch) -> None:
+    """The reason notes could not be reconciled until `attio_id` existed. A
+    meeting summary whose Attio push failed keeps a local gen_random_uuid()
+    `id` and a NULL `attio_id`; keying on `attio_id` means the SQL can never
+    select it, because `NULL = ANY(...)` is never true.
+
+    Asserted on the generated SQL rather than on a fake's arithmetic: the
+    protection is the `attio_id IS NOT NULL` predicate plus the key choice, and
+    those are what must not regress.
+    """
+    session = _FakeSession([0, 394, 0, 1])
+    _install_session(monkeypatch, session)
+
+    await full_resync._reconcile_deletions("notes", {"note-1"})
+
+    assert full_resync._RECONCILE_KEY["notes"] == "attio_id", "notes must never key on id"
+    selects = [s for s in session.statements if s.startswith("SELECT")]
+    assert selects, "expected the reconciliation to inspect the table"
+    # A NULL-attio_id row must be unreachable by every statement, in one of
+    # two equivalent ways: an explicit `attio_id IS NOT NULL`, or a match on
+    # `attio_id = ANY(...)`, which NULL can never satisfy.
+    for statement in selects:
+        assert "attio_id IS NOT NULL" in statement or "attio_id = ANY" in statement, (
+            f"locally-authored notes must be unreachable from every query: {statement}"
+        )
+    for statement in session.statements:
+        assert "id = ANY" not in statement.replace("attio_id = ANY", ""), (
+            "notes must not be matched on the primary key"
+        )

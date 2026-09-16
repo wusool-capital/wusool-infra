@@ -1003,10 +1003,10 @@ async def delete_seller_role(entry_id: str) -> None:
 _NOTE_UPSERT = text(
     """
     INSERT INTO notes(
-        id, organization_id, person_id, buyer_role_id, seller_role_id,
+        id, attio_id, organization_id, person_id, buyer_role_id, seller_role_id,
         note_type, primary_role, content, created_at
     ) VALUES (
-        :id,
+        :id, :attio_id,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :organization_id)
              THEN :organization_id ELSE NULL END,
         CASE WHEN EXISTS (SELECT 1 FROM person WHERE attio_id = :person_id)
@@ -1017,6 +1017,7 @@ _NOTE_UPSERT = text(
         COALESCE(:created_at, now())
     )
     ON CONFLICT (id) DO UPDATE SET
+        attio_id=excluded.attio_id,
         organization_id=excluded.organization_id, person_id=excluded.person_id,
         buyer_role_id=excluded.buyer_role_id, seller_role_id=excluded.seller_role_id,
         note_type=excluded.note_type, primary_role=excluded.primary_role,
@@ -1029,8 +1030,14 @@ _NOTE_UPSERT = text(
 
 def _note_params(data: AttioRecord) -> NoteParams:
     values = v.vals(data)
+    record_id = v.record_id(data)
     return {
-        "id": v.record_id(data),
+        "id": record_id,
+        # Same value as `id` for a note that came from Attio, and the whole
+        # point of the column: a note authored here whose Attio push failed
+        # keeps a local gen_random_uuid() `id` and leaves this NULL, which is
+        # what lets deletion reconciliation tell the two apart.
+        "attio_id": record_id,
         "organization_id": v.ref(values, "organization_id"),
         "person_id": v.ref(values, "person_id"),
         "buyer_role_entry_id": v.first(values, "buyer_role_id"),
