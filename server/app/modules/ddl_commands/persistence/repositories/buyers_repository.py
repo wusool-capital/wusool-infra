@@ -82,13 +82,14 @@ class BuyerRepository:
         roles only — an org can hold stale/duplicate rows post-migration,
         and `/edit-buyer`'s resolution must never hand the operator an
         inactive duplicate as a pickable candidate indistinguishable from
-        the real one.
+        the real one. Also excludes orgs Attio no longer has (`removed_at`),
+        same reasoning.
         """
         predicate, similarity = org_name_trigram_predicate(term)
         stmt = (
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
-            .where(BuyerRole.is_active.is_(True), predicate)
+            .where(BuyerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
             .options(selectinload(BuyerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)

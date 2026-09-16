@@ -83,13 +83,14 @@ class SellerRepository:
         `is_active` roles only — an org can hold stale/duplicate rows
         post-migration, and `/edit-seller`'s resolution must never hand the
         operator an inactive duplicate as a pickable candidate
-        indistinguishable from the real one.
+        indistinguishable from the real one. Also excludes orgs Attio no
+        longer has (`removed_at`), same reasoning.
         """
         predicate, similarity = org_name_trigram_predicate(term)
         stmt = (
             select(SellerRole)
             .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
-            .where(SellerRole.is_active.is_(True), predicate)
+            .where(SellerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
             .options(selectinload(SellerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)

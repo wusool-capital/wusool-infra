@@ -48,13 +48,14 @@ class BuyerRepository:
         and this search must never hand `/find-match` an inactive
         duplicate role indistinguishable from the real one (same
         reasoning as `ddl_commands.BuyerRepository`'s own version of this
-        method).
+        method). Also excludes orgs Attio no longer has (`removed_at`),
+        same reasoning.
         """
         predicate, similarity = org_name_trigram_predicate(term)
         stmt = (
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
-            .where(BuyerRole.is_active.is_(True), predicate)
+            .where(BuyerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
             .options(selectinload(BuyerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)
