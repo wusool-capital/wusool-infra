@@ -11,7 +11,10 @@ submission handler already has Bolt's own injected `client`/`ack`/
 `SlackNotifierPort` only when posting happens outside that request context
 (e.g. a background task finishing a match run and posting the result).
 Email has no in-request counterpart — `EmailSenderPort` is always the
-right thing.
+right thing. `send`'s `is_html` flag (default `False`) picks `Body.Html`
+over `Body.Text` on the underlying SES call — added for `lead_magnets`'
+HTML confirmation/internal-notice emails; `meetings`' plain-text feedback
+email is unaffected by the default.
 
 ## Structure
 
@@ -43,7 +46,7 @@ notifications/
 ## Public contract
 
 Consumers (`matching_engine`, `ddl_commands`, `enrichment`, `discovery`,
-`meetings`) import only from `app.modules.notifications` — the module's
+`meetings`, `lead_magnets`) import only from `app.modules.notifications` — the module's
 `__all__`: `SlackNotifierPort`, `SlackWebClientNotifier`, `build_bolt_app`,
 `get_slack_client`, `sanitize_mrkdwn`, `SlackCommandPayload`,
 `SlackInteractionBody`, `SlackViewSubmissionPayload`, `EmailSenderPort`,
@@ -61,6 +64,10 @@ consumed by `api/dependencies.py::feedback_mailer` and injected as
 `EmailSenderPort` — matching this module's own rule (see
 `bootstrap.py`'s docstring) that concrete provider construction belongs
 in `bootstrap.py`, not inline in `api/dependencies.py`.
+`lead_magnets/bootstrap.py::build_lead_magnet_mailer` does the same,
+minus explicit AWS keys (that module's own `Settings` has none — see its
+docstring), injected into `SubmissionService` for the confirmation/
+internal-notice emails.
 
 Neither `get_slack_client` nor `get_ses_client` reads any module's
 `Settings` — every credential is a parameter, so this module has zero

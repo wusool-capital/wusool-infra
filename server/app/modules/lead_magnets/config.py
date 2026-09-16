@@ -74,6 +74,14 @@ class Settings(BaseSettings):
     lead_magnet_sweeper_interval_s: int = 300
     lead_magnet_sweeper_stale_after_s: int = 300
 
+    # SES sender/recipient for the two submission emails (visitor
+    # confirmation, internal notice) — same convention as `meetings`'
+    # `FEEDBACK_EMAIL_FROM`/`FEEDBACK_EMAIL_TO`. Either left blank skips
+    # sending entirely rather than send from/to the wrong address; see
+    # `_ensure_email_confirmation`/`_ensure_email_internal` in `submit.py`.
+    lead_magnet_email_from: str = ""
+    lead_magnet_email_to: str = ""
+
     @field_validator("database_url")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:

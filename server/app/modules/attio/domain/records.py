@@ -62,3 +62,4 @@ class AttioRecord(TypedDict, total=False):
     parent_record_id: str | AttioRecordRef
     values: dict[str, list[AttioValueEntry]]
     entry_values: dict[str, list[AttioValueEntry]]
+    web_url: str

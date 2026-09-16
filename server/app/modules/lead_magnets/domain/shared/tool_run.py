@@ -19,7 +19,10 @@ Tool = Literal["valuation", "readiness", "benchmark", "buyer_network", "attio_we
 # Which step of the write contract last completed. Persisted inside
 # `payload` rather than as a column so a resume knows what it may skip —
 # a run that already paid for its AI output must never pay twice.
-Stage = Literal["ai", "attio"]
+# `email_confirmation`/`email_internal` are tracked separately, not as one
+# `email` stage: a sweeper resume after the internal send fails must not
+# re-send the visitor's confirmation, which already landed.
+Stage = Literal["ai", "attio", "email_confirmation", "email_internal"]
 
 # What `start()` found on an `idempotency_key` collision. No new column
 # for this distinction — `payload.submission_id` is already stored for
@@ -80,3 +83,9 @@ class SubjectRefs:
     # skip the deal write. A row stored before this field existed simply
     # defaults it.
     deal_attio_id: str | None = None
+    # Same as `deal_attio_id`: payload-only, used by the email stages to
+    # link back to Attio. `None` whenever Attio's response omits it, or the
+    # org write hit the patch path (an existing org matched by dedup, no
+    # fresh `web_url` fetched for it).
+    org_web_url: str | None = None
+    deal_web_url: str | None = None

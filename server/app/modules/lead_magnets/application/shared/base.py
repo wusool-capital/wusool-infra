@@ -21,11 +21,19 @@ from app.modules.lead_magnets.application.shared.ports import (
     ToolRunsPort,
 )
 from app.modules.lead_magnets.application.shared.submit import SubmissionService
+from app.modules.notifications import EmailSenderPort
 
 
 class ServiceBase:
     def __init__(
-        self, *, tool_runs: ToolRunsPort, attio: AttioWriterPort, llm: LeadLLMPort
+        self,
+        *,
+        tool_runs: ToolRunsPort,
+        attio: AttioWriterPort,
+        llm: LeadLLMPort,
+        mailer: EmailSenderPort,
+        email_from: str,
+        email_to: list[str],
     ) -> None:
         self._pipelines = Pipelines(llm)
         self._submissions = SubmissionService(
@@ -33,4 +41,7 @@ class ServiceBase:
             attio=attio,
             run_ai=self._pipelines.run,
             fallback=self._pipelines.fallback,
+            mailer=mailer,
+            email_from=email_from,
+            email_to=email_to,
         )

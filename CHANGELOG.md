@@ -48,6 +48,16 @@ for current production evidence and open handover items.
   one is recorded, and a genuinely ambiguous pair (identical timestamps) is
   reported rather than guessed at.
 
+- Every lead-magnet submission (Valuation, M&A Readiness, GCC SME Benchmark,
+  Buyer Network) now sends two emails via SES: a branded confirmation to the
+  visitor with a "Book a Call" link, and an internal notice to the deal team
+  with the submitted details and links back to the Attio organisation/deal.
+  Both are tracked and retried independently, so a failed send never
+  re-sends an email that already landed and never risks the lead itself —
+  the Attio write is already durable by the time either email is attempted.
+  Recipient addresses are not yet configured (`LEAD_MAGNET_EMAIL_TO`/
+  `LEAD_MAGNET_EMAIL_FROM` ship blank).
+
 - A record deleted in Attio now disappears from Postgres for **all six**
   mirrored objects, not just two. Deals, notes, buyer roles and seller roles
   had no way to record a deletion at all: a deal deleted from the CRM stayed

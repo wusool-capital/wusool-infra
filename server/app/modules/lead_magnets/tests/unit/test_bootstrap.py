@@ -125,7 +125,7 @@ class _FakeDealWriter:
         self.calls.append(kwargs)
         if self._raises:
             raise RuntimeError("Attio 503")
-        return self._result
+        return (self._result, None) if self._result is not None else None
 
 
 async def test_write_reuses_an_existing_org_matched_by_name_and_domain() -> None:

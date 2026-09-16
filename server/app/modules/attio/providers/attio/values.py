@@ -153,6 +153,10 @@ def record_id(r: AttioRecord) -> str:
     return str((r.get("id") or {}).get("record_id") or r.get("record_id") or "")
 
 
+def web_url(r: AttioRecord) -> str | None:
+    return r.get("web_url")
+
+
 def entry_id(r: AttioRecord) -> str:
     return str((r.get("id") or {}).get("entry_id") or r.get("entry_id") or "")
 
