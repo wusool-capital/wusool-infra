@@ -87,6 +87,13 @@ class Note(Base):
     # ignored the event and the nightly resync does not touch this table, so a
     # note deleted in Attio stayed here indefinitely.
     removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # Added 2026-09-16. Non-NULL means this note came from Attio and may be
+    # reconciled against it; NULL means it was authored here and never reached
+    # Attio (the meetings pipeline's push failed, so `id` fell back to
+    # gen_random_uuid()). `id` alone cannot express that -- it holds Attio's
+    # record id in one case and a local uuid in the other, both UUIDs -- which
+    # is why notes were excluded from deletion reconciliation until now.
+    attio_id: Mapped[str | None] = mapped_column(Text, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

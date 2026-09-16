@@ -214,6 +214,7 @@ class SellerRoleParams(TypedDict):
 
 class NoteParams(TypedDict):
     id: str
+    attio_id: str
     organization_id: str | None
     person_id: str | None
     buyer_role_entry_id: str | None
