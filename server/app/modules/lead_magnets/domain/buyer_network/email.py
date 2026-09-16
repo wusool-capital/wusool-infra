@@ -38,9 +38,12 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
     buyer = BuyerNetworkPayload.model_validate(payload)
     company = buyer.org_name or "Unknown"
 
-    check_size = "–".join(
-        format_usd(v) for v in (buyer.check_size_min, buyer.check_size_max) if v is not None
-    ) or "—"
+    check_size = (
+        "–".join(
+            format_usd(v) for v in (buyer.check_size_min, buyer.check_size_max) if v is not None
+        )
+        or "—"
+    )
 
     rows = render_field_rows(
         [

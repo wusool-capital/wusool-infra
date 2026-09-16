@@ -57,7 +57,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
     extra = ""
     low, mid, high = ai.get("low"), ai.get("mid"), ai.get("high")
     if isinstance(low, (int, float)) and isinstance(high, (int, float)):
-        mid_text = f" <span style=\"font-weight:400;color:#666666;font-size:12px;\">(mid {format_usd(mid)})</span>"
+        mid_text = f' <span style="font-weight:400;color:#666666;font-size:12px;">(mid {format_usd(mid)})</span>'
         extra = (
             '<table width="100%" cellpadding="0" cellspacing="0" '
             'style="margin-top:16px;background-color:#f6f4ef;border-radius:6px;">'

@@ -190,15 +190,11 @@ class SubmissionService:
                 is_html=True,
             )
         except Exception as exc:  # noqa: BLE001 - the lead + Attio write already landed
-            logger.warning(
-                "lead_magnet_confirmation_email_failed tool=%s error=%s", run.tool, exc
-            )
+            logger.warning("lead_magnet_confirmation_email_failed tool=%s error=%s", run.tool, exc)
             await self._tool_runs.finish(run.id, "failed", subjects=subjects, error=str(exc))
             return None
 
-        await self._tool_runs.set_stage(
-            run.id, stage="email_confirmation", output={"sent": True}
-        )
+        await self._tool_runs.set_stage(run.id, stage="email_confirmation", output={"sent": True})
         return True
 
     async def _ensure_email_internal(

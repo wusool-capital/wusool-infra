@@ -35,8 +35,12 @@ def test_internal_shell_title_is_escaped() -> None:
 
 def test_internal_shell_omits_buttons_without_urls() -> None:
     html = render_internal_shell(
-        badge="New Lead", badge_color="#000000", title="Acme",
-        rows_html="", org_url=None, deal_url=None,
+        badge="New Lead",
+        badge_color="#000000",
+        title="Acme",
+        rows_html="",
+        org_url=None,
+        deal_url=None,
     )
     assert "View Organisation" not in html
     assert "View Deal" not in html
@@ -44,8 +48,12 @@ def test_internal_shell_omits_buttons_without_urls() -> None:
 
 def test_internal_shell_includes_only_the_urls_given() -> None:
     html = render_internal_shell(
-        badge="New Lead", badge_color="#000000", title="Acme",
-        rows_html="", org_url="https://app.attio.com/org/1", deal_url=None,
+        badge="New Lead",
+        badge_color="#000000",
+        title="Acme",
+        rows_html="",
+        org_url="https://app.attio.com/org/1",
+        deal_url=None,
     )
     assert "View Organisation" in html
     assert "https://app.attio.com/org/1" in html

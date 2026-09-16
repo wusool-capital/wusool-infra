@@ -230,9 +230,7 @@ class _RoleAttioWriter:
         if deal is None:
             return subjects
         deal_attio_id, deal_web_url = deal
-        return dataclasses.replace(
-            subjects, deal_attio_id=deal_attio_id, deal_web_url=deal_web_url
-        )
+        return dataclasses.replace(subjects, deal_attio_id=deal_attio_id, deal_web_url=deal_web_url)
 
 
 def build_valuation_ai() -> ValuationAi:

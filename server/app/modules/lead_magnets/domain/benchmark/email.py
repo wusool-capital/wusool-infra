@@ -61,9 +61,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
     )
 
     entry_values_raw = ai.get("entry_values")
-    entry_values: dict[str, object] = (
-        entry_values_raw if isinstance(entry_values_raw, dict) else {}
-    )
+    entry_values: dict[str, object] = entry_values_raw if isinstance(entry_values_raw, dict) else {}
     score, band = ai.get("score"), ai.get("band")
     quartile = entry_values.get("benchmark_quartile")
     extra = ""

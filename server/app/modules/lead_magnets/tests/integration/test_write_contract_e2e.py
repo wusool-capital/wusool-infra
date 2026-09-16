@@ -81,12 +81,23 @@ class _Spy:
         return self._output
 
 
+class _FakeMailer:
+    """Email is not under test here — `email_from=""` makes both email
+    stages permanent no-ops, so `send` should never actually be called."""
+
+    async def send(self, **kwargs) -> None:
+        raise AssertionError("email not configured for these tests; should never be called")
+
+
 def _service(session, attio, ai, *, fallback=None) -> SubmissionService:
     return SubmissionService(
         tool_runs=ToolRunsRepository(session),
         attio=attio,
         run_ai=ai.run,
         fallback=fallback if fallback is not None else (lambda t, p: {"comps": []}),
+        mailer=_FakeMailer(),
+        email_from="",
+        email_to=[],
     )
 
 
@@ -443,6 +454,9 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
         attio=role_attio_writer,
         run_ai=_Spy(output={"entry_values": {}}).run,
         fallback=lambda t, p: {"entry_values": {}},
+        mailer=_FakeMailer(),
+        email_from="",
+        email_to=[],
     )
 
     run_id, outcome = await service.record(

@@ -46,9 +46,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
     score: dict[str, object] = score_raw if isinstance(score_raw, dict) else {}
     overall_score = score.get("overallScore")
     score_band = score.get("scoreBand")
-    score_text = (
-        f"{overall_score:g} / 100" if isinstance(overall_score, (int, float)) else "—"
-    )
+    score_text = f"{overall_score:g} / 100" if isinstance(overall_score, (int, float)) else "—"
     score_band_text = str(score_band) if isinstance(score_band, str) and score_band else "—"
 
     rows = render_field_rows(
