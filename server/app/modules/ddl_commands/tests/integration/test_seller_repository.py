@@ -33,6 +33,20 @@ async def test_search_by_organization_name_excludes_inactive_role(
     assert not any(r.org_attio_id == throwaway_org.attio_id for r in results)
 
 
+async def test_search_by_organization_name_excludes_removed_org(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    from datetime import UTC, datetime
+
+    throwaway_org.name = "Removed Seller Org Co"
+    throwaway_org.removed_at = datetime.now(UTC)
+    await _seller(db_session, throwaway_org, is_active=True)
+
+    repo = SellerRepository(db_session)
+    results = await repo.search_by_organization_name("Removed Seller Org Co")
+    assert not any(r.org_attio_id == throwaway_org.attio_id for r in results)
+
+
 async def test_update_applies_fields(db_session: AsyncSession, throwaway_org: Organization) -> None:
     role = await _seller(db_session, throwaway_org, outreach_tier="cold")
 

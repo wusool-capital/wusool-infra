@@ -20,6 +20,18 @@ for current production evidence and open handover items.
   most recent submission's tool is what shows, consistent with how every
   other lead-magnet-supplied organization attribute already behaves.
 
+### Fixed
+
+- Organizations removed from Attio (soft-deleted, `removed_at` set) could
+  still surface: a new lead-magnet submission could dedupe-match and reattach
+  itself to a removed org's old record instead of creating a fresh one, and
+  the matching engine's candidate pool for `/find-match` could still include
+  sellers on a removed organization, or seller roles superseded by a newer
+  submission (`is_active = false`). Also affected `/edit-seller`'s,
+  `/edit-buyer`'s, and `/find-match`'s buyer-resolution org-name search,
+  which already excluded superseded roles but not removed orgs. All four
+  queries now exclude removed organizations.
+
 ## 2026-09-15
 
 ### Added
