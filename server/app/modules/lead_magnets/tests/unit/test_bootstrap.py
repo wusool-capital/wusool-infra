@@ -449,3 +449,30 @@ async def test_write_survives_a_deal_write_failure() -> None:
 
     assert subjects.org_attio_id is not None
     assert subjects.deal_attio_id is None
+
+
+async def test_write_passes_the_tools_lead_source_detail_label_to_the_org_write() -> None:
+    """Each lead magnet stamps `organizations.lead_source_detail` with its
+    own label, on every write — including a patch of an already-deduped
+    org, since a later submission's tool is what should show (last-touch)."""
+    organizations = _FakeOrganizations([_Candidate(attio_id="org-1", domains=["acme.com"])])
+    writer = _FakeRoleWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        writer, organizations, _FakePersonWriter(), _FakeDealWriter()
+    )
+
+    await role_attio_writer.write(
+        tool="valuation", payload={"company": "Acme", "domain": "acme.com"}, ai={}
+    )
+    await role_attio_writer.write(
+        tool="benchmark",
+        payload={"company": "Acme", "domain": "acme.com", "peer_key": "itservices"},
+        ai={},
+    )
+    await role_attio_writer.write(
+        tool="buyer_network", payload={"org_name": "Acme", "domain": "acme.com"}, ai={}
+    )
+
+    assert writer.seller_calls[0]["lead_source_detail"] == "Valuation Tool"
+    assert writer.seller_calls[1]["lead_source_detail"] == "GCC SME Benchmark"
+    assert writer.buyer_calls[0]["lead_source_detail"] == "Buyer Form"

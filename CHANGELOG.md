@@ -10,6 +10,16 @@ for current production evidence and open handover items.
 
 ## 2026-09-16
 
+### Added
+
+- The four lead magnets (Valuation Tool, M&A Readiness Tool, GCC SME
+  Benchmark, Buyer Form) now stamp `organizations.lead_source_detail`
+  themselves, on every submission. The field existed since 2026-09-15, but
+  nothing wrote it except the historical migration and manual Attio edits.
+  If a company submits through more than one tool, the most recent tool
+  wins — the same behavior as every other lead-magnet-supplied organization
+  attribute.
+
 ### Fixed
 
 - Organizations removed from Attio (soft-deleted, `removed_at` set) could

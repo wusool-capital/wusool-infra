@@ -21,6 +21,7 @@ from app.modules.lead_magnets.domain.shared.attio_values import (
     benchmark_values,
     buyer_values,
     display_name,
+    lead_source_detail_label,
     person_values,
     readiness_values,
     valuation_values,
@@ -274,3 +275,21 @@ def test_person_values_includes_phone_only_when_given() -> None:
 
     assert with_phone["phone"] == "+971500000000"
     assert "phone" not in without_phone
+
+
+@pytest.mark.parametrize(
+    ("tool", "label"),
+    [
+        ("valuation", "Valuation Tool"),
+        ("readiness", "M&A Readiness Tool"),
+        ("benchmark", "GCC SME Benchmark"),
+        ("buyer_network", "Buyer Form"),
+    ],
+)
+def test_lead_source_detail_label_matches_the_attio_option_titles(tool: str, label: str) -> None:
+    assert lead_source_detail_label(tool) == label
+
+
+def test_lead_source_detail_label_is_none_for_a_non_lead_magnet_tool() -> None:
+    assert lead_source_detail_label("attio_webhook") is None
+    assert lead_source_detail_label("unknown") is None

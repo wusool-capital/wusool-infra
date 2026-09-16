@@ -238,6 +238,23 @@ def buyer_values(data: BuyerValuesInput) -> dict[str, object]:
     return values
 
 
+# `organizations.lead_source_detail`'s option titles (`schema.ps1`) already
+# match the four lead-magnet tool names — no new Attio attribute needed.
+# `"attio_webhook"` (the mirror's own sync direction, never a real
+# submission) and any future tool fall through to `None`, which
+# `role_writer.py` treats as "don't set this field".
+_LEAD_SOURCE_DETAIL_LABELS: Mapping[str, str] = {
+    "valuation": "Valuation Tool",
+    "readiness": "M&A Readiness Tool",
+    "benchmark": "GCC SME Benchmark",
+    "buyer_network": "Buyer Form",
+}
+
+
+def lead_source_detail_label(tool: str) -> str | None:
+    return _LEAD_SOURCE_DETAIL_LABELS.get(tool)
+
+
 def display_name(name: str | None, email: str) -> str:
     """`person.name` is required in Attio; benchmark and valuation don't
     require a name from the visitor, so this must never return an empty

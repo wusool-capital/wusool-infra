@@ -81,11 +81,14 @@ class AttioRoleWriter:
         hq_country: str | None = None,
         funding_raised: float | None = None,
         organization_attio_id: str | None = None,
+        lead_source_detail: str | None = None,
     ) -> SubjectRefs:
         """Creates or updates the organisation, then its `seller_role` entry."""
         org_values: dict[str, object] = {"name": organization_name}
         if domain:
             org_values["domains"] = [domain]
+        if lead_source_detail:
+            org_values["lead_source_detail"] = lead_source_detail
         # Mapped, never raw: `sector_focus` is a select, Attio rejects an
         # undefined option, and the live relay only logs that — so a raw
         # tool value would silently drop the sector. `to_sector_focus`
@@ -123,6 +126,7 @@ class AttioRoleWriter:
         sector_focus: list[str],
         entry_values: dict[str, object],
         organization_attio_id: str | None = None,
+        lead_source_detail: str | None = None,
     ) -> SubjectRefs:
         """Same shape as `write_seller_role`. `org_type`/`sector_focus` are
         already Attio's own option titles — validated, not mapped, since the
@@ -132,6 +136,8 @@ class AttioRoleWriter:
         org_values: dict[str, object] = {"name": organization_name}
         if domain:
             org_values["domains"] = [domain]
+        if lead_source_detail:
+            org_values["lead_source_detail"] = lead_source_detail
         if org_type:
             org_values["type"] = validate_org_type(org_type)
         if sector_focus:
