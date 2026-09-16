@@ -39,9 +39,7 @@ async def test_search_by_organization_name_excludes_removed_org(
 async def test_search_by_organization_name_excludes_inactive_role(
     db_session: AsyncSession,
 ) -> None:
-    org = Organization(
-        attio_id=f"test-org-{uuid.uuid4()}", name="Stale Duplicate Buyer Match Org"
-    )
+    org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Stale Duplicate Buyer Match Org")
     db_session.add(org)
     await db_session.flush()
 

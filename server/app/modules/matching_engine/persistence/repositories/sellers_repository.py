@@ -38,7 +38,7 @@ class SellerRepository:
         return to_seller_candidate(role) if role else None
 
     async def get_eligible_sellers(self, limit: int = 50, offset: int = 0) -> list[SellerCandidate]:
-        """"Eligible" has no schema-level flag today beyond lifecycle state:
+        """ "Eligible" has no schema-level flag today beyond lifecycle state:
         excludes roles superseded by a newer submission (`is_active`),
         soft-deleted roles, and roles on a soft-deleted organization
         (`removed_at`) — same convention as `search_by_organization_name`.
