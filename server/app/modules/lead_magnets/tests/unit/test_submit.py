@@ -28,6 +28,7 @@ class _FakeToolRuns:
         self.started: list[tuple[str, str]] = []
         self.stages: list[tuple[str, JsonObject | None]] = []
         self.finished: list[tuple[str, str | None]] = []
+        self.finished_subjects: list[SubjectRefs] = []
         self.outcome = "new"
 
     async def start(self, *, tool, payload, idempotency_key):
@@ -42,6 +43,7 @@ class _FakeToolRuns:
     async def finish(self, run_id, status, *, subjects=_NO_SUBJECTS, error=None):
         self.calls.append(f"finish:{status}")
         self.finished.append((status, error))
+        self.finished_subjects.append(subjects)
 
     async def get(self, run_id):
         return None
@@ -330,6 +332,10 @@ async def test_confirmation_failure_marks_failed_before_internal_runs() -> None:
 
     assert tool_runs.calls == ["set_stage:ai", "set_stage:attio", "finish:failed"]
     assert mailer.sent == []
+    # The Attio write already landed by this point — finish() must still
+    # seed the org/person stub rows and log the activity, or a lead that
+    # only fails on the confirmation email loses its audit trail.
+    assert tool_runs.finished_subjects[-1] == _SUBJECTS
 
 
 async def test_internal_failure_after_confirmation_does_not_resend_confirmation() -> None:

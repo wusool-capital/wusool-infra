@@ -103,7 +103,7 @@ class SubmissionService:
         subjects = await self._ensure_attio(run, ai)
         if subjects is None:
             return
-        if await self._ensure_email_confirmation(run, ai) is None:
+        if await self._ensure_email_confirmation(run, ai, subjects) is None:
             return
         if await self._ensure_email_internal(run, ai, subjects) is None:
             return
@@ -159,7 +159,9 @@ class SubmissionService:
         await self._tool_runs.set_stage(run.id, stage="attio", output=asdict(subjects))
         return subjects
 
-    async def _ensure_email_confirmation(self, run: ToolRunRecord, ai: JsonObject) -> bool | None:
+    async def _ensure_email_confirmation(
+        self, run: ToolRunRecord, ai: JsonObject, subjects: SubjectRefs
+    ) -> bool | None:
         """Step 5. Returns `True` once sent (or nothing to send), `None` if
         the sweeper should retry.
 
@@ -191,7 +193,7 @@ class SubmissionService:
             logger.warning(
                 "lead_magnet_confirmation_email_failed tool=%s error=%s", run.tool, exc
             )
-            await self._tool_runs.finish(run.id, "failed", error=str(exc))
+            await self._tool_runs.finish(run.id, "failed", subjects=subjects, error=str(exc))
             return None
 
         await self._tool_runs.set_stage(

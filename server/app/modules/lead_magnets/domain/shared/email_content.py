@@ -8,12 +8,35 @@ email templates so a rendered email matches the brand exactly.
 """
 
 from dataclasses import dataclass
+from html import escape
 
 
 @dataclass(frozen=True)
 class EmailContent:
     subject: str
     html: str
+
+
+# Same asset the live tool pages already embed (`static/img/a0288d00.png`),
+# content-addressed and served immutably at this path in every environment
+# — see `api/static.py`. Used in place of a text wordmark so the emails
+# match the brand exactly.
+_LOGO_URL = "https://tools.wusoolcapital.com/img/a0288d00.png"
+_LOGO_IMG = (
+    f'<img src="{_LOGO_URL}" width="120" height="20" alt="Wusool Capital" '
+    'style="display:block;width:120px;height:20px;border:0;">'
+)
+
+
+def esc(value: object) -> str:
+    """Escapes a value that may carry a visitor's raw form input before it's
+    interpolated into HTML — every field-table cell, free-text answer, and
+    company/person name in these emails passes through here. Static,
+    hand-authored copy (confirmation-email headings/body text, which already
+    contains real entities like `&amp;`) never goes through this — only
+    render_field_rows/render_internal_shell's `title` do, since those are
+    the only two seams that ever carry submitted data."""
+    return escape(str(value))
 
 
 def format_usd(value: float | None) -> str:
@@ -39,7 +62,7 @@ def render_confirmation_shell(
 <table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e5e5;">
 <tr><td style="padding:28px 36px;border-bottom:1px solid #eeeeee;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr>
-<td><span style="font-family:Inter,sans-serif;font-size:15px;font-weight:700;color:#000000;letter-spacing:1px;">WUSOOL CAPITAL</span></td>
+<td>{_LOGO_IMG}</td>
 <td align="right"><span style="font-family:Inter,sans-serif;font-size:11px;color:#999999;letter-spacing:0.5px;">{tag}</span></td>
 </tr></table></td></tr>
 <tr><td style="padding:36px 36px 28px 36px;">
@@ -60,8 +83,8 @@ def render_field_rows(pairs: list[tuple[str, str]]) -> str:
     for i, (label, value) in enumerate(pairs):
         border = "" if i == last else "border-bottom:1px solid #f5f5f5;"
         rows.append(
-            f'<tr><td style="padding:10px 14px;color:#666666;{border}">{label}</td>'
-            f'<td style="padding:10px 14px;color:#000000;font-weight:600;{border}">{value}</td></tr>'
+            f'<tr><td style="padding:10px 14px;color:#666666;{border}">{esc(label)}</td>'
+            f'<td style="padding:10px 14px;color:#000000;font-weight:600;{border}">{esc(value)}</td></tr>'
         )
     return "".join(rows)
 
@@ -113,11 +136,11 @@ def render_internal_shell(
 <table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e5e5;">
 <tr><td style="padding:24px 32px;border-bottom:1px solid #eeeeee;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr>
-<td><span style="font-family:Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;letter-spacing:1px;">WUSOOL CAPITAL</span></td>
+<td>{_LOGO_IMG}</td>
 <td align="right"><span style="background-color:{badge_color};color:#ffffff;font-family:Arial,sans-serif;font-size:10px;font-weight:700;padding:3px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px;">{badge}</span></td>
 </tr></table></td></tr>
 <tr><td style="padding:28px 32px 8px 32px;">
-<p style="font-family:Arial,sans-serif;font-size:18px;font-weight:700;color:#000000;margin:0 0 4px 0;">{title}</p>
+<p style="font-family:Arial,sans-serif;font-size:18px;font-weight:700;color:#000000;margin:0 0 4px 0;">{esc(title)}</p>
 <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eeeeee;border-radius:6px;font-family:Arial,sans-serif;font-size:13px;">
 {rows_html}
 </table>

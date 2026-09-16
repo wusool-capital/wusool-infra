@@ -5,6 +5,7 @@ readiness tool.
 from app.modules.lead_magnets.domain.readiness.readiness import ReadinessAnswers
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    esc,
     render_confirmation_shell,
     render_field_rows,
     render_internal_shell,
@@ -65,8 +66,8 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
     scored_rows = render_field_rows(answers.scored_labels())
     free_text_fields = (("Biggest concern", answers.q14), ("What would help most", answers.q15))
     free_text = "".join(
-        f'<tr><td colspan="2" style="padding:10px 14px 0;color:#666666;">{label}</td></tr>'
-        f'<tr><td colspan="2" style="padding:0 14px 12px;color:#000000;">"{value}"</td></tr>'
+        f'<tr><td colspan="2" style="padding:10px 14px 0;color:#666666;">{esc(label)}</td></tr>'
+        f'<tr><td colspan="2" style="padding:0 14px 12px;color:#000000;">"{esc(value)}"</td></tr>'
         for label, value in free_text_fields
         if value
     )

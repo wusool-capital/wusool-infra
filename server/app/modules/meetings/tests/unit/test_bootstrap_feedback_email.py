@@ -18,7 +18,9 @@ class _FakeMailer:
         self.raise_error = raise_error
         self.calls: list[dict] = []
 
-    async def send(self, *, to: list[str], from_addr: str, subject: str, body: str) -> None:
+    async def send(
+        self, *, to: list[str], from_addr: str, subject: str, body: str, is_html: bool = False
+    ) -> None:
         if self.raise_error:
             raise RuntimeError("ses is down")
         self.calls.append({"to": to, "from_addr": from_addr, "subject": subject, "body": body})
