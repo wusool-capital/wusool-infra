@@ -145,6 +145,7 @@ async def _sync_streaming_entity(
     path: str,
     mapper: Callable[[AttioRecord], JsonObject],
     seen_ids: set[str] | None = None,
+    verify_count: bool = True,
 ) -> tuple[int, int]:
     """Map and write one Attio page at a time, retaining no full listing.
 
@@ -181,17 +182,21 @@ async def _sync_streaming_entity(
             total_records += len(rows)
             if mismatches:
                 _logger.error("full resync: %s content mismatch for keys: %s", table, mismatches)
-        actual_count = await _count(table)
-        if actual_count != total_records:
-            _logger.error(
-                "full resync: %s count mismatch: expected %d, found %d",
-                table,
-                total_records,
-                actual_count,
-            )
-            total_failed += 1
-        else:
-            _logger.info("full resync: %s count check passed (%d)", table, actual_count)
+        # Skipped when `_reconcile_deletions` follows: before it runs, the live
+        # count still includes rows pending deletion, so this would fail the job
+        # for a mirror that is about to be correct.
+        if verify_count:
+            actual_count = await _count(table)
+            if actual_count != total_records:
+                _logger.error(
+                    "full resync: %s count mismatch: expected %d, found %d",
+                    table,
+                    total_records,
+                    actual_count,
+                )
+                total_failed += 1
+            else:
+                _logger.info("full resync: %s count check passed (%d)", table, actual_count)
     except Exception:
         _logger.error("full resync: failed to sync %s", table, exc_info=True)
         total_failed += 1
@@ -228,12 +233,30 @@ _MAX_STALE_SHARE = 0.02
 _MIN_STALE_ALLOWANCE = 10
 
 
-async def _reconcile_deletions(table: str, live_ids: set[str]) -> tuple[int, int]:
-    """Mirror Attio deletions into `removed_at`, returning (stamped, cleared).
+async def _reconcile_into(
+    summary: dict[str, tuple[int, int]], key: str, table: str, live_ids: set[str]
+) -> None:
+    """Reconcile and fold any failure into `summary[key]`, so a refusal or a
+    post-reconciliation mismatch reaches the job's exit status instead of being
+    logged and dropped."""
+    ok, failed = summary[key]
+    summary[key] = (ok, failed + await _reconcile_deletions(table, live_ids))
+
+
+async def _reconcile_deletions(table: str, live_ids: set[str]) -> int:
+    """Mirror Attio deletions into `removed_at`, returning a failure count.
 
     Soft delete only -- nothing is physically removed, so a wrong call is
     reversible with `UPDATE <table> SET removed_at = NULL`. That is why this
     can run unattended where the hard `DELETE`s it replaces could not.
+
+    This is also where the mirror is *verified*, deliberately. The row-count
+    check used to live in `_sync_streaming_entity`/`_write_and_verify`, which
+    run before this -- so a table with pending deletions reported a count
+    mismatch and failed the whole job even when reconciliation then handled it
+    perfectly (observed 2026-09-15: buyer_roles and seller_roles both
+    reconciled cleanly and both still reported failed=1). Counting after the
+    write is the only point where the answer means anything.
     """
     key = _RECONCILE_KEY[table]
     if not live_ids:
@@ -242,7 +265,7 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> tuple[int, int
             "removed. Reconciliation skipped for this table.",
             table,
         )
-        return (0, 0)
+        return 1
 
     ids = list(live_ids)
     async with get_sessionmaker()() as session:
@@ -286,7 +309,9 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> tuple[int, int
                 len(ids),
                 sample,
             )
-            return (0, 0)
+            # A refusal leaves the mirror knowingly unconverged, so it stays a
+            # failure -- silently returning success would hide real drift.
+            return 1
 
         # Counted with SELECTs rather than the UPDATEs' rowcount: the async
         # `Result` does not expose it, and `stale` is already measured above
@@ -327,7 +352,27 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> tuple[int, int
         )
     else:
         _logger.info("full resync: %s already mirrors Attio (%d records)", table, len(ids))
-    return (stamped, cleared)
+
+    # The mirror assertion, now that reconciliation has run: live rows must
+    # equal what Attio returned. A difference here is real divergence, not a
+    # deletion waiting to be processed.
+    async with get_sessionmaker()() as session:
+        final = (
+            await session.execute(
+                text(f"SELECT count(*) FROM {table} WHERE removed_at IS NULL")  # noqa: S608
+            )
+        ).scalar_one()
+    if final != len(ids):
+        _logger.error(
+            "full resync: %s count mismatch after reconciliation: Attio has %d, "
+            "Postgres has %d live",
+            table,
+            len(ids),
+            final,
+        )
+        return 1
+    _logger.info("full resync: %s count check passed (%d)", table, final)
+    return 0
 
 
 async def _count(table: str) -> int:
@@ -378,7 +423,11 @@ async def _write_batches_concurrently(
 
 
 async def _write_and_verify(
-    model: upsert.SyncModel, table: str, rows: list[JsonObject], expected_count: int
+    model: upsert.SyncModel,
+    table: str,
+    rows: list[JsonObject],
+    expected_count: int,
+    verify_count: bool = True,
 ) -> tuple[int, int]:
     started = time.monotonic()
     ok, failed, returned = await _write_batches_concurrently(model, rows)
@@ -401,17 +450,21 @@ async def _write_and_verify(
             "full resync: %s content mismatch after write for keys: %s", table, mismatches
         )
         failed += 1
-    actual_count = await _count(table)
-    if actual_count != expected_count:
-        _logger.error(
-            "full resync: %s count mismatch: expected %d, found %d",
-            table,
-            expected_count,
-            actual_count,
-        )
-        failed += 1
-    else:
-        _logger.info("full resync: %s count check passed (%d)", table, actual_count)
+    # The content-mismatch check above stays here -- it is about write
+    # fidelity, not row counts. The row count moves to _reconcile_deletions,
+    # which runs after and is the only place the answer is meaningful.
+    if verify_count:
+        actual_count = await _count(table)
+        if actual_count != expected_count:
+            _logger.error(
+                "full resync: %s count mismatch: expected %d, found %d",
+                table,
+                expected_count,
+                actual_count,
+            )
+            failed += 1
+        else:
+            _logger.info("full resync: %s count check passed (%d)", table, actual_count)
     return ok, failed
 
 
@@ -534,8 +587,9 @@ async def _run(client: AttioClientProtocol) -> None:
         "/objects/organizations/records/query",
         lambda r: dict(upsert._organization_batch_params(r, user_ids)),
         live_org_ids,
+        verify_count=False,
     )
-    await _reconcile_deletions("organizations", live_org_ids)
+    await _reconcile_into(summary, "organizations", "organizations", live_org_ids)
     org_ids = await _existing_ids("organizations")
 
     # People and deals have no hard foreign-key dependency on each other, so
@@ -551,6 +605,7 @@ async def _run(client: AttioClientProtocol) -> None:
         "/objects/person/records/query",
         lambda r: dict(upsert._person_batch_params(r, org_ids, user_ids)),
         live_person_ids,
+        verify_count=False,
     )
     deal_task = _sync_streaming_entity(
         client,
@@ -559,6 +614,7 @@ async def _run(client: AttioClientProtocol) -> None:
         "/objects/deal/records/query",
         lambda r: dict(upsert._deal_batch_params(r, org_ids, person_ids, user_ids)),
         live_deal_ids,
+        verify_count=False,
     )
     if _can_run_db_tasks_concurrently():
         person_result, deal_result = await asyncio.gather(person_task, deal_task)
@@ -569,8 +625,8 @@ async def _run(client: AttioClientProtocol) -> None:
     summary["deals"] = deal_result
     # After both streams, so a failed page-through leaves the id set short and
     # trips the guard rather than stamping the difference.
-    await _reconcile_deletions("person", live_person_ids)
-    await _reconcile_deletions("deals", live_deal_ids)
+    await _reconcile_into(summary, "person", "person", live_person_ids)
+    await _reconcile_into(summary, "deals", "deals", live_deal_ids)
 
     # Roles stay collected because reconciliation needs sibling entries across
     # page boundaries; this list is deliberately small in DEV.
@@ -597,10 +653,15 @@ async def _run(client: AttioClientProtocol) -> None:
                 upsert._buyer_role_batch_params(org_id, entry, is_active, person_ids)
             ),
         )
-        ok, write_failed = await _write_and_verify(BuyerRole, "buyer_roles", rows, len(rows))
+        ok, write_failed = await _write_and_verify(
+            BuyerRole, "buyer_roles", rows, len(rows), verify_count=False
+        )
         summary["buyer_role"] = (ok, reconcile_failed + write_failed)
-        await _reconcile_deletions(
-            "buyer_roles", {r["legacy_entry_id"] for r in rows if r.get("legacy_entry_id")}
+        await _reconcile_into(
+            summary,
+            "buyer_role",
+            "buyer_roles",
+            {r["legacy_entry_id"] for r in rows if r.get("legacy_entry_id")},
         )
 
     if seller_entries is None:
@@ -614,10 +675,15 @@ async def _run(client: AttioClientProtocol) -> None:
                 upsert._seller_role_params(org_id, entry, is_active)
             ),
         )
-        ok, write_failed = await _write_and_verify(SellerRole, "seller_roles", rows, len(rows))
+        ok, write_failed = await _write_and_verify(
+            SellerRole, "seller_roles", rows, len(rows), verify_count=False
+        )
         summary["seller_role"] = (ok, reconcile_failed + write_failed)
-        await _reconcile_deletions(
-            "seller_roles", {r["legacy_entry_id"] for r in rows if r.get("legacy_entry_id")}
+        await _reconcile_into(
+            summary,
+            "seller_role",
+            "seller_roles",
+            {r["legacy_entry_id"] for r in rows if r.get("legacy_entry_id")},
         )
 
     summary["note"] = await _sync_notes_full(client)

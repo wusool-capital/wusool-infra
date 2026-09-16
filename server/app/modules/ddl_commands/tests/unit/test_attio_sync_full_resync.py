@@ -231,18 +231,23 @@ async def test_run_raises_systemexit_on_any_failure(monkeypatch) -> None:
     async def no_ids(table):
         return set()
 
-    async def noop_write(model, table, rows, expected_count):
+    async def noop_write(model, table, rows, expected_count, verify_count=True):
         return 0, 0
 
     async def noop_reconcile(client, list_slug, entries, build_params):
         return [], 0
 
-    async def noop_streaming(client, model, table, path, mapper, seen_ids=None):
+    async def noop_streaming(client, model, table, path, mapper, seen_ids=None, verify_count=True):
         return 0, 0
 
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
     monkeypatch.setattr(full_resync, "_page_through", empty_page)
     monkeypatch.setattr(full_resync, "_sync_streaming_entity", noop_streaming)
+
+    async def _no_reconcile(table, live_ids):
+        return 0
+
+    monkeypatch.setattr(full_resync, "_reconcile_deletions", _no_reconcile)
     monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
     monkeypatch.setattr(full_resync, "_write_and_verify", noop_write)
     monkeypatch.setattr(full_resync, "_reconcile_roles", noop_reconcile)
@@ -267,10 +272,10 @@ async def test_run_raises_systemexit_when_a_table_has_failures(monkeypatch) -> N
     async def no_ids(table):
         return set()
 
-    async def failing_write(model, table, rows, expected_count):
+    async def failing_write(model, table, rows, expected_count, verify_count=True):
         return 0, 1
 
-    async def noop_streaming(client, model, table, path, mapper, seen_ids=None):
+    async def noop_streaming(client, model, table, path, mapper, seen_ids=None, verify_count=True):
         return 0, 0
 
     monkeypatch.setattr(full_resync.upsert, "sync_all_users", no_users)
@@ -282,6 +287,11 @@ async def test_run_raises_systemexit_when_a_table_has_failures(monkeypatch) -> N
     # it leaked a stub "Unnamed Organization [only-one]" row into a real
     # local Postgres, which then broke an unrelated e2e test's row count).
     monkeypatch.setattr(full_resync, "_sync_streaming_entity", noop_streaming)
+
+    async def _no_reconcile(table, live_ids):
+        return 0
+
+    monkeypatch.setattr(full_resync, "_reconcile_deletions", _no_reconcile)
     monkeypatch.setattr(full_resync, "_existing_ids", no_ids)
     monkeypatch.setattr(full_resync, "_write_and_verify", failing_write)
 
@@ -318,7 +328,7 @@ async def test_run_continues_past_a_failed_entity_listing(monkeypatch) -> None:
     # reconciliation -- which has its own tests below and would otherwise try
     # to open a real connection here.
     async def no_reconcile(table, live_ids):
-        return (0, 0)
+        return 0
 
     write_calls = []
 
@@ -360,7 +370,7 @@ async def test_run_reports_users_sync_failure(monkeypatch) -> None:
     async def no_ids(table):
         return set()
 
-    async def noop_write(model, table, rows, expected_count):
+    async def noop_write(model, table, rows, expected_count, verify_count=True):
         return 0, 0
 
     async def noop_reconcile(client, list_slug, entries, build_params):
@@ -465,7 +475,9 @@ class _FakeSession:
     async def execute(self, statement, params=None):
         sql = " ".join(str(statement).split())
         self.statements.append(sql)
-        if self._answers:
+        # Only SELECTs consume a canned answer -- an UPDATE's result is never
+        # read, and letting it pop one would silently shift every later answer.
+        if sql.startswith("SELECT") and self._answers:
             return _FakeResult(self._answers.pop(0))
         return _FakeResult(0)
 
@@ -493,7 +505,8 @@ async def test_reconcile_refuses_when_attio_returns_zero_ids(monkeypatch) -> Non
     session = _FakeSession([])
     _install_session(monkeypatch, session)
 
-    assert await full_resync._reconcile_deletions("organizations", set()) == (0, 0)
+    # A refusal is a failure: the mirror is knowingly unconverged.
+    assert await full_resync._reconcile_deletions("organizations", set()) == 1
     # Not one statement ran -- it bailed before touching the database.
     assert session.statements == []
     assert not session.committed
@@ -506,16 +519,17 @@ async def test_reconcile_refuses_when_stale_share_exceeds_allowance(monkeypatch)
     session = _FakeSession([500, 1000, ["a", "b"]])
     _install_session(monkeypatch, session)
 
-    assert await full_resync._reconcile_deletions("person", {"keep-1"}) == (0, 0)
+    assert await full_resync._reconcile_deletions("person", {"keep-1"}) == 1
     assert _updates(session) == []
     assert not session.committed
 
 
 async def test_reconcile_writes_when_within_allowance(monkeypatch) -> None:
-    session = _FakeSession([3, 1000, 2])  # stale=3, live=1000 (allow 20), cleared=2
+    # stale=3, live=1000 (allowance 20), cleared=2, final live count 2 == len(ids)
+    session = _FakeSession([3, 1000, 2, 2])
     _install_session(monkeypatch, session)
 
-    assert await full_resync._reconcile_deletions("deals", {"keep-1", "keep-2"}) == (3, 2)
+    assert await full_resync._reconcile_deletions("deals", {"keep-1", "keep-2"}) == 0
     updates = _updates(session)
     assert len(updates) == 2
     assert "SET removed_at = now()" in updates[0]
@@ -526,17 +540,18 @@ async def test_reconcile_writes_when_within_allowance(monkeypatch) -> None:
 async def test_reconcile_allows_a_small_absolute_count_on_a_tiny_table(monkeypatch) -> None:
     """2% of a 20-row table is 0, which would make every deletion implausible.
     The absolute floor keeps small tables (deals, roles in DEV) reconcilable."""
-    session = _FakeSession([4, 20, 0])  # 4 stale of 20 live: over 2%, under the floor of 10
+    # 4 stale of 20 live: over 2%, under the floor of 10. Final count 1 == len(ids).
+    session = _FakeSession([4, 20, 0, 1])
     _install_session(monkeypatch, session)
 
-    assert await full_resync._reconcile_deletions("seller_roles", {"keep"}) == (4, 0)
+    assert await full_resync._reconcile_deletions("seller_roles", {"keep"}) == 0
     assert len(_updates(session)) == 2
 
 
 async def test_reconcile_keys_roles_on_legacy_entry_id(monkeypatch) -> None:
     """Roles must reconcile on the same key the webhook's delete handlers use;
     keying on org_attio_id would wipe every sibling entry of one org."""
-    session = _FakeSession([0, 100, 0])
+    session = _FakeSession([0, 100, 0, 1])
     _install_session(monkeypatch, session)
 
     await full_resync._reconcile_deletions("buyer_roles", {"entry-1"})
@@ -575,3 +590,53 @@ async def test_streaming_entity_collects_ids_for_reconciliation(monkeypatch) -> 
     )
 
     assert seen == {"org-1", "org-2", "org-3"}
+
+
+async def test_reconcile_reports_failure_when_mirror_still_diverges(monkeypatch) -> None:
+    """The count assertion lives here, after the write. If Postgres still holds
+    a different number of live rows than Attio returned once reconciliation has
+    run, that is real divergence and must fail the job."""
+    # stale=0 so nothing is stamped, but the final count (7) still disagrees
+    # with the 2 ids Attio returned.
+    session = _FakeSession([0, 100, 0, 7])
+    _install_session(monkeypatch, session)
+
+    assert await full_resync._reconcile_deletions("deals", {"a", "b"}) == 1
+
+
+async def test_pending_deletions_do_not_fail_before_reconciliation(monkeypatch) -> None:
+    """The regression this change exists for. On 2026-09-15 buyer_roles and
+    seller_roles both reconciled cleanly and the job still went red, because
+    `_sync_streaming_entity` counted rows *before* reconciliation removed them.
+    With verify_count=False that premature check is gone, so a table with
+    pending deletions reports no failure of its own.
+    """
+
+    async def pages(client, path):
+        yield [{"id": {"record_id": "a"}}, {"id": {"record_id": "b"}}]
+
+    async def write(model, rows):
+        return (len(rows), 0, {})
+
+    async def count(table):
+        # Postgres still has 5 live rows; Attio returned 2. Before this change
+        # that difference alone failed the job.
+        return 5
+
+    monkeypatch.setattr(full_resync, "_page_through", pages)
+    monkeypatch.setattr(full_resync, "_write_batches_concurrently", write)
+    monkeypatch.setattr(full_resync, "_count", count)
+    monkeypatch.setattr(full_resync.upsert, "in_scope", lambda record: True)
+
+    ok, failed = await full_resync._sync_streaming_entity(
+        object(),
+        Organization,
+        "organizations",
+        "/objects/organizations/records/query",
+        lambda r: {"attio_id": r["id"]["record_id"], "raw_attio": r},
+        None,
+        verify_count=False,
+    )
+
+    assert failed == 0, "a pending deletion must not fail the sync step itself"
+    assert ok == 2
