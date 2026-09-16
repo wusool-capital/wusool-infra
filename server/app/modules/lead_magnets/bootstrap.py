@@ -18,7 +18,7 @@ from app.modules.lead_magnets.application.shared.service import LeadMagnetServic
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
-from app.modules.lead_magnets.domain.shared.attio_values import DealType
+from app.modules.lead_magnets.domain.shared.attio_values import DealType, lead_source_detail_label
 from app.modules.lead_magnets.domain.shared.dedup import (
     domain_matches,
     normalise_domain,
@@ -119,6 +119,7 @@ class _RoleAttioWriter:
         entry_values = ai.get("entry_values")
         if not isinstance(entry_values, dict):
             entry_values = {}
+        lead_source_detail = lead_source_detail_label(tool)
 
         if tool == "buyer_network":
             buyer = BuyerNetworkPayload.model_validate(payload)
@@ -130,6 +131,7 @@ class _RoleAttioWriter:
                 sector_focus=buyer.sector_focus,
                 entry_values=entry_values,
                 organization_attio_id=await self._find_existing_org(name=name, domain=buyer.domain),
+                lead_source_detail=lead_source_detail,
             )
             subjects = await self._with_person(
                 subjects,
@@ -165,6 +167,7 @@ class _RoleAttioWriter:
             hq_country=seller.geography or seller.country,
             funding_raised=seller.capital_raised,
             organization_attio_id=await self._find_existing_org(name=name, domain=seller.domain),
+            lead_source_detail=lead_source_detail,
         )
         subjects = await self._with_person(
             subjects, name=seller.name, email=seller.email, phone=seller.phone

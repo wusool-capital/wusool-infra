@@ -8,6 +8,18 @@ The project has no version tags: merges to `dev` and `prod` deploy their
 respective environments. See [Delivery status](docs/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-16
+
+### Added
+
+- The four lead magnets (Valuation Tool, M&A Readiness Tool, GCC SME
+  Benchmark, Buyer Form) now stamp `organizations.lead_source_detail`
+  themselves on every submission, going forward — the field existed since
+  2026-09-15 but nothing wrote it except the one-off historical migration and
+  manual Attio edits. Where a company submits through more than one tool, the
+  most recent submission's tool is what shows, consistent with how every
+  other lead-magnet-supplied organization attribute already behaves.
+
 ## 2026-09-15
 
 ### Added
