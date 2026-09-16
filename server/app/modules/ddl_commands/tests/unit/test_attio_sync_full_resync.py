@@ -640,3 +640,34 @@ async def test_pending_deletions_do_not_fail_before_reconciliation(monkeypatch) 
 
     assert failed == 0, "a pending deletion must not fail the sync step itself"
     assert ok == 2
+
+
+async def test_notes_reconcile_ignores_locally_authored_rows(monkeypatch) -> None:
+    """The reason notes could not be reconciled until `attio_id` existed. A
+    meeting summary whose Attio push failed keeps a local gen_random_uuid()
+    `id` and a NULL `attio_id`; keying on `attio_id` means the SQL can never
+    select it, because `NULL = ANY(...)` is never true.
+
+    Asserted on the generated SQL rather than on a fake's arithmetic: the
+    protection is the `attio_id IS NOT NULL` predicate plus the key choice, and
+    those are what must not regress.
+    """
+    session = _FakeSession([0, 394, 0, 1])
+    _install_session(monkeypatch, session)
+
+    await full_resync._reconcile_deletions("notes", {"note-1"})
+
+    assert full_resync._RECONCILE_KEY["notes"] == "attio_id", "notes must never key on id"
+    selects = [s for s in session.statements if s.startswith("SELECT")]
+    assert selects, "expected the reconciliation to inspect the table"
+    # A NULL-attio_id row must be unreachable by every statement, in one of
+    # two equivalent ways: an explicit `attio_id IS NOT NULL`, or a match on
+    # `attio_id = ANY(...)`, which NULL can never satisfy.
+    for statement in selects:
+        assert "attio_id IS NOT NULL" in statement or "attio_id = ANY" in statement, (
+            f"locally-authored notes must be unreachable from every query: {statement}"
+        )
+    for statement in session.statements:
+        assert "id = ANY" not in statement.replace("attio_id = ANY", ""), (
+            "notes must not be matched on the primary key"
+        )
