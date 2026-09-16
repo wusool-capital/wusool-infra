@@ -76,6 +76,10 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         organization itself, not an existing role on it. Reuses the same
         `ix_organizations_name_trgm` GIN index.
 
+        Excludes `removed_at` orgs — a company Attio no longer has must
+        never dedupe-match a new submission and silently reattach it to
+        the old, removed org.
+
         Eager-loads `seller_roles`/`buyer_roles` — the org-selection-or-create
         modal needs to know, for each match, whether it already has the role
         kind being added, without a lazy-load per candidate.
@@ -83,7 +87,7 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         predicate, similarity = org_name_trigram_predicate(term)
         stmt = (
             select(Organization)
-            .where(predicate)
+            .where(Organization.removed_at.is_(None), predicate)
             .options(
                 selectinload(Organization.seller_roles), selectinload(Organization.buyer_roles)
             )
