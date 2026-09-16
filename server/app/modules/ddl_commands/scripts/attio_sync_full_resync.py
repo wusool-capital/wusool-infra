@@ -267,10 +267,28 @@ async def _reconcile_deletions(table: str, live_ids: set[str]) -> int:
     """
     key = _RECONCILE_KEY[table]
     if not live_ids:
+        # Zero ids is only alarming if there is something to lose. An empty
+        # Attio listing alongside an empty table means the two agree -- a fresh
+        # environment, or an object genuinely not in use -- and failing the
+        # nightly for that would make it permanently red for no reason. Zero
+        # ids while rows exist is the dangerous case the guard is for.
+        async with get_sessionmaker()() as session:
+            live = (
+                await session.execute(
+                    text(
+                        f"SELECT count(*) FROM {table} "  # noqa: S608
+                        f"WHERE removed_at IS NULL AND {key} IS NOT NULL"
+                    )
+                )
+            ).scalar_one()
+        if live == 0:
+            _logger.info("full resync: %s has nothing to reconcile (empty on both sides)", table)
+            return 0
         _logger.error(
-            "full resync: %s returned zero ids from Attio -- refusing to mark all rows "
-            "removed. Reconciliation skipped for this table.",
+            "full resync: %s returned zero ids from Attio while %d live rows exist -- "
+            "refusing to mark them all removed. Reconciliation skipped for this table.",
             table,
+            live,
         )
         return 1
 

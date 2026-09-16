@@ -382,6 +382,14 @@ async def test_run_reports_users_sync_failure(monkeypatch) -> None:
     monkeypatch.setattr(full_resync, "_write_and_verify", noop_write)
     monkeypatch.setattr(full_resync, "_reconcile_roles", noop_reconcile)
 
+    # This test is about the users step failing; reconciliation now reads the
+    # live row count even on the zero-ids path, which would open a real
+    # connection here.
+    async def _no_reconcile(table, live_ids):
+        return 0
+
+    monkeypatch.setattr(full_resync, "_reconcile_deletions", _no_reconcile)
+
     with pytest.raises(SystemExit):
         await full_resync.run()
 
@@ -502,13 +510,28 @@ def _updates(session: _FakeSession) -> list[str]:
 async def test_reconcile_refuses_when_attio_returns_zero_ids(monkeypatch) -> None:
     """The whole-mirror wipe case: an empty page-through must never be read as
     "everything was deleted". Mirrors sync-source-to-prod.ps1's own guard."""
-    session = _FakeSession([])
+    session = _FakeSession([3366])  # rows exist, so zero ids is implausible
     _install_session(monkeypatch, session)
 
     # A refusal is a failure: the mirror is knowingly unconverged.
     assert await full_resync._reconcile_deletions("organizations", set()) == 1
-    # Not one statement ran -- it bailed before touching the database.
-    assert session.statements == []
+    # It looked, but wrote nothing.
+    assert not any(s.startswith("UPDATE") for s in session.statements)
+    assert not session.committed
+
+
+async def test_reconcile_is_a_noop_when_both_sides_are_empty(monkeypatch) -> None:
+    """Zero ids only matters if there is something to lose. An empty Attio
+    listing next to an empty table means the two agree -- a fresh environment,
+    or an object not in use -- and must not fail the nightly forever. Caught by
+    CI on 2026-09-16: the e2e resync test has no notes on either side and the
+    blunter guard failed the whole job.
+    """
+    session = _FakeSession([0])
+    _install_session(monkeypatch, session)
+
+    assert await full_resync._reconcile_deletions("notes", set()) == 0
+    assert not any(s.startswith("UPDATE") for s in session.statements)
     assert not session.committed
 
 
