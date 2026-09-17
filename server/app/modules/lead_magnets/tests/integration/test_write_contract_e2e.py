@@ -562,7 +562,7 @@ async def test_get_started_runs_its_real_pipeline_end_to_end(db_session) -> None
     pipelines = Pipelines(llm=None)  # type: ignore[arg-type]  # no model is reached
     service = _service(db_session, attio, pipelines, fallback=pipelines.fallback)
 
-    run_id, outcome = await service.record(
+    run_id = await service.record(
         tool="get_started",
         payload={
             "company": _CO,
@@ -580,14 +580,13 @@ async def test_get_started_runs_its_real_pipeline_end_to_end(db_session) -> None
         email="Dana@AcmeGroup.ae",
         domain="https://www.acmegroup.ae/about",
     )
-    assert outcome == "new"
 
     await service.complete(await repo.get(run_id))
 
     after = await _row(db_session, run_id)
     assert after.status == "succeeded"
     assert after.payload["stage"] == "email_internal"
-    assert after.idempotency_key == "get_started|dana@acmegroup.ae|acmegroup.ae"
+    assert after.idempotency_key == "dana@acmegroup.ae|acmegroup.ae"
     assert attio.calls(_CO) == 1
 
     entry_values = after.payload["ai"]["entry_values"]
