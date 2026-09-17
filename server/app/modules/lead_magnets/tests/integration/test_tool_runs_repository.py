@@ -127,7 +127,9 @@ async def test_finish_with_a_resolved_org_writes_one_activity_row(db_session) ->
     """Step 6: a successful Attio write gets a matching CRM timeline entry,
     joined by `tool_run_id`."""
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    run_id, _ = await repo.start(
+        tool="valuation", payload={"submission_id": "abc"}, idempotency_key=_key()
+    )
     org_id = f"org-{uuid4()}"
 
     await repo.finish(
@@ -140,6 +142,7 @@ async def test_finish_with_a_resolved_org_writes_one_activity_row(db_session) ->
     assert row.subject_type == "Organization"
     assert row.subject_attio_id == org_id
     assert row.source == "lead_magnet"
+    assert row.payload == {"submission_id": "abc"}
 
 
 async def test_finish_without_a_subject_writes_no_activity_row(db_session) -> None:

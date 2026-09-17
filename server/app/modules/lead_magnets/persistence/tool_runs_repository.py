@@ -174,10 +174,13 @@ class ToolRunsRepository:
             "seller_role_id": self._role_id(SellerRole, subjects.seller_role_entry_id),
             "buyer_role_id": self._role_id(BuyerRole, subjects.buyer_role_entry_id),
         }
-        await self._session.execute(update(ToolRun).where(ToolRun.id == run_id).values(**values))
-        await self._log_activity(run_id, subjects)
+        result = await self._session.execute(
+            update(ToolRun).where(ToolRun.id == run_id).values(**values).returning(ToolRun.payload)
+        )
+        payload = result.scalar_one_or_none() or {}
+        await self._log_activity(run_id, subjects, payload)
 
-    async def _log_activity(self, run_id: UUID, subjects: SubjectRefs) -> None:
+    async def _log_activity(self, run_id: UUID, subjects: SubjectRefs, payload: JsonObject) -> None:
         """One `activities` row per completed Attio write, joined by
         `tool_run_id`. `activities` CHECKs that a subject is present, which a
         failed run (no resolved Attio id) never has, so this is a no-op
@@ -204,6 +207,7 @@ class ToolRunsRepository:
                         subject_attio_id=subject_attio_id,
                         source="lead_magnet",
                         tool_run_id=run_id,
+                        payload=payload,
                     )
                 )
         except Exception:
