@@ -73,6 +73,12 @@ ignore = ["ANN401"]
 # verbatim, same reasoning as the two entries above. Line length only;
 # F/I/UP/B/ANN still apply.
 "app/modules/lead_magnets/domain/valuation/strategic_analysis.py" = ["E501"]
+# HTML email markup mirrored verbatim from Wusool Capital's own templates
+# (one long line per table row/cell, matching their source exactly) — same
+# reasoning as the two entries above. Line length only; F/I/UP/B/ANN still
+# apply.
+"app/modules/lead_magnets/domain/shared/email_content.py" = ["E501"]
+"app/modules/lead_magnets/domain/valuation/email.py" = ["E501"]
 # Test fakes/mocks intentionally leave fixture/kwarg parameters unannotated
 # (e.g. `**kwargs` stand-ins for a real client's signature) — production
 # code is where annotation completeness actually matters.

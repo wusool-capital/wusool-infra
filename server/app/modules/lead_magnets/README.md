@@ -43,6 +43,7 @@ lead_magnets/
       valuation_data.py            # typed loaders over data/valuation.json
       valuation_methods.py         # DCF + 3 comps methods + the blend (the fallback)
       strategic_analysis.py        # /analyze's deterministic pros/cons/insights fallback
+      email.py                     # confirmation + internal email content
       data/valuation.json          # 1000 M&A deals, 127 VC rounds, 31 comp sectors
     benchmark/
       benchmark.py                 # the percentile engine + js_round
@@ -51,14 +52,18 @@ lead_magnets/
       benchmark_routing.py         # internal triage: priority, reason, quality gates
       benchmark_narrative.py       # which metrics earn a paragraph, and how it is filled
       benchmark_copy.py            # generated report prose; do not hand-edit
+      email.py                     # confirmation + internal email content
     readiness/
       readiness.py                 # the questionnaire, advisory rules, band map (pure)
+      email.py                     # confirmation + internal email content
     buyer_network/
       buyer_network.py             # org type / sector focus / target geography validation
+      email.py                     # confirmation + internal email content
     shared/                        # used by 2+ tools — see the note above
       dedup.py                     # normalisation + key composition (pure)
       tool_run.py                  # the ledger's own vocabulary (Tool, Stage, …)
       attio_values.py              # tool result -> Attio attribute values
+      email_content.py             # shared HTML shell + formatting for the two emails
       prompts.py                   # every prompt, as a pure function
       sector_mapping.py            # tool sector -> sector_focus; raises on unmapped
       sector_options.py            # the live 85 option titles; generated
@@ -72,6 +77,7 @@ lead_magnets/
       service.py                    # LeadMagnetService — the one facade bootstrap.py builds
       submit.py                     # the write contract, every tool goes through it
       pipelines.py                  # per-tool dispatch from the stored payload
+      email_dispatch.py             # per-tool email content dispatch, mirrors pipelines.py
       sweeper.py                    # resumes abandoned runs
       ports/                        # one Protocol per file: llm, search, attio, tool_runs
   persistence/
@@ -189,9 +195,21 @@ The order is the whole point; it is what makes a lost lead impossible.
    one `seller_role`/`buyer_role` entry, one `person`, and one `deal` at
    stage **Inbound** so the lead lands in the pipeline rather than waiting
    for someone to key it in by hand.
-5. **`tool_runs.finish(...)`**, then one `activities` row joined by
+5. **Email the visitor** a confirmation, via SES (`domain/<tool>/email.py`
+   builds the HTML, `notifications.EmailSenderPort` sends it).
+6. **Email the internal team** a notice, with links back to the Attio
+   organisation/deal (`SubjectRefs.org_web_url`/`deal_web_url`).
+7. **`tool_runs.finish(...)`**, then one `activities` row joined by
    `tool_run_id`.
-6. A **sweeper** replays anything left unfinished.
+8. A **sweeper** replays anything left unfinished.
+
+Steps 5 and 6 are tracked as two separate stages (`email_confirmation`,
+`email_internal`), not one — a resume after step 6 fails must not re-send
+the visitor's confirmation, which already landed. Either stage is skipped
+permanently (not retried) when there is no visitor address or no
+`LEAD_MAGNET_EMAIL_FROM`/`LEAD_MAGNET_EMAIL_TO` configured — a config gap
+the sweeper re-attempting on a timer cannot fix, and the lead is already
+safe in Attio regardless of whether these emails go out.
 
 Postgres is never written directly for entity data: the Attio→Postgres
 webhook mirror in `ddl_commands` already maps every lead-magnet and

@@ -74,7 +74,12 @@ class _FakeClient:
                 self._reject_owner
             ):
                 raise AttioError(400, "unknown workspace member")
-            return {"data": {"id": {"record_id": self._created_id}}}
+            return {
+                "data": {
+                    "id": {"record_id": self._created_id},
+                    "web_url": f"https://app.attio.com/deal/{self._created_id}",
+                }
+            }
         raise AssertionError(f"unexpected post {path}")
 
     async def patch(self, path: str, json_body: dict) -> dict:
@@ -101,7 +106,7 @@ async def test_no_match_creates_an_inbound_sell_side_deal() -> None:
         org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
     )
 
-    assert result == "deal-new"
+    assert result == ("deal-new", "https://app.attio.com/deal/deal-new")
     assert client.create_calls == [
         {
             "deal_name": "Acme",
@@ -121,7 +126,7 @@ async def test_buyer_network_writes_buy_side_against_buyer_id() -> None:
         org_attio_id="org-9", org_name="Fund", deal_type="Buy-side"
     )
 
-    assert result == "deal-buy"
+    assert result == ("deal-buy", "https://app.attio.com/deal/deal-buy")
     values = client.create_calls[0]
     assert values["deal_type"] == "Buy-side"
     assert values["buyer_id"] == [{"target_object": "organizations", "target_record_id": "org-9"}]
@@ -146,7 +151,7 @@ async def test_existing_deal_is_reused_untouched() -> None:
         org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
     )
 
-    assert result == "deal-old"
+    assert result == ("deal-old", None)
     assert client.create_calls == []
 
 
@@ -157,7 +162,7 @@ async def test_the_other_half_of_the_workspace_is_ignored() -> None:
         org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
     )
 
-    assert result == "deal-new"
+    assert result == ("deal-new", "https://app.attio.com/deal/deal-new")
     assert client.create_calls[0]["is_test"] is True
 
 
@@ -173,7 +178,7 @@ async def test_paginates_across_more_than_one_page_of_deals() -> None:
         org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
     )
 
-    assert result == "deal-on-page-2"
+    assert result == ("deal-on-page-2", None)
     assert len(client.queries) == 2
     assert client.create_calls == []
 
@@ -187,7 +192,7 @@ async def test_a_rejected_primary_owner_retries_once_with_the_fallback() -> None
         org_attio_id="org-1", org_name="Acme", deal_type="Sell-side"
     )
 
-    assert result == "deal-new"
+    assert result == ("deal-new", "https://app.attio.com/deal/deal-new")
     assert [call["deal_owner"] for call in client.create_calls] == [_owner(_RAMZY), _owner(_JULES)]
 
 

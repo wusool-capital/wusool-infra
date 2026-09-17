@@ -81,12 +81,23 @@ class _Spy:
         return self._output
 
 
+class _FakeMailer:
+    """Email is not under test here — `email_from=""` makes both email
+    stages permanent no-ops, so `send` should never actually be called."""
+
+    async def send(self, **kwargs) -> None:
+        raise AssertionError("email not configured for these tests; should never be called")
+
+
 def _service(session, attio, ai, *, fallback=None) -> SubmissionService:
     return SubmissionService(
         tool_runs=ToolRunsRepository(session),
         attio=attio,
         run_ai=ai.run,
         fallback=fallback if fallback is not None else (lambda t, p: {"comps": []}),
+        mailer=_FakeMailer(),
+        email_from="",
+        email_to=[],
     )
 
 
@@ -124,7 +135,10 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     assert after.status == "succeeded"
     assert after.organization_attio_id is not None
     assert after.person_attio_id is not None
-    assert after.payload["stage"] == "attio"
+    # "email_internal", not "attio" — the last-completed stage marker moves
+    # past both email stages once they exist, even with email unconfigured
+    # (email_from="" in `_service` above, so both are permanent no-ops).
+    assert after.payload["stage"] == "email_internal"
     assert after.finished_at is not None
     assert attio.calls(_CO) == 1
 
@@ -443,6 +457,9 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
         attio=role_attio_writer,
         run_ai=_Spy(output={"entry_values": {}}).run,
         fallback=lambda t, p: {"entry_values": {}},
+        mailer=_FakeMailer(),
+        email_from="",
+        email_to=[],
     )
 
     run_id, outcome = await service.record(

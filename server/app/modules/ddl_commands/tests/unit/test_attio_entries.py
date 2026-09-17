@@ -183,12 +183,13 @@ class _FakeCreateClient:
 async def test_create_organization_targets_records_endpoint_and_returns_record_id() -> None:
     client = _FakeCreateClient({"data": {"id": {"record_id": "org-new-1"}}})
 
-    record_id = await create_organization(client, is_test=False, values={"name": "New Co"})
+    record_id, web_url = await create_organization(client, is_test=False, values={"name": "New Co"})
 
     path, body = client.post_calls[0]
     assert path == "/objects/organizations/records"
     assert body == {"data": {"values": {"name": "New Co", "is_test": False}}}
     assert record_id == "org-new-1"
+    assert web_url is None
 
 
 async def test_create_role_entry_targets_entries_endpoint_and_returns_entry_id() -> None:

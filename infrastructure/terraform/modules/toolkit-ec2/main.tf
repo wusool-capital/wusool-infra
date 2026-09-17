@@ -451,6 +451,49 @@ resource "aws_cloudwatch_metric_alarm" "cpu" {
   dimensions          = { AutoScalingGroupName = aws_autoscaling_group.wusool_toolkit.name }
 }
 
+# Matches the app's own JSON log lines (server/app/modules/utilities/domain/
+# logging.py's JsonFormatter — every log event is one JSON object with a
+# "message" field), emitted only after SesMailer's own 3-attempt
+# retry-with-backoff is already exhausted (server/app/modules/lead_magnets/
+# application/shared/submit.py's _ensure_email_confirmation/_ensure_email_internal).
+# By the time this line exists, the send has permanently failed for this
+# run — the lead itself is still safe (Attio already has it), but nobody
+# gets told unless this fires.
+resource "aws_cloudwatch_log_metric_filter" "lead_magnet_email_send_failed" {
+  name           = "${var.project}-${var.environment}-toolkit-lead-magnet-email-send-failed"
+  log_group_name = aws_cloudwatch_log_group.wusool_toolkit.name
+  pattern        = "{ $.message = \"*lead_magnet_confirmation_email_failed*\" || $.message = \"*lead_magnet_internal_email_failed*\" }"
+
+  metric_transformation {
+    name          = "LeadMagnetEmailSendFailed"
+    namespace     = "${var.project}/${var.environment}/toolkit"
+    value         = "1"
+    default_value = 0
+  }
+}
+
+# evaluation_periods = 1: unlike `cpu`'s noise-tolerant 3-period window over a
+# continuously fluctuating value, one matching log line is already a
+# finished, permanent failure by the time it exists (SES's own retries
+# already ran) — there is nothing to wait out. treat_missing_data =
+# "notBreaching", not "breaching" like `in_service` above: for THIS metric,
+# no data published in a period means zero failures, the normal and good
+# state, not a gap to treat as suspicious.
+resource "aws_cloudwatch_metric_alarm" "lead_magnet_email_send_failed" {
+  alarm_name          = "${var.project}-${var.environment}-toolkit-lead-magnet-email-send-failed"
+  alarm_description   = "A lead-magnet visitor-confirmation or internal-notice email failed to send after SES's own retries were exhausted. The lead is still safe in Attio; only the email was lost."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = aws_cloudwatch_log_metric_filter.lead_magnet_email_send_failed.metric_transformation[0].name
+  namespace           = aws_cloudwatch_log_metric_filter.lead_magnet_email_send_failed.metric_transformation[0].namespace
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+}
+
 # External reachability check, run from outside AWS's network — the layer
 # that catches a network-path blip while the instance itself stays healthy
 # (confirmed against a real incident: 2026-09-09 prod, CPU flat, zero
