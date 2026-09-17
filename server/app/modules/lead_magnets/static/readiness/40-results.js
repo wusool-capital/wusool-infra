@@ -41,3 +41,16 @@ function renderResults(data,name,biz,sector){
 
   window.scrollTo({top:0,behavior:'smooth'});
 }
+
+function unlockReport(){
+  document.getElementById('gateBlur').classList.remove('results-gate-blur');
+  document.getElementById('gateOverlay').style.display='none';
+  document.body.classList.remove('unlocking');
+  document.body.classList.add('unlocked');
+}
+function startUnlock(){
+  if(document.body.classList.contains('unlocking'))return;
+  document.body.classList.add('unlocking');
+  document.querySelectorAll('.js-unlock-cta').forEach(a=>a.textContent='Unlocking your report…');
+  setTimeout(unlockReport,5000);
+}
