@@ -55,8 +55,8 @@ for current production evidence and open handover items.
   Both are tracked and retried independently, so a failed send never
   re-sends an email that already landed and never risks the lead itself —
   the Attio write is already durable by the time either email is attempted.
-  Recipient addresses are not yet configured (`LEAD_MAGNET_EMAIL_TO`/
-  `LEAD_MAGNET_EMAIL_FROM` ship blank).
+  A CloudWatch alarm now fires on the shared environment alert topic if a
+  send permanently fails after SES's own retries are exhausted.
 
 - A record deleted in Attio now disappears from Postgres for **all six**
   mirrored objects, not just two. Deals, notes, buyer roles and seller roles
