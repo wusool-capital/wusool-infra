@@ -89,7 +89,17 @@ class SubmissionService:
     async def complete(self, run: ToolRunRecord) -> None:
         """Steps 3-7. Never raises: a failure here is recorded on the row and
         left for the sweeper, because the lead is already safe.
+
+        No-op on an already-`succeeded` run. Every step below already
+        reuses stored output rather than redoing paid work, but `finish()`
+        itself is not idempotent — it logs a fresh `activities` row on
+        every call. Without this guard, a second `run_completion` on the
+        same run (an exact-retry's row is completed twice: once for the
+        original request, once for the retry) would double the CRM
+        activity log even though nothing else was redone.
         """
+        if run.status == "succeeded":
+            return
         ai = await self._ensure_ai(run)
         if ai is None:
             return

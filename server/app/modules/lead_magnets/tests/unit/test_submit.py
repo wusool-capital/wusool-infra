@@ -88,11 +88,13 @@ class _FakeMailer:
 _INTERNAL_TO = ["ops@wusoolcapital.com"]
 
 
-def _run(tool: Tool = "valuation", payload: JsonObject | None = None) -> ToolRunRecord:
+def _run(
+    tool: Tool = "valuation", payload: JsonObject | None = None, *, status: str = "running"
+) -> ToolRunRecord:
     return ToolRunRecord(
         id=UUID("11111111-1111-4111-8111-111111111111"),
         tool=tool,
-        status="running",
+        status=status,
         attempt_count=1,
         payload=payload or {},
         stage=(payload or {}).get("stage"),
@@ -152,6 +154,21 @@ async def test_record_happens_before_any_provider_call() -> None:
     assert attio.writes == 0
     # The key is normalised, not the raw form input, and carries no tool.
     assert tool_runs.started[0] == ("readiness", "f@acme.com|acme.com")
+
+
+async def test_complete_is_a_no_op_on_an_already_succeeded_run() -> None:
+    """An exact-retry's row is completed twice (once for the original
+    request, once for the retry landing on the same row) — the second call
+    must not redo the Attio write or log a second activity, even though
+    every individual step below already reuses stored output on its own."""
+    tool_runs, attio = _FakeToolRuns(), _FakeAttio()
+    service, ai_calls = _service(tool_runs, attio)
+
+    await service.complete(_run(status="succeeded"))
+
+    assert tool_runs.calls == []
+    assert ai_calls == []
+    assert attio.writes == 0
 
 
 async def test_happy_path_order() -> None:
