@@ -117,6 +117,6 @@ lead was created.
   browser-visible and must be handled by each static page.
 - A confirmation or internal-notice email that permanently fails to send
   (SES's own retries exhausted) raises a CloudWatch alarm on the toolkit
-  instance's log group, via the same environment alert topic every other
-  toolkit alarm uses — see `infrastructure/terraform/modules/toolkit-ec2`'s
+  instance's log group. It reuses the same environment alert topic every
+  other toolkit alarm uses. See `infrastructure/terraform/modules/toolkit-ec2`'s
   `lead_magnet_email_send_failed` log metric filter and alarm.
