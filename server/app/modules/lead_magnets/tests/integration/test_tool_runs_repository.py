@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models.activity import Activity
 from app.models.seller_role import SellerRole
@@ -96,6 +96,67 @@ async def test_a_shared_submission_id_across_tools_does_not_collapse(db_session)
     )
 
     assert first != second
+
+
+async def test_concurrent_exact_retries_still_yield_one_row() -> None:
+    """The select-then-insert version of the retry-collapse check could
+    let two truly simultaneous retries each miss the other and both
+    insert. `uq_tool_runs_tool_submission_id` (`app/models/tool_run.py`)
+    makes `start()` a single atomic `INSERT ... ON CONFLICT`, so this must
+    hold even under real concurrency, not just sequentially.
+
+    Deliberately does not use the `db_session` fixture — that binds every
+    session to one connection via savepoints, so two gathered calls would
+    serialize on that connection and the race this test exists to rule out
+    could never actually occur. This needs two real connections and real
+    commits, hence the manual cleanup.
+    """
+    import asyncio
+
+    from app.modules.lead_magnets.persistence.database import get_sessionmaker
+
+    sessionmaker = get_sessionmaker()
+    submission_id = f"concurrent-{uuid4()}"
+    key = _key()
+
+    async def _start() -> object:
+        async with sessionmaker() as session:
+            run_id = await ToolRunsRepository(session).start(
+                tool="benchmark",
+                payload={"submission_id": submission_id},
+                idempotency_key=key,
+            )
+            await session.commit()
+            return run_id
+
+    try:
+        async with sessionmaker() as probe:
+            await probe.execute(select(ToolRun.id).limit(1))
+    except Exception as exc:  # no reachable database
+        pytest.skip(f"database not reachable: {exc}")
+
+    try:
+        run_ids = await asyncio.gather(_start(), _start(), _start(), _start(), _start())
+        assert len(set(run_ids)) == 1, "exactly one row should win the race"
+
+        async with sessionmaker() as session:
+            count = await session.scalar(
+                select(func.count())
+                .select_from(ToolRun)
+                .where(
+                    ToolRun.tool == "benchmark",
+                    ToolRun.payload["submission_id"].astext == submission_id,
+                )
+            )
+        assert count == 1
+    finally:
+        async with sessionmaker() as session:
+            await session.execute(
+                ToolRun.__table__.delete().where(
+                    ToolRun.payload["submission_id"].astext == submission_id
+                )
+            )
+            await session.commit()
 
 
 async def test_finish_on_a_brand_new_org_does_not_fk_violate(db_session) -> None:

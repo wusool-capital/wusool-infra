@@ -10,7 +10,18 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, ScalarSelect, and_, case, func, insert, literal, select, update
+from sqlalchemy import (
+    CursorResult,
+    ScalarSelect,
+    and_,
+    case,
+    func,
+    insert,
+    literal,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +69,14 @@ _CEILING = case(
     else_=6,
 )
 
+# Must render as the exact literal expression `uq_tool_runs_tool_submission_id`
+# (`app/models/tool_run.py`) uses. Postgres matches an `ON CONFLICT` target
+# against an index's own text, and `ToolRun.payload["submission_id"]` would
+# render the key as a bound parameter, which can never match a static index
+# definition — hence raw `text()` here instead of the JSONB accessor.
+_SUBMISSION_ID_EXPR = text("(payload ->> 'submission_id')")
+_SUBMISSION_ID_PRESENT = text("(payload ->> 'submission_id') IS NOT NULL")
+
 
 class ToolRunsRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -70,52 +89,51 @@ class ToolRunsRepository:
         two different attempts together.
 
         The one exception: an exact retried POST of the very same request
-        (identical tool + `submission_id` on a row already recorded for
-        this client) reuses that row rather than starting a second one.
-        Without this, a plain network-level retry — not a new visit, the
-        same click landing twice — would re-run the whole pipeline a
-        second time: a second Attio write, a second visitor confirmation
-        email, a second internal-team notice, and (for readiness) a second
-        billed Bedrock call. `idempotency_key` (`email|domain`) narrows the
-        lookup to this client; it is not unique and gates nothing on its
-        own. `tool` is checked explicitly here, not folded into
-        `idempotency_key` any more — two different tools could otherwise
-        collide on a coincidentally-reused `submission_id` for the same
-        client and be wrongly treated as the same retry.
+        (identical tool + `submission_id`) reuses that row rather than
+        starting a second one. Without this, a plain network-level retry —
+        not a new visit, the same click landing twice — would re-run the
+        whole pipeline a second time: a second Attio write, a second
+        visitor confirmation email, a second internal-team notice, and
+        (for readiness) a second billed Bedrock call.
 
-        This is a lookup, not a locked upsert, so two truly simultaneous
-        retries of the same request could each miss the other and both
-        insert — an accepted, narrow race, not solved here (see item 5 of
-        the plan this shipped under: revisit with rate/retry limits if it
-        matters in practice).
+        Enforced atomically by `uq_tool_runs_tool_submission_id`
+        (`app/models/tool_run.py`), a partial unique index on
+        `(tool, payload->>'submission_id')` — not by `idempotency_key`,
+        which only tags a row with its client (`email|domain`) for
+        grouping/lookup and is not unique. A payload with no
+        `submission_id` at all is outside that index's predicate, so it
+        never conflicts and always inserts fresh.
         """
-        incoming_submission_id = payload.get("submission_id")
-        if incoming_submission_id is not None:
-            existing_id = (
-                await self._session.execute(
-                    select(ToolRun.id)
-                    .where(
-                        ToolRun.idempotency_key == idempotency_key,
-                        ToolRun.tool == tool,
-                        ToolRun.payload["submission_id"].astext == incoming_submission_id,
-                    )
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            if existing_id is not None:
-                return existing_id
-
         stmt = (
-            insert(ToolRun)
+            pg_insert(ToolRun)
             .values(
                 tool=tool,
                 status="running",
                 payload=payload,
                 idempotency_key=idempotency_key,
             )
+            .on_conflict_do_nothing(
+                index_elements=[ToolRun.tool, _SUBMISSION_ID_EXPR],
+                index_where=_SUBMISSION_ID_PRESENT,
+            )
             .returning(ToolRun.id)
         )
-        return (await self._session.execute(stmt)).scalar_one()
+        inserted = (await self._session.execute(stmt)).scalar_one_or_none()
+        if inserted is not None:
+            return inserted
+
+        # Conflict: an exact retry already has a row for this
+        # (tool, submission_id). Only reachable when `payload` actually
+        # carries one — that's what the index's own predicate requires for
+        # a conflict to be possible — so this lookup is safe unguarded.
+        return (
+            await self._session.execute(
+                select(ToolRun.id).where(
+                    ToolRun.tool == tool,
+                    ToolRun.payload["submission_id"].astext == payload.get("submission_id"),
+                )
+            )
+        ).scalar_one()
 
     async def set_stage(
         self, run_id: UUID, *, stage: Stage, output: JsonObject | None = None

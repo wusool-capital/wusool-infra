@@ -11,15 +11,19 @@ clients), and domain alone would merge them permanently. This is also why
 marking `organizations.domains` unique in Attio was rejected.
 
 `idempotency_key` tags a `tool_runs` row with which client (email+domain)
-it belongs to. It carries no tool name and is not unique — a genuinely new
-submission always gets its own permanent row, never blocked and never
-merged into an older one. It is still used for one narrow lookup
-(`ToolRunsRepository.start`): an exact retried POST of the very same
-request reuses the matching row instead of starting a second one, so a
-network-level retry doesn't reprocess the whole pipeline and send a second
-copy of every email. Client identity (for CRM matching/overwriting) is
-domain+email only; which tool produced a given attempt is recorded on the
-row itself (`tool_runs.tool`), not folded into this key.
+it belongs to, for grouping/lookup. It carries no tool name and is not
+unique — a genuinely new submission always gets its own permanent row,
+never blocked and never merged into an older one. Client identity (for
+CRM matching/overwriting) is domain+email only; which tool produced a
+given attempt is recorded on the row itself (`tool_runs.tool`), not folded
+into this key.
+
+Collapsing an *exact* retried POST of the very same request onto its
+original row (so a network-level retry doesn't reprocess the whole
+pipeline and send a second copy of every email) is a separate concern,
+enforced atomically by `uq_tool_runs_tool_submission_id`
+(`app/models/tool_run.py`) on `(tool, payload->>'submission_id')` — it
+does not go through `idempotency_key` at all.
 """
 
 import re

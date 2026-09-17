@@ -230,7 +230,10 @@ lead-loss case this table exists to catch.
 | created_at | timestamptz | no | `now()` | |
 
 Indexes: `idx_tool_runs_tool`, `idx_tool_runs_status`,
-`idx_tool_runs_started_at` (DESC), `idx_tool_runs_organization`.
+`idx_tool_runs_started_at` (DESC), `idx_tool_runs_organization`,
+`uq_tool_runs_tool_submission_id` (unique, partial: `(tool,
+payload->>'submission_id')` where that expression is not null — makes an
+exact retry of the same request an atomic no-op instead of a second row).
 
 ### `notes` (`note.py`) — new, 2026-08-28/29
 

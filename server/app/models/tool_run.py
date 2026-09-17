@@ -43,6 +43,21 @@ class ToolRun(Base):
         Index("idx_tool_runs_status", "status"),
         Index("idx_tool_runs_started_at", literal_column("started_at DESC")),
         Index("idx_tool_runs_organization", "organization_attio_id"),
+        # Makes an exact retry (same tool + submission_id) an atomic
+        # `ON CONFLICT DO NOTHING` in `ToolRunsRepository.start()` instead of
+        # a race-prone select-then-insert. `submission_id` has no column of
+        # its own (see `payload`'s own comment below), hence the expression.
+        # Partial index -- must match the migration
+        # (542a6679b9e4_make_exact_retry_collapse_atomic_via_.py) exactly,
+        # same rule as `meetings`' own partial indexes, or `alembic check`
+        # reports drift on every autogenerate.
+        Index(
+            "uq_tool_runs_tool_submission_id",
+            "tool",
+            text("(payload ->> 'submission_id')"),
+            unique=True,
+            postgresql_where=text("(payload ->> 'submission_id') IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
