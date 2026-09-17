@@ -70,15 +70,18 @@ class ToolRunsRepository:
         two different attempts together.
 
         The one exception: an exact retried POST of the very same request
-        (identical `submission_id` on a row already recorded for this
-        client) reuses that row rather than starting a second one. Without
-        this, a plain network-level retry — not a new visit, the same
-        click landing twice — would re-run the whole pipeline a second
-        time: a second Attio write, a second visitor confirmation email, a
-        second internal-team notice, and (for readiness) a second billed
-        Bedrock call. `idempotency_key` (`email|domain`) narrows the
+        (identical tool + `submission_id` on a row already recorded for
+        this client) reuses that row rather than starting a second one.
+        Without this, a plain network-level retry — not a new visit, the
+        same click landing twice — would re-run the whole pipeline a
+        second time: a second Attio write, a second visitor confirmation
+        email, a second internal-team notice, and (for readiness) a second
+        billed Bedrock call. `idempotency_key` (`email|domain`) narrows the
         lookup to this client; it is not unique and gates nothing on its
-        own.
+        own. `tool` is checked explicitly here, not folded into
+        `idempotency_key` any more — two different tools could otherwise
+        collide on a coincidentally-reused `submission_id` for the same
+        client and be wrongly treated as the same retry.
 
         This is a lookup, not a locked upsert, so two truly simultaneous
         retries of the same request could each miss the other and both
@@ -93,6 +96,7 @@ class ToolRunsRepository:
                     select(ToolRun.id)
                     .where(
                         ToolRun.idempotency_key == idempotency_key,
+                        ToolRun.tool == tool,
                         ToolRun.payload["submission_id"].astext == incoming_submission_id,
                     )
                     .limit(1)

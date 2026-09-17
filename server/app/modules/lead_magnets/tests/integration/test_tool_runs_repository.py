@@ -81,6 +81,23 @@ async def test_an_exact_retry_of_the_same_submission_reuses_the_row(db_session) 
     assert (await _row(db_session, first)).payload["n"] == 1
 
 
+async def test_a_shared_submission_id_across_tools_does_not_collapse(db_session) -> None:
+    """`idempotency_key` no longer carries the tool, so the retry-lookup
+    must check `tool` explicitly — otherwise two different tools that
+    happen to reuse the same `submission_id` for the same client would be
+    wrongly treated as the same retry and share a row."""
+    repo = ToolRunsRepository(db_session)
+    key = _key()
+    first = await repo.start(
+        tool="benchmark", payload={"n": 1, "submission_id": "shared"}, idempotency_key=key
+    )
+    second = await repo.start(
+        tool="valuation", payload={"n": 2, "submission_id": "shared"}, idempotency_key=key
+    )
+
+    assert first != second
+
+
 async def test_finish_on_a_brand_new_org_does_not_fk_violate(db_session) -> None:
     """The mirror has not run yet, so `organizations`/`person` have no row
     for these Attio ids. `finish()` seeds both stubs so the FKs hold."""
