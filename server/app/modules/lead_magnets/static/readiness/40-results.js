@@ -51,6 +51,6 @@ function unlockReport(){
 function startUnlock(){
   if(document.body.classList.contains('unlocking'))return;
   document.body.classList.add('unlocking');
-  document.querySelectorAll('.js-unlock-cta').forEach(a=>a.textContent='Unlocking your report…');
+  document.querySelectorAll('.js-unlock-cta').forEach(a=>a.textContent='Waiting for booking confirmation..');
   setTimeout(unlockReport,5000);
 }
