@@ -79,8 +79,12 @@ class Settings(BaseSettings):
     # `FEEDBACK_EMAIL_FROM`/`FEEDBACK_EMAIL_TO`. Either left blank skips
     # sending entirely rather than send from/to the wrong address; see
     # `_ensure_email_confirmation`/`_ensure_email_internal` in `submit.py`.
-    lead_magnet_email_from: str = ""
-    lead_magnet_email_to: str = ""
+    # `.env.example` lists both keys blank, same reasoning as
+    # `lead_magnet_deal_owner_id` above — these are identities (a mailbox,
+    # the same two people), not fixed infra facts, so they live here as
+    # defaults only, not duplicated there.
+    lead_magnet_email_from: str = "contact@wusoolcapital.com"
+    lead_magnet_email_to: str = "ramzy@wusoolcapital.com jules@wusoolcapital.com"
 
     @field_validator("database_url")
     @classmethod
