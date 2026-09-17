@@ -25,7 +25,7 @@ service, a `tool_runs` write-ahead ledger, Bedrock/Firecrawl/Attio providers,
 API endpoints, and static pages. Caddy exposes the same Toolkit container at
 the website-tools hostname. Each wusoolcapital.com tool page loads `embed.js`,
 which creates and resizes an iframe. Adding `data-modal` and a `data-trigger`
-selector opens the tool in an overlay instead, which is how Get Started
+selector opens the tool in an overlay instead. That is how Get Started
 replaces a Tally popup without changing the page's layout or its URL.
 
 ## Data flow

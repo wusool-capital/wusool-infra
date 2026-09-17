@@ -16,10 +16,10 @@ for current production evidence and open handover items.
   few seconds after the booking-CTA is clicked. The unlocked report can be
   saved as a PDF via browser print.
 - The **Get Started** form now sends the same two SES emails the other four
-  lead magnets do — a visitor confirmation with a "Book a Call" link, and an
-  internal notice with the submitted figures and links back to the Attio
-  organisation/deal. It had been left out of the email dispatch when that
-  feature shipped, since Get Started didn't exist on `dev` yet.
+  lead magnets do. A visitor gets a confirmation with a "Book a Call" link.
+  The team gets an internal notice with the submitted figures and links back
+  to the Attio organisation/deal. It had been left out of the email dispatch
+  when that feature shipped, since Get Started didn't exist on `dev` yet.
 
 ### Changed
 
@@ -139,10 +139,10 @@ for current production evidence and open handover items.
   leaves the workspace.
 - The site's **Get Started** form is now served by the platform instead of
   Tally, as the fifth lead-magnet tool. A submission records the lead before
-  anything else can fail, then writes the company, the contact and the
-  seller's own figures — revenue, EBITDA, years in business and sell timeline
-  — to the CRM. It embeds as a modal, so the existing button opens it in
-  place and the page's URL never changes; the visitor now sees a
+  anything else can fail. It then writes the company, the contact, and the
+  seller's own figures — revenue, EBITDA, years in business, and sell
+  timeline — to the CRM. It embeds as a modal, so the existing button opens
+  it in place and the page's URL never changes. The visitor now sees a
   confirmation instead of the form silently vanishing.
 
 ### Changed
@@ -173,9 +173,9 @@ for current production evidence and open handover items.
   one. The id is now fixed for the life of the page, which the Buyer Network
   and M&A Readiness forms could both hit.
 - A stale lead-magnet submission stuck in the retry queue could abort the
-  entire sweep instead of just itself, rolling back every other lead the
-  same pass had already finished. The write contract's own promise that a
-  failure "never" escapes the retry step wasn't quite true for the Buyer
+  entire sweep instead of just itself. That could roll back every other lead
+  the same pass had already finished. The write contract promises a failure
+  "never" escapes the retry step. That wasn't quite true for the Buyer
   Network's target geography, which has been live since it shipped.
 
 ## 2026-09-13
