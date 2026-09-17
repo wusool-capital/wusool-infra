@@ -538,3 +538,60 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
     # second card into the pipeline.
     await service.complete(await repo.get(run_id))
     assert client.deals_created == 1
+
+
+async def test_get_started_runs_its_real_pipeline_end_to_end(db_session) -> None:
+    """The only tool whose pipeline calls no model at all, so this runs the
+    *real* `Pipelines.run` rather than a `_Spy` — the entry values reaching
+    Attio are the genuine `get_started_values` output, including the first
+    pipeline write this codebase makes to `sell_timeline`.
+
+    Uses `_service()`, not a hand-built `SubmissionService(...)`, so this
+    test can't go stale the way it did the first time: `_service` already
+    carries `mailer=_FakeMailer()`/`email_from=""`/`email_to=[]`, so both
+    email stages are permanent no-ops here — the point of this test is the
+    pipeline output, not the email step (see the tests further down for
+    that). `email_from=""` is also why the terminal stage is
+    `"email_internal"`, not `"attio"`: both email stages still run and set
+    their own stage even when skipped, they just never call the mailer.
+    """
+    from app.modules.lead_magnets.application.shared.pipelines import Pipelines
+
+    repo = ToolRunsRepository(db_session)
+    attio = _FakeAttio()
+    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]  # no model is reached
+    service = _service(db_session, attio, pipelines, fallback=pipelines.fallback)
+
+    run_id = await service.record(
+        tool="get_started",
+        payload={
+            "company": _CO,
+            "company_name": _CO,  # what `_FakeAttio` counts per company
+            "name": "Dana",
+            "email": "Dana@AcmeGroup.ae",
+            "geography": "UAE",
+            "sector": "F&B",
+            "revenue": 3_268_209,
+            "ebitda": 653_641,
+            "years_active": 8,
+            "sell_timeline": "Within 6 Months",
+            "consent": True,
+        },
+        email="Dana@AcmeGroup.ae",
+        domain="https://www.acmegroup.ae/about",
+    )
+
+    await service.complete(await repo.get(run_id))
+
+    after = await _row(db_session, run_id)
+    assert after.status == "succeeded"
+    assert after.payload["stage"] == "email_internal"
+    assert after.idempotency_key == "dana@acmegroup.ae|acmegroup.ae"
+    assert attio.calls(_CO) == 1
+
+    entry_values = after.payload["ai"]["entry_values"]
+    assert entry_values["sell_timeline"] == "Within 6 Months"
+    assert entry_values["years_active"] == 8
+    assert entry_values["est_revenue"] == {"currency_value": 3_268_209.0}
+    assert entry_values["est_ebitda"] == {"currency_value": 653_641.0}
+    assert entry_values["data_consent"] is True

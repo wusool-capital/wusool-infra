@@ -34,7 +34,6 @@ from app.modules.lead_magnets.domain.shared.dedup import idempotency_key
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs, Tool, ToolRunRecord
 from app.modules.notifications import EmailSenderPort
 from app.modules.utilities.domain.json_types import JsonObject
-from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +123,22 @@ class SubmissionService:
 
         try:
             ai = await self._run_ai(run.tool, run.payload)
-        except BedrockInvocationError as exc:
+        except Exception as exc:  # noqa: BLE001 - matches `_ensure_attio`'s own precedent
+            # Not narrowed to `BedrockInvocationError`. A pipeline can also
+            # raise its own domain-vocabulary error before ever reaching a
+            # model — `buyer_network`'s `target_geography` and
+            # `get_started`'s `sell_timeline` are both validated inside the
+            # `entry_values` builder called from here, not from
+            # `_ensure_attio` where sector mapping lives. Narrower catching
+            # let such an error escape `complete()` entirely, breaking this
+            # method's own "never raises" contract — found live: a crafted
+            # `get_started` submission with an unmapped `sell_timeline`
+            # propagated out of `complete()` uncaught, and since
+            # `sweep_once` claims several stale rows per pass with no
+            # per-row isolation, the same exception on a sweeper resume
+            # would abort the *entire pass*, rolling back every other row
+            # the pass had already finished. Same fix that already exists
+            # one line down in `_ensure_attio`.
             fallback = self._fallback(run.tool, run.payload)
             if fallback is None:
                 # Readiness. The visitor sees an error and there is no

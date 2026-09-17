@@ -215,7 +215,7 @@ lead-loss case this table exists to catch.
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
-| tool | text | no | | `valuation` / `readiness` / `benchmark` / `buyer_network` / `attio_webhook` |
+| tool | text | no | | `valuation` / `readiness` / `benchmark` / `buyer_network` / `get_started` / `attio_webhook` |
 | status | text | no | | CHECK: `running`, `succeeded`, `failed`, `abandoned` |
 | idempotency_key | text | yes | | client tag (email\|domain); no longer unique — every attempt keeps its own row |
 | started_at | timestamptz | no | `now()` | |
