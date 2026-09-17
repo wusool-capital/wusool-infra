@@ -495,9 +495,7 @@ async def test_get_started_routes_through_the_seller_branch_with_its_own_field_n
     writer = _FakeRoleWriter()
     person = _FakePersonWriter(result=("person-9", "Dana"))
     deal = _FakeDealWriter(result="deal-9")
-    role_attio_writer = bootstrap._RoleAttioWriter(
-        writer, _FakeOrganizations([]), person, deal
-    )
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, _FakeOrganizations([]), person, deal)
 
     subjects = await role_attio_writer.write(
         tool="get_started",

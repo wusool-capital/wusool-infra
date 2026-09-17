@@ -15,6 +15,11 @@ for current production evidence and open handover items.
 - The M&A Readiness Tool and Valuation Tool now unlock the full report a
   few seconds after the booking-CTA is clicked. The unlocked report can be
   saved as a PDF via browser print.
+- The **Get Started** form now sends the same two SES emails the other four
+  lead magnets do — a visitor confirmation with a "Book a Call" link, and an
+  internal notice with the submitted figures and links back to the Attio
+  organisation/deal. It had been left out of the email dispatch when that
+  feature shipped, since Get Started didn't exist on `dev` yet.
 
 ### Changed
 
