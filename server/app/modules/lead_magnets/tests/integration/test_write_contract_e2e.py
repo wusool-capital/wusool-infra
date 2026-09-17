@@ -116,13 +116,12 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     attio, ai = _FakeAttio(), _Spy(output={"score": 55})
     service = _service(db_session, attio, ai)
 
-    run_id, outcome = await service.record(
+    run_id = await service.record(
         tool="benchmark",
         payload={"company_name": _CO, "contact_name": "Dana"},
         email="Dana@AcmeGroup.ae",
         domain="https://www.acmegroup.ae/about",
     )
-    assert outcome == "new"
     # Step 1 only — the visitor's response goes out here, before any provider.
     before = await _row(db_session, run_id)
     assert before.status == "running"
@@ -142,8 +141,9 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     assert after.finished_at is not None
     assert attio.calls(_CO) == 1
 
-    # The idempotency key is built from normalised values, not raw form input.
-    assert after.idempotency_key == "benchmark|dana@acmegroup.ae|acmegroup.ae"
+    # The idempotency key is built from normalised values, not raw form
+    # input, and carries no tool.
+    assert after.idempotency_key == "dana@acmegroup.ae|acmegroup.ae"
 
 
 async def test_readiness_ai_failure_keeps_the_lead(db_session) -> None:
@@ -154,7 +154,7 @@ async def test_readiness_ai_failure_keeps_the_lead(db_session) -> None:
     attio, ai = _FakeAttio(), _Spy(raises=True)
     service = _service(db_session, attio, ai, fallback=lambda t, p: None)
 
-    run_id, _ = await service.record(
+    run_id = await service.record(
         tool="readiness",
         payload={
             "company_name": "Beta Trading FZ-LLC",
@@ -180,7 +180,7 @@ async def test_attio_outage_is_drained_by_the_sweeper_without_re_billing(db_sess
     attio, ai = _FakeAttio(fail_times=1), _Spy()
     service = _service(db_session, attio, ai)
 
-    run_id, _ = await service.record(
+    run_id = await service.record(
         tool="valuation",
         payload={"company_name": "Gamma Fitout"},
         email="g@gamma.ae",
@@ -216,7 +216,7 @@ async def test_readiness_ai_failure_is_never_resumed_by_the_sweeper(db_session) 
     attio, failing = _FakeAttio(), _Spy(raises=True)
     service = _service(db_session, attio, failing, fallback=lambda t, p: None)
 
-    run_id, _ = await service.record(
+    run_id = await service.record(
         tool="readiness",
         payload={"company_name": "Delta Co"},
         email="d@delta.ae",
@@ -249,7 +249,7 @@ async def test_a_valuation_ai_failure_does_resume_from_its_fallback(db_session) 
     attio, failing = _FakeAttio(), _Spy(raises=True)
     service = _service(db_session, attio, failing, fallback=lambda t, p: None)
 
-    run_id, _ = await service.record(
+    run_id = await service.record(
         tool="valuation",
         payload={"company_name": "Epsilon Ltd"},
         email="e@epsilon.ae",
@@ -271,90 +271,47 @@ async def test_a_valuation_ai_failure_does_resume_from_its_fallback(db_session) 
 
 
 @pytest.mark.parametrize("clicks", [2, 3])
-async def test_repeat_submission_creates_one_row(db_session, clicks: int) -> None:
-    """Each call carries its own distinct `submission_id` — a genuine
-    second (and third) visit from the same person for the same tool, not
-    a retried POST of the same request. One row, and every repeat is a
-    "duplicate" (visible to the caller), not a silent "replay"."""
+async def test_repeat_submissions_each_get_their_own_row_and_activity(
+    db_session, clicks: int
+) -> None:
+    """No blocking, no overwrite: every submission — even with an identical
+    `submission_id` — gets its own permanent `tool_runs` row, and once
+    completed, its own `activities` row. Nothing is ever merged away."""
+    from app.models.activity import Activity
+
     attio, ai = _FakeAttio(), _Spy()
     service = _service(db_session, attio, ai)
 
-    seen = [
-        await service.record(
+    run_ids = []
+    for n in range(clicks):
+        run_id = await service.record(
             tool="benchmark",
-            payload={"n": n, "submission_id": f"s{n}"},
+            payload={"n": n, "submission_id": "s1", "company_name": _CO},
             email="d@acme.ae",
             domain="acme.ae",
         )
-        for n in range(clicks)
-    ]
-    ids = {run_id for run_id, _ in seen}
-    assert len(ids) == 1
-    assert [outcome for _, outcome in seen] == ["new"] + ["duplicate"] * (clicks - 1)
-    # The first payload wins; a replay never overwrites it.
-    assert (await _row(db_session, ids.pop())).payload["n"] == 0
+        run_ids.append(run_id)
+        await service.complete(await ToolRunsRepository(db_session).get(run_id))
+
+    assert len(set(run_ids)) == clicks, "every submission keeps its own row"
+    for n, run_id in enumerate(run_ids):
+        assert (await _row(db_session, run_id)).payload["n"] == n
+
+    activities = (
+        (await db_session.execute(select(Activity).where(Activity.tool_run_id.in_(run_ids))))
+        .scalars()
+        .all()
+    )
+    assert len(activities) == clicks
 
 
-async def test_readiness_replay_reuses_the_stored_score_without_a_second_bedrock_call(
+async def test_readiness_repeat_submission_is_not_rejected_and_calls_bedrock_again(
     db_session, monkeypatch
 ) -> None:
-    """The endpoint's own dedup check, not the write-contract's `Pipelines`
-    — readiness scores synchronously on the response path, so a retried
-    POST of the exact same request (same `submission_id`) must reuse the
-    already-stored score instead of paying for Bedrock twice, and must
-    return the identical result both times."""
+    """A genuinely different visit (different `submission_id`) from the same
+    person must not be rejected, and gets its own row and its own Bedrock
+    call — there is no stored-score short-circuit to reuse anymore."""
     from fastapi import BackgroundTasks
-
-    from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
-    from app.modules.lead_magnets.api.schemas import ReadinessAnswersIn, ReadinessRequest
-    from app.modules.lead_magnets.domain.shared.schemas import (
-        ReadinessDimension,
-        ReadinessRecommendation,
-        ReadinessResult,
-    )
-
-    fake_result = ReadinessResult(
-        overallScore=72.5,
-        scoreBand="Getting There",
-        summaryParagraph="A solid start.",
-        dimensions=[ReadinessDimension(name=f"Dim {i}", score=70, insight="x") for i in range(5)],
-        recommendations=[ReadinessRecommendation(title=f"Rec {i}", detail="y") for i in range(3)],
-    )
-    calls = {"n": 0}
-
-    class _FakeLlm:
-        async def score_readiness(self, prompt):
-            calls["n"] += 1
-            return fake_result
-
-    monkeypatch.setattr(readiness_endpoints, "build_llm", lambda: _FakeLlm())
-
-    request = ReadinessRequest(
-        submission_id="s-replay-1",
-        name="Sam",
-        company="Zeta Trading",
-        email="sam@zetatrading.ae",
-        sector="Contracting",
-        domain="zetatrading.ae",
-        answers=ReadinessAnswersIn(q1=2),
-    )
-
-    first = await readiness_endpoints.readiness_score(request, db_session, BackgroundTasks())
-    second = await readiness_endpoints.readiness_score(request, db_session, BackgroundTasks())
-
-    assert calls["n"] == 1, "Bedrock must not be re-billed for the exact same request"
-    assert first.run_id == second.run_id
-    assert second.overallScore == fake_result.overallScore
-    assert second.summaryParagraph == fake_result.summaryParagraph
-
-
-async def test_readiness_duplicate_is_rejected_without_calling_bedrock(
-    db_session, monkeypatch
-) -> None:
-    """A genuinely different visit (different `submission_id`) from the
-    same person must be rejected with a 409 — and must not touch Bedrock
-    at all, since the rejection happens before the model call."""
-    from fastapi import BackgroundTasks, HTTPException
 
     from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
     from app.modules.lead_magnets.api.schemas import ReadinessAnswersIn, ReadinessRequest
@@ -391,12 +348,13 @@ async def test_readiness_duplicate_is_rejected_without_calling_bedrock(
             answers=ReadinessAnswersIn(q1=2),
         )
 
-    await readiness_endpoints.readiness_score(request("s-dup-1"), db_session, BackgroundTasks())
-    with pytest.raises(HTTPException) as excinfo:
-        await readiness_endpoints.readiness_score(request("s-dup-2"), db_session, BackgroundTasks())
+    first = await readiness_endpoints.readiness_score(request("s-1"), db_session, BackgroundTasks())
+    second = await readiness_endpoints.readiness_score(
+        request("s-2"), db_session, BackgroundTasks()
+    )
 
-    assert excinfo.value.status_code == 409
-    assert calls["n"] == 1, "the duplicate must be rejected before any Bedrock call"
+    assert first.run_id != second.run_id
+    assert calls["n"] == 2, "no more short-circuit: every attempt pays for its own Bedrock call"
 
 
 async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> None:
@@ -462,13 +420,12 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
         email_to=[],
     )
 
-    run_id, outcome = await service.record(
+    run_id = await service.record(
         tool="valuation",
         payload={"company": "Zeta Fitout LLC", "email": "z@zetafitout.ae"},
         email="z@zetafitout.ae",
         domain="zetafitout.ae",
     )
-    assert outcome == "new"
 
     await service.complete(await repo.get(run_id))
 

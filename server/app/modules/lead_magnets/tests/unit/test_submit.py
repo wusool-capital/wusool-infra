@@ -29,12 +29,11 @@ class _FakeToolRuns:
         self.stages: list[tuple[str, JsonObject | None]] = []
         self.finished: list[tuple[str, str | None]] = []
         self.finished_subjects: list[SubjectRefs] = []
-        self.outcome = "new"
 
     async def start(self, *, tool, payload, idempotency_key):
         self.calls.append("start")
         self.started.append((tool, idempotency_key))
-        return uuid4(), self.outcome
+        return uuid4()
 
     async def set_stage(self, run_id, *, stage, output=None):
         self.calls.append(f"set_stage:{stage}")
@@ -151,21 +150,8 @@ async def test_record_happens_before_any_provider_call() -> None:
     assert tool_runs.calls == ["start"]
     assert ai_calls == []
     assert attio.writes == 0
-    # The key is normalised, not the raw form input.
-    assert tool_runs.started[0] == ("readiness", "readiness|f@acme.com|acme.com")
-
-
-async def test_record_passes_the_outcome_through_untouched() -> None:
-    """`record` is a thin delegation — whatever `ToolRunsPort.start` decides
-    (`"new"`/`"replay"`/`"duplicate"`) reaches the caller verbatim."""
-    tool_runs, attio = _FakeToolRuns(), _FakeAttio()
-    tool_runs.outcome = "duplicate"
-    service, _ = _service(tool_runs, attio)
-
-    _, outcome = await service.record(
-        tool="readiness", payload={}, email="f@acme.com", domain="acme.com"
-    )
-    assert outcome == "duplicate"
+    # The key is normalised, not the raw form input, and carries no tool.
+    assert tool_runs.started[0] == ("readiness", "f@acme.com|acme.com")
 
 
 async def test_happy_path_order() -> None:

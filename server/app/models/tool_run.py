@@ -50,9 +50,10 @@ class ToolRun(Base):
     )
     tool: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False)
-    # Dedups a retried submission and a replayed Attio webhook alike. Nullable
-    # because a first-attempt run has nothing to deduplicate against yet.
-    idempotency_key: Mapped[str | None] = mapped_column(Text, unique=True)
+    # Identifies which client (email+domain) this attempt belongs to, for
+    # grouping/lookup. Not unique: every attempt keeps its own row, so this
+    # never gates or blocks anything.
+    idempotency_key: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

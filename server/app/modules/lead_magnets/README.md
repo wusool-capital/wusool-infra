@@ -215,27 +215,32 @@ Postgres is never written directly for entity data: the Attio→Postgres
 webhook mirror in `ddl_commands` already maps every lead-magnet and
 benchmark column, so this module writes Attio and lets the mirror follow.
 
-### Replay vs. duplicate — one column, no new storage
+### No dedup, no blocking — every attempt keeps its own row
 
-`tool_runs.idempotency_key` (`tool|email|domain`) is the only stored dedup
-key, and a collision on it is *not* automatically an error. `start()`
-(`persistence/tool_runs_repository.py`) tells two different situations
-apart by comparing `payload.submission_id` — already stored for every
-tool, since it's part of the raw request dump — on the colliding row
-against the incoming request's own `submission_id`:
+`tool_runs` is an append-only attempt log. `start()`
+(`persistence/tool_runs_repository.py`) is a plain insert — no lookup, no
+conflict, nothing is ever blocked or merged. A visitor can resubmit any
+number of times, for any tool, and each attempt gets its own permanent
+`tool_runs` row and (once it resolves a subject) its own `activities` row
+with a full copy of that attempt's payload. Nothing is overwritten.
 
-- **Same `submission_id`** → a **replay**: the exact same request landed
-  twice (a network retry), not a new person. Silent — the caller must not
-  run the pipeline again, but must not tell the visitor anything either.
-  Readiness reuses the already-stored `payload.score` instead of paying
-  for Bedrock a second time; the other tools just recompute (they're
-  deterministic from the stored inputs, so it's free either way).
-- **Different `submission_id`** → a **duplicate**: a genuine second visit
-  from the same person, for the same tool. Rejected with `409` and
-  `"you have already completed this"`, visibly.
+`idempotency_key` (`email|domain`) still tags each row with which client
+it belongs to, for grouping/lookup — it carries no tool name and is **not**
+unique, so it gates nothing.
 
-No second column, no new table — `submission_id` was always in `payload`,
-this just started reading it back.
+"One row per client/organisation" is enforced one layer up instead, at the
+CRM level, unaffected by any of this:
+- **Organisation**: matched by domain+name (`bootstrap.py::_find_existing_org`),
+  and every match gets its Attio fields patched with the latest submitted
+  values.
+- **Person**: matched by email (`providers/attio/person_writer.py`) —
+  deliberately fills blanks only and never overwrites a matched contact's
+  `name`, to protect hand-curated data.
+
+Consequence: readiness no longer has a stored-score short-circuit for an
+exact repeated request — every attempt, including an accidental
+double-click, pays for its own Bedrock call. Accepted for now; revisit with
+rate/retry limits if it becomes a real cost problem.
 
 ### Why `tool_runs` and not `activities`
 
