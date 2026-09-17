@@ -13,8 +13,8 @@ for current production evidence and open handover items.
 ### Added
 
 - The M&A Readiness Tool and Valuation Tool now unlock the full report a
-  few seconds after the booking-CTA is clicked, and the unlocked report can
-  be saved as a PDF via browser print.
+  few seconds after the booking-CTA is clicked. The unlocked report can be
+  saved as a PDF via browser print.
 
 ## 2026-09-16
 
