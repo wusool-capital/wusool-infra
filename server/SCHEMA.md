@@ -217,7 +217,7 @@ lead-loss case this table exists to catch.
 | id | uuid | no | `gen_random_uuid()` | PK |
 | tool | text | no | | `valuation` / `readiness` / `benchmark` / `buyer_network` / `attio_webhook` |
 | status | text | no | | CHECK: `running`, `succeeded`, `failed`, `abandoned` |
-| idempotency_key | text | yes | unique | dedups a retried submission or a replayed webhook |
+| idempotency_key | text | yes | | client tag (email\|domain); no longer unique — every attempt keeps its own row |
 | started_at | timestamptz | no | `now()` | |
 | finished_at | timestamptz | yes | | with `started_at`, gives per-run latency |
 | attempt_count | integer | no | `1` | what a retry sweeper queries on |
@@ -230,7 +230,10 @@ lead-loss case this table exists to catch.
 | created_at | timestamptz | no | `now()` | |
 
 Indexes: `idx_tool_runs_tool`, `idx_tool_runs_status`,
-`idx_tool_runs_started_at` (DESC), `idx_tool_runs_organization`.
+`idx_tool_runs_started_at` (DESC), `idx_tool_runs_organization`,
+`uq_tool_runs_tool_submission_id` (unique, partial: `(tool,
+payload->>'submission_id')` where that expression is not null — makes an
+exact retry of the same request an atomic no-op instead of a second row).
 
 ### `notes` (`note.py`) — new, 2026-08-28/29
 

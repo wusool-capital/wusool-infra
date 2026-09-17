@@ -29,12 +29,11 @@ class _FakeToolRuns:
         self.stages: list[tuple[str, JsonObject | None]] = []
         self.finished: list[tuple[str, str | None]] = []
         self.finished_subjects: list[SubjectRefs] = []
-        self.outcome = "new"
 
     async def start(self, *, tool, payload, idempotency_key):
         self.calls.append("start")
         self.started.append((tool, idempotency_key))
-        return uuid4(), self.outcome
+        return uuid4()
 
     async def set_stage(self, run_id, *, stage, output=None):
         self.calls.append(f"set_stage:{stage}")
@@ -89,11 +88,13 @@ class _FakeMailer:
 _INTERNAL_TO = ["ops@wusoolcapital.com"]
 
 
-def _run(tool: Tool = "valuation", payload: JsonObject | None = None) -> ToolRunRecord:
+def _run(
+    tool: Tool = "valuation", payload: JsonObject | None = None, *, status: str = "running"
+) -> ToolRunRecord:
     return ToolRunRecord(
         id=UUID("11111111-1111-4111-8111-111111111111"),
         tool=tool,
-        status="running",
+        status=status,
         attempt_count=1,
         payload=payload or {},
         stage=(payload or {}).get("stage"),
@@ -151,21 +152,23 @@ async def test_record_happens_before_any_provider_call() -> None:
     assert tool_runs.calls == ["start"]
     assert ai_calls == []
     assert attio.writes == 0
-    # The key is normalised, not the raw form input.
-    assert tool_runs.started[0] == ("readiness", "readiness|f@acme.com|acme.com")
+    # The key is normalised, not the raw form input, and carries no tool.
+    assert tool_runs.started[0] == ("readiness", "f@acme.com|acme.com")
 
 
-async def test_record_passes_the_outcome_through_untouched() -> None:
-    """`record` is a thin delegation — whatever `ToolRunsPort.start` decides
-    (`"new"`/`"replay"`/`"duplicate"`) reaches the caller verbatim."""
+async def test_complete_is_a_no_op_on_an_already_succeeded_run() -> None:
+    """An exact-retry's row is completed twice (once for the original
+    request, once for the retry landing on the same row) — the second call
+    must not redo the Attio write or log a second activity, even though
+    every individual step below already reuses stored output on its own."""
     tool_runs, attio = _FakeToolRuns(), _FakeAttio()
-    tool_runs.outcome = "duplicate"
-    service, _ = _service(tool_runs, attio)
+    service, ai_calls = _service(tool_runs, attio)
 
-    _, outcome = await service.record(
-        tool="readiness", payload={}, email="f@acme.com", domain="acme.com"
-    )
-    assert outcome == "duplicate"
+    await service.complete(_run(status="succeeded"))
+
+    assert tool_runs.calls == []
+    assert ai_calls == []
+    assert attio.writes == 0
 
 
 async def test_happy_path_order() -> None:

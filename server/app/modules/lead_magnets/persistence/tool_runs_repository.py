@@ -10,7 +10,18 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, ScalarSelect, and_, case, func, insert, literal, select, update
+from sqlalchemy import (
+    CursorResult,
+    ScalarSelect,
+    and_,
+    case,
+    func,
+    insert,
+    literal,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +33,6 @@ from app.models.seller_role import SellerRole
 from app.models.tool_run import ToolRun
 from app.modules.lead_magnets.domain.shared.tool_run import (
     Stage,
-    StartOutcome,
     SubjectRefs,
     Tool,
     ToolRunRecord,
@@ -59,38 +69,40 @@ _CEILING = case(
     else_=6,
 )
 
+# Must render as the exact literal expression `uq_tool_runs_tool_submission_id`
+# (`app/models/tool_run.py`) uses. Postgres matches an `ON CONFLICT` target
+# against an index's own text, and `ToolRun.payload["submission_id"]` would
+# render the key as a bound parameter, which can never match a static index
+# definition — hence raw `text()` here instead of the JSONB accessor.
+_SUBMISSION_ID_EXPR = text("(payload ->> 'submission_id')")
+_SUBMISSION_ID_PRESENT = text("(payload ->> 'submission_id') IS NOT NULL")
+
 
 class ToolRunsRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._organizations = OrganizationRepository(session)
 
-    async def start(
-        self, *, tool: Tool, payload: JsonObject, idempotency_key: str
-    ) -> tuple[UUID, StartOutcome]:
-        """Step 1 of the write contract. Returns `(run_id, outcome)`.
+    async def start(self, *, tool: Tool, payload: JsonObject, idempotency_key: str) -> UUID:
+        """Step 1 of the write contract. Every distinct submission gets its
+        own permanent row — nothing ever blocks this, and nothing merges
+        two different attempts together.
 
-        `idempotency_key` (`tool|email|domain`) is the only stored dedup
-        key — no separate column exists for the finer distinction below,
-        because `payload.submission_id` is already there for every tool
-        (it's part of the raw request dump), so a colliding row's own
-        payload is enough to tell the two cases apart without adding one:
+        The one exception: an exact retried POST of the very same request
+        (identical tool + `submission_id`) reuses that row rather than
+        starting a second one. Without this, a plain network-level retry —
+        not a new visit, the same click landing twice — would re-run the
+        whole pipeline a second time: a second Attio write, a second
+        visitor confirmation email, a second internal-team notice, and
+        (for readiness) a second billed Bedrock call.
 
-          "new"       -> no collision, insert succeeded.
-          "replay"    -> collision, but the existing row's own
-                         `submission_id` matches this request's — the
-                         exact same submission landed twice (a network
-                         retry), not a new person. The caller must not
-                         run the pipeline again, but this is not an error
-                         to show the visitor.
-          "duplicate" -> collision with a *different* `submission_id` —
-                         a genuine second visit from the same person for
-                         the same tool. The caller should tell them.
-
-        `idempotency_key` is never allowed to be None here even though the
-        column is nullable: Postgres permits unlimited NULLs in a UNIQUE
-        column, so a NULL key would silently opt every such row out of the
-        deduplication this exists to provide.
+        Enforced atomically by `uq_tool_runs_tool_submission_id`
+        (`app/models/tool_run.py`), a partial unique index on
+        `(tool, payload->>'submission_id')` — not by `idempotency_key`,
+        which only tags a row with its client (`email|domain`) for
+        grouping/lookup and is not unique. A payload with no
+        `submission_id` at all is outside that index's predicate, so it
+        never conflicts and always inserts fresh.
         """
         stmt = (
             pg_insert(ToolRun)
@@ -100,30 +112,28 @@ class ToolRunsRepository:
                 payload=payload,
                 idempotency_key=idempotency_key,
             )
-            .on_conflict_do_nothing(index_elements=["idempotency_key"])
+            .on_conflict_do_nothing(
+                index_elements=[ToolRun.tool, _SUBMISSION_ID_EXPR],
+                index_where=_SUBMISSION_ID_PRESENT,
+            )
             .returning(ToolRun.id)
         )
         inserted = (await self._session.execute(stmt)).scalar_one_or_none()
         if inserted is not None:
-            return inserted, "new"
+            return inserted
 
-        existing_id, existing_payload = (
+        # Conflict: an exact retry already has a row for this
+        # (tool, submission_id). Only reachable when `payload` actually
+        # carries one — that's what the index's own predicate requires for
+        # a conflict to be possible — so this lookup is safe unguarded.
+        return (
             await self._session.execute(
-                select(ToolRun.id, ToolRun.payload).where(
-                    ToolRun.idempotency_key == idempotency_key
+                select(ToolRun.id).where(
+                    ToolRun.tool == tool,
+                    ToolRun.payload["submission_id"].astext == payload.get("submission_id"),
                 )
             )
-        ).one()
-        incoming_submission_id = payload.get("submission_id")
-        # `is not None`, not truthy: two payloads that both genuinely lack
-        # a submission_id must never compare equal and be treated as the
-        # same request — that would silently swallow a real second
-        # submission that just happened to be malformed the same way.
-        if incoming_submission_id is not None and (
-            existing_payload.get("submission_id") == incoming_submission_id
-        ):
-            return existing_id, "replay"
-        return existing_id, "duplicate"
+        ).scalar_one()
 
     async def set_stage(
         self, run_id: UUID, *, stage: Stage, output: JsonObject | None = None

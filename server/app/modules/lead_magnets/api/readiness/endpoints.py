@@ -8,7 +8,7 @@ visitor's whole report is that call's output.
 from dataclasses import asdict
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.lead_magnets.api.dependencies import (
@@ -56,7 +56,7 @@ async def readiness_score(
     """
     answers = ReadinessAnswers(**request.answers.model_dump())
     service = build_submission_service(session)
-    run_id, outcome = await service.record(
+    run_id = await service.record(
         tool="readiness",
         payload={**request.model_dump(), "advisory_rules": asdict(build_advisory_content(answers))},
         email=request.email,
@@ -64,33 +64,25 @@ async def readiness_score(
     )
     await session.commit()
 
-    # Checked before the model call, not just before the background task —
-    # this is the one tool where skipping a duplicate also saves a paid
-    # Bedrock call, not just a redundant Attio write.
-    if outcome == "duplicate":
-        raise HTTPException(status.HTTP_409_CONFLICT, "you have already completed this")
-
-    if outcome == "replay":
-        # The exact same request as before, not a new person — must not
-        # pay for a second Bedrock call. The original attempt's score is
-        # already stored (`_store_score` below), unless it died before
-        # reaching that point, in which case there is nothing to replay
-        # and this falls through to the model call like "new" would.
-        existing = await build_tool_runs(session).get(run_id)
-        stored_score = existing.payload.get("score") if existing else None
-        if stored_score is not None:
-            background.add_task(run_completion, run_id)
-            replayed = ReadinessResult.model_validate(stored_score)
-            return ReadinessResponse(
-                run_id=str(run_id),
-                overallScore=replayed.overallScore,
-                scoreBand=replayed.scoreBand,
-                summaryParagraph=replayed.summaryParagraph,
-                dimensions=[DimensionOut(**d.model_dump()) for d in replayed.dimensions],
-                recommendations=[
-                    RecommendationOut(**r.model_dump()) for r in replayed.recommendations
-                ],
-            )
+    # `record()` reuses the same row for an exact retry of the same
+    # request (same `submission_id`) rather than starting a new one — see
+    # `ToolRunsRepository.start`. When that happens, this run may already
+    # carry a stored score from the original attempt; reusing it is the
+    # one thing a retry must not pay for twice, since the model call sits
+    # on this endpoint's own response path rather than in the background.
+    existing = await build_tool_runs(session).get(run_id)
+    stored_score = existing.payload.get("score") if existing else None
+    if stored_score is not None:
+        background.add_task(run_completion, run_id)
+        replayed = ReadinessResult.model_validate(stored_score)
+        return ReadinessResponse(
+            run_id=str(run_id),
+            overallScore=replayed.overallScore,
+            scoreBand=replayed.scoreBand,
+            summaryParagraph=replayed.summaryParagraph,
+            dimensions=[DimensionOut(**d.model_dump()) for d in replayed.dimensions],
+            recommendations=[RecommendationOut(**r.model_dump()) for r in replayed.recommendations],
+        )
 
     # The model call is on the response path here, unlike every other tool:
     # the visitor's whole report is its output, so there is nothing to show
