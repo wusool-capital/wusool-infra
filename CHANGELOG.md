@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
 respective environments. See [Delivery status](docs/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-17
+
+### Added
+
+- The M&A Readiness Tool and Valuation Tool now unlock the full report a
+  few seconds after the booking-CTA is clicked. The unlocked report can be
+  saved as a PDF via browser print.
+
 ## 2026-09-16
 
 ### Added
