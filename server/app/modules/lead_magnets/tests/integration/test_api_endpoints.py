@@ -288,7 +288,7 @@ def test_get_started_sector_other_only_lands_in_description_when_sector_is_other
     class _FakeService:
         async def record(self, *, tool, payload, email, domain):
             captured.append(payload)
-            return uuid.uuid4(), "new"
+            return uuid.uuid4()
 
     def _fake_build_submission_service(session):
         return _FakeService()
