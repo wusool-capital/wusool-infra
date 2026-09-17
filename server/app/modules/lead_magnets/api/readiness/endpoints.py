@@ -81,9 +81,7 @@ async def readiness_score(
             scoreBand=replayed.scoreBand,
             summaryParagraph=replayed.summaryParagraph,
             dimensions=[DimensionOut(**d.model_dump()) for d in replayed.dimensions],
-            recommendations=[
-                RecommendationOut(**r.model_dump()) for r in replayed.recommendations
-            ],
+            recommendations=[RecommendationOut(**r.model_dump()) for r in replayed.recommendations],
         )
 
     # The model call is on the response path here, unlike every other tool:

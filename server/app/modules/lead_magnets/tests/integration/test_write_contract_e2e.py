@@ -331,11 +331,7 @@ async def test_exact_retry_of_the_same_submission_does_not_write_attio_twice(db_
 
     assert attio.calls(_CO) == 1, "the retry must not repeat the Attio write"
     activities = (
-        (
-            await db_session.execute(
-                select(Activity).where(Activity.tool_run_id == first_run_id)
-            )
-        )
+        (await db_session.execute(select(Activity).where(Activity.tool_run_id == first_run_id)))
         .scalars()
         .all()
     )

@@ -133,5 +133,3 @@ def test_domain_matches_is_false_for_an_empty_domain() -> None:
     assert not domain_matches(["example.com"], None)
     assert not domain_matches(["example.com"], "")
     assert not domain_matches([], "example.com")
-
-
