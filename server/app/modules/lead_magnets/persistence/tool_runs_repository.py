@@ -65,12 +65,42 @@ class ToolRunsRepository:
         self._organizations = OrganizationRepository(session)
 
     async def start(self, *, tool: Tool, payload: JsonObject, idempotency_key: str) -> UUID:
-        """Step 1 of the write contract. Every submission gets its own
-        permanent row — no lookup, no conflict, nothing ever blocks this.
-        `idempotency_key` (`email|domain`) tags the row with which client
-        it belongs to, for grouping/lookup only; it is not unique and gates
-        nothing.
+        """Step 1 of the write contract. Every distinct submission gets its
+        own permanent row — nothing ever blocks this, and nothing merges
+        two different attempts together.
+
+        The one exception: an exact retried POST of the very same request
+        (identical `submission_id` on a row already recorded for this
+        client) reuses that row rather than starting a second one. Without
+        this, a plain network-level retry — not a new visit, the same
+        click landing twice — would re-run the whole pipeline a second
+        time: a second Attio write, a second visitor confirmation email, a
+        second internal-team notice, and (for readiness) a second billed
+        Bedrock call. `idempotency_key` (`email|domain`) narrows the
+        lookup to this client; it is not unique and gates nothing on its
+        own.
+
+        This is a lookup, not a locked upsert, so two truly simultaneous
+        retries of the same request could each miss the other and both
+        insert — an accepted, narrow race, not solved here (see item 5 of
+        the plan this shipped under: revisit with rate/retry limits if it
+        matters in practice).
         """
+        incoming_submission_id = payload.get("submission_id")
+        if incoming_submission_id is not None:
+            existing_id = (
+                await self._session.execute(
+                    select(ToolRun.id)
+                    .where(
+                        ToolRun.idempotency_key == idempotency_key,
+                        ToolRun.payload["submission_id"].astext == incoming_submission_id,
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if existing_id is not None:
+                return existing_id
+
         stmt = (
             insert(ToolRun)
             .values(

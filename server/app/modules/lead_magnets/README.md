@@ -218,15 +218,25 @@ benchmark column, so this module writes Attio and lets the mirror follow.
 ### No dedup, no blocking — every attempt keeps its own row
 
 `tool_runs` is an append-only attempt log. `start()`
-(`persistence/tool_runs_repository.py`) is a plain insert — no lookup, no
-conflict, nothing is ever blocked or merged. A visitor can resubmit any
-number of times, for any tool, and each attempt gets its own permanent
-`tool_runs` row and (once it resolves a subject) its own `activities` row
-with a full copy of that attempt's payload. Nothing is overwritten.
+(`persistence/tool_runs_repository.py`) never rejects a submission. A
+visitor can resubmit any number of times, for any tool, and each genuinely
+new attempt gets its own permanent `tool_runs` row and (once it resolves a
+subject) its own `activities` row with a full copy of that attempt's
+payload. Nothing is overwritten.
 
-`idempotency_key` (`email|domain`) still tags each row with which client
-it belongs to, for grouping/lookup — it carries no tool name and is **not**
-unique, so it gates nothing.
+The one exception: an exact retried POST of the very same request (an
+identical `submission_id` already recorded for this client) reuses that
+row rather than starting a second one — a plain network-level retry, not a
+new visit. Without this, every retry would reprocess the whole pipeline:
+a second Attio write, a second visitor confirmation email, a second
+internal-team notice, and (for readiness, whose scoring call sits on the
+response path rather than the background pipeline) a second billed
+Bedrock call.
+
+`idempotency_key` (`email|domain`) tags each row with which client it
+belongs to — it carries no tool name, and is **not** unique, so a
+genuinely new submission is never blocked or merged into an older row; it
+is only used to narrow the exact-retry lookup above.
 
 "One row per client/organisation" is enforced one layer up instead, at the
 CRM level, unaffected by any of this:
@@ -236,11 +246,6 @@ CRM level, unaffected by any of this:
 - **Person**: matched by email (`providers/attio/person_writer.py`) —
   deliberately fills blanks only and never overwrites a matched contact's
   `name`, to protect hand-curated data.
-
-Consequence: readiness no longer has a stored-score short-circuit for an
-exact repeated request — every attempt, including an accidental
-double-click, pays for its own Bedrock call. Accepted for now; revisit with
-rate/retry limits if it becomes a real cost problem.
 
 ### Why `tool_runs` and not `activities`
 

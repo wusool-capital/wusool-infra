@@ -45,9 +45,28 @@ async def test_start_records_the_submission_before_anything_else(db_session) -> 
 
 
 async def test_repeat_submissions_each_get_their_own_row(db_session) -> None:
-    """No blocking, no overwrite: every `start()` call is a fresh insert,
-    even with the identical `idempotency_key` and the identical
-    `submission_id` — there is no lookup to short-circuit it on."""
+    """No blocking, no overwrite: a genuinely new submission — its own
+    distinct `submission_id` — always gets a fresh row, even for the same
+    client and tool."""
+    repo = ToolRunsRepository(db_session)
+    key = _key()
+    first = await repo.start(
+        tool="readiness", payload={"n": 1, "submission_id": "s1"}, idempotency_key=key
+    )
+    second = await repo.start(
+        tool="readiness", payload={"n": 2, "submission_id": "s2"}, idempotency_key=key
+    )
+
+    assert first != second
+    assert (await _row(db_session, first)).payload["n"] == 1
+    assert (await _row(db_session, second)).payload["n"] == 2
+
+
+async def test_an_exact_retry_of_the_same_submission_reuses_the_row(db_session) -> None:
+    """The one exception to append-only: a retried POST of the identical
+    request (same `submission_id`) must not spawn a second row and
+    reprocess the whole pipeline — that would re-send every email and,
+    for readiness, re-bill Bedrock."""
     repo = ToolRunsRepository(db_session)
     key = _key()
     first = await repo.start(
@@ -57,9 +76,9 @@ async def test_repeat_submissions_each_get_their_own_row(db_session) -> None:
         tool="readiness", payload={"n": 2, "submission_id": "s1"}, idempotency_key=key
     )
 
-    assert first != second
+    assert first == second
+    # The original payload wins; the retry does not overwrite it.
     assert (await _row(db_session, first)).payload["n"] == 1
-    assert (await _row(db_session, second)).payload["n"] == 2
 
 
 async def test_finish_on_a_brand_new_org_does_not_fk_violate(db_session) -> None:

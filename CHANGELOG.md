@@ -21,13 +21,15 @@ for current production evidence and open handover items.
 - The four lead magnets (Valuation Tool, M&A Readiness Tool, GCC SME
   Benchmark, Buyer Form) no longer reject a repeat submission with
   `409 you have already completed this`. A visitor can resubmit any number
-  of times, for any tool; every attempt is recorded as its own permanent
-  row and gets its own CRM activity entry, so nothing is ever lost or
-  merged. Dedup at the organization/person level is unaffected — a repeat
-  submission still updates the same Attio organization and person rather
-  than creating a new one. One consequence: the M&A Readiness Tool no
-  longer reuses a stored score for an identical resubmission, so a repeat
-  now pays for its own Bedrock call.
+  of times, for any tool; every genuinely new attempt is recorded as its
+  own permanent row and gets its own CRM activity entry, so nothing is
+  ever lost or merged. Dedup at the organization/person level is
+  unaffected — a repeat submission still updates the same Attio
+  organization and person rather than creating a new one. An exact
+  retried request (a network retry of the same submission, not a new
+  visit) still reuses its original row rather than reprocessing, so a
+  visitor is never emailed twice or double-billed for the M&A Readiness
+  Tool's Bedrock call.
 
 ## 2026-09-16
 

@@ -274,9 +274,9 @@ async def test_a_valuation_ai_failure_does_resume_from_its_fallback(db_session) 
 async def test_repeat_submissions_each_get_their_own_row_and_activity(
     db_session, clicks: int
 ) -> None:
-    """No blocking, no overwrite: every submission — even with an identical
-    `submission_id` — gets its own permanent `tool_runs` row, and once
-    completed, its own `activities` row. Nothing is ever merged away."""
+    """No blocking, no overwrite: every genuinely new submission — its own
+    distinct `submission_id` — gets its own permanent `tool_runs` row, and
+    once completed, its own `activities` row. Nothing is ever merged away."""
     from app.models.activity import Activity
 
     attio, ai = _FakeAttio(), _Spy()
@@ -286,7 +286,7 @@ async def test_repeat_submissions_each_get_their_own_row_and_activity(
     for n in range(clicks):
         run_id = await service.record(
             tool="benchmark",
-            payload={"n": n, "submission_id": "s1", "company_name": _CO},
+            payload={"n": n, "submission_id": f"s{n}", "company_name": _CO},
             email="d@acme.ae",
             domain="acme.ae",
         )
@@ -305,12 +305,49 @@ async def test_repeat_submissions_each_get_their_own_row_and_activity(
     assert len(activities) == clicks
 
 
+async def test_exact_retry_of_the_same_submission_does_not_write_attio_twice(db_session) -> None:
+    """The regression this module must not reintroduce: a plain network
+    retry of the identical POST (same `submission_id`) reuses the row
+    `start()` already returned, so completing it twice must not double the
+    Attio write or the activity log — only a genuinely new `submission_id`
+    should ever do that (covered above)."""
+    from app.models.activity import Activity
+
+    repo = ToolRunsRepository(db_session)
+    attio, ai = _FakeAttio(), _Spy()
+    service = _service(db_session, attio, ai)
+
+    payload = {"submission_id": "s-retry-1", "company_name": _CO}
+    first_run_id = await service.record(
+        tool="benchmark", payload=payload, email="d@acme.ae", domain="acme.ae"
+    )
+    second_run_id = await service.record(
+        tool="benchmark", payload=payload, email="d@acme.ae", domain="acme.ae"
+    )
+    assert first_run_id == second_run_id, "an exact retry reuses the same row"
+
+    await service.complete(await repo.get(first_run_id))
+    await service.complete(await repo.get(second_run_id))
+
+    assert attio.calls(_CO) == 1, "the retry must not repeat the Attio write"
+    activities = (
+        (
+            await db_session.execute(
+                select(Activity).where(Activity.tool_run_id == first_run_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(activities) == 1, "the retry must not double the activity log"
+
+
 async def test_readiness_repeat_submission_is_not_rejected_and_calls_bedrock_again(
     db_session, monkeypatch
 ) -> None:
     """A genuinely different visit (different `submission_id`) from the same
     person must not be rejected, and gets its own row and its own Bedrock
-    call — there is no stored-score short-circuit to reuse anymore."""
+    call — no dedup at the client-identity level any more."""
     from fastapi import BackgroundTasks
 
     from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
@@ -354,7 +391,60 @@ async def test_readiness_repeat_submission_is_not_rejected_and_calls_bedrock_aga
     )
 
     assert first.run_id != second.run_id
-    assert calls["n"] == 2, "no more short-circuit: every attempt pays for its own Bedrock call"
+    assert calls["n"] == 2, "a genuinely new visit always pays for its own Bedrock call"
+
+
+async def test_readiness_exact_retry_reuses_the_stored_score_without_a_second_bedrock_call(
+    db_session, monkeypatch
+) -> None:
+    """A retried POST of the exact same request (same `submission_id`) must
+    reuse the already-stored score instead of paying for Bedrock twice, and
+    must return the identical result both times — the one case this module
+    still collapses onto a single row, since it's the same click landing
+    twice, not a new visit."""
+    from fastapi import BackgroundTasks
+
+    from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
+    from app.modules.lead_magnets.api.schemas import ReadinessAnswersIn, ReadinessRequest
+    from app.modules.lead_magnets.domain.shared.schemas import (
+        ReadinessDimension,
+        ReadinessRecommendation,
+        ReadinessResult,
+    )
+
+    fake_result = ReadinessResult(
+        overallScore=72.5,
+        scoreBand="Getting There",
+        summaryParagraph="A solid start.",
+        dimensions=[ReadinessDimension(name=f"Dim {i}", score=70, insight="x") for i in range(5)],
+        recommendations=[ReadinessRecommendation(title=f"Rec {i}", detail="y") for i in range(3)],
+    )
+    calls = {"n": 0}
+
+    class _FakeLlm:
+        async def score_readiness(self, prompt):
+            calls["n"] += 1
+            return fake_result
+
+    monkeypatch.setattr(readiness_endpoints, "build_llm", lambda: _FakeLlm())
+
+    request = ReadinessRequest(
+        submission_id="s-replay-1",
+        name="Sam",
+        company="Zeta Trading",
+        email="sam@zetatrading.ae",
+        sector="Contracting",
+        domain="zetatrading.ae",
+        answers=ReadinessAnswersIn(q1=2),
+    )
+
+    first = await readiness_endpoints.readiness_score(request, db_session, BackgroundTasks())
+    second = await readiness_endpoints.readiness_score(request, db_session, BackgroundTasks())
+
+    assert calls["n"] == 1, "Bedrock must not be re-billed for the exact same request"
+    assert first.run_id == second.run_id
+    assert second.overallScore == fake_result.overallScore
+    assert second.summaryParagraph == fake_result.summaryParagraph
 
 
 async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> None:
