@@ -112,7 +112,7 @@
     overlay.setAttribute("aria-label", "Wusool " + toolName);
     overlay.style.cssText =
       "position:fixed;inset:0;z-index:2147483647;background:rgba(8,12,40,.6);" +
-      "display:flex;align-items:center;justify-content:center;padding:16px";
+      "display:none;align-items:center;justify-content:center;padding:16px";
 
     var panel = document.createElement("div");
     panel.style.cssText =
@@ -172,6 +172,7 @@
         panel.appendChild(frame);
       }
       overlay.hidden = false;
+      overlay.style.display = "flex";
       document.body.style.overflow = "hidden";
       document.addEventListener("keydown", onKeydown);
       close.focus();
@@ -179,6 +180,7 @@
 
     function closeModal() {
       overlay.hidden = true;
+      overlay.style.display = "none";
       document.body.style.overflow = "";
       document.removeEventListener("keydown", onKeydown);
       // The iframe is kept, not destroyed: reopening should not discard a
