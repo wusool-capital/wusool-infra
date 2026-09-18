@@ -125,3 +125,30 @@ def test_modal_is_accessible_and_lazily_loaded() -> None:
         assert needed in modal, f"modal mode is missing {needed}"
     # The iframe is built inside openModal, not when the script runs.
     assert modal.index("frame = document.createElement") > modal.index("function openModal(")
+
+
+def test_the_overlay_starts_hidden_and_stays_in_sync_with_display() -> None:
+    """An inline `style="display:flex"` beats the UA stylesheet's
+    `[hidden] { display: none }` rule — so an overlay built with both
+    `hidden = true` *and* a baked-in `display:flex` is visible from the
+    instant the page loads, on every page carrying the script, with no
+    click at all. Caught live: the modal auto-opened on page load, covered
+    the whole viewport (no `pointer-events` restriction), and made the
+    entire site unclickable, because `openModal`/`closeModal` toggling
+    `overlay.hidden` was doing nothing.
+
+    `style.display` must be set explicitly in both `openModal` (to
+    `"flex"`) and `closeModal` (to `"none"`), and the overlay's initial
+    inline style must not claim `display:flex` before either has run.
+    """
+    js = (static_dir() / "embed.js").read_text()
+    modal = js[js.index("function buildModal(") :]
+
+    overlay_style = modal[modal.index("overlay.style.cssText") : modal.index("var panel")]
+    assert "display:flex" not in overlay_style, "the overlay must not start visible"
+
+    open_fn = modal[modal.index("function openModal(") : modal.index("function closeModal(")]
+    assert 'overlay.style.display = "flex"' in open_fn
+
+    close_fn = modal[modal.index("function closeModal(") : modal.index("close.addEventListener")]
+    assert 'overlay.style.display = "none"' in close_fn
