@@ -472,10 +472,14 @@ async def test_write_passes_the_tools_lead_source_detail_label_to_the_org_write(
     await role_attio_writer.write(
         tool="buyer_network", payload={"org_name": "Acme", "domain": "acme.com"}, ai={}
     )
+    await role_attio_writer.write(
+        tool="get_started", payload={"company": "Acme", "domain": "acme.com"}, ai={}
+    )
 
     assert writer.seller_calls[0]["lead_source_detail"] == "Valuation Tool"
     assert writer.seller_calls[1]["lead_source_detail"] == "GCC SME Benchmark"
     assert writer.buyer_calls[0]["lead_source_detail"] == "Buyer Form"
+    assert writer.seller_calls[2]["lead_source_detail"] == "Get Started"
 
 
 async def test_get_started_routes_through_the_seller_branch_with_its_own_field_names() -> None:

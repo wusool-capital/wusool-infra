@@ -283,6 +283,7 @@ _LEAD_SOURCE_DETAIL_LABELS: Mapping[str, str] = {
     "readiness": "M&A Readiness Tool",
     "benchmark": "GCC SME Benchmark",
     "buyer_network": "Buyer Form",
+    "get_started": "Get Started",
 }
 
 
