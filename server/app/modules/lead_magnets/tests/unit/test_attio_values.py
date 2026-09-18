@@ -290,6 +290,7 @@ def test_person_values_includes_phone_only_when_given() -> None:
         ("readiness", "M&A Readiness Tool"),
         ("benchmark", "GCC SME Benchmark"),
         ("buyer_network", "Buyer Form"),
+        ("get_started", "Get Started"),
     ],
 )
 def test_lead_source_detail_label_matches_the_attio_option_titles(tool: str, label: str) -> None:
