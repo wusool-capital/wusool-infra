@@ -82,7 +82,7 @@ async function submitBuyerForm(e){
   // field is still a list — Attio's own attribute is multiselect-typed, so
   // a one-item list is exactly as valid there as a longer one.
   const payload={
-    submission_id:(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`),
+    submission_id:window.WUSOOL_SUBMISSION_ID,
     full_name:document.getElementById("fullName").value.trim(),
     org_name:document.getElementById("orgName").value.trim(),
     email:document.getElementById("email").value.trim(),

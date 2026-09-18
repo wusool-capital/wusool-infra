@@ -372,7 +372,7 @@ ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("lead_source", "Lead source", "select", options=("Inbound", "Outbound")),
     # Which lead-magnet the company arrived through, added 2026-09-15. Options
     # are copied from SOURCE's own `lead_source` attribute plus the Benchmark
-    # tool that postdates it — keep this tuple in step with
+    # and Get Started tools that postdate it — keep this tuple in step with
     # `crm-sync/scripts/source-attio/_internal/schema.ps1`, since
     # `test_attio_schema_matches_field_specs` checks it against live Attio.
     FieldSpec(
@@ -384,6 +384,7 @@ ORGANIZATION_FIELDS: tuple[FieldSpec, ...] = (
             "M&A Readiness Tool",
             "Buyer Form",
             "GCC SME Benchmark",
+            "Get Started",
         ),
     ),
     FieldSpec(

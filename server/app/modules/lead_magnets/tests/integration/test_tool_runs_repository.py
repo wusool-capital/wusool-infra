@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models.activity import Activity
 from app.models.seller_role import SellerRole
@@ -21,7 +21,7 @@ from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRe
 
 
 def _key() -> str:
-    return f"readiness|f@acme.com|acme.com|{uuid4()}"
+    return f"f@acme.com|acme.com|{uuid4()}"
 
 
 async def _row(session, run_id) -> ToolRun:
@@ -30,12 +30,11 @@ async def _row(session, run_id) -> ToolRun:
 
 async def test_start_records_the_submission_before_anything_else(db_session) -> None:
     repo = ToolRunsRepository(db_session)
-    run_id, outcome = await repo.start(
+    run_id = await repo.start(
         tool="readiness",
         payload={"email": "f@acme.com", "answers": {"q1": 3}},
         idempotency_key=_key(),
     )
-    assert outcome == "new"
     row = await _row(db_session, run_id)
     assert row.status == "running"
     # The whole point: the lead is on disk with no subject resolved yet.
@@ -45,63 +44,126 @@ async def test_start_records_the_submission_before_anything_else(db_session) -> 
     assert row.attempt_count == 1
 
 
-async def test_replayed_idempotency_key_is_a_no_op(db_session) -> None:
-    """A retried POST of the exact same request (same `submission_id`) must
-    not run the pipeline twice — and is a silent "replay", not a rejected
-    "duplicate", since it's the same attempt, not a new person."""
+async def test_repeat_submissions_each_get_their_own_row(db_session) -> None:
+    """No blocking, no overwrite: a genuinely new submission — its own
+    distinct `submission_id` — always gets a fresh row, even for the same
+    client and tool."""
     repo = ToolRunsRepository(db_session)
     key = _key()
-    first, first_outcome = await repo.start(
+    first = await repo.start(
         tool="readiness", payload={"n": 1, "submission_id": "s1"}, idempotency_key=key
     )
-    second, second_outcome = await repo.start(
+    second = await repo.start(
+        tool="readiness", payload={"n": 2, "submission_id": "s2"}, idempotency_key=key
+    )
+
+    assert first != second
+    assert (await _row(db_session, first)).payload["n"] == 1
+    assert (await _row(db_session, second)).payload["n"] == 2
+
+
+async def test_an_exact_retry_of_the_same_submission_reuses_the_row(db_session) -> None:
+    """The one exception to append-only: a retried POST of the identical
+    request (same `submission_id`) must not spawn a second row and
+    reprocess the whole pipeline — that would re-send every email and,
+    for readiness, re-bill Bedrock."""
+    repo = ToolRunsRepository(db_session)
+    key = _key()
+    first = await repo.start(
+        tool="readiness", payload={"n": 1, "submission_id": "s1"}, idempotency_key=key
+    )
+    second = await repo.start(
         tool="readiness", payload={"n": 2, "submission_id": "s1"}, idempotency_key=key
     )
 
     assert first == second
-    assert first_outcome == "new"
-    assert second_outcome == "replay"
-    # The original payload wins; the replay does not overwrite it.
+    # The original payload wins; the retry does not overwrite it.
     assert (await _row(db_session, first)).payload["n"] == 1
 
 
-async def test_a_different_submission_id_is_a_duplicate_not_a_replay(db_session) -> None:
-    """Same identity (same `idempotency_key`), but a genuinely different
-    `submission_id` — a real second visit from the same person, not the
-    same request landing twice. Must be flagged, not silently absorbed."""
+async def test_a_shared_submission_id_across_tools_does_not_collapse(db_session) -> None:
+    """`idempotency_key` no longer carries the tool, so the retry-lookup
+    must check `tool` explicitly — otherwise two different tools that
+    happen to reuse the same `submission_id` for the same client would be
+    wrongly treated as the same retry and share a row."""
     repo = ToolRunsRepository(db_session)
     key = _key()
-    first, first_outcome = await repo.start(
-        tool="readiness", payload={"submission_id": "s1"}, idempotency_key=key
+    first = await repo.start(
+        tool="benchmark", payload={"n": 1, "submission_id": "shared"}, idempotency_key=key
     )
-    second, second_outcome = await repo.start(
-        tool="readiness", payload={"submission_id": "s2"}, idempotency_key=key
+    second = await repo.start(
+        tool="valuation", payload={"n": 2, "submission_id": "shared"}, idempotency_key=key
     )
 
-    assert first == second
-    assert first_outcome == "new"
-    assert second_outcome == "duplicate"
+    assert first != second
 
 
-async def test_a_missing_submission_id_never_counts_as_a_replay(db_session) -> None:
-    """Two payloads that both genuinely lack a submission_id must not
-    compare equal to each other — that would silently swallow a real
-    second submission that just happened to be malformed the same way."""
-    repo = ToolRunsRepository(db_session)
+async def test_concurrent_exact_retries_still_yield_one_row() -> None:
+    """The select-then-insert version of the retry-collapse check could
+    let two truly simultaneous retries each miss the other and both
+    insert. `uq_tool_runs_tool_submission_id` (`app/models/tool_run.py`)
+    makes `start()` a single atomic `INSERT ... ON CONFLICT`, so this must
+    hold even under real concurrency, not just sequentially.
+
+    Deliberately does not use the `db_session` fixture — that binds every
+    session to one connection via savepoints, so two gathered calls would
+    serialize on that connection and the race this test exists to rule out
+    could never actually occur. This needs two real connections and real
+    commits, hence the manual cleanup.
+    """
+    import asyncio
+
+    from app.modules.lead_magnets.persistence.database import get_sessionmaker
+
+    sessionmaker = get_sessionmaker()
+    submission_id = f"concurrent-{uuid4()}"
     key = _key()
-    first, first_outcome = await repo.start(tool="readiness", payload={}, idempotency_key=key)
-    second, second_outcome = await repo.start(tool="readiness", payload={}, idempotency_key=key)
 
-    assert first == second
-    assert first_outcome == "new"
-    assert second_outcome == "duplicate"
+    async def _start() -> object:
+        async with sessionmaker() as session:
+            run_id = await ToolRunsRepository(session).start(
+                tool="benchmark",
+                payload={"submission_id": submission_id},
+                idempotency_key=key,
+            )
+            await session.commit()
+            return run_id
+
+    try:
+        async with sessionmaker() as probe:
+            await probe.execute(select(ToolRun.id).limit(1))
+    except Exception as exc:  # no reachable database
+        pytest.skip(f"database not reachable: {exc}")
+
+    try:
+        run_ids = await asyncio.gather(_start(), _start(), _start(), _start(), _start())
+        assert len(set(run_ids)) == 1, "exactly one row should win the race"
+
+        async with sessionmaker() as session:
+            count = await session.scalar(
+                select(func.count())
+                .select_from(ToolRun)
+                .where(
+                    ToolRun.tool == "benchmark",
+                    ToolRun.payload["submission_id"].astext == submission_id,
+                )
+            )
+        assert count == 1
+    finally:
+        async with sessionmaker() as session:
+            await session.execute(
+                ToolRun.__table__.delete().where(
+                    ToolRun.payload["submission_id"].astext == submission_id
+                )
+            )
+            await session.commit()
 
 
 async def test_finish_on_a_brand_new_org_does_not_fk_violate(db_session) -> None:
     """The mirror has not run yet, so `organizations`/`person` have no row
     for these Attio ids. `finish()` seeds both stubs so the FKs hold."""
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(tool="benchmark", payload={}, idempotency_key=_key())
+    run_id = await repo.start(tool="benchmark", payload={}, idempotency_key=_key())
     org_id = f"org-{uuid4()}"
     person_id = f"person-{uuid4()}"
 
@@ -127,7 +189,9 @@ async def test_finish_with_a_resolved_org_writes_one_activity_row(db_session) ->
     """Step 6: a successful Attio write gets a matching CRM timeline entry,
     joined by `tool_run_id`."""
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    run_id = await repo.start(
+        tool="valuation", payload={"submission_id": "abc"}, idempotency_key=_key()
+    )
     org_id = f"org-{uuid4()}"
 
     await repo.finish(
@@ -140,13 +204,14 @@ async def test_finish_with_a_resolved_org_writes_one_activity_row(db_session) ->
     assert row.subject_type == "Organization"
     assert row.subject_attio_id == org_id
     assert row.source == "lead_magnet"
+    assert row.payload == {"submission_id": "abc"}
 
 
 async def test_finish_without_a_subject_writes_no_activity_row(db_session) -> None:
     """A failed run has no resolved Attio id — `activities` CHECKs that a
     subject is present, so writing here would violate it. Must stay a no-op."""
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(tool="readiness", payload={}, idempotency_key=_key())
+    run_id = await repo.start(tool="readiness", payload={}, idempotency_key=_key())
 
     await repo.finish(run_id, "failed", error="boom")
 
@@ -189,7 +254,7 @@ async def test_finish_leaves_role_fk_null_until_the_mirror_lands(db_session) -> 
     `promote_role_fks` actually reads.
     """
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(
+    run_id = await repo.start(
         tool="valuation",
         payload={},
         idempotency_key=_key(),
@@ -214,7 +279,7 @@ async def test_set_stage_merges_rather_than_replaces(db_session) -> None:
     """`payload` also holds the submission and the raw answers — a resume
     that clobbered them would lose the lead it exists to protect."""
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(
+    run_id = await repo.start(
         tool="valuation", payload={"email": "f@acme.com"}, idempotency_key=_key()
     )
     await repo.set_stage(run_id, stage="ai", output={"comps": [{"tk": "AAPL"}]})
@@ -227,7 +292,7 @@ async def test_set_stage_merges_rather_than_replaces(db_session) -> None:
 
 async def test_claim_stale_only_takes_rows_past_the_cutoff(db_session) -> None:
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    run_id = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
     await repo.set_stage(run_id, stage="attio")
 
     fresh_cutoff = datetime.now(UTC) - timedelta(hours=1)
@@ -243,7 +308,7 @@ async def test_claim_stale_cutoff_actually_advances(db_session) -> None:
     every sweep re-fires the same row instantly. `last_attempt_at` is what
     makes the second claim in the same instant impossible."""
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    run_id = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
     await repo.set_stage(run_id, stage="attio")
 
     cutoff = datetime.now(UTC) + timedelta(seconds=1)
@@ -268,7 +333,7 @@ async def test_readiness_ai_failure_is_never_retried(db_session) -> None:
     failure be resumed and re-billed; the end-to-end simulation caught it.
     """
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(tool="readiness", payload={}, idempotency_key=_key())
+    run_id = await repo.start(tool="readiness", payload={}, idempotency_key=_key())
 
     claimed = await repo.claim_stale(cutoff=datetime.now(UTC) + timedelta(seconds=1))
     assert run_id not in [r.id for r in claimed]
@@ -301,7 +366,7 @@ async def test_readiness_ai_failure_is_never_retried(db_session) -> None:
 async def test_ceilings_per_failure_class(db_session, tool, stage_completed, claims) -> None:
     """`stage` is the last step that COMPLETED, not where the run failed."""
     repo = ToolRunsRepository(db_session)
-    run_id, _ = await repo.start(tool=tool, payload={}, idempotency_key=_key())
+    run_id = await repo.start(tool=tool, payload={}, idempotency_key=_key())
     if stage_completed is not None:
         await repo.set_stage(run_id, stage=stage_completed)
     claimed = [

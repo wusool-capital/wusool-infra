@@ -111,6 +111,27 @@ READINESS_SECTORS: dict[str, SectorFocus] = {
     "Other": SectorFocus.DIVERSIFIED_GENERALIST,
 }
 
+# The Get Started form's own dropdown (9 values) — the shortest vocabulary of
+# the five, because it fronts the site's main CTA rather than a diagnostic
+# tool. Four of its keys ("Healthcare", "Other", and case-insensitively
+# "Manufacturing"/"Logistics") already appear in the tables above and resolve
+# to these same targets, so merging changes nothing for the other tools.
+GET_STARTED_SECTORS: dict[str, SectorFocus] = {
+    "Technology": SectorFocus.TECHNOLOGY,
+    "F&B": SectorFocus.FOOD_AND_BEVERAGE_QSR,
+    "Healthcare": SectorFocus.HEALTHCARE_SERVICES_CLINICS,
+    "Business Services": SectorFocus.B2B_BUSINESS_SERVICES,
+    "Manufacturing": SectorFocus.INDUSTRIAL_MANUFACTURING,
+    # Judgment call, flagged below: covers both owner-operated home services
+    # (cleaning, pest control) and commercial facilities management. Trades
+    # is the closer of the two live options; Property Management / Proptech
+    # would misfile the residential half as real estate.
+    "Home & Facility Services": SectorFocus.TRADE_AND_TECHNICAL_SERVICES,
+    "Retail/Consumer": SectorFocus.RETAIL_E_COMMERCE,
+    "Logistics": SectorFocus.LOGISTICS_3PL_FREIGHT,
+    "Other": SectorFocus.DIVERSIFIED_GENERALIST,
+}
+
 # The valuation tool's own 204 unmapped labels (of 225 total — the other 21
 # already resolve via exact string match or by reusing BENCHMARK_SECTORS).
 # See `_VALUATION_SECTORS_FOR_REVIEW` below for which of these are real
@@ -362,14 +383,18 @@ _VALUATION_SECTORS_FOR_REVIEW: dict[str, SectorFocus] = {
     )
 }
 
-# Merged for lookup: none of the three vocabularies' keys collide (only
-# "Other" is shared between benchmark and readiness, mapping to the same
-# target both times), so one combined dict is simpler than routing
-# `to_sector_focus` by tool.
+# Merged for lookup: where the four vocabularies' keys do collide they agree
+# on the target, so one combined dict is simpler than routing
+# `to_sector_focus` by tool. "Other" is shared by benchmark, readiness and
+# get-started; "Healthcare" by valuation and get-started. Every such pair
+# maps to the same option, so the spread order below does not matter — a
+# future addition that disagrees would silently retarget another tool, which
+# is what `test_sector_mapping.py` pins.
 _MAPPED_SECTORS: dict[str, SectorFocus] = {
     **BENCHMARK_SECTORS,
     **READINESS_SECTORS,
     **VALUATION_SECTORS,
+    **GET_STARTED_SECTORS,
 }
 
 # Vocabularies that deliberately have no mapping yet. Naming them here means

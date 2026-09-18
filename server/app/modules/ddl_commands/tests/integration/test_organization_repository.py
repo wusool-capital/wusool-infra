@@ -55,6 +55,20 @@ async def test_search_by_name_no_match_returns_empty(db_session: AsyncSession) -
     assert results == []
 
 
+async def test_search_by_name_excludes_removed_org(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    from datetime import UTC, datetime
+
+    throwaway_org.name = "Zephyr Manufacturing Co"
+    throwaway_org.removed_at = datetime.now(UTC)
+    await db_session.flush()
+
+    repo = OrganizationRepository(db_session)
+    results = await repo.search_by_name("Zephyr Manufacturing")
+    assert all(o.attio_id != throwaway_org.attio_id for o in results)
+
+
 async def test_get_by_id_with_roles_eager_loads_seller_and_buyer_role(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:

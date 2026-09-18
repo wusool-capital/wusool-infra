@@ -8,6 +8,69 @@ The project has no version tags: merges to `dev` and `prod` deploy their
 respective environments. See [Delivery status](docs/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-18
+
+### Added
+
+- **Get Started** is now a selectable lead-magnet on an organization's
+  `lead_source_detail`, alongside the Valuation Tool, M&A Readiness Tool,
+  Buyer Form and GCC SME Benchmark. Like the Benchmark before it, the tool
+  postdates the legacy workspace, so there is no historical data to backfill
+  — it only needs somewhere for new leads to land.
+
+## 2026-09-17
+
+### Added
+
+- The M&A Readiness Tool and Valuation Tool now unlock the full report a
+  few seconds after the booking-CTA is clicked. The unlocked report can be
+  saved as a PDF via browser print.
+- The **Get Started** form now sends the same two SES emails the other four
+  lead magnets do. A visitor gets a confirmation with a "Book a Call" link.
+  The team gets an internal notice with the submitted figures and links back
+  to the Attio organisation/deal. It had been left out of the email dispatch
+  when that feature shipped, since Get Started didn't exist on `dev` yet.
+
+### Changed
+
+- The four lead magnets are Valuation Tool, M&A Readiness Tool, GCC SME
+  Benchmark, and Buyer Form. None of them reject a repeat submission with
+  `409 you have already completed this` any more.
+- A visitor can resubmit any number of times, for any tool. Every
+  genuinely new attempt gets its own permanent row and its own CRM
+  activity entry. Nothing is ever lost or merged.
+- Dedup at the organization/person level is unaffected. A repeat
+  submission still updates the same Attio organization and person rather
+  than creating a new one.
+- An exact retried request — a network retry of the same submission, not
+  a new visit — still reuses its original row instead of reprocessing.
+  A visitor is never emailed twice, and the M&A Readiness Tool is never
+  double-billed for its Bedrock call.
+
+## 2026-09-16
+
+### Added
+
+- The four lead magnets (Valuation Tool, M&A Readiness Tool, GCC SME
+  Benchmark, Buyer Form) now stamp `organizations.lead_source_detail`
+  themselves, on every submission. The field existed since 2026-09-15, but
+  nothing wrote it except the historical migration and manual Attio edits.
+  If a company submits through more than one tool, the most recent tool
+  wins — the same behavior as every other lead-magnet-supplied organization
+  attribute.
+
+### Fixed
+
+- Organizations removed from Attio (soft-deleted, `removed_at` set) could
+  still surface: a new lead-magnet submission could dedupe-match and reattach
+  itself to a removed org's old record instead of creating a fresh one, and
+  the matching engine's candidate pool for `/find-match` could still include
+  sellers on a removed organization, or seller roles superseded by a newer
+  submission (`is_active = false`). Also affected `/edit-seller`'s,
+  `/edit-buyer`'s, and `/find-match`'s buyer-resolution org-name search,
+  which already excluded superseded roles but not removed orgs. All four
+  queries now exclude removed organizations.
+
 ## 2026-09-15
 
 ### Added
@@ -23,6 +86,16 @@ for current production evidence and open handover items.
   across since the beginning. Where a company used two tools, the most recent
   one is recorded, and a genuinely ambiguous pair (identical timestamps) is
   reported rather than guessed at.
+
+- Every lead-magnet submission (Valuation, M&A Readiness, GCC SME Benchmark,
+  Buyer Network) now sends two emails via SES: a branded confirmation to the
+  visitor with a "Book a Call" link, and an internal notice to the deal team
+  with the submitted details and links back to the Attio organisation/deal.
+  Both are tracked and retried independently, so a failed send never
+  re-sends an email that already landed and never risks the lead itself —
+  the Attio write is already durable by the time either email is attempted.
+  A CloudWatch alarm now fires on the shared environment alert topic if a
+  send permanently fails after SES's own retries are exhausted.
 
 - A record deleted in Attio now disappears from Postgres for **all six**
   mirrored objects, not just two. Deals, notes, buyer roles and seller roles
@@ -74,6 +147,13 @@ for current production evidence and open handover items.
   back to Inbound. Each deal is assigned to an advisor on creation, with a
   configured fallback so the write cannot silently stop if that advisor
   leaves the workspace.
+- The site's **Get Started** form is now served by the platform instead of
+  Tally, as the fifth lead-magnet tool. A submission records the lead before
+  anything else can fail. It then writes the company, the contact, and the
+  seller's own figures — revenue, EBITDA, years in business, and sell
+  timeline — to the CRM. It embeds as a modal, so the existing button opens
+  it in place and the page's URL never changes. The visitor now sees a
+  confirmation instead of the form silently vanishing.
 
 ### Changed
 
@@ -97,6 +177,16 @@ for current production evidence and open handover items.
   on file: the prompt used to show the literal placeholder `Unknown` for a
   blank field, which the model would sometimes echo back as if it were real
   buyer data (a search for "Unknown companies").
+- A visitor who retried a lead-magnet form after a dropped network response
+  was told they had already completed it. Each click generated a new
+  submission id, so the retry looked like a second visit rather than the same
+  one. The id is now fixed for the life of the page, which the Buyer Network
+  and M&A Readiness forms could both hit.
+- A stale lead-magnet submission stuck in the retry queue could abort the
+  entire sweep instead of just itself. That could roll back every other lead
+  the same pass had already finished. The write contract promises a failure
+  "never" escapes the retry step. That wasn't quite true for the Buyer
+  Network's target geography, which has been live since it shipped.
 
 ## 2026-09-13
 

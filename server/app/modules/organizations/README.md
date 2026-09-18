@@ -22,9 +22,9 @@ organizations/
 ## Public contract
 
 `OrganizationRepositoryPort`: `get_by_id`, `get_by_id_with_roles`,
-`search_by_name` (the shared trigram query, `ix_organizations_name_trgm`),
-`create`, `update` — all return `app.models.Organization` or `None` — plus
-`lock`, which returns nothing.
+`search_by_name` (the shared trigram query, `ix_organizations_name_trgm`,
+excludes `removed_at` orgs), `create`, `update` — all return
+`app.models.Organization` or `None` — plus `lock`, which returns nothing.
 
 `lock(attio_id)` takes a `SELECT ... FOR UPDATE` row lock on the
 organization for the rest of the caller's transaction. It exists because

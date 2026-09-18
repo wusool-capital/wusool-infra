@@ -18,7 +18,7 @@ from app.modules.lead_magnets.application.shared.service import LeadMagnetServic
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
-from app.modules.lead_magnets.domain.shared.attio_values import DealType
+from app.modules.lead_magnets.domain.shared.attio_values import DealType, lead_source_detail_label
 from app.modules.lead_magnets.domain.shared.dedup import (
     domain_matches,
     normalise_domain,
@@ -36,6 +36,7 @@ from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWr
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
+from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
 from app.modules.organizations import OrganizationRepository
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -70,6 +71,12 @@ def build_deal_writer() -> AttioDealWriter:
 
 def build_tool_runs(session: AsyncSession) -> ToolRunsRepository:
     return ToolRunsRepository(session)
+
+
+def build_lead_magnet_mailer() -> EmailSenderPort:
+    settings = get_settings()
+    client = get_ses_client(region_name=settings.aws_region)
+    return SesMailer(client)
 
 
 class _RoleAttioWriter:
@@ -119,6 +126,7 @@ class _RoleAttioWriter:
         entry_values = ai.get("entry_values")
         if not isinstance(entry_values, dict):
             entry_values = {}
+        lead_source_detail = lead_source_detail_label(tool)
 
         if tool == "buyer_network":
             buyer = BuyerNetworkPayload.model_validate(payload)
@@ -130,6 +138,7 @@ class _RoleAttioWriter:
                 sector_focus=buyer.sector_focus,
                 entry_values=entry_values,
                 organization_attio_id=await self._find_existing_org(name=name, domain=buyer.domain),
+                lead_source_detail=lead_source_detail,
             )
             subjects = await self._with_person(
                 subjects,
@@ -165,6 +174,7 @@ class _RoleAttioWriter:
             hq_country=seller.geography or seller.country,
             funding_raised=seller.capital_raised,
             organization_attio_id=await self._find_existing_org(name=name, domain=seller.domain),
+            lead_source_detail=lead_source_detail,
         )
         subjects = await self._with_person(
             subjects, name=seller.name, email=seller.email, phone=seller.phone
@@ -209,7 +219,7 @@ class _RoleAttioWriter:
         sweeper re-enter this whole method.
         """
         try:
-            deal_attio_id = await self._deal.write(
+            deal = await self._deal.write(
                 org_attio_id=subjects.org_attio_id,
                 org_name=subjects.org_name or "Unknown",
                 deal_type=deal_type,
@@ -217,9 +227,10 @@ class _RoleAttioWriter:
         except Exception as exc:  # noqa: BLE001 - the org/role write already succeeded
             logger.warning("lead_magnet_deal_write_failed error=%s", exc)
             return subjects
-        if deal_attio_id is None:
+        if deal is None:
             return subjects
-        return dataclasses.replace(subjects, deal_attio_id=deal_attio_id)
+        deal_attio_id, deal_web_url = deal
+        return dataclasses.replace(subjects, deal_attio_id=deal_attio_id, deal_web_url=deal_web_url)
 
 
 def build_valuation_ai() -> ValuationAi:
@@ -229,6 +240,7 @@ def build_valuation_ai() -> ValuationAi:
 def build_submission_service(session: AsyncSession) -> LeadMagnetService:
     """Every tool's pipeline is reachable from the tool name alone, so the
     same service serves a fresh request and a sweeper resume."""
+    settings = get_settings()
     return LeadMagnetService(
         tool_runs=build_tool_runs(session),
         attio=_RoleAttioWriter(
@@ -238,6 +250,9 @@ def build_submission_service(session: AsyncSession) -> LeadMagnetService:
             build_deal_writer(),
         ),
         llm=build_llm(),
+        mailer=build_lead_magnet_mailer(),
+        email_from=settings.lead_magnet_email_from,
+        email_to=settings.lead_magnet_email_to.split(),
     )
 
 

@@ -6,7 +6,7 @@ qualification note — in the background. Nothing after the response can lose
 the application.
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends
 
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
@@ -36,18 +36,13 @@ async def buyer_apply(
     fix.
     """
     service = build_submission_service(session)
-    run_id, outcome = await service.record(
+    run_id = await service.record(
         tool="buyer_network",
         payload=request.model_dump(),
         email=request.email,
         domain=request.domain,
     )
     await session.commit()
-
-    if outcome == "duplicate":
-        raise HTTPException(status.HTTP_409_CONFLICT, "you have already completed this")
-    # "replay" is handled like "new": `run_completion` is idempotent
-    # against a run that already finished.
 
     background.add_task(run_completion, run_id)
 

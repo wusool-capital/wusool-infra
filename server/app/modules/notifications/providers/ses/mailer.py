@@ -58,14 +58,17 @@ class SesMailer:
     def __init__(self, client: "SESClient") -> None:
         self._client = client
 
-    async def send(self, *, to: list[str], from_addr: str, subject: str, body: str) -> None:
+    async def send(
+        self, *, to: list[str], from_addr: str, subject: str, body: str, is_html: bool = False
+    ) -> None:
         def send_email() -> None:
+            body_key = "Html" if is_html else "Text"
             self._client.send_email(
                 Source=from_addr,
                 Destination={"ToAddresses": to},
                 Message={
                     "Subject": {"Data": subject, "Charset": "UTF-8"},
-                    "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
+                    "Body": {body_key: {"Data": body, "Charset": "UTF-8"}},
                 },
             )
 

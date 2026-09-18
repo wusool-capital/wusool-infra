@@ -22,7 +22,7 @@ async function submitForm(){
   // call, so this page no longer composes its own prompt or pushes to
   // Attio itself; both used to be separate fetches to dopamine-relay.
   const payload={
-    submission_id:(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`),
+    submission_id:window.WUSOOL_SUBMISSION_ID,
     name, company:biz, email, sector, revenue, country, domain:cleanDomain,
     answers:{...answers}
   };

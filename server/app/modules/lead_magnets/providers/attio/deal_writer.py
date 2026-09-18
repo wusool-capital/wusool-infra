@@ -53,8 +53,8 @@ class AttioDealWriter:
 
     async def write(
         self, *, org_attio_id: str | None, org_name: str, deal_type: DealType
-    ) -> str | None:
-        """Returns the `deal` record id, or `None` when there is no
+    ) -> tuple[str, str | None] | None:
+        """Returns `(deal record id, web_url)`, or `None` when there is no
         organisation to hang it off — not an error, just nothing to link.
         """
         if not org_attio_id:
@@ -69,7 +69,7 @@ class AttioDealWriter:
         if matches:
             # Oldest wins — `find_deals_by_party` already sorts `created_at
             # asc`, so this is simply the first result.
-            return v.record_id(matches[0])
+            return v.record_id(matches[0]), v.web_url(matches[0])
 
         try:
             return await self._create(org_name, org_attio_id, deal_type, self._owner_id)
@@ -81,7 +81,7 @@ class AttioDealWriter:
 
     async def _create(
         self, org_name: str, org_attio_id: str, deal_type: DealType, owner_id: str
-    ) -> str:
+    ) -> tuple[str, str | None]:
         return await entries.create_deal(
             self._client,
             deal_values(

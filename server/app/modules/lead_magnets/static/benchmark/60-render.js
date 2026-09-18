@@ -28,7 +28,7 @@ function unlock(){
   // funding stage, not the sector, so the CRM write needs the actual
   // sector sent too. SME mode's peer_key already is the sector.
   const payload = {
-    submission_id: (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
+    submission_id: window.WUSOOL_SUBMISSION_ID,
     mode: MODE,
     peer_key: MODE==="tech" ? S.inputs.stage : S.inputs.sector,
     sector: MODE==="tech" ? S.inputs.sector : null,
