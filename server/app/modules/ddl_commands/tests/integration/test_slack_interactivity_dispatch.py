@@ -857,7 +857,7 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
 
     async def fake_create_organization(*_args, **_kwargs):
         call_order.append("create_organization")
-        return "org-new-1"
+        return "org-new-1", None
 
     async def fake_create_role_entry(*_args, **_kwargs):
         call_order.append("create_role_entry")
@@ -958,7 +958,7 @@ def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed
         return {}
 
     async def fake_create_organization(*_args, **_kwargs):
-        return "org-new-1"
+        return "org-new-1", None
 
     async def failing_create_role_entry(*_args, **_kwargs):
         raise AttioError(400, "bad request")
@@ -1007,7 +1007,7 @@ def test_seller_add_form_postgres_failure_after_attio_success_reports_what_lande
         return {}
 
     async def fake_create_organization(*_args, **_kwargs):
-        return "org-new-1"
+        return "org-new-1", None
 
     async def fake_create_role_entry(*_args, **_kwargs):
         return "entry-new-1"

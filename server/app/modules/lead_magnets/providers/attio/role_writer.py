@@ -40,10 +40,12 @@ class AttioRoleWriter:
 
     async def _upsert_organization(
         self, *, org_values: dict[str, object], organization_attio_id: str | None
-    ) -> str:
+    ) -> tuple[str, str | None]:
         """`organization_attio_id` is passed when the caller's dedup lookup
         already matched an existing organisation; otherwise a new one is
-        created."""
+        created. Returns `(org_id, web_url)` — `web_url` is `None` for the
+        patch path since the caller already has the id and never needed a
+        second fetch for a link before now."""
         if organization_attio_id is None:
             return await entries.create_organization(
                 self._client, org_values, is_test=self._is_test
@@ -51,7 +53,7 @@ class AttioRoleWriter:
         org_id = organization_attio_id
         await entries.assert_organization_in_scope(self._client, org_id, is_test=self._is_test)
         await entries.patch_organization(self._client, org_id, org_values)
-        return org_id
+        return org_id, None
 
     async def _upsert_role_entry(
         self, *, list_slug: str, org_id: str, entry_values: dict[str, object]
@@ -81,11 +83,14 @@ class AttioRoleWriter:
         hq_country: str | None = None,
         funding_raised: float | None = None,
         organization_attio_id: str | None = None,
+        lead_source_detail: str | None = None,
     ) -> SubjectRefs:
         """Creates or updates the organisation, then its `seller_role` entry."""
         org_values: dict[str, object] = {"name": organization_name}
         if domain:
             org_values["domains"] = [domain]
+        if lead_source_detail:
+            org_values["lead_source_detail"] = lead_source_detail
         # Mapped, never raw: `sector_focus` is a select, Attio rejects an
         # undefined option, and the live relay only logs that — so a raw
         # tool value would silently drop the sector. `to_sector_focus`
@@ -101,7 +106,7 @@ class AttioRoleWriter:
                 "organizations", "funding_raised", funding_raised
             )
 
-        org_id = await self._upsert_organization(
+        org_id, org_web_url = await self._upsert_organization(
             org_values=org_values, organization_attio_id=organization_attio_id
         )
         entry_id = await self._upsert_role_entry(
@@ -111,6 +116,7 @@ class AttioRoleWriter:
         return SubjectRefs(
             org_attio_id=org_id,
             org_name=organization_name,
+            org_web_url=org_web_url,
             seller_role_entry_id=entry_id,
         )
 
@@ -123,6 +129,7 @@ class AttioRoleWriter:
         sector_focus: list[str],
         entry_values: dict[str, object],
         organization_attio_id: str | None = None,
+        lead_source_detail: str | None = None,
     ) -> SubjectRefs:
         """Same shape as `write_seller_role`. `org_type`/`sector_focus` are
         already Attio's own option titles — validated, not mapped, since the
@@ -132,12 +139,14 @@ class AttioRoleWriter:
         org_values: dict[str, object] = {"name": organization_name}
         if domain:
             org_values["domains"] = [domain]
+        if lead_source_detail:
+            org_values["lead_source_detail"] = lead_source_detail
         if org_type:
             org_values["type"] = validate_org_type(org_type)
         if sector_focus:
             org_values["sector_focus"] = validate_sector_focus(sector_focus)
 
-        org_id = await self._upsert_organization(
+        org_id, org_web_url = await self._upsert_organization(
             org_values=org_values, organization_attio_id=organization_attio_id
         )
         entry_id = await self._upsert_role_entry(
@@ -147,5 +156,6 @@ class AttioRoleWriter:
         return SubjectRefs(
             org_attio_id=org_id,
             org_name=organization_name,
+            org_web_url=org_web_url,
             buyer_role_entry_id=entry_id,
         )

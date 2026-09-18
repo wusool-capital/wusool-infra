@@ -25,6 +25,7 @@ from app.modules.lead_magnets.domain.readiness.readiness import (
 from app.modules.lead_magnets.domain.shared.attio_values import (
     benchmark_values,
     buyer_values,
+    get_started_values,
     readiness_values,
     valuation_values,
 )
@@ -37,6 +38,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     BenchmarkPayload,
     BuyerNetworkPayload,
     BuyerValuesInput,
+    GetStartedPayload,
     ReadinessPayload,
     ReadinessResult,
     ReadinessValuesInput,
@@ -70,6 +72,8 @@ class Pipelines:
             return await self._readiness(payload)
         if tool == "buyer_network":
             return await self._buyer_network(payload)
+        if tool == "get_started":
+            return self._get_started(payload)
         raise NotImplementedError(f"no pipeline for tool {tool!r} yet")
 
     def fallback(self, tool: str, payload: JsonObject) -> JsonObject | None:
@@ -88,6 +92,20 @@ class Pipelines:
         if tool == "valuation":
             return self._valuation(payload)
         return None
+
+    def _get_started(self, payload: JsonObject) -> JsonObject:
+        """Pure lead capture: no model call, nothing computed, nothing the
+        visitor is shown. The form's own figures go to `seller_role` as-is.
+
+        No `fallback()` branch exists for this tool — see `fallback()`'s own
+        docstring above, `None` there is the correct answer for a tool with
+        nothing to fall back to, not a sign this path is unreachable. It is
+        reachable: `get_started_values` can raise `UnmappedSellTimelineError`
+        with no model ever called, and `submit.py::_ensure_ai` catches any
+        exception from this method (not only a Bedrock one), consults
+        `fallback()`, gets `None`, and finishes the run `"failed"` cleanly.
+        """
+        return {"entry_values": get_started_values(GetStartedPayload.model_validate(payload))}
 
     def _benchmark(self, payload: JsonObject) -> JsonObject:
         parsed = BenchmarkPayload.model_validate(payload)

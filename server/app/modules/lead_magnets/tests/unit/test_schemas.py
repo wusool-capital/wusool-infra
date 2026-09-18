@@ -6,6 +6,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     AttioIdentityPayload,
     BenchmarkPayload,
     BuyerNetworkPayload,
+    GetStartedPayload,
     ReadinessPayload,
     ValuationPayload,
 )
@@ -164,3 +165,60 @@ def test_buyer_network_payload_parses_the_real_request_shape() -> None:
     assert parsed.full_name == "Robin"
     assert parsed.email == "robin@acme.com"
     assert parsed.linkedin_url == "https://linkedin.com/in/robin"
+
+
+def test_get_started_payload_parses_the_real_request_shape() -> None:
+    """The stored payload is the raw request dump plus the endpoint's own
+    derived `description` key — this model reads only the `seller_role`
+    entry values out of it and ignores the identity fields, which
+    `AttioIdentityPayload` reads from the same dict."""
+    parsed = GetStartedPayload.model_validate(
+        {
+            "submission_id": "sub-1",
+            "name": "Dana",
+            "company": "Acme Trading",
+            "email": "dana@acme.com",
+            "geography": "UAE",
+            "sector": "Other",
+            "sector_other": "pool maintenance",
+            "description": "Sector (self-described): pool maintenance",
+            "revenue": 3_268_209,
+            "ebitda": 653_641,
+            "years_active": 8,
+            "sell_timeline": "6-12 Months",
+            "domain": "acme.com",
+            "consent": True,
+        }
+    )
+    assert parsed.revenue == 3_268_209
+    assert parsed.ebitda == 653_641
+    assert parsed.years_active == 8
+    assert parsed.sell_timeline == "6-12 Months"
+    assert parsed.consent is True
+
+
+def test_get_started_payload_consent_defaults_to_none_not_false() -> None:
+    """`_values` drops `None` but writes `False`. Defaulting to `False`
+    would record "did not consent" for a payload that simply predates the
+    field, which is a different and wrong claim."""
+    assert GetStartedPayload.model_validate({}).consent is None
+
+
+def test_attio_identity_payload_reads_the_get_started_shape() -> None:
+    """The other half of the same stored dict — this is what makes the tool
+    need no `bootstrap.py` changes at all."""
+    identity = AttioIdentityPayload.model_validate(
+        {
+            "name": "Dana",
+            "email": "dana@acme.com",
+            "company": "Acme Trading",
+            "domain": "acme.com",
+            "sector": "Logistics",
+            "geography": "UAE",
+            "description": "Sector (self-described): pool maintenance",
+        }
+    )
+    assert identity.name == "Dana"
+    assert identity.email == "dana@acme.com"
+    assert identity.geography == "UAE"
+    assert identity.sector == "Logistics"

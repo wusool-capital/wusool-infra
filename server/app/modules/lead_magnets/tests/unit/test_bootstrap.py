@@ -125,7 +125,7 @@ class _FakeDealWriter:
         self.calls.append(kwargs)
         if self._raises:
             raise RuntimeError("Attio 503")
-        return self._result
+        return (self._result, None) if self._result is not None else None
 
 
 async def test_write_reuses_an_existing_org_matched_by_name_and_domain() -> None:
@@ -449,3 +449,79 @@ async def test_write_survives_a_deal_write_failure() -> None:
 
     assert subjects.org_attio_id is not None
     assert subjects.deal_attio_id is None
+
+
+async def test_write_passes_the_tools_lead_source_detail_label_to_the_org_write() -> None:
+    """Each lead magnet stamps `organizations.lead_source_detail` with its
+    own label, on every write — including a patch of an already-deduped
+    org, since a later submission's tool is what should show (last-touch)."""
+    organizations = _FakeOrganizations([_Candidate(attio_id="org-1", domains=["acme.com"])])
+    writer = _FakeRoleWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        writer, organizations, _FakePersonWriter(), _FakeDealWriter()
+    )
+
+    await role_attio_writer.write(
+        tool="valuation", payload={"company": "Acme", "domain": "acme.com"}, ai={}
+    )
+    await role_attio_writer.write(
+        tool="benchmark",
+        payload={"company": "Acme", "domain": "acme.com", "peer_key": "itservices"},
+        ai={},
+    )
+    await role_attio_writer.write(
+        tool="buyer_network", payload={"org_name": "Acme", "domain": "acme.com"}, ai={}
+    )
+
+    assert writer.seller_calls[0]["lead_source_detail"] == "Valuation Tool"
+    assert writer.seller_calls[1]["lead_source_detail"] == "GCC SME Benchmark"
+    assert writer.buyer_calls[0]["lead_source_detail"] == "Buyer Form"
+
+
+async def test_get_started_routes_through_the_seller_branch_with_its_own_field_names() -> None:
+    """Field naming *is* the wiring for this tool.
+
+    `GetStartedRequest` adds no code to `bootstrap.py` — it reaches the
+    organisation and `person` writes purely by spelling its fields the way
+    `AttioIdentityPayload` reads them. Renaming `name` to `full_name` (the
+    buyer branch's spelling) or `geography` to something else would stop the
+    corresponding write silently, with every other test still green.
+
+    Also pins that `get_started` gets a Deal for free through this same
+    generic seller path — it has no branch of its own in `write()`, so it
+    was never obviously going to participate in `_with_deal` until this
+    test actually ran it and checked.
+    """
+    writer = _FakeRoleWriter()
+    person = _FakePersonWriter(result=("person-9", "Dana"))
+    deal = _FakeDealWriter(result="deal-9")
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, _FakeOrganizations([]), person, deal)
+
+    subjects = await role_attio_writer.write(
+        tool="get_started",
+        payload={
+            "company": "Acme Trading",
+            "domain": "acme.com",
+            "sector": "Home & Facility Services",
+            "geography": "UAE",
+            "name": "Dana",
+            "email": "dana@acme.com",
+            "description": "Sector (self-described): pool maintenance",
+        },
+        ai={"entry_values": {"sell_timeline": "Within 6 Months"}},
+    )
+
+    assert writer.buyer_calls == [], "get_started is a seller, not a buyer"
+    call = writer.seller_calls[0]
+    assert call["organization_name"] == "Acme Trading"
+    assert call["domain"] == "acme.com"
+    assert call["hq_country"] == "UAE"
+    assert call["sector"] == "Home & Facility Services"
+    assert call["description"] == "Sector (self-described): pool maintenance"
+    assert call["entry_values"] == {"sell_timeline": "Within 6 Months"}
+
+    assert person.calls[0]["name"] == "Dana"
+    assert person.calls[0]["email"] == "dana@acme.com"
+    assert subjects.person_attio_id == "person-9"
+    assert deal.calls[0]["deal_type"] == "Sell-side"
+    assert subjects.deal_attio_id == "deal-9"

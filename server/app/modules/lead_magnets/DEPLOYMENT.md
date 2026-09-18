@@ -140,20 +140,35 @@ env var), so don't do this against dev's own data expecting it to mirror.
 ## 7. Go live in Webflow
 
 Each tool page is already final — `embed.js`'s `TOOLS` map points straight
-at `/benchmark/`, `/readiness/`, `/valuation/`, `/buyers/` on this host;
-there's no separate "old service" fallback left to switch away from. Going
-live is pasting the snippet into Webflow, once per tool, **replacing** (not
-adding to) whatever Render/Vercel/Tally embed is there today:
+at `/benchmark/`, `/readiness/`, `/valuation/`, `/buyers/` and
+`/get-started/` on this host; there's no separate "old service" fallback
+left to switch away from. Going live is pasting the snippet into Webflow,
+once per tool, **replacing** (not adding to) whatever Render/Vercel/Tally
+embed is there today:
 
 ```html
 <script src="https://tools.wusoolcapital.com/embed.js" data-tool="benchmark"></script>
 ```
 
 Do this one tool at a time, benchmark first (it already creates a full
-Attio record and exercises the widest field set). **Buyer Network last**,
-and only after confirming one real submission lands correctly — its
-rollback also means re-enabling Tally, so treat it as the point of no
-return and do it in a low-traffic window.
+Attio record and exercises the widest field set). **Buyer Network and Get
+Started last**, and only after confirming one real submission lands
+correctly — both replace a Tally form, so rollback means re-enabling Tally.
+Treat them as the point of no return and do them in a low-traffic window.
+
+Get Started is the one tool embedded as a modal rather than inline, because
+it replaces a popup rather than a page section. Its snippet carries two
+extra attributes, and `data-trigger` must select the button already on the
+page:
+
+```html
+<script src="https://tools.wusoolcapital.com/embed.js"
+        data-tool="get-started" data-modal data-trigger="#get-started-btn"></script>
+```
+
+Check the selector against the live markup before pasting: with no matching
+element the script does nothing at all, which looks exactly like a button
+that was never wired up.
 
 Rollback for any tool: revert that one `<script>` tag in Webflow back to
 the old embed. Nothing server-side needs to change.

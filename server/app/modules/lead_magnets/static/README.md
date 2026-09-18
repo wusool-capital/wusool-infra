@@ -1,8 +1,8 @@
 # static
 
-The four tool pages, `embed.js`, and their extracted images.
+The five tool pages, `embed.js`, and their extracted images.
 
-**All four tools are in.** Benchmark, readiness and valuation were ported
+**All five tools are in.** Benchmark, readiness and valuation were ported
 from live tools and repointed; buyers is genuinely new — the Buyer Network
 never had a custom tool page, only a Tally form, so there was nothing to
 port. Its 9 fields plus consent match `BuyerApplyRequest` exactly. Two of
@@ -104,9 +104,14 @@ buyers/
   index.html
   00-styles.css
   10-main.js
+get-started/
+  index.html
+  00-styles.css
+  10-main.js
 embed.js
 img/<sha8>.<ext>       # shared across tools — logo dedupes by content hash
 shared/height.js        # ResizeObserver on <body> -> parent.postMessage, every tool includes it
+shared/submission-id.js # one id per page load, every tool includes it
 ```
 
 Every `<script src>`/`<link href>` carries a hand-bumped `?v=1` cache-buster
@@ -213,3 +218,50 @@ Why this directory and not a top-level one: `_deploy.yml`'s toolkit change
 detection matches `^server/`, and `pyproject.toml`'s hatchling
 `packages = ["app"]` ships every non-Python file under `app/` into the
 wheel — so files here deploy with no CI or Dockerfile change.
+
+## get-started
+
+The second Tally replacement, and the first tool that embeds as a **modal**
+rather than inline: the CTA it replaces opens an overlay over the Webflow
+page, leaving the URL unchanged, so an inline iframe would have meant
+redesigning the page around it. Webflow's side is one snippet —
+`<script src=".../embed.js" data-tool="get-started" data-modal
+data-trigger="#get-started-btn">` — pointed at the button that already
+exists.
+
+Modal mode in `embed.js` is an early return placed *above* every statement of
+the inline path, so a tag without `data-modal` — which is all four of the
+original tools — executes exactly what it always has. `wusool:height` stays
+wired to the inline path only: a modal is a fixed overlay that scrolls
+internally and has no iframe to grow. `test_embed_js.py` pins both, so a
+later refactor that pulled the four onto the modal machinery fails rather
+than quietly changing their behaviour. The iframe is built on first open, so
+a visitor who never clicks the CTA never loads the form.
+
+Its three selects are plain `<select>`s, not the buyers page's click-to-
+toggle `.ms` widget: every one is single-select with at most nine options,
+which is what a native control is for. `test_static_contract.py` pins
+`#sector` to `GET_STARTED_SECTORS` and `#sellTimeline` to
+`SELL_TIMELINE_OPTIONS`; `#geography` is deliberately unpinned, since it
+writes to free-text `organizations.hq_country` and has no option set to
+drift against. Picking `Other` reveals a free-text box, which the endpoint
+folds into `organizations.description` — `Other` on its own maps to
+Diversified / Generalist and tells the seller team nothing.
+
+Revenue and EBITDA are entered in **AED**, the label the live Tally form
+uses, and divided by the pegged 3.6725 before posting — the same conversion
+`benchmark/30-helpers.js`'s `toCalc` already does. Every destination
+downstream is USD and nothing server-side converts.
+
+## shared/submission-id.js
+
+One id per page load, for every tool. It must not be generated inside a
+submit handler: `tool_runs_repository.start()` tells a retry apart from a
+returning visitor by comparing `payload.submission_id` against the colliding
+row's, so a per-click id makes a network retry look like a second visit and
+returns a 409 to someone who never got through. Buyers and readiness
+re-enable their submit button on failure and so could actually hit it;
+benchmark and valuation swallow the failure and carry on, so for them this
+is a no-op today, included so one invariant covers every page.
+`test_static_contract.py::test_no_page_mints_its_own_submission_id` pins
+that no page calls `crypto.randomUUID` itself.

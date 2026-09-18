@@ -1,4 +1,5 @@
-"""Normalisation and key composition for repeat-submitter detection.
+"""Normalisation and key composition for identifying who a submission
+belongs to.
 
 Two different jobs, deliberately not one:
 
@@ -9,18 +10,20 @@ businesses (a founder running two brands, an advisor submitting for several
 clients), and domain alone would merge them permanently. This is also why
 marking `organizations.domains` unique in Attio was rejected.
 
-`idempotency_key` decides whether this person has already completed this
-tool, and is the only one of the three that carries the tool name. Putting
-the tool in the entity key instead would produce one organisation per tool
-— the opposite of dedup.
+`idempotency_key` tags a `tool_runs` row with which client (email+domain)
+it belongs to, for grouping/lookup. It carries no tool name and is not
+unique — a genuinely new submission always gets its own permanent row,
+never blocked and never merged into an older one. Client identity (for
+CRM matching/overwriting) is domain+email only; which tool produced a
+given attempt is recorded on the row itself (`tool_runs.tool`), not folded
+into this key.
 
-Deliberately **not** keyed on `submission_id`: an earlier version included
-it, which meant the key only ever caught a double-click or a retried POST
-of the exact same page load — a second genuine visit always minted a fresh
-`submission_id` and sailed straight through as if it were a new person. The
-key is now `tool|email|domain` alone, so a second real submission from the
-same person, for the same tool, collides on purpose — the caller is
-expected to treat that as "already completed," not silently reprocess it.
+Collapsing an *exact* retried POST of the very same request onto its
+original row (so a network-level retry doesn't reprocess the whole
+pipeline and send a second copy of every email) is a separate concern,
+enforced atomically by `uq_tool_runs_tool_submission_id`
+(`app/models/tool_run.py`) on `(tool, payload->>'submission_id')` — it
+does not go through `idempotency_key` at all.
 """
 
 import re
@@ -114,5 +117,5 @@ def person_key(email: str | None) -> str:
     return normalise_email(email)
 
 
-def idempotency_key(*, tool: str, email: str | None, domain: str | None) -> str:
-    return f"{tool}|{person_key(email)}|{normalise_domain(domain)}"
+def idempotency_key(*, email: str | None, domain: str | None) -> str:
+    return f"{person_key(email)}|{normalise_domain(domain)}"

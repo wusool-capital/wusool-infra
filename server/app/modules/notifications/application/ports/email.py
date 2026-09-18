@@ -9,4 +9,6 @@ from typing import Protocol
 
 
 class EmailSenderPort(Protocol):
-    async def send(self, *, to: list[str], from_addr: str, subject: str, body: str) -> None: ...
+    async def send(
+        self, *, to: list[str], from_addr: str, subject: str, body: str, is_html: bool = False
+    ) -> None: ...

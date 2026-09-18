@@ -14,24 +14,17 @@ from uuid import UUID
 from app.modules.utilities.domain.json_types import JsonObject
 
 ToolRunStatus = Literal["running", "succeeded", "failed", "abandoned"]
-Tool = Literal["valuation", "readiness", "benchmark", "buyer_network", "attio_webhook"]
+Tool = Literal[
+    "valuation", "readiness", "benchmark", "buyer_network", "get_started", "attio_webhook"
+]
 
 # Which step of the write contract last completed. Persisted inside
 # `payload` rather than as a column so a resume knows what it may skip —
 # a run that already paid for its AI output must never pay twice.
-Stage = Literal["ai", "attio"]
-
-# What `start()` found on an `idempotency_key` collision. No new column
-# for this distinction — `payload.submission_id` is already stored for
-# every tool (it's part of the raw request dump), so the conflicting
-# row's own payload is enough to tell the two cases apart:
-#   "new"       -> no collision, this is a genuinely first submission.
-#   "replay"    -> same submission_id as the existing row — the exact
-#                  same request landed twice (a network retry), not a
-#                  new person. Silent: nothing to tell the visitor.
-#   "duplicate" -> different submission_id, same identity — a real
-#                  second visit from the same person. Rejected, visibly.
-StartOutcome = Literal["new", "replay", "duplicate"]
+# `email_confirmation`/`email_internal` are tracked separately, not as one
+# `email` stage: a sweeper resume after the internal send fails must not
+# re-send the visitor's confirmation, which already landed.
+Stage = Literal["ai", "attio", "email_confirmation", "email_internal"]
 
 
 class UnknownToolError(ValueError):
@@ -80,3 +73,9 @@ class SubjectRefs:
     # skip the deal write. A row stored before this field existed simply
     # defaults it.
     deal_attio_id: str | None = None
+    # Same as `deal_attio_id`: payload-only, used by the email stages to
+    # link back to Attio. `None` whenever Attio's response omits it, or the
+    # org write hit the patch path (an existing org matched by dedup, no
+    # fresh `web_url` fetched for it).
+    org_web_url: str | None = None
+    deal_web_url: str | None = None

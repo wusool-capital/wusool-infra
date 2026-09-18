@@ -224,7 +224,13 @@ body{font-family:'DM Sans',sans-serif;background:#fff;color:#000523;min-height:1
 @media(max-width:900px){.footer__inner{grid-template-columns:1fr}.footer__left{border-radius:0}.footer__right{min-height:280px;border-radius:0}.navbar-inner{padding:0 20px}}
 @media(max-width:768px){.nav-menu{display:none}.btn-primary-cta-nav.desktop-cta{display:none}.menu-button-2{display:flex}.mobile-cta-bar{display:flex;background:rgba(26,26,26,0.95);padding:12px 20px;border-top:1px solid rgba(255,255,255,0.08)}.mobile-btn{width:100%;justify-content:center}}
 @media(max-width:580px){.what-to-expect,.contact-grid,.dimensions-grid{grid-template-columns:1fr}.welcome-hero h1{font-size:28px}.cta-block{flex-direction:column}.options-grid{grid-template-columns:1fr}}
-@media print{.results-screen{display:block!important}.results-hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}#navbar-transparent,.progress-wrap,.loading-screen,.nav-row,.btn-back,.btn-next,.footer-section,.gate-overlay{display:none!important}.results-gate-blur{filter:none!important}}
+@media print{
+  .results-screen{display:block!important}
+  .results-hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #navbar-transparent,.progress-wrap,.loading-screen,.nav-row,.btn-back,.btn-next,.footer-section{display:none!important}
+  body.unlocked .gate-overlay{display:none!important}
+  body.unlocked .results-gate-blur{filter:none!important}
+}
 
 /* EMBEDDED-MODE HEIGHT FIX: `100vh` inside an iframe is the iframe's own
    current height, which `shared/height.js` computes from this page's own

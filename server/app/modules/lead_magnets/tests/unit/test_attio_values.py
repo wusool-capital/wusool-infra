@@ -16,16 +16,23 @@ from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
     BenchmarkInputs,
     BenchmarkResult,
 )
+from app.modules.lead_magnets.domain.get_started.get_started import UnmappedSellTimelineError
 from app.modules.lead_magnets.domain.readiness.readiness import AdvisoryContent
 from app.modules.lead_magnets.domain.shared.attio_values import (
     benchmark_values,
     buyer_values,
     display_name,
+    get_started_values,
+    lead_source_detail_label,
     person_values,
     readiness_values,
     valuation_values,
 )
-from app.modules.lead_magnets.domain.shared.schemas import BuyerValuesInput, ReadinessValuesInput
+from app.modules.lead_magnets.domain.shared.schemas import (
+    BuyerValuesInput,
+    GetStartedPayload,
+    ReadinessValuesInput,
+)
 from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation, ValuationInputs
 
 _BAND = Band(id="sme", label="SME", max_usd=None, ebitda_adj=1.0, rev_emp_mult=1.0, rent_mult=1.0)
@@ -274,3 +281,69 @@ def test_person_values_includes_phone_only_when_given() -> None:
 
     assert with_phone["phone"] == "+971500000000"
     assert "phone" not in without_phone
+
+
+@pytest.mark.parametrize(
+    ("tool", "label"),
+    [
+        ("valuation", "Valuation Tool"),
+        ("readiness", "M&A Readiness Tool"),
+        ("benchmark", "GCC SME Benchmark"),
+        ("buyer_network", "Buyer Form"),
+    ],
+)
+def test_lead_source_detail_label_matches_the_attio_option_titles(tool: str, label: str) -> None:
+    assert lead_source_detail_label(tool) == label
+
+
+def test_lead_source_detail_label_is_none_for_a_non_lead_magnet_tool() -> None:
+    assert lead_source_detail_label("attio_webhook") is None
+    assert lead_source_detail_label("unknown") is None
+
+
+def test_get_started_values_land_on_the_seller_role_slugs() -> None:
+    """The only genuinely new mapping in this tool: five `seller_role`
+    slugs, two of them currency-typed.
+
+    A typo'd slug or a bare float sent to a currency attribute fails here
+    rather than in the background Attio write, where it would be a logged
+    warning on a lead that looked accepted.
+    """
+    values = get_started_values(
+        GetStartedPayload(
+            revenue=1_000_000,
+            ebitda=250_000,
+            years_active=7,
+            sell_timeline="Within 6 Months",
+            consent=True,
+        )
+    )
+
+    assert values == {
+        "est_revenue": {"currency_value": 1_000_000.0},
+        "est_ebitda": {"currency_value": 250_000.0},
+        "years_active": 7,
+        "sell_timeline": "Within 6 Months",
+        "data_consent": True,
+    }
+
+
+def test_get_started_values_drop_absent_fields_rather_than_nulling_them() -> None:
+    """An explicit null in Attio means "clear this field", which would wipe
+    a value another tool wrote for the same organisation."""
+    assert get_started_values(GetStartedPayload()) == {}
+
+
+def test_get_started_values_keep_a_negative_ebitda() -> None:
+    """A loss-making business is a real submission — `_values` drops `None`,
+    not falsy, so 0 and negatives must survive."""
+    values = get_started_values(GetStartedPayload(revenue=0, ebitda=-50_000))
+    assert values["est_revenue"] == {"currency_value": 0.0}
+    assert values["est_ebitda"] == {"currency_value": -50_000.0}
+
+
+def test_get_started_values_reject_an_unknown_sell_timeline() -> None:
+    """Attio only logs an unknown select option, so an unvalidated value
+    would drop the timeline silently on every submission."""
+    with pytest.raises(UnmappedSellTimelineError):
+        get_started_values(GetStartedPayload(sell_timeline="Sometime soon"))

@@ -216,7 +216,9 @@ async def patch_role_entry(
     )
 
 
-async def create_organization(client: AttioClientProtocol, values: dict, *, is_test: bool) -> str:
+async def create_organization(
+    client: AttioClientProtocol, values: dict, *, is_test: bool
+) -> tuple[str, str | None]:
     """`values` is already Attio's own per-attribute write shape (see
     `write_payload.build_attio_values`), same as `patch_organization` — the
     only difference from an edit is this is a `POST` with no existing
@@ -226,11 +228,16 @@ async def create_organization(client: AttioClientProtocol, values: dict, *, is_t
     `create_role_entry` stamps `is_active`: it is bot-owned, every create
     must carry it, and Attio's checkbox filter has no "is empty" — a record
     written without it is invisible in the UI of both environments.
+
+    Returns `(record_id, web_url)` — `web_url` is Attio's own link to the
+    record, `None` if the response ever omits it, for a caller that wants to
+    link back to Attio (e.g. an internal notification email) without a
+    second round-trip.
     """
     response = await client.post(
         "/objects/organizations/records", {"data": {"values": {**values, "is_test": is_test}}}
     )
-    return response["data"]["id"]["record_id"]
+    return response["data"]["id"]["record_id"], response["data"].get("web_url")
 
 
 async def create_role_entry(
@@ -364,11 +371,14 @@ async def find_deals_by_party(
     return matches
 
 
-async def create_deal(client: AttioClientProtocol, values: dict, *, is_test: bool) -> str:
+async def create_deal(
+    client: AttioClientProtocol, values: dict, *, is_test: bool
+) -> tuple[str, str | None]:
     """Exact mirror of `create_organization` — see its docstring for why
-    `is_test` is stamped here rather than by the caller."""
+    `is_test` is stamped here rather than by the caller, and for the
+    `(record_id, web_url)` return shape."""
     response = await client.post(
         f"/objects/{_DEAL_OBJECT}/records",
         {"data": {"values": {**values, "is_test": is_test}}},
     )
-    return response["data"]["id"]["record_id"]
+    return response["data"]["id"]["record_id"], response["data"].get("web_url")
