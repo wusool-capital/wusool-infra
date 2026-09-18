@@ -95,7 +95,8 @@ class Organization(Base):
     ticket_size: Mapped[str | None] = mapped_column(Text)
     lead_source: Mapped[str | None] = mapped_column(Text)
     # Added 2026-09-15: which lead-magnet the company arrived through
-    # (Valuation Tool, M&A Readiness Tool, Buyer Form, GCC SME Benchmark) —
+    # (Valuation Tool, M&A Readiness Tool, Buyer Form, GCC SME Benchmark,
+    # Get Started) —
     # the detail `lead_source` above cannot carry, since it only distinguishes
     # Inbound from Outbound. Single-valued even though SOURCE's attribute is a
     # multiselect: crm-sync's Get-LatestLeadSourceDetail collapses several

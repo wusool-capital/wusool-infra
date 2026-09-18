@@ -74,7 +74,7 @@ Type: object | API identifier: `organizations`
 | `linkedin` | `text` | attio | - |
 | `ticket_size` | `text` | attio | - |
 | `lead_source` | `enum` (Inbound / Outbound) | attio | How the organization reached us, not which tool. Every migrated record is written Inbound; Outbound is reserved for manual outreach going forward |
-| `lead_source_detail` | `enum` (Valuation Tool / M&A Readiness Tool / Buyer Form / GCC SME Benchmark) | attio | Added 2026-09-15. Which lead-magnet the company arrived through. Titles copied verbatim from SOURCE `companies.lead_source`, plus GCC SME Benchmark which postdates SOURCE. SOURCE's attribute is a multiselect, so the migration keeps the value with the most recent `active_from` |
+| `lead_source_detail` | `enum` (Valuation Tool / M&A Readiness Tool / Buyer Form / GCC SME Benchmark / Get Started) | attio | Added 2026-09-15. Which lead-magnet the company arrived through. Titles copied verbatim from SOURCE `companies.lead_source`, plus GCC SME Benchmark and Get Started (added 2026-09-18), which postdate SOURCE and so carry no historical data to backfill. SOURCE's attribute is a multiselect, so the migration keeps the value with the most recent `active_from` |
 | `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
 | `is_active` | `boolean` | attio | - |
 
@@ -423,7 +423,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
 
-`lead_source` holds Inbound/Outbound; `lead_source_detail` (added 2026-09-15) holds which lead-magnet the company arrived through. SOURCE's own attribute is a multiselect, so the migration keeps the value with the most recent `active_from` — a company that ran two tools is recorded as the later one.
+`lead_source` holds Inbound/Outbound; `lead_source_detail` (added 2026-09-15) holds which lead-magnet the company arrived through — Get Started was added 2026-09-18. SOURCE's own attribute is a multiselect, so the migration keeps the value with the most recent `active_from` — a company that ran two tools is recorded as the later one.
 
 This column list is abridged: it omits the 2026-08-19 handover block (`estimated_arr`, the social profiles, `foundation_date`, `ticket_size`, `employee_range`, `linkedin`, `logo_url`) and `is_active`. See `server/SCHEMA.md` for the authoritative list.
 

@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
 respective environments. See [Delivery status](docs/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-18
+
+### Added
+
+- **Get Started** is now a selectable lead-magnet on an organization's
+  `lead_source_detail`, alongside the Valuation Tool, M&A Readiness Tool,
+  Buyer Form and GCC SME Benchmark. Like the Benchmark before it, the tool
+  postdates the legacy workspace, so there is no historical data to backfill
+  — it only needs somewhere for new leads to land.
+
 ## 2026-09-15
 
 ### Added
