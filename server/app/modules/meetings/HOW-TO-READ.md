@@ -76,7 +76,7 @@ support those two files.
 ## The five layers, and what each one is *for*
 
 This module follows the repo-wide "modular monolith" layering
-(`docs/dev/MODULAR_MONOLITH_GUIDE.md`). If you already know that guide,
+(`docs/internal/dev/MODULAR_MONOLITH_GUIDE.md`). If you already know that guide,
 skip this section. If you don't, here's the one-line job of each folder,
 in the order data flows through them:
 

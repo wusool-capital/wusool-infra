@@ -15,6 +15,7 @@
 ## Technical Documentation
 
 * [Platform architecture](technical/README.md)
+* [Architecture diagram](technical/architecture.md)
 * [Wusool Toolkit](technical/toolkit.md)
 * [WusoolScribe](technical/scribe.md)
 * [Attio and database sync](technical/attio-sync.md)

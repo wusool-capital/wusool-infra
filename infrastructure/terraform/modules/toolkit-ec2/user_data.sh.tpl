@@ -78,6 +78,18 @@ echo 'APP_ENV=${app_env}' >> "/opt/toolkit/${app.name}/.env.production"
 chmod 600 "/opt/toolkit/${app.name}/.env.production"
 %{ endfor }
 
+# The architecture viewer is protected by Caddy Basic Auth. The human-readable
+# phrase is supplied through the existing Secrets Manager env map and is
+# converted to Caddy's password hash format only on the instance.
+ARCHITECTURE_BASIC_AUTH_PASSWORD=$(echo "$SECRET_JSON_toolkit" | jq -r '.env.ARCHITECTURE_BASIC_AUTH_PASSWORD // empty')
+if [ -z "$ARCHITECTURE_BASIC_AUTH_PASSWORD" ]; then
+  echo "ARCHITECTURE_BASIC_AUTH_PASSWORD is required for the protected architecture route" >&2
+  exit 1
+fi
+docker pull caddy:2
+ARCHITECTURE_BASIC_AUTH_HASH=$(docker run --rm caddy:2 caddy hash-password --plaintext "$ARCHITECTURE_BASIC_AUTH_PASSWORD")
+unset ARCHITECTURE_BASIC_AUTH_PASSWORD SECRET_JSON_toolkit
+
 cat > /opt/toolkit/caddy/Caddyfile <<CADDYEOF
 %{ for app in apps }
 ${app.site_addresses} {
@@ -85,7 +97,18 @@ ${app.site_addresses} {
   # pages are ~750KB of static HTML, and a 1-vCPU Python process is the
   # wrong place to gzip them. Harmless for the Slack bot's small JSON.
   encode zstd gzip
-  reverse_proxy ${app.name}:8000
+  @architecture {
+    path /architecture /architecture/*
+  }
+  handle @architecture {
+    basic_auth {
+      architecture $${ARCHITECTURE_BASIC_AUTH_HASH}
+    }
+    reverse_proxy ${app.name}:8000
+  }
+  handle {
+    reverse_proxy ${app.name}:8000
+  }
   log {
     output file /data/${app.name}-access.log
   }

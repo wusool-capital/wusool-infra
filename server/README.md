@@ -70,7 +70,7 @@ docker compose up --build
 
 ### Configuring the Slack app
 
-One Slack app for all 5 commands — see `docs/dev/SLACK_APP_SETUP.md` at the
+One Slack app for all 5 commands — see `docs/internal/dev/SLACK_APP_SETUP.md` at the
 repo root for the full checklist (Slash Commands table, Interactivity URL,
 OAuth scopes, signing secret). `ddl_commands` also needs `ATTIO_API_KEY`/
 `ATTIO_WEBHOOK_SECRET` (SOURCE Attio write access + webhook signing) alongside

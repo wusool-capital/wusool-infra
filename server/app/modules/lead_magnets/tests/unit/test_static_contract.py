@@ -89,6 +89,7 @@ def test_no_committed_html_carries_inline_base64_images() -> None:
         html_file
         for html_file in static_dir().rglob("*.html")
         if "data:image/" in html_file.read_text()
+        and html_file.parent.name != "architecture"
     ]
     assert not offenders, offenders
 

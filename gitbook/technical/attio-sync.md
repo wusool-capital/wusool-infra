@@ -29,6 +29,12 @@ slugs, PostgreSQL columns, and migration decisions.
   rely on the webhook/full sync for the complete mirror.
 - WusoolScribe meeting processing writes a CRM note, including meetings with no
   resolved organization.
+- The mirror handles six Attio-backed tables: `organizations`, `person`,
+  `deals`, `buyer_roles`, `seller_roles`, and `notes`. Attio deletions are
+  represented as reversible `removed_at` timestamps rather than hard deletes.
+- Notes use `notes.attio_id` to distinguish Attio-created notes from locally
+  authored notes whose Attio push did not succeed. Only notes with a verified
+  Attio identity participate in deletion reconciliation.
 
 One SOURCE workspace contains test and production records. `is_test` is always
 set on system-created records. Each environment reads only its own side; an
@@ -77,3 +83,23 @@ database-only correction.
 - PostgreSQL-only edits to mirrored fields can be overwritten by full sync.
 - Validation scripts compare counts, relationships, required values, and
   environment flags. Failed validation blocks completion.
+- The full resync performs deletion reconciliation before its final mirror
+  count check. A count mismatch after reconciliation is a failed sync and must
+  be investigated before treating the run as successful.
+- For existing databases, `server/scripts/postgres-sync/prod/backfill-notes-attio-id.py`
+  can identify notes whose Attio identity is known. It is dry-run by default;
+  `--apply` requires explicit operator approval and the approved production
+  database/Attio access path. Locally authored notes remain `NULL` and are
+  intentionally excluded from deletion reconciliation.
+
+## Failure handling
+
+- If the nightly full resync fails, preserve the workflow run URL and logs,
+  confirm that no zero-record or partial-page response was accepted, and use
+  the deployment and database runbooks before retrying.
+- If a count or content check fails, stop treating the mirror as converged.
+  Compare the affected Attio object/list-entry counts and inspect the
+  reconciliation log before any manual database correction.
+- If the notes backfill reports unexpected unmatched rows, leave them `NULL`
+  and escalate with the note type and counts. Do not infer an Attio ID from a
+  local UUID.
