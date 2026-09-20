@@ -34,12 +34,12 @@ Use `fix/short-description` for bug fixes and
 ## Toolchain
 
 This repository is managed with **OpenTofu**, not HashiCorp Terraform. The
-version is pinned in `terraform/.opentofu-version` and CI installs exactly that
-version — keep your local install matching it.
+version is pinned in `infrastructure/terraform/.opentofu-version` and CI
+installs exactly that version — keep your local install matching it.
 
 ```bash
 brew install opentofu     # macOS; see opentofu.org/docs/intro/install for others
-tofu version              # must match terraform/.opentofu-version
+tofu version              # must match infrastructure/terraform/.opentofu-version
 ```
 
 Do not run `terraform` against this repository. The two tools write different
@@ -62,17 +62,39 @@ tofu validate
 Set-Location ../../../..
 ```
 
+Repeat `tofu init -backend=false` and `tofu validate` for every changed stack,
+including `scribe-updates`. Do not initialize a remote backend for local
+validation.
+
+For changes under `server/`, run from `server/`:
+
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run ty check .
+uv run pytest
+uv run alembic check       # when models or migrations changed
+```
+
+For migration or model changes, the database schema workflow also runs the
+single-head check, upgrades a disposable PostgreSQL database, and checks model
+drift. Resolve multiple migration heads in a reviewed PR before merging.
+
+For PowerShell or shell-script changes, run the applicable PowerShell quality
+and shell-test workflows. Their repository entry points are
+`Invoke-ScriptAnalyzer` and `./checks.sh shell` from `server/` respectively.
+
 For changes to the published GitBook documentation, install Vale and run:
 
 ```bash
 brew install vale
-vale CHANGELOG.md docs/README.md docs/SUMMARY.md docs/user-guide docs/technical docs/operations docs/deliverables
+vale CHANGELOG.md gitbook/README.md gitbook/SUMMARY.md gitbook/user-guide gitbook/technical gitbook/operations gitbook/deliverables
 ```
 
 Follow the page templates and content budgets in
-[`docs/dev/DOCUMENTATION_STYLE_GUIDE.md`](docs/dev/DOCUMENTATION_STYLE_GUIDE.md).
+[`docs/internal/dev/DOCUMENTATION_STYLE_GUIDE.md`](docs/internal/dev/DOCUMENTATION_STYLE_GUIDE.md).
 
-When Terraform architecture changed:
+When OpenTofu infrastructure architecture changed:
 
 ```text
 Use $sync-terraform-docs
@@ -84,11 +106,14 @@ Review the generated documentation before committing.
 
 ```powershell
 git status
-git add --all
+git add <files belonging to this change>
 git diff --cached
-git commit -m "Describe the infrastructure change"
+git commit -m "<type>(api): 4–8 word message"
 git push -u origin HEAD
 ```
+
+Use one of `feat`, `fix`, `docs`, `chore`, or `refactor` for `<type>`. Stage
+only files belonging to the change.
 
 `git push -u origin HEAD` pushes the current feature branch. It does not push
 directly to `dev`.
@@ -102,11 +127,13 @@ After pushing, open the repository in GitHub:
 3. Set the base branch to `dev`.
 4. Complete the pull-request template.
 5. Add an authorized reviewer.
-6. Create the pull request and wait for Terraform CI.
+6. Create the pull request and wait for all applicable required checks. These
+   may include OpenTofu, Python quality/tests, database schema, PowerShell,
+   shell, and documentation checks depending on the changed paths.
 
 The pull request may merge only after:
 
-1. Terraform CI succeeds.
+1. All applicable required CI checks succeed.
 2. The branch is up to date with `dev`.
 3. At least one authorized reviewer approves it.
 4. All review conversations are resolved.
@@ -155,6 +182,12 @@ for `dev` in GitHub:
    - `OpenTofu Validate (infrastructure/terraform/stacks/toolkit)`
    - `OpenTofu Validate (infrastructure/terraform/stacks/postgres)`
    - `OpenTofu Validate (infrastructure/terraform/stacks/peering)`
+   - `OpenTofu Validate (infrastructure/terraform/stacks/scribe-updates)`
+   - `Python quality (required)`
+   - `Python unit tests (required)`
+   - `Python integration tests (required)`
+   - `Database schema (required)`
+   - `Shell tests (required)`
 9. Enable **Require branches to be up to date before merging**.
 10. Enable **Require conversation resolution before merging**.
 11. Enable **Block force pushes** and **Block deletions**.
@@ -162,3 +195,9 @@ for `dev` in GitHub:
 
 The workflow file validates changes, while the GitHub ruleset prevents merging
 when validation or approval is missing.
+
+## Operational documentation
+
+For production incidents, consult and maintain the relevant guide under
+`docs/runbooks/`. When a problem is resolved, create a new redacted postmortem under
+`docs/postmortems/` using [`docs/postmortems/README.md`](docs/postmortems/README.md).

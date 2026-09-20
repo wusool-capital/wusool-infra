@@ -28,7 +28,7 @@ inline, because the CTA it replaces opens an overlay (see `static/README.md`).
 
 ## Structure
 
-_New to this codebase's layering? See [the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
+_New to this codebase's layering? See [the modular monolith guide](../../../../docs/internal/dev/MODULAR_MONOLITH_GUIDE.md)._
 
 Layered `domain → application → persistence → providers → api`
 (enforced by `tests/test_architecture.py`), and inside `domain/` and

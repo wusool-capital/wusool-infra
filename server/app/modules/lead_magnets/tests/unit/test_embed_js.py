@@ -73,7 +73,11 @@ def test_the_embed_carries_no_fixed_dimensions_and_can_still_scroll() -> None:
 def test_tools_map_covers_every_served_tool_directory() -> None:
     """The reverse of the check above: a tool page that ships without a
     `TOOLS` entry is unreachable from Webflow, and nothing else notices."""
-    served = {p.name for p in static_dir().iterdir() if p.is_dir() and (p / "index.html").is_file()}
+    served = {
+        p.name
+        for p in static_dir().iterdir()
+        if p.is_dir() and p.name != "architecture" and (p / "index.html").is_file()
+    }
     entries = {src.strip("/") for src in _tools_map().values()}
     assert entries == served
 

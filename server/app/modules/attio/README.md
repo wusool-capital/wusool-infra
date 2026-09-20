@@ -18,7 +18,7 @@ verification, retry, registry lookups), not just `AttioClientProtocol`.
 
 ## Structure
 
-_New to this codebase's layering? See [the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
+_New to this codebase's layering? See [the modular monolith guide](../../../../docs/internal/dev/MODULAR_MONOLITH_GUIDE.md)._
 
 ```
 attio/

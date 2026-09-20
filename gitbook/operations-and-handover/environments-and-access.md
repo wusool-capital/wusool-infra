@@ -13,6 +13,18 @@ roles. Test records in Attio distinguish development data from production data.
 DNS is managed in Cloudflare. The repository defines the target services but
 does not manage or prove the live Cloudflare records.
 
+## Interactive architecture viewer
+
+The production architecture viewer is served at
+`https://tools.wusoolcapital.com/architecture/` and protected by Caddy Basic
+Auth. The username is `architecture`. The memorable password is supplied
+out-of-band through the Toolkit Secrets Manager secret as
+`env.ARCHITECTURE_BASIC_AUTH_PASSWORD`; do not commit or document its value.
+
+The EC2 bootstrap converts that phrase to Caddy's password-hash format at
+runtime. If the secret field is missing, the bootstrap stops instead of
+serving the viewer without authentication.
+
 ## Required access
 
 An operator needs the minimum role for the task:

@@ -6,7 +6,7 @@ reusable across buyer and seller; only the field set
 (`domain/field_plans.py`) and which edit form gets opened differ.
 
 _New to this codebase's layering? See
-[the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
+[the modular monolith guide](../../../../docs/internal/dev/MODULAR_MONOLITH_GUIDE.md)._
 
 ## Structure
 

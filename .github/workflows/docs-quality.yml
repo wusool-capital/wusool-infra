@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'CHANGELOG.md'
+      - 'gitbook/**'
       - '.vale.ini'
       - '.github/styles/**'
       - '.github/workflows/docs-quality.yml'
@@ -14,6 +15,7 @@ on:
       - prod
     paths:
       - 'CHANGELOG.md'
+      - 'gitbook/**'
       - '.vale.ini'
       - '.github/styles/**'
       - '.github/workflows/docs-quality.yml'
@@ -32,4 +34,5 @@ jobs:
         with:
           version: 3.17.0
           sync: false
-          files: '["CHANGELOG.md", "docs/README.md", "docs/SUMMARY.md", "docs/user-guide", "docs/technical", "docs/operations", "docs/deliverables"]'
+          fail_level: warning
+          files: '["CHANGELOG.md", "gitbook/README.md", "gitbook/SUMMARY.md", "gitbook/user-guide", "gitbook/technical", "gitbook/operations", "gitbook/deliverables"]'

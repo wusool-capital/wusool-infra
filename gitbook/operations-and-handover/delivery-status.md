@@ -12,6 +12,7 @@ release.
 | PostgreSQL | Private encrypted RDS, deletion protection, managed credentials, seven-day backups | Delivered; restore test outstanding |
 | Attio real-time sync | Signed webhook implementation | Delivered; verify current webhook subscription live |
 | Attio nightly full resync | Scheduled production workflow | Delivered; failure notification implemented, live delivery unverified |
+| Attio mirror deletion reconciliation | Six mirrored tables use reversible `removed_at` handling; final counts are checked after reconciliation | Delivered in code; production run evidence requires verification |
 | n8n | Dev/prod infrastructure, HTTPS configuration, pinned images, logs and alarms | Delivered; recovery procedure outstanding |
 | WusoolScribe | Application integration and update infrastructure are documented | Production environment and release state require live verification |
 | Website lead tools | Production hostname and Toolkit hosting configuration are present | Production DNS, secret, deploy, and end-to-end status require live verification |
@@ -28,6 +29,8 @@ release.
 | High | Reconcile Attio and PostgreSQL and confirm all current migrations in production | Signed reconciliation and migration evidence |
 | Medium | Bring the production n8n re-provisioning procedure in line with the current module | Reviewed drill using current configuration |
 | Medium | Verify production lead-tool DNS, secret, deployment, and each end-to-end submission | Dated production smoke-test evidence |
+| Medium | Verify lead-magnet SES sender/recipient configuration and the email-failure alarm end to end | Dated visitor-confirmation and internal-notice delivery test, including an acknowledged alarm drill |
+| Medium | Run the notes identity backfill review for existing production data | Dry-run output reviewed; any approved apply run has an operator and reconciliation evidence |
 | Medium | Verify Scribe production release, update path, and client access | Dated install/update/CRM submission test |
 | Medium | Confirm People Data Labs response handling against an authorized live account | Recorded successful enrichment test |
 | Medium | Verify operational and security alert subscriptions and chat authorization | Dated alert-delivery drill |

@@ -14,6 +14,7 @@ accepted them or that chat authorization remains active.
 | Toolkit CPU exceeds its threshold | Sustained host pressure | Alert only |
 | n8n EC2 status check fails | AWS detects host or instance impairment | Alert only |
 | n8n CPU exceeds its threshold | Sustained host pressure | Alert only |
+| Lead-magnet email send fails | SES retries are exhausted for a visitor confirmation or internal notice | Alert only; the lead remains safe in Attio |
 | GuardDuty or Security Hub finding | Potential security issue | Security notification |
 
 The nightly Attio-to-PostgreSQL resync runs in GitHub Actions at 02:00
@@ -50,5 +51,10 @@ record contains enough evidence for follow-up without secrets or private data.
 - For a nightly sync failure, preserve the run URL and error. Confirm whether
   real-time sync continued. Rerun only after you understand the failure, then
   reconcile Attio and PostgreSQL.
+- For a lead-magnet email alarm, inspect the Toolkit CloudWatch log event and
+  confirm whether the visitor confirmation or internal notice failed. Check
+  `LEAD_MAGNET_EMAIL_FROM` and `LEAD_MAGNET_EMAIL_TO` configuration and SES
+  delivery status before retrying. Do not recreate the lead: it was written to
+  Attio before email delivery.
 - If no alert arrived for a confirmed incident, treat alert delivery itself as
   impaired and verify SNS subscriptions and chat authorization.
