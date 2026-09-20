@@ -71,20 +71,36 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 Concrete rules for this repository. They are enforced in CI — follow them
 while writing, not after a failed pipeline.
 
+- For production incidents, use and maintain the relevant `docs/runbooks/` guide; after resolving one, follow `docs/postmortems/README.md`.
+- When architecture, integrations, deployment, or infrastructure changes, update `docs/internal/architecture/wusool-platform.architecture.json`, regenerate its HTML with Archify, and copy it to `server/app/modules/lead_magnets/static/architecture/index.html`.
+
 ### Type safety is not optional
 
 - Pydantic v2 (`pydantic-settings`) for every `Settings` class and every
   I/O schema; frozen dataclasses for framework-free domain values (`Money`,
   entities, value objects).
-- No bare `dict` / `list` / `Any` at a module or function boundary — model
-  it. `ruff` ANN (annotation completeness) is on; annotate every signature.
+- Hard rule: do not add `Any`, `object`, `Object`, `JsonObject`, or equivalent
+  loose return types such as `-> Any`, `-> object`, `-> Object`, or
+  `-> JsonObject`.
+- Do not represent structured JSON as bare `dict`, `list`, `Mapping`, or
+  untyped nested collections when it can be modeled. Create a Pydantic model
+  for request/response payloads, provider responses, persistence DTOs,
+  configuration, webhook bodies, and serialized data.
+- No bare `dict` / `list` / loose type at a module or function boundary. Parse
+  untrusted JSON into a Pydantic model at the boundary and pass the model
+  inward; do not let raw JSON spread through the application.
+- Opaque vendor data is the only exception, and must stay at the provider
+  boundary, be explicitly named, and be converted or validated before crossing
+  into application/domain code. Never use the exception to avoid modeling a
+  known payload.
+- `ruff` ANN (annotation completeness) is on; annotate every signature.
 - Ports are `typing.Protocol`s at the `application/` boundary and **never
   expose ORM types** — map to/from domain objects in `persistence/`.
 
 ### Comments
 
-Any comment added in code should only explain "why", not "how" — keep
-comments clean, clear, and concise, and only add ones that add value.
+Any comment added in code should only explain "why", not "how" — keep  
+comments clean, clear, and concise, and only add ones that add value. (Max 20 words per comment).
 
 ### Run the checks before every commit and PR
 

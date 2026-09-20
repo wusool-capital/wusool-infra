@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Wusool Platform Architecture",
+    "quality_profile": "showcase",
+    "output": "docs/internal/architecture/wusool-platform.html",
+    "repository": {
+      "url": "https://github.com/wusool-capital/wusool-infra.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "1a5d4f2db789e548da62beb0962034837b600cdf"
+    }
+  },
+  "components": [
+    {
+      "id": "slack",
+      "type": "external",
+      "label": "Slack users",
+      "sublabel": "commands + interactions",
+      "pos": [40, 170],
+      "size": [150, 64],
+      "sources": [{ "path": "server/main.py", "label": "Slack entrypoint" }]
+    },
+    {
+      "id": "website",
+      "type": "external",
+      "label": "Website visitors",
+      "sublabel": "lead magnets",
+      "pos": [40, 300],
+      "size": [150, 64],
+      "sources": [{ "path": "docs/technical/lead-tools.md", "label": "Lead tools" }]
+    },
+    {
+      "id": "scribe",
+      "type": "external",
+      "label": "WusoolScribe",
+      "sublabel": "desktop meeting API",
+      "pos": [40, 430],
+      "size": [150, 64],
+      "sources": [{ "path": "docs/technical/scribe.md", "label": "Scribe flow" }]
+    },
+    {
+      "id": "attio",
+      "type": "external",
+      "label": "Attio",
+      "sublabel": "CRM of record",
+      "pos": [330, 80],
+      "size": [150, 64],
+      "sources": [{ "path": "docs/technical/attio-sync.md", "label": "CRM sync" }]
+    },
+    {
+      "id": "toolkit",
+      "type": "backend",
+      "label": "Wusool Toolkit",
+      "sublabel": "FastAPI + Slack Bolt",
+      "tag": "EC2 / Docker",
+      "pos": [330, 280],
+      "size": [170, 70],
+      "sources": [{ "path": "server/main.py", "label": "Deployed entrypoint" }]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "private RDS / wusool_crm",
+      "tag": "encrypted",
+      "pos": [620, 300],
+      "size": [170, 70],
+      "sources": [{ "path": "infrastructure/terraform/modules/postgres-rds/main.tf", "label": "RDS module" }]
+    },
+    {
+      "id": "bedrock",
+      "type": "cloud",
+      "label": "AWS Bedrock",
+      "sublabel": "matching + summaries",
+      "pos": [620, 105],
+      "size": [170, 64],
+      "sources": [{ "path": "docs/technical/toolkit.md", "label": "AI dependency" }]
+    },
+    {
+      "id": "research",
+      "type": "external",
+      "label": "Research providers",
+      "sublabel": "Firecrawl + Diffbot + PDL",
+      "pos": [620, 500],
+      "size": [190, 64],
+      "sources": [{ "path": "docs/technical/toolkit.md", "label": "Enrichment providers" }]
+    },
+    {
+      "id": "n8n",
+      "type": "backend",
+      "label": "n8n",
+      "sublabel": "Caddy + Docker Compose",
+      "tag": "EC2 / persistent volume",
+      "pos": [930, 280],
+      "size": [180, 70],
+      "sources": [{ "path": "docs/technical/n8n.md", "label": "n8n runtime" }]
+    },
+    {
+      "id": "github",
+      "type": "cloud",
+      "label": "GitHub Actions",
+      "sublabel": "build + OpenTofu + SSM",
+      "pos": [930, 80],
+      "size": [180, 64],
+      "sources": [{ "path": ".github/workflows/_deploy.yml", "label": "Deployment flow" }]
+    },
+    {
+      "id": "operations",
+      "type": "security",
+      "label": "AWS operations",
+      "sublabel": "SSM + CloudWatch + Secrets Manager",
+      "pos": [930, 500],
+      "size": [210, 64],
+      "sources": [{ "path": "docs/operations/monitoring-and-incidents.md", "label": "Operations" }]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "AWS eu-central-1",
+      "wraps": ["toolkit", "postgres", "n8n", "bedrock", "operations"],
+      "pad": 24
+    },
+    {
+      "kind": "security-group",
+      "label": "private database boundary",
+      "wraps": ["postgres"],
+      "pad": 14
+    }
+  ],
+  "connections": [
+    { "from": "slack", "to": "toolkit", "label": "HTTPS /slack/events", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [195, 248] },
+    { "from": "website", "to": "toolkit", "label": "HTTPS lead magnets", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [205, 290] },
+    { "from": "scribe", "to": "toolkit", "label": "HTTPS /desktop/*", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [205, 410] },
+    { "from": "attio", "to": "toolkit", "label": "signed POST /webhooks/attio", "variant": "security", "route": "orthogonal-h", "labelAt": [300, 155] },
+    { "from": "toolkit", "to": "attio", "label": "CRM writes", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "via": [[415, 220], [450, 220], [450, 190], [405, 190]], "labelAt": [470, 180] },
+    { "from": "toolkit", "to": "postgres", "label": "SQL / DATABASE_URL", "variant": "emphasis", "labelAt": [560, 365] },
+    { "from": "toolkit", "to": "bedrock", "label": "AWS SDK / instance role", "variant": "dashed", "labelAt": [545, 220] },
+    { "from": "toolkit", "to": "research", "label": "enrichment APIs", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v" },
+    { "from": "github", "to": "toolkit", "label": "ECR digest + SSM", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[1020, 180], [1160, 180], [1160, 250], [415, 250]], "labelAt": [780, 180] },
+    { "from": "github", "to": "n8n", "label": "OpenTofu + SSM bootstrap", "variant": "emphasis", "labelAt": [1140, 160] },
+    { "from": "operations", "to": "toolkit", "label": "logs + health", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "labelAt": [560, 395] },
+    { "from": "operations", "to": "postgres", "label": "private access", "variant": "security", "fromSide": "top", "toSide": "bottom", "via": [[1035, 450], [850, 450], [850, 410], [705, 410]], "labelAt": [850, 475] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Shared application boundary",
+      "items": [
+        "Slack, website lead magnets, Attio webhooks, and Scribe use one Toolkit FastAPI process",
+        "Toolkit liveness is /health; database readiness is /readiness and /ready"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Data ownership",
+      "items": [
+        "Attio is the business CRM of record",
+        "PostgreSQL is the private processing and mirror layer",
+        "n8n state persists on its EC2 Docker volume"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Operational controls",
+      "items": [
+        "GitHub Actions builds immutable Toolkit images and deploys through OpenTofu and SSM",
+        "AWS operations provide SSM access, CloudWatch evidence, and Secrets Manager delivery",
+        "Live vendor ownership, DNS state, and backup coverage remain partly NOT VERIFIED"
+      ]
+    }
+  ]
+}

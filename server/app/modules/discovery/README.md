@@ -6,7 +6,7 @@ discovered lead straight off to `ddl_commands`' `/add-seller` form,
 prefilled.
 
 _New to this codebase's layering? See
-[the modular monolith guide](../../../../docs/dev/MODULAR_MONOLITH_GUIDE.md)._
+[the modular monolith guide](../../../../docs/internal/dev/MODULAR_MONOLITH_GUIDE.md)._
 
 ## Structure
 

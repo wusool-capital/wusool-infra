@@ -28,5 +28,5 @@ don't bump it per-PR speculatively.
 Run `scribe-release.yml` manually (Actions → Scribe release → Run workflow).
 It builds whatever version is currently committed — it does not choose or
 increment a version itself. See
-[`docs/dev/SCRIBE_UPDATE_FEED.md`](../../docs/dev/SCRIBE_UPDATE_FEED.md) in
+[`docs/internal/dev/SCRIBE_UPDATE_FEED.md`](../../docs/internal/dev/SCRIBE_UPDATE_FEED.md) in
 the repo root for the full release runbook.

@@ -1,6 +1,6 @@
 ---
 name: sync-project-docs
-description: Keep the repo-wide documentation set synchronized with the actual state of the code, scripts, and Terraform — CHANGELOG.md, docs/operations/, docs/technical/, docs/user-guide/, and every README not owned by sync-terraform-docs or sync-crm-schema-docs. Use after finishing a unit of work (Terraform change, migration milestone, new script, new workstream, a user-facing behaviour change), whenever asked to refresh/update/sync documentation, and before ending a session that changed tracked files.
+description: Keep the repo-wide documentation set synchronized with the actual state of the code, scripts, and Terraform — CHANGELOG.md, gitbook/operations/, gitbook/technical/, gitbook/user-guide/, and every README not owned by sync-terraform-docs or sync-crm-schema-docs. Use after finishing a unit of work (Terraform change, migration milestone, new script, new workstream, a user-facing behaviour change), whenever asked to refresh/update/sync documentation, and before ending a session that changed tracked files.
 ---
 
 # Sync Project Docs
@@ -12,15 +12,15 @@ owns everything else:
 1. **`CHANGELOG.md`** — append meaningful changes under a dated heading,
    newest first, grouped Added / Changed / Fixed / Removed. One or two lines
    each, referencing the PR number. Not a diary — skip routine churn.
-2. **`docs/operations/`** — the current delivered state and operational
+2. **`gitbook/operations/`** — the current delivered state and operational
    handover. Update environments, deployment and recovery procedures,
    monitoring, ownership, dependencies, and open items when they change.
-3. **`docs/technical/`** — platform architecture plus one consolidated
+3. **`gitbook/technical/`** — platform architecture plus one consolidated
    technical reference per product. Update the affected product page when a
    module, service, API, configuration value, or data flow changes.
-4. **`docs/user-guide/`** — one consolidated guide per product. Update the
+4. **`gitbook/user-guide/`** — one consolidated guide per product. Update the
    affected page when a user-visible workflow, command, rule, or limit changes.
-5. **`docs/README.md`** — the docs index; update if a page is added or removed.
+5. **`gitbook/README.md`** — the docs index; update if a page is added or removed.
 6. **Every other README** not owned by the sibling skills — root `README.md`
    non-Terraform sections, `server/README.md` and the module READMEs under
    `server/app/modules/*/`, `server/SCHEMA.md`,
@@ -44,7 +44,7 @@ owns everything else:
    describes (file names, flags, commands, prerequisites, directory trees).
    Correct anything stale. Do not invent capability that isn't in the code.
 4. Add a `CHANGELOG.md` entry for anything meaningful, and reflect it in
-   `docs/operations/delivery-status.md` and the affected technical or user
+   `gitbook/operations/delivery-status.md` and the affected technical or user
    guide where relevant.
 5. Run, if Terraform or scripts changed:
    ```powershell
@@ -52,7 +52,7 @@ owns everything else:
    git diff --check
    ```
 6. If client-facing GitBook files changed, run Vale using the paths in
-   `docs/dev/DOCUMENTATION_STYLE_GUIDE.md` and resolve errors. Review warnings
+   `docs/internal/dev/DOCUMENTATION_STYLE_GUIDE.md` and resolve errors. Review warnings
    individually; do not shorten necessary safety or recovery information only
    to satisfy a numeric target.
 7. Report what changed, or say explicitly that nothing needed updating.

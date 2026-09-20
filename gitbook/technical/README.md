@@ -36,6 +36,7 @@ compute, database, secrets, alarms, and Scribe update feed.
 
 | System | Reference |
 | --- | --- |
+| Platform architecture diagram | [Interactive and static architecture view](architecture.md) |
 | Slack matching, profile management, enrichment, and discovery | [Wusool Toolkit](toolkit.md) |
 | Desktop recording, transcription, summaries, and CRM push | [WusoolScribe](scribe.md) |
 | Attio ↔ PostgreSQL synchronization | [Attio and database sync](attio-sync.md) |

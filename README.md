@@ -34,12 +34,12 @@ Security Hub.
 `scribe` (meeting transcription) and `crm-sync`/`bedrock-ai` (operator
 PowerShell scripts with no deployable app of their own) are **not** part of
 this per-service dev/prod model yet — see
-[`SCRIBE_INFRA_CONTRACT.md`](docs/dev/SCRIBE_INFRA_CONTRACT.md) for scribe's
+[`SCRIBE_INFRA_CONTRACT.md`](docs/internal/dev/SCRIBE_INFRA_CONTRACT.md) for scribe's
 handover plan.
 
 See:
 
-- [Documentation index](docs/README.md) — user, technical, and operations guides
+- [GitBook documentation](gitbook/README.md) — user, technical, and operations guides
 - [Changelog](CHANGELOG.md)
 - [Terraform stacks/modules/envs layout](infrastructure/terraform/README.md)
 - [Slack bot (`server/`) overview](server/README.md)
@@ -47,10 +47,10 @@ See:
 - [Client schema overview](infrastructure/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) — Attio
   and PostgreSQL overview
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
-- [Scribe infra contract](docs/dev/SCRIBE_INFRA_CONTRACT.md)
-- [Scribe prod DB access runbook](docs/dev/infra_access.md)
-- [Slack app setup](docs/dev/SLACK_APP_SETUP.md)
-- [Toolkit ASG self-healing + Slack alerting](docs/dev/TOOLKIT_ASG_AND_ALERTS.md)
+- [Scribe infra contract](docs/internal/dev/SCRIBE_INFRA_CONTRACT.md)
+- [Scribe prod DB access runbook](docs/internal/dev/infra_access.md)
+- [Slack app setup](docs/internal/dev/SLACK_APP_SETUP.md)
+- [Toolkit ASG self-healing + Slack alerting](docs/internal/dev/TOOLKIT_ASG_AND_ALERTS.md)
 
 ## Repository structure
 
@@ -85,7 +85,11 @@ wusool-infra/
 |   |-- app/modules/           # matching_engine, ddl_commands, organizations, attio, notifications, utilities
 |   |-- scripts/docs/          # Cross-cutting schema documentation generators
 |   `-- scripts/postgres-sync/ # Attio -> PostgreSQL data sync (dev/ and prod/, operator PowerShell)
-|-- docs/dev/                  # Internal contracts and engineering runbooks
+|-- gitbook/                   # GitBook publication root
+|-- docs/                      # Internal documentation index and guides
+|   |-- internal/              # Architecture and developer documentation
+|   |-- runbooks/              # Production recovery guides
+|   `-- postmortems/           # Incident postmortem guide and records
 `-- .github/                   # workflows/ (CI + OIDC-authenticated CD), actions/ (composite steps) — see below
 ```
 
@@ -330,7 +334,7 @@ per-stack change detection keeps blast radius small.
 ## Project status
 
 See [`CHANGELOG.md`](CHANGELOG.md) for what has changed and
-[`docs/operations/delivery-status.md`](docs/operations/delivery-status.md) for the current
+[`gitbook/operations/delivery-status.md`](gitbook/operations/delivery-status.md) for the current
 delivered state and outstanding items.
 
 ## Documentation synchronization

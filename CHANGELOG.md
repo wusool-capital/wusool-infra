@@ -5,7 +5,7 @@ product and operational milestones rather than individual implementation
 details. Git history remains the source for commit-level changes.
 
 The project has no version tags: merges to `dev` and `prod` deploy their
-respective environments. See [Delivery status](docs/operations/delivery-status.md)
+ respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
 ## 2026-09-18
@@ -251,7 +251,7 @@ for current production evidence and open handover items.
 ## 2026-09-12
 
 This release period is summarized in
-[September 2026 deliverables](docs/deliverables/september-2026.md).
+[September 2026 deliverables](gitbook/deliverables/september-2026.md).
 
 ### Added
 
