@@ -94,9 +94,9 @@ database-only correction.
 
 ## Failure handling
 
-- If the nightly full resync fails, preserve the workflow run URL and logs,
-  confirm that no zero-record or partial-page response was accepted, and use
-  the deployment and database runbooks before retrying.
+- If the nightly full resync fails, preserve the workflow run URL and logs.
+  Confirm that no zero-record or partial-page response was accepted. Use the
+  deployment and database runbooks before retrying.
 - If a count or content check fails, stop treating the mirror as converged.
   Compare the affected Attio object/list-entry counts and inspect the
   reconciliation log before any manual database correction.
