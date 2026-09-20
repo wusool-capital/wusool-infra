@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     slack_signing_secret: str
 
     # AWS Bedrock. Region/model IDs match what's already provisioned in
-    # terraform/environments/dev (terraform/modules/bedrock-access) — not arbitrary placeholders.
+    # Region/model IDs match the provisioned Bedrock Terraform resources.
     # Access key/secret are optional: the standard AWS credential provider
     # chain (IAM role, ECS/EC2 task role, local profile, env) applies when
     # unset, per the task's instruction not to require long-lived creds.

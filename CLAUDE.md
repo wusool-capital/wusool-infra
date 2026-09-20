@@ -99,8 +99,9 @@ while writing, not after a failed pipeline.
 
 ### Comments
 
-Any comment added in code should only explain "why", not "how" — keep  
-comments clean, clear, and concise, and only add ones that add value. (Max 20 words per comment).
+Any comment added in code should explain only a non-obvious "why", never "how".
+Keep it to one concise line, no more than 88 characters or 20 words. Do not
+describe control flow, implementation steps, or code that is already readable.
 
 ### Run the checks before every commit and PR
 

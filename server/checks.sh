@@ -24,6 +24,7 @@ require_database() {
 }
 
 quality() {
+  uv run python scripts/check_python_comments.py
   uv run ruff check .
   uv run ruff format --check .
   uv run ty check .
