@@ -1,12 +1,12 @@
 # Documentation style guide
 
 This guide defines the review standard for client-facing Markdown under
-`docs/`. Vale checks measurable limits; reviewers remain responsible for
+`gitbook/`. Vale checks measurable limits; reviewers remain responsible for
 accuracy, usefulness, and information architecture.
 
 ## Content budgets
 
-| Content | Target | Vale warning |
+| Content | Target | Vale alert |
 | --- | --- | --- |
 | Homepage or section index | 150–350 words | More than 350 words for `docs/README.md` |
 | Focused user guide | 400–900 words | More than 900 words |
@@ -15,9 +15,10 @@ accuracy, usefulness, and information architecture.
 | Paragraph | One idea, normally 1–4 sentences | More than 100 words |
 | Sentence | Prefer 20 words or fewer | More than 25 words |
 
-Word limits are review signals rather than reasons to remove necessary safety
-or recovery detail. Split a page when it contains independent user goals or
-systems. Keep it intact when the sections form one procedure or reference.
+Word limits are blocking quality checks rather than reasons to remove
+necessary safety or recovery detail. Split a page when it contains independent
+user goals or systems. Keep it intact when the sections form one procedure or
+reference.
 
 ## Page structures
 
@@ -66,8 +67,9 @@ Use the smallest template that covers the reader's task.
 Install Vale 3.17.0 or a compatible Vale 3 release, then run:
 
 ```bash
-vale CHANGELOG.md docs/README.md docs/SUMMARY.md docs/user-guide docs/technical docs/operations docs/deliverables
+vale CHANGELOG.md gitbook/README.md gitbook/SUMMARY.md gitbook/user-guide gitbook/technical gitbook/operations gitbook/deliverables
 ```
 
-Warnings require editorial judgment. Errors identify terminology that must be
-fixed or explicitly excluded with a narrow Vale annotation.
+Warnings and errors fail the documentation-quality check. Fix the finding or
+use a narrow Vale annotation only when the longer wording is necessary for
+safety or recovery clarity.
