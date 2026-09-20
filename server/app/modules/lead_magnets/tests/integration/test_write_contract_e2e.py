@@ -116,13 +116,12 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     attio, ai = _FakeAttio(), _Spy(output={"score": 55})
     service = _service(db_session, attio, ai)
 
-    run_id, outcome = await service.record(
+    run_id = await service.record(
         tool="benchmark",
         payload={"company_name": _CO, "contact_name": "Dana"},
         email="Dana@AcmeGroup.ae",
         domain="https://www.acmegroup.ae/about",
     )
-    assert outcome == "new"
     # Step 1 only — the visitor's response goes out here, before any provider.
     before = await _row(db_session, run_id)
     assert before.status == "running"
@@ -142,8 +141,9 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     assert after.finished_at is not None
     assert attio.calls(_CO) == 1
 
-    # The idempotency key is built from normalised values, not raw form input.
-    assert after.idempotency_key == "benchmark|dana@acmegroup.ae|acmegroup.ae"
+    # The idempotency key is built from normalised values, not raw form
+    # input, and carries no tool.
+    assert after.idempotency_key == "dana@acmegroup.ae|acmegroup.ae"
 
 
 async def test_readiness_ai_failure_keeps_the_lead(db_session) -> None:
@@ -154,7 +154,7 @@ async def test_readiness_ai_failure_keeps_the_lead(db_session) -> None:
     attio, ai = _FakeAttio(), _Spy(raises=True)
     service = _service(db_session, attio, ai, fallback=lambda t, p: None)
 
-    run_id, _ = await service.record(
+    run_id = await service.record(
         tool="readiness",
         payload={
             "company_name": "Beta Trading FZ-LLC",
@@ -180,7 +180,7 @@ async def test_attio_outage_is_drained_by_the_sweeper_without_re_billing(db_sess
     attio, ai = _FakeAttio(fail_times=1), _Spy()
     service = _service(db_session, attio, ai)
 
-    run_id, _ = await service.record(
+    run_id = await service.record(
         tool="valuation",
         payload={"company_name": "Gamma Fitout"},
         email="g@gamma.ae",
@@ -216,7 +216,7 @@ async def test_readiness_ai_failure_is_never_resumed_by_the_sweeper(db_session) 
     attio, failing = _FakeAttio(), _Spy(raises=True)
     service = _service(db_session, attio, failing, fallback=lambda t, p: None)
 
-    run_id, _ = await service.record(
+    run_id = await service.record(
         tool="readiness",
         payload={"company_name": "Delta Co"},
         email="d@delta.ae",
@@ -249,7 +249,7 @@ async def test_a_valuation_ai_failure_does_resume_from_its_fallback(db_session) 
     attio, failing = _FakeAttio(), _Spy(raises=True)
     service = _service(db_session, attio, failing, fallback=lambda t, p: None)
 
-    run_id, _ = await service.record(
+    run_id = await service.record(
         tool="valuation",
         payload={"company_name": "Epsilon Ltd"},
         email="e@epsilon.ae",
@@ -271,38 +271,133 @@ async def test_a_valuation_ai_failure_does_resume_from_its_fallback(db_session) 
 
 
 @pytest.mark.parametrize("clicks", [2, 3])
-async def test_repeat_submission_creates_one_row(db_session, clicks: int) -> None:
-    """Each call carries its own distinct `submission_id` — a genuine
-    second (and third) visit from the same person for the same tool, not
-    a retried POST of the same request. One row, and every repeat is a
-    "duplicate" (visible to the caller), not a silent "replay"."""
+async def test_repeat_submissions_each_get_their_own_row_and_activity(
+    db_session, clicks: int
+) -> None:
+    """No blocking, no overwrite: every genuinely new submission — its own
+    distinct `submission_id` — gets its own permanent `tool_runs` row, and
+    once completed, its own `activities` row. Nothing is ever merged away."""
+    from app.models.activity import Activity
+
     attio, ai = _FakeAttio(), _Spy()
     service = _service(db_session, attio, ai)
 
-    seen = [
-        await service.record(
+    run_ids = []
+    for n in range(clicks):
+        run_id = await service.record(
             tool="benchmark",
-            payload={"n": n, "submission_id": f"s{n}"},
+            payload={"n": n, "submission_id": f"s{n}", "company_name": _CO},
             email="d@acme.ae",
             domain="acme.ae",
         )
-        for n in range(clicks)
-    ]
-    ids = {run_id for run_id, _ in seen}
-    assert len(ids) == 1
-    assert [outcome for _, outcome in seen] == ["new"] + ["duplicate"] * (clicks - 1)
-    # The first payload wins; a replay never overwrites it.
-    assert (await _row(db_session, ids.pop())).payload["n"] == 0
+        run_ids.append(run_id)
+        await service.complete(await ToolRunsRepository(db_session).get(run_id))
+
+    assert len(set(run_ids)) == clicks, "every submission keeps its own row"
+    for n, run_id in enumerate(run_ids):
+        assert (await _row(db_session, run_id)).payload["n"] == n
+
+    activities = (
+        (await db_session.execute(select(Activity).where(Activity.tool_run_id.in_(run_ids))))
+        .scalars()
+        .all()
+    )
+    assert len(activities) == clicks
 
 
-async def test_readiness_replay_reuses_the_stored_score_without_a_second_bedrock_call(
+async def test_exact_retry_of_the_same_submission_does_not_write_attio_twice(db_session) -> None:
+    """The regression this module must not reintroduce: a plain network
+    retry of the identical POST (same `submission_id`) reuses the row
+    `start()` already returned, so completing it twice must not double the
+    Attio write or the activity log — only a genuinely new `submission_id`
+    should ever do that (covered above)."""
+    from app.models.activity import Activity
+
+    repo = ToolRunsRepository(db_session)
+    attio, ai = _FakeAttio(), _Spy()
+    service = _service(db_session, attio, ai)
+
+    payload = {"submission_id": "s-retry-1", "company_name": _CO}
+    first_run_id = await service.record(
+        tool="benchmark", payload=payload, email="d@acme.ae", domain="acme.ae"
+    )
+    second_run_id = await service.record(
+        tool="benchmark", payload=payload, email="d@acme.ae", domain="acme.ae"
+    )
+    assert first_run_id == second_run_id, "an exact retry reuses the same row"
+
+    await service.complete(await repo.get(first_run_id))
+    await service.complete(await repo.get(second_run_id))
+
+    assert attio.calls(_CO) == 1, "the retry must not repeat the Attio write"
+    activities = (
+        (await db_session.execute(select(Activity).where(Activity.tool_run_id == first_run_id)))
+        .scalars()
+        .all()
+    )
+    assert len(activities) == 1, "the retry must not double the activity log"
+
+
+async def test_readiness_repeat_submission_is_not_rejected_and_calls_bedrock_again(
     db_session, monkeypatch
 ) -> None:
-    """The endpoint's own dedup check, not the write-contract's `Pipelines`
-    — readiness scores synchronously on the response path, so a retried
-    POST of the exact same request (same `submission_id`) must reuse the
-    already-stored score instead of paying for Bedrock twice, and must
-    return the identical result both times."""
+    """A genuinely different visit (different `submission_id`) from the same
+    person must not be rejected, and gets its own row and its own Bedrock
+    call — no dedup at the client-identity level any more."""
+    from fastapi import BackgroundTasks
+
+    from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
+    from app.modules.lead_magnets.api.schemas import ReadinessAnswersIn, ReadinessRequest
+    from app.modules.lead_magnets.domain.shared.schemas import (
+        ReadinessDimension,
+        ReadinessRecommendation,
+        ReadinessResult,
+    )
+
+    fake_result = ReadinessResult(
+        overallScore=50.0,
+        scoreBand="Early Stage",
+        summaryParagraph="x",
+        dimensions=[ReadinessDimension(name=f"Dim {i}", score=50, insight="x") for i in range(5)],
+        recommendations=[ReadinessRecommendation(title=f"Rec {i}", detail="y") for i in range(3)],
+    )
+    calls = {"n": 0}
+
+    class _FakeLlm:
+        async def score_readiness(self, prompt):
+            calls["n"] += 1
+            return fake_result
+
+    monkeypatch.setattr(readiness_endpoints, "build_llm", lambda: _FakeLlm())
+
+    def request(submission_id: str) -> ReadinessRequest:
+        return ReadinessRequest(
+            submission_id=submission_id,
+            name="Sam",
+            company="Eta Trading",
+            email="sam@etatrading.ae",
+            sector="Contracting",
+            domain="etatrading.ae",
+            answers=ReadinessAnswersIn(q1=2),
+        )
+
+    first = await readiness_endpoints.readiness_score(request("s-1"), db_session, BackgroundTasks())
+    second = await readiness_endpoints.readiness_score(
+        request("s-2"), db_session, BackgroundTasks()
+    )
+
+    assert first.run_id != second.run_id
+    assert calls["n"] == 2, "a genuinely new visit always pays for its own Bedrock call"
+
+
+async def test_readiness_exact_retry_reuses_the_stored_score_without_a_second_bedrock_call(
+    db_session, monkeypatch
+) -> None:
+    """A retried POST of the exact same request (same `submission_id`) must
+    reuse the already-stored score instead of paying for Bedrock twice, and
+    must return the identical result both times — the one case this module
+    still collapses onto a single row, since it's the same click landing
+    twice, not a new visit."""
     from fastapi import BackgroundTasks
 
     from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
@@ -346,57 +441,6 @@ async def test_readiness_replay_reuses_the_stored_score_without_a_second_bedrock
     assert first.run_id == second.run_id
     assert second.overallScore == fake_result.overallScore
     assert second.summaryParagraph == fake_result.summaryParagraph
-
-
-async def test_readiness_duplicate_is_rejected_without_calling_bedrock(
-    db_session, monkeypatch
-) -> None:
-    """A genuinely different visit (different `submission_id`) from the
-    same person must be rejected with a 409 — and must not touch Bedrock
-    at all, since the rejection happens before the model call."""
-    from fastapi import BackgroundTasks, HTTPException
-
-    from app.modules.lead_magnets.api.readiness import endpoints as readiness_endpoints
-    from app.modules.lead_magnets.api.schemas import ReadinessAnswersIn, ReadinessRequest
-    from app.modules.lead_magnets.domain.shared.schemas import (
-        ReadinessDimension,
-        ReadinessRecommendation,
-        ReadinessResult,
-    )
-
-    fake_result = ReadinessResult(
-        overallScore=50.0,
-        scoreBand="Early Stage",
-        summaryParagraph="x",
-        dimensions=[ReadinessDimension(name=f"Dim {i}", score=50, insight="x") for i in range(5)],
-        recommendations=[ReadinessRecommendation(title=f"Rec {i}", detail="y") for i in range(3)],
-    )
-    calls = {"n": 0}
-
-    class _FakeLlm:
-        async def score_readiness(self, prompt):
-            calls["n"] += 1
-            return fake_result
-
-    monkeypatch.setattr(readiness_endpoints, "build_llm", lambda: _FakeLlm())
-
-    def request(submission_id: str) -> ReadinessRequest:
-        return ReadinessRequest(
-            submission_id=submission_id,
-            name="Sam",
-            company="Eta Trading",
-            email="sam@etatrading.ae",
-            sector="Contracting",
-            domain="etatrading.ae",
-            answers=ReadinessAnswersIn(q1=2),
-        )
-
-    await readiness_endpoints.readiness_score(request("s-dup-1"), db_session, BackgroundTasks())
-    with pytest.raises(HTTPException) as excinfo:
-        await readiness_endpoints.readiness_score(request("s-dup-2"), db_session, BackgroundTasks())
-
-    assert excinfo.value.status_code == 409
-    assert calls["n"] == 1, "the duplicate must be rejected before any Bedrock call"
 
 
 async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> None:
@@ -462,13 +506,12 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
         email_to=[],
     )
 
-    run_id, outcome = await service.record(
+    run_id = await service.record(
         tool="valuation",
         payload={"company": "Zeta Fitout LLC", "email": "z@zetafitout.ae"},
         email="z@zetafitout.ae",
         domain="zetafitout.ae",
     )
-    assert outcome == "new"
 
     await service.complete(await repo.get(run_id))
 
@@ -495,3 +538,60 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
     # second card into the pipeline.
     await service.complete(await repo.get(run_id))
     assert client.deals_created == 1
+
+
+async def test_get_started_runs_its_real_pipeline_end_to_end(db_session) -> None:
+    """The only tool whose pipeline calls no model at all, so this runs the
+    *real* `Pipelines.run` rather than a `_Spy` — the entry values reaching
+    Attio are the genuine `get_started_values` output, including the first
+    pipeline write this codebase makes to `sell_timeline`.
+
+    Uses `_service()`, not a hand-built `SubmissionService(...)`, so this
+    test can't go stale the way it did the first time: `_service` already
+    carries `mailer=_FakeMailer()`/`email_from=""`/`email_to=[]`, so both
+    email stages are permanent no-ops here — the point of this test is the
+    pipeline output, not the email step (see the tests further down for
+    that). `email_from=""` is also why the terminal stage is
+    `"email_internal"`, not `"attio"`: both email stages still run and set
+    their own stage even when skipped, they just never call the mailer.
+    """
+    from app.modules.lead_magnets.application.shared.pipelines import Pipelines
+
+    repo = ToolRunsRepository(db_session)
+    attio = _FakeAttio()
+    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]  # no model is reached
+    service = _service(db_session, attio, pipelines, fallback=pipelines.fallback)
+
+    run_id = await service.record(
+        tool="get_started",
+        payload={
+            "company": _CO,
+            "company_name": _CO,  # what `_FakeAttio` counts per company
+            "name": "Dana",
+            "email": "Dana@AcmeGroup.ae",
+            "geography": "UAE",
+            "sector": "F&B",
+            "revenue": 3_268_209,
+            "ebitda": 653_641,
+            "years_active": 8,
+            "sell_timeline": "Within 6 Months",
+            "consent": True,
+        },
+        email="Dana@AcmeGroup.ae",
+        domain="https://www.acmegroup.ae/about",
+    )
+
+    await service.complete(await repo.get(run_id))
+
+    after = await _row(db_session, run_id)
+    assert after.status == "succeeded"
+    assert after.payload["stage"] == "email_internal"
+    assert after.idempotency_key == "dana@acmegroup.ae|acmegroup.ae"
+    assert attio.calls(_CO) == 1
+
+    entry_values = after.payload["ai"]["entry_values"]
+    assert entry_values["sell_timeline"] == "Within 6 Months"
+    assert entry_values["years_active"] == 8
+    assert entry_values["est_revenue"] == {"currency_value": 3_268_209.0}
+    assert entry_values["est_ebitda"] == {"currency_value": 653_641.0}
+    assert entry_values["data_consent"] is True

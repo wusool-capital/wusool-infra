@@ -23,8 +23,13 @@ from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
     BenchmarkResult,
 )
 from app.modules.lead_magnets.domain.buyer_network.buyer_network import validate_target_geography
+from app.modules.lead_magnets.domain.get_started.get_started import validate_sell_timeline
 from app.modules.lead_magnets.domain.readiness.readiness import attio_band
-from app.modules.lead_magnets.domain.shared.schemas import BuyerValuesInput, ReadinessValuesInput
+from app.modules.lead_magnets.domain.shared.schemas import (
+    BuyerValuesInput,
+    GetStartedPayload,
+    ReadinessValuesInput,
+)
 from app.modules.lead_magnets.domain.shared.sector_mapping import to_funding_stage
 from app.modules.lead_magnets.domain.valuation.valuation_methods import Valuation, ValuationInputs
 
@@ -211,6 +216,36 @@ def valuation_values(
     )
 
 
+def get_started_values(data: GetStartedPayload) -> dict[str, object]:
+    """The Get Started form's own figures, as `seller_role` attributes.
+
+    Every value comes verbatim off the payload — there is nothing computed
+    here, unlike the other four tools — so this takes the stored-payload
+    model directly rather than a `*ValuesInput` wrapper it would only ever
+    be constructed from.
+
+    `sell_timeline` is the first pipeline write to that column (it was
+    Slack-edit-only until now), so it goes through `validate_sell_timeline`:
+    Attio only logs an unknown select option rather than rejecting it, which
+    would drop the timeline silently on every submission.
+
+    Revenue and EBITDA arrive already in USD — the page converts from its
+    AED entry fields before posting, the same as the benchmark tool's
+    `toCalc`. Nothing here converts.
+    """
+    return _values(
+        {
+            "est_revenue": data.revenue,
+            "est_ebitda": data.ebitda,
+            "years_active": data.years_active,
+            "sell_timeline": (
+                validate_sell_timeline(data.sell_timeline) if data.sell_timeline else None
+            ),
+            "data_consent": data.consent,
+        }
+    )
+
+
 def buyer_values(data: BuyerValuesInput) -> dict[str, object]:
     """The buyer application, as `buyer_role` attributes.
 
@@ -248,6 +283,7 @@ _LEAD_SOURCE_DETAIL_LABELS: Mapping[str, str] = {
     "readiness": "M&A Readiness Tool",
     "benchmark": "GCC SME Benchmark",
     "buyer_network": "Buyer Form",
+    "get_started": "Get Started",
 }
 
 

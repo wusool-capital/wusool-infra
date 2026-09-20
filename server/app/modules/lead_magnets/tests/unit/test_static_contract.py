@@ -17,6 +17,7 @@ from app.modules.lead_magnets.api.schemas import (
     BuyerApplyRequest,
     CompareRequest,
     EnrichRequest,
+    GetStartedRequest,
     ReadinessRequest,
     ValuationRequest,
 )
@@ -241,3 +242,57 @@ def test_benchmark_percent_validation_rejects_non_numeric_input() -> None:
     garbage input passed the 0-100 range check silently."""
     js = (static_dir() / "benchmark" / "30-helpers.js").read_text()
     assert "if(n===null||n<0||n>100)" in js
+
+
+def test_get_started_payload_field_names_match_the_request_schema() -> None:
+    js = (static_dir() / "get-started" / "10-main.js").read_text()
+    keys = _payload_keys(js, "const payload={")
+    assert keys == set(GetStartedRequest.model_fields)
+
+
+def test_get_started_select_options_match_the_live_validation_sets() -> None:
+    """Same silent-failure shape as the buyers page: `sector` and
+    `sell_timeline` are not validated by the request schema (only the
+    background Attio write is), so a stale option here records the lead and
+    then fails to land in the CRM.
+
+    `geography` is deliberately not pinned — it writes to free-text
+    `organizations.hq_country`, so there is no option set to drift against.
+    """
+    from app.modules.lead_magnets.domain.get_started.get_started import SELL_TIMELINE_OPTIONS
+    from app.modules.lead_magnets.domain.shared.sector_mapping import GET_STARTED_SECTORS
+
+    html = (static_dir() / "get-started" / "index.html").read_text()
+
+    def select_options_for(field_id: str) -> set[str]:
+        marker = f'id="{field_id}"'
+        start = html.index(marker)
+        end = html.index("</select>", start)
+        block = html[start:end]
+        return {html_entities.unescape(v) for v in re.findall(r'<option value="([^"]+)"', block)}
+
+    assert select_options_for("sector") == set(GET_STARTED_SECTORS)
+    assert select_options_for("sellTimeline") == SELL_TIMELINE_OPTIONS
+
+
+@pytest.mark.parametrize("tool_dir", _tool_dirs(), ids=lambda p: p.name)
+def test_no_page_mints_its_own_submission_id(tool_dir: Path) -> None:
+    """One submission id per page load, from `shared/submission-id.js`.
+
+    Generating it inside a submit handler makes a retry after a failed
+    request look like a second visit, so the server rejects it with a 409
+    the visitor has not earned (`tool_runs_repository.start` tells the two
+    apart by `payload.submission_id`). Pinned across every tool so the next
+    page added cannot reintroduce it.
+    """
+    html = (tool_dir / "index.html").read_text()
+    if "submission_id" not in "".join(f.read_text() for f in tool_dir.glob("*.js")):
+        pytest.skip(f"{tool_dir.name} posts no submission_id")
+
+    assert "../shared/submission-id.js" in html, (
+        f"{tool_dir.name}/index.html must load shared/submission-id.js"
+    )
+    for js in tool_dir.glob("*.js"):
+        assert "crypto.randomUUID" not in js.read_text(), (
+            f"{js.name} mints its own submission id; use window.WUSOOL_SUBMISSION_ID"
+        )

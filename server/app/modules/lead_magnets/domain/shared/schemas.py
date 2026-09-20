@@ -167,6 +167,24 @@ class BuyerNetworkPayload(_Payload):
     linkedin_url: str | None = None
 
 
+class GetStartedPayload(_Payload):
+    """Only the `seller_role` entry values — the identity fields (`name`,
+    `email`, `company`, `domain`, `sector`, `geography`, `description`) are
+    `AttioIdentityPayload`'s job, read from the same stored dict by
+    `bootstrap.py`'s seller branch.
+
+    `consent` is `None` rather than `False` by default, matching
+    `ValuationPayload`: a pre-consent stored payload must not be written to
+    Attio as an explicit "did not consent".
+    """
+
+    revenue: float | None = None
+    ebitda: float | None = None
+    years_active: int | None = None
+    sell_timeline: str = ""
+    consent: bool | None = None
+
+
 class AttioIdentityPayload(_Payload):
     """The organisation- and person-identity fields
     `bootstrap.py::_RoleAttioWriter.write` reads from a

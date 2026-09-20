@@ -2,18 +2,21 @@
 
 No prefix: the endpoint paths are the ones the migration spec names
 (`/enrich`, `/analyze`, `/compare`, `/readiness/score`, `/buyer/apply`) plus
-`/benchmark`, which keeps the path the live benchmark page already posts to.
+`/benchmark`, which keeps the path the live benchmark page already posts to,
+and `/get-started`, this module's own.
 """
 
 from fastapi import APIRouter
 
 from app.modules.lead_magnets.api.benchmark.endpoints import router as benchmark_router
 from app.modules.lead_magnets.api.buyer_network.endpoints import router as buyer_network_router
+from app.modules.lead_magnets.api.get_started.endpoints import router as get_started_router
 from app.modules.lead_magnets.api.readiness.endpoints import router as readiness_router
 from app.modules.lead_magnets.api.valuation.endpoints import router as valuation_router
 
 router = APIRouter()
 router.include_router(benchmark_router)
 router.include_router(buyer_network_router)
+router.include_router(get_started_router)
 router.include_router(readiness_router)
 router.include_router(valuation_router)

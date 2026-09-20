@@ -14,7 +14,9 @@ from uuid import UUID
 from app.modules.utilities.domain.json_types import JsonObject
 
 ToolRunStatus = Literal["running", "succeeded", "failed", "abandoned"]
-Tool = Literal["valuation", "readiness", "benchmark", "buyer_network", "attio_webhook"]
+Tool = Literal[
+    "valuation", "readiness", "benchmark", "buyer_network", "get_started", "attio_webhook"
+]
 
 # Which step of the write contract last completed. Persisted inside
 # `payload` rather than as a column so a resume knows what it may skip —
@@ -23,18 +25,6 @@ Tool = Literal["valuation", "readiness", "benchmark", "buyer_network", "attio_we
 # `email` stage: a sweeper resume after the internal send fails must not
 # re-send the visitor's confirmation, which already landed.
 Stage = Literal["ai", "attio", "email_confirmation", "email_internal"]
-
-# What `start()` found on an `idempotency_key` collision. No new column
-# for this distinction — `payload.submission_id` is already stored for
-# every tool (it's part of the raw request dump), so the conflicting
-# row's own payload is enough to tell the two cases apart:
-#   "new"       -> no collision, this is a genuinely first submission.
-#   "replay"    -> same submission_id as the existing row — the exact
-#                  same request landed twice (a network retry), not a
-#                  new person. Silent: nothing to tell the visitor.
-#   "duplicate" -> different submission_id, same identity — a real
-#                  second visit from the same person. Rejected, visibly.
-StartOutcome = Literal["new", "replay", "duplicate"]
 
 
 class UnknownToolError(ValueError):

@@ -102,21 +102,21 @@ def test_person_key_is_the_lowercased_email() -> None:
     assert person_key(" Founder@Acme.com ") == "founder@acme.com"
 
 
-def test_idempotency_key_carries_the_tool() -> None:
+def test_idempotency_key_carries_no_tool() -> None:
     key = idempotency_key(
-        tool="readiness",
         email="Founder@Acme.com",
         domain="https://www.acme.com",
     )
-    assert key == "readiness|founder@acme.com|acme.com"
+    assert key == "founder@acme.com|acme.com"
 
 
-def test_idempotency_key_separates_tools_but_org_key_does_not() -> None:
-    """The tool belongs in the submission key only. In the entity key it
-    would produce one organisation per tool — the opposite of dedup."""
+def test_idempotency_key_is_the_same_across_tools() -> None:
+    """The key identifies the client (email+domain) only — which tool
+    produced a given attempt is recorded on the row itself, not folded in
+    here. Every attempt still gets its own row (see
+    `ToolRunsRepository.start`), so this is no longer a dedup key."""
     args = {"email": "f@acme.com", "domain": "acme.com"}
-    assert idempotency_key(tool="valuation", **args) != idempotency_key(tool="readiness", **args)
-    assert org_key(domain="acme.com", name="Acme") == org_key(domain="acme.com", name="Acme")
+    assert idempotency_key(**args) == idempotency_key(**args)
 
 
 def test_domain_matches_ignores_scheme_and_case() -> None:
@@ -133,14 +133,3 @@ def test_domain_matches_is_false_for_an_empty_domain() -> None:
     assert not domain_matches(["example.com"], None)
     assert not domain_matches(["example.com"], "")
     assert not domain_matches([], "example.com")
-
-
-def test_idempotency_key_is_identical_for_a_repeat_visit() -> None:
-    """No `submission_id` component — a second genuine visit from the same
-    person, for the same tool, must produce the exact same key so it
-    collides on purpose (`ToolRunsRepository.start` then tells `"replay"`
-    from `"duplicate"` by comparing `payload.submission_id` on the
-    colliding row) rather than sailing through as a new person the way it
-    did when `submission_id` was part of this key."""
-    args = {"tool": "readiness", "email": "f@acme.com", "domain": "acme.com"}
-    assert idempotency_key(**args) == idempotency_key(**args)
