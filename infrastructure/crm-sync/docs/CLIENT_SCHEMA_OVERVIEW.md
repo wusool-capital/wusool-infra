@@ -154,9 +154,37 @@ Type: list | API identifier: `buyer_role` | Parent: `organizations`
 | `target_geography` | `enum[]` (multiselect) | attio | - |
 | `last_mandate_briefing_date` | `date` | attio | - |
 | `prior_gcc_acquisition` | `text` | attio | - |
+| `target_vertical` | `enum` (single-select) | attio | - |
+| `geographic_focus` | `text` | attio | - |
+| `target_stage` | `text` | attio | - |
+| `ticket_size` | `text` | attio | - |
 
 | `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
 `typical_check_size` dropped 2026-08-23 (see `migration-decisions.json`'s `dropped_fields`) — redundant with `check_size_min`/`check_size_max` above.
+
+**Vertical re-grain (2026-09-21).** `target_vertical` changes this list's grain:
+one entry per **(organization, vertical)** rather than one per organization. A
+buyer hunting across four sectors becomes four entries, each with its own
+geography, ticket size and stage, so an advisor can search one vertical at a
+time instead of against a blend of all of them. It is single-valued even though
+the `Organization.sector_focus` it derives from is a multiselect — the split is
+what makes it single. Its options are that same 85-title vocabulary, declared as
+`FixedOptions` in `schema.ps1` and pinned to the Slack picker by
+`server/tests/test_sector_focus_vocabulary.py`.
+
+`geographic_focus`, `target_stage` and `ticket_size` are **verbatim carry-overs**
+of the same-named Organization fields, copied down so each vertical can be
+narrowed independently. They are `text`, not `enum`, deliberately: neither
+vocabulary is enumerated (SOURCE's `geographic_focus` is still
+`needs_approval` in `target-schema.json`), and an Attio select **rejects** any
+value outside its options — `Africa` and `Pakistan` have no equivalent among
+`target_geography`'s nine. Text on both sides makes the copy lossless.
+
+`target_geography` remains **authoritative for matching**; `geographic_focus` is
+a preserved value awaiting a mapping decision, not a competing source. Likewise
+`check_size_min`/`check_size_max` stay authoritative over `ticket_size`. The
+Organization-level columns these derive from **stay in place** — see the
+`organizations` note in the PostgreSQL section.
 
 ### seller_role
 
@@ -166,6 +194,7 @@ Type: list | API identifier: `seller_role` | Parent: `organizations`
 |---|---|---|---|
 | `id` | `uuid` | key | - |
 | `org_id` | `record-reference` | key | Organization |
+| `sector` | `enum[]` (multiselect) | attio | - |
 | `outreach_tier` | `enum` | attio | - |
 | `appetite_signal` | `enum` | attio | - |
 | `relationship_status` | `enum` | attio | - |
@@ -532,6 +561,10 @@ This column list is abridged: it omits the 2026-08-19 handover block (`estimated
 | `target_geography` | `text[]` | No | - | - | `'{}'` |
 | `last_mandate_briefing_date` | `date` | Yes | - | - | - |
 | `prior_gcc_acquisition` | `text` | Yes | - | - | - |
+| `target_vertical` | `text` | Yes | - | - | - |
+| `geographic_focus` | `text` | Yes | - | - | - |
+| `target_stage` | `text` | Yes | - | - | - |
+| `ticket_size` | `text` | Yes | - | - | - |
 | `is_active` | `boolean` | Yes | - | - | - |
 | `legacy_entry_id` | `text` | Yes | - | - | - |
 | `removed_at` | `timestamptz` | Yes | - | - | - |
@@ -543,12 +576,24 @@ This column list is abridged: it omits the 2026-08-19 handover block (`estimated
 
 `typical_check_size` dropped 2026-08-23 — redundant with `check_size_min`/`check_size_max` above. SOURCE's `typical_check_size_7` is still read during sync, only to backfill `check_size_min`/`check_size_max` when SOURCE left them blank; it's never written back to a Postgres column.
 
+`target_vertical`, `geographic_focus`, `target_stage` and `ticket_size` added
+2026-09-21 for the vertical re-grain — see the `buyer_role` section above for
+what they mean. All four are nullable at this stage; `target_vertical` becomes
+`NOT NULL`, and gains a one-live-row-per-(org, vertical) uniqueness rule, only
+after the backfill is verified. The Organization columns they derive from
+(`sector_focus`, `geographic_focus`, `stage_focus`, `ticket_size`) **stay in
+place** — expand/contract, so rollback stays script-only while both sides exist.
+`organizations.sector_focus` additionally cannot move until `seller_roles.sector`
+is backfilled and the matching mapper repointed, because the seller side of
+matching still reads it there.
+
 ### seller_roles
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
 | `org_attio_id` | `text` | No | Unique | `organizations.attio_id` | - |
+| `sector` | `text[]` | No | - | - | `'{}'` |
 | `outreach_tier` | `text` | Yes | - | - | - |
 | `appetite_signal` | `text` | Yes | - | - | - |
 | `relationship_status` | `text` | Yes | - | - | - |

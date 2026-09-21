@@ -146,6 +146,11 @@ class BuyerRoleParams(TypedDict):
     target_geography: list[str]
     last_mandate_briefing_date: date | None
     prior_gcc_acquisition: str | None
+    # The row's grain, plus three carry-overs of the same-named Organization values.
+    target_vertical: str | None
+    geographic_focus: str | None
+    target_stage: str | None
+    ticket_size: str | None
     is_active: bool
     legacy_entry_id: str
     raw_attio: AttioRecord
@@ -153,6 +158,8 @@ class BuyerRoleParams(TypedDict):
 
 class SellerRoleParams(TypedDict):
     org_attio_id: str
+    # Attio multiselect, mirroring `Organization.sector_focus` in shape and vocabulary.
+    sector: list[str]
     outreach_tier: str | None
     appetite_signal: str | None
     relationship_status: str | None
