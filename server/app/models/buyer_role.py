@@ -84,6 +84,15 @@ class BuyerRole(Base):
     # migration-decisions.json's dropped_fields.
     last_mandate_briefing_date: Mapped[date | None] = mapped_column()
     prior_gcc_acquisition: Mapped[str | None] = mapped_column(Text)
+    # The grain: one row per (organization, vertical). The split is what makes it single-valued.
+    target_vertical: Mapped[str | None] = mapped_column(Text)
+    # Carry-overs of the same-named Organization values, comma-joined.
+    # Text, not arrays: an Attio select rejects values outside its options.
+    # `target_geography` above stays authoritative for matching.
+    geographic_focus: Mapped[str | None] = mapped_column(Text)
+    target_stage: Mapped[str | None] = mapped_column(Text)
+    # Carry-over. `check_size_min`/`check_size_max` stay authoritative for matching.
+    ticket_size: Mapped[str | None] = mapped_column(Text)
     # Mirrors DEV Attio's Buyer Database is_active/legacy_entry_id (added
     # 2026-08-19 when duplicate SOURCE submissions were split into separate
     # DEV entries instead of being blended). Every DEV entry gets its own row

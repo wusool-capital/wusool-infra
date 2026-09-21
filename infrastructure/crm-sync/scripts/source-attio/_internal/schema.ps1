@@ -1050,6 +1050,43 @@ $fields = @(
   [pscustomobject]@{ Title="Target Geography"; Slug="target_geography"; Type="select"; Multi=$true; SourceOption="target_geography"; FixedOptions=@("Egypt","Global"); Config=@{} },
   [pscustomobject]@{ Title="Last Mandate Briefing Date"; Slug="last_mandate_briefing_date"; Type="date"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Prior GCC Acquisition"; Slug="prior_gcc_acquisition"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  # The grain itself: one buyer_role entry per (organization, vertical).
+  # FixedOptions, not SourceOption: that pass reads SOURCE's buyer_brain LIST,
+  # but these 85 titles live on the companies OBJECT -- it would seed zero options.
+  # Pinned to the Slack picker by server/tests/test_sector_focus_vocabulary.py.
+  [pscustomobject]@{ Title="Target Vertical"; Slug="target_vertical"; Type="select"; Multi=$false; SourceOption=$null; FixedOptions=@(
+    "Clinic","Garage","Legal Services","Retail / E-Commerce","Utilities","Creative / Arts & Culture",
+    "IT Services / Distribution","Industrial Manufacturing","Pharmaceuticals / Biotech",
+    "Trade & Technical Services","Packaging & Materials","Telecom / Connectivity",
+    "Residential / Commercial Real Estate","Cybersecurity","Sports & Wellness",
+    "Beauty & Personal Care","EdTech / Education","Diversified / Generalist",
+    "Steel / Metals / Mining","Oil & Gas","Impact / ESG / Sustainability","Fintech",
+    "Asset Management","Agriculture / AgriTech","Technology","Logistics / 3PL / Freight",
+    "Enterprise Software","Banking / Commercial","AI / ML","Construction & Engineering",
+    "Luxury / Fashion / Apparel","Gaming / Metaverse","Real Assets","Dental / Specialist Clinics",
+    "Private Credit / Debt","Web3 / Blockchain / Digital Assets","Energy Infrastructure",
+    "Food Manufacturing / FoodTech","Public Markets / Equities","Aviation / Aircraft Leasing",
+    "Chemicals & Petrochemicals","Medical Education","B2B Business Services","Biotech / Longevity",
+    "FemTech / Mental Health","Electrical Equipment","Medical Devices & Supplies",
+    "HR / Human Capital","Healthcare Services / Clinics","Supply Chain / Distribution",
+    "SaaS / Cloud","Property Management / Proptech","Private Equity","Healthtech / Digital Health",
+    "Renewable Energy / CleanTech","FMCG / Consumer Goods","Venture / Growth (Africa / MENA SME)",
+    "Space / Deep Tech","Media / Entertainment / Gaming","Family Office / Wealth Management",
+    "Consulting / Advisory","Marketing / AdTech","Venture Capital","Real Estate Development",
+    "Sharia-Compliant","Semiconductors / Hardware","Energy Storage / Services","Shipping / Maritime",
+    "Insurance / Insurtech","Pet Care","Consumer & Lifestyle Services","Sovereign Wealth Fund",
+    "Investment Banking / M&A Advisory","Transportation","Mobility","Water / Waste Management",
+    "Automotive","Hospitality / Hotels / Tourism","Food & Beverage / QSR","Robotics / Automation",
+    "Security Services","Financial Services","Aquaculture / Forestry","Aerospace & Defense","Nursery"
+  ); Config=@{} },
+  # Verbatim carry-overs of the same-named Organization values, comma-joined.
+  # Text, not select: these vocabularies are unapproved, and a select rejects
+  # any value outside its options -- Africa and Pakistan have no equivalent.
+  # `target_geography` above stays authoritative for matching.
+  [pscustomobject]@{ Title="Geographic Focus"; Slug="geographic_focus"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  [pscustomobject]@{ Title="Target Stage"; Slug="target_stage"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  # Carry-over. check_size_min/check_size_max stay authoritative for matching.
+  [pscustomobject]@{ Title="Ticket Size"; Slug="ticket_size"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Is Active"; Slug="is_active"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   # Environment discriminator, added 2026-09-06: one SOURCE workspace now
@@ -1361,6 +1398,35 @@ $fields = @(
   # Organization/Person/Buyer Role the same day).
   [pscustomobject]@{ Title="Is Active"; Slug="is_active"; Type="checkbox"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; SourceOptions=@(); Config=@{} },
+  # The sector the seller operates in -- an identity, not a want, hence not sector_focus.
+  # Multi-valued, mirroring Organization.sector_focus. First multiselect on this list.
+  # TargetOptions prunes anything outside the set, so this must stay pinned to
+  # that vocabulary -- server/tests/test_sector_focus_vocabulary.py enforces it.
+  [pscustomobject]@{ Title="Sector"; Slug="sector"; Type="select"; Multi=$true; SourceOptions=@(); TargetOptions=@(
+    "Clinic","Garage","Legal Services","Retail / E-Commerce","Utilities","Creative / Arts & Culture",
+    "IT Services / Distribution","Industrial Manufacturing","Pharmaceuticals / Biotech",
+    "Trade & Technical Services","Packaging & Materials","Telecom / Connectivity",
+    "Residential / Commercial Real Estate","Cybersecurity","Sports & Wellness",
+    "Beauty & Personal Care","EdTech / Education","Diversified / Generalist",
+    "Steel / Metals / Mining","Oil & Gas","Impact / ESG / Sustainability","Fintech",
+    "Asset Management","Agriculture / AgriTech","Technology","Logistics / 3PL / Freight",
+    "Enterprise Software","Banking / Commercial","AI / ML","Construction & Engineering",
+    "Luxury / Fashion / Apparel","Gaming / Metaverse","Real Assets","Dental / Specialist Clinics",
+    "Private Credit / Debt","Web3 / Blockchain / Digital Assets","Energy Infrastructure",
+    "Food Manufacturing / FoodTech","Public Markets / Equities","Aviation / Aircraft Leasing",
+    "Chemicals & Petrochemicals","Medical Education","B2B Business Services","Biotech / Longevity",
+    "FemTech / Mental Health","Electrical Equipment","Medical Devices & Supplies",
+    "HR / Human Capital","Healthcare Services / Clinics","Supply Chain / Distribution",
+    "SaaS / Cloud","Property Management / Proptech","Private Equity","Healthtech / Digital Health",
+    "Renewable Energy / CleanTech","FMCG / Consumer Goods","Venture / Growth (Africa / MENA SME)",
+    "Space / Deep Tech","Media / Entertainment / Gaming","Family Office / Wealth Management",
+    "Consulting / Advisory","Marketing / AdTech","Venture Capital","Real Estate Development",
+    "Sharia-Compliant","Semiconductors / Hardware","Energy Storage / Services","Shipping / Maritime",
+    "Insurance / Insurtech","Pet Care","Consumer & Lifestyle Services","Sovereign Wealth Fund",
+    "Investment Banking / M&A Advisory","Transportation","Mobility","Water / Waste Management",
+    "Automotive","Hospitality / Hotels / Tourism","Food & Beverage / QSR","Robotics / Automation",
+    "Security Services","Financial Services","Aquaculture / Forestry","Aerospace & Defense","Nursery"
+  ); Config=@{} },
   # Lead Magnet questionnaire fields (2026-08-25) -- no SOURCE equivalent,
   # manually maintained like Sell Timeline/Readiness Score above.
   [pscustomobject]@{ Title="Years Active"; Slug="years_active"; Type="number"; SourceOptions=@(); Config=@{} },
@@ -1449,8 +1515,11 @@ if ($devListMap.ContainsKey("seller_role")) {
 foreach ($field in $fields) {
   if ($attributes.ContainsKey($field.Slug)) {
     $current = $attributes[$field.Slug]
-    if ([string]$current.type -ne $field.Type -or [bool]$current.is_multiselect) {
-      throw "DEV seller_role/$($field.Slug) has unexpected type or cardinality."
+    # Compares against the field's own Multi, like every other entity.
+    # Other fields declare no Multi, so [bool]$null is $false -- behaviour unchanged.
+    if ([string]$current.type -ne $field.Type -or
+        [bool]$current.is_multiselect -ne [bool]$field.Multi) {
+      throw "DEV seller_role/$($field.Slug) has type=$($current.type), multiselect=$($current.is_multiselect); expected $($field.Type), multiselect=$([bool]$field.Multi)."
     }
     # Existing attributes are otherwise left alone by this loop -- but a
     # currency field's default_currency_code is config, not type/cardinality,
@@ -1487,7 +1556,7 @@ foreach ($field in $fields) {
         type = $field.Type
         is_required = $false
         is_unique = $false
-        is_multiselect = $false
+        is_multiselect = [bool]$field.Multi
         config = $field.Config
       }
     } | Out-Null

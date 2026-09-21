@@ -22,7 +22,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Index, Numeric, Text, text
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -41,6 +41,9 @@ class SellerRole(Base):
     org_attio_id: Mapped[str] = mapped_column(
         Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False
     )
+    # The sector this seller operates in -- an identity, not a want, hence not `sector_focus`.
+    # Matching reads this off the organization today, only because seller_role had no field.
+    sector: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     outreach_tier: Mapped[str | None] = mapped_column(Text)
     appetite_signal: Mapped[str | None] = mapped_column(Text)
     relationship_status: Mapped[str | None] = mapped_column(Text)

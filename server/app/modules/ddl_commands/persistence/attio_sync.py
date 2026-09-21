@@ -667,6 +667,7 @@ _BUYER_ROLE_UPSERT = text(
         deals_introduced, deals_converted, ebitda_ceiling, estimated_aum,
         notable_investments, key_personnel, relationship_warmth, target_geography,
         last_mandate_briefing_date, prior_gcc_acquisition,
+        target_vertical, geographic_focus, target_stage, ticket_size,
         is_active, legacy_entry_id, raw_attio
     ) VALUES (
         :org_attio_id, :model, :mandate_status, CAST(:ebitda_floor AS jsonb),
@@ -679,6 +680,7 @@ _BUYER_ROLE_UPSERT = text(
         CAST(:ebitda_ceiling AS jsonb), CAST(:estimated_aum AS jsonb),
         :notable_investments, :key_personnel, :relationship_warmth, :target_geography,
         :last_mandate_briefing_date, :prior_gcc_acquisition,
+        :target_vertical, :geographic_focus, :target_stage, :ticket_size,
         :is_active, :legacy_entry_id, CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (legacy_entry_id) DO UPDATE SET
@@ -698,6 +700,9 @@ _BUYER_ROLE_UPSERT = text(
         target_geography=excluded.target_geography,
         last_mandate_briefing_date=excluded.last_mandate_briefing_date,
         prior_gcc_acquisition=excluded.prior_gcc_acquisition,
+        target_vertical=excluded.target_vertical,
+        geographic_focus=excluded.geographic_focus,
+        target_stage=excluded.target_stage, ticket_size=excluded.ticket_size,
         is_active=excluded.is_active,
         raw_attio=excluded.raw_attio, updated_at=now(), removed_at=NULL
     RETURNING id
@@ -732,6 +737,11 @@ def _buyer_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Buye
         "target_geography": v.titles(values, "target_geography"),
         "last_mandate_briefing_date": v.date(values, "last_mandate_briefing_date"),
         "prior_gcc_acquisition": v.first(values, "prior_gcc_acquisition"),
+        # `target_vertical` is an Attio single-select; the rest are plain text.
+        "target_vertical": v.first(values, "target_vertical"),
+        "geographic_focus": v.first(values, "geographic_focus"),
+        "target_stage": v.first(values, "target_stage"),
+        "ticket_size": v.first(values, "ticket_size"),
         "is_active": is_active,
         "legacy_entry_id": v.entry_id(entry),
         "raw_attio": entry,
@@ -790,7 +800,8 @@ async def delete_buyer_role(entry_id: str) -> None:
 _SELLER_ROLE_UPSERT = text(
     """
     INSERT INTO seller_roles(
-        org_attio_id, outreach_tier, appetite_signal, relationship_status, est_revenue,
+        org_attio_id, sector,
+        outreach_tier, appetite_signal, relationship_status, est_revenue,
         est_ebitda, owner_salary, valuation_low, valuation_mid, valuation_high,
         sell_timeline, readiness_score, readiness_band,
         last_attempt_date, last_attempt_channel, last_attempt_outcome, lead_quality_score,
@@ -808,7 +819,8 @@ _SELLER_ROLE_UPSERT = text(
         include_in_benchmark, review_note, headline_flag, recommended_referral,
         legacy_entry_id, raw_attio
     ) VALUES (
-        :org_attio_id, :outreach_tier, :appetite_signal, :relationship_status,
+        :org_attio_id, :sector,
+        :outreach_tier, :appetite_signal, :relationship_status,
         CAST(:est_revenue AS jsonb), CAST(:est_ebitda AS jsonb), CAST(:owner_salary AS jsonb),
         CAST(:valuation_low AS jsonb), CAST(:valuation_mid AS jsonb),
         CAST(:valuation_high AS jsonb), :sell_timeline, :readiness_score, :readiness_band,
@@ -831,7 +843,7 @@ _SELLER_ROLE_UPSERT = text(
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (legacy_entry_id) DO UPDATE SET
-        org_attio_id=excluded.org_attio_id,
+        org_attio_id=excluded.org_attio_id, sector=excluded.sector,
         outreach_tier=excluded.outreach_tier, appetite_signal=excluded.appetite_signal,
         relationship_status=excluded.relationship_status, est_revenue=excluded.est_revenue,
         est_ebitda=excluded.est_ebitda, owner_salary=excluded.owner_salary,
@@ -881,6 +893,8 @@ def _seller_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Sel
     values = v.vals(entry)
     return {
         "org_attio_id": org_id,
+        # Attio multiselect, mirroring `Organization.sector_focus` in shape and vocabulary.
+        "sector": v.titles(values, "sector"),
         "outreach_tier": v.first(values, "outreach_tier"),
         "appetite_signal": v.first(values, "appetite_signal"),
         "relationship_status": v.first(values, "relationship_status"),

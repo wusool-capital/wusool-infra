@@ -145,6 +145,8 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
 | org_attio_id | text | no | | FK → organizations, ON DELETE CASCADE, indexed (no longer unique as of 2026-08-28) |
+| target_vertical | text | yes | | The grain as of 2026-09-21: one row per (org, vertical). Single-select in Attio, same 85-title vocabulary as `organizations.sector_focus`. Becomes NOT NULL after the backfill |
+| geographic_focus / target_stage / ticket_size | text | yes | | Verbatim carry-overs of the same-named `organizations` columns, comma-joined. `target_geography` stays authoritative for matching, as do `check_size_min`/`check_size_max` over `ticket_size` |
 | model / mandate_status | text | yes | | |
 | ebitda_floor / check_size_min / check_size_max / ev_ceiling | jsonb | yes | | money-shaped |
 | deal_structure_tolerance | text | yes | | |
@@ -171,6 +173,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
 | org_attio_id | text | no | | FK → organizations, ON DELETE CASCADE, indexed (no longer unique) |
+| sector | text[] | no | `'{}'` | Added 2026-09-21. The sector this seller operates in — an identity, not a want, hence not `sector_focus`. Mirrors `organizations.sector_focus` in shape and vocabulary. Matching reads the organization column today; repointed in a later pass |
 | outreach_tier / appetite_signal / relationship_status | text | yes | | |
 | est_revenue / est_ebitda / owner_salary / valuation_low / valuation_mid / valuation_high | jsonb | yes | | money-shaped |
 | sell_timeline | text | yes | | |
