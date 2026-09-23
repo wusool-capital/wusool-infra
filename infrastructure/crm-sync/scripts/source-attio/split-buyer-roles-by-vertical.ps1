@@ -121,6 +121,15 @@ function Get-Titles {
   )
 }
 
+# The entries API returns `parent_record_id` as a bare string; the object form
+# only shows up in some responses. Same shape check `_internal/lists.ps1` makes.
+function Get-ParentRecordId {
+  param([object]$Entry)
+  if ($Entry.parent_record_id.record_id) { return [string]$Entry.parent_record_id.record_id }
+  if ($Entry.parent_record_id) { return [string]$Entry.parent_record_id }
+  return $null
+}
+
 # Attio's own `is_test` filter treats an unset checkbox as false, so scope is
 # decided here on the raw value instead of in the query.
 function Test-InScope {
@@ -205,7 +214,7 @@ foreach ($entry in $entries) {
 $plans = [Collections.Generic.List[object]]::new()
 $skipped = [ordered]@{ no_organization = 0; no_sector_focus = 0 }
 
-$byOrg = $entries | Group-Object { [string]$_.parent_record_id.record_id }
+$byOrg = $entries | Group-Object { Get-ParentRecordId -Entry $_ }
 # Oldest parent first, so the live entry's children are written last.
 $orgOrder = @(
   $byOrg | Sort-Object {
@@ -219,7 +228,9 @@ foreach ($group in $orgOrder) {
   $org = $orgById[$orgId]
   if ($null -eq $org) { $skipped.no_organization += @($group.Group).Count; continue }
 
-  $sectors = Get-Titles -Values $org.values -Slug "sector_focus"
+  # @() because PowerShell unwraps a one-element array on return, and a
+  # bare string indexes to characters.
+  $sectors = @(Get-Titles -Values $org.values -Slug "sector_focus")
   if ($sectors.Count -eq 0) { $skipped.no_sector_focus += @($group.Group).Count; continue }
 
   $carryOver = @{
@@ -275,7 +286,7 @@ foreach ($group in $orgOrder) {
         }
       }
       foreach ($field in $enumMultiFields) {
-        $titles = Get-Titles -Values $values -Slug $field
+        $titles = @(Get-Titles -Values $values -Slug $field)
         if ($titles.Count -gt 0) {
           $payload[$field] = @($titles | ForEach-Object { Resolve-Option -Field $field -Title $_ })
         }

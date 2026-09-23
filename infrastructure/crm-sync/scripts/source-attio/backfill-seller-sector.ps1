@@ -9,14 +9,15 @@ param(
 
 # Fills `seller_role.sector` from the parent organization's `sector_focus`.
 #
-# Only for orgs whose `type` includes "Target". On a Target record
-# `sector_focus` names the industry the company *is* in, which is what a
-# seller's sector means. On an investor-type record the same column names the
-# industries they are hunting -- copying that onto a seller role would claim
-# the company operates in sixteen sectors it has never traded in.
+# Only when the org lists exactly one sector. That column means two different
+# things: on a seller it names the industry the company *is* in, on an investor
+# it names the industries it is hunting. The count separates them -- every
+# seller in the live data carries one value, every investor carries several --
+# and it separates them better than `type`, which half the seller orgs leave
+# blank. A company that is both buyer and seller lists many, so it is skipped.
 #
-# Multi-valued, so no fan-out: one seller_role entry keeps one entry and gains
-# every title its org carries. Unlike buyer_role, seller_role is not re-grained.
+# `sector` is multi-valued but only ever gets the one title, so no fan-out:
+# unlike buyer_role, seller_role is not re-grained.
 #
 # Re-runnable: a patch is idempotent and an entry that already matches its org
 # is skipped, so this can ride along with every sync.
@@ -92,6 +93,15 @@ function Get-Titles {
   )
 }
 
+# The entries API returns `parent_record_id` as a bare string; the object form
+# only shows up in some responses. Same shape check `_internal/lists.ps1` makes.
+function Get-ParentRecordId {
+  param([object]$Entry)
+  if ($Entry.parent_record_id.record_id) { return [string]$Entry.parent_record_id.record_id }
+  if ($Entry.parent_record_id) { return [string]$Entry.parent_record_id }
+  return $null
+}
+
 # Attio's own `is_test` filter treats an unset checkbox as false, so scope is
 # decided here on the raw value instead of in the query.
 function Test-InScope {
@@ -124,23 +134,23 @@ $orgById = @{}
 foreach ($record in $organizations) { $orgById[[string]$record.id.record_id] = $record }
 
 $plans = [Collections.Generic.List[object]]::new()
-$skipped = [ordered]@{ no_organization = 0; not_target_type = 0; no_sector_focus = 0; already_set = 0 }
+$skipped = [ordered]@{
+  no_organization = 0; no_sector_focus = 0; multi_sector_org = 0; already_set = 0
+}
 
 foreach ($entry in @($allEntries | Where-Object { Test-InScope -Values $_.entry_values })) {
-  $orgId = [string]$entry.parent_record_id.record_id
+  $orgId = Get-ParentRecordId -Entry $entry
   $org = $orgById[$orgId]
   if ($null -eq $org) { $skipped.no_organization++; continue }
 
-  if ((Get-Titles -Values $org.values -Slug "type") -notcontains "Target") {
-    $skipped.not_target_type++
-    continue
-  }
-
-  $sectors = Get-Titles -Values $org.values -Slug "sector_focus"
+  # @() because PowerShell unwraps a one-element array on return.
+  $sectors = @(Get-Titles -Values $org.values -Slug "sector_focus")
   if ($sectors.Count -eq 0) { $skipped.no_sector_focus++; continue }
+  if ($sectors.Count -gt 1) { $skipped.multi_sector_org++; continue }
 
-  $current = Get-Titles -Values $entry.entry_values -Slug "sector"
-  if (@(Compare-Object $current $sectors).Count -eq 0) { $skipped.already_set++; continue }
+  $current = @(Get-Titles -Values $entry.entry_values -Slug "sector")
+  if ($current.Count -eq $sectors.Count -and
+      @(Compare-Object $current $sectors).Count -eq 0) { $skipped.already_set++; continue }
 
   foreach ($title in $sectors) {
     if (-not $optionMap.ContainsKey($title)) {
