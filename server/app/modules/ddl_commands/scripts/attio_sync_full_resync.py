@@ -514,8 +514,8 @@ async def _reconcile_roles(
     mirrors every SOURCE Attio entry now, one row each keyed by legacy_entry_id
     (see BuyerRole/SellerRole's 2026-08-28 pluralization), so this returns
     one row per *entry*, not per org -- `build_params(org_id, entry,
-    is_active)` is called once per sibling, `is_active` set explicitly from
-    its position in the reconciled list (winner=True, every loser=False).
+    is_active)` is called once per sibling, with the `is_active` the
+    reconciliation paired it with (one winner per vertical, not per org).
     Second return value is a count of orgs whose reconciliation failed
     entirely (every one of that org's entries lost, not just one row)."""
     started = time.monotonic()
@@ -526,7 +526,7 @@ async def _reconcile_roles(
         try:
             async with semaphore:
                 reconciled = await upsert._reconcile_active_entry(client, list_slug, siblings)
-            return [build_params(org_id, entry, i == 0) for i, entry in enumerate(reconciled)]
+            return [build_params(org_id, entry, active) for entry, active in reconciled]
         except Exception:
             _logger.error(
                 "full resync: failed to reconcile %s org %s", list_slug, org_id, exc_info=True

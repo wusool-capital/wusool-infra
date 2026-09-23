@@ -5,10 +5,18 @@ from app.modules.ddl_commands.persistence.attio_sync import (
 )
 
 
-def _entry(entry_id: str, org_id: str, created_at: str, is_active: bool | None = None) -> dict:
+def _entry(
+    entry_id: str,
+    org_id: str,
+    created_at: str,
+    is_active: bool | None = None,
+    vertical: str | None = None,
+) -> dict:
     entry_values: dict = {}
     if is_active is not None:
         entry_values["is_active"] = [{"active_until": None, "value": is_active}]
+    if vertical is not None:
+        entry_values["target_vertical"] = [{"active_until": None, "option": {"title": vertical}}]
     return {
         "id": {"entry_id": entry_id},
         "parent_record_id": {"record_id": org_id},
@@ -42,7 +50,7 @@ async def test_single_entry_with_missing_is_active_becomes_active() -> None:
 
     reconciled = await _reconcile_active_entry(client, "buyer_role", [entry])
 
-    assert reconciled[0]["id"]["entry_id"] == "entry-1"
+    assert reconciled == [(entry, True)]
     assert client.patch_calls == [
         ("/lists/buyer_role/entries/entry-1", {"data": {"entry_values": {"is_active": True}}})
     ]
@@ -64,7 +72,7 @@ async def test_newest_entry_wins_and_older_flips_to_inactive() -> None:
 
     reconciled = await _reconcile_active_entry(client, "buyer_role", [older, newer])
 
-    assert reconciled[0]["id"]["entry_id"] == "entry-new"
+    assert reconciled == [(newer, True), (older, False)]
     assert (
         "/lists/buyer_role/entries/entry-new",
         {"data": {"entry_values": {"is_active": True}}},
@@ -84,6 +92,49 @@ async def test_already_converged_state_issues_no_patches() -> None:
     await _reconcile_active_entry(client, "buyer_role", [older, newer])
 
     assert client.patch_calls == []
+
+
+async def test_one_entry_per_vertical_stays_active() -> None:
+    """The split's whole point: a buyer fanned out across verticals keeps one
+    active role in each, instead of the newest demoting all the others."""
+    health = _entry("entry-health", "org-a", "2024-01-01T00:00:00Z", vertical="Healthcare")
+    logistics = _entry("entry-logi", "org-a", "2024-01-03T00:00:00Z", vertical="Logistics")
+    client = _FakeClient([])
+
+    reconciled = await _reconcile_active_entry(client, "buyer_role", [health, logistics])
+
+    assert reconciled == [(logistics, True), (health, True)]
+    assert sorted(path for path, _ in client.patch_calls) == [
+        "/lists/buyer_role/entries/entry-health",
+        "/lists/buyer_role/entries/entry-logi",
+    ]
+    assert all(body["data"]["entry_values"]["is_active"] is True for _, body in client.patch_calls)
+
+
+async def test_duplicates_within_one_vertical_still_reconcile() -> None:
+    older = _entry("entry-old", "org-a", "2024-01-01T00:00:00Z", True, vertical="Healthcare")
+    newer = _entry("entry-new", "org-a", "2024-01-03T00:00:00Z", vertical="Healthcare")
+    other = _entry("entry-logi", "org-a", "2024-01-02T00:00:00Z", True, vertical="Logistics")
+    client = _FakeClient([])
+
+    reconciled = await _reconcile_active_entry(client, "buyer_role", [older, newer, other])
+
+    assert reconciled == [(newer, True), (other, True), (older, False)]
+    assert client.patch_calls == [
+        ("/lists/buyer_role/entries/entry-new", {"data": {"entry_values": {"is_active": True}}}),
+        ("/lists/buyer_role/entries/entry-old", {"data": {"entry_values": {"is_active": False}}}),
+    ]
+
+
+async def test_seller_role_ignores_verticals_and_reconciles_per_org() -> None:
+    """`sector` on seller_role is not a grain -- only buyer_role splits."""
+    older = _entry("entry-old", "org-a", "2024-01-01T00:00:00Z", True, vertical="Healthcare")
+    newer = _entry("entry-new", "org-a", "2024-01-03T00:00:00Z", True, vertical="Logistics")
+    client = _FakeClient([])
+
+    reconciled = await _reconcile_active_entry(client, "seller_role", [older, newer])
+
+    assert reconciled == [(newer, True), (older, False)]
 
 
 async def test_siblings_from_other_orgs_are_excluded() -> None:
