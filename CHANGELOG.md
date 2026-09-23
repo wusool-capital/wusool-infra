@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-23
+
+### Changed
+
+- A buyer's active role is now reconciled per (organization, target vertical),
+  not per organization. A buyer hunting several verticals keeps one live role
+  in each. Nothing changes visibly until the backfill runs: every role's
+  vertical is still empty, which is a single group. Seller roles still
+  reconcile per organization.
+
 ## 2026-09-18
 
 ### Added

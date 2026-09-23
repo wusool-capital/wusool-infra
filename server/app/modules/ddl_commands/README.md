@@ -218,7 +218,9 @@ reads once the first has committed, so it sees the new role and raises
   lock discussed here previously, still not built.
 - It's a use-case-level guarantee, not a DB constraint, so it doesn't
   constrain the webhook sync path or a future direct writer. A partial
-  unique index (`org_attio_id` WHERE `is_active`) would, but Postgres can't
+  unique index (`org_attio_id` WHERE `is_active`, or `(org_attio_id,
+  target_vertical)` for `buyer_role`, whose active grain is one role per
+  vertical) would, but Postgres can't
   defer a partial unique index and `sync_buyer_role`/`sync_seller_role`
   promote an org's new winner before demoting the old one inside a single
   transaction — so that index would reject every duplicate-entry promotion
