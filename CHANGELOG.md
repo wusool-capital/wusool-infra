@@ -8,6 +8,18 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-23
+
+### Added
+
+- Two migration steps now run at the end of a full CRM sync. The first gives a
+  buyer one role per vertical, from the sectors on its organization. A buyer
+  hunting five industries becomes five roles, so an advisor can search one at a
+  time. The second fills a seller's own sector from its organization.
+- Both steps are re-runnable. A buyer or seller that arrives later lands
+  unclassified and is graded on the next sync, rather than needing a one-off
+  migration of its own.
+
 ## 2026-09-18
 
 ### Added
