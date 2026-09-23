@@ -23,17 +23,21 @@ class RoleLookup:
         self._session = session
 
     async def get_active_buyer_role(self, org_attio_id: str) -> ActiveRoleRef | None:
+        """`None` once an org has several active buyer roles: they are
+        different verticals and a meeting doesn't say which it was about, so
+        the note attaches at organization level instead of guessing. Picking
+        the newest would be a coin toss -- the split writes every vertical in
+        one transaction, sharing one `created_at`.
+        """
         stmt = (
             select(BuyerRole)
             .where(BuyerRole.org_attio_id == org_attio_id, BuyerRole.is_active.is_(True))
-            # `id DESC` breaks ties: `created_at` defaults to `now()`, which
-            # is transaction-scoped, so rows written by one bulk sync pass
-            # can share an identical timestamp.
-            .order_by(BuyerRole.created_at.desc(), BuyerRole.id.desc())
-            .limit(1)
+            .limit(2)
         )
-        role = (await self._session.execute(stmt)).scalar_one_or_none()
-        return to_active_buyer_role_ref(role) if role is not None else None
+        roles = (await self._session.execute(stmt)).scalars().all()
+        if len(roles) != 1:
+            return None
+        return to_active_buyer_role_ref(roles[0])
 
     async def get_active_seller_role(self, org_attio_id: str) -> ActiveRoleRef | None:
         stmt = (

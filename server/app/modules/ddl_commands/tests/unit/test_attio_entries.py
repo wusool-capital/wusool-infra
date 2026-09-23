@@ -43,6 +43,7 @@ def _entry(
     is_active: bool | None = None,
     is_test: bool | None = None,
     created_at: str = "",
+    target_vertical: str | None = None,
 ) -> dict:
     entry: dict = {
         "id": {"entry_id": entry_id},
@@ -54,6 +55,10 @@ def _entry(
         entry_values["is_active"] = [{"active_until": None, "value": is_active}]
     if is_test is not None:
         entry_values["is_test"] = [{"active_until": None, "value": is_test}]
+    if target_vertical is not None:
+        entry_values["target_vertical"] = [
+            {"active_until": None, "option": {"title": target_vertical}}
+        ]
     if entry_values:
         entry["entry_values"] = entry_values
     return entry
@@ -142,6 +147,40 @@ async def test_resolve_role_entry_id_falls_back_to_newest_when_none_active() -> 
     entry_id = await resolve_role_entry_id(client, "seller_role", "org-a", is_test=False)
 
     assert entry_id == "entry-new"
+
+
+async def test_unset_vertical_only_skips_entries_that_carry_a_vertical() -> None:
+    """A caller with no vertical of its own -- the public buyer form -- must
+    never overwrite a mandate an advisor curated per vertical.
+    """
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("entry-health", "org-a", is_active=True, target_vertical="Fintech"),
+                _entry("entry-plain", "org-a", is_active=True, created_at="2024-01-01"),
+            ]
+        ]
+    )
+
+    entry_id = await resolve_role_entry_id(
+        client, "buyer_role", "org-a", is_test=False, unset_vertical_only=True
+    )
+
+    assert entry_id == "entry-plain"
+
+
+async def test_unset_vertical_only_raises_when_every_entry_has_a_vertical() -> None:
+    """`RoleEntryNotFoundError` is the caller's signal to create the org's
+    unclassified entry instead of claiming one of the verticals.
+    """
+    client = _FakeClient(
+        entry_pages=[[_entry("entry-health", "org-a", is_active=True, target_vertical="Fintech")]]
+    )
+
+    with pytest.raises(RoleEntryNotFoundError):
+        await resolve_role_entry_id(
+            client, "buyer_role", "org-a", is_test=False, unset_vertical_only=True
+        )
 
 
 async def test_patch_organization_targets_records_endpoint() -> None:
