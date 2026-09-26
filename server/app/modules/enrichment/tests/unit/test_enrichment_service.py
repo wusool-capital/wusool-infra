@@ -483,8 +483,7 @@ async def test_propose_drops_target_region_entirely_when_no_value_matches_vocabu
             "fields": [
                 {
                     "field_name": "target_region",
-                    "value": "Gulf Cooperation Council (GCC) countries, Atlantis, "
-                    "Narnia, Mordor",
+                    "value": "Gulf Cooperation Council (GCC) countries, Atlantis, Narnia, Mordor",
                     "source_url": "https://example.com",
                     "confidence": "high",
                     "rationale": "stated client base",
