@@ -1050,13 +1050,15 @@ $fields = @(
   # never geocoded; country always geocodes. Both vocabularies mirror the Slack
   # pickers in ddl_commands/api/organizations.py (region, hq_country), which is
   # also where the one-name-per-place rule comes from: Saudi Arabia, not KSA.
-  # Region adds Africa, Asia and Emerging Markets on top of that picker's 14:
-  # organizations.geographic_focus carries them and the fallback reads it, and
-  # collapsing "Africa" into North + Sub-Saharan claims a precision nobody set.
+  # Region is NOT organizations.region's picker: it is exactly the regions
+  # organizations.geographic_focus actually holds, which is what the fallback
+  # reads. Africa stays Africa -- offering North Africa and Sub-Saharan Africa
+  # alongside it would recreate the ambiguity this split removes, and nothing
+  # in the data uses them. Abbreviations are expanded (SEA, LATAM); MENATP is
+  # its own region, not MENA.
   [pscustomobject]@{ Title="Target Region"; Slug="target_region"; Type="select"; Multi=$true; SourceOption=$null; FixedOptions=@(
-    "GCC","MENA","Levant","North Africa","Sub-Saharan Africa","Africa","Europe",
-    "North America","Latin America","South Asia","Southeast Asia","East Asia",
-    "Central Asia","Asia","Oceania","Emerging Markets","Global"
+    "GCC","MENA","MENATP","Africa","Asia","Europe","Southeast Asia",
+    "Latin America","Emerging Markets","Global"
   ); Config=@{} },
   [pscustomobject]@{ Title="Target Country"; Slug="target_country"; Type="select"; Multi=$true; SourceOption=$null; FixedOptions=@(
     "Algeria","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahrain",
