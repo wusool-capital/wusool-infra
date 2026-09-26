@@ -2,7 +2,7 @@
  [ValidateSet("buyer_role","seller_role")][string]$Task,
  [string]$SourceApiKey=$env:SOURCE_ATTIO_API_KEY,[string]$DevApiKey=$env:SOURCE_ATTIO_API_KEY,
  [int]$SampleSize=10,[int]$StartIndex=0,[int]$Limit=0,[string]$OutputSuffix,
- [string]$Confirmation,[switch]$Apply
+ [string]$Confirmation,[switch]$CreateOnly,[switch]$Apply
 )
 $ErrorActionPreference="Stop"
 function Invoke-BuyerRole {
@@ -15,6 +15,7 @@ param(
   [int]$Limit = 0,
   [string]$OutputSuffix,
   [string]$Confirmation,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
@@ -532,7 +533,7 @@ foreach ($entry in $existingEntries) {
   }
 }
 
-$applyStats = [ordered]@{ created = 0; updated = 0; errors = 0 }
+$applyStats = [ordered]@{ created = 0; updated = 0; skipped_existing = 0; errors = 0 }
 if ($Apply) {
   $optionMaps = @{}
   $singleSelectFields = @("model", "mandate_status", "deal_structure_tolerance", "relationship_warmth")
@@ -589,7 +590,11 @@ if ($Apply) {
     }
 
     try {
-      if ($targetEntryId) {
+      if ($targetEntryId -and $CreateOnly) {
+        # Already migrated. -CreateOnly leaves it exactly as it is rather than
+        # re-asserting every mapped field over whatever an advisor edited.
+        $applyStats.skipped_existing++
+      } elseif ($targetEntryId) {
         Invoke-AttioRequest -Method Patch -Headers $devHeaders `
           -Path "/lists/buyer_role/entries/$targetEntryId" `
           -Body @{ data = @{ entry_values = $payloadValues } } | Out-Null
@@ -668,6 +673,7 @@ param(
   [int]$StartIndex = 0,
   [int]$Limit = 0,
   [string]$Confirmation,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
@@ -979,7 +985,7 @@ foreach ($entry in $existingEntries) {
   }
 }
 
-$applyStats = [ordered]@{ created=0; updated=0; errors=0 }
+$applyStats = [ordered]@{ created=0; updated=0; skipped_existing=0; errors=0 }
 if ($Apply) {
   if ($unresolvedParents.Count -gt 0) { throw "Refusing apply with unresolved parents." }
 
@@ -1020,7 +1026,11 @@ if ($Apply) {
     }
 
     try {
-      if ($targetEntryId) {
+      if ($targetEntryId -and $CreateOnly) {
+        # Already migrated. -CreateOnly leaves it exactly as it is rather than
+        # re-asserting every mapped field over whatever an advisor edited.
+        $applyStats.skipped_existing++
+      } elseif ($targetEntryId) {
         Invoke-AttioRequest -Method Patch -Headers $devHeaders `
           -Path "/lists/seller_role/entries/$targetEntryId" `
           -Body @{ data=@{ entry_values=$payloadValues } } | Out-Null
@@ -1082,5 +1092,5 @@ if ($Apply) {
 }
 
 }
-$a=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;SampleSize=$SampleSize;Limit=$Limit;Confirmation=$Confirmation};if($StartIndex){$a.StartIndex=$StartIndex};if($OutputSuffix){$a.OutputSuffix=$OutputSuffix};if($Apply){$a.Apply=$true}
+$a=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;SampleSize=$SampleSize;Limit=$Limit;Confirmation=$Confirmation};if($StartIndex){$a.StartIndex=$StartIndex};if($OutputSuffix){$a.OutputSuffix=$OutputSuffix};if($CreateOnly){$a.CreateOnly=$true};if($Apply){$a.Apply=$true}
 switch($Task){"buyer_role"{Invoke-BuyerRole @a};"seller_role"{$a.Remove("OutputSuffix");Invoke-SellerRole @a}}
