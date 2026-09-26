@@ -22,7 +22,10 @@ from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
     BenchmarkInputs,
     BenchmarkResult,
 )
-from app.modules.lead_magnets.domain.buyer_network.buyer_network import validate_target_geography
+from app.modules.lead_magnets.domain.buyer_network.buyer_network import (
+    split_target_geography,
+    validate_target_geography,
+)
 from app.modules.lead_magnets.domain.get_started.get_started import validate_sell_timeline
 from app.modules.lead_magnets.domain.readiness.readiness import attio_band
 from app.modules.lead_magnets.domain.shared.schemas import (
@@ -269,7 +272,13 @@ def buyer_values(data: BuyerValuesInput) -> dict[str, object]:
         money=_BUYER_MONEY,
     )
     if data.target_geography:
-        values["target_geography"] = validate_target_geography(data.target_geography)
+        regions, countries = split_target_geography(
+            validate_target_geography(data.target_geography)
+        )
+        if regions:
+            values["target_region"] = regions
+        if countries:
+            values["target_country"] = countries
     return values
 
 

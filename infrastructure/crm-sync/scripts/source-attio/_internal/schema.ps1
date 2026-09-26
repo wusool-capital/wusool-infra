@@ -1043,11 +1043,36 @@ $fields = @(
   [pscustomobject]@{ Title="Notable Investments"; Slug="notable_investments"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Key Personnel"; Slug="key_personnel"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Relationship Warmth"; Slug="relationship_warmth"; Type="select"; Multi=$false; SourceOption="relationship_warmth"; Config=@{} },
-  # FixedOptions added 2026-09-06 alongside the existing SourceOption: the two
-  # seeding passes are independent and both additive. The Buyer Network form
-  # offers UAE / Saudi Arabia / GCC / Egypt / Global, and Egypt and Global had
-  # no option here -- two of its five answers were unstorable.
-  [pscustomobject]@{ Title="Target Geography"; Slug="target_geography"; Type="select"; Multi=$true; SourceOption="target_geography"; FixedOptions=@("Egypt","Global"); Config=@{} },
+  # Replaced target_geography 2026-09-26. That one select mixed countries,
+  # a region (GCC-wide) and a no-restriction marker (Global), so nothing
+  # downstream could tell them apart -- geocoding "GCC" once resolved to a
+  # college in Glendale, California. Region resolves from a fixed table and is
+  # never geocoded; country always geocodes. Both vocabularies mirror the Slack
+  # pickers in ddl_commands/api/organizations.py (region, hq_country), which is
+  # also where the one-name-per-place rule comes from: Saudi Arabia, not KSA.
+  # Region adds Africa, Asia and Emerging Markets on top of that picker's 14:
+  # organizations.geographic_focus carries them and the fallback reads it, and
+  # collapsing "Africa" into North + Sub-Saharan claims a precision nobody set.
+  [pscustomobject]@{ Title="Target Region"; Slug="target_region"; Type="select"; Multi=$true; SourceOption=$null; FixedOptions=@(
+    "GCC","MENA","Levant","North Africa","Sub-Saharan Africa","Africa","Europe",
+    "North America","Latin America","South Asia","Southeast Asia","East Asia",
+    "Central Asia","Asia","Oceania","Emerging Markets","Global"
+  ); Config=@{} },
+  [pscustomobject]@{ Title="Target Country"; Slug="target_country"; Type="select"; Multi=$true; SourceOption=$null; FixedOptions=@(
+    "Algeria","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahrain",
+    "Bangladesh","Barbados","Belgium","Bermuda","Brazil","British Virgin Islands","Canada",
+    "Cayman Islands","China","Croatia","Cyprus","Czechia","Denmark","Egypt","Ethiopia",
+    "Finland","France","Georgia","Germany","Ghana","Gibraltar","Greece","Hong Kong",
+    "Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy",
+    "Japan","Jersey","Jordan","Kazakhstan","Kenya","Kuwait","Latvia","Lebanon","Libya",
+    "Luxembourg","Malaysia","Malta","Mexico","Morocco","Netherlands","New Zealand",
+    "Nicaragua","Nigeria","Norway","Oman","Pakistan","Palestinian Authority",
+    "Papua New Guinea","Philippines","Poland","Portugal","Qatar","Romania","Russia",
+    "Saudi Arabia","Serbia","Sierra Leone","Singapore","Slovakia","South Africa",
+    "South Korea","Spain","Sri Lanka","Sudan","Sweden","Switzerland","Syria","Taiwan",
+    "Tanzania","Thailand","Trinidad and Tobago","Tunisia","Turkey","Ukraine",
+    "United Arab Emirates","United Kingdom","United States","Vietnam","Yemen"
+  ); Config=@{} },
   [pscustomobject]@{ Title="Last Mandate Briefing Date"; Slug="last_mandate_briefing_date"; Type="date"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Prior GCC Acquisition"; Slug="prior_gcc_acquisition"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   # The grain itself: one buyer_role entry per (organization, vertical).
@@ -1079,11 +1104,12 @@ $fields = @(
     "Automotive","Hospitality / Hotels / Tourism","Food & Beverage / QSR","Robotics / Automation",
     "Security Services","Financial Services","Aquaculture / Forestry","Aerospace & Defense","Nursery"
   ); Config=@{} },
-  # Verbatim carry-overs of the same-named Organization values, comma-joined.
-  # Text, not select: these vocabularies are unapproved, and a select rejects
-  # any value outside its options -- Africa and Pakistan have no equivalent.
-  # `target_geography` above stays authoritative for matching.
-  [pscustomobject]@{ Title="Geographic Focus"; Slug="geographic_focus"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  # Verbatim carry-over of the same-named Organization value, comma-joined.
+  # Text, not select: that vocabulary is unapproved and a select rejects any
+  # value outside its options. Geographic Focus was dropped from this list on
+  # 2026-09-26 -- target_region/target_country above replace it, and it never
+  # held a value here. Archive the Attio attribute by hand; see
+  # config/migration-decisions.json's dropped_fields.
   [pscustomobject]@{ Title="Target Stage"; Slug="target_stage"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   # Carry-over. check_size_min/check_size_max stay authoritative for matching.
   [pscustomobject]@{ Title="Ticket Size"; Slug="ticket_size"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },

@@ -143,12 +143,12 @@ class BuyerRoleParams(TypedDict):
     notable_investments: str | None
     key_personnel: str | None
     relationship_warmth: str | None
-    target_geography: list[str]
+    target_region: list[str]
+    target_country: list[str]
     last_mandate_briefing_date: date | None
     prior_gcc_acquisition: str | None
-    # The row's grain, plus three carry-overs of the same-named Organization values.
+    # The row's grain, plus two carry-overs of the same-named Organization values.
     target_vertical: str | None
-    geographic_focus: str | None
     target_stage: str | None
     ticket_size: str | None
     is_active: bool

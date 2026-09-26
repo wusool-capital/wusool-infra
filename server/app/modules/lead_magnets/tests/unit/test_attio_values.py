@@ -71,12 +71,15 @@ def test_buyer_check_size_serialises_against_the_buyer_role_table() -> None:
             check_size_min=1_000_000,
             check_size_max=5_000_000,
             prior_gcc_acquisition="One deal in 2023",
-            target_geography=["UAE", "KSA"],
+            target_geography=["UAE", "GCC-wide"],
         )
     )
     assert values["check_size_min"] == {"currency_value": 1_000_000.0}
     assert values["check_size_max"] == {"currency_value": 5_000_000.0}
-    assert values["target_geography"] == ["UAE", "KSA"]
+    # The form still asks one question; the answer is routed to whichever
+    # field it belongs in, with the short names canonicalised.
+    assert values["target_country"] == ["United Arab Emirates"]
+    assert values["target_region"] == ["GCC"]
     assert values["prior_gcc_acquisition"] == "One deal in 2023"
 
 

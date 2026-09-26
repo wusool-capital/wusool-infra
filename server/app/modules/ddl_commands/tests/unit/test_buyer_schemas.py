@@ -42,7 +42,7 @@ def test_newer_fields_round_trip() -> None:
             "estimated_aum": 50_000_000.0,
             "notable_investments": "Acme Co, Beta Inc",
             "relationship_warmth": "Warm",
-            "target_geography": ["UAE", "Saudi Arabia"],
+            "target_country": ["United Arab Emirates", "Saudi Arabia"],
             "last_mandate_briefing_date": date(2026, 6, 1),
             "prior_gcc_acquisition": "Yes",
         }
@@ -51,6 +51,6 @@ def test_newer_fields_round_trip() -> None:
     assert validated.estimated_aum == 50_000_000.0
     assert validated.notable_investments == "Acme Co, Beta Inc"
     assert validated.relationship_warmth == "Warm"
-    assert validated.target_geography == ["UAE", "Saudi Arabia"]
+    assert validated.target_country == ["United Arab Emirates", "Saudi Arabia"]
     assert validated.last_mandate_briefing_date == date(2026, 6, 1)
     assert validated.prior_gcc_acquisition == "Yes"

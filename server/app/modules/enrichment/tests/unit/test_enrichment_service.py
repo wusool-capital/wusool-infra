@@ -469,21 +469,21 @@ async def test_propose_proposes_region_for_a_buyers_organization(
     assert proposal.values[0].proposed == "MENA"
 
 
-async def test_propose_drops_target_geography_entirely_when_no_value_matches_vocabulary(
+async def test_propose_drops_target_region_entirely_when_no_value_matches_vocabulary(
     buyer_target: EnrichmentTarget,
 ) -> None:
-    """Regression for the Investcorp bug: the LLM proposed regions outside
-    `target_geography`'s fixed vocabulary, and the field silently vanished
-    between the Slack proposal message and the edit form.
+    """Regression for the Investcorp bug: the LLM proposed regions outside the
+    field's fixed vocabulary, and the field silently vanished between the Slack
+    proposal message and the edit form. Was `target_geography`, which the
+    region/country split replaced; the failure mode is unchanged.
     """
     service, _ = _service(
         current_values={},
         extraction_response={
             "fields": [
                 {
-                    "field_name": "target_geography",
-                    "value": "Gulf Cooperation Council (GCC) countries, North America, "
-                    "Europe, Asia",
+                    "field_name": "target_region",
+                    "value": "Gulf Cooperation Council (GCC) countries, Atlantis, Narnia, Mordor",
                     "source_url": "https://example.com",
                     "confidence": "high",
                     "rationale": "stated client base",
@@ -495,7 +495,7 @@ async def test_propose_drops_target_geography_entirely_when_no_value_matches_voc
     assert proposal.values == ()
 
 
-async def test_propose_keeps_only_the_valid_members_of_a_partially_matching_target_geography(
+async def test_propose_keeps_only_the_valid_members_of_a_partially_matching_target_region(
     buyer_target: EnrichmentTarget,
 ) -> None:
     service, _ = _service(
@@ -503,8 +503,8 @@ async def test_propose_keeps_only_the_valid_members_of_a_partially_matching_targ
         extraction_response={
             "fields": [
                 {
-                    "field_name": "target_geography",
-                    "value": "GCC-wide, North America",
+                    "field_name": "target_region",
+                    "value": "GCC, Atlantis",
                     "source_url": "https://example.com",
                     "confidence": "high",
                     "rationale": "stated client base",
@@ -514,8 +514,8 @@ async def test_propose_keeps_only_the_valid_members_of_a_partially_matching_targ
     )
     proposal = await service.propose(buyer_target)
     assert len(proposal.values) == 1
-    assert proposal.values[0].field_name == "target_geography"
-    assert proposal.values[0].proposed == ["GCC-wide"]
+    assert proposal.values[0].field_name == "target_region"
+    assert proposal.values[0].proposed == ["GCC"]
 
 
 async def test_research_query_falls_back_to_bare_name_with_no_context(

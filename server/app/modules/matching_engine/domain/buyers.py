@@ -38,7 +38,11 @@ class BuyerContext:
     # same migration. The rest are free-text qualitative signal with no
     # single criterion of their own — folded into the prompt's context
     # section rather than `known_fields`.
-    target_geography: list[str] = field(default_factory=list)
+    # These two replaced `target_geography` on 2026-09-26, and both must reach
+    # the prompt: the bug above was a populated geography field the extractor
+    # could not see. Two fields now, same trap, twice the surface.
+    target_region: list[str] = field(default_factory=list)
+    target_country: list[str] = field(default_factory=list)
     ebitda_ceiling: Money | None = None
     notable_investments: str | None = None
     key_personnel: str | None = None

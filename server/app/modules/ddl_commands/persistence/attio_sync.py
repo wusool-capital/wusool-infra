@@ -670,9 +670,10 @@ _BUYER_ROLE_UPSERT = text(
         ev_ceiling, deal_structure_tolerance, earnout_tolerance, profitable_only,
         investment_strategy, notes, key_contact_attio_id, acquisition_enrichment,
         deals_introduced, deals_converted, ebitda_ceiling, estimated_aum,
-        notable_investments, key_personnel, relationship_warmth, target_geography,
+        notable_investments, key_personnel, relationship_warmth,
+        target_region, target_country,
         last_mandate_briefing_date, prior_gcc_acquisition,
-        target_vertical, geographic_focus, target_stage, ticket_size,
+        target_vertical, target_stage, ticket_size,
         is_active, legacy_entry_id, raw_attio
     ) VALUES (
         :org_attio_id, :model, :mandate_status, CAST(:ebitda_floor AS jsonb),
@@ -683,9 +684,10 @@ _BUYER_ROLE_UPSERT = text(
              THEN :key_contact_attio_id ELSE NULL END,
         :acquisition_enrichment, :deals_introduced, :deals_converted,
         CAST(:ebitda_ceiling AS jsonb), CAST(:estimated_aum AS jsonb),
-        :notable_investments, :key_personnel, :relationship_warmth, :target_geography,
+        :notable_investments, :key_personnel, :relationship_warmth,
+        :target_region, :target_country,
         :last_mandate_briefing_date, :prior_gcc_acquisition,
-        :target_vertical, :geographic_focus, :target_stage, :ticket_size,
+        :target_vertical, :target_stage, :ticket_size,
         :is_active, :legacy_entry_id, CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (legacy_entry_id) DO UPDATE SET
@@ -702,11 +704,10 @@ _BUYER_ROLE_UPSERT = text(
         ebitda_ceiling=excluded.ebitda_ceiling, estimated_aum=excluded.estimated_aum,
         notable_investments=excluded.notable_investments,
         key_personnel=excluded.key_personnel, relationship_warmth=excluded.relationship_warmth,
-        target_geography=excluded.target_geography,
+        target_region=excluded.target_region, target_country=excluded.target_country,
         last_mandate_briefing_date=excluded.last_mandate_briefing_date,
         prior_gcc_acquisition=excluded.prior_gcc_acquisition,
         target_vertical=excluded.target_vertical,
-        geographic_focus=excluded.geographic_focus,
         target_stage=excluded.target_stage, ticket_size=excluded.ticket_size,
         is_active=excluded.is_active,
         raw_attio=excluded.raw_attio, updated_at=now(), removed_at=NULL
@@ -739,12 +740,15 @@ def _buyer_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Buye
         "notable_investments": v.first(values, "notable_investments"),
         "key_personnel": v.first(values, "key_personnel"),
         "relationship_warmth": v.first(values, "relationship_warmth"),
-        "target_geography": v.titles(values, "target_geography"),
+        # Attio multi-selects, stored as the selected option titles.
+        "target_region": v.titles(values, "target_region"),
+        "target_country": v.titles(values, "target_country"),
         "last_mandate_briefing_date": v.date(values, "last_mandate_briefing_date"),
         "prior_gcc_acquisition": v.first(values, "prior_gcc_acquisition"),
         # `target_vertical` is an Attio single-select; the rest are plain text.
+        # `target_geography` and `geographic_focus` were both dropped here
+        # 2026-09-26 -- target_region and target_country replace them.
         "target_vertical": v.first(values, "target_vertical"),
-        "geographic_focus": v.first(values, "geographic_focus"),
         "target_stage": v.first(values, "target_stage"),
         "ticket_size": v.first(values, "ticket_size"),
         "is_active": is_active,
