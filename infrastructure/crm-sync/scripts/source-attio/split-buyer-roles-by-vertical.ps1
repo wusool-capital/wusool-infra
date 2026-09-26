@@ -152,7 +152,7 @@ if ($connectedWorkspaceId -ne $expectedWorkspaceId) {
 # different payload per attribute type. `target_vertical` is set per child and
 # `legacy_entry_id` is namespaced, so neither is copied.
 $enumSingleFields = @("model", "mandate_status", "deal_structure_tolerance", "relationship_warmth")
-$enumMultiFields = @("target_geography")
+$enumMultiFields = @("target_region", "target_country")
 $moneyFields = @(
   "ebitda_floor", "check_size_min", "check_size_max", "ev_ceiling",
   "ebitda_ceiling", "estimated_aum"
@@ -233,8 +233,10 @@ foreach ($group in $orgOrder) {
   $sectors = @(Get-Titles -Values $org.values -Slug "sector_focus")
   if ($sectors.Count -eq 0) { $skipped.no_sector_focus += @($group.Group).Count; continue }
 
+  # geographic_focus was dropped from buyer_role 2026-09-26 -- the org value
+  # now lands in target_region/target_country via normalize-buyer-geography.ps1,
+  # which runs before this script.
   $carryOver = @{
-    geographic_focus = (Get-Titles -Values $org.values -Slug "geographic_focus") -join ", "
     target_stage = (Get-Titles -Values $org.values -Slug "stage_focus") -join ", "
     ticket_size = [string](Get-Value -Values $org.values -Slug "ticket_size")
   }
