@@ -1,8 +1,14 @@
 ﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DevApiKey = $env:SOURCE_ATTIO_API_KEY,
-  [ValidateSet("organizations", "person", "buyer_role", "seller_role", "deal", "note")]
-  [string[]]$Entities = @("organizations", "person", "buyer_role", "seller_role", "deal", "note"),
+  [ValidateSet(
+    "organizations", "person", "buyer_role", "seller_role", "deal", "note",
+    "buyer_vertical_split", "seller_sector"
+  )]
+  [string[]]$Entities = @(
+    "organizations", "person", "buyer_role", "seller_role", "deal", "note",
+    "buyer_vertical_split", "seller_sector"
+  ),
   [int]$Limit = 0,
   [switch]$Parallel,
   # Upper bound matches backfill-notes.ps1's own ceiling (the highest of any
@@ -126,13 +132,25 @@ function Get-DevWebhook {
   return $webhooks[0]
 }
 
-$canonicalOrder = @("organizations", "person", "buyer_role", "seller_role", "deal", "note")
+# The last two re-grain the role lists against `organizations.sector_focus`,
+# so they run after everything that writes either side. Both are re-runnable:
+# a role that arrived since the last run is unclassified until they run again.
+$canonicalOrder = @(
+  "organizations", "person", "buyer_role", "seller_role", "deal", "note",
+  "buyer_vertical_split", "seller_sector"
+)
 $orderedEntities = @($canonicalOrder | Where-Object { $Entities -contains $_ })
 $objectEntities = @("organizations", "person", "deal")
 
 $listConfirmations = @{
   buyer_role  = @{ bounded = "APPLY_BUYER_ROLE_TO_DEV"; full = "APPLY_ALL_BUYER_ROLE_TO_DEV" }
   seller_role = @{ bounded = "APPLY_SELLER_ROLE_TO_DEV"; full = "APPLY_ALL_SELLER_ROLE_TO_DEV" }
+  buyer_vertical_split = @{
+    bounded = "APPLY_VERTICAL_SPLIT_TO_SOURCE"; full = "APPLY_ALL_VERTICAL_SPLIT_TO_SOURCE"
+  }
+  seller_sector = @{
+    bounded = "APPLY_SELLER_SECTOR_TO_SOURCE"; full = "APPLY_ALL_SELLER_SECTOR_TO_SOURCE"
+  }
 }
 
 # Parallel apply is only actually implemented, today, for organizations,
@@ -269,6 +287,39 @@ try {
           $noteArgs.Confirmation = "APPLY_NOTES_BACKFILL_TO_SOURCE"
         }
         & (Join-Path $PSScriptRoot "backfill-notes.ps1") @noteArgs
+        $exitedCleanly = $?
+      } elseif ($entity -eq "buyer_vertical_split") {
+        # Its own script for the same reason as note: nothing to migrate from
+        # SOURCE. It re-grains the target list against the organizations
+        # already in this workspace, and writes its own pre-run backup.
+        $splitArgs = @{
+          SourceApiKey = $SourceApiKey
+          Limit        = $Limit
+        }
+        if ($Apply) {
+          $splitArgs.Apply = $true
+          $splitArgs.Confirmation = if ($Limit -eq 0) {
+            $listConfirmations[$entity].full
+          } else {
+            $listConfirmations[$entity].bounded
+          }
+        }
+        & (Join-Path $PSScriptRoot "split-buyer-roles-by-vertical.ps1") @splitArgs
+        $exitedCleanly = $?
+      } elseif ($entity -eq "seller_sector") {
+        $sectorArgs = @{
+          SourceApiKey = $SourceApiKey
+          Limit        = $Limit
+        }
+        if ($Apply) {
+          $sectorArgs.Apply = $true
+          $sectorArgs.Confirmation = if ($Limit -eq 0) {
+            $listConfirmations[$entity].full
+          } else {
+            $listConfirmations[$entity].bounded
+          }
+        }
+        & (Join-Path $PSScriptRoot "backfill-seller-sector.ps1") @sectorArgs
         $exitedCleanly = $?
       } else {
         $listArgs = @{
