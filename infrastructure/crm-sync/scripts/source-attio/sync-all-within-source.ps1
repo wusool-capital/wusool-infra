@@ -25,7 +25,8 @@
   # it rewrites every mapped field on every matched record, overwriting
   # whatever an advisor edited in Attio since the last run. The trade is
   # explicit -- a real correction made in SOURCE will not come across either.
-  # Has no effect on the two re-grain steps, which are idempotent by design.
+  # Covers all six mirrored entities. No effect on the two re-grain steps,
+  # which must patch existing entries by design.
   [switch]$CreateOnly,
   [switch]$Apply,
   # A -Apply run of this script writes many records to SOURCE Attio in quick
@@ -290,6 +291,7 @@ try {
           Limit        = $Limit
         }
         if ($Parallel) { $noteArgs.Workers = [Math]::Min([Math]::Max($Workers, 1), 16) }
+        if ($CreateOnly) { $noteArgs.CreateOnly = $true }
         if ($Apply) {
           $noteArgs.Apply = $true
           $noteArgs.Confirmation = "APPLY_NOTES_BACKFILL_TO_SOURCE"

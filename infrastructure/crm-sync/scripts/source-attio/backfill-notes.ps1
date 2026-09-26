@@ -4,6 +4,12 @@
   [ValidateRange(1, 16)]
   [int]$Workers = 8,
   [string]$Confirmation,
+  # Creates the notes SOURCE has and this object does not, and leaves every
+  # note that already exists alone. Without it an existing note is rewritten
+  # from SOURCE whenever SOURCE's content differs -- correct for a backfill,
+  # wrong for a gap-closing run, because it cannot tell a stale value from a
+  # deliberate edit made here.
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
@@ -524,7 +530,12 @@ foreach ($sample in @($toCreate | Select-Object -First 5)) {
   $preview = if ($sample.Content.Length -gt 80) { $sample.Content.Substring(0, 80) + "..." } else { $sample.Content }
   Write-Host "  SAMPLE: $($sample.LegacyNoteId) [$($sample.NoteType)] org=$($sample.OrganizationId) person=$($sample.PersonId) content=`"$preview`""
 }
-Write-Host "Total existing Notes records to update (SOURCE content changed since they were created): $($toUpdate.Count)."
+$updateLabel = if ($CreateOnly) {
+  "Total existing Notes records that differ from SOURCE (SKIPPED, -CreateOnly)"
+} else {
+  "Total existing Notes records to update (SOURCE content changed since they were created)"
+}
+Write-Host "${updateLabel}: $($toUpdate.Count)."
 foreach ($sample in @($toUpdate | Select-Object -First 5)) {
   $preview = if ($sample.Content.Length -gt 80) { $sample.Content.Substring(0, 80) + "..." } else { $sample.Content }
   Write-Host "  SAMPLE: $($sample.LegacyNoteId) [$($sample.NoteType)] content=`"$preview`""
@@ -532,7 +543,12 @@ foreach ($sample in @($toUpdate | Select-Object -First 5)) {
 
 if (-not $Apply) {
   Write-Host ""
-  Write-Host "Dry run complete. Add -Apply -Confirmation APPLY_NOTES_BACKFILL_TO_SOURCE to write these $($toCreate.Count) new + $($toUpdate.Count) updated records."
+  $wouldWrite = if ($CreateOnly) {
+    "$($toCreate.Count) new records ($($toUpdate.Count) existing left untouched)"
+  } else {
+    "$($toCreate.Count) new + $($toUpdate.Count) updated records"
+  }
+  Write-Host "Dry run complete. Add -Apply -Confirmation APPLY_NOTES_BACKFILL_TO_SOURCE to write these $wouldWrite."
   exit 0
 }
 
@@ -573,6 +589,11 @@ foreach ($item in $toCreate) {
   }
 }
 $updated = 0
+$skippedExisting = 0
+if ($CreateOnly) {
+  $skippedExisting = $toUpdate.Count
+  $toUpdate = [Collections.Generic.List[object]]::new()
+}
 foreach ($item in $toUpdate) {
   $values = Build-NoteValues -Item $item -HasNameAttribute $hasNameAttribute
   try {
@@ -583,4 +604,4 @@ foreach ($item in $toUpdate) {
     Write-Warning "FAILED to update note $($item.LegacyNoteId): $message"
   }
 }
-Write-Host "Backfill complete. Created $created / $($toCreate.Count). Updated $updated / $($toUpdate.Count)."
+Write-Host "Backfill complete. Created $created / $($toCreate.Count). Updated $updated / $($toUpdate.Count). Skipped existing: $skippedExisting."
