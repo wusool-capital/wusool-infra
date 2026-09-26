@@ -605,57 +605,62 @@ def group_entries_by_org(entries: list[AttioRecord]) -> dict[str, list[AttioReco
     return by_org
 
 
+def vertical_key(list_slug: str, entry: AttioRecord) -> str | None:
+    """A buyer is one role per (org, target_vertical), so `is_active` is
+    reconciled within a vertical -- across the org, a split buyer would lose
+    every vertical but one. Other lists reconcile per org (`None` = one
+    group), and so does a buyer_role whose vertical is still unset."""
+    if list_slug != "buyer_role":
+        return None
+    return cast(str | None, v.first(v.vals(entry), "target_vertical"))
+
+
 async def _reconcile_active_entry(
     client: AttioClientProtocol, list_slug: str, siblings: list[AttioRecord]
-) -> list[AttioRecord]:
-    """Ensures exactly one entry among `siblings` (all belonging to the same
-    org) is `is_active`, flipping Attio's own flags (not just Postgres's) if
-    needed — `is_active` is a real Attio field other consumers read too, so
-    the correction has to land there, not just in our mirror. Newest
-    `created_at` wins, the same tiebreak `lists.ps1` already applies
-    elsewhere.
+) -> list[tuple[AttioRecord, bool]]:
+    """Ensures exactly one entry per `vertical_key` group among `siblings`
+    (all belonging to the same org) is `is_active`, flipping Attio's own
+    flags (not just Postgres's) if needed — `is_active` is a real Attio field
+    other consumers read too, so the correction has to land there, not just
+    in our mirror. Newest `created_at` wins its group, the same tiebreak
+    `lists.ps1` already applies elsewhere.
 
     Postgres mirrors every SOURCE Attio entry now, one row each keyed by
     `legacy_entry_id` (buyer_roles/seller_roles' 2026-08-28 pluralization --
     `org_attio_id` is no longer unique) rather than collapsing to a single
-    row per org, so this returns every sibling, winner first, instead of
-    just the winner: the caller writes one Postgres row per entry, with
-    `is_active` set explicitly from each entry's position here (winner=True,
-    every loser=False) rather than re-read from Attio -- that avoids relying
-    on the PATCH above having already taken effect by the time it's read.
+    row per org, so this returns every sibling paired with the `is_active`
+    the caller must write, newest first, instead of just the winner: the
+    caller writes one Postgres row per entry, taking `is_active` from here
+    rather than re-reading it from Attio -- that avoids relying on the PATCH
+    below having already taken effect by the time it's read.
     """
     if not siblings:
         raise ValueError(f"no {list_slug} entries found for this org")
     siblings = sorted(siblings, key=lambda e: e.get("created_at") or "", reverse=True)
-    winner, *losers = siblings
+    org_id = v.parent_id(siblings[0])
 
-    org_id = v.parent_id(winner)
-    if v.boolean(v.vals(winner), "is_active") is not True:
-        _logger.info(
-            "full resync: correcting %s is_active=True for org %s entry %s",
-            list_slug,
-            org_id,
-            v.entry_id(winner),
-        )
-        await patch_with_retry(
-            client,
-            f"/lists/{list_slug}/entries/{v.entry_id(winner)}",
-            {"data": {"entry_values": {"is_active": True}}},
-        )
-    for loser in losers:
-        if v.boolean(v.vals(loser), "is_active") is not False:
+    claimed: set[str | None] = set()
+    reconciled: list[tuple[AttioRecord, bool]] = []
+    for entry in siblings:
+        key = vertical_key(list_slug, entry)
+        reconciled.append((entry, key not in claimed))
+        claimed.add(key)
+
+    for entry, is_active in reconciled:
+        if v.boolean(v.vals(entry), "is_active") is not is_active:
             _logger.info(
-                "full resync: correcting %s is_active=False for org %s entry %s",
+                "full resync: correcting %s is_active=%s for org %s entry %s",
                 list_slug,
+                is_active,
                 org_id,
-                v.entry_id(loser),
+                v.entry_id(entry),
             )
             await patch_with_retry(
                 client,
-                f"/lists/{list_slug}/entries/{v.entry_id(loser)}",
-                {"data": {"entry_values": {"is_active": False}}},
+                f"/lists/{list_slug}/entries/{v.entry_id(entry)}",
+                {"data": {"entry_values": {"is_active": is_active}}},
             )
-    return siblings
+    return reconciled
 
 
 _BUYER_ROLE_UPSERT = text(
@@ -766,8 +771,8 @@ async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
     reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
-        for i, entry in enumerate(reconciled):
-            params = _buyer_role_params(org_id, entry, is_active=(i == 0))
+        for entry, is_active in reconciled:
+            params = _buyer_role_params(org_id, entry, is_active=is_active)
             result = await session.execute(_BUYER_ROLE_UPSERT, _for_text_sql("buyer_roles", params))
             row_id = result.scalar_one()
             if v.entry_id(entry) == entry_id:
@@ -977,8 +982,8 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
     reconciled = await _reconcile_active_entry(client, "seller_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
-        for i, entry in enumerate(reconciled):
-            params = _seller_role_params(org_id, entry, is_active=(i == 0))
+        for entry, is_active in reconciled:
+            params = _seller_role_params(org_id, entry, is_active=is_active)
             result = await session.execute(
                 _SELLER_ROLE_UPSERT, _for_text_sql("seller_roles", params)
             )

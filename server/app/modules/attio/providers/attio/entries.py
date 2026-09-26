@@ -123,6 +123,11 @@ def _entry_id(entry: dict) -> str:
     return entry_id["entry_id"] if isinstance(entry_id, dict) else entry_id
 
 
+def _entry_target_vertical(entry: AttioRecord) -> str | None:
+    vertical = v.first(v.vals(entry), "target_vertical")
+    return str(vertical) if vertical is not None else None
+
+
 def _entry_is_active(entry: dict) -> bool | None:
     # Kept as its own implementation rather than `v.boolean(v.vals(e),
     # "is_active")`: this one deliberately omits "checked" from the truthy
@@ -140,13 +145,23 @@ def _entry_is_active(entry: dict) -> bool | None:
 
 
 async def resolve_role_entry_id(
-    client: AttioClientProtocol, list_slug: str, org_attio_id: str, *, is_test: bool
+    client: AttioClientProtocol,
+    list_slug: str,
+    org_attio_id: str,
+    *,
+    is_test: bool,
+    unset_vertical_only: bool = False,
 ) -> str:
     """`is_test` is this process's half of the shared SOURCE workspace.
     Entries belonging to the other half are skipped, so a dev instance can
     only ever resolve — and therefore only ever PATCH — its own test
     entries. Filtering here rather than in a separate pre-check keeps the
     guard free: this already pages every entry in the list.
+
+    `unset_vertical_only` skips entries that already carry a
+    `target_vertical`, so a caller with no vertical of its own never
+    overwrites one an advisor curated. Nothing matching then raises
+    `RoleEntryNotFoundError` and the caller creates an unclassified entry.
     """
     offset = 0
     matches: list[dict] = []
@@ -160,6 +175,8 @@ async def resolve_role_entry_id(
             if _entry_parent_record_id(entry) != org_attio_id:
                 continue
             if _record_is_test(entry) is not is_test:
+                continue
+            if unset_vertical_only and _entry_target_vertical(entry) is not None:
                 continue
             if _entry_is_active(entry) is True:
                 return _entry_id(entry)

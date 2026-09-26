@@ -53,7 +53,27 @@ def _seller_role(
     )
 
 
-async def test_newest_active_buyer_role_wins(db_session) -> None:
+async def test_the_one_active_buyer_role_is_returned(db_session) -> None:
+    org = await _org(db_session, f"org-{uuid4()}")
+    only = _buyer_role(
+        org_attio_id=org.attio_id,
+        is_active=True,
+        created_at=datetime(2026, 6, 1, tzinfo=UTC),
+        legacy_entry_id="entry-only",
+    )
+    db_session.add(only)
+    await db_session.flush()
+
+    result = await RoleLookup(db_session).get_active_buyer_role(org.attio_id)
+
+    assert result is not None
+    assert result.id == only.id
+    assert result.legacy_entry_id == "entry-only"
+
+
+async def test_several_active_buyer_roles_leave_the_note_unlinked(db_session) -> None:
+    """Post-split they are different verticals. The meeting doesn't say which
+    one, so the note attaches at organization level instead of guessing."""
     org = await _org(db_session, f"org-{uuid4()}")
     older = _buyer_role(
         org_attio_id=org.attio_id,
@@ -72,9 +92,7 @@ async def test_newest_active_buyer_role_wins(db_session) -> None:
 
     result = await RoleLookup(db_session).get_active_buyer_role(org.attio_id)
 
-    assert result is not None
-    assert result.id == newer.id
-    assert result.legacy_entry_id == "entry-new"
+    assert result is None
 
 
 async def test_inactive_and_null_active_rows_are_excluded(db_session) -> None:
@@ -100,15 +118,17 @@ async def test_no_active_rows_returns_none(db_session) -> None:
 
 
 async def test_tie_break_on_identical_created_at_is_deterministic(db_session) -> None:
+    """Seller roles still resolve newest-wins, so the tie-break still matters
+    there -- buyer roles now return `None` when there is more than one."""
     org = await _org(db_session, f"org-{uuid4()}")
     same_ts = datetime(2026, 6, 1, tzinfo=UTC)
-    a = _buyer_role(org_attio_id=org.attio_id, is_active=True, created_at=same_ts)
-    b = _buyer_role(org_attio_id=org.attio_id, is_active=True, created_at=same_ts)
+    a = _seller_role(org_attio_id=org.attio_id, is_active=True, created_at=same_ts)
+    b = _seller_role(org_attio_id=org.attio_id, is_active=True, created_at=same_ts)
     db_session.add_all([a, b])
     await db_session.flush()
     expected = max(a.id, b.id)
 
-    result = await RoleLookup(db_session).get_active_buyer_role(org.attio_id)
+    result = await RoleLookup(db_session).get_active_seller_role(org.attio_id)
 
     assert result is not None
     assert result.id == expected
