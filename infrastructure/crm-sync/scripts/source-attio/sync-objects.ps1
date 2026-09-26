@@ -12,8 +12,15 @@ param(
   [switch]$ExistingDealsOnly,
   [switch]$DeleteOrphaned,
   [switch]$MigrateMandates,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
+# -CreateOnly inserts records SOURCE has and the target does not, and leaves
+# every already-migrated record untouched. These scripts are not diffing
+# syncs: a normal apply rewrites every mapped field on every matched record,
+# which overwrites whatever an advisor edited in Attio since the last run.
+# The trade is explicit -- a genuine correction made in SOURCE will not come
+# across either, because nothing here can tell a stale value from an edit.
 $ErrorActionPreference="Stop"
 if([string]::IsNullOrWhiteSpace($SourceApiKey)){$SourceApiKey=[Environment]::GetEnvironmentVariable("SOURCE_ATTIO_API_KEY","User")}
 if([string]::IsNullOrWhiteSpace($DevApiKey)){$DevApiKey=[Environment]::GetEnvironmentVariable("SOURCE_ATTIO_API_KEY","User")}
@@ -48,6 +55,7 @@ foreach($object in $Objects){
   if($object-eq"deal"){
     $args=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit}
     if($ExistingDealsOnly){$args.ExistingOnly=$true}
+    if($CreateOnly){$args.CreateOnly=$true}
     if(-not[string]::IsNullOrWhiteSpace($DevDealOwnerWorkspaceMemberId)){$args.DevOwnerWorkspaceMemberId=$DevDealOwnerWorkspaceMemberId}
     if($DeleteOrphaned){
       $args.DeleteOrphaned=$true
@@ -62,11 +70,13 @@ foreach($object in $Objects){
     if($Parallel){
       $args=@{Object=$object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Workers=$Workers}
       if($Apply){$args.Apply=$true}
+      if($CreateOnly){$args.CreateOnly=$true}
       $args.Task="parallel"
       & (Join-Path $PSScriptRoot "_internal\objects.ps1") @args
     }else{
       $args=@{Object=$object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit}
       if($Apply){$args.Apply=$true}
+      if($CreateOnly){$args.CreateOnly=$true}
       $args.Task="record"
       & (Join-Path $PSScriptRoot "_internal\objects.ps1") @args
     }

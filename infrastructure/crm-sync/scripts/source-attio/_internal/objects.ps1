@@ -3,8 +3,15 @@
  [ValidateSet("organizations","person")][string]$Object="organizations",
  [string]$SourceApiKey=$env:SOURCE_ATTIO_API_KEY,[string]$DevApiKey=$env:SOURCE_ATTIO_API_KEY,
  [int]$Limit=10,[int]$StartOffset=0,[int]$PageSize=100,[int]$Workers=4,
- [string]$DevOwnerWorkspaceMemberId,[string]$Confirmation,[switch]$ExistingOnly,[switch]$DeleteOrphaned,[switch]$MigrateMandates,[switch]$Apply
+ [string]$DevOwnerWorkspaceMemberId,[string]$Confirmation,[switch]$ExistingOnly,[switch]$DeleteOrphaned,[switch]$MigrateMandates,[switch]$CreateOnly,[switch]$Apply
 )
+# -CreateOnly closes the gap without re-asserting anything. These scripts are
+# not diffing syncs: every run rewrites every mapped field on every matched
+# record from SOURCE, which overwrites whatever an advisor typed into Attio
+# since. With this switch a record that already exists is left exactly as it
+# is and only genuinely new SOURCE rows are inserted. The trade is explicit:
+# a real correction made in SOURCE will not come across either, because
+# nothing here can tell a stale value from a deliberate edit.
 $ErrorActionPreference="Stop"
 function Invoke-ObjectRecord {
 param(
@@ -15,6 +22,7 @@ param(
   [int]$Limit = 10,
   [int]$StartOffset = 0,
   [int]$PageSize = 100,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
@@ -598,6 +606,7 @@ while ($Limit -eq 0 -or $sourceRecords.Count -lt $Limit) {
 $stats = [ordered]@{
   inspected = 0
   would_create = 0
+  skipped_existing = 0
   would_update = 0
   created = 0
   updated = 0
@@ -772,6 +781,10 @@ foreach ($record in $sourceRecords) {
   }
 
   $exists = $devByLegacyId.ContainsKey($sourceId)
+  if ($exists -and $CreateOnly) {
+    $stats.skipped_existing++
+    continue
+  }
   if (-not $Apply) {
     if ($exists) {
       $stats.would_update++
@@ -860,6 +873,7 @@ param(
   [ValidateRange(1, 8)]
   [int]$Workers = 4,
   [int]$PageSize = 500,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
@@ -966,6 +980,9 @@ for ($index = 0; $index -lt $workerCount; $index++) {
     "-Limit", $limit,
     "-PageSize", ([Math]::Min(500, $PageSize))
   )
+  if ($CreateOnly) {
+    $arguments += "-CreateOnly"
+  }
   if ($Apply) {
     $arguments += "-Apply"
   }
@@ -1546,7 +1563,7 @@ if($MigrateMandates){
 
 }
 switch($Task){
- "record"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;StartOffset=$StartOffset;PageSize=$PageSize};if($Apply){$a.Apply=$true};Invoke-ObjectRecord @a}
- "parallel"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Workers=$Workers;PageSize=$PageSize};if($Apply){$a.Apply=$true};Invoke-ObjectParallel @a}
+ "record"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;StartOffset=$StartOffset;PageSize=$PageSize};if($CreateOnly){$a.CreateOnly=$true};if($Apply){$a.Apply=$true};Invoke-ObjectRecord @a}
+ "parallel"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Workers=$Workers;PageSize=$PageSize};if($CreateOnly){$a.CreateOnly=$true};if($Apply){$a.Apply=$true};Invoke-ObjectParallel @a}
  "deals"{$a=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;Confirmation=$Confirmation};if($DevOwnerWorkspaceMemberId){$a.DevOwnerWorkspaceMemberId=$DevOwnerWorkspaceMemberId};if($ExistingOnly){$a.ExistingOnly=$true};if($DeleteOrphaned){$a.DeleteOrphaned=$true};if($MigrateMandates){$a.MigrateMandates=$true};if($Apply){$a.Apply=$true};Invoke-Deals @a}
 }

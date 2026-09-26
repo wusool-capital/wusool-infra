@@ -8,10 +8,17 @@ param(
   [int]$Workers = 3,
   [int]$Limit = 0,
   [string]$Confirmation,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
 $ErrorActionPreference = "Stop"
+
+# Passed through to the worker as an argument array: an empty array
+# contributes nothing to a native command line, so there is no branch to
+# keep in sync at each of the three call sites below.
+$createOnlyArgs = @()
+if ($CreateOnly) { $createOnlyArgs = @("-CreateOnly") }
 
 if ([string]::IsNullOrWhiteSpace($SourceApiKey)) {
   $SourceApiKey = [Environment]::GetEnvironmentVariable("SOURCE_ATTIO_API_KEY", "User")
@@ -105,7 +112,8 @@ if ($Apply) {
     }
     $worker = $workerPaths["seller_role"]
     & powershell -NoProfile -ExecutionPolicy Bypass -File $worker `
-      -Task seller_role -Apply -Limit $Limit -SampleSize $SampleSize -Confirmation $Confirmation
+      -Task seller_role -Apply -Limit $Limit -SampleSize $SampleSize `
+      -Confirmation $Confirmation @createOnlyArgs
     if ($LASTEXITCODE -ne 0) { throw "Seller Role apply failed." }
     Write-Host "Unified Seller Role apply complete."
     return
@@ -123,7 +131,8 @@ if ($Apply) {
   $worker = $workerPaths["buyer_role"]
   if ($isBoundedApply -or $Workers -eq 1) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $worker `
-      -Task buyer_role -Apply -Limit $Limit -SampleSize $SampleSize -Confirmation $Confirmation
+      -Task buyer_role -Apply -Limit $Limit -SampleSize $SampleSize `
+      -Confirmation $Confirmation @createOnlyArgs
     if ($LASTEXITCODE -ne 0) { throw "Buyer Role apply failed." }
     Write-Host "Unified Buyer Role apply complete."
     return
@@ -149,10 +158,11 @@ if ($Apply) {
     if ($count -le 0) { continue }
     Write-Host "START APPLY WORKER $($index + 1): canonical offset=$start count=$count"
     $job = Start-Job -Name "buyer-role-apply-$($index + 1)" `
-      -ArgumentList $worker,$start,$count,($index + 1),$SampleSize -ScriptBlock {
-        param($WorkerPath, $ChunkStart, $ChunkCount, $WorkerNumber, $RequestedSampleSize)
+      -ArgumentList $worker,$start,$count,($index + 1),$SampleSize,$createOnlyArgs -ScriptBlock {
+        param($WorkerPath, $ChunkStart, $ChunkCount, $WorkerNumber, $RequestedSampleSize, $CreateOnlyArgs)
         & powershell -NoProfile -ExecutionPolicy Bypass -File $WorkerPath `
           -Task buyer_role -Apply -StartIndex $ChunkStart -Limit $ChunkCount `
+          @CreateOnlyArgs `
           -SampleSize $RequestedSampleSize `
           -OutputSuffix "worker-$WorkerNumber" `
           -Confirmation APPLY_ALL_BUYER_ROLE_TO_DEV

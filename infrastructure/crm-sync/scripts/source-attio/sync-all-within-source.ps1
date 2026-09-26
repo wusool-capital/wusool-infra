@@ -20,6 +20,14 @@
   [string]$DevDealOwnerWorkspaceMemberId,
   [switch]$DeleteOrphaned,
   [switch]$MigrateMandates,
+  # Inserts what SOURCE has and the target does not, and leaves every
+  # already-migrated record untouched. A normal -Apply is not a diffing sync:
+  # it rewrites every mapped field on every matched record, overwriting
+  # whatever an advisor edited in Attio since the last run. The trade is
+  # explicit -- a real correction made in SOURCE will not come across either.
+  # Covers all six mirrored entities. No effect on the two re-grain steps,
+  # which must patch existing entries by design.
+  [switch]$CreateOnly,
   [switch]$Apply,
   # A -Apply run of this script writes many records to SOURCE Attio in quick
   # succession, each one independently firing the real-time Attio-to-Postgres
@@ -162,7 +170,7 @@ $listConfirmations = @{
 $parallelCapable = @("organizations", "person", "buyer_role", "note")
 
 Write-Host "Migration order for this run: $($orderedEntities -join ' -> ')"
-Write-Host "Mode: $(if ($Apply) { 'APPLY' } else { 'DRY RUN' })"
+Write-Host "Mode: $(if ($Apply) { 'APPLY' } else { 'DRY RUN' })$(if ($CreateOnly) { ' (create-only)' })"
 if ($Parallel) {
   $notParallelCapable = @($orderedEntities | Where-Object { $parallelCapable -notcontains $_ })
   if ($notParallelCapable.Count -gt 0) {
@@ -266,6 +274,7 @@ try {
           $objArgs.Confirmation = "APPLY_SELECTED_OBJECTS_TO_DEV"
         }
         if ($entity -eq "deal" -and $MigrateMandates) { $objArgs.MigrateMandates = $true }
+        if ($CreateOnly) { $objArgs.CreateOnly = $true }
         & (Join-Path $PSScriptRoot "sync-objects.ps1") @objArgs
         $exitedCleanly = $?
       } elseif ($entity -eq "note") {
@@ -282,6 +291,7 @@ try {
           Limit        = $Limit
         }
         if ($Parallel) { $noteArgs.Workers = [Math]::Min([Math]::Max($Workers, 1), 16) }
+        if ($CreateOnly) { $noteArgs.CreateOnly = $true }
         if ($Apply) {
           $noteArgs.Apply = $true
           $noteArgs.Confirmation = "APPLY_NOTES_BACKFILL_TO_SOURCE"
@@ -329,6 +339,7 @@ try {
           Limit        = $Limit
         }
         if ($entity -eq "buyer_role" -and $Parallel) { $listArgs.Workers = [Math]::Min($Workers, 3) }
+        if ($CreateOnly) { $listArgs.CreateOnly = $true }
         if ($Apply) {
           $listArgs.Apply = $true
           $listArgs.Confirmation = if ($Limit -eq 0) { $listConfirmations[$entity].full } else { $listConfirmations[$entity].bounded }
