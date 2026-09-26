@@ -80,6 +80,30 @@ def validate_target_geography(values: list[str]) -> list[str]:
     return values
 
 
+# The form still asks one question and offers these seven answers -- that is a
+# public contract, pinned to the HTML by `test_static_contract`. Where the
+# answer *lands* changed on 2026-09-26: `buyer_role.target_geography` was split
+# into a region field and a country field, so an answer is routed to whichever
+# it is. The short names the form uses are canonicalised on the way in, which
+# is the same one-name-per-place rule that makes KSA into Saudi Arabia.
+_FORM_REGION = {"GCC-wide": "GCC"}
+_FORM_COUNTRY = {
+    "UAE": "United Arab Emirates",
+    "KSA": "Saudi Arabia",
+    "Kuwait": "Kuwait",
+    "Bahrain": "Bahrain",
+    "Qatar": "Qatar",
+    "Oman": "Oman",
+}
+
+
+def split_target_geography(values: list[str]) -> tuple[list[str], list[str]]:
+    """Returns `(regions, countries)` for a validated set of form answers."""
+    regions = [_FORM_REGION[v] for v in values if v in _FORM_REGION]
+    countries = [_FORM_COUNTRY[v] for v in values if v in _FORM_COUNTRY]
+    return regions, countries
+
+
 def validate_sector_focus(values: list[str]) -> list[str]:
     for value in values:
         if value not in SECTOR_FOCUS_OPTIONS:

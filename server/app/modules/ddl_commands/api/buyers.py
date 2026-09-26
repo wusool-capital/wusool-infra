@@ -82,7 +82,8 @@ class BuyerUpdate(BaseModel):
     estimated_aum: float | None = None
     notable_investments: str | None = Field(default=None, max_length=2000)
     relationship_warmth: str | None = Field(default=None, max_length=100)
-    target_geography: list[str] | None = None
+    target_region: list[str] | None = None
+    target_country: list[str] | None = None
     last_mandate_briefing_date: date | None = None
     prior_gcc_acquisition: str | None = Field(default=None, max_length=100)
 
@@ -113,11 +114,41 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("estimated_aum", "Estimated AUM (USD)", "currency"),
     FieldSpec("notable_investments", "Notable investments", "multiline"),
     FieldSpec("relationship_warmth", "Relationship warmth", "select", options=("Warm", "Cold")),
+    # `target_geography` is deliberately no longer offered here. It mixed
+    # countries, a region and a no-restriction marker in one field; the two
+    # below replace it. The column and the Attio attribute stay readable until
+    # every consumer is repointed, but nobody should add more values to it.
     FieldSpec(
-        "target_geography",
-        "Target geography",
+        "target_region",
+        "Target region",
         "multi_select_text",
-        options=("UAE", "KSA", "Kuwait", "Bahrain", "Qatar", "Oman", "GCC-wide", "Egypt", "Global"),
+        options=(
+            "GCC", "MENA", "Levant", "North Africa", "Sub-Saharan Africa", "Africa", "Europe",
+            "North America", "Latin America", "South Asia", "Southeast Asia", "East Asia",
+            "Central Asia", "Asia", "Oceania", "Emerging Markets", "Global"
+        ),
+    ),
+    FieldSpec(
+        "target_country",
+        "Target country",
+        "multi_select_text",
+        options=(
+            "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahrain",
+            "Bangladesh", "Barbados", "Belgium", "Bermuda", "Brazil", "British Virgin Islands",
+            "Canada", "Cayman Islands", "China", "Croatia", "Cyprus", "Czechia", "Denmark",
+            "Egypt", "Ethiopia", "Finland", "France", "Georgia", "Germany", "Ghana",
+            "Gibraltar", "Greece", "Hong Kong", "Hungary", "Iceland", "India", "Indonesia",
+            "Iran", "Iraq", "Ireland", "Israel", "Italy", "Japan", "Jersey", "Jordan",
+            "Kazakhstan", "Kenya", "Kuwait", "Latvia", "Lebanon", "Libya", "Luxembourg",
+            "Malaysia", "Malta", "Mexico", "Morocco", "Netherlands", "New Zealand",
+            "Nicaragua", "Nigeria", "Norway", "Oman", "Pakistan", "Palestinian Authority",
+            "Papua New Guinea", "Philippines", "Poland", "Portugal", "Qatar", "Romania",
+            "Russia", "Saudi Arabia", "Serbia", "Sierra Leone", "Singapore", "Slovakia",
+            "South Africa", "South Korea", "Spain", "Sri Lanka", "Sudan", "Sweden",
+            "Switzerland", "Syria", "Taiwan", "Tanzania", "Thailand", "Trinidad and Tobago",
+            "Tunisia", "Turkey", "Ukraine", "United Arab Emirates", "United Kingdom",
+            "United States", "Vietnam", "Yemen"
+        ),
     ),
     FieldSpec("last_mandate_briefing_date", "Last mandate briefing date", "date"),
     FieldSpec("prior_gcc_acquisition", "Prior GCC acquisition", "text"),

@@ -374,8 +374,30 @@ foreach ($group in $groups) {
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "relationship_warmth" -TargetSlug "relationship_warmth"
     Add-EntryScalar -Target $values -Entry $entry -SourceSlug "last_mandate_briefing_date" -TargetSlug "last_mandate_briefing_date"
     Add-EntryText -Target $values -Entry $entry -SourceSlug "prior_gcc_acquisition" -TargetSlug "prior_gcc_acquisition"
+    # SOURCE buyer_brain.target_geography holds seven titles: six countries and
+    # GCC-wide. The target list split that field into target_region and
+    # target_country on 2026-09-26, so each title is routed to whichever it is,
+    # and the short forms are canonicalised on the way -- one name per place,
+    # the same rule that makes KSA into Saudi Arabia.
+    $sourceGeographyRegion = @{ "GCC-wide" = "GCC" }
+    $sourceGeographyCountry = @{
+      "UAE" = "United Arab Emirates"; "KSA" = "Saudi Arabia"; "Kuwait" = "Kuwait"
+      "Bahrain" = "Bahrain"; "Qatar" = "Qatar"; "Oman" = "Oman"
+    }
     $targetGeographyTitles = @(Get-EntryValueTitles -Entry $entry -Slug "target_geography")
-    if ($targetGeographyTitles.Count -gt 0) { $values["target_geography"] = @($targetGeographyTitles) }
+    $targetRegionTitles = [Collections.Generic.List[string]]::new()
+    $targetCountryTitles = [Collections.Generic.List[string]]::new()
+    foreach ($geographyTitle in $targetGeographyTitles) {
+      if ($sourceGeographyRegion.ContainsKey($geographyTitle)) {
+        $targetRegionTitles.Add($sourceGeographyRegion[$geographyTitle])
+      } elseif ($sourceGeographyCountry.ContainsKey($geographyTitle)) {
+        $targetCountryTitles.Add($sourceGeographyCountry[$geographyTitle])
+      } else {
+        throw "SOURCE buyer_brain target_geography '$geographyTitle' has no mapping."
+      }
+    }
+    if ($targetRegionTitles.Count -gt 0) { $values["target_region"] = @($targetRegionTitles) }
+    if ($targetCountryTitles.Count -gt 0) { $values["target_country"] = @($targetCountryTitles) }
     $checkSizeTitles = @(Get-EntryValueTitles -Entry $entry -Slug "typical_check_size_7")
 
     # Backfill check_size_min/max from SOURCE's typical_check_size_7 when
@@ -514,7 +536,7 @@ $applyStats = [ordered]@{ created = 0; updated = 0; errors = 0 }
 if ($Apply) {
   $optionMaps = @{}
   $singleSelectFields = @("model", "mandate_status", "deal_structure_tolerance", "relationship_warmth")
-  $multiSelectFields = @("target_geography")
+  $multiSelectFields = @("target_region", "target_country")
   foreach ($field in $singleSelectFields + $multiSelectFields) {
     $response = Invoke-AttioRequest -Method Get -Headers $devHeaders `
       -Path "/lists/buyer_role/attributes/$field/options"

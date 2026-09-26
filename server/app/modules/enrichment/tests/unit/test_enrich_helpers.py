@@ -14,7 +14,7 @@ from app.modules.enrichment.application.enrich import (
 )
 from app.modules.enrichment.domain.field_plans import enrichable_fields_by_name_for
 
-_TARGET_GEOGRAPHY = enrichable_fields_by_name_for("buyer")["target_geography"]
+_TARGET_COUNTRY = enrichable_fields_by_name_for("buyer")["target_country"]
 _EMPLOYEE_RANGE = enrichable_fields_by_name_for("seller")["employee_range"]
 _HQ_COUNTRY = enrichable_fields_by_name_for("seller")["hq_country"]
 _NOTABLE_INVESTMENTS = enrichable_fields_by_name_for("buyer")["notable_investments"]
@@ -85,11 +85,14 @@ def test_coerce_proposed_value_invalid_currency_raises() -> None:
 
 
 def test_constrain_to_options_multi_select_text_exact_match_passes_through() -> None:
-    assert _constrain_to_options(_TARGET_GEOGRAPHY, ["UAE", "KSA"]) == ["UAE", "KSA"]
+    assert _constrain_to_options(_TARGET_COUNTRY, ["Kuwait", "Oman"]) == ["Kuwait", "Oman"]
 
 
 def test_constrain_to_options_multi_select_text_canonicalizes_case() -> None:
-    assert _constrain_to_options(_TARGET_GEOGRAPHY, ["uae", "gcc-wide"]) == ["UAE", "GCC-wide"]
+    assert _constrain_to_options(_TARGET_COUNTRY, ["kuwait", "saudi arabia"]) == [
+        "Kuwait",
+        "Saudi Arabia",
+    ]
 
 
 def test_constrain_to_options_multi_select_text_keeps_partial_match() -> None:
@@ -97,11 +100,11 @@ def test_constrain_to_options_multi_select_text_keeps_partial_match() -> None:
     outside the fixed vocabulary alongside one that happens to match —
     the invalid members are dropped, not the whole field.
     """
-    assert _constrain_to_options(_TARGET_GEOGRAPHY, ["GCC-wide", "North America"]) == ["GCC-wide"]
+    assert _constrain_to_options(_TARGET_COUNTRY, ["Kuwait", "Atlantis"]) == ["Kuwait"]
 
 
 def test_constrain_to_options_multi_select_text_no_match_returns_none() -> None:
-    assert _constrain_to_options(_TARGET_GEOGRAPHY, ["North America", "Europe", "Asia"]) is None
+    assert _constrain_to_options(_TARGET_COUNTRY, ["Atlantis", "Narnia"]) is None
 
 
 def test_constrain_to_options_select_valid_value() -> None:
@@ -136,7 +139,7 @@ def test_constrain_to_options_select_with_a_list_value_passes_through_unchanged(
 
 
 def test_constrain_to_options_multi_select_text_with_a_str_value_passes_through_unchanged() -> None:
-    assert _constrain_to_options(_TARGET_GEOGRAPHY, "UAE") == "UAE"
+    assert _constrain_to_options(_TARGET_COUNTRY, "Kuwait") == "Kuwait"
 
 
 def test_field_line_without_options_is_unchanged() -> None:
@@ -145,7 +148,7 @@ def test_field_line_without_options_is_unchanged() -> None:
 
 
 def test_field_line_with_options_lists_every_label() -> None:
-    line = _field_line(_TARGET_GEOGRAPHY)
-    for option in _TARGET_GEOGRAPHY.options:
+    line = _field_line(_TARGET_COUNTRY)
+    for option in _TARGET_COUNTRY.options:
         assert option in line
     assert "ONLY from these exact labels" in line
