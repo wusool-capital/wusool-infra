@@ -13,12 +13,11 @@ for current production evidence and open handover items.
 ### Added
 
 - Two migration steps now run at the end of a full CRM sync. The first gives a
-  buyer one role per vertical, from the sectors on its organization. A buyer
-  hunting five industries becomes five roles, so an advisor can search one at a
-  time. The second fills a seller's own sector from its organization.
+  buyer one role per vertical, taken from its organization's sectors. A buyer
+  hunting five industries becomes five roles. An advisor can then search one
+  at a time. The second step fills a seller's own sector from its organization.
 - Both steps are re-runnable. A buyer or seller that arrives later lands
-  unclassified and is graded on the next sync, rather than needing a one-off
-  migration of its own.
+  unclassified. The next sync grades it, so no one-off migration is needed.
 
 ### Changed
 
