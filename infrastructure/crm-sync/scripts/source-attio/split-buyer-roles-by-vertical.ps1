@@ -121,6 +121,32 @@ function Get-Titles {
   )
 }
 
+# SOURCE keeps ticket size as free text, and a few organizations wrote a bare
+# number where the others wrote a range -- 5000000 rather than $5M. Same unit,
+# unreadable beside the rest. A value that is only digits is read as USD and
+# rendered in millions; anything already carrying a currency symbol is copied
+# through untouched, because canonicalising "$20M-$100M" versus "$20-$100M" is
+# a separate cleanup with its own judgement calls, and check_size_min/max stay
+# authoritative for matching either way.
+function Format-TicketSize {
+  param([string]$Value)
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $Value }
+  $trimmed = $Value.Trim()
+  if ($trimmed -notmatch '^\d+$') { return $trimmed }
+  $amount = [decimal]$trimmed
+  if ($amount -ge 1000000) {
+    $scaled = $amount / 1000000
+    $suffix = "M"
+  } elseif ($amount -ge 1000) {
+    $scaled = $amount / 1000
+    $suffix = "K"
+  } else {
+    return "`$$trimmed"
+  }
+  $text = if ($scaled -eq [Math]::Floor($scaled)) { [string][int]$scaled } else { $scaled.ToString("0.#") }
+  return "`$$text$suffix"
+}
+
 # The entries API returns `parent_record_id` as a bare string; the object form
 # only shows up in some responses. Same shape check `_internal/lists.ps1` makes.
 function Get-ParentRecordId {
@@ -238,7 +264,7 @@ foreach ($group in $orgOrder) {
   # which runs before this script.
   $carryOver = @{
     target_stage = (Get-Titles -Values $org.values -Slug "stage_focus") -join ", "
-    ticket_size = [string](Get-Value -Values $org.values -Slug "ticket_size")
+    ticket_size = Format-TicketSize ([string](Get-Value -Values $org.values -Slug "ticket_size"))
   }
 
   foreach ($entry in @($group.Group | Sort-Object { [string]$_.created_at })) {
