@@ -84,6 +84,13 @@
       "status": "archived_in_dev_attio",
       "no_longer_synced_from": "Organization.geographic_focus (the organization attribute itself is unchanged and still in use)"
     },
+    "note.buyer_role_id": {
+      "reason": "Notes live at organization level. Before the vertical re-grain a buyer had one buyer_role entry, so linking a note to the entry and linking it to the company said the same thing. After the 2026-09-26 split an organization has one entry per vertical, and the link pointed at whichever entry was patched in place -- the organization's first sector, which nobody ever asserted the conversation was about. A note carries no signal saying which vertical it concerned, so unlike match_results (re-filable by the seller's sector) the link was dropped rather than guessed.",
+      "status": "values_cleared_2026-09-27_attribute_retained",
+      "scope": "All 178 production notes that carried one, including the 43 whose organization still has exactly one live vertical and whose link was therefore still correct. One rule, one class of note.",
+      "note": "Both the Attio attribute and the nullable notes.buyer_role_id column stay in place -- nothing in server/ queries either, it is write-only provenance, and new notes on a single-vertical org will still arrive with one until RoleLookup.get_active_buyer_role is changed. primary_role was deliberately NOT set on the way, per the 2026-09-27 decision to clear the buyer id and nothing else; it is empty on all 178, so the pre-clear state lives only in outputs/attio_migration/note-detach-backup-*.json.",
+      "script": "scripts/source-attio/detach-notes-from-buyer-roles.ps1"
+    },
     "organization.contact_person": {
       "reason": "Created 2026-08-19 as a record-reference to Person, meant to resolve an org's contact via legacy_attio_id, but never actually implemented in objects.ps1/schema.ps1/sync-postgres.ps1 -- and structurally can't be, in the current pipeline: organizations sync runs before person (see sync-all.ps1's fixed dependency order), so no DEV Person records exist yet to resolve against at the point an Organization is created. Confirmed empty on every checked live record (0 of 500 sampled) before archiving -- never manually populated either.",
       "status": "archived_in_dev_attio",
@@ -96,6 +103,12 @@
     }
   },
   "deferred_backfills": {
+    "notes_backfill_is_create_only": {
+      "rule": "Run backfill-notes.ps1 with -CreateOnly from 2026-09-27 onward.",
+      "reason": "backfill-notes.ps1 writes buyer_role_id on every update, so a plain re-run reattaches all 178 notes to an arbitrary vertical and silently reverts the 2026-09-27 detach. -CreateOnly skips existing records entirely.",
+      "status": "standing_rule_2026-09-27",
+      "applies_to": ["note.buyer_role_id"]
+    },
     "organization_owner": {
       "source_field": "relationship_owner",
       "initial_value": null,

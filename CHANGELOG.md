@@ -8,6 +8,36 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-29
+
+### Fixed
+
+- A buyer's verticals can no longer be silently collapsed by a routine sync.
+  The nightly resync ran against an older deployment on 28 September. It
+  reconciled active roles per organization rather than per vertical. That
+  switched off 639 of 913 live roles. No data was deleted. Only the active
+  flag moved, and it has been restored.
+- The same rule still exists in the PowerShell list sync, which was never
+  taught about verticals. `sync-lists.ps1` now refuses buyer roles unless
+  explicitly forced. The full sync skips them with a warning instead.
+
+### Added
+
+- A repair script restores a buyer's active roles, one per vertical. It
+  applies the same rule as the deployed reconciler. Running it twice changes
+  nothing, which is how the two are verified to agree.
+- Meeting notes now attach to the organization, not to one arbitrary vertical.
+  A note carries no signal saying which vertical it concerned. All 178 links
+  were cleared. The note's company is unchanged.
+- A reviewed script can purge soft-deleted rows from the mirror. It reports
+  the approval history that would cascade away before anything is deleted.
+
+### Changed
+
+- The retired `target_geography` and `geographic_focus` attributes are
+  archived on buyer roles. Every production buyer had already been converted
+  to target region and target country.
+
 ## 2026-09-23
 
 ### Added
