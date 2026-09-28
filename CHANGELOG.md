@@ -10,6 +10,17 @@ for current production evidence and open handover items.
 
 ## 2026-09-29
 
+### Added
+
+- Organizations can now carry the Places id they were discovered from. A
+  company already in the CRM must not be created a second time under a
+  slightly different name. Names cannot decide that reliably. The id can.
+- The id is unique only where it is set. Most organizations came from a form
+  or the old CRM and have none, so a plain uniqueness rule would have allowed
+  just one of them.
+- Two indexes make the sector and geography narrowing run in the database.
+  It previously filtered in Python after fetching every row.
+
 ### Fixed
 
 - A buyer's verticals can no longer be silently collapsed by a routine sync.

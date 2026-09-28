@@ -199,7 +199,7 @@ _ORG_UPSERT = text(
         connection_strength, owner_attio_id, last_interaction_at, funding_raised,
         estimated_arr, angellist, facebook, instagram, twitter, twitter_follower_count,
         foundation_date, ticket_size, lead_source, lead_source_detail, employee_range,
-        linkedin, logo_url, is_active, raw_attio
+        linkedin, logo_url, is_active, source_place_id, raw_attio
     ) VALUES (
         :attio_id, :name, :description, :type, :client_type, :sector_focus, :stage_focus,
         :geographic_focus, :hq_country, :region, :domains, :categories, :relationship_status,
@@ -209,7 +209,7 @@ _ORG_UPSERT = text(
         :last_interaction_at, CAST(:funding_raised AS jsonb), :estimated_arr,
         :angellist, :facebook, :instagram, :twitter, :twitter_follower_count,
         :foundation_date, :ticket_size, :lead_source, :lead_source_detail, :employee_range,
-        :linkedin, :logo_url, :is_active,
+        :linkedin, :logo_url, :is_active, :source_place_id,
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (attio_id) DO UPDATE SET
@@ -227,7 +227,9 @@ _ORG_UPSERT = text(
         lead_source=excluded.lead_source, lead_source_detail=excluded.lead_source_detail,
         employee_range=excluded.employee_range,
         linkedin=excluded.linkedin, logo_url=excluded.logo_url,
-        is_active=excluded.is_active, raw_attio=excluded.raw_attio,
+        is_active=excluded.is_active,
+        source_place_id=COALESCE(excluded.source_place_id, organizations.source_place_id),
+        raw_attio=excluded.raw_attio,
         updated_at=now(), removed_at=NULL
     """
 )
@@ -293,6 +295,7 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
         "employee_range": v.first(values, "employee_range"),
         "linkedin": v.first(values, "linkedin"),
         "logo_url": v.first(values, "logo_url"),
+        "source_place_id": v.first(values, "source_place_id"),
     }
 
 
