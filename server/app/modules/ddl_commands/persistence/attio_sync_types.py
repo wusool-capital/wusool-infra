@@ -59,6 +59,7 @@ class OrganizationParams(TypedDict):
     employee_range: str | None
     linkedin: str | None
     logo_url: str | None
+    source_place_id: str | None
 
 
 class PersonParams(TypedDict):

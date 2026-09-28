@@ -43,6 +43,20 @@ class Organization(Base):
             postgresql_using="gin",
             postgresql_ops={"name": "gin_trgm_ops"},
         ),
+        # Partial, because the column is null on every organization that did
+        # not come from a Places lookup -- a plain UNIQUE would allow only one
+        # such row.
+        Index(
+            "ix_organizations_source_place_id",
+            "source_place_id",
+            unique=True,
+            postgresql_where=text("source_place_id IS NOT NULL"),
+        ),
+        # Array containment (`sector_focus @> ARRAY[...]`) cannot use a btree.
+        # Without these the narrowing falls back to a sequential scan, which is
+        # no better than the Python filter it replaces.
+        Index("idx_organizations_sector_focus", "sector_focus", postgresql_using="gin"),
+        Index("idx_organizations_geographic_focus", "geographic_focus", postgresql_using="gin"),
     )
 
     attio_id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -58,6 +72,11 @@ class Organization(Base):
         ARRAY(Text), nullable=False, server_default="{}"
     )
     hq_country: Mapped[str | None] = mapped_column(Text)
+    # Google Places id for an organization discovery sourced, and the dedupe
+    # backstop for the CRM pre-filter: a place already in the CRM must not be
+    # re-created under a slightly different name. Null for every organization
+    # that came from SOURCE or a form -- most of them.
+    source_place_id: Mapped[str | None] = mapped_column(Text)
     # Added 2026-09-12: macro HQ region (MENA, GCC, Europe, ...) — one level
     # above hq_country, and not geographic_focus (that is where the org
     # invests). Mirrored from Attio organizations.region, which is written by
