@@ -133,6 +133,12 @@ $fields = @(
   [pscustomobject]@{ Title = "Region"; Slug = "region"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Domains"; Slug = "domains"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Logo URL"; Slug = "logo_url"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  # Google Places id, written by discovery -- the dedupe backstop that stops a
+  # company already in the CRM being re-created under a slightly different
+  # name. No SOURCE counterpart, so it is never seeded from there. Unique is
+  # enforced in Postgres by a PARTIAL index, not here: Attio's uniqueness would
+  # reject every organization after the first that leaves it blank.
+  [pscustomobject]@{ Title = "Source Place ID"; Slug = "source_place_id"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   # Same URL as logo_url above, duplicated under this exact slug -- confirmed
   # live (2026-08-27) that Attio renders a field named "avatar_url" as the
   # record's own icon in list/table views (matches Person's existing

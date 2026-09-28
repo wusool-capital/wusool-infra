@@ -2,17 +2,54 @@ param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DevApiKey = $env:SOURCE_ATTIO_API_KEY,
   [ValidateSet("buyer_role", "seller_role")]
-  [string[]]$Lists = @("buyer_role", "seller_role"),
+  [string[]]$Lists = @("seller_role"),
   [int]$SampleSize = 10,
   [ValidateRange(1, 3)]
   [int]$Workers = 3,
   [int]$Limit = 0,
   [string]$Confirmation,
   [switch]$CreateOnly,
+  [switch]$IUnderstandThisReflattensBuyerVerticals,
   [switch]$Apply
 )
 
 $ErrorActionPreference = "Stop"
+
+# buyer_role is no longer a default, and needs an explicit opt-in switch.
+#
+# `_internal/lists.ps1` reconciles `is_active` ONCE PER ORGANIZATION -- newest
+# created_at wins, every other entry in the org is switched off (:340-346). It
+# knows nothing about `target_vertical`. Since the 2026-09-26 re-grain a buyer
+# is one entry per (organization, vertical), so that rule switches off every
+# vertical but one.
+#
+# This is not hypothetical. The same rule, in the Python mirror, ran in the
+# 2026-09-28 00:15 UTC nightly against a prod still on PR #219 and took
+# buyer_role from 913 active entries to 274. The Python side was fixed in #221
+# (`vertical_key` / `_reconcile_active_entry`, deployed to prod as #229); this
+# PowerShell path was not, so it stayed a loaded gun with `buyer_role` sitting
+# in the parameter's default value.
+#
+# `is_active` on buyer_role is now owned by the deployed reconciler, which
+# repairs Attio itself on every full resync. Nothing here should set it.
+# To repair the flag by hand, use repair-buyer-role-is-active.ps1, which
+# applies the identical (org, vertical) rule.
+#
+# seller_role is unaffected: it has no verticals and reconciles per org in
+# both implementations, which is correct for it.
+if ($Lists -contains "buyer_role" -and -not $IUnderstandThisReflattensBuyerVerticals) {
+  throw @"
+Refusing to sync buyer_role: this path reconciles is_active per ORGANIZATION and
+would switch off every vertical but one (913 active -> ~274).
+
+  - to repair is_active:  .\repair-buyer-role-is-active.ps1
+  - to sync other lists:  .\sync-lists.ps1 -Lists seller_role
+
+Teaching _internal/lists.ps1 the (org, vertical) grouping is the proper fix and
+is still owed. Until then, pass -IUnderstandThisReflattensBuyerVerticals only if
+you have read _internal/lists.ps1:340-346 and mean it.
+"@
+}
 
 # Passed through to the worker as an argument array: an empty array
 # contributes nothing to a native command line, so there is no branch to
