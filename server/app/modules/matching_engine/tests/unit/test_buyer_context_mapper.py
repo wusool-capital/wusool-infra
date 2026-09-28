@@ -1,9 +1,9 @@
 """`to_buyer_context` — plain ORM-row-to-dataclass mapping, no DB session
 needed (constructed in-memory, `organization` assigned directly rather than
 through a relationship load). Covers the fields found missing entirely on
-2026-09-14: `target_geography`, `ebitda_ceiling`, and the `organizations`
+2026-09-14: the geography fields, `ebitda_ceiling`, and the `organizations`
 columns beyond `hq_country`/`sector_focus` — a buyer with a real, populated
-`target_geography` still produced an unrestricted seller search, since
+a populated geography still produced an unrestricted seller search, since
 `BuyerContext` never carried it past this mapper at all.
 """
 
@@ -14,7 +14,8 @@ from app.modules.matching_engine.persistence.mappers import to_buyer_context
 def _buyer_role() -> BuyerRole:
     role = BuyerRole(
         org_attio_id="org-1",
-        target_geography=["GCC-wide", "Global"],
+        target_region=["GCC", "Global"],
+        target_country=["United Arab Emirates"],
         ebitda_ceiling={"amount": 5_000_000.0, "currency": "USD"},
         notable_investments="Acquired three regional fintechs since 2023.",
         key_personnel="Jane Doe, Managing Partner",
@@ -34,10 +35,11 @@ def _buyer_role() -> BuyerRole:
     return role
 
 
-def test_maps_target_geography_and_ebitda_ceiling() -> None:
+def test_maps_target_region_country_and_ebitda_ceiling() -> None:
     context = to_buyer_context(_buyer_role())
 
-    assert context.target_geography == ["GCC-wide", "Global"]
+    assert context.target_region == ["GCC", "Global"]
+    assert context.target_country == ["United Arab Emirates"]
     assert context.ebitda_ceiling is not None
     assert context.ebitda_ceiling.amount == 5_000_000.0
 
@@ -62,13 +64,14 @@ def test_maps_organization_fields_beyond_hq_country_and_sector_focus() -> None:
     assert context.org_region == "Europe"
 
 
-def test_empty_target_geography_maps_to_an_empty_list_not_none() -> None:
-    role = BuyerRole(org_attio_id="org-2", target_geography=[])
+def test_empty_geography_maps_to_empty_lists_not_none() -> None:
+    role = BuyerRole(org_attio_id="org-2", target_region=[], target_country=[])
     role.organization = Organization(attio_id="org-2", name="Blank Co")
 
     context = to_buyer_context(role)
 
-    assert context.target_geography == []
+    assert context.target_region == []
+    assert context.target_country == []
 
 
 def test_missing_ebitda_ceiling_maps_to_none() -> None:

@@ -38,7 +38,8 @@ class BuyerRoleFields(TypedDict, total=False):
     notable_investments: str | None
     key_personnel: str | None
     relationship_warmth: str | None
-    target_geography: list[str]
+    target_region: list[str]
+    target_country: list[str]
     last_mandate_briefing_date: date | None
     prior_gcc_acquisition: str | None
     is_active: bool | None

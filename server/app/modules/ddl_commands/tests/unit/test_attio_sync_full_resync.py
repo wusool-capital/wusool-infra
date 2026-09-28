@@ -190,7 +190,8 @@ async def test_reconcile_roles_groups_by_org_and_isolates_failures(monkeypatch) 
         parent = siblings[0]["parent_record_id"]["record_id"]
         if parent == "org-b":
             raise RuntimeError("boom")
-        return siblings  # winner-first, matching the real function's contract
+        # (entry, is_active) pairs, matching the real function's contract
+        return [(entry, i == 0) for i, entry in enumerate(siblings)]
 
     monkeypatch.setattr(
         "app.modules.ddl_commands.persistence.attio_sync._reconcile_active_entry", fake_reconcile

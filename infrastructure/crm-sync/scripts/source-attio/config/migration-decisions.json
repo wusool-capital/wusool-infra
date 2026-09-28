@@ -74,6 +74,16 @@
       "status": "archived_in_dev_attio",
       "no_longer_synced_from": "DEV buyer_role.typical_check_size (SOURCE buyer_brain.typical_check_size_7 is still read, only to backfill check_size_min/max)"
     },
+    "buyer_role.target_geography": {
+      "reason": "Held three different kinds of value in one multi-select -- countries (UAE, KSA, Kuwait, Bahrain, Qatar, Oman, Egypt), a region (GCC-wide) and a no-restriction marker (Global). Nothing downstream could tell them apart, so discovery had to guess per value and once geocoded 'GCC' to Glendale Community College, California, silently narrowing a Gulf search. Replaced 2026-09-26 by target_region and target_country, which also drop the duplicate spellings: KSA and Saudi Arabia were two names for one country.",
+      "status": "archived_in_dev_attio",
+      "no_longer_synced_from": "SOURCE buyer_brain.target_geography"
+    },
+    "buyer_role.geographic_focus": {
+      "reason": "Added 2026-09-21 as a verbatim text carry-over of Organization.geographic_focus, because that vocabulary mixed countries, regions and a continent and no approved enum could hold it. Superseded 2026-09-26 by target_region/target_country, which split the same information into two approved vocabularies. Never held a value: the only writer was the buyer-vertical split, which had not been applied when this was dropped.",
+      "status": "archived_in_dev_attio",
+      "no_longer_synced_from": "Organization.geographic_focus (the organization attribute itself is unchanged and still in use)"
+    },
     "organization.contact_person": {
       "reason": "Created 2026-08-19 as a record-reference to Person, meant to resolve an org's contact via legacy_attio_id, but never actually implemented in objects.ps1/schema.ps1/sync-postgres.ps1 -- and structurally can't be, in the current pipeline: organizations sync runs before person (see sync-all.ps1's fixed dependency order), so no DEV Person records exist yet to resolve against at the point an Organization is created. Confirmed empty on every checked live record (0 of 500 sampled) before archiving -- never manually populated either.",
       "status": "archived_in_dev_attio",

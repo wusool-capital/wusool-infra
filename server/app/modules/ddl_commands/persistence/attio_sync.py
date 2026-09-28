@@ -605,57 +605,62 @@ def group_entries_by_org(entries: list[AttioRecord]) -> dict[str, list[AttioReco
     return by_org
 
 
+def vertical_key(list_slug: str, entry: AttioRecord) -> str | None:
+    """A buyer is one role per (org, target_vertical), so `is_active` is
+    reconciled within a vertical -- across the org, a split buyer would lose
+    every vertical but one. Other lists reconcile per org (`None` = one
+    group), and so does a buyer_role whose vertical is still unset."""
+    if list_slug != "buyer_role":
+        return None
+    return cast(str | None, v.first(v.vals(entry), "target_vertical"))
+
+
 async def _reconcile_active_entry(
     client: AttioClientProtocol, list_slug: str, siblings: list[AttioRecord]
-) -> list[AttioRecord]:
-    """Ensures exactly one entry among `siblings` (all belonging to the same
-    org) is `is_active`, flipping Attio's own flags (not just Postgres's) if
-    needed — `is_active` is a real Attio field other consumers read too, so
-    the correction has to land there, not just in our mirror. Newest
-    `created_at` wins, the same tiebreak `lists.ps1` already applies
-    elsewhere.
+) -> list[tuple[AttioRecord, bool]]:
+    """Ensures exactly one entry per `vertical_key` group among `siblings`
+    (all belonging to the same org) is `is_active`, flipping Attio's own
+    flags (not just Postgres's) if needed — `is_active` is a real Attio field
+    other consumers read too, so the correction has to land there, not just
+    in our mirror. Newest `created_at` wins its group, the same tiebreak
+    `lists.ps1` already applies elsewhere.
 
     Postgres mirrors every SOURCE Attio entry now, one row each keyed by
     `legacy_entry_id` (buyer_roles/seller_roles' 2026-08-28 pluralization --
     `org_attio_id` is no longer unique) rather than collapsing to a single
-    row per org, so this returns every sibling, winner first, instead of
-    just the winner: the caller writes one Postgres row per entry, with
-    `is_active` set explicitly from each entry's position here (winner=True,
-    every loser=False) rather than re-read from Attio -- that avoids relying
-    on the PATCH above having already taken effect by the time it's read.
+    row per org, so this returns every sibling paired with the `is_active`
+    the caller must write, newest first, instead of just the winner: the
+    caller writes one Postgres row per entry, taking `is_active` from here
+    rather than re-reading it from Attio -- that avoids relying on the PATCH
+    below having already taken effect by the time it's read.
     """
     if not siblings:
         raise ValueError(f"no {list_slug} entries found for this org")
     siblings = sorted(siblings, key=lambda e: e.get("created_at") or "", reverse=True)
-    winner, *losers = siblings
+    org_id = v.parent_id(siblings[0])
 
-    org_id = v.parent_id(winner)
-    if v.boolean(v.vals(winner), "is_active") is not True:
-        _logger.info(
-            "full resync: correcting %s is_active=True for org %s entry %s",
-            list_slug,
-            org_id,
-            v.entry_id(winner),
-        )
-        await patch_with_retry(
-            client,
-            f"/lists/{list_slug}/entries/{v.entry_id(winner)}",
-            {"data": {"entry_values": {"is_active": True}}},
-        )
-    for loser in losers:
-        if v.boolean(v.vals(loser), "is_active") is not False:
+    claimed: set[str | None] = set()
+    reconciled: list[tuple[AttioRecord, bool]] = []
+    for entry in siblings:
+        key = vertical_key(list_slug, entry)
+        reconciled.append((entry, key not in claimed))
+        claimed.add(key)
+
+    for entry, is_active in reconciled:
+        if v.boolean(v.vals(entry), "is_active") is not is_active:
             _logger.info(
-                "full resync: correcting %s is_active=False for org %s entry %s",
+                "full resync: correcting %s is_active=%s for org %s entry %s",
                 list_slug,
+                is_active,
                 org_id,
-                v.entry_id(loser),
+                v.entry_id(entry),
             )
             await patch_with_retry(
                 client,
-                f"/lists/{list_slug}/entries/{v.entry_id(loser)}",
-                {"data": {"entry_values": {"is_active": False}}},
+                f"/lists/{list_slug}/entries/{v.entry_id(entry)}",
+                {"data": {"entry_values": {"is_active": is_active}}},
             )
-    return siblings
+    return reconciled
 
 
 _BUYER_ROLE_UPSERT = text(
@@ -665,8 +670,10 @@ _BUYER_ROLE_UPSERT = text(
         ev_ceiling, deal_structure_tolerance, earnout_tolerance, profitable_only,
         investment_strategy, notes, key_contact_attio_id, acquisition_enrichment,
         deals_introduced, deals_converted, ebitda_ceiling, estimated_aum,
-        notable_investments, key_personnel, relationship_warmth, target_geography,
+        notable_investments, key_personnel, relationship_warmth,
+        target_region, target_country,
         last_mandate_briefing_date, prior_gcc_acquisition,
+        target_vertical, target_stage, ticket_size,
         is_active, legacy_entry_id, raw_attio
     ) VALUES (
         :org_attio_id, :model, :mandate_status, CAST(:ebitda_floor AS jsonb),
@@ -677,8 +684,10 @@ _BUYER_ROLE_UPSERT = text(
              THEN :key_contact_attio_id ELSE NULL END,
         :acquisition_enrichment, :deals_introduced, :deals_converted,
         CAST(:ebitda_ceiling AS jsonb), CAST(:estimated_aum AS jsonb),
-        :notable_investments, :key_personnel, :relationship_warmth, :target_geography,
+        :notable_investments, :key_personnel, :relationship_warmth,
+        :target_region, :target_country,
         :last_mandate_briefing_date, :prior_gcc_acquisition,
+        :target_vertical, :target_stage, :ticket_size,
         :is_active, :legacy_entry_id, CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (legacy_entry_id) DO UPDATE SET
@@ -695,9 +704,11 @@ _BUYER_ROLE_UPSERT = text(
         ebitda_ceiling=excluded.ebitda_ceiling, estimated_aum=excluded.estimated_aum,
         notable_investments=excluded.notable_investments,
         key_personnel=excluded.key_personnel, relationship_warmth=excluded.relationship_warmth,
-        target_geography=excluded.target_geography,
+        target_region=excluded.target_region, target_country=excluded.target_country,
         last_mandate_briefing_date=excluded.last_mandate_briefing_date,
         prior_gcc_acquisition=excluded.prior_gcc_acquisition,
+        target_vertical=excluded.target_vertical,
+        target_stage=excluded.target_stage, ticket_size=excluded.ticket_size,
         is_active=excluded.is_active,
         raw_attio=excluded.raw_attio, updated_at=now(), removed_at=NULL
     RETURNING id
@@ -729,9 +740,17 @@ def _buyer_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Buye
         "notable_investments": v.first(values, "notable_investments"),
         "key_personnel": v.first(values, "key_personnel"),
         "relationship_warmth": v.first(values, "relationship_warmth"),
-        "target_geography": v.titles(values, "target_geography"),
+        # Attio multi-selects, stored as the selected option titles.
+        "target_region": v.titles(values, "target_region"),
+        "target_country": v.titles(values, "target_country"),
         "last_mandate_briefing_date": v.date(values, "last_mandate_briefing_date"),
         "prior_gcc_acquisition": v.first(values, "prior_gcc_acquisition"),
+        # `target_vertical` is an Attio single-select; the rest are plain text.
+        # `target_geography` and `geographic_focus` were both dropped here
+        # 2026-09-26 -- target_region and target_country replace them.
+        "target_vertical": v.first(values, "target_vertical"),
+        "target_stage": v.first(values, "target_stage"),
+        "ticket_size": v.first(values, "ticket_size"),
         "is_active": is_active,
         "legacy_entry_id": v.entry_id(entry),
         "raw_attio": entry,
@@ -756,8 +775,8 @@ async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
     reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
-        for i, entry in enumerate(reconciled):
-            params = _buyer_role_params(org_id, entry, is_active=(i == 0))
+        for entry, is_active in reconciled:
+            params = _buyer_role_params(org_id, entry, is_active=is_active)
             result = await session.execute(_BUYER_ROLE_UPSERT, _for_text_sql("buyer_roles", params))
             row_id = result.scalar_one()
             if v.entry_id(entry) == entry_id:
@@ -790,7 +809,8 @@ async def delete_buyer_role(entry_id: str) -> None:
 _SELLER_ROLE_UPSERT = text(
     """
     INSERT INTO seller_roles(
-        org_attio_id, outreach_tier, appetite_signal, relationship_status, est_revenue,
+        org_attio_id, sector,
+        outreach_tier, appetite_signal, relationship_status, est_revenue,
         est_ebitda, owner_salary, valuation_low, valuation_mid, valuation_high,
         sell_timeline, readiness_score, readiness_band,
         last_attempt_date, last_attempt_channel, last_attempt_outcome, lead_quality_score,
@@ -808,7 +828,8 @@ _SELLER_ROLE_UPSERT = text(
         include_in_benchmark, review_note, headline_flag, recommended_referral,
         legacy_entry_id, raw_attio
     ) VALUES (
-        :org_attio_id, :outreach_tier, :appetite_signal, :relationship_status,
+        :org_attio_id, :sector,
+        :outreach_tier, :appetite_signal, :relationship_status,
         CAST(:est_revenue AS jsonb), CAST(:est_ebitda AS jsonb), CAST(:owner_salary AS jsonb),
         CAST(:valuation_low AS jsonb), CAST(:valuation_mid AS jsonb),
         CAST(:valuation_high AS jsonb), :sell_timeline, :readiness_score, :readiness_band,
@@ -831,7 +852,7 @@ _SELLER_ROLE_UPSERT = text(
         CAST(:raw_attio AS jsonb)
     )
     ON CONFLICT (legacy_entry_id) DO UPDATE SET
-        org_attio_id=excluded.org_attio_id,
+        org_attio_id=excluded.org_attio_id, sector=excluded.sector,
         outreach_tier=excluded.outreach_tier, appetite_signal=excluded.appetite_signal,
         relationship_status=excluded.relationship_status, est_revenue=excluded.est_revenue,
         est_ebitda=excluded.est_ebitda, owner_salary=excluded.owner_salary,
@@ -881,6 +902,8 @@ def _seller_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Sel
     values = v.vals(entry)
     return {
         "org_attio_id": org_id,
+        # Attio multiselect, mirroring `Organization.sector_focus` in shape and vocabulary.
+        "sector": v.titles(values, "sector"),
         "outreach_tier": v.first(values, "outreach_tier"),
         "appetite_signal": v.first(values, "appetite_signal"),
         "relationship_status": v.first(values, "relationship_status"),
@@ -963,8 +986,8 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
     reconciled = await _reconcile_active_entry(client, "seller_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
-        for i, entry in enumerate(reconciled):
-            params = _seller_role_params(org_id, entry, is_active=(i == 0))
+        for entry, is_active in reconciled:
+            params = _seller_role_params(org_id, entry, is_active=is_active)
             result = await session.execute(
                 _SELLER_ROLE_UPSERT, _for_text_sql("seller_roles", params)
             )

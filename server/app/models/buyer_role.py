@@ -75,7 +75,14 @@ class BuyerRole(Base):
     notable_investments: Mapped[str | None] = mapped_column(Text)
     key_personnel: Mapped[str | None] = mapped_column(Text)
     relationship_warmth: Mapped[str | None] = mapped_column(Text)
-    target_geography: Mapped[list[str]] = mapped_column(
+    # `target_geography` was replaced by these two on 2026-09-26. It held
+    # countries, a region and a no-restriction marker in one array, so nothing
+    # downstream could tell them apart -- discovery geocoded "GCC" and got a
+    # college in Glendale. Region resolves from a fixed table, country geocodes.
+    target_region: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{}"
+    )
+    target_country: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )
     # typical_check_size dropped 2026-08-23: redundant with check_size_min/max
@@ -84,6 +91,15 @@ class BuyerRole(Base):
     # migration-decisions.json's dropped_fields.
     last_mandate_briefing_date: Mapped[date | None] = mapped_column()
     prior_gcc_acquisition: Mapped[str | None] = mapped_column(Text)
+    # The grain: one row per (organization, vertical). The split is what makes it single-valued.
+    target_vertical: Mapped[str | None] = mapped_column(Text)
+    # Carry-over of the same-named Organization value, comma-joined.
+    # Text, not an array: an Attio select rejects values outside its options.
+    # `geographic_focus` was dropped 2026-09-26 -- target_region/target_country
+    # above replace it, and it never held a value.
+    target_stage: Mapped[str | None] = mapped_column(Text)
+    # Carry-over. `check_size_min`/`check_size_max` stay authoritative for matching.
+    ticket_size: Mapped[str | None] = mapped_column(Text)
     # Mirrors DEV Attio's Buyer Database is_active/legacy_entry_id (added
     # 2026-08-19 when duplicate SOURCE submissions were split into separate
     # DEV entries instead of being blended). Every DEV entry gets its own row

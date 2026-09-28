@@ -54,6 +54,13 @@ def pages(key, path):
 def record_id(row):
   return row.get("id", {}).get("record_id")
 
+def entry_value(entry, slug):
+  items = [i for i in (entry.get("entry_values") or {}).get(slug) or [] if i.get("active_until") is None]
+  if not items:
+    return None
+  option = items[0].get("option") or {}
+  return option.get("title") if option else items[0].get("value")
+
 def parent_id(entry):
   parent = entry.get("parent_record_id") or entry.get("parent_record") or {}
   if isinstance(parent, str):
@@ -105,9 +112,18 @@ for source_list, target_list in list_routes:
   source_parents = [parent_id(row) for row in source_rows]
   canonical_count = len({value for value in source_parents if value})
   missing_source_parents = sum(value is None for value in source_parents)
-  target_parents = [parent_id(row) for row in target_rows]
-  duplicate_target_parents = len([value for value in target_parents if value]) - len({value for value in target_parents if value})
-  target_count = len(target_rows)
+  target_parents = [value for value in (parent_id(row) for row in target_rows) if value]
+  if target_list == "buyer_role":
+    # One entry per (organization, vertical) since the re-grain, so row count
+    # no longer tracks parent count and a repeated parent is expected. What
+    # must stay unique is the live (parent, vertical) pair.
+    live = [row for row in target_rows if entry_value(row, "is_active") is True]
+    keys = [(parent_id(row), entry_value(row, "target_vertical")) for row in live]
+    duplicate_target_parents = len(keys) - len(set(keys))
+    target_count = len(set(target_parents))
+  else:
+    duplicate_target_parents = len(target_parents) - len(set(target_parents))
+    target_count = len(target_rows)
   status = "PASS" if canonical_count == target_count and missing_source_parents == 0 and duplicate_target_parents == 0 else "FAIL"
   route = f"{source_list} -> {target_list}"
   print(f"{route:34} {len(source_rows):12} {canonical_count:12} {target_count:10} {status:>10}")
@@ -116,7 +132,8 @@ for source_list, target_list in list_routes:
   if missing_source_parents:
     failures.append(f"{source_list}: {missing_source_parents} SOURCE entries have no parent")
   if duplicate_target_parents:
-    failures.append(f"{target_list}: {duplicate_target_parents} duplicate V2 parent entries")
+    grain = "live (parent, vertical) pairs" if target_list == "buyer_role" else "parent entries"
+    failures.append(f"{target_list}: {duplicate_target_parents} duplicate V2 {grain}")
 
 if failures:
   print("\nVALIDATION FAILED")

@@ -1,8 +1,14 @@
 ﻿param(
   [string]$SourceApiKey = $env:SOURCE_ATTIO_API_KEY,
   [string]$DevApiKey = $env:SOURCE_ATTIO_API_KEY,
-  [ValidateSet("organizations", "person", "buyer_role", "seller_role", "deal", "note")]
-  [string[]]$Entities = @("organizations", "person", "buyer_role", "seller_role", "deal", "note"),
+  [ValidateSet(
+    "organizations", "person", "buyer_role", "seller_role", "deal", "note",
+    "buyer_vertical_split", "seller_sector"
+  )]
+  [string[]]$Entities = @(
+    "organizations", "person", "buyer_role", "seller_role", "deal", "note",
+    "buyer_vertical_split", "seller_sector"
+  ),
   [int]$Limit = 0,
   [switch]$Parallel,
   # Upper bound matches backfill-notes.ps1's own ceiling (the highest of any
@@ -14,6 +20,14 @@
   [string]$DevDealOwnerWorkspaceMemberId,
   [switch]$DeleteOrphaned,
   [switch]$MigrateMandates,
+  # Inserts what SOURCE has and the target does not, and leaves every
+  # already-migrated record untouched. A normal -Apply is not a diffing sync:
+  # it rewrites every mapped field on every matched record, overwriting
+  # whatever an advisor edited in Attio since the last run. The trade is
+  # explicit -- a real correction made in SOURCE will not come across either.
+  # Covers all six mirrored entities. No effect on the two re-grain steps,
+  # which must patch existing entries by design.
+  [switch]$CreateOnly,
   [switch]$Apply,
   # A -Apply run of this script writes many records to SOURCE Attio in quick
   # succession, each one independently firing the real-time Attio-to-Postgres
@@ -126,13 +140,25 @@ function Get-DevWebhook {
   return $webhooks[0]
 }
 
-$canonicalOrder = @("organizations", "person", "buyer_role", "seller_role", "deal", "note")
+# The last two re-grain the role lists against `organizations.sector_focus`,
+# so they run after everything that writes either side. Both are re-runnable:
+# a role that arrived since the last run is unclassified until they run again.
+$canonicalOrder = @(
+  "organizations", "person", "buyer_role", "seller_role", "deal", "note",
+  "buyer_vertical_split", "seller_sector"
+)
 $orderedEntities = @($canonicalOrder | Where-Object { $Entities -contains $_ })
 $objectEntities = @("organizations", "person", "deal")
 
 $listConfirmations = @{
   buyer_role  = @{ bounded = "APPLY_BUYER_ROLE_TO_DEV"; full = "APPLY_ALL_BUYER_ROLE_TO_DEV" }
   seller_role = @{ bounded = "APPLY_SELLER_ROLE_TO_DEV"; full = "APPLY_ALL_SELLER_ROLE_TO_DEV" }
+  buyer_vertical_split = @{
+    bounded = "APPLY_VERTICAL_SPLIT_TO_SOURCE"; full = "APPLY_ALL_VERTICAL_SPLIT_TO_SOURCE"
+  }
+  seller_sector = @{
+    bounded = "APPLY_SELLER_SECTOR_TO_SOURCE"; full = "APPLY_ALL_SELLER_SECTOR_TO_SOURCE"
+  }
 }
 
 # Parallel apply is only actually implemented, today, for organizations,
@@ -144,7 +170,7 @@ $listConfirmations = @{
 $parallelCapable = @("organizations", "person", "buyer_role", "note")
 
 Write-Host "Migration order for this run: $($orderedEntities -join ' -> ')"
-Write-Host "Mode: $(if ($Apply) { 'APPLY' } else { 'DRY RUN' })"
+Write-Host "Mode: $(if ($Apply) { 'APPLY' } else { 'DRY RUN' })$(if ($CreateOnly) { ' (create-only)' })"
 if ($Parallel) {
   $notParallelCapable = @($orderedEntities | Where-Object { $parallelCapable -notcontains $_ })
   if ($notParallelCapable.Count -gt 0) {
@@ -248,6 +274,7 @@ try {
           $objArgs.Confirmation = "APPLY_SELECTED_OBJECTS_TO_DEV"
         }
         if ($entity -eq "deal" -and $MigrateMandates) { $objArgs.MigrateMandates = $true }
+        if ($CreateOnly) { $objArgs.CreateOnly = $true }
         & (Join-Path $PSScriptRoot "sync-objects.ps1") @objArgs
         $exitedCleanly = $?
       } elseif ($entity -eq "note") {
@@ -264,11 +291,45 @@ try {
           Limit        = $Limit
         }
         if ($Parallel) { $noteArgs.Workers = [Math]::Min([Math]::Max($Workers, 1), 16) }
+        if ($CreateOnly) { $noteArgs.CreateOnly = $true }
         if ($Apply) {
           $noteArgs.Apply = $true
           $noteArgs.Confirmation = "APPLY_NOTES_BACKFILL_TO_SOURCE"
         }
         & (Join-Path $PSScriptRoot "backfill-notes.ps1") @noteArgs
+        $exitedCleanly = $?
+      } elseif ($entity -eq "buyer_vertical_split") {
+        # Its own script for the same reason as note: nothing to migrate from
+        # SOURCE. It re-grains the target list against the organizations
+        # already in this workspace, and writes its own pre-run backup.
+        $splitArgs = @{
+          SourceApiKey = $SourceApiKey
+          Limit        = $Limit
+        }
+        if ($Apply) {
+          $splitArgs.Apply = $true
+          $splitArgs.Confirmation = if ($Limit -eq 0) {
+            $listConfirmations[$entity].full
+          } else {
+            $listConfirmations[$entity].bounded
+          }
+        }
+        & (Join-Path $PSScriptRoot "split-buyer-roles-by-vertical.ps1") @splitArgs
+        $exitedCleanly = $?
+      } elseif ($entity -eq "seller_sector") {
+        $sectorArgs = @{
+          SourceApiKey = $SourceApiKey
+          Limit        = $Limit
+        }
+        if ($Apply) {
+          $sectorArgs.Apply = $true
+          $sectorArgs.Confirmation = if ($Limit -eq 0) {
+            $listConfirmations[$entity].full
+          } else {
+            $listConfirmations[$entity].bounded
+          }
+        }
+        & (Join-Path $PSScriptRoot "backfill-seller-sector.ps1") @sectorArgs
         $exitedCleanly = $?
       } else {
         $listArgs = @{
@@ -278,6 +339,7 @@ try {
           Limit        = $Limit
         }
         if ($entity -eq "buyer_role" -and $Parallel) { $listArgs.Workers = [Math]::Min($Workers, 3) }
+        if ($CreateOnly) { $listArgs.CreateOnly = $true }
         if ($Apply) {
           $listArgs.Apply = $true
           $listArgs.Confirmation = if ($Limit -eq 0) { $listConfirmations[$entity].full } else { $listConfirmations[$entity].bounded }

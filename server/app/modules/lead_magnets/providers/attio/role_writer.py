@@ -56,14 +56,23 @@ class AttioRoleWriter:
         return org_id, None
 
     async def _upsert_role_entry(
-        self, *, list_slug: str, org_id: str, entry_values: dict[str, object]
+        self,
+        *,
+        list_slug: str,
+        org_id: str,
+        entry_values: dict[str, object],
+        unset_vertical_only: bool = False,
     ) -> str:
         """Resolving an existing entry is done by
         `entries.resolve_role_entry_id`, which pages the list and respects
         the `is_test` half of the shared workspace."""
         try:
             entry_id = await entries.resolve_role_entry_id(
-                self._client, list_slug, org_id, is_test=self._is_test
+                self._client,
+                list_slug,
+                org_id,
+                is_test=self._is_test,
+                unset_vertical_only=unset_vertical_only,
             )
             await entries.patch_role_entry(self._client, list_slug, entry_id, entry_values)
             return entry_id
@@ -149,8 +158,13 @@ class AttioRoleWriter:
         org_id, org_web_url = await self._upsert_organization(
             org_values=org_values, organization_attio_id=organization_attio_id
         )
+        # The form asks for no vertical, so this targets the org's
+        # unclassified buyer role rather than overwriting a curated one.
         entry_id = await self._upsert_role_entry(
-            list_slug=_BUYER_ROLE_LIST, org_id=org_id, entry_values=entry_values
+            list_slug=_BUYER_ROLE_LIST,
+            org_id=org_id,
+            entry_values=entry_values,
+            unset_vertical_only=True,
         )
 
         return SubjectRefs(

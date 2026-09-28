@@ -132,6 +132,11 @@ _KNOWN_REGIONS: dict[str, GeographyScope] = {
     # this module exists to close. Routing it through this table instead
     # gives it the same real country-list enforcement as GCC/MENA.
     "middle east": GeographyScope(countries=_MENA_COUNTRIES, viewport=_MENA_VIEWPORT),
+    # Not a place, so there is nothing to geocode and nothing to enforce: it
+    # describes a class of economy, not an area. Left to geocode it would be
+    # another "GCC" -- a plausible-looking result for something that is not a
+    # location. Resolved as unrestricted, explicitly, rather than by accident.
+    "emerging markets": GeographyScope(unrestricted=True),
 }
 
 
@@ -141,6 +146,15 @@ def resolve_known(token: str) -> GeographyScope | None:
     the caller falls back to a live geocode for anything not covered here.
     A token resolves to exactly one of a multi-country region or an
     explicit unrestricted scope, never both.
+
+    What belongs in this table, after the 2026-09-26 region/country split:
+    abbreviations and economic blocs, not every region. `GCC` broke because
+    it is an abbreviation that geocodes to a real, wrong place; `Emerging
+    Markets` is not a location at all. Ordinary geographic names — Africa,
+    Europe, Southeast Asia — geocode correctly and are checked against
+    `_ACCEPTED_GEOCODE_TYPES`, so they do not need entries here. The buyer
+    vocabulary now spells regions out in full (Southeast Asia, not SEA),
+    which is what keeps the abbreviation hazard from coming back.
     """
     normalized = token.strip().lower()
     if normalized in _UNRESTRICTED_TOKENS:

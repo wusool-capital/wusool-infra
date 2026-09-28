@@ -3,8 +3,15 @@
  [ValidateSet("organizations","person")][string]$Object="organizations",
  [string]$SourceApiKey=$env:SOURCE_ATTIO_API_KEY,[string]$DevApiKey=$env:SOURCE_ATTIO_API_KEY,
  [int]$Limit=10,[int]$StartOffset=0,[int]$PageSize=100,[int]$Workers=4,
- [string]$DevOwnerWorkspaceMemberId,[string]$Confirmation,[switch]$ExistingOnly,[switch]$DeleteOrphaned,[switch]$MigrateMandates,[switch]$Apply
+ [string]$DevOwnerWorkspaceMemberId,[string]$Confirmation,[switch]$ExistingOnly,[switch]$DeleteOrphaned,[switch]$MigrateMandates,[switch]$CreateOnly,[switch]$Apply
 )
+# -CreateOnly closes the gap without re-asserting anything. These scripts are
+# not diffing syncs: every run rewrites every mapped field on every matched
+# record from SOURCE, which overwrites whatever an advisor typed into Attio
+# since. With this switch a record that already exists is left exactly as it
+# is and only genuinely new SOURCE rows are inserted. The trade is explicit:
+# a real correction made in SOURCE will not come across either, because
+# nothing here can tell a stale value from a deliberate edit.
 $ErrorActionPreference="Stop"
 function Invoke-ObjectRecord {
 param(
@@ -15,6 +22,7 @@ param(
   [int]$Limit = 10,
   [int]$StartOffset = 0,
   [int]$PageSize = 100,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
@@ -598,6 +606,7 @@ while ($Limit -eq 0 -or $sourceRecords.Count -lt $Limit) {
 $stats = [ordered]@{
   inspected = 0
   would_create = 0
+  skipped_existing = 0
   would_update = 0
   created = 0
   updated = 0
@@ -772,6 +781,10 @@ foreach ($record in $sourceRecords) {
   }
 
   $exists = $devByLegacyId.ContainsKey($sourceId)
+  if ($exists -and $CreateOnly) {
+    $stats.skipped_existing++
+    continue
+  }
   if (-not $Apply) {
     if ($exists) {
       $stats.would_update++
@@ -860,6 +873,7 @@ param(
   [ValidateRange(1, 8)]
   [int]$Workers = 4,
   [int]$PageSize = 500,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
@@ -966,6 +980,9 @@ for ($index = 0; $index -lt $workerCount; $index++) {
     "-Limit", $limit,
     "-PageSize", ([Math]::Min(500, $PageSize))
   )
+  if ($CreateOnly) {
+    $arguments += "-CreateOnly"
+  }
   if ($Apply) {
     $arguments += "-Apply"
   }
@@ -1065,6 +1082,7 @@ param(
   [switch]$ExistingOnly,
   [switch]$DeleteOrphaned,
   [switch]$MigrateMandates,
+  [switch]$CreateOnly,
   [switch]$Apply
 )
 
@@ -1352,7 +1370,10 @@ $populatedDevBuyers=@($dev|Where-Object{(Value $_.values "legacy_attio_id")-and@
 if($populatedDevBuyers.Count-gt0){
   throw "Confirmed migration rule requires blank buyer_id on SOURCE-migrated Deals, but $($populatedDevBuyers.Count) such DEV Deal(s) are populated. Review before applying."
 }
-$eligiblePlans=if($ExistingOnly){@($plans|Where-Object action -eq "update")}else{@($plans)}
+# -CreateOnly is the mirror image of -ExistingOnly: only the plans that would
+# insert a deal survive, so an already-migrated deal is never re-asserted from
+# SOURCE over an edit made here.
+$eligiblePlans=if($ExistingOnly){@($plans|Where-Object action -eq "update")}elseif($CreateOnly){@($plans|Where-Object action -eq "create")}else{@($plans)}
 $selected=if($Limit-eq0){@($eligiblePlans)}else{@($eligiblePlans|Select-Object -First $Limit)}
 $selectedCreates=@($selected|Where-Object action -eq "create")
 $selectedCreatesNeedingOwner=@($selectedCreates|Where-Object{-not$_.values.ContainsKey("deal_owner")})
@@ -1402,7 +1423,7 @@ if($Apply){
     }catch{$errors++;throw}
   }
 }
-$summary=[ordered]@{mode=if($Apply){"apply"}else{"dry-run"};existing_only=[bool]$ExistingOnly;source_deals=$source.Count;existing_dev_deals=$dev.Count;resolved_existing=@($plans|Where-Object action -eq "update").Count;resolved_sellers=@($plans|Where-Object seller_resolution -eq "resolved").Count;unresolved_sellers=$unresolvedSellers.Count;resolved_owners=@($plans|Where-Object owner_resolution -eq "resolved").Count;unmapped_source_owners=@($plans|Where-Object owner_resolution -eq "unmapped_source_owner").Count;missing_source_owners=@($plans|Where-Object owner_resolution -eq "missing_source_owner").Count;populated_dev_buyers=$populatedDevBuyers.Count;would_create=@($plans|Where-Object action -eq "create").Count;owner_blocked_creates=$selectedCreatesNeedingOwner.Count;selected=$selected.Count;created=$created;updated=$updated;errors=$errors}
+$summary=[ordered]@{mode=if($Apply){"apply"}else{"dry-run"};existing_only=[bool]$ExistingOnly;create_only=[bool]$CreateOnly;skipped_existing=if($CreateOnly){@($plans|Where-Object action -eq "update").Count}else{0};source_deals=$source.Count;existing_dev_deals=$dev.Count;resolved_existing=@($plans|Where-Object action -eq "update").Count;resolved_sellers=@($plans|Where-Object seller_resolution -eq "resolved").Count;unresolved_sellers=$unresolvedSellers.Count;resolved_owners=@($plans|Where-Object owner_resolution -eq "resolved").Count;unmapped_source_owners=@($plans|Where-Object owner_resolution -eq "unmapped_source_owner").Count;missing_source_owners=@($plans|Where-Object owner_resolution -eq "missing_source_owner").Count;populated_dev_buyers=$populatedDevBuyers.Count;would_create=@($plans|Where-Object action -eq "create").Count;owner_blocked_creates=$selectedCreatesNeedingOwner.Count;selected=$selected.Count;created=$created;updated=$updated;errors=$errors}
 [IO.Directory]::CreateDirectory((Split-Path $outputPath -Parent))|Out-Null
 [IO.File]::WriteAllText($outputPath,([ordered]@{summary=$summary;plans=@($plans)}|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
 $summary|Format-List
@@ -1546,7 +1567,7 @@ if($MigrateMandates){
 
 }
 switch($Task){
- "record"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;StartOffset=$StartOffset;PageSize=$PageSize};if($Apply){$a.Apply=$true};Invoke-ObjectRecord @a}
- "parallel"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Workers=$Workers;PageSize=$PageSize};if($Apply){$a.Apply=$true};Invoke-ObjectParallel @a}
- "deals"{$a=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;Confirmation=$Confirmation};if($DevOwnerWorkspaceMemberId){$a.DevOwnerWorkspaceMemberId=$DevOwnerWorkspaceMemberId};if($ExistingOnly){$a.ExistingOnly=$true};if($DeleteOrphaned){$a.DeleteOrphaned=$true};if($MigrateMandates){$a.MigrateMandates=$true};if($Apply){$a.Apply=$true};Invoke-Deals @a}
+ "record"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;StartOffset=$StartOffset;PageSize=$PageSize};if($CreateOnly){$a.CreateOnly=$true};if($Apply){$a.Apply=$true};Invoke-ObjectRecord @a}
+ "parallel"{$a=@{Object=$Object;SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Workers=$Workers;PageSize=$PageSize};if($CreateOnly){$a.CreateOnly=$true};if($Apply){$a.Apply=$true};Invoke-ObjectParallel @a}
+ "deals"{$a=@{SourceApiKey=$SourceApiKey;DevApiKey=$DevApiKey;Limit=$Limit;Confirmation=$Confirmation};if($DevOwnerWorkspaceMemberId){$a.DevOwnerWorkspaceMemberId=$DevOwnerWorkspaceMemberId};if($ExistingOnly){$a.ExistingOnly=$true};if($DeleteOrphaned){$a.DeleteOrphaned=$true};if($MigrateMandates){$a.MigrateMandates=$true};if($CreateOnly){$a.CreateOnly=$true};if($Apply){$a.Apply=$true};Invoke-Deals @a}
 }

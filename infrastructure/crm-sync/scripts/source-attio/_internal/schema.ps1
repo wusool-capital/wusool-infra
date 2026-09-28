@@ -1043,13 +1043,78 @@ $fields = @(
   [pscustomobject]@{ Title="Notable Investments"; Slug="notable_investments"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Key Personnel"; Slug="key_personnel"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Relationship Warmth"; Slug="relationship_warmth"; Type="select"; Multi=$false; SourceOption="relationship_warmth"; Config=@{} },
-  # FixedOptions added 2026-09-06 alongside the existing SourceOption: the two
-  # seeding passes are independent and both additive. The Buyer Network form
-  # offers UAE / Saudi Arabia / GCC / Egypt / Global, and Egypt and Global had
-  # no option here -- two of its five answers were unstorable.
-  [pscustomobject]@{ Title="Target Geography"; Slug="target_geography"; Type="select"; Multi=$true; SourceOption="target_geography"; FixedOptions=@("Egypt","Global"); Config=@{} },
+  # Replaced target_geography 2026-09-26. That one select mixed countries,
+  # a region (GCC-wide) and a no-restriction marker (Global), so nothing
+  # downstream could tell them apart -- geocoding "GCC" once resolved to a
+  # college in Glendale, California. Region resolves from a fixed table and is
+  # never geocoded; country always geocodes. Both vocabularies mirror the Slack
+  # pickers in ddl_commands/api/organizations.py (region, hq_country), which is
+  # also where the one-name-per-place rule comes from: Saudi Arabia, not KSA.
+  # Region is NOT organizations.region's picker: it is exactly the regions
+  # organizations.geographic_focus actually holds, which is what the fallback
+  # reads. Africa stays Africa -- offering North Africa and Sub-Saharan Africa
+  # alongside it would recreate the ambiguity this split removes, and nothing
+  # in the data uses them. Abbreviations are expanded (SEA, LATAM); MENATP is
+  # its own region, not MENA.
+  [pscustomobject]@{ Title="Target Region"; Slug="target_region"; Type="select"; Multi=$true; SourceOption=$null; FixedOptions=@(
+    "GCC","MENA","MENATP","Africa","Asia","Europe","Southeast Asia",
+    "Latin America","Emerging Markets","Global"
+  ); Config=@{} },
+  [pscustomobject]@{ Title="Target Country"; Slug="target_country"; Type="select"; Multi=$true; SourceOption=$null; FixedOptions=@(
+    "Algeria","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahrain",
+    "Bangladesh","Barbados","Belgium","Bermuda","Brazil","British Virgin Islands","Canada",
+    "Cayman Islands","China","Croatia","Cyprus","Czechia","Denmark","Egypt","Ethiopia",
+    "Finland","France","Georgia","Germany","Ghana","Gibraltar","Greece","Hong Kong",
+    "Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy",
+    "Japan","Jersey","Jordan","Kazakhstan","Kenya","Kuwait","Latvia","Lebanon","Libya",
+    "Luxembourg","Malaysia","Malta","Mexico","Morocco","Netherlands","New Zealand",
+    "Nicaragua","Nigeria","Norway","Oman","Pakistan","Palestinian Authority",
+    "Papua New Guinea","Philippines","Poland","Portugal","Qatar","Romania","Russia",
+    "Saudi Arabia","Serbia","Sierra Leone","Singapore","Slovakia","South Africa",
+    "South Korea","Spain","Sri Lanka","Sudan","Sweden","Switzerland","Syria","Taiwan",
+    "Tanzania","Thailand","Trinidad and Tobago","Tunisia","Turkey","Ukraine",
+    "United Arab Emirates","United Kingdom","United States","Vietnam","Yemen"
+  ); Config=@{} },
   [pscustomobject]@{ Title="Last Mandate Briefing Date"; Slug="last_mandate_briefing_date"; Type="date"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Prior GCC Acquisition"; Slug="prior_gcc_acquisition"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  # The grain itself: one buyer_role entry per (organization, vertical).
+  # FixedOptions, not SourceOption: that pass reads SOURCE's buyer_brain LIST,
+  # but these 85 titles live on the companies OBJECT -- it would seed zero options.
+  # Pinned to the Slack picker by server/tests/test_sector_focus_vocabulary.py.
+  [pscustomobject]@{ Title="Target Vertical"; Slug="target_vertical"; Type="select"; Multi=$false; SourceOption=$null; FixedOptions=@(
+    "Clinic","Garage","Legal Services","Retail / E-Commerce","Utilities","Creative / Arts & Culture",
+    "IT Services / Distribution","Industrial Manufacturing","Pharmaceuticals / Biotech",
+    "Trade & Technical Services","Packaging & Materials","Telecom / Connectivity",
+    "Residential / Commercial Real Estate","Cybersecurity","Sports & Wellness",
+    "Beauty & Personal Care","EdTech / Education","Diversified / Generalist",
+    "Steel / Metals / Mining","Oil & Gas","Impact / ESG / Sustainability","Fintech",
+    "Asset Management","Agriculture / AgriTech","Technology","Logistics / 3PL / Freight",
+    "Enterprise Software","Banking / Commercial","AI / ML","Construction & Engineering",
+    "Luxury / Fashion / Apparel","Gaming / Metaverse","Real Assets","Dental / Specialist Clinics",
+    "Private Credit / Debt","Web3 / Blockchain / Digital Assets","Energy Infrastructure",
+    "Food Manufacturing / FoodTech","Public Markets / Equities","Aviation / Aircraft Leasing",
+    "Chemicals & Petrochemicals","Medical Education","B2B Business Services","Biotech / Longevity",
+    "FemTech / Mental Health","Electrical Equipment","Medical Devices & Supplies",
+    "HR / Human Capital","Healthcare Services / Clinics","Supply Chain / Distribution",
+    "SaaS / Cloud","Property Management / Proptech","Private Equity","Healthtech / Digital Health",
+    "Renewable Energy / CleanTech","FMCG / Consumer Goods","Venture / Growth (Africa / MENA SME)",
+    "Space / Deep Tech","Media / Entertainment / Gaming","Family Office / Wealth Management",
+    "Consulting / Advisory","Marketing / AdTech","Venture Capital","Real Estate Development",
+    "Sharia-Compliant","Semiconductors / Hardware","Energy Storage / Services","Shipping / Maritime",
+    "Insurance / Insurtech","Pet Care","Consumer & Lifestyle Services","Sovereign Wealth Fund",
+    "Investment Banking / M&A Advisory","Transportation","Mobility","Water / Waste Management",
+    "Automotive","Hospitality / Hotels / Tourism","Food & Beverage / QSR","Robotics / Automation",
+    "Security Services","Financial Services","Aquaculture / Forestry","Aerospace & Defense","Nursery"
+  ); Config=@{} },
+  # Verbatim carry-over of the same-named Organization value, comma-joined.
+  # Text, not select: that vocabulary is unapproved and a select rejects any
+  # value outside its options. Geographic Focus was dropped from this list on
+  # 2026-09-26 -- target_region/target_country above replace it, and it never
+  # held a value here. Archive the Attio attribute by hand; see
+  # config/migration-decisions.json's dropped_fields.
+  [pscustomobject]@{ Title="Target Stage"; Slug="target_stage"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
+  # Carry-over. check_size_min/check_size_max stay authoritative for matching.
+  [pscustomobject]@{ Title="Ticket Size"; Slug="ticket_size"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Is Active"; Slug="is_active"; Type="checkbox"; Multi=$false; SourceOption=$null; Config=@{} },
   [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; Multi=$false; SourceOption=$null; Config=@{} },
   # Environment discriminator, added 2026-09-06: one SOURCE workspace now
@@ -1361,6 +1426,35 @@ $fields = @(
   # Organization/Person/Buyer Role the same day).
   [pscustomobject]@{ Title="Is Active"; Slug="is_active"; Type="checkbox"; SourceOptions=@(); Config=@{} },
   [pscustomobject]@{ Title="Legacy Entry ID"; Slug="legacy_entry_id"; Type="text"; SourceOptions=@(); Config=@{} },
+  # The sector the seller operates in -- an identity, not a want, hence not sector_focus.
+  # Multi-valued, mirroring Organization.sector_focus. First multiselect on this list.
+  # TargetOptions prunes anything outside the set, so this must stay pinned to
+  # that vocabulary -- server/tests/test_sector_focus_vocabulary.py enforces it.
+  [pscustomobject]@{ Title="Sector"; Slug="sector"; Type="select"; Multi=$true; SourceOptions=@(); TargetOptions=@(
+    "Clinic","Garage","Legal Services","Retail / E-Commerce","Utilities","Creative / Arts & Culture",
+    "IT Services / Distribution","Industrial Manufacturing","Pharmaceuticals / Biotech",
+    "Trade & Technical Services","Packaging & Materials","Telecom / Connectivity",
+    "Residential / Commercial Real Estate","Cybersecurity","Sports & Wellness",
+    "Beauty & Personal Care","EdTech / Education","Diversified / Generalist",
+    "Steel / Metals / Mining","Oil & Gas","Impact / ESG / Sustainability","Fintech",
+    "Asset Management","Agriculture / AgriTech","Technology","Logistics / 3PL / Freight",
+    "Enterprise Software","Banking / Commercial","AI / ML","Construction & Engineering",
+    "Luxury / Fashion / Apparel","Gaming / Metaverse","Real Assets","Dental / Specialist Clinics",
+    "Private Credit / Debt","Web3 / Blockchain / Digital Assets","Energy Infrastructure",
+    "Food Manufacturing / FoodTech","Public Markets / Equities","Aviation / Aircraft Leasing",
+    "Chemicals & Petrochemicals","Medical Education","B2B Business Services","Biotech / Longevity",
+    "FemTech / Mental Health","Electrical Equipment","Medical Devices & Supplies",
+    "HR / Human Capital","Healthcare Services / Clinics","Supply Chain / Distribution",
+    "SaaS / Cloud","Property Management / Proptech","Private Equity","Healthtech / Digital Health",
+    "Renewable Energy / CleanTech","FMCG / Consumer Goods","Venture / Growth (Africa / MENA SME)",
+    "Space / Deep Tech","Media / Entertainment / Gaming","Family Office / Wealth Management",
+    "Consulting / Advisory","Marketing / AdTech","Venture Capital","Real Estate Development",
+    "Sharia-Compliant","Semiconductors / Hardware","Energy Storage / Services","Shipping / Maritime",
+    "Insurance / Insurtech","Pet Care","Consumer & Lifestyle Services","Sovereign Wealth Fund",
+    "Investment Banking / M&A Advisory","Transportation","Mobility","Water / Waste Management",
+    "Automotive","Hospitality / Hotels / Tourism","Food & Beverage / QSR","Robotics / Automation",
+    "Security Services","Financial Services","Aquaculture / Forestry","Aerospace & Defense","Nursery"
+  ); Config=@{} },
   # Lead Magnet questionnaire fields (2026-08-25) -- no SOURCE equivalent,
   # manually maintained like Sell Timeline/Readiness Score above.
   [pscustomobject]@{ Title="Years Active"; Slug="years_active"; Type="number"; SourceOptions=@(); Config=@{} },
@@ -1449,8 +1543,11 @@ if ($devListMap.ContainsKey("seller_role")) {
 foreach ($field in $fields) {
   if ($attributes.ContainsKey($field.Slug)) {
     $current = $attributes[$field.Slug]
-    if ([string]$current.type -ne $field.Type -or [bool]$current.is_multiselect) {
-      throw "DEV seller_role/$($field.Slug) has unexpected type or cardinality."
+    # Compares against the field's own Multi, like every other entity.
+    # Other fields declare no Multi, so [bool]$null is $false -- behaviour unchanged.
+    if ([string]$current.type -ne $field.Type -or
+        [bool]$current.is_multiselect -ne [bool]$field.Multi) {
+      throw "DEV seller_role/$($field.Slug) has type=$($current.type), multiselect=$($current.is_multiselect); expected $($field.Type), multiselect=$([bool]$field.Multi)."
     }
     # Existing attributes are otherwise left alone by this loop -- but a
     # currency field's default_currency_code is config, not type/cardinality,
@@ -1487,7 +1584,7 @@ foreach ($field in $fields) {
         type = $field.Type
         is_required = $false
         is_unique = $false
-        is_multiselect = $false
+        is_multiselect = [bool]$field.Multi
         config = $field.Config
       }
     } | Out-Null

@@ -84,7 +84,10 @@ class BuyerRequirementExtractionService:
             "deal_structure_tolerance": buyer.deal_structure_tolerance,
             "earnout_tolerance": buyer.earnout_tolerance,
             "profitable_only": buyer.profitable_only,
-            "target_geography": buyer.target_geography,
+            "target_region (broad regions the buyer targets, e.g. GCC, MENA)": (
+                buyer.target_region
+            ),
+            "target_country (specific countries the buyer targets)": buyer.target_country,
             "sector_focus": buyer.org_sector_focus,
         }
         # Real CRM data, but none of it is itself a criterion value — folded
