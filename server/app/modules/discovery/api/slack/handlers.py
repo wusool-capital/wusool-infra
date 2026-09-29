@@ -1,16 +1,12 @@
-"""Registers `discover_add_seller` on the shared Bolt app — this button's
-`action_id` is emitted by `matching_engine`'s "Find more sellers" flow, not
-by this module's own Slack surface, so the coupling to that caller is a
-shared action_id/value contract, not a Python import (the dependency edge
-stays discovery -> {nothing in matching_engine}; matching_engine calls
-into this module's own search step directly — see `find_and_post_leads`).
+"""Registers `discover_add_seller` on the shared Bolt app — the button is
+emitted for leads that fuzzy-matched an existing CRM organization and so were
+not auto-created (see `build_possible_duplicate_blocks`). The coupling to
+`matching_engine`, which posts that message, is a shared action_id/value
+contract, not a Python import.
 
-Dedupe is deliberately not this module's concern: `ddl_commands`'
-`/add-seller` flow already searches for an existing organization and, when
-one already has an active seller role, tells the operator to use
-`/edit-seller` instead (`handle_organization_selection_submission`) — that
-existing check is the only dedupe in this pipeline, reached through
-`SellerDraftPort.open_confirm_form` below.
+Clicking it hands the lead to `ddl_commands`' `/add-seller` flow through
+`SellerDraftPort.open_confirm_form`: its organization search is the human's
+final duplicate check before anything is written.
 """
 
 import logging

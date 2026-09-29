@@ -1,12 +1,13 @@
 """Regression coverage moved from `matching_engine` alongside
 `WebSourcedLead`/`build_web_fallback_blocks` — see this module's own
-`build_lead_blocks`/`DiscoveredLead`. Slack's mrkdwn parses a stray Markdown
+`build_possible_duplicate_blocks`/`DiscoveredLead`. Slack's mrkdwn parses a stray Markdown
 heading as literal `#` text; sanitizing must strip the marker without
 mangling the rest of the line.
 """
 
-from app.modules.discovery.api.slack.views import build_lead_blocks
+from app.modules.discovery.api.slack.views import build_possible_duplicate_blocks
 from app.modules.discovery.domain.leads import DiscoveredLead
+from app.modules.discovery.domain.outcome import PossibleDuplicate
 
 
 def test_lead_details_render_without_markdown_heading_markers() -> None:
@@ -22,7 +23,9 @@ def test_lead_details_render_without_markdown_heading_markers() -> None:
         ),
     )
 
-    blocks = build_lead_blocks([lead])
+    blocks = build_possible_duplicate_blocks(
+        [PossibleDuplicate(lead=lead, existing_org_name="Acme")]
+    )
     rendered = blocks[2].to_dict()["text"]["text"]
 
     assert rendered == (
@@ -31,5 +34,6 @@ def test_lead_details_render_without_markdown_heading_markers() -> None:
         "About PRI\n"
         "Set up with the UN's support.\n\n"
         "Become a signatory\n"
-        "Demonstrate your commitment to responsible investment."
+        "Demonstrate your commitment to responsible investment.\n"
+        "_Possibly the same as *Acme*_"
     )
