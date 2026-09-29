@@ -25,6 +25,7 @@ from app.modules.matching_engine.application.matching.reasoning_service import (
     MatchReasoningService,
 )
 from app.modules.matching_engine.application.ports.buyers import BuyerRepositoryPort
+from app.modules.matching_engine.application.ports.deals import DealGatewayPort
 from app.modules.matching_engine.application.ports.matching import CandidateRetriever
 from app.modules.matching_engine.application.ports.meetings import MeetingRepositoryPort
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
@@ -45,6 +46,7 @@ class ServiceBase:
         candidate_retriever: CandidateRetriever,
         scoring_engine: ScoringEngine,
         top_n: int,
+        deal_gateway: DealGatewayPort,
         meeting_repository: MeetingRepositoryPort | None = None,
         enable_seller_meeting_notes: bool = False,
     ) -> None:
@@ -56,4 +58,5 @@ class ServiceBase:
         self._candidate_retriever = candidate_retriever
         self._scoring_engine = scoring_engine
         self._top_n = top_n
+        self._deal_gateway = deal_gateway
         self._enable_seller_meeting_notes = enable_seller_meeting_notes

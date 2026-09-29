@@ -229,6 +229,7 @@ class MatchResultRepository:
         decision: str | None = None,
         decided_at: datetime | None = None,
         decision_notes: str | None = None,
+        deal_attio_id: str | None = None,
     ) -> MatchResultEntity | None:
         """Compare-and-set a candidate status, returning None if it changed.
 
@@ -242,6 +243,7 @@ class MatchResultRepository:
             "decision": decision,
             "decided_at": decided_at,
             "decision_notes": decision_notes,
+            "deal_attio_id": deal_attio_id,
         }
         values = {key: value for key, value in values.items() if value is not None}
         stmt = (

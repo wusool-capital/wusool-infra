@@ -93,6 +93,9 @@ class MatchResult(Base):
     decision: Mapped[str | None] = mapped_column(Text)
     decided_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     decision_notes: Mapped[str | None] = mapped_column(Text)
+    deal_attio_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("deals.attio_id", ondelete="SET NULL")
+    )
 
     # Run-row-only columns (NULL on candidate rows):
     requested_by: Mapped[str | None] = mapped_column(Text)

@@ -17,6 +17,7 @@ from fastapi import FastAPI, Request, Response
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.modules.attio import attio_is_test, get_attio_client
 from app.modules.matching_engine.api.router import router as api_router
 from app.modules.matching_engine.application.matching.reasoning_service import (
     MatchReasoningService,
@@ -40,6 +41,7 @@ from app.modules.matching_engine.persistence.repositories.meetings_repository im
     MeetingRepository,
 )
 from app.modules.matching_engine.persistence.unit_of_work import SqlAlchemyMatchingUnitOfWork
+from app.modules.matching_engine.providers.attio.deal_gateway import AttioDealGateway
 from app.modules.matching_engine.providers.bedrock.client import BedrockConverseClient
 from app.modules.notifications import SlackWebClientNotifier, get_slack_client
 from app.modules.utilities.api.handlers import register_exception_handlers
@@ -60,6 +62,14 @@ def build_bedrock_client() -> BedrockConverseClient:
 
 def build_slack_notifier() -> SlackWebClientNotifier:
     return SlackWebClientNotifier(get_slack_client(get_settings().slack_bot_token))
+
+
+def build_deal_gateway() -> AttioDealGateway:
+    return AttioDealGateway(
+        get_attio_client(),
+        is_test=attio_is_test(),
+        owner_id=get_settings().matching_deal_owner_id,
+    )
 
 
 def build_matching_unit_of_work_factory(
@@ -118,6 +128,7 @@ def build_matching_engine_service(
             }
         ),
         top_n=settings.stage3_top_n,
+        deal_gateway=build_deal_gateway(),
         enable_seller_meeting_notes=settings.enable_seller_meeting_notes,
     )
 

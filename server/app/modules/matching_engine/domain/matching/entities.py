@@ -172,6 +172,7 @@ class MatchResultEntity:
     decision: str | None
     decision_notes: str | None
     decided_at: datetime | None
+    deal_attio_id: str | None
     requested_by: str | None
     model_version: str | None
     requirement_profile_version: int | None

@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     meeting_notes_max_total_chars: int = 4000
     enable_seller_meeting_notes: bool = True
 
+    # Attio workspace member who owns the Qualified deal an approval creates.
+    matching_deal_owner_id: str = "bb40387a-b57b-491e-b8a6-9ba593d6e97d"
+
     scoring: ScoringSettings = Field(default_factory=ScoringSettings)
     confidence: ConfidenceSettings = Field(default_factory=ConfidenceSettings)
 

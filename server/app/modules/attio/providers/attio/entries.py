@@ -388,6 +388,10 @@ async def find_deals_by_party(
     return matches
 
 
+async def patch_deal(client: AttioClientProtocol, attio_id: str, values: dict) -> None:
+    await client.patch(f"/objects/{_DEAL_OBJECT}/records/{attio_id}", {"data": {"values": values}})
+
+
 async def create_deal(
     client: AttioClientProtocol, values: dict, *, is_test: bool
 ) -> tuple[str, str | None]:

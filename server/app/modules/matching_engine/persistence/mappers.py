@@ -222,6 +222,7 @@ def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
         decision=row.decision,
         decision_notes=row.decision_notes,
         decided_at=row.decided_at,
+        deal_attio_id=row.deal_attio_id,
         requested_by=row.requested_by,
         model_version=row.model_version,
         requirement_profile_version=row.requirement_profile_version,

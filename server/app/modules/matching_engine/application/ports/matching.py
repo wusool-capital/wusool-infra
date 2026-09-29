@@ -89,5 +89,6 @@ class MatchResultRepositoryPort(Protocol):
         decision: str | None = None,
         decided_at: datetime | None = None,
         decision_notes: str | None = None,
+        deal_attio_id: str | None = None,
     ) -> MatchResultEntity | None: ...
     async def get_scores_for_run(self, run_id: uuid.UUID) -> list[MatchScoreResult]: ...
