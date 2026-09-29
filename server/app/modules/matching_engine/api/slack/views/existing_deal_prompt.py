@@ -10,7 +10,6 @@ from app.modules.matching_engine.api.slack.schemas import DealChoiceValue
 from app.modules.matching_engine.domain.matching.deals import ExistingDeal
 from app.modules.notifications import sanitize_mrkdwn
 
-
 # Slack allows 5 buttons per actions block; two are reserved for create/cancel.
 _MAX_PROMOTE_BUTTONS = 3
 
