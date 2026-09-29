@@ -41,10 +41,14 @@ class BuyerRepository:
         `org_attio_id` isn't unique (an org can hold stale/duplicate rows
         too), so this filters to the one flagged `is_active`.
         """
-        stmt = select(BuyerRole).where(
-            BuyerRole.org_attio_id == org_attio_id,
-            BuyerRole.is_active.is_(True),
-            BuyerRole.target_vertical == target_vertical,
+        stmt = (
+            select(BuyerRole)
+            .where(
+                BuyerRole.org_attio_id == org_attio_id,
+                BuyerRole.is_active.is_(True),
+                BuyerRole.target_vertical == target_vertical,
+            )
+            .order_by(BuyerRole.created_at.desc())
         )
         return (await self._session.execute(stmt)).scalars().first()
 

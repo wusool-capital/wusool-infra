@@ -56,6 +56,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Looking up an organization's active buyer or seller role no longer fails
+  when a duplicate is active. It returns the newest. The shared Attio
+  role-entry lookup can now be scoped to one buyer vertical.
 - `/find-match` now narrows sellers in the database before scoring. It
   filters on the buyer role's vertical, target region and country, and EV
   ceiling. A pharma buyer is no longer scored against industrials sellers.
