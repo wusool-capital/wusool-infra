@@ -121,9 +121,7 @@ async def test_missing_only_posts_a_note_and_still_matches(monkeypatch) -> None:
     monkeypatch.setattr(dependencies, "trigger_seller_discovery", _noop_async)
     monkeypatch.setattr("app.modules.discrepancies.check_buyer_discrepancies", fake_check)
 
-    await dependencies.run_match_and_post(
-        "buyer-1", "U_TEST", "C_TEST", check_discrepancies=True
-    )
+    await dependencies.run_match_and_post("buyer-1", "U_TEST", "C_TEST", check_discrepancies=True)
 
     assert service.called
     assert any(p["text"] == "Missing EBITDA." for p in notifier.posted)
@@ -146,9 +144,7 @@ async def test_discrepancy_check_failure_never_blocks_matching(monkeypatch) -> N
     monkeypatch.setattr(dependencies, "trigger_seller_discovery", _noop_async)
     monkeypatch.setattr("app.modules.discrepancies.check_buyer_discrepancies", fake_check)
 
-    await dependencies.run_match_and_post(
-        "buyer-1", "U_TEST", "C_TEST", check_discrepancies=True
-    )
+    await dependencies.run_match_and_post("buyer-1", "U_TEST", "C_TEST", check_discrepancies=True)
 
     assert service.called
 
@@ -173,9 +169,7 @@ async def test_clear_report_runs_the_match_silently(monkeypatch) -> None:
     monkeypatch.setattr(dependencies, "trigger_seller_discovery", _noop_async)
     monkeypatch.setattr("app.modules.discrepancies.check_buyer_discrepancies", fake_check)
 
-    await dependencies.run_match_and_post(
-        "buyer-1", "U_TEST", "C_TEST", check_discrepancies=True
-    )
+    await dependencies.run_match_and_post("buyer-1", "U_TEST", "C_TEST", check_discrepancies=True)
 
     assert service.called
     # Only the initial "Finding matches…" placeholder — no discrepancy note.
@@ -197,9 +191,7 @@ async def test_run_match_anyway_reuses_the_report_message_as_the_placeholder(mon
     )
     monkeypatch.setattr(dependencies, "trigger_seller_discovery", _noop_async)
 
-    await dependencies.run_match_and_post(
-        "buyer-1", "U_TEST", "C_TEST", placeholder_ts="200.002"
-    )
+    await dependencies.run_match_and_post("buyer-1", "U_TEST", "C_TEST", placeholder_ts="200.002")
 
     assert notifier.posted == []  # no new placeholder posted
     assert service.called

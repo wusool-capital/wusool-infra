@@ -117,9 +117,7 @@ async def _apply_discrepancy_check(
     try:
         result = await check_buyer_discrepancies(to_buyer_criteria(buyer), advisor_context)
     except Exception:
-        logger.exception(
-            "discrepancy_check_failed", extra={"buyer_role_id": buyer.buyer_role_id}
-        )
+        logger.exception("discrepancy_check_failed", extra={"buyer_role_id": buyer.buyer_role_id})
         return False
 
     if result.report.has_conflicts:

@@ -50,8 +50,28 @@ def test_parse_context_ticket_amount_by_keyword_proximity() -> None:
     assert parsed.ticket_high == 15_000_000.0
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "ticket size $5M-15M",
+        "ticket size $5M to $15M",
+        "ticket size $5M-15",
+    ],
+)
+def test_parse_context_ticket_range_keeps_the_upper_bound_when_both_sides_have_a_suffix(
+    text: str,
+) -> None:
+    """Regression: each bound used to only read the range's trailing
+    suffix, so "$5M-15M" silently collapsed to (5M, 5M) — a real conflict
+    against a buyer's upper ticket bound would never have been flagged.
+    """
+    parsed = parse_context(text)
+    assert parsed.ticket_low == 5_000_000.0
+    assert parsed.ticket_high == 15_000_000.0
+
+
 def test_parse_context_ignores_amount_with_no_nearby_keyword() -> None:
-    """"$20M revenue" must never be read as a ticket-size conflict."""
+    """ "$20M revenue" must never be read as a ticket-size conflict."""
     parsed = parse_context("targets with $20M revenue")
     assert parsed.ticket_low is None
     assert parsed.ebitda is None

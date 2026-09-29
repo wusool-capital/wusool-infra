@@ -69,9 +69,7 @@ async def _check_and_post(buyer_role_id: str, context_text: str | None, channel_
             channel=channel_id, text=result.message, blocks=build_discrepancy_blocks(result)
         )
     except Exception:
-        logger.exception(
-            "check_buyer_dispatch_failed", extra={"buyer_role_id": buyer_role_id}
-        )
+        logger.exception("check_buyer_dispatch_failed", extra={"buyer_role_id": buyer_role_id})
         await notifier.post_message(
             channel=channel_id, text="Discrepancy check failed unexpectedly. Please try again."
         )

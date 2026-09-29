@@ -40,9 +40,7 @@ def test_check_buyer_with_no_match_shows_notice(monkeypatch) -> None:
         return []
 
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update
-    )
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
     monkeypatch.setattr(commands_module, "search_buyers", fake_search_buyers)
 
     response = post_slack_command(
@@ -77,9 +75,7 @@ def test_check_buyer_with_one_match_shows_picker(monkeypatch) -> None:
         ]
 
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)
-    monkeypatch.setattr(
-        "slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update
-    )
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
     monkeypatch.setattr(commands_module, "search_buyers", fake_search_buyers)
 
     response = post_slack_command(

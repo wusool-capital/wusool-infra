@@ -17,13 +17,16 @@ from app.modules.enrichment.domain.missingness import is_missing
 from app.modules.utilities.domain.money import parse_usd_amount
 
 # A bare number is never money on its own — only a `$`, a literal `USD`, or
-# a magnitude suffix (K/M/B/thousand/million/billion) makes it one. Ranges
-# ("$5-15M") share one trailing suffix across both bounds.
+# a magnitude suffix (K/M/B/thousand/million/billion) makes it one. A range
+# can write the suffix once, shared ("$5-15M"), or on either/both bounds
+# ("$5M-15M", "$5M to $15M") — each bound's own suffix wins when present,
+# otherwise it borrows the other bound's, so "$5M-15" still reads as $15M.
 _MONEY_RE = re.compile(
     r"(?P<usd>USD\s*)?(?P<dollar>\$)?\s*"
-    r"(?P<low>[0-9][0-9,]*(?:\.[0-9]+)?)"
-    r"(?:\s*(?:-|to)\s*(?P<high>[0-9][0-9,]*(?:\.[0-9]+)?))?\s*"
-    r"(?P<suffix>k|m|b|thousand|million|billion)?\b",
+    r"(?P<low>[0-9][0-9,]*(?:\.[0-9]+)?)\s*(?P<low_suffix>k|m|b|thousand|million|billion)?"
+    r"(?:\s*(?:-|to)\s*(?:USD\s*)?\$?\s*"
+    r"(?P<high>[0-9][0-9,]*(?:\.[0-9]+)?)\s*(?P<high_suffix>k|m|b|thousand|million|billion)?)?"
+    r"\b",
     re.IGNORECASE,
 )
 _SUFFIX_LETTER = {
@@ -86,13 +89,15 @@ def parse_context(text: str) -> ParsedContext:
     ebitda: float | None = None
 
     for match in _MONEY_RE.finditer(text):
-        if not (match.group("usd") or match.group("dollar") or match.group("suffix")):
+        low_suffix = match.group("low_suffix")
+        high_suffix = match.group("high_suffix")
+        if not (match.group("usd") or match.group("dollar") or low_suffix or high_suffix):
             continue
-        low = _normalize_amount(match.group("low"), match.group("suffix"))
+        low = _normalize_amount(match.group("low"), low_suffix or high_suffix)
         if low is None:
             continue
         high = (
-            _normalize_amount(match.group("high"), match.group("suffix"))
+            _normalize_amount(match.group("high"), high_suffix or low_suffix)
             if match.group("high")
             else None
         )
