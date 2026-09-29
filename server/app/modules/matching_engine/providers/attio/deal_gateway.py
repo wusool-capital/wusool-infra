@@ -5,6 +5,8 @@ one-deal-per-organisation and never moves a deal off its current stage,
 so it can neither create a Qualified deal nor promote an Inbound one.
 """
 
+import aiohttp
+
 from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.providers.attio import entries
 from app.modules.attio.providers.attio import values as v
@@ -46,7 +48,7 @@ class AttioDealGateway:
             records = await entries.find_deals_by_party(
                 self._client, field="buyer_id", org_attio_id=buyer_attio_id, is_test=self._is_test
             )
-        except AttioError as exc:
+        except (AttioError, aiohttp.ClientError) as exc:
             raise DealGatewayError(str(exc)) from exc
         return [
             _to_existing(r) for r in records if v.ref(v.vals(r), "seller_id") == seller_attio_id
@@ -71,7 +73,7 @@ class AttioDealGateway:
             record_id, web_url = await entries.create_deal(
                 self._client, values, is_test=self._is_test
             )
-        except AttioError as exc:
+        except (AttioError, aiohttp.ClientError) as exc:
             raise DealGatewayError(str(exc)) from exc
         return ExistingDeal(
             attio_id=record_id, name=draft.name, stage=QUALIFIED_STAGE, web_url=web_url
@@ -80,5 +82,5 @@ class AttioDealGateway:
     async def promote_to_qualified(self, deal_attio_id: str) -> None:
         try:
             await entries.patch_deal(self._client, deal_attio_id, {"deal_stage": QUALIFIED_STAGE})
-        except AttioError as exc:
+        except (AttioError, aiohttp.ClientError) as exc:
             raise DealGatewayError(str(exc)) from exc

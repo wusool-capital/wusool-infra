@@ -301,6 +301,13 @@ async def _handle_decision(
         )
         return
     except PartialWriteError as exc:
+        logger.error(
+            "match_approval_partial_write match_result_id=%s landed=%s",
+            match_result_id,
+            exc.landed,
+            exc_info=exc.cause,
+            extra={"match_result_id": str(match_result_id), "landed": exc.landed},
+        )
         await client.chat_postEphemeral(
             channel=channel_id, user=user_id, text=_partial_write_message(exc)
         )

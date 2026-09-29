@@ -5,6 +5,7 @@ action re-validates the record and current state against the database;
 never trusts a Slack payload's claimed state.
 """
 
+import asyncio
 import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -26,6 +27,9 @@ from app.modules.matching_engine.domain.matching.deals import (
 )
 from app.modules.matching_engine.domain.matching.entities import MatchResultEntity
 from app.modules.matching_engine.domain.matching.lifecycle import MatchStatus, can_transition
+
+# The match row stays locked while Attio is called, so bound how long that can take.
+_ATTIO_WRITE_TIMEOUT_S = 30
 
 
 class MatchNotFoundError(Exception):
@@ -121,37 +125,52 @@ class ApprovalsMixin(ServiceBase):
         existing_deal_id: str | None,
     ) -> tuple[ExistingDeal, list[str]]:
         try:
-            chosen: ExistingDeal | None = None
-            if resolution != "create_new":
-                existing = await self._deal_gateway.find_pair_deals(
-                    buyer_attio_id=candidate.buyer_attio_id, seller_attio_id=seller_attio_id
+            async with asyncio.timeout(_ATTIO_WRITE_TIMEOUT_S):
+                return await self._attio_deal(
+                    candidate, seller_attio_id, resolution, existing_deal_id
                 )
-                if existing and resolution is None:
-                    raise ExistingDealsFoundError(existing)
-                chosen = next((d for d in existing if d.attio_id == existing_deal_id), None)
-                if resolution == "promote_existing" and chosen is None and existing:
-                    # The chosen deal changed since the prompt — ask again.
-                    raise ExistingDealsFoundError(existing)
-
-            if chosen is not None:
-                # Only Inbound moves up; a deal already further along must not regress.
-                if chosen.stage == INBOUND_STAGE:
-                    await self._deal_gateway.promote_to_qualified(chosen.attio_id)
-                    chosen = replace(chosen, stage=QUALIFIED_STAGE)
-                return chosen, [f"deal '{chosen.name}' in Attio (record_id={chosen.attio_id})"]
-
-            draft = QualifiedDealDraft(
-                name=f"{candidate.seller_org_name or seller_attio_id} - "
-                f"{candidate.buyer_org_name or candidate.buyer_attio_id}",
-                buyer_attio_id=candidate.buyer_attio_id,
-                seller_attio_id=seller_attio_id,
-            )
-            created = await self._deal_gateway.create_qualified(draft)
-            return created, [
-                f"deal '{created.name}' created in Attio (record_id={created.attio_id})"
-            ]
         except DealGatewayError as exc:
             raise PartialWriteError([], exc) from exc
+        except TimeoutError as exc:
+            # A timed-out create may still have landed in Attio.
+            raise PartialWriteError(
+                ["Attio deal write timed out and may still have been created"], exc
+            ) from exc
+
+    async def _attio_deal(
+        self,
+        candidate: MatchResultEntity,
+        seller_attio_id: str,
+        resolution: DealResolution | None,
+        existing_deal_id: str | None,
+    ) -> tuple[ExistingDeal, list[str]]:
+        chosen: ExistingDeal | None = None
+        if resolution != "create_new":
+            existing = await self._deal_gateway.find_pair_deals(
+                buyer_attio_id=candidate.buyer_attio_id, seller_attio_id=seller_attio_id
+            )
+            if existing and resolution is None:
+                raise ExistingDealsFoundError(existing)
+            chosen = next((d for d in existing if d.attio_id == existing_deal_id), None)
+            if resolution == "promote_existing" and chosen is None and existing:
+                # The chosen deal changed since the prompt — ask again.
+                raise ExistingDealsFoundError(existing)
+
+        if chosen is not None:
+            # Only Inbound moves up; a deal already further along must not regress.
+            if chosen.stage == INBOUND_STAGE:
+                await self._deal_gateway.promote_to_qualified(chosen.attio_id)
+                chosen = replace(chosen, stage=QUALIFIED_STAGE)
+            return chosen, [f"deal '{chosen.name}' in Attio (record_id={chosen.attio_id})"]
+
+        draft = QualifiedDealDraft(
+            name=f"{candidate.seller_org_name or seller_attio_id} - "
+            f"{candidate.buyer_org_name or candidate.buyer_attio_id}",
+            buyer_attio_id=candidate.buyer_attio_id,
+            seller_attio_id=seller_attio_id,
+        )
+        created = await self._deal_gateway.create_qualified(draft)
+        return created, [f"deal '{created.name}' created in Attio (record_id={created.attio_id})"]
 
     async def reject_match(
         self, match_result_id: uuid.UUID, approved_by: str, *, notes: str | None = None

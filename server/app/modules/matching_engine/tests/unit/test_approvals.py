@@ -210,3 +210,25 @@ async def test_unstaged_existing_deal_keeps_its_missing_stage() -> None:
     )
 
     assert deals.upsert.await_args.args[0].stage is None
+
+
+@pytest.mark.asyncio
+async def test_slow_attio_times_out_and_warns_the_deal_may_exist(monkeypatch) -> None:
+    import asyncio
+
+    from app.modules.matching_engine.application import approvals
+
+    monkeypatch.setattr(approvals, "_ATTIO_WRITE_TIMEOUT_S", 0.01)
+
+    async def slow(*_a, **_k):
+        await asyncio.sleep(1)
+
+    gateway = _gateway()
+    gateway.create_qualified = slow
+    service, _, deals = _service(update_result=_updated(), gateway=gateway)
+
+    with pytest.raises(PartialWriteError) as raised:
+        await service.approve_match(uuid4(), "U_TEST")
+
+    assert "may still have been created" in raised.value.landed[0]
+    deals.upsert.assert_not_awaited()
