@@ -22,8 +22,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
+from app.modules.ddl_commands.api.slack.views.buyer_role_selection import OrgRolesPayload
+from app.modules.ddl_commands.api.slack.views.buyer_vertical_selection import RoleRef
 from app.modules.lead_magnets.api import dependencies as lead_magnet_deps
 from app.modules.matching_engine.config import get_settings
+from app.modules.utilities import get_shared_ephemeral_store
 from tests.slack_test_helpers import mock_slack_auth, mock_slack_ephemeral
 from tests.slack_test_helpers import post_interactivity as _post_interactivity
 from tests.slack_test_helpers import post_slack_command as _post_slack_command
@@ -171,6 +174,11 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
 
     monkeypatch.setattr(matching_engine_actions._task_runner, "run", fail_if_called)
 
+    roles_token = get_shared_ephemeral_store().put(
+        OrgRolesPayload(
+            roles_by_org={"org-123": [RoleRef(role_id="buyer-role-123", target_vertical="Clinic")]}
+        ).model_dump_json()
+    )
     view = {
         "type": "modal",
         "id": "V1",
@@ -179,21 +187,22 @@ def test_buyer_role_selection_modal_routes_to_ddl_commands_not_matching_engine(m
             {
                 "requested_by": "U_TEST",
                 "channel_id": "C_TEST",
-                "org_names": {"buyer-role-123": "Blue Horizon Buyers"},
+                "org_names": {"org-123": "Blue Horizon Buyers"},
+                "payload_token": roles_token,
             }
         ),
-        "state": {"values": _view_state_with_selected_buyer("buyer-role-123")},
+        "state": {"values": _view_state_with_selected_buyer("org-123")},
     }
     response = _post_view_submission_raw(view)
 
     assert response.status_code == 200
     # ddl-commands' handler is the only one that answers this callback_id with
-    # the buyer field picker — that response *is* the proof of routing. It used
+    # the buyer vertical step — that response *is* the proof of routing. It used
     # to be proven by spying on a database call, but that call was removed: the
     # handler has 3s to ack and no longer queries before doing so.
     body = response.json()
     assert body["response_action"] == "update"
-    assert body["view"]["callback_id"] == "buyer_field_picker_modal"
+    assert body["view"]["callback_id"] == "buyer_vertical_selection_modal"
 
 
 def test_help_command_lists_every_command(_mock_slack_web_client) -> None:

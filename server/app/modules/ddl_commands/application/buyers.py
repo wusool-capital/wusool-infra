@@ -63,6 +63,17 @@ class BuyerService(ServiceBase):
         async with self._uow_factory() as uow:
             return await uow.buyers.get_with_organization(buyer_role_id)
 
+    async def buyer_exists(self, org_attio_id: str, target_vertical: str | None) -> bool:
+        """Pre-flight for `/add-buyer`, run before the Attio create: Attio's
+        newest-wins reconcile would otherwise demote the existing role for
+        this (org, vertical) the moment a duplicate entry lands there.
+        """
+        async with self._uow_factory() as uow:
+            return (
+                await uow.buyers.get_active_by_org_and_vertical(org_attio_id, target_vertical)
+                is not None
+            )
+
     async def update_buyer(
         self,
         buyer_role_id: str,
@@ -114,13 +125,15 @@ class BuyerService(ServiceBase):
             # is application-level, so without this both could pass it.
             await uow.organizations.lock(org_attio_id)
 
-            # `org_attio_id` is no longer unique (2026-08-28 migration — see
-            # `BuyerRole`'s docstring), so "already exists" is an explicit
-            # check for an active role, not a DB constraint. A matching
-            # `legacy_entry_id` means the Attio webhook (`sync_buyer_role`)
-            # raced this same submission and already created this entry --
-            # tolerate that and return the existing row instead of raising.
-            existing = await uow.buyers.get_by_org_attio_id(org_attio_id)
+            # An org holds one active role per vertical and there's no DB
+            # constraint for it, so "already exists" is an explicit check.
+            # A matching `legacy_entry_id` means the Attio webhook
+            # (`sync_buyer_role`) raced this same submission and already
+            # created this entry -- tolerate that and return the existing
+            # row instead of raising.
+            existing = await uow.buyers.get_active_by_org_and_vertical(
+                org_attio_id, role_fields.get("target_vertical")
+            )
             if existing is not None and existing.legacy_entry_id != entry_id:
                 raise BuyerAlreadyExistsError(org_attio_id)
 

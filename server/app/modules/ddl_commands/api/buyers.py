@@ -30,6 +30,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
+from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.schemas import FieldSpec, OrganizationSummary
 from app.modules.ddl_commands.application.buyers import ResolutionStatus
 
@@ -41,6 +42,7 @@ class BuyerSummary(BaseModel):
     organization: OrganizationSummary
     model: str | None = None
     mandate_status: str | None = None
+    target_vertical: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,7 @@ class BuyerUpdate(BaseModel):
 
     model: str | None = Field(default=None, max_length=100)
     mandate_status: str | None = Field(default=None, max_length=100)
+    target_vertical: str | None = Field(default=None, max_length=100)
     deal_structure_tolerance: str | None = Field(default=None, max_length=200)
     earnout_tolerance: bool | None = None
     profitable_only: bool | None = None
@@ -90,6 +93,15 @@ class BuyerUpdate(BaseModel):
 
 BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("model", "Model", "select", options=("Model 1 (Network)", "Model 2 (Full Mandate)")),
+    # Same vocabulary as the organization `sector_focus` picker — a drift test
+    # pins it to Attio's `target_vertical` options. Chosen in its own Slack
+    # step, so the add form and the field picker leave it out.
+    FieldSpec(
+        "target_vertical",
+        "Target vertical",
+        "select",
+        options=ORGANIZATION_FIELDS_BY_NAME["sector_focus"].options,
+    ),
     FieldSpec(
         "mandate_status",
         "Mandate status",
@@ -241,3 +253,9 @@ BUYER_ROLE_FIELDS: tuple[FieldSpec, ...] = (
 
 BUYER_ROLE_FIELDS_BY_NAME = {f.name: f for f in BUYER_ROLE_FIELDS}
 GATED_BUYER_ROLE_FIELDS: frozenset[str] = frozenset()
+
+# The vertical is picked in `buyer_vertical_selection` and fixed for the life
+# of a role, so the add form and the field picker never offer it.
+BUYER_FORM_FIELDS: tuple[FieldSpec, ...] = tuple(
+    f for f in BUYER_ROLE_FIELDS if f.name != "target_vertical"
+)

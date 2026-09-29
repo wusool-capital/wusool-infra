@@ -7,7 +7,7 @@ Implements `application.ports.buyers.BuyerRepositoryPort`.
 from datetime import UTC, datetime
 from typing import Unpack
 
-from sqlalchemy import select
+from sqlalchemy import func, literal_column, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -32,19 +32,21 @@ class BuyerRepository:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def get_by_org_attio_id(self, org_attio_id: str) -> BuyerRole | None:
+    async def get_active_by_org_and_vertical(
+        self, org_attio_id: str, target_vertical: str | None
+    ) -> BuyerRole | None:
         """Used by `DdlCommandsService.create_buyer` to check, inside the write
         transaction, whether this organization already has an *active*
-        buyer role — `org_attio_id` stopped being unique in the 2026-08-28
-        migration (an org can hold stale/duplicate rows too), so this
-        filters to the one flagged `is_active`, same truthy convention as
-        `handle_organization_selection_submission`'s
-        `any(r.is_active for r in roles)`.
+        buyer role for the vertical — an org holds one per vertical, and
+        `org_attio_id` isn't unique (an org can hold stale/duplicate rows
+        too), so this filters to the one flagged `is_active`.
         """
         stmt = select(BuyerRole).where(
-            BuyerRole.org_attio_id == org_attio_id, BuyerRole.is_active.is_(True)
+            BuyerRole.org_attio_id == org_attio_id,
+            BuyerRole.is_active.is_(True),
+            BuyerRole.target_vertical == target_vertical,
         )
-        return (await self._session.execute(stmt)).scalar_one_or_none()
+        return (await self._session.execute(stmt)).scalars().first()
 
     async def create(self, org_attio_id: str, **fields: Unpack[BuyerRoleFields]) -> BuyerRole:
         """Upserts (`ON CONFLICT (legacy_entry_id) DO NOTHING`) rather than a
@@ -84,17 +86,32 @@ class BuyerRepository:
         inactive duplicate as a pickable candidate indistinguishable from
         the real one. Also excludes orgs Attio no longer has (`removed_at`),
         same reasoning.
+
+        `limit` caps *organizations*, and every matched org contributes all
+        its active roles — one per vertical — so the vertical step can list
+        them without a second query.
         """
         predicate, similarity = org_name_trigram_predicate(term)
-        stmt = (
-            select(BuyerRole)
+        org_stmt = (
+            select(BuyerRole.org_attio_id, func.max(similarity).label("score"))
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
             .where(BuyerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
-            .options(selectinload(BuyerRole.organization))
-            .order_by(similarity.desc())
+            .group_by(BuyerRole.org_attio_id)
+            .order_by(literal_column("score").desc())
             .limit(limit)
         )
-        return list((await self._session.execute(stmt)).scalars().all())
+        org_ids = [row.org_attio_id for row in (await self._session.execute(org_stmt)).all()]
+        if not org_ids:
+            return []
+
+        roles_stmt = (
+            select(BuyerRole)
+            .where(BuyerRole.org_attio_id.in_(org_ids), BuyerRole.is_active.is_(True))
+            .options(selectinload(BuyerRole.organization))
+        )
+        roles = (await self._session.execute(roles_stmt)).scalars().all()
+        rank = {org_id: i for i, org_id in enumerate(org_ids)}
+        return sorted(roles, key=lambda r: (rank[r.org_attio_id], r.target_vertical or ""))
 
     async def update(
         self, buyer_role_id: str, **fields: Unpack[BuyerRoleFields]

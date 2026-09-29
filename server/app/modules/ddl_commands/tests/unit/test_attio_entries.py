@@ -495,3 +495,42 @@ async def test_patch_person_targets_records_endpoint() -> None:
     path, body = client.patch_calls[0]
     assert path == "/objects/person/records/person-1"
     assert body == {"data": {"values": {"linkedin": "https://linkedin.com/in/dana"}}}
+
+
+async def test_resolve_role_entry_id_only_entry_id_picks_that_entry_of_a_split_org() -> None:
+    """An org split by vertical has several active entries; the edit must
+    land on the role's own, not whichever active one is listed first."""
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("entry-clinic", "org-a", is_active=True),
+                _entry("entry-fintech", "org-a", is_active=True),
+            ]
+        ]
+    )
+
+    entry_id = await resolve_role_entry_id(
+        client, "buyer_role", "org-a", is_test=False, only_entry_id="entry-fintech"
+    )
+
+    assert entry_id == "entry-fintech"
+
+
+async def test_resolve_role_entry_id_only_entry_id_still_respects_the_test_scope() -> None:
+    client = _FakeClient(
+        entry_pages=[[_entry("entry-test", "org-a", is_active=True, is_test=True)]]
+    )
+
+    with pytest.raises(RoleEntryNotFoundError):
+        await resolve_role_entry_id(
+            client, "buyer_role", "org-a", is_test=False, only_entry_id="entry-test"
+        )
+
+
+async def test_resolve_role_entry_id_only_entry_id_raises_when_the_entry_is_gone() -> None:
+    client = _FakeClient(entry_pages=[[_entry("entry-other", "org-a", is_active=True)]])
+
+    with pytest.raises(RoleEntryNotFoundError):
+        await resolve_role_entry_id(
+            client, "buyer_role", "org-a", is_test=False, only_entry_id="entry-missing"
+        )

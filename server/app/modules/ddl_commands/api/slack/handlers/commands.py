@@ -19,9 +19,11 @@ from app.modules.ddl_commands.api.dependencies import (
     resolve_seller,
     search_organizations,
 )
-from app.modules.ddl_commands.api.slack.views.buyer_add_form import build_buyer_add_form_modal
 from app.modules.ddl_commands.api.slack.views.buyer_role_selection import (
     build_buyer_selection_modal,
+)
+from app.modules.ddl_commands.api.slack.views.buyer_vertical_selection import (
+    build_buyer_vertical_selection_modal,
 )
 from app.modules.ddl_commands.api.slack.views.organization_selection import (
     build_organization_selection_modal,
@@ -200,7 +202,9 @@ async def _handle_buyer_command(
         await client.views_update(
             view_id=view_id,
             view=build_notice_modal(
-                title, f"No buyer found for *{buyer_name}*. _Try a different name._"
+                title,
+                f"No buyer found for *{buyer_name}*. "
+                f"_Try a different name, or use `/add-buyer {buyer_name}` to create one._",
             ),
         )
         return
@@ -241,13 +245,20 @@ async def _handle_add_command(
     candidates = await search_organizations(org_name)
 
     if not candidates:
-        build_form = build_seller_add_form_modal if kind == "seller" else build_buyer_add_form_modal
-        await client.views_update(
-            view_id=view_id,
-            view=build_form(
+        view = (
+            build_seller_add_form_modal(
                 org=None, requested_by=user_id, channel_id=channel_id, prefill_name=org_name
-            ),
+            )
+            if kind == "seller"
+            else build_buyer_vertical_selection_modal(
+                org_attio_id=None,
+                org_name=org_name,
+                roles=[],
+                requested_by=user_id,
+                channel_id=channel_id,
+            )
         )
+        await client.views_update(view_id=view_id, view=view)
         return
 
     await client.views_update(

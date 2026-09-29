@@ -57,33 +57,57 @@ async def test_update_applies_fields(db_session: AsyncSession, throwaway_org: Or
     assert updated.model == "Roll-up"
 
 
-async def test_get_by_org_attio_id_finds_existing_active_role(
+async def test_get_active_by_org_and_vertical_finds_the_matching_role(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:
-    role = await _buyer(db_session, throwaway_org, model="Buy-and-build", is_active=True)
+    await _buyer(db_session, throwaway_org, target_vertical="Clinic", is_active=True)
+    fintech = await _buyer(db_session, throwaway_org, target_vertical="Fintech", is_active=True)
 
     repo = BuyerRepository(db_session)
-    found = await repo.get_by_org_attio_id(throwaway_org.attio_id)
+    found = await repo.get_active_by_org_and_vertical(throwaway_org.attio_id, "Fintech")
+
+    assert found is not None
+    assert found.id == fintech.id
+
+
+async def test_get_active_by_org_and_vertical_ignores_other_verticals_and_inactive_roles(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    await _buyer(db_session, throwaway_org, target_vertical="Clinic", is_active=True)
+    await _buyer(db_session, throwaway_org, target_vertical="Fintech", is_active=False)
+
+    repo = BuyerRepository(db_session)
+    assert await repo.get_active_by_org_and_vertical(throwaway_org.attio_id, "Fintech") is None
+    assert await repo.get_active_by_org_and_vertical(throwaway_org.attio_id, None) is None
+
+
+async def test_get_active_by_org_and_vertical_matches_a_role_with_no_vertical(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    role = await _buyer(db_session, throwaway_org, is_active=True)
+
+    repo = BuyerRepository(db_session)
+    found = await repo.get_active_by_org_and_vertical(throwaway_org.attio_id, None)
 
     assert found is not None
     assert found.id == role.id
 
 
-async def test_get_by_org_attio_id_ignores_inactive_role(
+async def test_search_returns_every_active_role_of_a_matching_org(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:
-    await _buyer(db_session, throwaway_org, model="Buy-and-build", is_active=False)
+    """`/edit-buyer` lists one option per org and needs all its verticals for
+    the next step, so the search can't stop at one role per org."""
+    throwaway_org.name = "Split Vertical Buyers Holdings"
+    await _buyer(db_session, throwaway_org, target_vertical="Clinic", is_active=True)
+    await _buyer(db_session, throwaway_org, target_vertical="Fintech", is_active=True)
+    await _buyer(db_session, throwaway_org, target_vertical="Garage", is_active=False)
 
     repo = BuyerRepository(db_session)
-    assert await repo.get_by_org_attio_id(throwaway_org.attio_id) is None
+    results = await repo.search_by_organization_name("Split Vertical Buyers Holdings")
 
-
-async def test_get_by_org_attio_id_returns_none_when_no_role(
-    db_session: AsyncSession, throwaway_org: Organization
-) -> None:
-    repo = BuyerRepository(db_session)
-    found = await repo.get_by_org_attio_id(throwaway_org.attio_id)
-    assert found is None
+    mine = [r for r in results if r.org_attio_id == throwaway_org.attio_id]
+    assert [r.target_vertical for r in mine] == ["Clinic", "Fintech"]
 
 
 async def test_create_inserts_a_new_role(
