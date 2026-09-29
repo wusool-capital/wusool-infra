@@ -13,13 +13,17 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.modules.ddl_commands.api.buyers import BUYER_ROLE_FIELDS
+from app.modules.ddl_commands.api.buyers import BUYER_FORM_FIELDS, BUYER_ROLE_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
 from app.modules.ddl_commands.api.slack.views.buyer_add_form import build_buyer_add_form_modal
 from app.modules.ddl_commands.api.slack.views.buyer_form import build_buyer_edit_form_modal
 from app.modules.ddl_commands.api.slack.views.buyer_role_selection import (
     build_buyer_selection_modal,
+)
+from app.modules.ddl_commands.api.slack.views.buyer_vertical_selection import (
+    RoleRef,
+    build_buyer_vertical_selection_modal,
 )
 from app.modules.ddl_commands.api.slack.views.field_picker import build_field_picker_modal
 from app.modules.ddl_commands.api.slack.views.seller_add_form import build_seller_add_form_modal
@@ -34,6 +38,7 @@ _MAX_BLOCKS = 100
 _MAX_PRIVATE_METADATA = 3000
 _MAX_TITLE = 24
 _MAX_OPTION_TEXT = 75
+_MAX_OPTION_VALUE = 75
 
 
 def assert_valid_view(view: dict) -> None:
@@ -50,7 +55,14 @@ def assert_valid_view(view: dict) -> None:
             continue
         options = element.get("options")
         if options is None:
-            continue
+            groups = element.get("option_groups")
+            if groups is None:
+                continue
+            assert len(groups) <= 100
+            for group in groups:
+                assert len(group["label"]["text"]) <= _MAX_OPTION_TEXT
+                assert 0 < len(group["options"]) <= _MAX_OPTIONS["static_select"]
+            options = [o for group in groups for o in group["options"]]
         cap = _MAX_OPTIONS.get(element["type"])
         assert cap is not None, f"unhandled element type {element['type']}"
         assert len(options) <= cap, (
@@ -59,11 +71,12 @@ def assert_valid_view(view: dict) -> None:
         )
         for option in options:
             assert len(option["text"]["text"]) <= _MAX_OPTION_TEXT
+            assert len(option["value"]) <= _MAX_OPTION_VALUE
 
 
 @pytest.mark.parametrize(
     ("kind", "role_fields"),
-    [("seller", SELLER_ROLE_FIELDS), ("buyer", BUYER_ROLE_FIELDS)],
+    [("seller", SELLER_ROLE_FIELDS), ("buyer", BUYER_FORM_FIELDS)],
 )
 def test_field_picker_modal_is_within_slack_limits(kind, role_fields):
     assert_valid_view(
@@ -81,14 +94,16 @@ def test_field_picker_modal_is_within_slack_limits(kind, role_fields):
 class _Org:
     def __init__(self, name):
         self.name = name
+        self.attio_id = f"attio-{name}"
         self.hq_country = "AE"
         self.sector_focus = ["Logistics"]
 
 
 class _Candidate:
-    def __init__(self, id_, name):
+    def __init__(self, id_, name, target_vertical=None):
         self.id = id_
         self.organization = _Org(name)
+        self.target_vertical = target_vertical
 
 
 @pytest.mark.parametrize("build", [build_seller_selection_modal, build_buyer_selection_modal])
@@ -97,6 +112,41 @@ def test_selection_modal_is_within_slack_limits(build):
     # so the candidate list is what has to stay bounded, not just the options.
     candidates = [_Candidate(f"role-{i}", f"Organization Number {i}") for i in range(25)]
     assert_valid_view(build(candidates, requested_by="U1", channel_id="C1").to_dict())
+
+
+def test_buyer_selection_lists_one_option_per_organization():
+    candidates = [
+        _Candidate("role-1", "Split Capital", "Fintech"),
+        _Candidate("role-2", "Split Capital", "Clinic"),
+        _Candidate("role-3", "Other Capital", "Fintech"),
+    ]
+    view = build_buyer_selection_modal(candidates, requested_by="U1", channel_id="C1").to_dict()
+    options = view["blocks"][0]["element"]["options"]
+    assert [o["value"] for o in options] == ["attio-Split Capital", "attio-Other Capital"]
+
+
+def _roles(count):
+    verticals = BUYER_ROLE_FIELDS_BY_NAME["target_vertical"].options
+    return [RoleRef(role_id=str(uuid.uuid4()), target_vertical=v) for v in verticals[:count]]
+
+
+@pytest.mark.parametrize("existing", [0, 1, 16, 85], ids=["none", "one", "sixteen", "all"])
+@pytest.mark.parametrize("org_attio_id", [None, "org-attio-1"], ids=["new-org", "existing-org"])
+def test_vertical_selection_modal_is_within_slack_limits(existing, org_attio_id):
+    # 16 is the largest split seen in the CRM audit; 85 is every vertical taken.
+    view = build_buyer_vertical_selection_modal(
+        org_attio_id=org_attio_id,
+        org_name="Some Organization " * 3,
+        roles=_roles(existing),
+        requested_by="U1",
+        channel_id="C1",
+        duplicate_candidates=["Acme Corp", "Acme Corporation"],
+    ).to_dict()
+    assert_valid_view(view)
+    groups = view["blocks"][1]["element"]["option_groups"]
+    # Every vertical appears exactly once: as an existing role or as a new one.
+    total = len(BUYER_ROLE_FIELDS_BY_NAME["target_vertical"].options)
+    assert sum(len(g["options"]) for g in groups) == total
 
 
 # `sector_focus` alone carries 85 of Slack's 100 permitted options, and an
@@ -133,7 +183,7 @@ def test_add_form_is_within_slack_limits(build, org):
     ("build", "role_fields"),
     [
         (build_seller_edit_form_modal, SELLER_ROLE_FIELDS),
-        (build_buyer_edit_form_modal, BUYER_ROLE_FIELDS),
+        (build_buyer_edit_form_modal, BUYER_FORM_FIELDS),
     ],
 )
 def test_edit_form_is_within_slack_limits(build, role_fields):

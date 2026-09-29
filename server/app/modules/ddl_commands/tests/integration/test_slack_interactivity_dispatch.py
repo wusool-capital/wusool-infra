@@ -19,12 +19,15 @@ from fastapi.testclient import TestClient
 
 import app.modules.ddl_commands.api.slack.handlers.actions as actions_module
 from app.modules.attio import AttioError
+from app.modules.ddl_commands.api.slack.views.buyer_role_selection import OrgRolesPayload
+from app.modules.ddl_commands.api.slack.views.buyer_vertical_selection import RoleRef
 from app.modules.ddl_commands.api.slack.views.organization_selection import (
     NEW_ORGANIZATION_VALUE,
     _encode_selection_payload,
 )
 from app.modules.ddl_commands.bootstrap import create_app
 from app.modules.ddl_commands.config import get_settings
+from app.modules.utilities import get_shared_ephemeral_store
 from tests.slack_test_helpers import mock_slack_auth, mock_slack_ephemeral
 from tests.slack_test_helpers import post_interactivity as _shared_post_interactivity
 
@@ -122,6 +125,8 @@ def _fake_buyer_role(role_id: str, *, org=None):
         organization=org or _fake_org(name="Blue Horizon"),
         model=None,
         mandate_status=None,
+        target_vertical=None,
+        legacy_entry_id=None,
         deal_structure_tolerance=None,
         earnout_tolerance=None,
         profitable_only=None,
@@ -193,10 +198,16 @@ def test_seller_selection_opens_field_picker(monkeypatch) -> None:
     assert metadata["org_name"] == "Typo Target Co"
 
 
-def test_buyer_selection_opens_field_picker(monkeypatch) -> None:
-    buyer_id = str(uuid.uuid4())
-    # Same 3s-ack constraint as the seller case above.
-    monkeypatch.setattr(actions_module, "resolve_buyer_by_id", _raises_if_called)
+def test_buyer_selection_opens_vertical_step(monkeypatch) -> None:
+    role_id = str(uuid.uuid4())
+    # Same 3s-ack constraint as the seller case above: the org's roles were
+    # loaded when the selection modal was built.
+    monkeypatch.setattr(actions_module, "resolve_organization", _raises_if_called)
+    token = get_shared_ephemeral_store().put(
+        OrgRolesPayload(
+            roles_by_org={"org-attio-3": [RoleRef(role_id=role_id, target_vertical="Fintech")]}
+        ).model_dump_json()
+    )
 
     payload = {
         "type": "view_submission",
@@ -209,12 +220,15 @@ def test_buyer_selection_opens_field_picker(monkeypatch) -> None:
                 {
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
-                    "org_names": {buyer_id: "Blue Horizon Buyers"},
+                    "org_names": {"org-attio-3": "Blue Horizon Buyers"},
+                    "payload_token": token,
                 }
             ),
             "state": {
                 "values": {
-                    "buyer_role_id": {"selected_buyer": {"selected_option": {"value": buyer_id}}}
+                    "buyer_role_id": {
+                        "selected_buyer": {"selected_option": {"value": "org-attio-3"}}
+                    }
                 }
             },
         },
@@ -225,10 +239,152 @@ def test_buyer_selection_opens_field_picker(monkeypatch) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "buyer_vertical_selection_modal"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["org_attio_id"] == "org-attio-3"
+    assert metadata["org_name"] == "Blue Horizon Buyers"
+    groups = body["view"]["blocks"][1]["element"]["option_groups"]
+    assert groups[0]["options"][0]["value"] == f"edit:{role_id}"
+
+
+def test_buyer_selection_with_expired_roles_shows_ephemeral(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V1",
+            "callback_id": "buyer_role_selection_modal",
+            "private_metadata": json.dumps(
+                {
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "org_names": {"org-attio-3": "Blue Horizon Buyers"},
+                    "payload_token": "expired-token",
+                }
+            ),
+            "state": {
+                "values": {
+                    "buyer_role_id": {
+                        "selected_buyer": {"selected_option": {"value": "org-attio-3"}}
+                    }
+                }
+            },
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert response.text == ""
+    assert "could not be found" in _mock_slack_web_client.posted[0]["text"]
+
+
+def _vertical_selection_payload(
+    selected_value: str, *, org_attio_id: str | None, org_name: str, duplicates_token=None
+) -> dict:
+    return {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V1b",
+            "callback_id": "buyer_vertical_selection_modal",
+            "private_metadata": json.dumps(
+                {
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "org_attio_id": org_attio_id,
+                    "org_name": org_name,
+                    "duplicates_token": duplicates_token,
+                }
+            ),
+            "state": {
+                "values": {
+                    "buyer_vertical": {
+                        "selected_vertical": {"selected_option": {"value": selected_value}}
+                    }
+                }
+            },
+        },
+    }
+
+
+def test_vertical_selection_existing_role_opens_field_picker(monkeypatch) -> None:
+    role_id = str(uuid.uuid4())
+    monkeypatch.setattr(actions_module, "resolve_organization", _raises_if_called)
+
+    response = _post_interactivity(
+        _vertical_selection_payload(
+            f"edit:{role_id}", org_attio_id="org-attio-3", org_name="Blue Horizon"
+        )
+    )
+
+    assert response.status_code == 200
+    body = response.json()
     assert body["view"]["callback_id"] == "buyer_field_picker_modal"
     metadata = json.loads(body["view"]["private_metadata"])
-    assert metadata["buyer_role_id"] == buyer_id
-    assert metadata["org_name"] == "Blue Horizon Buyers"
+    assert metadata["buyer_role_id"] == role_id
+    assert metadata["org_name"] == "Blue Horizon"
+    picker_fields = [o["value"] for o in body["view"]["blocks"][2]["element"]["options"]]
+    assert "target_vertical" not in picker_fields
+
+
+def test_vertical_selection_unused_vertical_opens_add_form_for_existing_org(monkeypatch) -> None:
+    org = _fake_org(attio_id="org-attio-3", name="Blue Horizon")
+    monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
+
+    response = _post_interactivity(
+        _vertical_selection_payload(
+            "new:Fintech", org_attio_id="org-attio-3", org_name="Blue Horizon"
+        )
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["view"]["callback_id"] == "buyer_add_form_modal"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["is_new_org"] is False
+    assert metadata["org_attio_id"] == "org-attio-3"
+    assert metadata["target_vertical"] == "Fintech"
+    assert "target_vertical" not in {b.get("block_id") for b in body["view"]["blocks"]}
+
+
+def test_vertical_selection_new_org_opens_add_form_with_duplicates(monkeypatch) -> None:
+    monkeypatch.setattr(actions_module, "resolve_organization", _raises_if_called)
+    token = get_shared_ephemeral_store().put(json.dumps(["Acme Corp"]))
+
+    response = _post_interactivity(
+        _vertical_selection_payload(
+            "new:Clinic", org_attio_id=None, org_name="Acme", duplicates_token=token
+        )
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["view"]["callback_id"] == "buyer_add_form_modal"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["is_new_org"] is True
+    assert metadata["target_vertical"] == "Clinic"
+    name_block = next(b for b in body["view"]["blocks"] if b.get("block_id") == "name")
+    assert name_block["element"]["initial_value"] == "Acme"
+    assert "Acme Corp" in body["view"]["blocks"][0]["text"]["text"]
+
+
+def test_vertical_selection_missing_org_shows_ephemeral(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(None))
+
+    response = _post_interactivity(
+        _vertical_selection_payload("new:Fintech", org_attio_id="org-gone", org_name="Gone")
+    )
+
+    assert response.status_code == 200
+    assert response.text == ""
+    assert "could not be found" in _mock_slack_web_client.posted[0]["text"]
 
 
 # --------------------------------------------------------------------------
@@ -565,18 +721,20 @@ def test_gated_field_without_confirmation_requires_checkbox(monkeypatch) -> None
 def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_client) -> None:
     buyer_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-2", name="Blue Horizon")
-    monkeypatch.setattr(
-        actions_module, "resolve_buyer_by_id", _async_returning(_fake_buyer_role(buyer_id, org=org))
-    )
+    role = _fake_buyer_role(buyer_id, org=org)
+    role.legacy_entry_id = "entry-of-this-vertical"
+    monkeypatch.setattr(actions_module, "resolve_buyer_by_id", _async_returning(role))
 
     async def fake_build_attio_values(*_args, **_kwargs):
         return {"model": "opt-model-1"}
 
-    async def fake_resolve_role_entry_id(*_args, **_kwargs):
-        return "entry-2"
+    # An org holds one entry per vertical, so the org-level lookup must not
+    # be what picks the entry to patch.
+    monkeypatch.setattr(actions_module, "resolve_role_entry_id", _raises_if_called)
+    patched_entries: list[str] = []
 
-    async def fake_patch_role_entry(*_args, **_kwargs):
-        return None
+    async def fake_patch_role_entry(_client, _list_slug, entry_id, _values):
+        patched_entries.append(entry_id)
 
     postgres_use_case = SimpleNamespace(calls=[])
 
@@ -585,7 +743,6 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
         return None
 
     monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
     monkeypatch.setattr(actions_module, "patch_role_entry", fake_patch_role_entry)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
     monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
@@ -623,6 +780,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
 
     assert response.status_code == 200
     assert len(postgres_use_case.calls) == 1
+    assert patched_entries == ["entry-of-this-vertical"]
     text = _mock_slack_web_client.posted[0]["text"]
     assert "*Updated* buyer profile for *Blue Horizon*." in text
     # Every buyer save suggests re-running matching — a copy-pasteable
@@ -742,8 +900,15 @@ def test_organization_selection_new_option_with_candidates_shows_duplicate_warni
     assert "separate organization" in warning_text
 
 
-def test_organization_selection_existing_org_opens_add_form(monkeypatch) -> None:
-    org = _fake_org(attio_id="org-attio-9", name="Found Co")
+def test_organization_selection_existing_buyer_org_opens_vertical_step(monkeypatch) -> None:
+    org = _fake_org(
+        attio_id="org-attio-9",
+        name="Found Co",
+        buyer_roles=[
+            SimpleNamespace(id="role-live", is_active=True, target_vertical="Fintech"),
+            SimpleNamespace(id="role-stale", is_active=False, target_vertical="Clinic"),
+        ],
+    )
     monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
 
     payload = _organization_selection_payload("buyer", "Found", "org-attio-9")
@@ -753,11 +918,33 @@ def test_organization_selection_existing_org_opens_add_form(monkeypatch) -> None
     assert response.status_code == 200
     body = response.json()
     assert body["response_action"] == "update"
-    assert body["view"]["callback_id"] == "buyer_add_form_modal"
+    assert body["view"]["callback_id"] == "buyer_vertical_selection_modal"
     metadata = json.loads(body["view"]["private_metadata"])
-    assert metadata["is_new_org"] is False
     assert metadata["org_attio_id"] == "org-attio-9"
     assert metadata["org_name"] == "Found Co"
+    groups = body["view"]["blocks"][1]["element"]["option_groups"]
+    assert [o["value"] for o in groups[0]["options"]] == ["edit:role-live"]
+    # An inactive role's vertical is free to be re-created.
+    assert "new:Clinic" in [o["value"] for o in groups[1]["options"]]
+    assert "new:Fintech" not in [o["value"] for o in groups[1]["options"]]
+
+
+def test_organization_selection_new_buyer_org_opens_vertical_step(monkeypatch) -> None:
+    monkeypatch.setattr(actions_module, "resolve_organization", _raises_if_called)
+
+    payload = _organization_selection_payload(
+        "buyer", "Brand New", NEW_ORGANIZATION_VALUE, candidate_names=["Brand Newer"]
+    )
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["view"]["callback_id"] == "buyer_vertical_selection_modal"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["org_attio_id"] is None
+    assert metadata["org_name"] == "Brand New"
+    assert metadata["duplicates_token"] is not None
 
 
 def test_organization_selection_existing_seller_org_without_role_carries_prefill(
@@ -1044,12 +1231,15 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
 ) -> None:
     call_order: list[str] = []
 
+    role_extracted_seen: list[dict] = []
+
     async def fake_build_attio_values(*_args, **kwargs):
         # Org fields are all unset in this test's payload — distinguish by
         # table so the org branch doesn't accidentally return a truthy
         # value and trigger an unmocked `patch_organization` call.
         if kwargs.get("table") == "organizations":
             return {}
+        role_extracted_seen.append(kwargs["extracted"])
         return {"model": "opt-model-1"}
 
     async def fake_create_role_entry(*_args, **_kwargs):
@@ -1063,6 +1253,10 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
         postgres_use_case.calls.append(kwargs)
         return SimpleNamespace()
 
+    async def fake_buyer_exists(org_attio_id, target_vertical):
+        call_order.append(f"buyer_exists:{org_attio_id}:{target_vertical}")
+        return False
+
     monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
     monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
     monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
@@ -1070,7 +1264,7 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     monkeypatch.setattr(
         actions_module,
         "ddl_commands_service",
-        lambda: SimpleNamespace(create_buyer=fake_execute),
+        lambda: SimpleNamespace(create_buyer=fake_execute, buyer_exists=fake_buyer_exists),
     )
 
     values = {"model": {"model": {"selected_option": {"value": "Model 1 (Network)"}}}}
@@ -1086,6 +1280,7 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
                     "is_new_org": False,
                     "org_attio_id": "org-attio-existing",
                     "org_name": "Existing Buyer Co",
+                    "target_vertical": "Fintech",
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
                 }
@@ -1097,8 +1292,60 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     response = _post_interactivity(payload)
 
     assert response.status_code == 200
-    assert call_order == ["create_role_entry", "postgres_write"]
+    # The duplicate check runs before anything reaches Attio.
+    assert call_order == [
+        "buyer_exists:org-attio-existing:Fintech",
+        "create_role_entry",
+        "postgres_write",
+    ]
+    assert role_extracted_seen[0]["target_vertical"] == "Fintech"
     assert postgres_use_case.calls[0]["org_attio_id"] == "org-attio-existing"
     assert postgres_use_case.calls[0]["is_new_org"] is False
     text = _mock_slack_web_client.posted[0]["text"]
     assert "*Added* buyer profile for *Existing Buyer Co*." in text
+
+
+def test_buyer_add_form_duplicate_vertical_is_rejected_before_attio(
+    monkeypatch, _mock_slack_web_client
+) -> None:
+    async def fake_buyer_exists(_org_attio_id, _target_vertical):
+        return True
+
+    # Attio's newest-wins reconcile would demote the existing role if a
+    # second entry for the same (org, vertical) were ever created there.
+    monkeypatch.setattr(actions_module, "create_role_entry", _raises_if_called)
+    monkeypatch.setattr(actions_module, "get_attio_client", _raises_if_called)
+    monkeypatch.setattr(
+        actions_module,
+        "ddl_commands_service",
+        lambda: SimpleNamespace(buyer_exists=fake_buyer_exists),
+    )
+
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V7",
+            "callback_id": "buyer_add_form_modal",
+            "private_metadata": json.dumps(
+                {
+                    "is_new_org": False,
+                    "org_attio_id": "org-attio-existing",
+                    "org_name": "Existing Buyer Co",
+                    "target_vertical": "Fintech",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                }
+            ),
+            "state": {"values": {}},
+        },
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert (
+        "already exists for this organization and vertical"
+        in (_mock_slack_web_client.posted[0]["text"])
+    )

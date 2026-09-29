@@ -12,6 +12,12 @@ for current production evidence and open handover items.
 
 ### Added
 
+- `/add-buyer` and `/edit-buyer` now ask for the vertical in a step of its
+  own, before the field form. Pick a vertical the organization already has a
+  role for to edit it, or an unused one to create a new role. An
+  organization can now hold one buyer role per vertical, so `/add-buyer` no
+  longer stops at an organization that already has a buyer role. `/edit-buyer`
+  lists each organization once and edits the role's own Attio entry.
 - Approving a match now creates a Qualified Buy-side deal in Attio and links
   it to the match. If Attio already has a deal for that buyer and seller, the
   approver is asked whether to promote it or create a new one. If the
