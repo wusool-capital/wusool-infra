@@ -234,7 +234,7 @@ def _partial_write_message(exc: PartialWriteError) -> str:
         return f"*Couldn't write the deal to Attio* — nothing was saved. _{exc.cause}_"
     return (
         "*Approval failed partway through.* Already saved: "
-        f"{'; '.join(exc.landed)}. The match is still pending review. _{exc.cause}_"
+        f"{'; '.join(exc.landed)}. Check the match's status before retrying. _{exc.cause}_"
     )
 
 

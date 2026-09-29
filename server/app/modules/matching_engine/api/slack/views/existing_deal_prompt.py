@@ -11,6 +11,10 @@ from app.modules.matching_engine.domain.matching.deals import ExistingDeal
 from app.modules.notifications import sanitize_mrkdwn
 
 
+# Slack allows 5 buttons per actions block; two are reserved for create/cancel.
+_MAX_PROMOTE_BUTTONS = 3
+
+
 def _describe(deal: ExistingDeal) -> str:
     stage = deal.stage or "no stage"
     link = f" (<{deal.web_url}|open in Attio>)" if deal.web_url else ""
@@ -20,6 +24,7 @@ def _describe(deal: ExistingDeal) -> str:
 def build_existing_deal_prompt_blocks(
     match_result_id: uuid.UUID, deals: list[ExistingDeal]
 ) -> list[Block]:
+    deals = deals[:_MAX_PROMOTE_BUTTONS]
     listing = "\n".join(_describe(d) for d in deals)
     buttons = [
         ButtonElement(
@@ -32,7 +37,7 @@ def build_existing_deal_prompt_blocks(
                 existing_deal_id=d.attio_id,
             ).model_dump_json(),
         )
-        for i, d in enumerate(deals[:3])
+        for i, d in enumerate(deals)
     ]
     buttons.append(
         ButtonElement(

@@ -126,6 +126,9 @@ class ApprovalsMixin(ServiceBase):
                 if existing and resolution is None:
                     raise ExistingDealsFoundError(existing)
                 chosen = next((d for d in existing if d.attio_id == existing_deal_id), None)
+                if resolution == "promote_existing" and chosen is None and existing:
+                    # The chosen deal changed since the prompt — ask again.
+                    raise ExistingDealsFoundError(existing)
 
             if chosen is not None:
                 # Only Inbound moves up; a deal already further along must not regress.

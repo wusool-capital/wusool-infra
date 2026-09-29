@@ -185,3 +185,16 @@ async def test_terminal_match_is_rejected_before_any_attio_write() -> None:
         await service.approve_match(uuid4(), "U_TEST")
 
     gateway.find_pair_deals.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_promote_of_a_vanished_deal_reprompts_instead_of_creating() -> None:
+    gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Inbound", None)])
+    service, _, _ = _service(update_result=_updated(), gateway=gateway)
+
+    with pytest.raises(ExistingDealsFoundError):
+        await service.approve_match(
+            uuid4(), "U_TEST", resolution="promote_existing", existing_deal_id="gone"
+        )
+
+    gateway.create_qualified.assert_not_awaited()
