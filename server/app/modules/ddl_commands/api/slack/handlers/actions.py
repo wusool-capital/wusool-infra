@@ -11,6 +11,7 @@ import asyncio
 import json
 from contextlib import nullcontext
 from typing import Any
+from weakref import WeakValueDictionary
 
 from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
@@ -156,11 +157,21 @@ def register(app: AsyncApp) -> None:
         # See the seller handler above — no database call before `ack()`. The
         # org's roles were loaded when this modal was built.
         org_name = (metadata.get("org_names") or {}).get(org_attio_id)
-        roles = decode_org_roles(metadata.get("payload_token")).get(org_attio_id)
-        if org_name is None or not roles:
+        if org_name is None:
             await ack()
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="This *buyer* could not be found."
+            )
+            return
+        roles = decode_org_roles(metadata.get("payload_token")).get(org_attio_id)
+        if not roles:
+            # The roles are held server-side for a limited time, so an idle
+            # modal (or a restart in between) loses them.
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=requested_by,
+                text=f"This selection expired — run `/edit-buyer {org_name}` again.",
             )
             return
         await ack(
@@ -1018,9 +1029,10 @@ async def _write_seller_add(
         raise PartialWriteError(landed, exc) from exc
 
 
-# One lock per (org, vertical) being added. Process-local: it serializes
-# concurrent adds on this instance only, not across several server instances.
-_buyer_add_locks: dict[tuple[str, str | None], asyncio.Lock] = {}
+# One lock per (org, vertical) being added. Process-local, which is enough
+# while the toolkit runs as a single instance (ASG min=max=1); weakly held so
+# a lock disappears once no add is waiting on it.
+_buyer_add_locks: WeakValueDictionary[tuple[str, str | None], asyncio.Lock] = WeakValueDictionary()
 
 
 async def _write_buyer_add(
