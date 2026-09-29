@@ -58,6 +58,7 @@ def to_buyer_context(role: BuyerRole) -> BuyerContext:
         contact_person_id=role.key_contact_attio_id,
         target_region=list(role.target_region or []),
         target_country=list(role.target_country or []),
+        target_vertical=role.target_vertical,
         ebitda_ceiling=_money(role.ebitda_ceiling),
         notable_investments=role.notable_investments,
         key_personnel=role.key_personnel,

@@ -1,10 +1,13 @@
 # Matching Engine
 
 Backend for `/find-match` — Slack is the only product interface, no
-frontend. Given a buyer, extracts its structured requirements via Bedrock,
-filters and scores eligible sellers deterministically, asks Bedrock for
-narrative reasoning on the top-N shortlist, persists the run, and posts the
-result to Slack with Approve/Reject/View Full Analysis actions.
+frontend. Given a buyer, checks its stored criteria against the advisor's
+own typed context via the `discrepancies` module (a peer module, called
+through `api/dependencies.py`, never owned here — see its own README),
+extracts structured requirements via Bedrock, filters and scores
+eligible sellers deterministically, asks Bedrock for narrative reasoning on
+the top-N shortlist, persists the run, and posts the result to Slack with
+Approve/Reject/View Full Analysis actions.
 
 Not independently deployed — `server/main.py` merges this module's Slack
 handlers with `ddl_commands`' onto one `AsyncApp` (one bot, one Slack app,

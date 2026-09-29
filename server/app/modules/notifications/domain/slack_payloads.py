@@ -24,6 +24,10 @@ class SlackChannel(TypedDict):
     id: str
 
 
+class SlackMessage(TypedDict):
+    ts: str
+
+
 class SlackBlockAction(TypedDict, total=False):
     action_id: str
     value: str
@@ -39,6 +43,9 @@ class SlackInteractionBody(TypedDict, total=False):
     channel: SlackChannel
     user: SlackUser
     trigger_id: str
+    # Present only on a `block_actions` interaction fired from a channel
+    # message (a button click) — never on a `view_submission`.
+    message: SlackMessage
 
 
 class SlackViewState(TypedDict):

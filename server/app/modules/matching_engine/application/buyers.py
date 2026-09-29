@@ -30,6 +30,7 @@ class BuyerCandidate:
     org_name: str
     model: str | None
     mandate_status: str | None
+    target_vertical: str | None
     org_hq_country: str | None
     org_sector_focus: list[str]
 
@@ -57,6 +58,7 @@ class BuyersMixin(ServiceBase):
                     org_name=context.org_name,
                     model=context.model,
                     mandate_status=context.mandate_status,
+                    target_vertical=context.target_vertical,
                     org_hq_country=context.org_hq_country,
                     org_sector_focus=context.org_sector_focus,
                 )

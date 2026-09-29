@@ -1,8 +1,9 @@
 """End-to-end Slack command dispatch through the **merged** app (`main.py`)
 — proves the actual thing this merge exists to fix: one process, one
-`AsyncApp`, all 9 commands (matching-engine's `/find-match`,
-ddl-commands' `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`,
-enrichment's `/enrich-seller`/`/enrich-buyer`, and `main.py`'s own
+`AsyncApp`, all 10 commands (matching-engine's `/find-match`,
+discrepancies' `/check-buyer`, ddl-commands'
+`/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`, enrichment's
+`/enrich-seller`/`/enrich-buyer`, and `main.py`'s own
 `/toolkit-help`/`/toolkit-status`) correctly registered and dispatching, with no
 cross-package collision.
 
@@ -58,6 +59,7 @@ def _post_view_submission_raw(view: dict) -> TestClient:
     "command",
     [
         "/find-match",
+        "/check-buyer",
         "/edit-seller",
         "/edit-buyer",
         "/add-seller",

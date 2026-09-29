@@ -1,11 +1,12 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
-all 9 commands: `/find-match` (matching_engine module), `/enrich-seller`/
-`/enrich-buyer` (enrichment module), `/edit-seller`/`/edit-buyer`/
-`/add-seller`/`/add-buyer` (ddl_commands module), and `/toolkit-help`/
-`/toolkit-status` (answered directly here, since neither is owned by any
-one module) — plus the `meetings` module's `/desktop/*` REST surface for
-the WusoolScribe desktop app (transcript ingestion, summarization, status
-polling; no Slack command).
+all 10 commands: `/find-match` (matching_engine module), `/check-buyer`
+(discrepancies module), `/enrich-seller`/`/enrich-buyer` (enrichment
+module), `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`
+(ddl_commands module), and `/toolkit-help`/`/toolkit-status` (answered
+directly here, since neither is owned by any one module) — plus the
+`meetings` module's `/desktop/*` REST surface for the WusoolScribe desktop
+app (transcript ingestion, summarization, status polling; no Slack
+command).
 
 Builds **one** `AsyncApp` and registers both Slack modules' handlers against
 it, so Slack's one-interactivity-URL-per-app requirement is satisfied by
@@ -47,6 +48,10 @@ from app.modules.discovery.api.dependencies import configure_seller_draft_port
 from app.modules.discovery.api.slack.handlers import (
     register_handlers as register_discovery_handlers,
 )
+from app.modules.discrepancies.api.dependencies import configure_criteria_reader_port
+from app.modules.discrepancies.api.slack.handlers import (
+    register_handlers as register_discrepancies_handlers,
+)
 from app.modules.enrichment.api.dependencies import configure_review_port
 from app.modules.enrichment.api.slack.handlers import (
     register_handlers as register_enrichment_handlers,
@@ -61,6 +66,9 @@ from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.persistence.database import check_database_connectivity
 from app.modules.matching_engine.persistence.database import (
     import_all_models as import_matching_engine_models,
+)
+from app.modules.matching_engine.providers.discrepancies.criteria_reader_adapter import (
+    MatchingEngineCriteriaReaderAdapter,
 )
 from app.modules.meetings.api.router import router as meetings_router
 from app.modules.meetings.persistence.database import (
@@ -83,6 +91,10 @@ import_meetings_models()
 # the two get connected — see enrichment/discovery's own `__init__.py`.
 configure_review_port(DdlCommandsReviewAdapter())
 configure_seller_draft_port(DdlCommandsSellerDraftAdapter())
+# `discrepancies` never imports `matching_engine` (the dependency edge
+# points the other way) — this is the composition root that already
+# imports both sides, so it wires the Port here.
+configure_criteria_reader_port(MatchingEngineCriteriaReaderAdapter())
 
 # Which service owns each command/interaction trigger Slack can send. Bolt's
 # own global error handler always logs a caught exception under its own
@@ -91,6 +103,7 @@ configure_seller_draft_port(DdlCommandsSellerDraftAdapter())
 # the handler below say so explicitly.
 _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/find-match": "matching-engine",
+    "/check-buyer": "discrepancies",
     "/edit-seller": "ddl-commands",
     "/edit-buyer": "ddl-commands",
     "/add-seller": "ddl-commands",
@@ -113,6 +126,11 @@ _BOOT_TIME = time.monotonic()
 # both in sync when a command is added, removed, or renamed.
 _COMMAND_HELP: tuple[tuple[str, str, str], ...] = (
     ("/find-match", "<buyer org name>", "Find and score buyer-seller matches."),
+    (
+        "/check-buyer",
+        "<buyer org name>",
+        "Check a buyer's stored criteria for conflicts or missing data.",
+    ),
     (
         "/enrich-seller",
         "<seller org name>",
@@ -296,6 +314,7 @@ def _register_all_handlers(bolt_app: AsyncApp) -> None:
     register_ddl_commands_handlers(bolt_app)
     register_enrichment_handlers(bolt_app)
     register_discovery_handlers(bolt_app)
+    register_discrepancies_handlers(bolt_app)
     _register_help_command(bolt_app)
     _register_status_command(bolt_app)
 
@@ -361,7 +380,7 @@ def _slack_request_handler() -> AsyncSlackRequestHandler:
 
 @app.post("/slack/events")
 async def slack_events(req: Request) -> Response:
-    """The one Slack callback endpoint for all 9 commands. Signature
+    """The one Slack callback endpoint for all 10 commands. Signature
     verification happens inside Bolt via `SLACK_SIGNING_SECRET` — never
     trust a payload without it.
     """
