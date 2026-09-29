@@ -15,6 +15,8 @@ vendor-response schema (`providers/bedrock/schemas.py`) never crosses this
 boundary.
 """
 
+import re
+
 from app.modules.matching_engine.application.errors import RequirementExtractionError
 from app.modules.matching_engine.application.ports.llm import (
     BedrockClient,
@@ -35,13 +37,23 @@ from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.money import parse_usd_amount
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
+# A limit is only trusted if the advisor's own words name what it measures. A
+# misread "up to 10M" as an EV cap would remove sellers in SQL, so the model's
+# reading is not enough on its own.
+_TICKET_WORDS = re.compile(r"\b(tickets?|che(?:que|ck)s?|investment size)\b", re.IGNORECASE)
+_EV_WORDS = re.compile(r"\b(ev|enterprise value|valuation|valued)\b", re.IGNORECASE)
 
-def _advisor_limits(extracted: JsonObject) -> AdvisorLimits:
+
+def _advisor_limits(extracted: JsonObject, advisor_context: str | None) -> AdvisorLimits:
+    if not advisor_context:
+        return AdvisorLimits()
     limits = extracted.get("advisor_limits") or {}
+    names_ticket = _TICKET_WORDS.search(advisor_context) is not None
+    names_ev = _EV_WORDS.search(advisor_context) is not None
     return AdvisorLimits(
-        ticket_min=parse_usd_amount(limits.get("ticket_min")),
-        ticket_max=parse_usd_amount(limits.get("ticket_max")),
-        ev_ceiling=parse_usd_amount(limits.get("ev_ceiling")),
+        ticket_min=parse_usd_amount(limits.get("ticket_min")) if names_ticket else None,
+        ticket_max=parse_usd_amount(limits.get("ticket_max")) if names_ticket else None,
+        ev_ceiling=parse_usd_amount(limits.get("ev_ceiling")) if names_ev else None,
     )
 
 
@@ -78,7 +90,7 @@ class BuyerRequirementExtractionService:
             ) from exc
 
         return self._to_domain(
-            extracted, next_version, self._model_id, has_advisor_context=bool(advisor_context)
+            extracted, next_version, self._model_id, advisor_context=advisor_context
         )
 
     def _build_prompt(self, buyer: BuyerContext, advisor_context: str | None) -> str:
@@ -151,7 +163,11 @@ class BuyerRequirementExtractionService:
             "statement in this advisor context: `ticket_min`/`ticket_max` for a stated "
             "cheque or ticket size range, `ev_ceiling` for a stated enterprise-value cap. "
             "Write each as `USD <amount>`; leave the rest null, and never derive them "
-            "from the structured buyer fields. Vague preferences, hedged wording, or "
+            "from the structured buyer fields. A bare amount with no keyword saying "
+            'what it measures (e.g. just "up to 10M") sets NO limit: use `ticket_*` '
+            "only when the advisor says ticket/cheque/check/investment size, and "
+            "`ev_ceiling` only when they say EV/enterprise value/valuation. Revenue or "
+            "EBITDA amounts are never limits. Vague preferences, hedged wording, or "
             "anything inferred rather than stated belong in soft_preferences with "
             "source llm_extracted instead."
             if advisor_context
@@ -224,8 +240,10 @@ class BuyerRequirementExtractionService:
 
     @staticmethod
     def _to_domain(
-        extracted: JsonObject, version: int, model_id: str, *, has_advisor_context: bool
+        extracted: JsonObject, version: int, model_id: str, *, advisor_context: str | None
     ) -> RequirementProfile:
+        has_advisor_context = bool(advisor_context)
+
         def source_of(item: JsonObject) -> RequirementSource:
             # Without typed context nothing can honestly be advisor-sourced; a
             # model claiming so would otherwise gain elimination power.
@@ -260,6 +278,6 @@ class BuyerRequirementExtractionService:
             data_confidence=extracted["data_confidence"],
             generated_by_model=model_id,
             version=version,
-            advisor_limits=_advisor_limits(extracted) if has_advisor_context else AdvisorLimits(),
+            advisor_limits=_advisor_limits(extracted, advisor_context),
         )
         return apply_advisor_overrides(profile)

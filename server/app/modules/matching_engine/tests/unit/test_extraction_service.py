@@ -394,7 +394,9 @@ async def test_advisor_limits_are_parsed_to_usd_amounts() -> None:
     limits = {"ticket_min": "USD 5M", "ticket_max": "USD 15M", "ev_ceiling": "USD 40M"}
     service, _ = _service({**VALID_RESPONSE, "advisor_limits": limits})
 
-    profile = await service.extract(_buyer(), next_version=1, advisor_context="$5-15M tickets")
+    profile = await service.extract(
+        _buyer(), next_version=1, advisor_context="$5-15M tickets, EV cap $40M"
+    )
 
     assert profile.advisor_limits == AdvisorLimits(5_000_000.0, 15_000_000.0, 40_000_000.0)
 
@@ -415,7 +417,38 @@ async def test_unparseable_advisor_limit_triggers_the_repair_retry() -> None:
         fake, model_id="test-model", inference_config=_inference_config()
     )
 
-    profile = await service.extract(_buyer(), next_version=1, advisor_context="up to 15M")
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="up to 15M tickets")
 
     assert profile.advisor_limits.ticket_max == 15_000_000.0
     assert len(fake.structured_calls) == 2
+
+
+@pytest.mark.parametrize(
+    ("context", "expected"),
+    [
+        ("up to 10M", AdvisorLimits()),
+        ("up to 10M revenue", AdvisorLimits()),
+        ("up to 10M tickets", AdvisorLimits(ticket_max=10_000_000.0)),
+        ("cheque size up to 10M", AdvisorLimits(ticket_max=10_000_000.0)),
+        ("EV cap 10M", AdvisorLimits(ev_ceiling=10_000_000.0)),
+    ],
+)
+async def test_a_limit_needs_a_keyword_in_the_advisors_own_words(
+    context: str, expected: AdvisorLimits
+) -> None:
+    """The model may misread a bare amount; only a named measure is trusted."""
+    guess = {"ticket_max": "USD 10M", "ev_ceiling": "USD 10M"}
+    service, _ = _service({**VALID_RESPONSE, "advisor_limits": guess})
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context=context)
+
+    limits = profile.advisor_limits
+    assert (limits.ticket_max, limits.ev_ceiling) == (expected.ticket_max, expected.ev_ceiling)
+
+
+async def test_prompt_tells_the_model_a_bare_amount_sets_no_limit() -> None:
+    service, fake = _service(VALID_RESPONSE)
+
+    await service.extract(_buyer(), next_version=1, advisor_context="up to 10M")
+
+    assert "sets NO limit" in fake.structured_calls[0]
