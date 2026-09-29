@@ -81,8 +81,7 @@ flowchart TD
 
 1. Run `/edit-seller <name>` or `/edit-buyer <name>` and select the intended
    record if asked.
-2. For a buyer, choose the vertical: pick one the organization already has a
-   role for to edit it, or an unused one to create a new role.
+2. For a buyer, pick a vertical. An existing one edits that role.
 3. Tick only the organization or profile fields you need to change.
 4. Continue to the pre-filled form, update the values, and press **Save**.
 
@@ -107,16 +106,14 @@ flowchart TD
 1. Run `/add-seller <organization name>` or `/add-buyer <organization name>`.
 2. Select an existing organization if it is the same business. Otherwise
    choose **None of these — create new organization**.
-3. For a buyer, choose the vertical. An organization holds one buyer role per
-   vertical, so an existing vertical opens that role for editing and an unused
+3. For a buyer, pick a vertical. An existing one edits that role; an unused
    one creates a new role.
 4. Complete the form. A new organization requires a name; other fields can be
    filled later.
 5. Review duplicate warnings and press **Save**.
 
 **Expected result:** the organization and role are created in Attio, then the
-database. If the seller role, or the buyer role for that vertical, already
-exists, edit it instead. Coordinate simultaneous adds.
+database. If the role exists, edit it instead. Coordinate simultaneous adds.
 
 There is no `/remove-seller` or `/remove-buyer`. Ask the CRM owner to handle
 role removal.
