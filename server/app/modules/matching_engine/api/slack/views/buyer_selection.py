@@ -14,6 +14,8 @@ from slack_sdk.models.views import View
 
 from app.modules.matching_engine.api.buyers import BuyerSummary
 
+_MAX_CONTEXT_CHARS = 900
+
 
 def build_buyer_selection_modal(
     candidates: list[BuyerSummary], *, requested_by: str, channel_id: str
@@ -56,6 +58,8 @@ def build_buyer_selection_modal(
                 element=PlainTextInputElement(
                     action_id="context_text",
                     multiline=True,
+                    # Must fit, with the buyer id, in a 2,000-char Slack button value.
+                    max_length=_MAX_CONTEXT_CHARS,
                     placeholder="e.g. pharma tech only, UAE, $5-15M ticket",
                 ),
             ),

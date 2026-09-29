@@ -48,9 +48,12 @@ for current production evidence and open handover items.
 - Sellers valued outside a buyer's cheque size are no longer removed. They
   stay in the pool with a low ticket-fit score. A cheque can buy a partial
   stake in a larger company.
-- A hard requirement the advisor types into the context box, such as a 500K
-  EBITDA floor, can now remove sellers from the shortlist. Before, only CRM
-  requirements could. This applies only when the advisor typed context.
+- What the advisor types into the context box now outranks the CRM. Say
+  "Egypt" for a buyer stored as US, and the search runs on Egypt. It replaces
+  the stored geography or vertical, including in the database narrowing.
+  Explicit limits such as a 500K EBITDA floor can also remove sellers.
+- "Run match anyway" now keeps the advisor's context. Before, it ran on the
+  stored criteria alone. The context box is capped at 900 characters.
 - The `client_type` scoring criterion is retired. It never matched anything.
   The CRM holds an engagement type where the scorer expected a customer type.
 

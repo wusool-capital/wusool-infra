@@ -22,7 +22,7 @@ from app.modules.matching_engine.api.dependencies import (
     to_match_analysis_schema,
     trigger_seller_discovery,
 )
-from app.modules.matching_engine.api.slack.schemas import DealChoiceValue
+from app.modules.matching_engine.api.slack.schemas import DealChoiceValue, RunAnywayValue
 from app.modules.matching_engine.api.slack.views.existing_deal_prompt import (
     build_existing_deal_prompt_blocks,
 )
@@ -186,12 +186,18 @@ def register(app: AsyncApp) -> None:
     @app.action("discrepancy_run_match")
     async def handle_discrepancy_run_match(ack: AsyncAck, body: SlackInteractionBody) -> None:
         await ack()
-        buyer_role_id = body["actions"][0].get("value")
+        raw_value = body["actions"][0].get("value")
         channel_id = body["channel"]["id"]
         message_ts = body["message"]["ts"]
         requested_by = body["user"]["id"]
-        if not buyer_role_id:
+        if not raw_value:
             return
+        try:
+            run_value = RunAnywayValue.model_validate_json(raw_value)
+        except ValidationError:
+            # A button posted before the value carried context holds a bare id.
+            run_value = RunAnywayValue(buyer_role_id=raw_value)
+        buyer_role_id = run_value.buyer_role_id
 
         # Deduped on the message, not the buyer — a double click or a
         # retried Slack delivery of the same click must never run the match
@@ -214,6 +220,7 @@ def register(app: AsyncApp) -> None:
                 buyer_role_id,
                 requested_by,
                 channel_id,
+                advisor_context=run_value.advisor_context,
                 placeholder_ts=message_ts,
                 check_discrepancies=False,
             ),

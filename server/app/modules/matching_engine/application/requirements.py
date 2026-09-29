@@ -21,6 +21,7 @@ from app.modules.matching_engine.application.ports.llm import (
     InferenceConfig,
 )
 from app.modules.matching_engine.domain.buyers import BuyerContext
+from app.modules.matching_engine.domain.matching.overrides import apply_advisor_overrides
 from app.modules.matching_engine.domain.matching.scoring import describe_criteria
 from app.modules.matching_engine.domain.meetings import render_meeting_notes_section
 from app.modules.matching_engine.domain.requirements import (
@@ -132,9 +133,12 @@ class BuyerRequirementExtractionService:
             f"but a human's own instruction): {advisor_context}\n"
             "A hard_requirement that states an explicit, unambiguous constraint from "
             "this advisor context (e.g. a stated floor or required region) must use "
-            "source advisor_context and human_confirmed: true. Vague preferences, "
-            "hedged wording, or anything inferred rather than stated belong in "
-            "soft_preferences with source llm_extracted instead."
+            "source advisor_context and human_confirmed: true. The advisor's context "
+            "OVERRIDES any conflicting structured buyer field: when it restates a "
+            "criterion (e.g. a different geography), emit only the advisor's value and "
+            "never the conflicting CRM one. Vague preferences, hedged wording, or "
+            "anything inferred rather than stated belong in soft_preferences with "
+            "source llm_extracted instead."
             if advisor_context
             else ""
         )
@@ -213,7 +217,7 @@ class BuyerRequirementExtractionService:
                 return "llm_extracted"
             return item["source"]
 
-        return RequirementProfile(
+        profile = RequirementProfile(
             hard_requirements=[
                 HardRequirement(
                     criterion=h["criterion"],
@@ -241,3 +245,4 @@ class BuyerRequirementExtractionService:
             generated_by_model=model_id,
             version=version,
         )
+        return apply_advisor_overrides(profile)

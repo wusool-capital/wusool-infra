@@ -348,3 +348,34 @@ async def test_advisor_context_source_is_downgraded_when_no_context_was_typed() 
 
     (requirement,) = profile.hard_requirements
     assert (requirement.source, requirement.human_confirmed) == ("llm_extracted", False)
+
+
+async def test_advisor_geography_supersedes_the_crm_geography_requirement() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "geography",
+                "value": "United States",
+                "source": "crm_field",
+                "confidence": "high",
+                "human_confirmed": True,
+            },
+            {
+                "criterion": "geography",
+                "value": "Egypt",
+                "source": "advisor_context",
+                "confidence": "high",
+                "human_confirmed": True,
+            },
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="I want Egypt")
+
+    assert [h.value for h in profile.hard_requirements] == ["Egypt"]
+    assert "OVERRIDES any conflicting structured buyer field" in fake.structured_calls[0]

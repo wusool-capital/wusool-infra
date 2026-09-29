@@ -11,6 +11,8 @@ from dataclasses import dataclass
 
 from app.modules.discovery.domain.geography import resolve_known
 from app.modules.matching_engine.domain.buyers import BuyerContext
+from app.modules.matching_engine.domain.matching.overrides import advisor_stated_values
+from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.utilities.domain.money import Money
 
 # `target_region` options that resolve to a country list — the rest (Africa,
@@ -41,10 +43,23 @@ class CandidateNarrowing:
         return bool(self.regions or self.countries)
 
     @classmethod
-    def from_buyer(cls, buyer: BuyerContext) -> "CandidateNarrowing":
-        regions, countries = _accepted_geography(buyer.target_region, buyer.target_country)
+    def from_buyer(
+        cls, buyer: BuyerContext, profile: RequirementProfile | None = None
+    ) -> "CandidateNarrowing":
+        """Uses the buyer role's CRM fields, except a dimension the advisor
+        restated in their own context — that value replaces the stored one."""
+        stated = advisor_stated_values(profile) if profile else {}
+        vertical = buyer.target_vertical
+        target_regions, target_countries = buyer.target_region, buyer.target_country
+        if "sector" in stated:
+            vertical = stated["sector"][0]
+        if "geography" in stated:
+            target_regions = [v for v in stated["geography"] if resolve_known(v) is not None]
+            target_countries = [v for v in stated["geography"] if resolve_known(v) is None]
+
+        regions, countries = _accepted_geography(target_regions, target_countries)
         return cls(
-            vertical=buyer.target_vertical.strip().lower() if buyer.target_vertical else None,
+            vertical=vertical.strip().lower() if vertical else None,
             regions=regions,
             countries=countries,
             ev_ceiling=_amount(buyer.ev_ceiling),

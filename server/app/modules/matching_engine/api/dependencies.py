@@ -125,7 +125,7 @@ async def _apply_discrepancy_check(
             channel=channel_id,
             ts=placeholder_ts,
             text=result.message,
-            blocks=build_discrepancy_gate_blocks(buyer.buyer_role_id, result),
+            blocks=build_discrepancy_gate_blocks(buyer.buyer_role_id, result, advisor_context),
         )
         return True
 

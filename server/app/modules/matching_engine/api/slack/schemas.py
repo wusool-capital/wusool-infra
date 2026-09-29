@@ -18,3 +18,14 @@ class DealChoiceValue(BaseModel):
     existing_deal_id: str | None = None
     # The match-results message to refresh, since the prompt itself is ephemeral.
     message_ts: str | None = None
+
+
+class RunAnywayValue(BaseModel):
+    """The button value on the discrepancy gate. Carries the advisor's context
+    so "Run match anyway" applies it — otherwise the very context that
+    triggered the conflict would be dropped from the run."""
+
+    model_config = ConfigDict(frozen=True)
+
+    buyer_role_id: str
+    advisor_context: str | None = None

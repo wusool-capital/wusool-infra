@@ -99,6 +99,11 @@ def normalize_criterion(name: str) -> str:
     return name.strip().lower().replace(" ", "_").replace("-", "_")
 
 
+def canonical_criterion(name: str) -> str | None:
+    key = normalize_criterion(name)
+    return next((c for c, spec in CRITERION_REGISTRY.items() if key in spec.synonyms), None)
+
+
 def is_monetary_criterion(name: str) -> bool:
     key = normalize_criterion(name)
     return key in _REVENUE_KEYS or key in _EBITDA_KEYS
