@@ -47,7 +47,7 @@ def _updated():
 
 def _service(*, update_result=None, upsert_error=None, gateway=None, candidate=None):
     repo = SimpleNamespace(
-        get_by_id=AsyncMock(return_value=candidate or _candidate()),
+        get_by_id_for_update=AsyncMock(return_value=candidate or _candidate()),
         update_status=AsyncMock(return_value=update_result),
     )
     deals = SimpleNamespace(upsert=AsyncMock(side_effect=upsert_error))
@@ -198,3 +198,15 @@ async def test_promote_of_a_vanished_deal_reprompts_instead_of_creating() -> Non
         )
 
     gateway.create_qualified.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_unstaged_existing_deal_keeps_its_missing_stage() -> None:
+    gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", None, None)])
+    service, _, deals = _service(update_result=_updated(), gateway=gateway)
+
+    await service.approve_match(
+        uuid4(), "U_TEST", resolution="promote_existing", existing_deal_id="deal-1"
+    )
+
+    assert deals.upsert.await_args.args[0].stage is None

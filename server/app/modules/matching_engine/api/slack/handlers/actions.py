@@ -161,6 +161,7 @@ def register(app: AsyncApp) -> None:
             match_result_id=choice.match_result_id,
             resolution=choice.resolution,
             existing_deal_id=choice.existing_deal_id,
+            original_ts=choice.message_ts,
         )
 
     @app.action("cancel_deal_choice")
@@ -247,6 +248,7 @@ async def _handle_decision(
     match_result_id: uuid.UUID | None = None,
     resolution: DealResolution | None = None,
     existing_deal_id: str | None = None,
+    original_ts: str | None = None,
 ) -> None:
     channel_id = body["channel"]["id"]
     user_id = body["user"]["id"]
@@ -293,7 +295,9 @@ async def _handle_decision(
             channel=channel_id,
             user=user_id,
             text="Attio already has a deal for this buyer and seller.",
-            blocks=build_existing_deal_prompt_blocks(match_result_id, exc.deals),
+            blocks=build_existing_deal_prompt_blocks(
+                match_result_id, exc.deals, body.get("message", {}).get("ts")
+            ),
         )
         return
     except PartialWriteError as exc:
@@ -314,9 +318,14 @@ async def _handle_decision(
     # Update the original message in place so a decided candidate's buttons
     # stop looking clickable (§23 — a repeat action must not appear possible).
     view = await service.get_match_run_view(uuid.UUID(result.run_id))
-    if view is not None:
-        await respond(
-            replace_original=True,
-            text=f"Match results for {view.buyer_org_name}",
-            blocks=build_match_result_blocks_from_view(view),
-        )
+    if view is None:
+        return
+    text = f"Match results for {view.buyer_org_name}"
+    blocks = build_match_result_blocks_from_view(view)
+    if original_ts is None:
+        await respond(replace_original=True, text=text, blocks=blocks)
+        return
+    # Coming from the ephemeral deal prompt: `respond` would overwrite the
+    # prompt, so refresh the real message and drop the prompt.
+    await client.chat_update(channel=channel_id, ts=original_ts, text=text, blocks=blocks)
+    await respond(delete_original=True)

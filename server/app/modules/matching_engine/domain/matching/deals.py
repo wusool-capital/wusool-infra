@@ -30,6 +30,6 @@ class DealRecord:
 
     attio_id: str
     name: str
-    stage: str
+    stage: str | None
     buyer_attio_id: str
     seller_attio_id: str

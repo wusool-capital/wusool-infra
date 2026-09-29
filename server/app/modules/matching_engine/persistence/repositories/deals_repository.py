@@ -25,7 +25,12 @@ class DealRepository:
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=[Deal.attio_id],
-            set_={"stage": stmt.excluded.stage, "updated_at": func.now(), "removed_at": None},
+            # An unstaged deal must not blank a stage the sync already stored.
+            set_={
+                "stage": func.coalesce(stmt.excluded.stage, Deal.stage),
+                "updated_at": func.now(),
+                "removed_at": None,
+            },
         )
         await self._session.execute(stmt)
         await self._session.flush()

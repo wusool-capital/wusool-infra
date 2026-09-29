@@ -118,7 +118,8 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    way) — see `discovery/README.md`.
 8. **Approve/Reject** — re-validates against the database (never trusts the
    Slack payload), atomic compare-and-set against `PENDING_REVIEW` so
-   concurrent decisions can't race. Approve writes the Qualified Buy-side
+   concurrent decisions can't race. Approve locks the candidate row (`SELECT … FOR UPDATE`) so a double
+   click can't create two deals, then writes the Qualified Buy-side
    deal to Attio *first* (`deals.attio_id` is the Postgres primary key),
    then one Postgres transaction does the compare-and-set, the `deals`
    upsert and the `deal_attio_id` stamp. If Attio already has a deal for

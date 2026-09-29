@@ -209,6 +209,18 @@ class MatchResultRepository:
         row = await self._get_by_id_row(match_result_id)
         return to_match_result_entity(row) if row else None
 
+    async def get_by_id_for_update(self, match_result_id: uuid.UUID) -> MatchResultEntity | None:
+        """Row-locks the candidate until the transaction ends, so a second
+        approval of the same match waits and then sees it already decided."""
+        row = await self._session.get(
+            MatchResult,
+            match_result_id,
+            options=[selectinload(MatchResult.seller_organization)],
+            with_for_update=True,
+            populate_existing=True,
+        )
+        return to_match_result_entity(row) if row else None
+
     async def get_latest_requirement_profile_version(self, buyer_role_id: uuid.UUID) -> int | None:
         """Fail-closed versioning: only successful extractions set
         `requirement_profile_version` on a run row, so `MAX(...)` here

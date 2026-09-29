@@ -60,31 +60,35 @@ class ApprovalsMixin(ServiceBase):
         before a Postgres failure surfaces as `PartialWriteError`, and the
         inbound webhook / nightly resync reconciles the orphan.
         """
+        # The candidate row stays locked through the Attio write, so a
+        # concurrent approval waits, then sees it decided and never creates
+        # a second deal.
         async with self._uow_factory() as uow:
-            candidate = await uow.match_results.get_by_id(match_result_id)
-        if candidate is None:
-            raise MatchNotFoundError(f"match_result {match_result_id} not found")
-        if not can_transition(cast(MatchStatus, candidate.status), "APPROVED"):
-            raise InvalidTransitionError(
-                f"cannot transition match_result {match_result_id} from "
-                f"{candidate.status} to APPROVED"
+            candidate = await uow.match_results.get_by_id_for_update(match_result_id)
+            if candidate is None:
+                raise MatchNotFoundError(f"match_result {match_result_id} not found")
+            if not can_transition(cast(MatchStatus, candidate.status), "APPROVED"):
+                raise InvalidTransitionError(
+                    f"cannot transition match_result {match_result_id} from "
+                    f"{candidate.status} to APPROVED"
+                )
+            if candidate.seller_attio_id is None:
+                raise InvalidTransitionError(
+                    f"match_result {match_result_id} has no seller to approve"
+                )
+
+            deal, landed = await self._write_attio_deal(
+                candidate, candidate.seller_attio_id, resolution, existing_deal_id
             )
-        if candidate.seller_attio_id is None:
-            raise InvalidTransitionError(f"match_result {match_result_id} has no seller to approve")
 
-        deal, landed = await self._write_attio_deal(
-            candidate, candidate.seller_attio_id, resolution, existing_deal_id
-        )
-
-        record = DealRecord(
-            attio_id=deal.attio_id,
-            name=deal.name,
-            stage=deal.stage or QUALIFIED_STAGE,
-            buyer_attio_id=candidate.buyer_attio_id,
-            seller_attio_id=candidate.seller_attio_id,
-        )
-        try:
-            async with self._uow_factory() as uow:
+            record = DealRecord(
+                attio_id=deal.attio_id,
+                name=deal.name,
+                stage=deal.stage,
+                buyer_attio_id=candidate.buyer_attio_id,
+                seller_attio_id=candidate.seller_attio_id,
+            )
+            try:
                 await uow.deals.upsert(record)
                 updated = await uow.match_results.update_status(
                     match_result_id,
@@ -96,13 +100,12 @@ class ApprovalsMixin(ServiceBase):
                     deal_attio_id=deal.attio_id,
                 )
                 if updated is None:
-                    # Raised inside the block so the deal row rolls back too.
                     raise InvalidTransitionError(
                         f"cannot transition match_result {match_result_id} to APPROVED; "
                         "it was reviewed concurrently"
                     )
-        except Exception as exc:
-            raise PartialWriteError(landed, exc) from exc
+            except Exception as exc:
+                raise PartialWriteError(landed, exc) from exc
         return ApprovalResult(
             match_result_id=updated.id,
             run_id=updated.run_id,

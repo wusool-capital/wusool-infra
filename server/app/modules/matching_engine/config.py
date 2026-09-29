@@ -5,6 +5,9 @@ from functools import lru_cache
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Same member `lead_magnets` owns its deals with; the Attio key decides which workspace it lands in.
+_DEFAULT_DEAL_OWNER_ID = "bb40387a-b57b-491e-b8a6-9ba593d6e97d"
+
 
 class ScoringSettings(BaseSettings):
     """Weights applied when deterministically calculating match scores."""
@@ -80,10 +83,16 @@ class Settings(BaseSettings):
     enable_seller_meeting_notes: bool = True
 
     # Attio workspace member who owns the Qualified deal an approval creates.
-    matching_deal_owner_id: str = "bb40387a-b57b-491e-b8a6-9ba593d6e97d"
+    matching_deal_owner_id: str = _DEFAULT_DEAL_OWNER_ID
 
     scoring: ScoringSettings = Field(default_factory=ScoringSettings)
     confidence: ConfidenceSettings = Field(default_factory=ConfidenceSettings)
+
+    @field_validator("matching_deal_owner_id")
+    @classmethod
+    def blank_owner_uses_default(cls, value: str) -> str:
+        # `.env.example` lists the key blank; an empty owner would fail every deal write.
+        return value.strip() or _DEFAULT_DEAL_OWNER_ID
 
     @field_validator("database_url")
     @classmethod

@@ -16,3 +16,5 @@ class DealChoiceValue(BaseModel):
     match_result_id: uuid.UUID
     resolution: DealResolution
     existing_deal_id: str | None = None
+    # The match-results message to refresh, since the prompt itself is ephemeral.
+    message_ts: str | None = None

@@ -21,7 +21,7 @@ def _describe(deal: ExistingDeal) -> str:
 
 
 def build_existing_deal_prompt_blocks(
-    match_result_id: uuid.UUID, deals: list[ExistingDeal]
+    match_result_id: uuid.UUID, deals: list[ExistingDeal], message_ts: str | None
 ) -> list[Block]:
     deals = deals[:_MAX_PROMOTE_BUTTONS]
     listing = "\n".join(_describe(d) for d in deals)
@@ -34,6 +34,7 @@ def build_existing_deal_prompt_blocks(
                 match_result_id=match_result_id,
                 resolution="promote_existing",
                 existing_deal_id=d.attio_id,
+                message_ts=message_ts,
             ).model_dump_json(),
         )
         for i, d in enumerate(deals)
@@ -43,7 +44,7 @@ def build_existing_deal_prompt_blocks(
             text="Create new deal",
             action_id="create_new_deal",
             value=DealChoiceValue(
-                match_result_id=match_result_id, resolution="create_new"
+                match_result_id=match_result_id, resolution="create_new", message_ts=message_ts
             ).model_dump_json(),
         )
     )
