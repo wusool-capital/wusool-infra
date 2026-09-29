@@ -104,7 +104,7 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    ticket range or EV cap (`advisor_limits`) replaces the stored check size
    or EV ceiling for that run. It counts only if the advisor's own words name
    what it measures (ticket/cheque, or EV/valuation); a bare "up to 10M" sets
-   no limit. and soft preferences (never eliminate, always
+   no limit, and the result message says so. and soft preferences (never eliminate, always
    just weighted). See `CRITERION_REGISTRY`
    (`domain/matching/scoring.py`) for the fixed set of checkable criteria.
 3. **Candidate load + Stage 1 filtering** (one call) — SQL first narrows

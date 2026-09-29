@@ -29,6 +29,7 @@ from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     MatchAnalysisData,
 )
+from app.modules.matching_engine.domain.matching.overrides import unlabelled_amount_note
 from app.modules.matching_engine.domain.matching.scoring import select_top_n
 from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.sellers import SellerCandidate
@@ -57,6 +58,8 @@ class MatchRunResult:
     buyer_org_name: str
     results: list[ShortlistedResult] = field(default_factory=list)
     error: str | None = None
+    # Advisor-facing remarks about how their context was (not) applied.
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -282,8 +285,13 @@ class MatchingMixin(ServiceBase):
                 )
             )
 
+        note = unlabelled_amount_note(advisor_context, profile)
         return MatchRunResult(
-            run_id=str(run_id), status="GENERATED", buyer_org_name=buyer.org_name, results=results
+            run_id=str(run_id),
+            status="GENERATED",
+            buyer_org_name=buyer.org_name,
+            results=results,
+            notes=[note] if note else [],
         )
 
     async def get_match_analysis(self, run_id: uuid.UUID) -> MatchAnalysisData | None:

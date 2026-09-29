@@ -17,7 +17,11 @@ from app.modules.matching_engine.api.slack.views.discrepancy_gate import (
     build_discrepancy_gate_blocks,
 )
 from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
-from app.modules.matching_engine.domain.matching.overrides import apply_advisor_overrides
+from app.modules.matching_engine.domain.matching.overrides import (
+    UNLABELLED_AMOUNT_NOTE,
+    apply_advisor_overrides,
+    unlabelled_amount_note,
+)
 from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.requirements import (
     AdvisorLimits,
@@ -176,3 +180,31 @@ def test_advisor_limits_survive_persistence_and_old_profiles_load_without_them()
     legacy = _profile_from_dict(stored, version=1)
     assert legacy is not None
     assert legacy.advisor_limits == AdvisorLimits()
+
+
+@pytest.mark.parametrize("context", ["up to 10M", "budget $10M", "around USD 10M", "max 500k"])
+def test_a_bare_amount_that_became_no_limit_gets_a_note(context: str) -> None:
+    assert unlabelled_amount_note(context, _profile()) == UNLABELLED_AMOUNT_NOTE
+
+
+def test_no_note_when_the_amount_became_a_limit() -> None:
+    profile = _with_limits(AdvisorLimits(ticket_max=10e6))
+
+    assert unlabelled_amount_note("up to 10M tickets", profile) is None
+
+
+def test_no_note_when_the_amount_became_a_revenue_requirement() -> None:
+    profile = _profile(_hard("revenue", "USD 20M", "advisor_context"))
+
+    assert unlabelled_amount_note("revenue over $20M", profile) is None
+
+
+def test_a_stored_crm_amount_does_not_hide_the_note() -> None:
+    profile = _profile(_hard("ebitda", "USD 2M", "crm_field"))
+
+    assert unlabelled_amount_note("up to 10M", profile) == UNLABELLED_AMOUNT_NOTE
+
+
+@pytest.mark.parametrize("context", [None, "", "pharma tech only, UAE", "founded in 2024"])
+def test_no_note_without_a_money_amount(context: str | None) -> None:
+    assert unlabelled_amount_note(context, _profile()) is None

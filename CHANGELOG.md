@@ -52,7 +52,8 @@ for current production evidence and open handover items.
   "Egypt" for a buyer stored as US, and the search runs on Egypt. It replaces
   the stored geography or vertical, including in the database narrowing.
   A stated ticket size or EV cap replaces the stored one too. A bare amount
-  with no label, such as "up to 10M", sets neither. Explicit limits
+  with no label, such as "up to 10M", sets neither. The result message now
+  says so. Explicit limits
   such as a 500K EBITDA floor can also remove sellers.
 - "Run match anyway" now keeps the advisor's context. Before, it ran on the
   stored criteria alone. The context box is capped at 900 characters.
