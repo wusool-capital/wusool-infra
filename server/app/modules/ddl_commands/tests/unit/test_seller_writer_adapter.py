@@ -200,3 +200,36 @@ async def test_partial_write_reports_what_landed(monkeypatch, lookups) -> None:
         )
 
     assert exc_info.value.landed == ("organization 'Acme Co' created in Attio",)
+
+
+async def test_domain_created_since_the_lookup_aborts_the_write(monkeypatch, write) -> None:
+    monkeypatch.setattr(module, "find_organization_by_domains", _returning(_org()))
+    monkeypatch.setattr(module, "propose_basic_seller_fields", _returning(()))
+
+    # A branch of the same company: different place id, same website.
+    with pytest.raises(SellerWriteError, match="already in the CRM"):
+        await module.DdlCommandsSellerWriterAdapter().enrich_and_create(
+            SellerDraft(
+                org_name="Acme Branch",
+                values={"domains": ["acme.example"]},
+                source_place_id="p2",
+            ),
+            enrichment_timeout_s=5,
+        )
+
+    assert write == []
+
+
+async def test_enrichment_runs_outside_the_write_lock(monkeypatch, write) -> None:
+    adapter = module.DdlCommandsSellerWriterAdapter()
+    inside_enrichment: list[bool] = []
+
+    async def _enrich(**kwargs: object) -> tuple[ProposedFieldValue, ...]:
+        inside_enrichment.append(adapter._write_lock.locked())
+        return ()
+
+    monkeypatch.setattr(module, "propose_basic_seller_fields", _enrich)
+
+    await adapter.enrich_and_create(_draft(), enrichment_timeout_s=5)
+
+    assert inside_enrichment == [False]

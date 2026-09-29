@@ -310,3 +310,55 @@ async def test_only_approving_a_discovered_seller_triggers_full_enrichment(
     await actions._handle_decision(body, client, respond, decision)
 
     assert runner.names == expected
+
+
+async def test_review_setup_failure_says_the_sellers_were_created(monkeypatch, harness) -> None:
+    outcome = DiscoveryOutcome(
+        status="ok",
+        created=(
+            CreatedSeller(
+                seller_role_id=harness.seller_role_id,
+                org_attio_id="attio-acme",
+                org_name="Acme Co",
+                source_url="https://maps.example/acme",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        discovery_module, "discover_and_create_sellers", AsyncMock(return_value=outcome)
+    )
+    harness.service.append_discovered_candidates.side_effect = RuntimeError("db down")
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    text = harness.notifier.updates[-1]["text"]
+    assert "Created 1 seller(s) in the CRM (Acme Co)" in text
+    assert "failed unexpectedly" not in text
+
+
+async def test_a_partly_saved_lead_says_what_landed(monkeypatch, harness) -> None:
+    failed = FailedLead(
+        lead=DiscoveredLead(name="Half Co", source_url="u"),
+        reason="db",
+        landed=("organization created in Attio",),
+    )
+    outcome = DiscoveryOutcome(
+        status="ok",
+        created=(
+            CreatedSeller(
+                seller_role_id=harness.seller_role_id,
+                org_attio_id="attio-acme",
+                org_name="Acme Co",
+                source_url="https://maps.example/acme",
+            ),
+        ),
+        failed=(failed,),
+    )
+    monkeypatch.setattr(
+        discovery_module, "discover_and_create_sellers", AsyncMock(return_value=outcome)
+    )
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    rendered = str([b.to_dict() for b in harness.notifier.updates[-1]["blocks"]])
+    assert "Half Co (partly saved: organization created in Attio)" in rendered

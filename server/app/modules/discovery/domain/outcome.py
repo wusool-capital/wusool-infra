@@ -38,6 +38,8 @@ class PossibleDuplicate:
 class FailedLead:
     lead: DiscoveredLead
     reason: str
+    # What already reached the CRM before the failure (e.g. Attio, not Postgres).
+    landed: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

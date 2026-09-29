@@ -302,12 +302,19 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
             quota_key=analysis.run.buyer_role_id,
             exclude_terms=exclude_terms,
         )
-        if outcome.status != "ok":
-            await notifier.update_message(
-                channel=channel_id, ts=placeholder_ts, text=_DISCOVERY_STATUS_TEXT[outcome.status]
-            )
-            return
+    except Exception:
+        logger.exception("seller_discovery_failed", extra={"run_id": str(run_id)})
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text="Seller search failed unexpectedly."
+        )
+        return
+    if outcome.status != "ok":
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text=_DISCOVERY_STATUS_TEXT[outcome.status]
+        )
+        return
 
+    try:
         async with get_sessionmaker()() as session:
             service = matching_engine_service(session)
         await service.append_discovered_candidates(
@@ -323,16 +330,30 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         )
         view = await service.get_match_run_view(run_id)
     except Exception:
-        logger.exception("seller_discovery_failed", extra={"run_id": str(run_id)})
+        # The sellers already exist in the CRM at this point, so this must not
+        # read like the search failed, and it can't be retried.
+        logger.exception("discovered_candidates_review_setup_failed", extra={"run_id": str(run_id)})
+        names = ", ".join(c.org_name for c in outcome.created)
         await notifier.update_message(
-            channel=channel_id, ts=placeholder_ts, text="Seller search failed unexpectedly."
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=(
+                f"Created {len(outcome.created)} seller(s) in the CRM ({names}) but couldn't "
+                "set them up for review. Find them in the CRM."
+            ),
         )
         return
 
     notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
     if outcome.failed:
-        names = ", ".join(f.lead.name for f in outcome.failed)
-        notes.append(f"Couldn't save: {names}.")
+        notes.append(
+            "Couldn't save: "
+            + ", ".join(
+                f"{f.lead.name} (partly saved: {'; '.join(f.landed)})" if f.landed else f.lead.name
+                for f in outcome.failed
+            )
+            + "."
+        )
     created_ids = {str(c.seller_role_id) for c in outcome.created}
     discovered = (
         [r for r in view.results if r.origin == "discovery" and r.seller_role_id in created_ids]

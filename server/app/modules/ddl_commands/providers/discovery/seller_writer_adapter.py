@@ -7,8 +7,6 @@ Postgres itself.
 
 import asyncio
 import logging
-from contextlib import AbstractAsyncContextManager, nullcontext
-from weakref import WeakValueDictionary
 
 from pydantic import ValidationError
 
@@ -50,47 +48,54 @@ def _domain_variants(website: str | None) -> list[str]:
 
 class DdlCommandsSellerWriterAdapter:
     def __init__(self) -> None:
-        # Process-local, like the buyer-add locks: enough for a single
-        # instance, and weakly held so a lock vanishes once nothing waits.
-        self._place_locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
+        # Process-local, enough for a single instance. One lock, not one per
+        # key: two leads can collide on domain while having different place
+        # ids, so the re-check and the write must be one critical section.
+        # Enrichment (the slow part) runs outside it.
+        self._write_lock = asyncio.Lock()
 
     async def find_existing(self, lead: DiscoveredLead) -> CrmMatch:
-        if lead.place_id and (org := await find_organization_by_place_id(lead.place_id)):
-            return CrmMatch(CrmMatchKind.PLACE_ID, org.attio_id, org.name)
-        if hosts := _domain_variants(lead.website):
-            if org := await find_organization_by_domains(hosts):
-                return CrmMatch(CrmMatchKind.DOMAIN, org.attio_id, org.name)
+        if match := await self._find_exact(lead.place_id, lead.website):
+            return match
         if candidates := await search_organizations(lead.name):
             return CrmMatch(CrmMatchKind.FUZZY_NAME, candidates[0].attio_id, candidates[0].name)
         return CrmMatch(CrmMatchKind.NONE)
 
+    @staticmethod
+    async def _find_exact(place_id: str | None, website: str | None) -> CrmMatch | None:
+        if place_id and (org := await find_organization_by_place_id(place_id)):
+            return CrmMatch(CrmMatchKind.PLACE_ID, org.attio_id, org.name)
+        if hosts := _domain_variants(website):
+            if org := await find_organization_by_domains(hosts):
+                return CrmMatch(CrmMatchKind.DOMAIN, org.attio_id, org.name)
+        return None
+
     async def enrich_and_create(
         self, draft: SellerDraft, *, enrichment_timeout_s: float
     ) -> CreatedSeller:
-        async with self._lock_for(draft.source_place_id):
-            # Re-check under the lock: another run may have created this
-            # place since `find_existing` looked.
-            if draft.source_place_id and await find_organization_by_place_id(draft.source_place_id):
+        enriched, timed_out = await self._enrich(draft, enrichment_timeout_s)
+        merged: dict[str, PrefillValue] = {v.field_name: v.proposed for v in enriched}
+        merged.update(draft.values)
+        prefill = normalize_prefill(merged, _SELLER_FIELDS_BY_NAME, warn_on_drop=False)
+        org_extracted: dict[str, PrefillValue | None] = {
+            n: v for n, v in prefill.items() if n in ORGANIZATION_FIELDS_BY_NAME
+        }
+        role_extracted: dict[str, PrefillValue | None] = {
+            n: v for n, v in prefill.items() if n in SELLER_ROLE_FIELDS_BY_NAME
+        }
+        try:
+            OrganizationUpdate.model_validate(org_extracted)
+            SellerUpdate.model_validate(role_extracted)
+        except ValidationError as exc:
+            raise SellerWriteError(f"invalid seller values ({exc.error_count()})") from exc
+
+        domains = draft.values.get("domains")
+        website = f"https://{domains[0]}" if isinstance(domains, list) and domains else None
+        async with self._write_lock:
+            # Re-check under the lock: another lead in this run, or another
+            # run, may have created this company since `find_existing` looked.
+            if await self._find_exact(draft.source_place_id, website):
                 raise SellerWriteError("already in the CRM")
-
-            enriched, timed_out = await self._enrich(draft, enrichment_timeout_s)
-            merged: dict[str, PrefillValue] = {v.field_name: v.proposed for v in enriched}
-            merged.update(draft.values)
-            prefill = normalize_prefill(merged, _SELLER_FIELDS_BY_NAME, warn_on_drop=False)
-            org_extracted: dict[str, PrefillValue | None] = {
-                n: v for n, v in prefill.items() if n in ORGANIZATION_FIELDS_BY_NAME
-            }
-            role_extracted: dict[str, PrefillValue | None] = {
-                n: v for n, v in prefill.items() if n in SELLER_ROLE_FIELDS_BY_NAME
-            }
-            try:
-                OrganizationUpdate.model_validate(org_extracted)
-                SellerUpdate.model_validate(role_extracted)
-            except ValidationError as exc:
-                raise SellerWriteError(
-                    f"invalid seller values: {exc.error_count()} error(s)"
-                ) from exc
-
             try:
                 role = await write_seller_add(
                     is_new_org=True,
@@ -114,15 +119,6 @@ class DdlCommandsSellerWriterAdapter:
             enriched_fields=tuple(v.field_name for v in enriched if v.field_name in prefill),
             enrichment_timed_out=timed_out,
         )
-
-    def _lock_for(self, place_id: str | None) -> AbstractAsyncContextManager[object]:
-        if place_id is None:
-            return nullcontext()
-        lock = self._place_locks.get(place_id)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._place_locks[place_id] = lock
-        return lock
 
     @staticmethod
     async def _enrich(

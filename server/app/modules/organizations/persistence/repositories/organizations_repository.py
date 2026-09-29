@@ -9,7 +9,7 @@ transaction boundary.
 
 from typing import Unpack
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ARRAY, ColumnElement, Text, bindparam, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -104,13 +104,16 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         return (await self._session.execute(stmt)).scalars().first()
 
     async def find_by_domains(self, hosts: list[str]) -> Organization | None:
-        """Exact overlap on the GIN-indexed `domains` array; active orgs only,
-        since a company Attio no longer has must not block a fresh lead."""
+        """Case-insensitive exact match on any stored domain; active orgs only,
+        since a company Attio no longer has must not block a fresh lead. Stored
+        domains aren't guaranteed lowercase, so this can't use the GIN overlap
+        operator; a scan is fine at this table's size."""
         if not hosts:
             return None
-        stmt = select(Organization).where(
-            Organization.removed_at.is_(None), Organization.domains.overlap(hosts)
-        )
+        any_domain_matches = text(
+            "EXISTS (SELECT 1 FROM unnest(organizations.domains) AS d WHERE lower(d) = ANY(:hosts))"
+        ).bindparams(bindparam("hosts", value=[h.lower() for h in hosts], type_=ARRAY(Text)))
+        stmt = select(Organization).where(Organization.removed_at.is_(None), any_domain_matches)
         return (await self._session.execute(stmt)).scalars().first()
 
     async def create(

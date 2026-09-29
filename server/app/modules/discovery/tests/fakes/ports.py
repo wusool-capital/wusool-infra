@@ -63,7 +63,7 @@ class FakeSellerWriterPort(SellerWriterPort):
         try:
             await asyncio.sleep(self.create_delay_s)
             if draft.org_name in self.fail_names:
-                raise SellerWriteError("attio down", landed=())
+                raise SellerWriteError("attio down", landed=("organization created in Attio",))
             self.created.append(draft)
             self.timeouts.append(enrichment_timeout_s)
             return CreatedSeller(

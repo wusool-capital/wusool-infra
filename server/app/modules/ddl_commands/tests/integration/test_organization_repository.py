@@ -134,11 +134,12 @@ async def test_find_by_domains_matches_exact_overlap_on_active_orgs(
 ) -> None:
     host = f"{uuid.uuid4().hex}.example"
     repo = OrganizationRepository(db_session)
-    await repo.update(throwaway_org.attio_id, domains=[host])
+    await repo.update(throwaway_org.attio_id, domains=[host.title()])  # stored mixed-case
 
     found = await repo.find_by_domains([host, f"www.{host}"])
 
     assert found is not None
     assert found.attio_id == throwaway_org.attio_id
+    assert await repo.find_by_domains([host.upper()]) is not None  # case-insensitive
     assert await repo.find_by_domains([f"nope-{host}"]) is None
     assert await repo.find_by_domains([]) is None

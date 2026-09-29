@@ -42,12 +42,21 @@ class CreateMixin(ServiceBase):
             logger.warning("discovery_daily_cap_reached quota_key=%s", quota_key)
             return DiscoveryOutcome(status="daily_cap_reached")
 
-        leads = await self._lead_search_client.find_potential_sellers(
-            industry=industry,
-            geography=geography,
-            limit=_CANDIDATE_POOL,
-            exclude_terms=exclude_terms,
-        )
+        try:
+            leads = await self._lead_search_client.find_potential_sellers(
+                industry=industry,
+                geography=geography,
+                limit=_CANDIDATE_POOL,
+                exclude_terms=exclude_terms,
+            )
+        except Exception:
+            # A search that never ran shouldn't use up one of the day's runs.
+            self._search_limiter.refund(quota_key)
+            raise
+        if not leads:
+            # The Places client returns [] on a failed call too, and either
+            # way nothing was written, so it shouldn't cost a daily run.
+            self._search_limiter.refund(quota_key)
 
         to_create: list[DiscoveredLead] = []
         possible_duplicates: list[PossibleDuplicate] = []
@@ -90,7 +99,7 @@ class CreateMixin(ServiceBase):
                     )
                 except SellerWriteError as exc:
                     logger.warning("discovery_seller_write_failed lead=%s error=%s", lead.name, exc)
-                    return FailedLead(lead=lead, reason=str(exc))
+                    return FailedLead(lead=lead, reason=str(exc), landed=exc.landed)
                 except Exception:
                     logger.exception("discovery_seller_write_crashed", extra={"lead": lead.name})
                     return FailedLead(lead=lead, reason="unexpected error")

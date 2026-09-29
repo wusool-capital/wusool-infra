@@ -1,6 +1,8 @@
 """`discover_and_create` — CRM pre-filter classification, refill after
 exclusions, the per-day cap, bounded concurrency, and failure isolation."""
 
+import pytest
+
 from app.modules.discovery.application.base import CreationPolicy
 from app.modules.discovery.application.service import DiscoveryService
 from app.modules.discovery.domain.crm import CrmMatch, CrmMatchKind
@@ -137,6 +139,7 @@ async def test_one_failed_write_does_not_abort_the_batch() -> None:
 
     assert [f.lead.name for f in outcome.failed] == ["Lead 1"]
     assert outcome.failed[0].reason == "attio down"
+    assert outcome.failed[0].landed == ("organization created in Attio",)
     assert {c.org_name for c in outcome.created} == {"Lead 0", "Lead 2"}
 
 
@@ -147,3 +150,27 @@ async def test_creation_concurrency_is_bounded() -> None:
     await _run(service)
 
     assert writer.max_in_flight == 2
+
+
+async def test_a_search_that_finds_nothing_does_not_use_up_a_daily_run() -> None:
+    client = FakeLeadSearchClient([])
+    service, _ = _service(leads=[], client=client, cap=1)
+
+    await _run(service)
+    second = await _run(service)
+
+    assert second.status == "ok"
+    assert len(client.calls) == 2
+
+
+async def test_a_search_that_raises_does_not_use_up_a_daily_run() -> None:
+    class _Boom(FakeLeadSearchClient):
+        async def find_potential_sellers(self, **kwargs):  # type: ignore[override]
+            raise RuntimeError("places down")
+
+    service, _ = _service(leads=[], client=_Boom([]), cap=1)
+
+    with pytest.raises(RuntimeError):
+        await _run(service)
+    with pytest.raises(RuntimeError):
+        await _run(service)  # the cap didn't block the second attempt

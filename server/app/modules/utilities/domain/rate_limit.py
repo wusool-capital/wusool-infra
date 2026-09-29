@@ -36,3 +36,10 @@ class FixedWindowRateLimiter:
             return False
         self._hits[key] = (started, count + 1)
         return True
+
+    def refund(self, key: str) -> None:
+        """Gives back one hit, for work that was counted but never happened
+        (e.g. the upstream call failed before doing anything)."""
+        entry = self._hits.get(key)
+        if entry is not None and entry[1] > 0:
+            self._hits[key] = (entry[0], entry[1] - 1)
