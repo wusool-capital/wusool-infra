@@ -22,8 +22,12 @@ def build_buyer_selection_modal(
     for candidate in candidates:
         org = candidate.organization
         # Once `buyer_role` is vertical-graded, picking a role from this
-        # list already is picking a vertical — the label says which.
-        label = f"{org.name} — {candidate.target_vertical or 'Generalist'}"
+        # list already is picking a vertical — the label says which. HQ
+        # country is appended only to disambiguate two orgs that would
+        # otherwise render identically (same name, same/no vertical) — the
+        # trigram search can return more than one match for a name.
+        name = f"{org.name} ({org.hq_country})" if org.hq_country else org.name
+        label = f"{name} — {candidate.target_vertical or 'Generalist'}"
         options.append(Option(value=str(candidate.id), text=label[:75]))
 
     label = "Confirm this is the right buyer" if len(options) == 1 else "Choose the right buyer"

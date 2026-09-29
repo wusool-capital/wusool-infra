@@ -16,6 +16,7 @@ def to_buyer_criteria(context: BuyerContext) -> BuyerCriteria:
         buyer_role_id=context.buyer_role_id,
         org_name=context.org_name,
         target_vertical=context.target_vertical,
+        org_hq_country=context.org_hq_country,
         target_region=context.target_region,
         target_country=context.target_country,
         check_size_min=context.check_size_min.amount if context.check_size_min else None,

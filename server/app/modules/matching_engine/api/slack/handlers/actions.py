@@ -71,11 +71,7 @@ def register(app: AsyncApp) -> None:
 
         _task_runner.run(
             lambda: run_match_and_post(
-                buyer_role_id,
-                requested_by,
-                channel_id,
-                advisor_context=advisor_context or None,
-                check_discrepancies=True,
+                buyer_role_id, requested_by, channel_id, advisor_context=advisor_context or None
             ),
             name=f"find-match:{buyer_role_id}",
         )
@@ -170,8 +166,15 @@ def register(app: AsyncApp) -> None:
         _submission_idempotency_store.mark(idempotency_key)
 
         _task_runner.run(
+            # The report already ran once for this message — explicitly
+            # opts out rather than relying on a default, so the gate stays
+            # on by default for every other caller.
             lambda: run_match_and_post(
-                buyer_role_id, requested_by, channel_id, placeholder_ts=message_ts
+                buyer_role_id,
+                requested_by,
+                channel_id,
+                placeholder_ts=message_ts,
+                check_discrepancies=False,
             ),
             name=f"find-match:{buyer_role_id}",
         )

@@ -17,6 +17,10 @@ class BuyerCriteria:
     buyer_role_id: str
     org_name: str
     target_vertical: str | None
+    # Disambiguates two orgs that would otherwise render identically in the
+    # `/check-buyer` picker (same name, same/no vertical) — not used by any
+    # rule, display only.
+    org_hq_country: str | None = None
     target_region: list[str] = field(default_factory=list)
     target_country: list[str] = field(default_factory=list)
     check_size_min: float | None = None

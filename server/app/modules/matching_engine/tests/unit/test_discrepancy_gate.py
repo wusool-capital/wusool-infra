@@ -182,6 +182,11 @@ async def test_run_match_anyway_reuses_the_report_message_as_the_placeholder(mon
     `check_discrepancies=False` — no second placeholder, no second check."""
     notifier = _FakeNotifier()
     service = _FakeService()
+    check_calls: list[object] = []
+
+    async def fake_check(criteria: BuyerCriteria, context_text):  # noqa: ANN001
+        check_calls.append(criteria)
+        raise AssertionError("must not be called when check_discrepancies=False")
 
     monkeypatch.setattr(dependencies, "_build_slack_notifier", lambda: notifier)
     monkeypatch.setattr(dependencies, "resolve_buyer_by_id", _fake_resolve_buyer_by_id)
@@ -190,9 +195,33 @@ async def test_run_match_anyway_reuses_the_report_message_as_the_placeholder(mon
         lambda _session: service,
     )
     monkeypatch.setattr(dependencies, "trigger_seller_discovery", _noop_async)
+    monkeypatch.setattr("app.modules.discrepancies.check_buyer_discrepancies", fake_check)
 
-    await dependencies.run_match_and_post("buyer-1", "U_TEST", "C_TEST", placeholder_ts="200.002")
+    await dependencies.run_match_and_post(
+        "buyer-1", "U_TEST", "C_TEST", placeholder_ts="200.002", check_discrepancies=False
+    )
 
+    assert check_calls == []
     assert notifier.posted == []  # no new placeholder posted
     assert service.called
     assert notifier.updated[-1]["ts"] == "200.002"
+
+
+async def test_check_discrepancies_defaults_to_true(monkeypatch) -> None:
+    """A future caller that forgets to pass `check_discrepancies` still
+    gets the gate — the default must fail safe, not silently skip it."""
+    notifier = _FakeNotifier()
+    conflict = Discrepancy(Criterion.VERTICAL, "conflict", stored="Pharma", stated="Garage")
+    result = DiscrepancyCheckResult(report=_report(conflicts=(conflict,)), message="Heads up.")
+
+    async def fake_check(criteria: BuyerCriteria, context_text):  # noqa: ANN001
+        return result
+
+    monkeypatch.setattr(dependencies, "_build_slack_notifier", lambda: notifier)
+    monkeypatch.setattr(dependencies, "resolve_buyer_by_id", _fake_resolve_buyer_by_id)
+    monkeypatch.setattr("app.modules.discrepancies.check_buyer_discrepancies", fake_check)
+
+    # No check_discrepancies kwarg at all — simulates a caller that forgot it.
+    await dependencies.run_match_and_post("buyer-1", "U_TEST", "C_TEST")
+
+    assert notifier.updated[0]["text"] == "Heads up."

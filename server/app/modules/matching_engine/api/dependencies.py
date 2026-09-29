@@ -141,13 +141,18 @@ async def run_match_and_post(
     channel_id: str,
     *,
     advisor_context: str | None = None,
-    check_discrepancies: bool = False,
+    check_discrepancies: bool = True,
     placeholder_ts: str | None = None,
 ) -> None:
     """Shared background-task body for running the match pipeline and
     posting its result to Slack — used by the `/find-match` command
     handler, the buyer-selection modal submission handler, and the
     discrepancy gate's "Run match anyway" button.
+
+    `check_discrepancies` defaults to True so a future caller that forgets
+    to pass it still gets the gate — the one caller that must skip it (the
+    "Run match anyway" button, which already showed the report once) opts
+    out explicitly instead.
 
     `placeholder_ts` lets the "Run match anyway" button reuse the
     discrepancy-report message as the placeholder instead of posting a

@@ -16,13 +16,18 @@ from app.modules.discrepancies.domain.criteria import BuyerCriteria
 def build_buyer_picker_modal(
     candidates: list[BuyerCriteria], *, requested_by: str, channel_id: str
 ) -> View:
-    options = [
-        Option(
-            value=candidate.buyer_role_id,
-            text=f"{candidate.org_name} — {candidate.target_vertical or 'Generalist'}"[:75],
+    options = []
+    for candidate in candidates:
+        # HQ country disambiguates two orgs that would otherwise render
+        # identically (same name, same/no vertical) — the search can
+        # return more than one match for a name.
+        name = (
+            f"{candidate.org_name} ({candidate.org_hq_country})"
+            if candidate.org_hq_country
+            else candidate.org_name
         )
-        for candidate in candidates
-    ]
+        label = f"{name} — {candidate.target_vertical or 'Generalist'}"
+        options.append(Option(value=candidate.buyer_role_id, text=label[:75]))
     label = "Confirm this is the right buyer" if len(options) == 1 else "Choose the right buyer"
 
     return View(
