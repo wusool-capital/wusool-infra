@@ -15,6 +15,7 @@ from app.modules.enrichment.domain.field_plans import (
     enrichable_fields_by_name_for,
     enrichable_fields_for,
 )
+from app.modules.enrichment.domain.missingness import is_missing
 from app.modules.enrichment.domain.proposals import (
     EnrichmentProposal,
     FieldValue,
@@ -34,25 +35,6 @@ _CONFIDENCE_SCORE = {"high": 0.9, "medium": 0.6, "low": 0.3}
 # trustworthy as the LLM's own "high" narrative-confidence tier — it's a
 # directly-typed field, not an inference over prose.
 _STRUCTURED_PROVIDER_CONFIDENCE = 0.9
-
-
-def _is_missing(value: FieldValue | None) -> bool:
-    """A field counts as missing only when it's genuinely empty — a
-    legitimately-zero number or an already-populated `False` must not be
-    re-researched just because they're falsy in Python.
-    """
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return value.strip() == ""
-    if isinstance(value, (list, tuple)):
-        return len(value) == 0
-    if isinstance(value, dict):
-        # Currency fields store `{"amount": ..., "currency": "USD"}` — a
-        # legitimate zero amount (e.g. a pre-revenue seller) must not be
-        # re-researched, same as the bare-number case below.
-        return value.get("amount") is None
-    return False
 
 
 def _coerce_proposed_value(kind: str, raw_value: str) -> FieldValue:
@@ -170,7 +152,7 @@ class EnrichMixin(ServiceBase):
         missing = [
             field
             for field in enrichable_fields_for(target.kind.value)
-            if _is_missing(current_values.get(field.name))
+            if is_missing(current_values.get(field.name))
         ]
 
         proposed: list[ProposedFieldValue] = []
