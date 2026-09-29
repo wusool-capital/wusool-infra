@@ -147,7 +147,11 @@ def _repair_prompt(raw: JsonObject, error: str) -> str:
 
 
 class EnrichMixin(ServiceBase):
-    async def propose(self, target: EnrichmentTarget) -> EnrichmentProposal:
+    async def propose(
+        self, target: EnrichmentTarget, *, research: bool = True
+    ) -> EnrichmentProposal:
+        """`research=False` is the basic tier: structured providers only, no
+        Firecrawl/LLM step."""
         current_values, context = await self._role_reader.load(target)
         missing = [
             field
@@ -156,11 +160,19 @@ class EnrichMixin(ServiceBase):
         ]
 
         proposed: list[ProposedFieldValue] = []
-        proposed.extend(await self._structured_lookup(target, missing, current_values))
+        proposed.extend(
+            await self._structured_lookup(
+                kind=target.kind,
+                org_name=target.org_name,
+                domain=context.domains[0] if context.domains else None,
+                missing=missing,
+                current_values=current_values,
+            )
+        )
         resolved_names = {v.field_name for v in proposed}
         still_missing = [f for f in missing if f.name not in resolved_names]
 
-        if not still_missing or self._research_client is None:
+        if not research or not still_missing or self._research_client is None:
             return EnrichmentProposal(
                 target=target, values=tuple(proposed), generated_by_model=self._model_id
             )
@@ -172,9 +184,33 @@ class EnrichMixin(ServiceBase):
             target=target, values=tuple(proposed), generated_by_model=self._model_id
         )
 
+    async def propose_basic(
+        self, *, org_name: str, domain: str | None, current_values: JsonObject
+    ) -> tuple[ProposedFieldValue, ...]:
+        """Basic-tier seller enrichment for a lead that has no saved role yet,
+        so there is nothing for `RoleReaderPort` to load: the caller's own
+        draft values stand in for the current ones."""
+        kind = EnrichmentTargetKind.SELLER
+        missing = [
+            field
+            for field in enrichable_fields_for(kind.value)
+            if is_missing(current_values.get(field.name))
+        ]
+        proposed = await self._structured_lookup(
+            kind=kind,
+            org_name=org_name,
+            domain=domain,
+            missing=missing,
+            current_values=current_values,
+        )
+        return tuple(proposed)
+
     async def _structured_lookup(
         self,
-        target: EnrichmentTarget,
+        *,
+        kind: EnrichmentTargetKind,
+        org_name: str,
+        domain: str | None,
         missing: list[EnrichableField],
         current_values: JsonObject,
     ) -> list[ProposedFieldValue]:
@@ -188,7 +224,7 @@ class EnrichMixin(ServiceBase):
         here first — leaving only the `ORGANIZATION` fields a buyer's
         organization shares the same row shape for as a seller's.
         """
-        if target.kind is EnrichmentTargetKind.BUYER:
+        if kind is EnrichmentTargetKind.BUYER:
             missing = [f for f in missing if f.write_target is WriteTarget.ORGANIZATION]
         if not missing:
             return []
@@ -198,11 +234,11 @@ class EnrichMixin(ServiceBase):
         for client in self._company_data_clients:
             if not remaining:
                 break
-            fields = await client.lookup(org_name=target.org_name, fields=tuple(remaining))
+            fields = await client.lookup(org_name=org_name, fields=tuple(remaining), domain=domain)
             for field in fields:
                 if field.field_name not in {f.name for f in remaining}:
                     continue
-                enrichable = enrichable_fields_by_name_for(target.kind.value)[field.field_name]
+                enrichable = enrichable_fields_by_name_for(kind.value)[field.field_name]
                 # Today's clients only ever emit `employee_range` among
                 # option-bearing fields (via `bucket_employee_count`, always
                 # a valid band) — but `sector_focus`/`estimated_arr` are

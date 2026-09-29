@@ -14,9 +14,10 @@ import aiohttp
 
 
 class FakeAiohttpResponse:
-    def __init__(self, status: int, body: dict) -> None:
+    def __init__(self, status: int, body: dict, headers: dict[str, str] | None = None) -> None:
         self.status = status
         self._body = body
+        self.headers = headers or {}
 
     async def json(self) -> dict:
         return self._body
@@ -37,13 +38,18 @@ class FakeAiohttpSession:
     def __init__(
         self,
         *,
-        get: "FakeAiohttpResponse | Exception | None" = None,
+        get: "FakeAiohttpResponse | Exception | list[FakeAiohttpResponse] | None" = None,
         post: "FakeAiohttpResponse | Exception | None" = None,
     ) -> None:
         self._get = get
         self._post = post
+        self.get_calls = 0
 
     def get(self, url: str, **kwargs: object) -> FakeAiohttpResponse:
+        self.get_calls += 1
+        # A list scripts consecutive calls in order (the last one repeats).
+        if isinstance(self._get, list):
+            return self._get.pop(0) if len(self._get) > 1 else self._get[0]
         return self._resolve(self._get, "get")
 
     def post(self, url: str, **kwargs: object) -> FakeAiohttpResponse:

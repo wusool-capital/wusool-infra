@@ -569,3 +569,44 @@ async def test_extraction_prompt_includes_known_facts_when_context_is_populated(
     await service.propose(target)
 
     assert any("HQ country: UAE" in prompt for prompt in extraction_client.prompts)
+
+
+async def test_propose_without_research_skips_the_llm_path(target: EnrichmentTarget) -> None:
+    research = FakeResearchClient()
+    service, _ = _service(
+        current_values={},
+        extraction_response={"fields": []},
+        research_client=research,
+        company_data_clients=(FakeCompanyDataClient(),),
+    )
+
+    await service.propose(target, research=False)
+
+    assert research.queries == []
+
+
+async def test_propose_basic_uses_structured_providers_with_the_domain() -> None:
+    client = FakeCompanyDataClient(
+        [
+            CompanyDataField(
+                field_name="hq_country", value="UAE", source_url="https://d.example", provider="X"
+            )
+        ]
+    )
+    research = FakeResearchClient()
+    service, _ = _service(
+        current_values={},
+        extraction_response={"fields": []},
+        research_client=research,
+        company_data_clients=(client,),
+    )
+
+    values = await service.propose_basic(
+        org_name="Acme Co", domain="acme.example", current_values={"description": "kept"}
+    )
+
+    assert [v.field_name for v in values] == ["hq_country"]
+    assert client.domains == ["acme.example"]
+    assert research.queries == []
+    requested = client.calls[0][1]
+    assert "description" not in requested
