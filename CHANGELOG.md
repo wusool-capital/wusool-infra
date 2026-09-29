@@ -39,6 +39,27 @@ for current production evidence and open handover items.
 - Two indexes make the sector and geography narrowing run in the database.
   It previously filtered in Python after fetching every row.
 
+### Changed
+
+- `/find-match` now narrows sellers in the database before scoring. It
+  filters on the buyer role's vertical, target region and country, and EV
+  ceiling. A pharma buyer is no longer scored against industrials sellers.
+  Sellers with missing data still pass. The old 1,000-seller cap is gone.
+- Sellers valued outside a buyer's cheque size are no longer removed. They
+  stay in the pool with a low ticket-fit score. A cheque can buy a partial
+  stake in a larger company.
+- What the advisor types into the context box now outranks the CRM. Say
+  "Egypt" for a buyer stored as US, and the search runs on Egypt. It replaces
+  the stored geography or vertical, including in the database narrowing.
+  A stated ticket size or EV cap replaces the stored one too. A bare amount
+  with no label, such as "up to 10M", sets neither. The result message now
+  says so. Explicit limits
+  such as a 500K EBITDA floor can also remove sellers.
+- "Run match anyway" now keeps the advisor's context. Before, it ran on the
+  stored criteria alone. The context box is capped at 900 characters.
+- The `client_type` scoring criterion is retired. It never matched anything.
+  The CRM holds an engagement type where the scorer expected a customer type.
+
 ### Fixed
 
 - A buyer's verticals can no longer be silently collapsed by a routine sync.

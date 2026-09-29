@@ -52,9 +52,11 @@ class _FakeNotifier:
 class _FakeService:
     def __init__(self) -> None:
         self.called = False
+        self.advisor_context: str | None = None
 
-    async def run_match(self, buyer, *, requested_by):  # noqa: ANN001
+    async def run_match(self, buyer, *, requested_by, advisor_context=None):  # noqa: ANN001
         self.called = True
+        self.advisor_context = advisor_context
         return MatchRunResult(
             run_id="11111111-1111-1111-1111-111111111111",
             status="GENERATED",
@@ -225,3 +227,28 @@ async def test_check_discrepancies_defaults_to_true(monkeypatch) -> None:
     await dependencies.run_match_and_post("buyer-1", "U_TEST", "C_TEST")
 
     assert notifier.updated[0]["text"] == "Heads up."
+
+
+@pytest.mark.asyncio
+async def test_run_anyway_still_applies_the_advisor_context(monkeypatch) -> None:
+    notifier = _FakeNotifier()
+    service = _FakeService()
+    monkeypatch.setattr(dependencies, "_build_slack_notifier", lambda: notifier)
+    monkeypatch.setattr(dependencies, "resolve_buyer_by_id", _fake_resolve_buyer_by_id)
+    monkeypatch.setattr(
+        "app.modules.matching_engine.api.dependencies.matching_engine_service",
+        lambda _session: service,
+    )
+    monkeypatch.setattr(dependencies, "trigger_seller_discovery", _noop_async)
+
+    await dependencies.run_match_and_post(
+        "buyer-1",
+        "U_TEST",
+        "C_TEST",
+        advisor_context="I want Egypt",
+        check_discrepancies=False,
+        placeholder_ts="100.001",
+    )
+
+    assert service.called
+    assert service.advisor_context == "I want Egypt"

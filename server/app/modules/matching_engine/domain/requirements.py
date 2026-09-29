@@ -3,10 +3,12 @@ SQLAlchemy import here — the extraction service builds these from Bedrock
 output validated through `api/requirements.py`'s Pydantic contract.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
-RequirementSource = Literal["crm_field", "llm_extracted", "llm_inferred", "unavailable"]
+RequirementSource = Literal[
+    "crm_field", "advisor_context", "llm_extracted", "llm_inferred", "unavailable"
+]
 ConfidenceLevel = Literal["high", "medium", "low"]
 
 
@@ -29,6 +31,16 @@ class SoftPreference:
 
 
 @dataclass(frozen=True)
+class AdvisorLimits:
+    """Money limits the advisor stated in their own context, USD. They
+    replace the buyer role's stored check size / EV ceiling for this run."""
+
+    ticket_min: float | None = None
+    ticket_max: float | None = None
+    ev_ceiling: float | None = None
+
+
+@dataclass(frozen=True)
 class RequirementProfile:
     hard_requirements: list[HardRequirement]
     soft_preferences: list[SoftPreference]
@@ -38,3 +50,4 @@ class RequirementProfile:
     data_confidence: float
     generated_by_model: str
     version: int
+    advisor_limits: AdvisorLimits = field(default_factory=AdvisorLimits)

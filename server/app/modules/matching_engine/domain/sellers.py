@@ -25,7 +25,6 @@ class SellerCandidate:
     geographic_focus: list[str] = field(default_factory=list)
     sector_focus: list[str] = field(default_factory=list)
     hq_country: str | None = None
-    client_type: str | None = None
     # Populated only for shortlisted candidates, only when
     # settings.enable_seller_meeting_notes is on (§ use_cases.py) — narrative
     # context for the reasoning prompt only, never scoring/filtering input.

@@ -18,6 +18,7 @@ from app.modules.matching_engine.domain.matching.entities import (
     ScoreDims,
 )
 from app.modules.matching_engine.domain.requirements import (
+    AdvisorLimits,
     HardRequirement,
     RequirementProfile,
     SoftPreference,
@@ -90,7 +91,6 @@ def to_seller_candidate(role: SellerRole) -> SellerCandidate:
         geographic_focus=list(role.organization.geographic_focus),
         sector_focus=list(role.organization.sector_focus),
         hq_country=role.organization.hq_country,
-        client_type=role.organization.client_type,
     )
 
 
@@ -158,6 +158,11 @@ def profile_to_dict(profile: RequirementProfile) -> JsonObject:
         "ideal_target_description": profile.ideal_target_description,
         "scoring_rubric": profile.scoring_rubric,
         "data_confidence": profile.data_confidence,
+        "advisor_limits": {
+            "ticket_min": profile.advisor_limits.ticket_min,
+            "ticket_max": profile.advisor_limits.ticket_max,
+            "ev_ceiling": profile.advisor_limits.ev_ceiling,
+        },
     }
 
 
@@ -178,6 +183,8 @@ def _profile_from_dict(
         data_confidence=data["data_confidence"],
         generated_by_model="",
         version=version or 0,
+        # Absent on profiles persisted before advisor limits existed.
+        advisor_limits=AdvisorLimits(**(data.get("advisor_limits") or {})),
     )
 
 

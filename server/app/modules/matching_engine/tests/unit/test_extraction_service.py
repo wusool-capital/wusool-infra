@@ -14,6 +14,7 @@ from app.modules.matching_engine.application.requirements import (
 )
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.meetings import MeetingNote
+from app.modules.matching_engine.domain.requirements import AdvisorLimits
 from app.modules.matching_engine.tests.fakes.bedrock import FakeBedrockClient
 
 VALID_RESPONSE = {
@@ -268,3 +269,186 @@ async def test_prompt_includes_labeled_meeting_notes_section_when_present() -> N
     assert prompt.index("fold it into") < prompt.index("Recent meeting notes")
     assert "human_confirmed: false" in prompt
     assert "Acme Capital" in prompt.split("Recent meeting notes")[1]
+
+
+async def test_prompt_includes_advisor_context_and_confirmation_rule() -> None:
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.extract(_buyer(), next_version=1, advisor_context="500K EBITDA floor")
+
+    prompt = fake.structured_calls[0]
+    assert "Advisor context" in prompt
+    assert "500K EBITDA floor" in prompt
+    assert "source advisor_context and human_confirmed: true" in prompt
+
+
+async def test_prompt_omits_advisor_context_section_when_none_given() -> None:
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.extract(_buyer(), next_version=1)
+
+    assert "Advisor context (typed" not in fake.structured_calls[0]
+
+
+async def test_advisor_context_requirement_keeps_human_confirmed() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "ebitda",
+                "value": "USD 500K",
+                "source": "advisor_context",
+                "confidence": "high",
+                "human_confirmed": True,
+            },
+            {
+                "criterion": "minimum_revenue",
+                "value": "USD 50M",
+                "source": "llm_extracted",
+                "confidence": "low",
+                "human_confirmed": True,
+            },
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="500K EBITDA floor")
+
+    confirmed = {h.criterion: h.human_confirmed for h in profile.hard_requirements}
+    assert confirmed == {"ebitda": True, "minimum_revenue": False}
+
+
+async def test_advisor_context_source_is_downgraded_when_no_context_was_typed() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "ebitda",
+                "value": "USD 500K",
+                "source": "advisor_context",
+                "confidence": "high",
+                "human_confirmed": True,
+            }
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    (requirement,) = profile.hard_requirements
+    assert (requirement.source, requirement.human_confirmed) == ("llm_extracted", False)
+
+
+async def test_advisor_geography_supersedes_the_crm_geography_requirement() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "geography",
+                "value": "United States",
+                "source": "crm_field",
+                "confidence": "high",
+                "human_confirmed": True,
+            },
+            {
+                "criterion": "geography",
+                "value": "Egypt",
+                "source": "advisor_context",
+                "confidence": "high",
+                "human_confirmed": True,
+            },
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="I want Egypt")
+
+    assert [h.value for h in profile.hard_requirements] == ["Egypt"]
+    assert "OVERRIDES any conflicting structured buyer field" in fake.structured_calls[0]
+
+
+def _service(response: dict) -> tuple[BuyerRequirementExtractionService, FakeBedrockClient]:
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    return service, fake
+
+
+async def test_advisor_limits_are_parsed_to_usd_amounts() -> None:
+    limits = {"ticket_min": "USD 5M", "ticket_max": "USD 15M", "ev_ceiling": "USD 40M"}
+    service, _ = _service({**VALID_RESPONSE, "advisor_limits": limits})
+
+    profile = await service.extract(
+        _buyer(), next_version=1, advisor_context="$5-15M tickets, EV cap $40M"
+    )
+
+    assert profile.advisor_limits == AdvisorLimits(5_000_000.0, 15_000_000.0, 40_000_000.0)
+
+
+async def test_advisor_limits_are_ignored_when_no_context_was_typed() -> None:
+    service, _ = _service({**VALID_RESPONSE, "advisor_limits": {"ticket_max": "USD 15M"}})
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    assert profile.advisor_limits == AdvisorLimits()
+
+
+async def test_unparseable_advisor_limit_triggers_the_repair_retry() -> None:
+    bad = {**VALID_RESPONSE, "advisor_limits": {"ticket_max": "about fifteen million"}}
+    good = {**VALID_RESPONSE, "advisor_limits": {"ticket_max": "USD 15M"}}
+    fake = FakeBedrockClient(structured_responses=[bad, good])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="up to 15M tickets")
+
+    assert profile.advisor_limits.ticket_max == 15_000_000.0
+    assert len(fake.structured_calls) == 2
+
+
+@pytest.mark.parametrize(
+    ("context", "expected"),
+    [
+        ("up to 10M", AdvisorLimits()),
+        ("up to 10M revenue", AdvisorLimits()),
+        ("up to 10M tickets", AdvisorLimits(ticket_max=10_000_000.0)),
+        ("cheque size up to 10M", AdvisorLimits(ticket_max=10_000_000.0)),
+        ("EV cap 10M", AdvisorLimits(ev_ceiling=10_000_000.0)),
+    ],
+)
+async def test_a_limit_needs_a_keyword_in_the_advisors_own_words(
+    context: str, expected: AdvisorLimits
+) -> None:
+    """The model may misread a bare amount; only a named measure is trusted."""
+    guess = {"ticket_max": "USD 10M", "ev_ceiling": "USD 10M"}
+    service, _ = _service({**VALID_RESPONSE, "advisor_limits": guess})
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context=context)
+
+    limits = profile.advisor_limits
+    assert (limits.ticket_max, limits.ev_ceiling) == (expected.ticket_max, expected.ev_ceiling)
+
+
+async def test_prompt_tells_the_model_a_bare_amount_sets_no_limit() -> None:
+    service, fake = _service(VALID_RESPONSE)
+
+    await service.extract(_buyer(), next_version=1, advisor_context="up to 10M")
+
+    assert "sets NO limit" in fake.structured_calls[0]

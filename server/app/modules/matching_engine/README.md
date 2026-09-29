@@ -96,12 +96,24 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    "not found" / run / disambiguation modal.
 2. **Requirement extraction** (Bedrock, one call) — buyer's structured
    fields + free text + recent meeting notes → hard requirements (can
-   eliminate a candidate at Stage 1, but only if `source="crm_field"`/
-   `human_confirmed=True`) and soft preferences (never eliminate, always
+   eliminate a candidate at Stage 1, but only if `source` is `crm_field`
+   or `advisor_context` (an explicit constraint in the advisor's typed
+   context) and `human_confirmed=True`). Typed context overrides the CRM:
+   a criterion the advisor restates replaces the stored one
+   (`domain/matching/overrides.py`), in the SQL narrowing too. A stated
+   ticket range or EV cap (`advisor_limits`) replaces the stored check size
+   or EV ceiling for that run. It counts only if the advisor's own words name
+   what it measures (ticket/cheque, or EV/valuation); a bare "up to 10M" sets
+   no limit, and the result message says so. and soft preferences (never eliminate, always
    just weighted). See `CRITERION_REGISTRY`
    (`domain/matching/scoring.py`) for the fixed set of checkable criteria.
-3. **Stage 1 filtering** — drop a candidate only on a confirmed hard
-   requirement's `Fail`; missing/unconfirmed data never eliminates anyone.
+3. **Candidate load + Stage 1 filtering** (one call) — SQL first narrows
+   sellers on the buyer role's vertical, target region/country and EV ceiling
+   (`domain/matching/narrowing.py`; a seller with no data for a dimension
+   always passes). Cheque size never eliminates: `ticket_fit`
+   (`domain/matching/ticket.py`) scores it in Stage 2 instead. Then a candidate is dropped only on a confirmed
+   hard requirement's `Fail`; missing/unconfirmed data never eliminates
+   anyone.
 4. **Stage 2 scoring** — weighted average of per-criterion sub-scores
    (Pass=100/Fail=0/Unknown=50 neutral), same evaluator used for filtering
    so they never disagree. `data_confidence` is a separate signal (how much

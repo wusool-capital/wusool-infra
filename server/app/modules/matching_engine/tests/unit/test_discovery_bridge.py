@@ -86,7 +86,7 @@ def test_falls_back_to_free_text_when_criteria_missing() -> None:
     assert geography == ""
 
 
-def test_folds_client_type_into_industry_when_sector_and_geography_known() -> None:
+def test_retired_client_type_no_longer_refines_the_industry() -> None:
     profile = _profile(
         hard_requirements=[
             _hard("sector", "healthcare"),
@@ -97,21 +97,8 @@ def test_folds_client_type_into_industry_when_sector_and_geography_known() -> No
 
     industry, geography, _ = extract_query_terms(profile)
 
-    assert industry == "healthcare SMB"
+    assert industry == "healthcare"
     assert geography == "UAE"
-
-
-def test_client_type_is_not_folded_into_the_free_text_fallback() -> None:
-    """`client_type` only refines a real `sector` value — folding it into a
-    free-text fallback (already unstructured prose) would just be noise."""
-    profile = _profile(
-        hard_requirements=[_hard("client_type", "SMB")],
-        ideal_target_description="A profitable KSA healthcare operator.",
-    )
-
-    industry, _, _ = extract_query_terms(profile)
-
-    assert industry == "A profitable KSA healthcare operator"
 
 
 def test_collects_every_sector_exclusion_value_as_exclude_terms() -> None:
@@ -169,23 +156,3 @@ def test_falls_back_to_a_capped_free_text_query_when_the_description_is_long() -
     industry, _, _ = extract_query_terms(profile)
 
     assert industry == "Mid-market companies suitable for buyout investment, with demonstrated"
-
-
-def test_client_type_fold_is_capped_the_same_way() -> None:
-    profile = _profile(
-        hard_requirements=[
-            _hard("sector", "healthcare"),
-            _hard("geography", "UAE"),
-            _hard(
-                "client_type",
-                "Mid-market small and medium-sized businesses seeking growth capital "
-                "and operational support",
-            ),
-        ]
-    )
-
-    industry, _, _ = extract_query_terms(profile)
-
-    assert industry == (
-        "healthcare Mid-market small and medium-sized businesses seeking growth capital"
-    )

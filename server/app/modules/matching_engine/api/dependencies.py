@@ -125,7 +125,7 @@ async def _apply_discrepancy_check(
             channel=channel_id,
             ts=placeholder_ts,
             text=result.message,
-            blocks=build_discrepancy_gate_blocks(buyer.buyer_role_id, result),
+            blocks=build_discrepancy_gate_blocks(buyer.buyer_role_id, result, advisor_context),
         )
         return True
 
@@ -203,7 +203,9 @@ async def run_match_and_post(
         async with get_sessionmaker()() as session:
             service = matching_engine_service(session)
 
-        result = await service.run_match(buyer, requested_by=requested_by)
+        result = await service.run_match(
+            buyer, requested_by=requested_by, advisor_context=advisor_context
+        )
 
         blocks = build_match_result_blocks(result)
         scores = [c.match_score for c in result.results]

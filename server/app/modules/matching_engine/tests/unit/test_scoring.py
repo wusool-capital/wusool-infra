@@ -2,6 +2,8 @@
 no database, no Bedrock, no Slack.
 """
 
+from dataclasses import replace
+
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     DataConfidence,
@@ -13,6 +15,7 @@ from app.modules.matching_engine.domain.matching.scoring import (
     needs_web_fallback,
     select_top_n,
 )
+from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.requirements import (
     HardRequirement,
     RequirementProfile,
@@ -314,3 +317,44 @@ def test_needs_web_fallback_when_all_below_threshold() -> None:
 
 def test_needs_web_fallback_false_when_one_clears_threshold() -> None:
     assert needs_web_fallback([91.4, 17.0, 17.0], min_score=50.0) is False
+
+
+def test_retired_client_type_criterion_is_unmapped_and_never_eliminates() -> None:
+    profile = _profile(hard=[HardRequirement("client_type", "SMB", "crm_field", "high", True)])
+    candidates = [_seller(), _seller()]
+
+    passed, skipped = apply_structured_filters(profile, candidates)
+
+    assert passed == candidates
+    assert [s.reason for s in skipped] == ["no_mapping"]
+
+
+def _priced_seller(low: float | None, high: float | None = None) -> SellerCandidate:
+    seller = _seller()
+    return replace(
+        seller,
+        valuation_low=Money(low, "USD") if low is not None else None,
+        valuation_high=Money(high, "USD") if high is not None else None,
+    )
+
+
+def _ticket_score(seller: SellerCandidate, band: TicketBand) -> float:
+    engine = ScoringEngine(CONFIDENCE_MULTIPLIERS)
+    return engine.score("b1", "s1", _profile(), seller, band).overall_score
+
+
+def test_ticket_fit_scores_sellers_outside_the_band_low_without_dropping_them() -> None:
+    band = TicketBand(minimum=5_000_000.0, maximum=15_000_000.0)
+
+    inside = _ticket_score(_priced_seller(8_000_000, 12_000_000), band)
+    unknown = _ticket_score(_priced_seller(None), band)
+    too_big = _ticket_score(_priced_seller(50_000_000, 80_000_000), band)
+    too_small = _ticket_score(_priced_seller(500_000, 2_000_000), band)
+
+    assert (inside, unknown, too_big, too_small) == (100.0, 50.0, 0.0, 0.0)
+
+
+def test_ticket_fit_is_absent_without_a_check_size() -> None:
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "s1", _profile(), _seller(), None)
+
+    assert all(c.criterion != "ticket_fit" for c in score.criteria)
