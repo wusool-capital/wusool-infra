@@ -12,6 +12,11 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Approving a match now creates a Qualified Buy-side deal in Attio and links
+  it to the match. If Attio already has a deal for that buyer and seller, the
+  approver is asked whether to promote it or create a new one. If the
+  database write fails after Attio succeeds, the approver is told what was
+  saved and the sync reconciles the rest.
 - A new `/check-buyer <name>` command checks a buyer's stored criteria
   against the advisor's own typed context, on its own or before a match
   run. It flags a stored-criteria conflict (vertical, region, ticket size,

@@ -1,5 +1,5 @@
 """Concrete `MatchingUnitOfWork`: opens one session per `async with` block,
-builds the three repositories bound to it, commits on clean exit or rolls
+builds the repositories bound to it, commits on clean exit or rolls
 back on exception — the same commit-on-success/rollback-on-exception
 semantics `async with session.begin():` gave the one block of
 `run_match` that used it, now uniform across every block
@@ -12,6 +12,7 @@ from types import TracebackType
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWork
+from app.modules.matching_engine.persistence.repositories.deals_repository import DealRepository
 from app.modules.matching_engine.persistence.repositories.matching_repository import (
     MatchResultRepository,
     MatchScoreRepository,
@@ -25,6 +26,7 @@ class SqlAlchemyMatchingUnitOfWork:
     match_results: MatchResultRepository
     match_scores: MatchScoreRepository
     meetings: MeetingRepository
+    deals: DealRepository
 
     def __init__(
         self, sessionmaker: async_sessionmaker[AsyncSession], *, meeting_notes_max_chars: int = 600
@@ -39,6 +41,7 @@ class SqlAlchemyMatchingUnitOfWork:
         self.match_results = MatchResultRepository(self._session)
         self.match_scores = MatchScoreRepository(self._session)
         self.meetings = MeetingRepository(self._session, max_chars=self._meeting_notes_max_chars)
+        self.deals = DealRepository(self._session)
         return self
 
     async def __aexit__(

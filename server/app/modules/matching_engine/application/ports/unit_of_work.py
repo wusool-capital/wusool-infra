@@ -13,6 +13,7 @@ one.
 from types import TracebackType
 from typing import Protocol
 
+from app.modules.matching_engine.application.ports.deals import DealRepositoryPort
 from app.modules.matching_engine.application.ports.matching import (
     MatchResultRepositoryPort,
     MatchScoreRepositoryPort,
@@ -32,6 +33,8 @@ class MatchingUnitOfWork(Protocol):
     def match_scores(self) -> MatchScoreRepositoryPort: ...
     @property
     def meetings(self) -> MeetingRepositoryPort: ...
+    @property
+    def deals(self) -> DealRepositoryPort: ...
 
     async def __aenter__(self) -> "MatchingUnitOfWork": ...
     async def __aexit__(

@@ -14,3 +14,10 @@ def test_database_url_scheme_normalizes_plain_postgresql(monkeypatch) -> None:
     settings = get_settings()
     assert settings.database_url == "postgresql+asyncpg://user:pass@localhost:15432/wusool_crm"
     get_settings.cache_clear()
+
+
+def test_blank_deal_owner_falls_back_to_default(monkeypatch) -> None:
+    from app.modules.matching_engine.config import Settings
+
+    monkeypatch.setenv("MATCHING_DEAL_OWNER_ID", "")
+    assert Settings(_env_file=None).matching_deal_owner_id  # type: ignore[call-arg]
