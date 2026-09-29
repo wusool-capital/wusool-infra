@@ -7,7 +7,9 @@ past this boundary.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.modules.utilities.domain.money import parse_usd_amount
 
 RequirementSource = Literal[
     "crm_field", "advisor_context", "llm_extracted", "llm_inferred", "unavailable"
@@ -40,6 +42,21 @@ class ExtractedSoftPreference(BaseModel):
     confidence: ConfidenceLevel
 
 
+class ExtractedAdvisorLimits(BaseModel):
+    """Written `USD <amount>` like every other monetary value here; an
+    unparseable one fails validation and triggers the repair retry."""
+
+    ticket_min: str | None = None
+    ticket_max: str | None = None
+    ev_ceiling: str | None = None
+
+    @field_validator("ticket_min", "ticket_max", "ev_ceiling")
+    @classmethod
+    def must_be_usd_amount(cls, value: str | None) -> str | None:
+        parse_usd_amount(value)
+        return value
+
+
 class ExtractedRequirementProfile(BaseModel):
     """The LLM must never invent CRM fields — absent information is
     `Unknown`/`Partially known` at higher layers, never a fabricated value.
@@ -51,6 +68,7 @@ class ExtractedRequirementProfile(BaseModel):
     ideal_target_description: str | None = None
     scoring_rubric: dict[str, float] = Field(default_factory=dict)
     data_confidence: float = Field(ge=0.0, le=1.0)
+    advisor_limits: ExtractedAdvisorLimits = Field(default_factory=ExtractedAdvisorLimits)
 
 
 class ReasoningCandidateResult(BaseModel):

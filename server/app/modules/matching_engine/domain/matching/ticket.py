@@ -6,6 +6,7 @@ that lowers the score rather than a fact that rules a seller out.
 from dataclasses import dataclass
 
 from app.modules.matching_engine.domain.buyers import BuyerContext
+from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 
 
@@ -15,7 +16,14 @@ class TicketBand:
     maximum: float | None
 
     @classmethod
-    def from_buyer(cls, buyer: BuyerContext) -> "TicketBand | None":
+    def from_buyer(
+        cls, buyer: BuyerContext, profile: RequirementProfile | None = None
+    ) -> "TicketBand | None":
+        """A band the advisor stated replaces the stored one as a whole — a
+        stated "up to $10M" must not inherit a stale stored floor."""
+        limits = profile.advisor_limits if profile else None
+        if limits and (limits.ticket_min is not None or limits.ticket_max is not None):
+            return cls(limits.ticket_min, limits.ticket_max)
         minimum = buyer.check_size_min.amount if buyer.check_size_min else None
         maximum = buyer.check_size_max.amount if buyer.check_size_max else None
         return cls(minimum, maximum) if minimum is not None or maximum is not None else None

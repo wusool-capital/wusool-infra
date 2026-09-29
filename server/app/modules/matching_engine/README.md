@@ -100,8 +100,9 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    or `advisor_context` (an explicit constraint in the advisor's typed
    context) and `human_confirmed=True`). Typed context overrides the CRM:
    a criterion the advisor restates replaces the stored one
-   (`domain/matching/overrides.py`), in the SQL narrowing too. Ticket band
-   and EV ceiling still come from the CRM. and soft preferences (never eliminate, always
+   (`domain/matching/overrides.py`), in the SQL narrowing too. A stated
+   ticket range or EV cap (`advisor_limits`) replaces the stored check size
+   or EV ceiling for that run. and soft preferences (never eliminate, always
    just weighted). See `CRITERION_REGISTRY`
    (`domain/matching/scoring.py`) for the fixed set of checkable criteria.
 3. **Candidate load + Stage 1 filtering** (one call) — SQL first narrows

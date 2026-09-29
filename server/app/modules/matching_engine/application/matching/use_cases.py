@@ -150,7 +150,7 @@ class MatchingMixin(ServiceBase):
 
         batch = await self._candidate_retriever.get_candidates(buyer, profile)
 
-        ticket_band = TicketBand.from_buyer(buyer)
+        ticket_band = TicketBand.from_buyer(buyer, profile)
         scored: list[tuple[SellerCandidate, CandidateScore]] = [
             (
                 candidate,

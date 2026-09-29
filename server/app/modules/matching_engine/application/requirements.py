@@ -25,13 +25,24 @@ from app.modules.matching_engine.domain.matching.overrides import apply_advisor_
 from app.modules.matching_engine.domain.matching.scoring import describe_criteria
 from app.modules.matching_engine.domain.meetings import render_meeting_notes_section
 from app.modules.matching_engine.domain.requirements import (
+    AdvisorLimits,
     HardRequirement,
     RequirementProfile,
     RequirementSource,
     SoftPreference,
 )
 from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.utilities.domain.money import parse_usd_amount
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
+
+
+def _advisor_limits(extracted: JsonObject) -> AdvisorLimits:
+    limits = extracted.get("advisor_limits") or {}
+    return AdvisorLimits(
+        ticket_min=parse_usd_amount(limits.get("ticket_min")),
+        ticket_max=parse_usd_amount(limits.get("ticket_max")),
+        ev_ceiling=parse_usd_amount(limits.get("ev_ceiling")),
+    )
 
 
 class BuyerRequirementExtractionService:
@@ -136,7 +147,11 @@ class BuyerRequirementExtractionService:
             "source advisor_context and human_confirmed: true. The advisor's context "
             "OVERRIDES any conflicting structured buyer field: when it restates a "
             "criterion (e.g. a different geography), emit only the advisor's value and "
-            "never the conflicting CRM one. Vague preferences, hedged wording, or "
+            "never the conflicting CRM one. Fill `advisor_limits` only from an explicit "
+            "statement in this advisor context: `ticket_min`/`ticket_max` for a stated "
+            "cheque or ticket size range, `ev_ceiling` for a stated enterprise-value cap. "
+            "Write each as `USD <amount>`; leave the rest null, and never derive them "
+            "from the structured buyer fields. Vague preferences, hedged wording, or "
             "anything inferred rather than stated belong in soft_preferences with "
             "source llm_extracted instead."
             if advisor_context
@@ -147,7 +162,8 @@ class BuyerRequirementExtractionService:
             "shape: {hard_requirements: [{criterion, value, source, confidence, "
             "human_confirmed}], soft_preferences: [{criterion, value, weight, "
             "source, confidence}], strategic_thesis, ideal_target_description, "
-            "scoring_rubric: {criterion: weight}, data_confidence: 0-1}. "
+            "scoring_rubric: {criterion: weight}, data_confidence: 0-1, "
+            "advisor_limits: {ticket_min, ticket_max, ev_ceiling}}. "
             "`source` must be one of crm_field/advisor_context/llm_extracted/"
             "llm_inferred/unavailable. `confidence` (on each hard_requirement/soft_preference "
             "item) must be exactly one of the strings high/medium/low — never a "
@@ -244,5 +260,6 @@ class BuyerRequirementExtractionService:
             data_confidence=extracted["data_confidence"],
             generated_by_model=model_id,
             version=version,
+            advisor_limits=_advisor_limits(extracted) if has_advisor_context else AdvisorLimits(),
         )
         return apply_advisor_overrides(profile)

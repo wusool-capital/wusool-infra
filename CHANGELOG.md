@@ -51,7 +51,8 @@ for current production evidence and open handover items.
 - What the advisor types into the context box now outranks the CRM. Say
   "Egypt" for a buyer stored as US, and the search runs on Egypt. It replaces
   the stored geography or vertical, including in the database narrowing.
-  Explicit limits such as a 500K EBITDA floor can also remove sellers.
+  A stated ticket size or EV cap replaces the stored one too. Explicit limits
+  such as a 500K EBITDA floor can also remove sellers.
 - "Run match anyway" now keeps the advisor's context. Before, it ran on the
   stored criteria alone. The context box is capped at 900 characters.
 - The `client_type` scoring criterion is retired. It never matched anything.

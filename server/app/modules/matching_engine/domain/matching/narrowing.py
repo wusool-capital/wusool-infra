@@ -57,12 +57,16 @@ class CandidateNarrowing:
             target_regions = [v for v in stated["geography"] if resolve_known(v) is not None]
             target_countries = [v for v in stated["geography"] if resolve_known(v) is None]
 
+        ev_ceiling = _amount(buyer.ev_ceiling)
+        if profile and profile.advisor_limits.ev_ceiling is not None:
+            ev_ceiling = profile.advisor_limits.ev_ceiling
+
         regions, countries = _accepted_geography(target_regions, target_countries)
         return cls(
             vertical=vertical.strip().lower() if vertical else None,
             regions=regions,
             countries=countries,
-            ev_ceiling=_amount(buyer.ev_ceiling),
+            ev_ceiling=ev_ceiling,
         )
 
 

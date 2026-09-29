@@ -14,6 +14,7 @@ from app.modules.matching_engine.application.requirements import (
 )
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.meetings import MeetingNote
+from app.modules.matching_engine.domain.requirements import AdvisorLimits
 from app.modules.matching_engine.tests.fakes.bedrock import FakeBedrockClient
 
 VALID_RESPONSE = {
@@ -379,3 +380,42 @@ async def test_advisor_geography_supersedes_the_crm_geography_requirement() -> N
 
     assert [h.value for h in profile.hard_requirements] == ["Egypt"]
     assert "OVERRIDES any conflicting structured buyer field" in fake.structured_calls[0]
+
+
+def _service(response: dict) -> tuple[BuyerRequirementExtractionService, FakeBedrockClient]:
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    return service, fake
+
+
+async def test_advisor_limits_are_parsed_to_usd_amounts() -> None:
+    limits = {"ticket_min": "USD 5M", "ticket_max": "USD 15M", "ev_ceiling": "USD 40M"}
+    service, _ = _service({**VALID_RESPONSE, "advisor_limits": limits})
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="$5-15M tickets")
+
+    assert profile.advisor_limits == AdvisorLimits(5_000_000.0, 15_000_000.0, 40_000_000.0)
+
+
+async def test_advisor_limits_are_ignored_when_no_context_was_typed() -> None:
+    service, _ = _service({**VALID_RESPONSE, "advisor_limits": {"ticket_max": "USD 15M"}})
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    assert profile.advisor_limits == AdvisorLimits()
+
+
+async def test_unparseable_advisor_limit_triggers_the_repair_retry() -> None:
+    bad = {**VALID_RESPONSE, "advisor_limits": {"ticket_max": "about fifteen million"}}
+    good = {**VALID_RESPONSE, "advisor_limits": {"ticket_max": "USD 15M"}}
+    fake = FakeBedrockClient(structured_responses=[bad, good])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="up to 15M")
+
+    assert profile.advisor_limits.ticket_max == 15_000_000.0
+    assert len(fake.structured_calls) == 2

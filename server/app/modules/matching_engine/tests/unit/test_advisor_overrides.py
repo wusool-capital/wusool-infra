@@ -18,12 +18,16 @@ from app.modules.matching_engine.api.slack.views.discrepancy_gate import (
 )
 from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
 from app.modules.matching_engine.domain.matching.overrides import apply_advisor_overrides
+from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.requirements import (
+    AdvisorLimits,
     HardRequirement,
     RequirementProfile,
     RequirementSource,
 )
+from app.modules.matching_engine.persistence.mappers import _profile_from_dict, profile_to_dict
 from app.modules.matching_engine.tests.unit.test_candidate_narrowing import _buyer
+from app.modules.utilities.domain.money import Money
 
 
 def _hard(criterion: str, value: str, source: RequirementSource) -> HardRequirement:
@@ -130,3 +134,45 @@ def test_worst_case_context_still_fits_a_slack_button_value() -> None:
 def test_a_legacy_bare_id_button_value_is_not_valid_json_payload() -> None:
     with pytest.raises(ValidationError):
         RunAnywayValue.model_validate_json("11111111-1111-1111-1111-111111111111")
+
+
+def _with_limits(limits: AdvisorLimits) -> RequirementProfile:
+    return replace(_profile(), advisor_limits=limits)
+
+
+def test_advisor_ticket_band_replaces_the_stored_band_as_a_whole() -> None:
+    buyer = _buyer(check_size_min=Money(5e6, "USD"), check_size_max=Money(15e6, "USD"))
+
+    band = TicketBand.from_buyer(buyer, _with_limits(AdvisorLimits(ticket_max=8e6)))
+
+    assert band == TicketBand(minimum=None, maximum=8e6)
+
+
+def test_stored_ticket_band_is_used_when_the_advisor_stated_none() -> None:
+    buyer = _buyer(check_size_min=Money(5e6, "USD"), check_size_max=Money(15e6, "USD"))
+
+    assert TicketBand.from_buyer(buyer, _with_limits(AdvisorLimits(ev_ceiling=1e7))) == TicketBand(
+        5e6, 15e6
+    )
+
+
+def test_advisor_ev_ceiling_replaces_the_stored_ceiling_in_the_narrowing() -> None:
+    buyer = _buyer(ev_ceiling=Money(20e6, "USD"))
+
+    narrowing = CandidateNarrowing.from_buyer(buyer, _with_limits(AdvisorLimits(ev_ceiling=50e6)))
+
+    assert narrowing.ev_ceiling == 50e6
+
+
+def test_advisor_limits_survive_persistence_and_old_profiles_load_without_them() -> None:
+    profile = _with_limits(AdvisorLimits(1e6, 2e6, 3e6))
+    stored = profile_to_dict(profile)
+
+    restored = _profile_from_dict(stored, version=1)
+    assert restored is not None
+    assert restored.advisor_limits == profile.advisor_limits
+
+    del stored["advisor_limits"]
+    legacy = _profile_from_dict(stored, version=1)
+    assert legacy is not None
+    assert legacy.advisor_limits == AdvisorLimits()
