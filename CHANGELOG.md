@@ -42,16 +42,17 @@ for current production evidence and open handover items.
 ### Changed
 
 - `/find-match` now narrows sellers in the database before scoring. It
-  filters on the buyer role's vertical, target region and country, and
-  ticket band, so a pharma buyer is no longer scored against industrials
-  sellers. Sellers with missing data still pass, and the old 1,000-seller cap
-  is gone.
-- A hard requirement the advisor states in their own typed context, such as a
-  500K EBITDA floor, can now remove sellers from the shortlist. Before, only
-  requirements from the CRM could. This only applies when the advisor
-  actually typed context.
-- The `client_type` scoring criterion is retired. It never matched anything:
-  the CRM holds an engagement type where the scorer expected a customer type.
+  filters on the buyer role's vertical, target region and country, and EV
+  ceiling. A pharma buyer is no longer scored against industrials sellers.
+  Sellers with missing data still pass. The old 1,000-seller cap is gone.
+- Sellers valued outside a buyer's cheque size are no longer removed. They
+  stay in the pool with a low ticket-fit score. A cheque can buy a partial
+  stake in a larger company.
+- A hard requirement the advisor types into the context box, such as a 500K
+  EBITDA floor, can now remove sellers from the shortlist. Before, only CRM
+  requirements could. This applies only when the advisor typed context.
+- The `client_type` scoring criterion is retired. It never matched anything.
+  The CRM holds an engagement type where the scorer expected a customer type.
 
 ### Fixed
 
