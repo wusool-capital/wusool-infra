@@ -22,9 +22,10 @@ class SellerDraft:
     org_name: str
     values: dict[str, DraftValue] = field(default_factory=dict)
     source_urls: tuple[str, ...] = ()
+    source_place_id: str | None = None
 
 
-def _hostname(url: str) -> str | None:
+def hostname(url: str) -> str | None:
     """Places' `websiteUri` is a full URL (scheme, and often a path) —
     Attio's `domains` attribute is domain-typed, so it wants a bare host,
     not `https://acme.example.com/contact`. Mirrors the `www.`/trailing-dot
@@ -46,7 +47,7 @@ def _hostname(url: str) -> str | None:
         return None
     if not host:
         return None
-    return host.removeprefix("www.").rstrip(".") or None
+    return host.lower().removeprefix("www.").rstrip(".") or None
 
 
 def draft_from_lead(lead: DiscoveredLead) -> SellerDraft:
@@ -60,13 +61,18 @@ def draft_from_lead(lead: DiscoveredLead) -> SellerDraft:
     prefill normalization silently drops it if it isn't one of the fixed
     sector options. `lead.website` maps onto `domains` (`text_list` — a
     list, like `sector_focus`, not a bare string like `hq_country`) as a
-    bare hostname, via `_hostname`.
+    bare hostname, via `hostname`.
     """
     values: dict[str, DraftValue] = {}
     if lead.category:
         values["sector_focus"] = [lead.category]
     if lead.country:
         values["hq_country"] = lead.country
-    if lead.website and (domain := _hostname(lead.website)):
+    if lead.website and (domain := hostname(lead.website)):
         values["domains"] = [domain]
-    return SellerDraft(org_name=lead.name, values=values, source_urls=(lead.source_url,))
+    return SellerDraft(
+        org_name=lead.name,
+        values=values,
+        source_urls=(lead.source_url,),
+        source_place_id=lead.place_id,
+    )
