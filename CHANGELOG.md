@@ -13,12 +13,12 @@ for current production evidence and open handover items.
 ### Added
 
 - Seller discovery now creates sellers instead of only suggesting them. Each
-  search looks at up to 20 Google Maps results, skips any already in the CRM
-  by Google place id or website, and adds the first five new ones. Each is
-  filled in with basic company data first, then saved to Attio and the
-  database, and posted under the match results with Approve and Reject
-  buttons. Approving opens a Qualified deal, as for any other match, and posts
-  the full enrichment proposal (web research included) for review.
+  search looks at up to 20 Google Maps results. It skips any already in the
+  CRM by Google place id or website, and adds the first five new ones.
+- Each new seller is filled in with basic company data, then saved to Attio
+  and the database. It is posted under the match results with Approve and
+  Reject buttons. Approving opens a Qualified deal, as for any other match.
+  It also posts the full enrichment proposal, with web research, for review.
 - A result that only has a similar name to a company already in the CRM is not
   created. It is posted separately with an "Add as seller" button, so a person
   decides.
