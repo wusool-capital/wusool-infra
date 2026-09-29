@@ -1349,3 +1349,48 @@ def test_buyer_add_form_duplicate_vertical_is_rejected_before_attio(
         "already exists for this organization and vertical"
         in (_mock_slack_web_client.posted[0]["text"])
     )
+
+
+async def test_concurrent_buyer_adds_for_one_vertical_create_one_attio_entry(monkeypatch) -> None:
+    import asyncio
+
+    created_roles: set[tuple[str, str | None]] = set()
+    attio_entries: list[str] = []
+
+    async def fake_buyer_exists(org_attio_id, target_vertical):
+        return (org_attio_id, target_vertical) in created_roles
+
+    async def fake_create_role_entry(*_args, **_kwargs):
+        await asyncio.sleep(0)  # yield, so an unguarded second add would slip past the check
+        attio_entries.append("entry")
+        return f"entry-{len(attio_entries)}"
+
+    async def fake_create_buyer(*, org_attio_id, role_fields, **_kwargs):
+        created_roles.add((org_attio_id, role_fields.get("target_vertical")))
+
+    async def fake_build_attio_values(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(
+        actions_module,
+        "ddl_commands_service",
+        lambda: SimpleNamespace(buyer_exists=fake_buyer_exists, create_buyer=fake_create_buyer),
+    )
+
+    def add():
+        return actions_module._write_buyer_add(
+            is_new_org=False,
+            org_attio_id="org-attio-race",
+            org_name=None,
+            org_extracted={},
+            role_extracted={"target_vertical": "Fintech"},
+        )
+
+    results = await asyncio.gather(add(), add(), return_exceptions=True)
+
+    assert len(attio_entries) == 1
+    assert sum(isinstance(r, actions_module.BuyerAlreadyExistsError) for r in results) == 1

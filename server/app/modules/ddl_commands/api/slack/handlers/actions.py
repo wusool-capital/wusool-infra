@@ -7,7 +7,9 @@ trusted on its own; the write targets (org record ID, role entry ID) are
 always re-resolved from the currently-loaded row, not from the payload.
 """
 
+import asyncio
 import json
+from contextlib import nullcontext
 from typing import Any
 
 from pydantic import ValidationError
@@ -1012,7 +1014,42 @@ async def _write_seller_add(
         raise PartialWriteError(landed, exc) from exc
 
 
+# One lock per (org, vertical) being added. Process-local: it serializes
+# concurrent adds on this instance only, not across several server instances.
+_buyer_add_locks: dict[tuple[str, str | None], asyncio.Lock] = {}
+
+
 async def _write_buyer_add(
+    *,
+    is_new_org: bool,
+    org_attio_id: str | None,
+    org_name: str | None,
+    org_extracted: dict[str, Any],
+    role_extracted: dict[str, Any],
+) -> None:
+    """Serializes the duplicate check with the Attio create, so a second
+    add for the same (org, vertical) sees the first one's role instead of
+    creating a second Attio entry that the reconcile would demote. A new
+    organization can't have a role yet, so it needs no lock.
+    """
+    guard = (
+        nullcontext()
+        if is_new_org
+        else _buyer_add_locks.setdefault(
+            (org_attio_id or "", role_extracted.get("target_vertical")), asyncio.Lock()
+        )
+    )
+    async with guard:
+        await _write_buyer_add_locked(
+            is_new_org=is_new_org,
+            org_attio_id=org_attio_id,
+            org_name=org_name,
+            org_extracted=org_extracted,
+            role_extracted=role_extracted,
+        )
+
+
+async def _write_buyer_add_locked(
     *,
     is_new_org: bool,
     org_attio_id: str | None,
