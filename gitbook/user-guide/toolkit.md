@@ -101,7 +101,7 @@ flowchart TD
   org -- "No" --> create["Create organization"]
   create --> role
   role --> save["Complete form and save"] --> attio["Attio"] --> database["Database"]
-  org -- "Role already exists\n(buyer: for that vertical)" --> edit["Use /edit-* instead"]
+  org -- "Role already exists for that vertical" --> edit["Use /edit-* instead"]
 ```
 
 1. Run `/add-seller <organization name>` or `/add-buyer <organization name>`.
