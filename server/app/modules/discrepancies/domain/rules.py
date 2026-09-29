@@ -21,12 +21,15 @@ from app.modules.utilities.domain.money import parse_usd_amount
 # can write the suffix once, shared ("$5-15M"), or on either/both bounds
 # ("$5M-15M", "$5M to $15M") — each bound's own suffix wins when present,
 # otherwise it borrows the other bound's, so "$5M-15" still reads as $15M.
+# The single-letter suffixes (K/M/B) must attach directly to the number, no
+# space — "5 M&A" must never read as "$5M"; only the spelled-out words may
+# follow whitespace ("5 million").
+_SUFFIX = r"(?:[kmb]\b|\s*(?:thousand|million|billion)\b)"
 _MONEY_RE = re.compile(
     r"(?P<usd>USD\s*)?(?P<dollar>\$)?\s*"
-    r"(?P<low>[0-9][0-9,]*(?:\.[0-9]+)?)\s*(?P<low_suffix>k|m|b|thousand|million|billion)?"
+    rf"(?P<low>[0-9][0-9,]*(?:\.[0-9]+)?)(?P<low_suffix>{_SUFFIX})?"
     r"(?:\s*(?:-|to)\s*(?:USD\s*)?\$?\s*"
-    r"(?P<high>[0-9][0-9,]*(?:\.[0-9]+)?)\s*(?P<high_suffix>k|m|b|thousand|million|billion)?)?"
-    r"\b",
+    rf"(?P<high>[0-9][0-9,]*(?:\.[0-9]+)?)(?P<high_suffix>{_SUFFIX})?)?",
     re.IGNORECASE,
 )
 _SUFFIX_LETTER = {
@@ -67,11 +70,36 @@ def _first_phrase_match(text: str, options: frozenset[str] | tuple[str, ...]) ->
 
 
 def _normalize_amount(number: str, suffix: str | None) -> float | None:
-    letter = _SUFFIX_LETTER.get((suffix or "").lower(), "")
+    letter = _SUFFIX_LETTER.get((suffix or "").strip().lower(), "")
     try:
         return parse_usd_amount(f"USD {number.replace(',', '')}{letter}")
     except ValueError:
         return None
+
+
+def _nearest_keyword_distance(
+    window_lower: str, amount_start: int, amount_end: int, keywords: tuple[str, ...]
+) -> int | None:
+    """Character distance from the amount span to the closest occurrence of
+    any of `keywords` in `window_lower`, or None if absent — lets the
+    caller pick whichever keyword type actually sits closer, rather than a
+    fixed priority order that would always prefer one over the other
+    whenever both happen to fall within the same proximity window.
+    """
+    best: int | None = None
+    for keyword in keywords:
+        start = 0
+        while (idx := window_lower.find(keyword, start)) != -1:
+            if idx + len(keyword) <= amount_start:
+                distance = amount_start - (idx + len(keyword))
+            elif idx >= amount_end:
+                distance = idx - amount_end
+            else:
+                distance = 0
+            if best is None or distance < best:
+                best = distance
+            start = idx + 1
+    return best
 
 
 def parse_context(text: str) -> ParsedContext:
@@ -79,7 +107,8 @@ def parse_context(text: str) -> ParsedContext:
     whole-word phrase match (longest option first, so "Southeast Asia"
     wins over "Asia"); a money mention only counts once an EBITDA or
     ticket-size keyword sits within `_PROXIMITY_CHARS` of it, so
-    "$20M revenue" is never mistaken for a ticket-size conflict.
+    "$20M revenue" is never mistaken for a ticket-size conflict. Whichever
+    keyword type sits closer wins, rather than always preferring EBITDA.
     """
     vertical = _first_phrase_match(text, VERTICAL_OPTIONS)
     region = _first_phrase_match(text, REGION_OPTIONS)
@@ -102,12 +131,22 @@ def parse_context(text: str) -> ParsedContext:
             else None
         )
 
-        window = text[max(0, match.start() - _PROXIMITY_CHARS) : match.end() + _PROXIMITY_CHARS]
-        window_lower = window.lower()
-        if ebitda is None and any(k in window_lower for k in _EBITDA_KEYWORDS):
+        window_start = max(0, match.start() - _PROXIMITY_CHARS)
+        window_lower = text[window_start : match.end() + _PROXIMITY_CHARS].lower()
+        amount_start = match.start() - window_start
+        amount_end = match.end() - window_start
+        ebitda_dist = _nearest_keyword_distance(
+            window_lower, amount_start, amount_end, _EBITDA_KEYWORDS
+        )
+        ticket_dist = _nearest_keyword_distance(
+            window_lower, amount_start, amount_end, _TICKET_KEYWORDS
+        )
+
+        if ticket_dist is not None and (ebitda_dist is None or ticket_dist < ebitda_dist):
+            if ticket_low is None:
+                ticket_low, ticket_high = low, (high if high is not None else low)
+        elif ebitda_dist is not None and ebitda is None:
             ebitda = low
-        elif ticket_low is None and any(k in window_lower for k in _TICKET_KEYWORDS):
-            ticket_low, ticket_high = low, (high if high is not None else low)
 
     return ParsedContext(
         vertical=vertical,
@@ -162,6 +201,14 @@ def _region_conflict(criteria: BuyerCriteria, stated: str | None) -> Discrepancy
     )
 
 
+def _format_amount(value: float | None) -> str:
+    return f"USD {value:,.0f}" if value is not None else "not set"
+
+
+def _format_range(low: float | None, high: float | None) -> str:
+    return f"{_format_amount(low)} - {_format_amount(high)}"
+
+
 def _ticket_conflict(
     criteria: BuyerCriteria, low: float | None, high: float | None
 ) -> Discrepancy | None:
@@ -175,8 +222,8 @@ def _ticket_conflict(
     return Discrepancy(
         Criterion.TICKET_BAND,
         "conflict",
-        stored=f"{criteria.check_size_min} - {criteria.check_size_max}",
-        stated=f"{low} - {stated_high}",
+        stored=_format_range(criteria.check_size_min, criteria.check_size_max),
+        stated=_format_range(low, stated_high),
     )
 
 
@@ -190,8 +237,8 @@ def _ebitda_conflict(criteria: BuyerCriteria, stated: float | None) -> Discrepan
     return Discrepancy(
         Criterion.EBITDA,
         "conflict",
-        stored=f"{criteria.ebitda_floor} - {criteria.ebitda_ceiling}",
-        stated=str(stated),
+        stored=_format_range(criteria.ebitda_floor, criteria.ebitda_ceiling),
+        stated=_format_amount(stated),
     )
 
 

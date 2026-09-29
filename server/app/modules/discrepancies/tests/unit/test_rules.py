@@ -77,6 +77,23 @@ def test_parse_context_ignores_amount_with_no_nearby_keyword() -> None:
     assert parsed.ebitda is None
 
 
+def test_parse_context_picks_the_closer_keyword_when_both_are_present() -> None:
+    """Regression: a fixed EBITDA-first priority used to win even when the
+    ticket keyword actually sat right next to the amount.
+    """
+    parsed = parse_context("Not ebitda-focused, but ticket size is $5M.")
+    assert parsed.ticket_low == 5_000_000.0
+    assert parsed.ebitda is None
+
+
+def test_parse_context_single_letter_suffix_must_attach_without_a_space() -> None:
+    """Regression: "5 M&A" used to read as a stated $5M ticket size — a
+    single-letter suffix (K/M/B) may only attach directly to the number."""
+    parsed = parse_context("we do 5 M&A deals a year, ticket size range applies")
+    assert parsed.ticket_low is None
+    assert parsed.ticket_high is None
+
+
 def test_parse_context_normalizes_million_word_and_usd_prefix() -> None:
     assert parse_context("EBITDA of USD 5 million").ebitda == 5_000_000.0
 
@@ -104,6 +121,35 @@ def test_find_conflicts_ticket_inside_band_is_not_flagged() -> None:
 def test_find_conflicts_ebitda_below_floor() -> None:
     conflicts = find_conflicts(_CRITERIA, parse_context("EBITDA of $500K"))
     assert any(c.criterion.value == "ebitda" for c in conflicts)
+
+
+def test_ticket_conflict_message_never_shows_the_literal_none() -> None:
+    """Regression: an unset upper/lower bound used to interpolate as the
+    literal string "None" in the Slack-facing message."""
+    criteria = BuyerCriteria(
+        buyer_role_id="role-6",
+        org_name="Half Open Capital",
+        target_vertical=None,
+        check_size_min=5_000_000.0,
+        check_size_max=None,
+    )
+    conflicts = find_conflicts(criteria, parse_context("ticket size $1M"))
+    ticket = next(c for c in conflicts if c.criterion.value == "ticket_band")
+    assert "None" not in ticket.stored
+    assert "None" not in ticket.stated
+
+
+def test_ebitda_conflict_message_never_shows_the_literal_none() -> None:
+    criteria = BuyerCriteria(
+        buyer_role_id="role-7",
+        org_name="Half Open Capital",
+        target_vertical=None,
+        ebitda_floor=2_000_000.0,
+        ebitda_ceiling=None,
+    )
+    conflicts = find_conflicts(criteria, parse_context("EBITDA of $500K"))
+    ebitda = next(c for c in conflicts if c.criterion.value == "ebitda")
+    assert "None" not in ebitda.stored
 
 
 def test_find_conflicts_geography_stated_gcc_covered_by_stored_gcc() -> None:
