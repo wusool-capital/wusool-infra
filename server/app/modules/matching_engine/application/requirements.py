@@ -26,6 +26,7 @@ from app.modules.matching_engine.domain.meetings import render_meeting_notes_sec
 from app.modules.matching_engine.domain.requirements import (
     HardRequirement,
     RequirementProfile,
+    RequirementSource,
     SoftPreference,
 )
 from app.modules.utilities.domain.json_types import JsonObject
@@ -64,7 +65,9 @@ class BuyerRequirementExtractionService:
                 "validation after one repair attempt"
             ) from exc
 
-        return self._to_domain(extracted, next_version, self._model_id)
+        return self._to_domain(
+            extracted, next_version, self._model_id, has_advisor_context=bool(advisor_context)
+        )
 
     def _build_prompt(self, buyer: BuyerContext, advisor_context: str | None) -> str:
         # Every one of these is a real, already-structured buyer-side value
@@ -200,15 +203,24 @@ class BuyerRequirementExtractionService:
         )
 
     @staticmethod
-    def _to_domain(extracted: JsonObject, version: int, model_id: str) -> RequirementProfile:
+    def _to_domain(
+        extracted: JsonObject, version: int, model_id: str, *, has_advisor_context: bool
+    ) -> RequirementProfile:
+        def source_of(item: JsonObject) -> RequirementSource:
+            # Without typed context nothing can honestly be advisor-sourced; a
+            # model claiming so would otherwise gain elimination power.
+            if item["source"] == "advisor_context" and not has_advisor_context:
+                return "llm_extracted"
+            return item["source"]
+
         return RequirementProfile(
             hard_requirements=[
                 HardRequirement(
                     criterion=h["criterion"],
                     value=h["value"],
-                    source=h["source"],
+                    source=source_of(h),
                     confidence=h["confidence"],
-                    human_confirmed=h["human_confirmed"],
+                    human_confirmed=h["human_confirmed"] and source_of(h) == h["source"],
                 )
                 for h in extracted["hard_requirements"]
             ],
@@ -217,7 +229,7 @@ class BuyerRequirementExtractionService:
                     criterion=s["criterion"],
                     value=s["value"],
                     weight=s["weight"],
-                    source=s["source"],
+                    source=source_of(s),
                     confidence=s["confidence"],
                 )
                 for s in extracted["soft_preferences"]

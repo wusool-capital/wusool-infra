@@ -30,6 +30,7 @@ from app.modules.matching_engine.domain.matching.entities import (
     MatchAnalysisData,
 )
 from app.modules.matching_engine.domain.matching.scoring import select_top_n
+from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 
 logger = logging.getLogger(__name__)
@@ -149,11 +150,16 @@ class MatchingMixin(ServiceBase):
 
         batch = await self._candidate_retriever.get_candidates(buyer, profile)
 
+        ticket_band = TicketBand.from_buyer(buyer)
         scored: list[tuple[SellerCandidate, CandidateScore]] = [
             (
                 candidate,
                 self._scoring_engine.score(
-                    buyer.buyer_role_id, candidate.seller_role_id, profile, candidate
+                    buyer.buyer_role_id,
+                    candidate.seller_role_id,
+                    profile,
+                    candidate,
+                    ticket_band,
                 ),
             )
             for candidate in batch.passed

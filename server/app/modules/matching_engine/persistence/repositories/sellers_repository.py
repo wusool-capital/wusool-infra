@@ -93,21 +93,9 @@ def _geography_predicate(narrowing: CandidateNarrowing) -> ColumnElement[bool]:
     return or_(~has_data, matches)
 
 
-def _ticket_predicates(narrowing: CandidateNarrowing) -> list[ColumnElement[bool]]:
+def _ev_ceiling_predicate(ev_ceiling: float) -> ColumnElement[bool]:
     low = _usd_amount(SellerRole.valuation_low)
-    mid = _usd_amount(SellerRole.valuation_mid)
-    high = _usd_amount(SellerRole.valuation_high)
-    range_low = func.coalesce(low, mid)
-    range_high = func.coalesce(high, mid)
-
-    predicates: list[ColumnElement[bool]] = []
-    if narrowing.ticket_max is not None:
-        predicates.append(or_(range_low.is_(None), range_low <= narrowing.ticket_max))
-    if narrowing.ticket_min is not None:
-        predicates.append(or_(range_high.is_(None), range_high >= narrowing.ticket_min))
-    if narrowing.ev_ceiling is not None:
-        predicates.append(or_(low.is_(None), low <= narrowing.ev_ceiling))
-    return predicates
+    return or_(low.is_(None), low <= ev_ceiling)
 
 
 class SellerRepository:
@@ -136,7 +124,7 @@ class SellerRepository:
         self, narrowing: CandidateNarrowing, limit: int = MAX_ELIGIBLE_SELLERS
     ) -> list[SellerCandidate]:
         """ "Eligible" is lifecycle state (`is_active`, soft-deletes) plus the
-        buyer's `narrowing` on vertical, geography and ticket band. A seller
+        buyer's `narrowing` on vertical, geography and EV ceiling. A seller
         with no data for a narrowed dimension always passes it — the same
         missing-data rule as `apply_structured_filters`, which still runs
         after this for the requirement-level filters.
@@ -150,7 +138,8 @@ class SellerRepository:
             conditions.append(_vertical_predicate(narrowing.vertical))
         if narrowing.narrows_geography:
             conditions.append(_geography_predicate(narrowing))
-        conditions.extend(_ticket_predicates(narrowing))
+        if narrowing.ev_ceiling is not None:
+            conditions.append(_ev_ceiling_predicate(narrowing.ev_ceiling))
 
         stmt = (
             select(SellerRole)

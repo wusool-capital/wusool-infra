@@ -324,3 +324,27 @@ async def test_advisor_context_requirement_keeps_human_confirmed() -> None:
 
     confirmed = {h.criterion: h.human_confirmed for h in profile.hard_requirements}
     assert confirmed == {"ebitda": True, "minimum_revenue": False}
+
+
+async def test_advisor_context_source_is_downgraded_when_no_context_was_typed() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "ebitda",
+                "value": "USD 500K",
+                "source": "advisor_context",
+                "confidence": "high",
+                "human_confirmed": True,
+            }
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    (requirement,) = profile.hard_requirements
+    assert (requirement.source, requirement.human_confirmed) == ("llm_extracted", False)

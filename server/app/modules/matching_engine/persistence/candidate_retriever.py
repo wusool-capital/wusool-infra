@@ -1,5 +1,5 @@
 """The Branch 1 `CandidateRetriever` (§35) — loads sellers narrowed in SQL on
-the buyer's vertical/geography/ticket band, then applies the Stage 1
+the buyer's vertical, geography and EV ceiling, then applies the Stage 1
 structured filter in the same call. Branch 2's `HybridCandidateRetriever` (semantic
 retrieval) implements the same Protocol without changing anything upstream.
 

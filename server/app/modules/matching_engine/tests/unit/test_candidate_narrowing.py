@@ -43,17 +43,16 @@ def test_vertical_is_lower_cased_and_trimmed() -> None:
     )
 
 
-def test_ticket_band_comes_from_money_amounts() -> None:
+def test_ev_ceiling_comes_from_money_amount_and_check_size_never_narrows() -> None:
     narrowing = CandidateNarrowing.from_buyer(
         _buyer(
             check_size_min=Money(5_000_000.0, "USD"),
             check_size_max=Money(15_000_000.0, "USD"),
-            ev_ceiling=Money(None, None),
+            ev_ceiling=Money(40_000_000.0, "USD"),
         )
     )
 
-    assert (narrowing.ticket_min, narrowing.ticket_max) == (5_000_000.0, 15_000_000.0)
-    assert narrowing.ev_ceiling is None
+    assert narrowing == CandidateNarrowing(ev_ceiling=40_000_000.0)
 
 
 def test_gcc_region_expands_to_its_countries_and_keeps_the_region() -> None:
@@ -66,7 +65,7 @@ def test_gcc_region_expands_to_its_countries_and_keeps_the_region() -> None:
 def test_country_only_buyer_also_accepts_an_overlapping_seller_region() -> None:
     narrowing = CandidateNarrowing.from_buyer(_buyer(target_country=["Saudi Arabia"]))
 
-    assert narrowing.countries == {"saudi arabia"}
+    assert {"saudi arabia", "ksa"} <= narrowing.countries
     assert {"gcc", "mena"} <= narrowing.regions
 
 
@@ -90,3 +89,10 @@ def test_unresolvable_region_disables_geography() -> None:
     )
 
     assert not narrowing.narrows_geography
+
+
+def test_gulf_country_also_accepts_its_common_abbreviations_and_region_spellings() -> None:
+    narrowing = CandidateNarrowing.from_buyer(_buyer(target_country=["United Arab Emirates"]))
+
+    assert {"uae", "u.a.e."} <= narrowing.countries
+    assert {"gcc", "gulf", "middle east"} <= narrowing.regions

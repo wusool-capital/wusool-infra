@@ -19,6 +19,7 @@ from app.modules.matching_engine.domain.matching.entities import (
     DataConfidence,
     FilterSkipped,
 )
+from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.requirements import (
     RequirementProfile,
     RequirementSource,
@@ -250,6 +251,11 @@ def apply_structured_filters(
     return passed, filters_skipped
 
 
+# Same weight as a hard requirement: a seller far outside the buyer's cheque
+# should visibly rank below one inside it, not just lose a rounding error.
+_TICKET_FIT_WEIGHT = 1.0
+
+
 class ScoringEngine:
     """Stage 2 (§11-13). Deterministic, reproducible — never calls Bedrock,
     never queries the database. `confidence_multipliers` come from
@@ -274,6 +280,7 @@ class ScoringEngine:
         seller_role_id: str,
         profile: RequirementProfile,
         candidate: SellerCandidate,
+        ticket_band: TicketBand | None = None,
     ) -> CandidateScore:
         criteria: list[CriterionScore] = []
         weighted_sum = 0.0
@@ -346,6 +353,23 @@ class ScoringEngine:
             weighted_sum += preference.weight * sub_score
             weighted_confidence_sum += preference.weight * self._multiplier(data_backing)
             total_weight += preference.weight
+
+        if ticket_band is not None:
+            result, has_valuation = ticket_band.fit(candidate)
+            data_backing: RequirementSource = "crm_field" if has_valuation else "unavailable"
+            sub_score = {"Pass": 100.0, "Fail": 0.0}.get(result, 50.0)
+            criteria.append(
+                CriterionScore(
+                    criterion="ticket_fit",
+                    criterion_type="soft",
+                    weight=_TICKET_FIT_WEIGHT,
+                    result=result,
+                    data_backing=data_backing,
+                )
+            )
+            weighted_sum += _TICKET_FIT_WEIGHT * sub_score
+            weighted_confidence_sum += _TICKET_FIT_WEIGHT * self._multiplier(data_backing)
+            total_weight += _TICKET_FIT_WEIGHT
 
         overall_score = (weighted_sum / total_weight) if total_weight else 0.0
         confidence_value = (weighted_confidence_sum / total_weight) * 100.0 if total_weight else 0.0

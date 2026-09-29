@@ -111,7 +111,8 @@ async def test_geography_narrowing_uses_region_hq_country_and_focus(
     db_session: AsyncSession,
 ) -> None:
     gulf_narrowing = CandidateNarrowing(
-        regions=frozenset({"gcc"}), countries=frozenset({"united arab emirates", "saudi arabia"})
+        regions=frozenset({"gcc"}),
+        countries=frozenset({"united arab emirates", "uae", "saudi arabia"}),
     )
     multi_country_hq = await _add_seller(
         db_session, hq_country="United Kingdom, United Arab Emirates"
@@ -119,38 +120,28 @@ async def test_geography_narrowing_uses_region_hq_country_and_focus(
     region_only = await _add_seller(db_session, region="GCC")
     by_focus = await _add_seller(db_session, geographic_focus=["Saudi Arabia"])
     no_data = await _add_seller(db_session)
+    abbreviated = await _add_seller(db_session, hq_country="UAE")
     wrong_hq = await _add_seller(db_session, hq_country="Pakistan")
     wrong_region = await _add_seller(db_session, region="Europe")
 
     ids = await _eligible_ids(db_session, gulf_narrowing)
 
-    assert {multi_country_hq, region_only, by_focus, no_data} <= ids
+    assert {multi_country_hq, region_only, by_focus, no_data, abbreviated} <= ids
     assert wrong_hq not in ids
     assert wrong_region not in ids
 
 
-async def test_ticket_band_drops_only_sellers_wholly_outside_it(
+async def test_check_size_never_drops_a_seller_but_malformed_valuation_is_safe(
     db_session: AsyncSession,
 ) -> None:
-    band = CandidateNarrowing(ticket_min=5_000_000.0, ticket_max=15_000_000.0)
-    overlapping = await _add_seller(
-        db_session, valuation_low=_usd(10_000_000), valuation_high=_usd(30_000_000)
-    )
-    mid_only_inside = await _add_seller(db_session, valuation_mid=_usd(8_000_000))
-    no_valuation = await _add_seller(db_session)
-    malformed = await _add_seller(db_session, valuation_low={"amount": "n/a", "currency": "USD"})
     too_big = await _add_seller(
         db_session, valuation_low=_usd(50_000_000), valuation_high=_usd(80_000_000)
     )
-    too_small = await _add_seller(
-        db_session, valuation_low=_usd(500_000), valuation_high=_usd(2_000_000)
-    )
+    malformed = await _add_seller(db_session, valuation_low={"amount": "n/a", "currency": "USD"})
 
-    ids = await _eligible_ids(db_session, band)
+    ids = await _eligible_ids(db_session, CandidateNarrowing(ev_ceiling=1e12))
 
-    assert {overlapping, mid_only_inside, no_valuation, malformed} <= ids
-    assert too_big not in ids
-    assert too_small not in ids
+    assert {too_big, malformed} <= ids
 
 
 async def test_ev_ceiling_drops_sellers_valued_above_it(db_session: AsyncSession) -> None:

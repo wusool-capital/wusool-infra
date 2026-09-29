@@ -13,9 +13,19 @@ from app.modules.discovery.domain.geography import resolve_known
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.utilities.domain.money import Money
 
-# The only two `target_region` options that resolve to a country list — the
-# rest (Africa, Europe, ...) can't be enumerated, so they disable geography.
-_RESOLVABLE_REGIONS = ("GCC", "MENA")
+# `target_region` options that resolve to a country list — the rest (Africa,
+# Europe, ...) can't be enumerated, so they disable geography. Aliases are
+# spellings sellers' `region` is known to carry, so they aren't dropped as strangers.
+_RESOLVABLE_REGIONS = ("GCC", "GCC-wide", "Gulf", "MENA", "Middle East")
+
+# Abbreviations seen in organizations' `hq_country`/`geographic_focus`, which
+# hold whatever was typed; the buyer vocabulary uses full names only.
+_COUNTRY_ALIASES: dict[str, tuple[str, ...]] = {
+    "united arab emirates": ("uae", "u.a.e."),
+    "saudi arabia": ("ksa", "saudi"),
+    "united kingdom": ("uk", "u.k."),
+    "united states": ("usa", "us", "u.s."),
+}
 
 
 @dataclass(frozen=True)
@@ -24,8 +34,6 @@ class CandidateNarrowing:
     # Lower-cased. Both empty means geography is not narrowed at all.
     regions: frozenset[str] = frozenset()
     countries: frozenset[str] = frozenset()
-    ticket_min: float | None = None
-    ticket_max: float | None = None
     ev_ceiling: float | None = None
 
     @property
@@ -39,8 +47,6 @@ class CandidateNarrowing:
             vertical=buyer.target_vertical.strip().lower() if buyer.target_vertical else None,
             regions=regions,
             countries=countries,
-            ticket_min=_amount(buyer.check_size_min),
-            ticket_max=_amount(buyer.check_size_max),
             ev_ceiling=_amount(buyer.ev_ceiling),
         )
 
@@ -72,5 +78,9 @@ def _accepted_geography(
         scope = resolve_known(name)
         if scope is not None and {c.lower() for c in scope.countries} & countries:
             regions.add(name.lower())
+
+    for country, aliases in _COUNTRY_ALIASES.items():
+        if country in countries:
+            countries.update(aliases)
 
     return frozenset(regions), frozenset(countries)

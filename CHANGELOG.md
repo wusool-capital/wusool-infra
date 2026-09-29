@@ -48,7 +48,8 @@ for current production evidence and open handover items.
   is gone.
 - A hard requirement the advisor states in their own typed context, such as a
   500K EBITDA floor, can now remove sellers from the shortlist. Before, only
-  requirements from the CRM could.
+  requirements from the CRM could. This only applies when the advisor
+  actually typed context.
 - The `client_type` scoring criterion is retired. It never matched anything:
   the CRM holds an engagement type where the scorer expected a customer type.
 

@@ -102,9 +102,10 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    just weighted). See `CRITERION_REGISTRY`
    (`domain/matching/scoring.py`) for the fixed set of checkable criteria.
 3. **Candidate load + Stage 1 filtering** (one call) — SQL first narrows
-   sellers on the buyer role's vertical, target region/country and ticket
-   band (`domain/matching/narrowing.py`; a seller with no data for a
-   dimension always passes). Then a candidate is dropped only on a confirmed
+   sellers on the buyer role's vertical, target region/country and EV ceiling
+   (`domain/matching/narrowing.py`; a seller with no data for a dimension
+   always passes). Cheque size never eliminates: `ticket_fit`
+   (`domain/matching/ticket.py`) scores it in Stage 2 instead. Then a candidate is dropped only on a confirmed
    hard requirement's `Fail`; missing/unconfirmed data never eliminates
    anyone.
 4. **Stage 2 scoring** — weighted average of per-criterion sub-scores
