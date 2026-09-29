@@ -17,6 +17,7 @@ from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_bolt.context.respond.async_respond import AsyncRespond
 from slack_sdk.web.async_client import AsyncWebClient
 
+from app.modules.enrichment import enrich_and_post
 from app.modules.matching_engine.api.dependencies import (
     matching_engine_service,
     run_match_and_post,
@@ -250,6 +251,18 @@ def _partial_write_message(exc: PartialWriteError) -> str:
     )
 
 
+def _enrich_approved_seller(seller_role_id: str | None, channel_id: str) -> None:
+    """A discovered seller only got the basic (structured-provider) tier when it
+    was created; once someone approves it, the full research proposal is worth
+    the Firecrawl/LLM cost. It posts a proposal to review, never writes."""
+    if seller_role_id is None:
+        return
+    _task_runner.run(
+        lambda: enrich_and_post(kind="seller", role_id=seller_role_id, channel_id=channel_id),
+        name=f"enrich-approved:{seller_role_id}",
+    )
+
+
 async def _handle_decision(
     body: SlackInteractionBody,
     client: AsyncWebClient,
@@ -341,6 +354,8 @@ async def _handle_decision(
     # The CRM shortlist and discovered sellers are separate messages; refresh
     # only the one this decision came from.
     decided = next((r for r in view.results if r.match_result_id == result.match_result_id), None)
+    if decision == "approve" and decided is not None and decided.origin == "discovery":
+        _enrich_approved_seller(decided.seller_role_id, channel_id)
     if decided is not None and decided.origin == "discovery":
         text = f"Discovered sellers for {view.buyer_org_name}"
         blocks = build_discovered_candidates_blocks(

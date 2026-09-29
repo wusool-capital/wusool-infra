@@ -76,7 +76,8 @@ sellers" button on the match-result message → same function. Then:
 `CreateMixin.discover_and_create` → `SellerWriterPort.find_existing` per lead
 → `SellerWriterPort.enrich_and_create` for new ones → a typed
 `DiscoveryOutcome` back to `matching_engine`, which appends the created
-sellers to the run as `PENDING_REVIEW` rows (Approve opens a Qualified deal)
+sellers to the run as `PENDING_REVIEW` rows (Approve opens a Qualified deal and
+posts the full enrichment proposal)
 and posts the possible duplicates. Their "Add as seller" button →
 `api/slack/handlers.py` → `domain/drafts.py::draft_from_lead` →
 `ConfirmMixin.open_confirm_form` → `SellerDraftPort` → `ddl_commands`'

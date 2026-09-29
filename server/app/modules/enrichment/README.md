@@ -59,7 +59,9 @@ against a real `PEOPLE_DATA_LABS_API_KEY` account before relying on it.
 only the structured providers. `propose_basic` (exported as
 `propose_basic_seller_fields`) does the same for a company that has no saved
 role yet, using the caller's draft values as the current ones; `discovery`'s
-seller writer uses it before creating a lead. Providers also receive the
+seller writer uses it before creating a lead. The full tier then runs when a
+discovered seller is approved: `matching_engine` calls `enrich_and_post`, which
+posts a proposal for review and writes nothing. Providers also receive the
 company's domain when known, so a name shared by several companies still
 resolves to the right one.
 

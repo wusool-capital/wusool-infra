@@ -17,7 +17,8 @@ for current production evidence and open handover items.
   by Google place id or website, and adds the first five new ones. Each is
   filled in with basic company data first, then saved to Attio and the
   database, and posted under the match results with Approve and Reject
-  buttons. Approving opens a Qualified deal, as for any other match.
+  buttons. Approving opens a Qualified deal, as for any other match, and posts
+  the full enrichment proposal (web research included) for review.
 - A result that only has a similar name to a company already in the CRM is not
   created. It is posted separately with an "Add as seller" button, so a person
   decides.

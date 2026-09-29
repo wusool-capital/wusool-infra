@@ -254,3 +254,59 @@ async def test_trigger_reports_the_daily_cap_and_creates_nothing(monkeypatch, ha
 
     assert "Daily discovery limit" in harness.notifier.updates[-1]["text"]
     harness.service.append_discovered_candidates.assert_not_awaited()
+
+
+class _RecordingRunner:
+    def __init__(self) -> None:
+        self.names: list[str] = []
+
+    def run(self, coro_factory, *, name: str) -> None:
+        self.names.append(name)
+
+
+def _decision_harness(monkeypatch: pytest.MonkeyPatch, *, origin: str):
+    from app.modules.matching_engine.api.slack.handlers import actions
+
+    row = replace(_view("APPROVED", "APPROVED"), origin=origin)  # ty: ignore[invalid-argument-type]
+
+    def _result(status: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            match_result_id="m1", run_id=str(uuid.uuid4()), seller_org_name="Acme", status=status
+        )
+
+    service = SimpleNamespace(
+        approve_match=AsyncMock(return_value=_result("APPROVED")),
+        reject_match=AsyncMock(return_value=_result("REJECTED")),
+        get_match_run_view=AsyncMock(
+            return_value=MatchRunView(run_id="r1", buyer_org_name="Buyer", results=[row])
+        ),
+    )  # fmt: skip
+    runner = _RecordingRunner()
+    monkeypatch.setattr(actions, "matching_engine_service", lambda _s: service)
+    monkeypatch.setattr(actions, "get_sessionmaker", lambda: lambda: _UoW(SimpleNamespace()))
+    monkeypatch.setattr(actions, "_task_runner", runner)
+    client = SimpleNamespace(chat_postEphemeral=AsyncMock())
+    body = {
+        "channel": {"id": "C1"},
+        "user": {"id": "U1"},
+        "actions": [{"value": str(uuid.uuid4())}],
+    }
+    return actions, client, AsyncMock(), body, runner
+
+
+@pytest.mark.parametrize(
+    ("origin", "decision", "expected"),
+    [
+        ("discovery", "approve", ["enrich-approved:s1"]),
+        ("discovery", "reject", []),
+        ("crm", "approve", []),
+    ],
+)
+async def test_only_approving_a_discovered_seller_triggers_full_enrichment(
+    monkeypatch, origin, decision, expected
+) -> None:
+    actions, client, respond, body, runner = _decision_harness(monkeypatch, origin=origin)
+
+    await actions._handle_decision(body, client, respond, decision)
+
+    assert runner.names == expected
