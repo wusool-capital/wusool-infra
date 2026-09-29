@@ -12,6 +12,7 @@ Slack service per command.
 | Module | Responsibility |
 | --- | --- |
 | `matching_engine` | Resolves a buyer, extracts requirements, filters and scores sellers, explains the shortlist, and stores the run. |
+| `discrepancies` | Checks a buyer's stored criteria for conflicts with typed context or missing required fields. |
 | `ddl_commands` | Adds and edits buyer/seller profiles through Attio-first writes. |
 | `enrichment` | Researches proposed profile values; an operator must review them before the normal edit flow saves them. |
 | `discovery` | Searches public sources for sellers and hands a selected result to the normal add-seller flow. |
@@ -63,6 +64,7 @@ records.
 | Interface | Behavior |
 | --- | --- |
 | `/find-match <buyer>` | Creates and explains a ranked seller shortlist. |
+| `/check-buyer <buyer>` | Checks a buyer's stored criteria for conflicts or missing data. |
 | `/add-buyer <organization>` / `/add-seller <organization>` | Attaches a new role or creates an organization and role. |
 | `/edit-buyer <name>` / `/edit-seller <name>` | Selects and updates eligible fields. |
 | `/enrich-buyer <name>` / `/enrich-seller <name>` | Produces a reviewable research proposal. |

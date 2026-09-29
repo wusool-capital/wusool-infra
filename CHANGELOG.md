@@ -12,6 +12,14 @@ for current production evidence and open handover items.
 
 ### Added
 
+- A new `/check-buyer <name>` command checks a buyer's stored criteria
+  against what an advisor types, before or independent of a match run. It
+  flags a conflict (a typed vertical, region, ticket size, or EBITDA that
+  disagrees with what's on file) and notes anything required that's still
+  missing.
+- `/find-match` now runs the same check first. A conflict pauses the match
+  behind "Run match anyway"/"Cancel" buttons; missing data alone doesn't —
+  it's noted and the match proceeds.
 - Organizations can now carry the Places id they were discovered from. A
   company already in the CRM must not be created a second time under a
   slightly different name. Names cannot decide that reliably. The id can.

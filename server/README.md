@@ -103,6 +103,7 @@ server/
 │   ├── models/            # SQLAlchemy models shared across modules
 │   └── modules/
 │       ├── matching_engine/   # /find-match
+│       ├── discrepancies/       # /check-buyer
 │       ├── ddl_commands/        # /edit-seller, /edit-buyer, /add-seller, /add-buyer
 │       ├── meetings/              # /desktop/* — desktop-app transcript summarization
 │       ├── organizations/           # shared Organization persistence
