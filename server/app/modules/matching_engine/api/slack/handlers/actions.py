@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import uuid
+from dataclasses import replace
 
 from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
@@ -23,6 +24,9 @@ from app.modules.matching_engine.api.dependencies import (
     trigger_seller_discovery,
 )
 from app.modules.matching_engine.api.slack.schemas import DealChoiceValue, RunAnywayValue
+from app.modules.matching_engine.api.slack.views.discovered_candidates import (
+    build_discovered_candidates_blocks,
+)
 from app.modules.matching_engine.api.slack.views.existing_deal_prompt import (
     build_existing_deal_prompt_blocks,
 )
@@ -334,8 +338,19 @@ async def _handle_decision(
     view = await service.get_match_run_view(uuid.UUID(result.run_id))
     if view is None:
         return
-    text = f"Match results for {view.buyer_org_name}"
-    blocks = build_match_result_blocks_from_view(view)
+    # The CRM shortlist and discovered sellers are separate messages; refresh
+    # only the one this decision came from.
+    decided = next((r for r in view.results if r.match_result_id == result.match_result_id), None)
+    if decided is not None and decided.origin == "discovery":
+        text = f"Discovered sellers for {view.buyer_org_name}"
+        blocks = build_discovered_candidates_blocks(
+            [r for r in view.results if r.origin == "discovery"]
+        )
+    else:
+        text = f"Match results for {view.buyer_org_name}"
+        blocks = build_match_result_blocks_from_view(
+            replace(view, results=[r for r in view.results if r.origin == "crm"])
+        )
     if original_ts is None:
         await respond(replace_original=True, text=text, blocks=blocks)
         return

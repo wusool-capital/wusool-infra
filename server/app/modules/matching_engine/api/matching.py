@@ -110,6 +110,7 @@ class MatchResultRead(BaseModel):
     candidates_filtered: int | None = None
     filters_skipped: list[FilterSkippedRead] | None = None
     errors: JsonObject | None = None
+    origin: Literal["crm", "discovery"] = "crm"
 
 
 class MatchAnalysis(BaseModel):

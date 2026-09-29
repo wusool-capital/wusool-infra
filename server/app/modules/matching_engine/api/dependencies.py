@@ -21,7 +21,10 @@ from app.modules.matching_engine.bootstrap import (
 )
 from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.domain.buyers import BuyerContext
-from app.modules.matching_engine.domain.matching.entities import MatchAnalysisData
+from app.modules.matching_engine.domain.matching.entities import (
+    DiscoveredCandidate,
+    MatchAnalysisData,
+)
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.matching_engine.providers.bedrock.client import BedrockConverseClient
@@ -259,9 +262,11 @@ async def run_match_and_post(
 
 async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> None:
     """Below-threshold match quality: hand the run's own (industry,
-    geography) off to `discovery`'s search, as a second message rather than
-    replacing the match-results one — `discovery.find_and_post_leads` posts
-    and owns its own placeholder/update pair.
+    geography) off to `discovery`, which pre-filters against the CRM and
+    auto-creates the genuinely new sellers. Those are appended to this run
+    as `PENDING_REVIEW` rows and posted as a second message with
+    Approve/Reject; name-only look-alikes are posted separately with an
+    "Add as seller" button so a human decides before anything is written.
     """
     idempotency_key = f"discovery:{run_id}"
     if _discovery_idempotency_store.seen(idempotency_key):
@@ -269,7 +274,10 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
     _discovery_idempotency_store.mark(idempotency_key)
 
-    from app.modules.discovery import find_and_post_leads
+    from app.modules.discovery import build_possible_duplicate_blocks, discover_and_create_sellers
+    from app.modules.matching_engine.api.slack.views.discovered_candidates import (
+        build_discovered_candidates_blocks,
+    )
     from app.modules.matching_engine.application.discovery_bridge import extract_query_terms
 
     async with get_sessionmaker()() as session:
@@ -283,6 +291,76 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
     if not industry and not geography:
         return
 
-    await find_and_post_leads(
-        industry=industry, geography=geography, channel_id=channel_id, exclude_terms=exclude_terms
+    notifier = _build_slack_notifier()
+    placeholder_ts = await notifier.post_message(
+        channel=channel_id, text="🔎 *_Searching for potential sellers…_*"
     )
+    try:
+        outcome = await discover_and_create_sellers(
+            industry=industry,
+            geography=geography,
+            quota_key=analysis.run.buyer_role_id,
+            exclude_terms=exclude_terms,
+        )
+        if outcome.status != "ok":
+            await notifier.update_message(
+                channel=channel_id, ts=placeholder_ts, text=_DISCOVERY_STATUS_TEXT[outcome.status]
+            )
+            return
+
+        async with get_sessionmaker()() as session:
+            service = matching_engine_service(session)
+        await service.append_discovered_candidates(
+            run_id,
+            [
+                DiscoveredCandidate(
+                    seller_role_id=str(created.seller_role_id),
+                    seller_attio_id=created.org_attio_id,
+                    source_url=created.source_url,
+                )
+                for created in outcome.created
+            ],
+        )
+        view = await service.get_match_run_view(run_id)
+    except Exception:
+        logger.exception("seller_discovery_failed", extra={"run_id": str(run_id)})
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text="Seller search failed unexpectedly."
+        )
+        return
+
+    notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
+    if outcome.failed:
+        names = ", ".join(f.lead.name for f in outcome.failed)
+        notes.append(f"Couldn't save: {names}.")
+    created_ids = {str(c.seller_role_id) for c in outcome.created}
+    discovered = (
+        [r for r in view.results if r.origin == "discovery" and r.seller_role_id in created_ids]
+        if view is not None
+        else []
+    )
+    if discovered:
+        await notifier.update_message(
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=f"Found {len(discovered)} new seller(s)",
+            blocks=build_discovered_candidates_blocks(discovered, notes=notes),
+        )
+    else:
+        detail = " ".join(notes) or "No new potential sellers found."
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text=f"No new sellers created. {detail}"
+        )
+
+    if outcome.possible_duplicates:
+        await notifier.post_message(
+            channel=channel_id,
+            text=f"{len(outcome.possible_duplicates)} possible duplicate(s) found",
+            blocks=build_possible_duplicate_blocks(outcome.possible_duplicates),
+        )
+
+
+_DISCOVERY_STATUS_TEXT = {
+    "disabled": "Seller discovery isn't configured.",
+    "daily_cap_reached": "Daily discovery limit reached for this buyer. Try again tomorrow.",
+}

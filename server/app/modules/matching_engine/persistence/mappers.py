@@ -207,6 +207,11 @@ def _filters_skipped_from_list(data: JsonArray | None) -> list[FilterSkipped] | 
     return [FilterSkipped(**item) for item in data]
 
 
+def _source_url(metadata: JsonObject | None) -> str | None:
+    value = (metadata or {}).get("source_url")
+    return value if isinstance(value, str) else None
+
+
 def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
     return MatchResultEntity(
         id=str(row.id),
@@ -244,4 +249,6 @@ def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
         errors=row.errors,
         started_at=row.started_at,
         completed_at=row.completed_at,
+        origin="discovery" if (row.metadata_ or {}).get("origin") == "discovery" else "crm",
+        source_url=_source_url(row.metadata_),
     )

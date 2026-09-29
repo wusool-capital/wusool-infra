@@ -185,6 +185,20 @@ class MatchResultEntity:
     errors: JsonObject | None
     started_at: datetime
     completed_at: datetime | None
+    # "discovery" rows are auto-created sellers found via public search, not
+    # scored CRM candidates; they share the table only so Approve/Reject
+    # (and its Qualified-deal write) work on them unchanged.
+    origin: Literal["crm", "discovery"] = "crm"
+    source_url: str | None = None
+
+
+@dataclass(frozen=True)
+class DiscoveredCandidate:
+    """A seller `discovery` just created, waiting for an Approve/Reject."""
+
+    seller_role_id: str
+    seller_attio_id: str
+    source_url: str
 
 
 @dataclass(frozen=True)
