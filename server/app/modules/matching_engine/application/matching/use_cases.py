@@ -80,7 +80,9 @@ class MatchRunView:
 
 
 class MatchingMixin(ServiceBase):
-    async def run_match(self, buyer: BuyerContext, requested_by: str | None) -> MatchRunResult:
+    async def run_match(
+        self, buyer: BuyerContext, requested_by: str | None, *, advisor_context: str | None = None
+    ) -> MatchRunResult:
         run_id = uuid.uuid4()
         buyer_role_id = uuid.UUID(buyer.buyer_role_id)
         started_at = datetime.now(UTC)
@@ -94,7 +96,9 @@ class MatchingMixin(ServiceBase):
             )
 
         try:
-            return await self._run(run_id, buyer_role_id, buyer, requested_by, started_at)
+            return await self._run(
+                run_id, buyer_role_id, buyer, requested_by, started_at, advisor_context
+            )
         except Exception as exc:
             logger.warning(
                 "match_run_failed run_id=%s error=%s",
@@ -123,6 +127,7 @@ class MatchingMixin(ServiceBase):
         buyer: BuyerContext,
         requested_by: str | None,
         started_at: datetime,
+        advisor_context: str | None,
     ) -> MatchRunResult:
         async with self._uow_factory() as uow:
             latest_version = await uow.match_results.get_latest_requirement_profile_version(
@@ -130,7 +135,9 @@ class MatchingMixin(ServiceBase):
             )
         next_version = (latest_version or 0) + 1
 
-        profile = await self._extraction_service.extract(buyer, next_version=next_version)
+        profile = await self._extraction_service.extract(
+            buyer, next_version=next_version, advisor_context=advisor_context
+        )
 
         async with self._uow_factory() as uow:
             await uow.match_results.update_run_progress(

@@ -55,10 +55,6 @@ CRITERION_REGISTRY: dict[str, _CriterionSpec] = {
         "A sector the seller must NOT operate in, checked against the seller's "
         "sector_focus (inverse match).",
     ),
-    "client_type": _CriterionSpec(
-        frozenset({"client_type"}),
-        "Required seller client type, checked against the seller's client_type.",
-    ),
     "outreach_tier": _CriterionSpec(
         frozenset({"outreach_tier"}),
         "Required seller outreach tier, checked against the seller's outreach_tier.",
@@ -93,7 +89,6 @@ _EBITDA_KEYS = CRITERION_REGISTRY["ebitda"].synonyms
 _GEOGRAPHY_KEYS = CRITERION_REGISTRY["geography"].synonyms
 _SECTOR_KEYS = CRITERION_REGISTRY["sector"].synonyms
 _SECTOR_EXCLUSION_KEYS = CRITERION_REGISTRY["sector_exclusion"].synonyms
-_CLIENT_TYPE_KEYS = CRITERION_REGISTRY["client_type"].synonyms
 _OUTREACH_TIER_KEYS = CRITERION_REGISTRY["outreach_tier"].synonyms
 _RELATIONSHIP_STATUS_KEYS = CRITERION_REGISTRY["relationship_status"].synonyms
 _APPETITE_SIGNAL_KEYS = CRITERION_REGISTRY["appetite_signal"].synonyms
@@ -171,12 +166,6 @@ def _evaluate_criterion(
         target = value.strip().lower()
         excluded = any(target == s.strip().lower() for s in candidate.sector_focus)
         return ("Fail" if excluded else "Pass"), "crm_field", (0.0 if excluded else 100.0)
-
-    if key in _CLIENT_TYPE_KEYS:
-        if not candidate.client_type:
-            return "Unknown", "unavailable", 50.0
-        passes = candidate.client_type.strip().lower() == value.strip().lower()
-        return ("Pass" if passes else "Fail"), "crm_field", (100.0 if passes else 0.0)
 
     if key in _OUTREACH_TIER_KEYS:
         if not candidate.outreach_tier:

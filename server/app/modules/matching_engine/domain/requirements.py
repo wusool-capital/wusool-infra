@@ -6,7 +6,9 @@ output validated through `api/requirements.py`'s Pydantic contract.
 from dataclasses import dataclass
 from typing import Literal
 
-RequirementSource = Literal["crm_field", "llm_extracted", "llm_inferred", "unavailable"]
+RequirementSource = Literal[
+    "crm_field", "advisor_context", "llm_extracted", "llm_inferred", "unavailable"
+]
 ConfidenceLevel = Literal["high", "medium", "low"]
 
 

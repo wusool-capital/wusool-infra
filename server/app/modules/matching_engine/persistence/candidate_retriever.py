@@ -1,5 +1,6 @@
-"""The Branch 1 `CandidateRetriever` (§35) — loads sellers, applies the
-Stage 1 structured filter. Branch 2's `HybridCandidateRetriever` (semantic
+"""The Branch 1 `CandidateRetriever` (§35) — loads sellers narrowed in SQL on
+the buyer's vertical/geography/ticket band, then applies the Stage 1
+structured filter in the same call. Branch 2's `HybridCandidateRetriever` (semantic
 retrieval) implements the same Protocol without changing anything upstream.
 
 Owns a `sessionmaker`, not a bound repository/session — like
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.modules.matching_engine.application.ports.matching import CandidateRetriever
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import CandidateBatch
+from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
 from app.modules.matching_engine.domain.matching.scoring import apply_structured_filters
 from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.persistence.repositories.sellers_repository import SellerRepository
@@ -29,7 +31,9 @@ class StructuredCandidateRetriever(CandidateRetriever):
         self, buyer: BuyerContext, profile: RequirementProfile
     ) -> CandidateBatch:
         async with self._sessionmaker() as session:
-            candidates = await SellerRepository(session).get_eligible_sellers(limit=1000)
+            candidates = await SellerRepository(session).get_eligible_sellers(
+                CandidateNarrowing.from_buyer(buyer)
+            )
         passed, filters_skipped = apply_structured_filters(profile, candidates)
         return CandidateBatch(
             passed=passed, filters_skipped=filters_skipped, considered=len(candidates)

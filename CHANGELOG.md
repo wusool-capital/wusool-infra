@@ -39,6 +39,19 @@ for current production evidence and open handover items.
 - Two indexes make the sector and geography narrowing run in the database.
   It previously filtered in Python after fetching every row.
 
+### Changed
+
+- `/find-match` now narrows sellers in the database before scoring. It
+  filters on the buyer role's vertical, target region and country, and
+  ticket band, so a pharma buyer is no longer scored against industrials
+  sellers. Sellers with missing data still pass, and the old 1,000-seller cap
+  is gone.
+- A hard requirement the advisor states in their own typed context, such as a
+  500K EBITDA floor, can now remove sellers from the shortlist. Before, only
+  requirements from the CRM could.
+- The `client_type` scoring criterion is retired. It never matched anything:
+  the CRM holds an engagement type where the scorer expected a customer type.
+
 ### Fixed
 
 - A buyer's verticals can no longer be silently collapsed by a routine sync.

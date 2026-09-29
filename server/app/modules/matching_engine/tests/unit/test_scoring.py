@@ -314,3 +314,13 @@ def test_needs_web_fallback_when_all_below_threshold() -> None:
 
 def test_needs_web_fallback_false_when_one_clears_threshold() -> None:
     assert needs_web_fallback([91.4, 17.0, 17.0], min_score=50.0) is False
+
+
+def test_retired_client_type_criterion_is_unmapped_and_never_eliminates() -> None:
+    profile = _profile(hard=[HardRequirement("client_type", "SMB", "crm_field", "high", True)])
+    candidates = [_seller(), _seller()]
+
+    passed, skipped = apply_structured_filters(profile, candidates)
+
+    assert passed == candidates
+    assert [s.reason for s in skipped] == ["no_mapping"]

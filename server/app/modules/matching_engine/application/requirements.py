@@ -3,8 +3,9 @@
 already-structured `buyer_roles`/`organizations` field `BuyerContext` carries
 (`known_fields`) as confirmed grounding rather than making the LLM re-derive
 them from prose — `human_confirmed: true` only applies to what's actually in
-`known_fields`. Never treats LLM-extracted values as CRM-verified — every
-requirement carries provenance.
+`known_fields`, or in the advisor's own typed context for this run
+(`source: advisor_context`). Never treats LLM-extracted values as
+CRM-verified — every requirement carries provenance.
 
 The Bedrock Port owns the validate-repair-retry-then-fail-closed policy
 (`application/ports/llm.py`) — this service only builds the prompt/repair
@@ -45,13 +46,15 @@ class BuyerRequirementExtractionService:
         self._inference_config = inference_config
         self._meeting_notes_char_budget = meeting_notes_char_budget
 
-    async def extract(self, buyer: BuyerContext, *, next_version: int) -> RequirementProfile:
+    async def extract(
+        self, buyer: BuyerContext, *, next_version: int, advisor_context: str | None = None
+    ) -> RequirementProfile:
         try:
             extracted = await self._client.extract_requirements(
                 model_id=self._model_id,
-                prompt=self._build_prompt(buyer),
+                prompt=self._build_prompt(buyer, advisor_context),
                 repair_prompt_builder=lambda invalid_raw, error: self._build_repair_prompt(
-                    buyer, invalid_raw, error
+                    buyer, advisor_context, invalid_raw, error
                 ),
                 inference_config=self._inference_config,
             )
@@ -63,7 +66,7 @@ class BuyerRequirementExtractionService:
 
         return self._to_domain(extracted, next_version, self._model_id)
 
-    def _build_prompt(self, buyer: BuyerContext) -> str:
+    def _build_prompt(self, buyer: BuyerContext, advisor_context: str | None) -> str:
         # Every one of these is a real, already-structured buyer-side value
         # for one of `describe_criteria()`'s criteria — eligible for
         # `human_confirmed: true`. `target_geography`/`sector_focus` were
@@ -121,21 +124,34 @@ class BuyerRequirementExtractionService:
             if meeting_notes_section
             else ""
         )
+        advisor_context_block = (
+            "\nAdvisor context (typed by the advisor for this search — free text, "
+            f"but a human's own instruction): {advisor_context}\n"
+            "A hard_requirement that states an explicit, unambiguous constraint from "
+            "this advisor context (e.g. a stated floor or required region) must use "
+            "source advisor_context and human_confirmed: true. Vague preferences, "
+            "hedged wording, or anything inferred rather than stated belong in "
+            "soft_preferences with source llm_extracted instead."
+            if advisor_context
+            else ""
+        )
         return (
             "Extract structured buyer requirements as strict JSON matching this "
             "shape: {hard_requirements: [{criterion, value, source, confidence, "
             "human_confirmed}], soft_preferences: [{criterion, value, weight, "
             "source, confidence}], strategic_thesis, ideal_target_description, "
             "scoring_rubric: {criterion: weight}, data_confidence: 0-1}. "
-            "`source` must be one of crm_field/llm_extracted/llm_inferred/"
-            "unavailable. `confidence` (on each hard_requirement/soft_preference "
+            "`source` must be one of crm_field/advisor_context/llm_extracted/"
+            "llm_inferred/unavailable. `confidence` (on each hard_requirement/soft_preference "
             "item) must be exactly one of the strings high/medium/low — never a "
             "numeric score. `data_confidence` (top-level, separate field) is the "
             "only place a 0-1 number belongs. Only use `human_confirmed: true` "
             "for facts already "
-            "present in the structured buyer fields below — everything derived "
-            "from free text is `llm_extracted`/`llm_inferred` and "
-            "`human_confirmed: false`. Never invent a CRM field; if information "
+            "present in the structured buyer fields below, or an explicit "
+            "constraint in the advisor context section (source advisor_context) "
+            "— everything else derived from free text is "
+            "`llm_extracted`/`llm_inferred` and `human_confirmed: false`. "
+            "Never invent a CRM field; if information "
             "is absent, omit it or mark it `unavailable`. Any field below shown "
             "as `(not provided)` has no data at all — never copy the literal "
             "text `(not provided)` into `strategic_thesis`, "
@@ -165,13 +181,18 @@ class BuyerRequirementExtractionService:
             f"{buyer.investment_strategy or '(not provided)'}\n"
             f"Notes (free text): {buyer.notes or '(not provided)'}"
             f"{meeting_notes_block}"
+            f"{advisor_context_block}"
         )
 
     def _build_repair_prompt(
-        self, buyer: BuyerContext, invalid_raw: JsonObject, error: str | None
+        self,
+        buyer: BuyerContext,
+        advisor_context: str | None,
+        invalid_raw: JsonObject,
+        error: str | None,
     ) -> str:
         return (
-            f"{self._build_prompt(buyer)}\n\n"
+            f"{self._build_prompt(buyer, advisor_context)}\n\n"
             f"Your previous response was: {invalid_raw}\n"
             f"It failed schema validation with this specific error: {error}\n"
             "Return only corrected, valid JSON that fixes exactly that problem — "

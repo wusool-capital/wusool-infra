@@ -90,7 +90,6 @@ def to_seller_candidate(role: SellerRole) -> SellerCandidate:
         geographic_focus=list(role.organization.geographic_focus),
         sector_focus=list(role.organization.sector_focus),
         hq_country=role.organization.hq_country,
-        client_type=role.organization.client_type,
     )
 
 

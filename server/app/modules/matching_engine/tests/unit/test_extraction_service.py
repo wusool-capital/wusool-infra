@@ -268,3 +268,59 @@ async def test_prompt_includes_labeled_meeting_notes_section_when_present() -> N
     assert prompt.index("fold it into") < prompt.index("Recent meeting notes")
     assert "human_confirmed: false" in prompt
     assert "Acme Capital" in prompt.split("Recent meeting notes")[1]
+
+
+async def test_prompt_includes_advisor_context_and_confirmation_rule() -> None:
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.extract(_buyer(), next_version=1, advisor_context="500K EBITDA floor")
+
+    prompt = fake.structured_calls[0]
+    assert "Advisor context" in prompt
+    assert "500K EBITDA floor" in prompt
+    assert "source advisor_context and human_confirmed: true" in prompt
+
+
+async def test_prompt_omits_advisor_context_section_when_none_given() -> None:
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.extract(_buyer(), next_version=1)
+
+    assert "Advisor context (typed" not in fake.structured_calls[0]
+
+
+async def test_advisor_context_requirement_keeps_human_confirmed() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            {
+                "criterion": "ebitda",
+                "value": "USD 500K",
+                "source": "advisor_context",
+                "confidence": "high",
+                "human_confirmed": True,
+            },
+            {
+                "criterion": "minimum_revenue",
+                "value": "USD 50M",
+                "source": "llm_extracted",
+                "confidence": "low",
+                "human_confirmed": True,
+            },
+        ],
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="500K EBITDA floor")
+
+    confirmed = {h.criterion: h.human_confirmed for h in profile.hard_requirements}
+    assert confirmed == {"ebitda": True, "minimum_revenue": False}

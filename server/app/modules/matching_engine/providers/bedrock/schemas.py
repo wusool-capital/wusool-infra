@@ -9,8 +9,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-RequirementSource = Literal["crm_field", "llm_extracted", "llm_inferred", "unavailable"]
+RequirementSource = Literal[
+    "crm_field", "advisor_context", "llm_extracted", "llm_inferred", "unavailable"
+]
 ConfidenceLevel = Literal["high", "medium", "low"]
+
+# Only these come from a human: the CRM record, or what the advisor typed for this run.
+_CONFIRMABLE_SOURCES: frozenset[str] = frozenset({"crm_field", "advisor_context"})
 
 
 class ExtractedHardRequirement(BaseModel):
@@ -22,7 +27,7 @@ class ExtractedHardRequirement(BaseModel):
 
     @model_validator(mode="after")
     def prevent_unverified_confirmation(self) -> "ExtractedHardRequirement":
-        if self.source != "crm_field":
+        if self.source not in _CONFIRMABLE_SOURCES:
             self.human_confirmed = False
         return self
 

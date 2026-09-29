@@ -53,7 +53,7 @@ class _FakeService:
     def __init__(self) -> None:
         self.called = False
 
-    async def run_match(self, buyer, *, requested_by):  # noqa: ANN001
+    async def run_match(self, buyer, *, requested_by, advisor_context=None):  # noqa: ANN001
         self.called = True
         return MatchRunResult(
             run_id="11111111-1111-1111-1111-111111111111",
