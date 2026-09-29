@@ -183,6 +183,47 @@ async def test_unset_vertical_only_raises_when_every_entry_has_a_vertical() -> N
         )
 
 
+async def test_target_vertical_picks_that_verticals_entry_not_the_first_active() -> None:
+    """An org holds one active entry per vertical, so the first active one is
+    the wrong answer for any caller that already knows its vertical.
+    """
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("entry-fintech", "org-a", is_active=True, target_vertical="Fintech"),
+                _entry("entry-health", "org-a", is_active=True, target_vertical="Healthcare"),
+            ]
+        ]
+    )
+
+    entry_id = await resolve_role_entry_id(
+        client, "buyer_role", "org-a", is_test=False, target_vertical="Healthcare"
+    )
+
+    assert entry_id == "entry-health"
+
+
+async def test_target_vertical_raises_when_org_has_no_entry_for_it() -> None:
+    client = _FakeClient(
+        entry_pages=[[_entry("entry-fintech", "org-a", is_active=True, target_vertical="Fintech")]]
+    )
+
+    with pytest.raises(RoleEntryNotFoundError):
+        await resolve_role_entry_id(
+            client, "buyer_role", "org-a", is_test=False, target_vertical="Healthcare"
+        )
+
+
+@pytest.mark.parametrize("other", [{"unset_vertical_only": True}, {"only_entry_id": "entry-1"}])
+async def test_target_vertical_is_exclusive_with_the_other_narrowing_kwargs(
+    other: dict[str, bool | str],
+) -> None:
+    with pytest.raises(ValueError, match="target_vertical"):
+        await resolve_role_entry_id(
+            _FakeClient(), "buyer_role", "org-a", is_test=False, target_vertical="Fintech", **other
+        )
+
+
 async def test_patch_organization_targets_records_endpoint() -> None:
     client = _FakeClient()
 

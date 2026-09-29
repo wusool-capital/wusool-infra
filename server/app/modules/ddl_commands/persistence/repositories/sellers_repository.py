@@ -41,10 +41,12 @@ class SellerRepository:
         `handle_organization_selection_submission`'s
         `any(r.is_active for r in roles)`.
         """
-        stmt = select(SellerRole).where(
-            SellerRole.org_attio_id == org_attio_id, SellerRole.is_active.is_(True)
+        stmt = (
+            select(SellerRole)
+            .where(SellerRole.org_attio_id == org_attio_id, SellerRole.is_active.is_(True))
+            .order_by(SellerRole.created_at.desc())
         )
-        return (await self._session.execute(stmt)).scalar_one_or_none()
+        return (await self._session.execute(stmt)).scalars().first()
 
     async def create(self, org_attio_id: str, **fields: Unpack[SellerRoleFields]) -> SellerRole:
         """Upserts (`ON CONFLICT (legacy_entry_id) DO NOTHING`) rather than a

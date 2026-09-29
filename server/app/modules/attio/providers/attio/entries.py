@@ -152,6 +152,7 @@ async def resolve_role_entry_id(
     is_test: bool,
     unset_vertical_only: bool = False,
     only_entry_id: str | None = None,
+    target_vertical: str | None = None,
 ) -> str:
     """`is_test` is this process's half of the shared SOURCE workspace.
     Entries belonging to the other half are skipped, so a dev instance can
@@ -167,7 +168,15 @@ async def resolve_role_entry_id(
     `only_entry_id` narrows the match to one entry: an org holds a role per
     vertical, so the org alone no longer identifies which entry to edit. It
     still goes through the scope check above rather than trusting the id.
+
+    `target_vertical` narrows to the entry for a vertical the caller already
+    knows but has no entry id for. Exclusive with the two kwargs above, which
+    each name a different way to pick the entry.
     """
+    if target_vertical is not None and (unset_vertical_only or only_entry_id is not None):
+        raise ValueError(
+            "target_vertical cannot be combined with unset_vertical_only or only_entry_id"
+        )
     offset = 0
     matches: list[dict] = []
     while True:
@@ -184,6 +193,8 @@ async def resolve_role_entry_id(
             if unset_vertical_only and _entry_target_vertical(entry) is not None:
                 continue
             if only_entry_id is not None and _entry_id(entry) != only_entry_id:
+                continue
+            if target_vertical is not None and _entry_target_vertical(entry) != target_vertical:
                 continue
             if _entry_is_active(entry) is True:
                 return _entry_id(entry)

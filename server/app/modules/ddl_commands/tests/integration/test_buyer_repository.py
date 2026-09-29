@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BuyerRole, Organization
@@ -91,6 +93,33 @@ async def test_get_active_by_org_and_vertical_matches_a_role_with_no_vertical(
 
     assert found is not None
     assert found.id == role.id
+
+
+async def test_get_active_by_org_and_vertical_returns_newest_duplicate(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    """A duplicate within one vertical must resolve deterministically."""
+    await _buyer(
+        db_session,
+        throwaway_org,
+        target_vertical="Fintech",
+        is_active=True,
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
+    )
+    newest = await _buyer(
+        db_session,
+        throwaway_org,
+        target_vertical="Fintech",
+        is_active=True,
+        created_at=datetime(2024, 6, 1, tzinfo=UTC),
+    )
+
+    found = await BuyerRepository(db_session).get_active_by_org_and_vertical(
+        throwaway_org.attio_id, "Fintech"
+    )
+
+    assert found is not None
+    assert found.id == newest.id
 
 
 async def test_search_returns_every_active_role_of_a_matching_org(
