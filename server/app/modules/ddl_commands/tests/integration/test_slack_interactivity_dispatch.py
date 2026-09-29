@@ -17,6 +17,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+import app.modules.ddl_commands.api.seller_write as seller_write_module
 import app.modules.ddl_commands.api.slack.handlers.actions as actions_module
 from app.modules.attio import AttioError
 from app.modules.ddl_commands.api.slack.views.buyer_role_selection import OrgRolesPayload
@@ -1062,13 +1063,13 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
         postgres_use_case.calls.append(kwargs)
         return created_role
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
-    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(seller_write_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(seller_write_module, "create_organization", fake_create_organization)
+    monkeypatch.setattr(seller_write_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(seller_write_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(seller_write_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        seller_write_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(create_seller=fake_execute),
     )
@@ -1115,12 +1116,12 @@ def test_seller_add_form_attio_failure_prevents_postgres_write(
         postgres_calls.append(kwargs)
         return SimpleNamespace()
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "create_organization", failing_create_organization)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(seller_write_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(seller_write_module, "create_organization", failing_create_organization)
+    monkeypatch.setattr(seller_write_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(seller_write_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        seller_write_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(create_seller=fake_execute),
     )
@@ -1160,13 +1161,13 @@ def test_seller_add_form_role_entry_failure_after_org_create_reports_what_landed
         postgres_calls.append(kwargs)
         return SimpleNamespace()
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
-    monkeypatch.setattr(actions_module, "create_role_entry", failing_create_role_entry)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(seller_write_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(seller_write_module, "create_organization", fake_create_organization)
+    monkeypatch.setattr(seller_write_module, "create_role_entry", failing_create_role_entry)
+    monkeypatch.setattr(seller_write_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(seller_write_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        seller_write_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(create_seller=fake_execute),
     )
@@ -1206,13 +1207,13 @@ def test_seller_add_form_postgres_failure_after_attio_success_reports_what_lande
     async def failing_execute(**_kwargs):
         raise RuntimeError("connection reset")
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "create_organization", fake_create_organization)
-    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(seller_write_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(seller_write_module, "create_organization", fake_create_organization)
+    monkeypatch.setattr(seller_write_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(seller_write_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(seller_write_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        seller_write_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(create_seller=failing_execute),
     )

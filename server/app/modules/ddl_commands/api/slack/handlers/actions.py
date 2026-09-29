@@ -2,7 +2,7 @@
 sellers and buyers. Every write goes to SOURCE Attio *first*, then Postgres, in
 the same submission — if the Attio write fails, nothing is written to
 Postgres at all (see `_write_seller_edit`/`_write_buyer_edit` and
-`_write_seller_add`/`_write_buyer_add`). Slack payload state is never
+`write_seller_add`/`_write_buyer_add`). Slack payload state is never
 trusted on its own; the write targets (org record ID, role entry ID) are
 always re-resolved from the currently-loaded row, not from the payload.
 """
@@ -47,6 +47,7 @@ from app.modules.ddl_commands.api.organizations import (
     ORGANIZATION_FIELDS_BY_NAME,
     OrganizationUpdate,
 )
+from app.modules.ddl_commands.api.seller_write import write_seller_add
 from app.modules.ddl_commands.api.sellers import (
     GATED_SELLER_ROLE_FIELDS,
     SELLER_ROLE_FIELDS,
@@ -79,6 +80,7 @@ from app.modules.ddl_commands.api.slack.views.organization_selection import (
 )
 from app.modules.ddl_commands.api.slack.views.seller_add_form import build_seller_add_form_modal
 from app.modules.ddl_commands.api.slack.views.seller_form import build_seller_edit_form_modal
+from app.modules.ddl_commands.api.write_errors import PartialWriteError, partial_write_message
 from app.modules.ddl_commands.application.buyers import (
     BuyerAlreadyExistsError,
     BuyerNotFoundError,
@@ -391,7 +393,7 @@ def register(app: AsyncApp) -> None:
             return
         except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                channel=channel_id, user=requested_by, text=partial_write_message(exc)
             )
             return
 
@@ -481,7 +483,7 @@ def register(app: AsyncApp) -> None:
             return
         except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                channel=channel_id, user=requested_by, text=partial_write_message(exc)
             )
             return
 
@@ -645,7 +647,7 @@ def register(app: AsyncApp) -> None:
 
         await ack()
         try:
-            await _write_seller_add(
+            await write_seller_add(
                 is_new_org=is_new_org,
                 org_attio_id=org_attio_id,
                 org_name=org_name,
@@ -662,7 +664,7 @@ def register(app: AsyncApp) -> None:
             return
         except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                channel=channel_id, user=requested_by, text=partial_write_message(exc)
             )
             return
 
@@ -745,7 +747,7 @@ def register(app: AsyncApp) -> None:
             return
         except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                channel=channel_id, user=requested_by, text=partial_write_message(exc)
             )
             return
 
@@ -756,29 +758,6 @@ def register(app: AsyncApp) -> None:
 
 class _OrgRemovedError(Exception):
     pass
-
-
-class PartialWriteError(Exception):
-    """Raised when a write fails after one or more earlier steps already
-    landed — an org PATCH that succeeded before a role PATCH then failed, an
-    org create that succeeded before the role-entry create failed, or an
-    Attio write that succeeded before the Postgres write then failed (a
-    plain DB error, not the expected `*AlreadyExistsError`). Carries exactly
-    what already landed so the Slack message can tell the truth instead of
-    assuming nothing was saved.
-    """
-
-    def __init__(self, landed: list[str], cause: Exception) -> None:
-        self.landed = landed
-        self.cause = cause
-        super().__init__(str(cause))
-
-
-def _partial_write_message(exc: PartialWriteError) -> str:
-    if not exc.landed:
-        return f"*Couldn't write to Attio* — nothing was saved. _{exc.cause}_"
-    landed_text = "; ".join(exc.landed)
-    return f"*Write failed partway through.* Already saved: {landed_text}. _{exc.cause}_"
 
 
 async def _write_seller_edit(
@@ -933,98 +912,6 @@ async def _write_buyer_edit(
             org_attio_id=org_attio_id,
             org_fields=org_postgres_fields,
         )
-    except Exception as exc:
-        raise PartialWriteError(landed, exc) from exc
-
-
-async def _write_seller_add(
-    *,
-    is_new_org: bool,
-    org_attio_id: str | None,
-    org_name: str | None,
-    org_extracted: dict[str, Any],
-    role_extracted: dict[str, Any],
-) -> None:
-    """Attio first, then Postgres — same principle as `_write_seller_edit`,
-    extended to creates: when `is_new_org`, the organization itself is
-    created in Attio before anything else, and its server-generated
-    `record_id` becomes `org_attio_id` for the rest of the write (see
-    `ddl-commands/README.md`, "Why Attio-first").
-    """
-    landed: list[str] = []
-    attio_client = get_attio_client()
-    is_test = attio_is_test()
-
-    try:
-        if not is_new_org:
-            assert org_attio_id is not None  # caller supplies it when not creating one
-            await assert_organization_in_scope(attio_client, org_attio_id, is_test=is_test)
-        if is_new_org:
-            org_attio_values = await build_attio_values(
-                attio_client,
-                target_kind="objects",
-                target_slug="organizations",
-                table="organizations",
-                fields=ORGANIZATION_FIELDS_BY_NAME,
-                extracted=org_extracted,
-            )
-            org_attio_values["name"] = org_name
-            org_attio_values["is_active"] = True
-            org_attio_id, _ = await create_organization(
-                attio_client, org_attio_values, is_test=is_test
-            )
-            landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
-        elif org_extracted:
-            org_attio_values = await build_attio_values(
-                attio_client,
-                target_kind="objects",
-                target_slug="organizations",
-                table="organizations",
-                fields=ORGANIZATION_FIELDS_BY_NAME,
-                extracted=org_extracted,
-            )
-            if org_attio_values:
-                assert org_attio_id is not None  # not is_new_org: caller already supplied it
-                await patch_organization(attio_client, org_attio_id, org_attio_values)
-                landed.append("organization fields (Attio)")
-
-        assert org_attio_id is not None
-        role_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="lists",
-            target_slug="seller_role",
-            table="seller_role",
-            fields=SELLER_ROLE_FIELDS_BY_NAME,
-            extracted=role_extracted,
-        )
-        entry_id = await create_role_entry(
-            attio_client, "seller_role", org_attio_id, role_attio_values, is_test=is_test
-        )
-        landed.append("seller role entry (Attio)")
-    except (AttioError, OptionNotFoundError, ScopeMismatchError) as exc:
-        raise PartialWriteError(landed, exc) from exc
-
-    org_postgres_fields = (
-        build_postgres_values(
-            table="organizations", fields=ORGANIZATION_FIELDS_BY_NAME, extracted=org_extracted
-        )
-        if org_extracted
-        else None
-    )
-    role_postgres_fields = build_postgres_values(
-        table="seller_role", fields=SELLER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
-    )
-    try:
-        await ddl_commands_service().create_seller(
-            org_attio_id=org_attio_id,
-            entry_id=entry_id,
-            is_new_org=is_new_org,
-            org_name=org_name if is_new_org else None,
-            org_fields=org_postgres_fields,
-            role_fields=role_postgres_fields,
-        )
-    except SellerAlreadyExistsError:
-        raise
     except Exception as exc:
         raise PartialWriteError(landed, exc) from exc
 

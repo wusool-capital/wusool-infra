@@ -96,6 +96,23 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def find_by_place_id(self, place_id: str) -> Organization | None:
+        """Deliberately includes `removed_at` orgs: the partial unique index on
+        `source_place_id` still covers them, so a removed org must count as a
+        match or the later insert would violate it."""
+        stmt = select(Organization).where(Organization.source_place_id == place_id)
+        return (await self._session.execute(stmt)).scalars().first()
+
+    async def find_by_domains(self, hosts: list[str]) -> Organization | None:
+        """Exact overlap on the GIN-indexed `domains` array; active orgs only,
+        since a company Attio no longer has must not block a fresh lead."""
+        if not hosts:
+            return None
+        stmt = select(Organization).where(
+            Organization.removed_at.is_(None), Organization.domains.overlap(hosts)
+        )
+        return (await self._session.execute(stmt)).scalars().first()
+
     async def create(
         self, attio_id: str, name: str, **fields: Unpack[OrganizationFields]
     ) -> Organization:
