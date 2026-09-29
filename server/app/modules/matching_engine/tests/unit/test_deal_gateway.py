@@ -88,3 +88,28 @@ async def test_attio_errors_become_gateway_errors() -> None:
         await _gateway(client).create_qualified(
             QualifiedDealDraft(name="n", buyer_attio_id="b", seller_attio_id="s")
         )
+
+
+@pytest.mark.asyncio
+async def test_create_payload_uses_only_slugs_and_options_of_the_prod_deal_object() -> None:
+    # Pinned to the prod `deal` object: attributes deal_name/deal_stage/deal_type/
+    # deal_owner/buyer_id/seller_id/is_test, stage option "Qualified", type "Buy-side".
+    client = _Client()
+
+    await _gateway(client).create_qualified(
+        QualifiedDealDraft(name="n", buyer_attio_id="b", seller_attio_id="s")
+    )
+
+    path, body = client.post.await_args.args
+    assert path == "/objects/deal/records"
+    assert set(body["data"]["values"]) == {
+        "deal_name",
+        "deal_stage",
+        "deal_type",
+        "deal_owner",
+        "buyer_id",
+        "seller_id",
+        "is_test",
+    }
+    assert body["data"]["values"]["deal_stage"] == "Qualified"
+    assert body["data"]["values"]["deal_type"] == "Buy-side"

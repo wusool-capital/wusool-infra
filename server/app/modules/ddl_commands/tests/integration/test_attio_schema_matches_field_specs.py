@@ -14,7 +14,9 @@ Read-only — every call here is a GET, nothing is ever written to Attio.
 
 Skips cleanly (like `db_session` does for an unreachable Postgres) unless a
 real `ATTIO_API_KEY` is present in this directory's `.env`, so the default
-suite stays offline. To run it, put the DEV key in `.env` and:
+suite stays offline. Prod is the source of truth for the schema (this only ever
+issues GETs), and DEV lags it — a DEV key reports attributes the code already
+uses as missing. To run it, put the PROD key in `.env` and:
 
     uv run pytest tests/integration/test_attio_schema_matches_field_specs.py -v
 
