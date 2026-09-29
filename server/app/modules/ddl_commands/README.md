@@ -94,6 +94,16 @@ beyond the `AttioClientProtocol` Port.
    write fails after the org-create succeeded, the org is *not* rolled
    back — the next `/add-*` attempt finds it via search.
 
+### Headless seller add (discovery)
+
+`api/seller_write.py::write_seller_add` is the Attio-first seller write the
+`/add-seller` submission calls, kept out of the Slack handler so
+`providers/discovery/seller_writer_adapter.py` can call it too. It returns the
+created `SellerRole` and raises `PartialWriteError` (`api/write_errors.py`) with
+what already landed. The adapter also runs the CRM pre-filter lookup and basic
+enrichment, then writes once. `source_place_id` goes to Postgres only: Attio has
+no such attribute, and the sync's `COALESCE` keeps it.
+
 ## Why Attio-first, not a Postgres-only write
 
 `scripts/postgres-sync/prod/sync-source-to-prod.ps1` runs on its own schedule and

@@ -1,5 +1,5 @@
 """Extracts an (industry, geography, exclude_terms) query from a persisted
-`RequirementProfile`, for handing to `discovery.find_and_post_leads` —
+`RequirementProfile`, for handing to `discovery.discover_and_create_sellers` —
 moved out of the deleted `application/web_search.py`. `discovery` doesn't
 know about `RequirementProfile`/`CRITERION_REGISTRY`, so this stays
 matching_engine's own responsibility; searching is discovery's. `discovery`
