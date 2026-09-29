@@ -63,11 +63,16 @@ def register(app: AsyncApp) -> None:
         if not channel_id:
             return
 
-        selected = view["state"]["values"]["buyer_role_id"]["selected_buyer"]["selected_option"]
+        values = view["state"]["values"]
+        selected = values["buyer_role_id"]["selected_buyer"]["selected_option"]
         buyer_role_id = selected["value"]
+        context_input = values.get("advisor_context", {}).get("context_text")
+        advisor_context = (context_input.get("value") or "").strip() if context_input else ""
 
         _task_runner.run(
-            lambda: run_match_and_post(buyer_role_id, requested_by, channel_id),
+            lambda: run_match_and_post(
+                buyer_role_id, requested_by, channel_id, advisor_context=advisor_context or None
+            ),
             name=f"find-match:{buyer_role_id}",
         )
 
@@ -135,6 +140,52 @@ def register(app: AsyncApp) -> None:
         _task_runner.run(
             lambda: trigger_seller_discovery(run_id, channel_id=channel_id),
             name=f"discover:{run_id}",
+        )
+
+    @app.action("discrepancy_run_match")
+    async def handle_discrepancy_run_match(ack: AsyncAck, body: SlackInteractionBody) -> None:
+        await ack()
+        buyer_role_id = body["actions"][0].get("value")
+        channel_id = body["channel"]["id"]
+        message_ts = body["message"]["ts"]
+        requested_by = body["user"]["id"]
+        if not buyer_role_id:
+            return
+
+        # Deduped on the message, not the buyer — a double click or a
+        # retried Slack delivery of the same click must never run the match
+        # twice against the same discrepancy-report message.
+        idempotency_key = f"discrepancy_run:{channel_id}:{message_ts}"
+        if _submission_idempotency_store.seen(idempotency_key):
+            logger.info(
+                "discrepancy_run_duplicate_delivery_skipped key=%s",
+                idempotency_key,
+                extra={"key": idempotency_key},
+            )
+            return
+        _submission_idempotency_store.mark(idempotency_key)
+
+        _task_runner.run(
+            # The report already ran once for this message — explicitly
+            # opts out rather than relying on a default, so the gate stays
+            # on by default for every other caller.
+            lambda: run_match_and_post(
+                buyer_role_id,
+                requested_by,
+                channel_id,
+                placeholder_ts=message_ts,
+                check_discrepancies=False,
+            ),
+            name=f"find-match:{buyer_role_id}",
+        )
+
+    @app.action("discrepancy_cancel")
+    async def handle_discrepancy_cancel(
+        ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        await client.chat_update(
+            channel=body["channel"]["id"], ts=body["message"]["ts"], text="Match cancelled."
         )
 
 

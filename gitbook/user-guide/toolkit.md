@@ -13,6 +13,7 @@ There is no separate website or login.
 | Command | Result |
 | --- | --- |
 | `/find-match <buyer name>` | Ranked seller shortlist |
+| `/check-buyer <buyer name>` | Checks the buyer's criteria for conflicts or missing data |
 | `/edit-seller <name>` / `/edit-buyer <name>` | Edit an existing profile |
 | `/add-seller <organization>` / `/add-buyer <organization>` | Add a role |
 | `/enrich-seller <name>` / `/enrich-buyer <name>` | Propose missing values |

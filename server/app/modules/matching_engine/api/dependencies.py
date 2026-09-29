@@ -92,10 +92,71 @@ def _build_slack_notifier() -> SlackWebClientNotifier:
     return build_slack_notifier()
 
 
-async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: str) -> None:
+async def _apply_discrepancy_check(
+    buyer: BuyerContext,
+    advisor_context: str | None,
+    *,
+    channel_id: str,
+    placeholder_ts: str,
+    notifier: SlackWebClientNotifier,
+) -> bool:
+    """Returns True if the match must stop here — a conflict was found and
+    the advisor confirms via buttons before it runs. A missing-only result
+    posts a note and lets matching continue: most roles are missing at
+    least one criterion, so pausing on that would block nearly every run.
+    Never raises — a discrepancy-check failure must never block matching.
+    """
+    from app.modules.discrepancies import check_buyer_discrepancies
+    from app.modules.matching_engine.api.slack.views.discrepancy_gate import (
+        build_discrepancy_gate_blocks,
+    )
+    from app.modules.matching_engine.providers.discrepancies.criteria_reader_adapter import (
+        to_buyer_criteria,
+    )
+
+    try:
+        result = await check_buyer_discrepancies(to_buyer_criteria(buyer), advisor_context)
+    except Exception:
+        logger.exception("discrepancy_check_failed", extra={"buyer_role_id": buyer.buyer_role_id})
+        return False
+
+    if result.report.has_conflicts:
+        await notifier.update_message(
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=result.message,
+            blocks=build_discrepancy_gate_blocks(buyer.buyer_role_id, result),
+        )
+        return True
+
+    if result.report.has_missing:
+        await notifier.post_message(channel=channel_id, text=result.message)
+
+    return False
+
+
+async def run_match_and_post(
+    buyer_role_id: str,
+    requested_by: str,
+    channel_id: str,
+    *,
+    advisor_context: str | None = None,
+    check_discrepancies: bool = True,
+    placeholder_ts: str | None = None,
+) -> None:
     """Shared background-task body for running the match pipeline and
-    posting its result to Slack — used by both the `/find-match` command
-    handler and the buyer-selection modal submission handler.
+    posting its result to Slack — used by the `/find-match` command
+    handler, the buyer-selection modal submission handler, and the
+    discrepancy gate's "Run match anyway" button.
+
+    `check_discrepancies` defaults to True so a future caller that forgets
+    to pass it still gets the gate — the one caller that must skip it (the
+    "Run match anyway" button, which already showed the report once) opts
+    out explicitly instead.
+
+    `placeholder_ts` lets the "Run match anyway" button reuse the
+    discrepancy-report message as the placeholder instead of posting a
+    second one.
 
     Uses the shared out-of-band Slack notifier (no live Slack request in
     flight by the time this runs), not `get_bolt_app().client` — that used
@@ -108,12 +169,12 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
     from app.modules.matching_engine.api.slack.views.match_result import build_match_result_blocks
 
     notifier = _build_slack_notifier()
-    placeholder_ts: str | None = None
     discovery_run_id: uuid.UUID | None = None
     try:
-        placeholder_ts = await notifier.post_message(
-            channel=channel_id, text="✨ *_Finding matches, please wait…_*"
-        )
+        if placeholder_ts is None:
+            placeholder_ts = await notifier.post_message(
+                channel=channel_id, text="✨ *_Finding matches, please wait…_*"
+            )
 
         buyer = await resolve_buyer_by_id(buyer_role_id)
         if buyer is None:
@@ -122,6 +183,15 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
                 ts=placeholder_ts,
                 text="Buyer not found.",
             )
+            return
+
+        if check_discrepancies and await _apply_discrepancy_check(
+            buyer,
+            advisor_context,
+            channel_id=channel_id,
+            placeholder_ts=placeholder_ts,
+            notifier=notifier,
+        ):
             return
 
         # The session backs buyer_repository/meeting_repository only —

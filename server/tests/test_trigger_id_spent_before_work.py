@@ -27,6 +27,7 @@ _COMMAND_MODULES = (
     "app/modules/ddl_commands/api/slack/handlers/commands.py",
     "app/modules/matching_engine/api/slack/handlers/commands.py",
     "app/modules/enrichment/api/slack/handlers/commands.py",
+    "app/modules/discrepancies/api/slack/handlers/commands.py",
 )
 # Anything that reaches Postgres before the modal is open is the bug.
 _QUERY_CALLS = {
@@ -34,6 +35,7 @@ _QUERY_CALLS = {
     "resolve_seller",
     "search_organizations",
     "resolve_org_roles",
+    "search_buyers",
 }
 _OPEN_CALL = "open_loading_modal"
 

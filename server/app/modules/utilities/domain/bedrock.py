@@ -7,11 +7,15 @@ you're fixing a bug in `_extract_json`/the retry policy here, check whether
 `matching_engine`'s copy has the same bug" — an instruction that stops being
 followable once a third caller exists.
 
-Only the parts that are genuinely identical live here. What deliberately
-stays per-module: the boto3 client factory (each reads its own `Settings`,
-and `meetings` needs a 300s `read_timeout` where a user-facing caller wants
-far less), the retry loop's shape, and the validation policy
-(single-attempt-raise vs. validate-repair-retry). Those are real
+Only the parts that are genuinely identical live here. The boto3 client
+factory's own mechanical part (the both-or-neither credentials check, the
+`boto3.client("bedrock-runtime", ...)` call) now lives at
+`utilities.providers.bedrock.client_factory.build_bedrock_runtime_client`
+for the same reason — see that module's docstring for what still stays
+per-module (each module's own `Settings`/`@lru_cache`, and a module-specific
+`Config` such as `meetings`' 300s `read_timeout`, which a user-facing caller
+wants far less of). The retry loop's shape and the validation policy
+(single-attempt-raise vs. validate-repair-retry) are the remaining real
 behavioural differences, not duplication.
 
 Framework-free by construction — `response` is typed as a `Mapping` rather
