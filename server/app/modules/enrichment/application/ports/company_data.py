@@ -25,9 +25,12 @@ class CompanyDataField:
 
 class CompanyDataClient(Protocol):
     async def lookup(
-        self, *, org_name: str, fields: tuple[EnrichableField, ...]
+        self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
     ) -> list[CompanyDataField]:
-        """Returns an entry only for a field this provider actually
+        """`domain` (a bare hostname) anchors the match to the right company
+        when a provider would otherwise resolve by name alone.
+
+        Returns an entry only for a field this provider actually
         resolved for `org_name` — never a guess, never an entry for a field
         not in `fields`. Fails soft (returns `[]`) on any provider error;
         `EnrichMixin` treats "no answer" and "provider down" identically.

@@ -101,12 +101,15 @@ class DiffbotCompanyDataClient:
         self._api_key = api_key
 
     async def lookup(
-        self, *, org_name: str, fields: tuple[EnrichableField, ...]
+        self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
     ) -> list[CompanyDataField]:
         requested = {f.name for f in fields}
+        params = {"token": self._api_key, "type": "Organization", "name": org_name}
+        if domain:
+            params["url"] = domain
         body = await fetch_json(
             url=_ENHANCE_URL,
-            params={"token": self._api_key, "type": "Organization", "name": org_name},
+            params=params,
             timeout=_REQUEST_TIMEOUT,
             log_prefix="diffbot_lookup",
             org_name=org_name,

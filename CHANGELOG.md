@@ -12,6 +12,21 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Seller discovery now creates sellers instead of only suggesting them. Each
+  search looks at up to 20 Google Maps results. It skips any already in the
+  CRM by Google place id or website, and adds the first five new ones.
+- Each new seller is filled in with basic company data, then saved to Attio
+  and the database. It is posted under the match results with Approve and
+  Reject buttons. Approving opens a Qualified deal, as for any other match.
+  It also posts the full enrichment proposal, with web research, for review.
+- A result that only has a similar name to a company already in the CRM is not
+  created. It is posted separately with an "Add as seller" button, so a person
+  decides.
+- Discovery is capped at 10 searches per buyer per day, so a loop can't fill
+  the CRM. The count resets when the service restarts.
+- Company lookups now pass the website to Diffbot and People Data Labs, and
+  report a rate-limit response instead of treating it as "no data".
+
 - `/add-buyer` and `/edit-buyer` now ask for the vertical in a step of its
   own, before the field form. Pick a vertical the organization already has a
   role for to edit it, or an unused one to create a new role. An

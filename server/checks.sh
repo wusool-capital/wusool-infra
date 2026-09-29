@@ -5,7 +5,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$SCRIPT_DIR"
 
 usage() {
-  echo "usage: $0 [all|quality|unit|schema|integration|shell]" >&2
+  echo "usage: $0 [all|quality|docs|unit|schema|integration|shell]" >&2
 }
 
 setup() {
@@ -27,6 +27,10 @@ quality() {
   uv run ruff check .
   uv run ruff format --check .
   uv run ty check .
+}
+
+docs() {
+  python3 ../.github/scripts/vale-added-lines.py
 }
 
 unit() {
@@ -71,19 +75,21 @@ shell() {
 main() {
   local mode="${1:-all}"
   case "$mode" in
-    all|quality|unit|schema|integration|shell) ;;
+    all|quality|docs|unit|schema|integration|shell) ;;
     *) usage; exit 64 ;;
   esac
   setup
   case "$mode" in
     all)
       quality
+      docs
       unit
       schema
       integration
       shell
       ;;
     quality) quality ;;
+    docs) docs ;;
     unit) unit ;;
     schema) schema ;;
     integration) integration ;;

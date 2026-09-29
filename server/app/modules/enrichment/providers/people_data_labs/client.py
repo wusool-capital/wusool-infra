@@ -81,12 +81,15 @@ class PeopleDataLabsCompanyDataClient:
         self._api_key = api_key
 
     async def lookup(
-        self, *, org_name: str, fields: tuple[EnrichableField, ...]
+        self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
     ) -> list[CompanyDataField]:
         requested = {f.name for f in fields}
+        params = {"api_key": self._api_key, "name": org_name}
+        if domain:
+            params["website"] = domain
         body = await fetch_json(
             url=_ENRICH_URL,
-            params={"api_key": self._api_key, "name": org_name},
+            params=params,
             timeout=_REQUEST_TIMEOUT,
             log_prefix="people_data_labs_lookup",
             org_name=org_name,

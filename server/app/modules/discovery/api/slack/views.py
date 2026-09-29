@@ -1,45 +1,50 @@
-"""Block Kit builders only, no logic. `build_lead_blocks` renders the
-result of a lead search as a message — each lead gets a "View on Maps" link
-(`lead.source_url`, opened by Slack directly — no handler registered, same
-as any other URL button) and an "Add as seller" button,
-`action_id="discover_add_seller"` (registered in `handlers.py`), carrying an
-opaque token for the lead as the button value — resolved back server-side
-on click (see `api/dependencies.encode_lead`/`decode_lead`). Two buttons per
-lead means `ActionsBlock`, not a `SectionBlock` accessory — Slack allows
-only one accessory per section.
+"""Block Kit builders only, no logic. `build_possible_duplicate_blocks`
+renders leads that fuzzy-matched an existing CRM organization and so were
+*not* auto-created — each gets a "View on Maps" link (`lead.source_url`,
+opened by Slack directly — no handler registered) and an "Add as seller"
+button, `action_id="discover_add_seller"` (registered in `handlers.py`),
+carrying an opaque token for the lead as the button value — resolved back
+server-side on click (see `api/dependencies.encode_lead`/`decode_lead`). Two
+buttons per lead means `ActionsBlock`, not a `SectionBlock` accessory — Slack
+allows only one accessory per section.
 """
+
+from collections.abc import Sequence
 
 from slack_sdk.models.blocks import ActionsBlock, Block, ContextBlock, DividerBlock, SectionBlock
 from slack_sdk.models.blocks.basic_components import MarkdownTextObject
 from slack_sdk.models.blocks.block_elements import ButtonElement
 
 from app.modules.discovery.api.dependencies import encode_lead
-from app.modules.discovery.domain.leads import DiscoveredLead
+from app.modules.discovery.domain.outcome import PossibleDuplicate
 from app.modules.notifications import sanitize_mrkdwn
 
 
-def build_lead_blocks(leads: list[DiscoveredLead]) -> list[Block]:
-    if not leads:
-        return [SectionBlock(text="No potential sellers found from public sources.")]
+def build_possible_duplicate_blocks(duplicates: Sequence[PossibleDuplicate]) -> list[Block]:
+    if not duplicates:
+        return []
 
     blocks: list[Block] = [
         ContextBlock(
             elements=[
                 MarkdownTextObject(
                     text=(
-                        f"Found {len(leads)} potential seller(s) from public sources. "
-                        "*Not yet in CRM, unverified.*"
+                        f":warning: *{len(duplicates)} possible duplicate(s)* — not created. "
+                        "A similarly named organization is already in the CRM; "
+                        "add one only if it is a different company."
                     )
                 )
             ]
         ),
         DividerBlock(),
     ]
-    for rank, lead in enumerate(leads, start=1):
+    for rank, duplicate in enumerate(duplicates, start=1):
+        lead = duplicate.lead
         detail = lead.address or lead.category or "No further details available."
         text = f"*{rank}. {sanitize_mrkdwn(lead.name)}*\n{sanitize_mrkdwn(detail)}"
         if lead.website:
             text += f"\n{sanitize_mrkdwn(lead.website)}"
+        text += f"\n_Possibly the same as *{sanitize_mrkdwn(duplicate.existing_org_name)}*_"
         blocks.append(SectionBlock(text=text))
         blocks.append(
             ActionsBlock(

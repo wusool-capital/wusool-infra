@@ -52,11 +52,11 @@ _SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 _GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 # `websiteUri` alone puts every request on Places' Enterprise SKU tier, so
 # every other field below rides along free — see the plan's billing note.
-# Deliberately not requested: `places.id`/`places.location` (this module has
-# no dedupe by design — see the README's "Why no dedupe here"),
-# `places.rating`/`places.userRatingCount` (no consumer today).
+# `places.id` is the stable key the CRM pre-filter matches on.
+# Deliberately not requested: `places.location`, `places.rating`/
+# `places.userRatingCount` (no consumer today).
 _FIELD_MASK = (
-    "places.displayName,places.formattedAddress,places.googleMapsUri,"
+    "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,"
     "places.primaryTypeDisplayName,places.websiteUri,"
     "places.addressComponents,places.types"
 )

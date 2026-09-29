@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import uuid
+from dataclasses import replace
 
 from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
@@ -16,6 +17,7 @@ from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_bolt.context.respond.async_respond import AsyncRespond
 from slack_sdk.web.async_client import AsyncWebClient
 
+from app.modules.enrichment import enrich_and_post
 from app.modules.matching_engine.api.dependencies import (
     matching_engine_service,
     run_match_and_post,
@@ -23,6 +25,9 @@ from app.modules.matching_engine.api.dependencies import (
     trigger_seller_discovery,
 )
 from app.modules.matching_engine.api.slack.schemas import DealChoiceValue, RunAnywayValue
+from app.modules.matching_engine.api.slack.views.discovered_candidates import (
+    build_discovered_candidates_blocks,
+)
 from app.modules.matching_engine.api.slack.views.existing_deal_prompt import (
     build_existing_deal_prompt_blocks,
 )
@@ -246,6 +251,18 @@ def _partial_write_message(exc: PartialWriteError) -> str:
     )
 
 
+def _enrich_approved_seller(seller_role_id: str | None, channel_id: str) -> None:
+    """A discovered seller only got the basic (structured-provider) tier when it
+    was created; once someone approves it, the full research proposal is worth
+    the Firecrawl/LLM cost. It posts a proposal to review, never writes."""
+    if seller_role_id is None:
+        return
+    _task_runner.run(
+        lambda: enrich_and_post(kind="seller", role_id=seller_role_id, channel_id=channel_id),
+        name=f"enrich-approved:{seller_role_id}",
+    )
+
+
 async def _handle_decision(
     body: SlackInteractionBody,
     client: AsyncWebClient,
@@ -334,8 +351,21 @@ async def _handle_decision(
     view = await service.get_match_run_view(uuid.UUID(result.run_id))
     if view is None:
         return
-    text = f"Match results for {view.buyer_org_name}"
-    blocks = build_match_result_blocks_from_view(view)
+    # The CRM shortlist and discovered sellers are separate messages; refresh
+    # only the one this decision came from.
+    decided = next((r for r in view.results if r.match_result_id == result.match_result_id), None)
+    if decision == "approve" and decided is not None and decided.origin == "discovery":
+        _enrich_approved_seller(decided.seller_role_id, channel_id)
+    if decided is not None and decided.origin == "discovery":
+        text = f"Discovered sellers for {view.buyer_org_name}"
+        blocks = build_discovered_candidates_blocks(
+            [r for r in view.results if r.origin == "discovery"]
+        )
+    else:
+        text = f"Match results for {view.buyer_org_name}"
+        blocks = build_match_result_blocks_from_view(
+            replace(view, results=[r for r in view.results if r.origin == "crm"])
+        )
     if original_ts is None:
         await respond(replace_original=True, text=text, blocks=blocks)
         return

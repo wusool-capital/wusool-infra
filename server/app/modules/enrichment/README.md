@@ -53,11 +53,26 @@ Diffbot's response shape has been verified against a live account (see
 published docs). People Data Labs has not — confirm its `schemas.py`
 against a real `PEOPLE_DATA_LABS_API_KEY` account before relying on it.
 
+### Basic tier
+
+`propose(target, research=False)` skips the Firecrawl + Bedrock tier and asks
+only the structured providers. `propose_basic` (exported as
+`propose_basic_seller_fields`) does the same for a company that has no saved
+role yet, using the caller's draft values as the current ones; `discovery`'s
+seller writer uses it before creating a lead. The full tier then runs when a
+discovered seller is approved: `matching_engine` calls `enrich_and_post`, which
+posts a proposal for review and writes nothing. Providers also receive the
+company's domain when known, so a name shared by several companies still
+resolves to the right one.
+
+`fetch_json` logs a 429 as `*_rate_limited` rather than treating it like "no
+data", and retries once when `Retry-After` is at most 2 seconds.
+
 ## Public contract
 
 `EnrichmentReviewPort`, `RoleReaderPort`, `EnrichmentTarget`,
 `EnrichmentTargetKind`, `ProposedFieldValue`, `EnrichmentProposal`,
-`WriteTarget`, `enrich_and_post` — see `__init__.py`.
+`WriteTarget`, `enrich_and_post`, `propose_basic_seller_fields` — see `__init__.py`.
 
 This module never writes to Attio or Postgres itself, and never renders a
 Slack edit form. `ddl_commands` implements `EnrichmentReviewPort`

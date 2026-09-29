@@ -43,8 +43,14 @@ from app.modules.ddl_commands.persistence.database import (
 from app.modules.ddl_commands.providers.discovery.seller_draft_adapter import (
     DdlCommandsSellerDraftAdapter,
 )
+from app.modules.ddl_commands.providers.discovery.seller_writer_adapter import (
+    DdlCommandsSellerWriterAdapter,
+)
 from app.modules.ddl_commands.providers.enrichment.review_adapter import DdlCommandsReviewAdapter
-from app.modules.discovery.api.dependencies import configure_seller_draft_port
+from app.modules.discovery.api.dependencies import (
+    configure_seller_draft_port,
+    configure_seller_writer_port,
+)
 from app.modules.discovery.api.slack.handlers import (
     register_handlers as register_discovery_handlers,
 )
@@ -84,13 +90,14 @@ import_matching_engine_models()
 import_ddl_commands_models()
 import_meetings_models()
 
-# Cross-module wiring for EnrichmentReviewPort/SellerDraftPort: enrichment
+# Cross-module wiring for EnrichmentReviewPort/SellerDraftPort/SellerWriterPort: enrichment
 # and discovery each declare a Port and never import ddl_commands themselves
 # (the dependency edge points ddl_commands -> {enrichment, discovery}); this
 # is the composition root that already imports both sides, so it is where
 # the two get connected — see enrichment/discovery's own `__init__.py`.
 configure_review_port(DdlCommandsReviewAdapter())
 configure_seller_draft_port(DdlCommandsSellerDraftAdapter())
+configure_seller_writer_port(DdlCommandsSellerWriterAdapter())
 # `discrepancies` never imports `matching_engine` (the dependency edge
 # points the other way) — this is the composition root that already
 # imports both sides, so it wires the Port here.

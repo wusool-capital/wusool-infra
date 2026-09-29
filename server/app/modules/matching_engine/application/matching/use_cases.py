@@ -22,11 +22,14 @@ import logging
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from typing import Literal
 
+from app.modules.matching_engine.application.approvals import MatchNotFoundError
 from app.modules.matching_engine.application.base import ServiceBase
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
+    DiscoveredCandidate,
     MatchAnalysisData,
 )
 from app.modules.matching_engine.domain.matching.overrides import unlabelled_amount_note
@@ -74,6 +77,8 @@ class MatchResultView:
     status: str
     approved_by: str | None
     decision: str | None
+    origin: Literal["crm", "discovery"] = "crm"
+    source_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -338,8 +343,42 @@ class MatchingMixin(ServiceBase):
                     status=c.status,
                     approved_by=c.approved_by,
                     decision=c.decision,
+                    origin=c.origin,
+                    source_url=c.source_url,
                 )
                 for c in candidates
             ]
 
         return MatchRunView(run_id=run.run_id, buyer_org_name=buyer_org_name, results=results)
+
+    async def append_discovered_candidates(
+        self, run_id: uuid.UUID, candidates: list[DiscoveredCandidate]
+    ) -> None:
+        """Adds sellers `discovery` just created as further `PENDING_REVIEW`
+        rows of the run, after the CRM shortlist. Unscored on purpose: they
+        exist so the existing Approve (Qualified deal) / Reject path applies.
+        """
+        if not candidates:
+            return
+        async with self._uow_factory() as uow:
+            run = await uow.match_results.get_run(run_id)
+            if run is None:
+                raise MatchNotFoundError(f"match run {run_id} not found")
+            existing = await uow.match_results.get_candidates(run_id)
+            next_rank = max((c.rank or 0 for c in existing), default=0) + 1
+            await uow.match_results.create_candidates(
+                [
+                    {
+                        "run_id": run_id,
+                        "buyer_attio_id": run.buyer_attio_id,
+                        "buyer_role_id": uuid.UUID(run.buyer_role_id),
+                        "rank": next_rank + offset,
+                        "seller_attio_id": candidate.seller_attio_id,
+                        "seller_role_id": uuid.UUID(candidate.seller_role_id),
+                        "why_chosen_over_alternatives": "Discovered via Google Maps; not scored.",
+                        "status": "PENDING_REVIEW",
+                        "metadata_": {"origin": "discovery", "source_url": candidate.source_url},
+                    }
+                    for offset, candidate in enumerate(candidates)
+                ]
+            )

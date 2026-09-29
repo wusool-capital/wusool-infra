@@ -54,3 +54,44 @@ async def test_fetch_json_returns_none_on_connection_error(monkeypatch) -> None:
     )
 
     assert result is None
+
+
+async def test_fetch_json_retries_once_on_short_retry_after(monkeypatch) -> None:
+    session = FakeAiohttpSession(
+        get=[
+            FakeAiohttpResponse(429, {}, headers={"Retry-After": "0"}),
+            FakeAiohttpResponse(200, {"ok": True}),
+        ]
+    )
+    patch_aiohttp_session(monkeypatch, session)
+
+    result = await fetch_json(
+        url="https://example.com",
+        params={},
+        timeout=aiohttp.ClientTimeout(total=5),
+        log_prefix="test",
+        org_name="Acme",
+    )
+
+    assert result == {"ok": True}
+    assert session.get_calls == 2
+
+
+async def test_fetch_json_gives_up_on_long_retry_after_and_logs_rate_limit(
+    monkeypatch, caplog
+) -> None:
+    session = FakeAiohttpSession(get=FakeAiohttpResponse(429, {}, headers={"Retry-After": "60"}))
+    patch_aiohttp_session(monkeypatch, session)
+
+    with caplog.at_level("WARNING"):
+        result = await fetch_json(
+            url="https://example.com",
+            params={},
+            timeout=aiohttp.ClientTimeout(total=5),
+            log_prefix="test",
+            org_name="Acme",
+        )
+
+    assert result is None
+    assert session.get_calls == 1
+    assert "test_rate_limited" in caplog.text
