@@ -889,8 +889,12 @@ async def _write_buyer_edit(
             if role_attio_values:
                 # An org holds several buyer roles now, so the org alone no
                 # longer identifies the entry to patch.
-                entry_id = role.legacy_entry_id or await resolve_role_entry_id(
-                    attio_client, "buyer_role", org_attio_id, is_test=is_test
+                entry_id = await resolve_role_entry_id(
+                    attio_client,
+                    "buyer_role",
+                    org_attio_id,
+                    is_test=is_test,
+                    only_entry_id=role.legacy_entry_id,
                 )
                 await patch_role_entry(attio_client, "buyer_role", entry_id, role_attio_values)
                 landed.append("buyer profile fields (Attio)")

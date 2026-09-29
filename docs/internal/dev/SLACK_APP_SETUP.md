@@ -75,8 +75,10 @@ among those.
 This is the one URL for the whole app — every modal submission and button
 click from the 7 interactive commands routes through it (`/edit-seller`/
 `/edit-buyer` are a 3-step modal flow: disambiguation → field picker →
-edit form; `/add-seller`/`/add-buyer` are a 2- or 3-step flow:
-organization selection (skipped if the search found nothing) → add form;
+edit form, with `/edit-buyer` gaining a vertical step after disambiguation;
+`/add-seller`/`/add-buyer` are a 2- or 3-step flow: organization selection
+(skipped if the search found nothing) → add form, with `/add-buyer` gaining
+a vertical step before the form;
 `/enrich-seller`/`/enrich-buyer` post a research proposal as a message
 with a single "Review & Save" button, not a modal, since research + LLM
 extraction routinely runs past Slack's 3-second modal-open budget).

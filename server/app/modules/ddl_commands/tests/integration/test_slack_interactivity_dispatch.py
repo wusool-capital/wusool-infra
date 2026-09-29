@@ -728,9 +728,12 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
     async def fake_build_attio_values(*_args, **_kwargs):
         return {"model": "opt-model-1"}
 
-    # An org holds one entry per vertical, so the org-level lookup must not
-    # be what picks the entry to patch.
-    monkeypatch.setattr(actions_module, "resolve_role_entry_id", _raises_if_called)
+    # An org holds one entry per vertical, so the lookup is narrowed to the
+    # role's own entry.
+    async def fake_resolve_role_entry_id(*_args, only_entry_id=None, **_kwargs):
+        return only_entry_id
+
+    monkeypatch.setattr(actions_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
     patched_entries: list[str] = []
 
     async def fake_patch_role_entry(_client, _list_slug, entry_id, _values):

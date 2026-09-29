@@ -81,8 +81,10 @@ flowchart TD
 
 1. Run `/edit-seller <name>` or `/edit-buyer <name>` and select the intended
    record if asked.
-2. Tick only the organization or profile fields you need to change.
-3. Continue to the pre-filled form, update the values, and press **Save**.
+2. For a buyer, choose the vertical: pick one the organization already has a
+   role for to edit it, or an unused one to create a new role.
+3. Tick only the organization or profile fields you need to change.
+4. Continue to the pre-filled form, update the values, and press **Save**.
 
 **Expected result:** the bot confirms the update after writing to Attio and
 then the database. Partial failures identify what saved.
@@ -99,18 +101,22 @@ flowchart TD
   org -- "No" --> create["Create organization"]
   create --> role
   role --> save["Complete form and save"] --> attio["Attio"] --> database["Database"]
-  org -- "Role already exists" --> edit["Use /edit-* instead"]
+  org -- "Role already exists\n(buyer: for that vertical)" --> edit["Use /edit-* instead"]
 ```
 
 1. Run `/add-seller <organization name>` or `/add-buyer <organization name>`.
 2. Select an existing organization if it is the same business. Otherwise
    choose **None of these — create new organization**.
-3. Complete the form. A new organization requires a name; other fields can be
+3. For a buyer, choose the vertical. An organization holds one buyer role per
+   vertical, so an existing vertical opens that role for editing and an unused
+   one creates a new role.
+4. Complete the form. A new organization requires a name; other fields can be
    filled later.
-4. Review duplicate warnings and press **Save**.
+5. Review duplicate warnings and press **Save**.
 
 **Expected result:** the organization and role are created in Attio, then the
-database. If the role exists, edit it instead. Coordinate simultaneous adds.
+database. If the seller role, or the buyer role for that vertical, already
+exists, edit it instead. Coordinate simultaneous adds.
 
 There is no `/remove-seller` or `/remove-buyer`. Ask the CRM owner to handle
 role removal.

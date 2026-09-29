@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from slack_sdk.models.blocks import InputBlock, SectionBlock
 from slack_sdk.models.blocks.basic_components import Option, OptionGroup
 from slack_sdk.models.blocks.block_elements import StaticSelectElement
@@ -25,6 +25,7 @@ from app.modules.utilities import get_shared_ephemeral_store
 _EDIT_PREFIX = "edit:"
 _NEW_PREFIX = "new:"
 _NO_VERTICAL_LABEL = "No vertical set"
+_NAMES = TypeAdapter(list[str])
 
 
 class RoleRef(BaseModel):
@@ -66,7 +67,7 @@ def decode_duplicates(token: str | None) -> list[str]:
     if token is None:
         return []
     payload = get_shared_ephemeral_store().get(token)
-    return [] if payload is None else json.loads(payload)
+    return [] if payload is None else _NAMES.validate_json(payload)
 
 
 def build_buyer_vertical_selection_modal(
