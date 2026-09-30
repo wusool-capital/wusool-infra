@@ -70,7 +70,7 @@ class SubjectRefs:
     buyer_role_entry_id: str | None = None
     # A buyer holds one role per vertical; `buyer_role_entry_id` is the first of these.
     buyer_role_entry_ids: tuple[str, ...] = ()
-    # Not a `tool_runs` column, unlike the four above: this one is only ever
+    # Not a `tool_runs` column, unlike the id fields above: this one is only ever
     # read back out of `payload.attio`, which is what makes a sweeper resume
     # skip the deal write. A row stored before this field existed simply
     # defaults it.

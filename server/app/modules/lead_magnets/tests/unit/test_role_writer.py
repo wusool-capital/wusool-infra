@@ -14,6 +14,8 @@ class _FakeAttioClient:
         self.entries: dict[str, list[dict]] = {"buyer_role": [], "seller_role": []}
         self.org_values: list[dict] = []
         self.patched: list[tuple[str, dict]] = []
+        self.put_paths: list[str] = []
+        self.queries = 0
 
     async def post(self, path: str, json_body: dict) -> dict:
         if path == "/objects/organizations/records":
@@ -21,6 +23,7 @@ class _FakeAttioClient:
             return {"data": {"id": {"record_id": "org-1"}}}
         list_slug = path.split("/")[2]
         if path.endswith("/entries/query"):
+            self.queries += 1
             return {"data": self.entries[list_slug]}
         entry_id = f"{list_slug}-{len(self.entries[list_slug]) + 1}"
         values = json_body["data"]["entry_values"]
@@ -49,6 +52,10 @@ class _FakeAttioClient:
         self.patched.append((path, json_body))
         return {}
 
+    async def put(self, path: str, json_body: dict) -> dict:
+        self.put_paths.append(path)
+        return {}
+
 
 async def _write_buyer(writer: AttioRoleWriter, verticals: list[str], org_id: str | None = None):
     return await writer.write_buyer_role(
@@ -64,7 +71,9 @@ async def _write_buyer(writer: AttioRoleWriter, verticals: list[str], org_id: st
 async def test_one_buyer_role_per_vertical_and_no_org_sector_focus() -> None:
     client = _FakeAttioClient()
 
-    subjects = await _write_buyer(AttioRoleWriter(client, is_test=True), ["Fintech", "Mobility"])
+    subjects = await _write_buyer(
+        AttioRoleWriter(client, is_test=True), ["Fintech", "Mobility", "Fintech"]
+    )
 
     sent = [e["sent"] for e in client.entries["buyer_role"]]
     assert [s["target_vertical"] for s in sent] == ["Fintech", "Mobility"]
@@ -72,6 +81,7 @@ async def test_one_buyer_role_per_vertical_and_no_org_sector_focus() -> None:
     assert "sector_focus" not in client.org_values[0]
     assert subjects.buyer_role_entry_ids == ("buyer_role-1", "buyer_role-2")
     assert subjects.buyer_role_entry_id == "buyer_role-1"
+    assert client.queries == 1, "one list scan for every vertical, not one each"
 
 
 async def test_resubmission_patches_its_vertical_and_adds_the_new_one() -> None:
@@ -81,9 +91,9 @@ async def test_resubmission_patches_its_vertical_and_adds_the_new_one() -> None:
 
     subjects = await _write_buyer(writer, ["Mobility", "Garage"], org_id="org-1")
 
-    assert [p for p, _ in client.patched if "/lists/" in p] == [
-        "/lists/buyer_role/entries/buyer_role-2"
-    ]
+    # PUT, so a resubmission replaces multiselects (geography) rather than appending.
+    assert client.put_paths == ["/lists/buyer_role/entries/buyer_role-2"]
+    assert not [p for p, _ in client.patched if "/lists/" in p]
     assert len(client.entries["buyer_role"]) == 3
     assert subjects.buyer_role_entry_ids == ("buyer_role-2", "buyer_role-3")
 
@@ -112,3 +122,21 @@ async def test_seller_role_carries_the_mapped_sector() -> None:
     assert sent["sector"] == ["Healthcare Services / Clinics"]
     assert sent["readiness_score"] == 70
     assert client.org_values[0]["sector_focus"] == ["Healthcare Services / Clinics"]
+
+
+async def test_seller_resubmission_replaces_the_sector() -> None:
+    client = _FakeAttioClient()
+    writer = AttioRoleWriter(client, is_test=True)
+    await writer.write_seller_role(
+        organization_name="Clinic Co", domain=None, entry_values={}, sector="Fintech"
+    )
+
+    await writer.write_seller_role(
+        organization_name="Clinic Co",
+        domain=None,
+        entry_values={},
+        sector="Healthcare Services / Clinics",
+        organization_attio_id="org-1",
+    )
+
+    assert client.put_paths == ["/lists/seller_role/entries/seller_role-1"]

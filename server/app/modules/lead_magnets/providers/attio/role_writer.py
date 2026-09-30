@@ -62,7 +62,6 @@ class AttioRoleWriter:
         org_id: str,
         entry_values: dict[str, object],
         unset_vertical_only: bool = False,
-        target_vertical: str | None = None,
     ) -> str:
         """Resolving an existing entry is done by
         `entries.resolve_role_entry_id`, which pages the list and respects
@@ -74,9 +73,8 @@ class AttioRoleWriter:
                 org_id,
                 is_test=self._is_test,
                 unset_vertical_only=unset_vertical_only,
-                target_vertical=target_vertical,
             )
-            await entries.patch_role_entry(self._client, list_slug, entry_id, entry_values)
+            await entries.put_role_entry(self._client, list_slug, entry_id, entry_values)
             return entry_id
         except entries.RoleEntryNotFoundError:
             return await entries.create_role_entry(
@@ -156,22 +154,26 @@ class AttioRoleWriter:
             org_values["lead_source_detail"] = lead_source_detail
         if org_type:
             org_values["type"] = validate_org_type(org_type)
-        verticals = validate_sector_focus(target_verticals)
+        verticals = list(dict.fromkeys(validate_sector_focus(target_verticals)))
 
         org_id, org_web_url = await self._upsert_organization(
             org_values=org_values, organization_attio_id=organization_attio_id
         )
         if verticals:
-            # Resolving by vertical keeps a resubmission or sweeper retry a patch, not a duplicate.
-            entry_ids = [
-                await self._upsert_role_entry(
-                    list_slug=_BUYER_ROLE_LIST,
-                    org_id=org_id,
-                    entry_values={**entry_values, "target_vertical": vertical},
-                    target_vertical=vertical,
-                )
-                for vertical in verticals
-            ]
+            # Resolving by vertical makes a resubmission or retry an update, not a duplicate.
+            existing = await entries.resolve_role_entry_ids_by_vertical(
+                self._client, _BUYER_ROLE_LIST, org_id, is_test=self._is_test
+            )
+            entry_ids = []
+            for vertical in verticals:
+                values = {**entry_values, "target_vertical": vertical}
+                if (entry_id := existing.get(vertical)) is not None:
+                    await entries.put_role_entry(self._client, _BUYER_ROLE_LIST, entry_id, values)
+                else:
+                    entry_id = await entries.create_role_entry(
+                        self._client, _BUYER_ROLE_LIST, org_id, values, is_test=self._is_test
+                    )
+                entry_ids.append(entry_id)
         else:
             # Only a payload stored before verticals were required: never overwrite a curated role.
             entry_ids = [

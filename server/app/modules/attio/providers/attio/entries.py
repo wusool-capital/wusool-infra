@@ -210,6 +210,39 @@ async def resolve_role_entry_id(
     return _entry_id(max(matches, key=lambda entry: entry.get("created_at") or ""))
 
 
+async def resolve_role_entry_ids_by_vertical(
+    client: AttioClientProtocol, list_slug: str, org_attio_id: str, *, is_test: bool
+) -> dict[str | None, str]:
+    """One page-through of the list for a caller writing several verticals at
+    once, rather than one `resolve_role_entry_id` scan per vertical. Same
+    scope filter and same pick per vertical: the active entry, else the newest.
+    """
+    offset = 0
+    by_vertical: dict[str | None, list[dict]] = {}
+    while True:
+        response = await client.post(
+            f"/lists/{list_slug}/entries/query",
+            _RecordsQueryBody(limit=_PAGE_SIZE, offset=offset).to_json_body(),
+        )
+        page = response.get("data", [])
+        for entry in page:
+            if _entry_parent_record_id(entry) != org_attio_id:
+                continue
+            if _record_is_test(entry) is not is_test:
+                continue
+            by_vertical.setdefault(_entry_target_vertical(entry), []).append(entry)
+        if len(page) < _PAGE_SIZE:
+            break
+        offset += _PAGE_SIZE
+
+    return {
+        vertical: _entry_id(
+            max(entries, key=lambda e: (_entry_is_active(e) is True, e.get("created_at") or ""))
+        )
+        for vertical, entries in by_vertical.items()
+    }
+
+
 async def assert_organization_in_scope(
     client: AttioClientProtocol, attio_id: str, *, is_test: bool
 ) -> None:
@@ -247,6 +280,16 @@ async def patch_role_entry(
     client: AttioClientProtocol, list_slug: str, entry_id: str, entry_values: dict
 ) -> None:
     await client.patch(
+        f"/lists/{list_slug}/entries/{entry_id}", {"data": {"entry_values": entry_values}}
+    )
+
+
+async def put_role_entry(
+    client: AttioClientProtocol, list_slug: str, entry_id: str, entry_values: dict
+) -> None:
+    """PUT, not PATCH: Attio's PATCH appends to a multiselect, PUT replaces it.
+    For a re-write that restates the whole answer (a form resubmission)."""
+    await client.put(
         f"/lists/{list_slug}/entries/{entry_id}", {"data": {"entry_values": entry_values}}
     )
 
