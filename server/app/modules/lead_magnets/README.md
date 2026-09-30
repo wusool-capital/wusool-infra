@@ -201,7 +201,10 @@ The order is the whole point; it is what makes a lost lead impossible.
    deterministic calculations. Readiness has none by decision, which is
    precisely why step 1 exists.
 4. **Write to Attio**, `is_test` always set. One `organizations` record,
-   one `seller_role`/`buyer_role` entry, one `person`, and one `deal` at
+   one `seller_role` entry (with its `sector`) or one `buyer_role` entry
+   **per ticked sector** (`target_vertical`, found again by vertical on a
+   resubmission; the form's sectors no longer land on the organisation),
+   one `person`, and one `deal` at
    stage **Inbound** so the lead lands in the pipeline rather than waiting
    for someone to key it in by hand.
 5. **Email the visitor** a confirmation, via SES (`domain/<tool>/email.py`
@@ -273,7 +276,9 @@ FK-violates on every genuinely new lead. `finish()` therefore seeds both
 parent rows `ON CONFLICT DO NOTHING` (the mirror's own upsert overwrites the
 stub), and resolves `seller_role_id`/`buyer_role_id` through a
 `legacy_entry_id` subquery that is simply NULL until the mirror has run.
-`promote_role_fks()` fills those in later.
+`promote_role_fks()` fills those in later. `buyer_role_id` is the first
+vertical's role; `buyer_role_entry_ids` lists every role the submission made,
+as Attio entry ids, since no Postgres row exists yet to point at.
 
 ## Three rules that fail silently if broken
 

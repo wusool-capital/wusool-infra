@@ -135,7 +135,7 @@ class _RoleAttioWriter:
                 organization_name=name,
                 domain=buyer.domain,
                 org_type=buyer.org_type,
-                sector_focus=buyer.sector_focus,
+                target_verticals=buyer.sector_focus,
                 entry_values=entry_values,
                 organization_attio_id=await self._find_existing_org(name=name, domain=buyer.domain),
                 lead_source_detail=lead_source_detail,

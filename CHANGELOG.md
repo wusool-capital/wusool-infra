@@ -8,6 +8,18 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-30
+
+### Changed
+
+- A Buyer Network submission now creates one buyer role for each sector the
+  buyer ticks, so matching can narrow on each one. Its sectors are no longer
+  written to the organisation. A repeat submission updates the roles for
+  sectors it already has and adds the new ones.
+- Valuation, benchmark and readiness now record the seller's sector on its
+  seller role, so matching no longer relies only on the organisation's.
+- `tool_runs.buyer_role_entry_ids` lists every buyer role a submission made.
+
 ## 2026-09-29
 
 ### Added
