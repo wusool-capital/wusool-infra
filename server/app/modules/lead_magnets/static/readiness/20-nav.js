@@ -2,7 +2,7 @@ function goTo(n){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('resultsScreen').classList.remove('active');
   currentSection=n;
-  if(n>=1&&n<=6)document.getElementById('sec'+n).classList.add('active');
+  if(n>=0&&n<=6)document.getElementById('sec'+n).classList.add('active');
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
