@@ -8,6 +8,20 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-01
+
+### Changed
+
+- The readiness and valuation tools have a new design: Inter type, a warm
+  off-white page and card-style questions. Readiness scores now use shades
+  of blue rather than green, amber and red.
+- The valuation tool now acts on the analyst's judgement of the business. It
+  uses the analyst's growth assumptions, discounts and deal-matching terms
+  when the auto-assigned sector tag is a poor fit, and flags the
+  reclassification on the page.
+- The valuation recorded in Attio now uses the same refined inputs. The lead
+  is recorded once the analysis finishes, not when the form is submitted.
+
 ## 2026-09-29
 
 ### Added
