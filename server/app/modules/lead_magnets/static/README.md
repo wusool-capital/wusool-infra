@@ -72,10 +72,31 @@ shows an amber "Sector reclassified" note.
 `/submit-lead` fires once `/analyze` and `/compare` have settled (or the 30s
 failsafe has fired), not at gate submit. It carries the comps, discounts, DCF
 assumptions and search terms, so the valuation Attio stores is built from
-the same inputs as the one on screen. A visitor who closes the tab
+the same inputs. A visitor who closes the tab
 during the loader is still recorded, from a `pagehide` handler, using
 whatever inputs have arrived by then. The server caps the analyst's search
 terms (10 terms, 100 characters each) without rejecting the request.
+
+The valuation maths copies the AZM-129 design file, including where it
+differs from the server. So the on-screen figures and the Attio figure are
+not expected to match:
+- The locked summary's DCF is undiscounted.
+- Its trading comps use 50% (65% if EBITDA is negative) on static peers and
+  30% (50%) on `/compare` peers.
+- Its transaction comps use a fixed 40%/20%.
+- After unlock, `DCFModule` applies an editable illiquidity discount
+  (default `DLOM_PCT`), and `TradingComps` defaults to 50% unless the
+  analyst gave a discount.
+- The server applies a fixed 30% DLOM and one analyst discount pair to both
+  comps methods.
+
+Two places deliberately depart from the design:
+- `TransactionComps` and `IndustryResearch` match deals and rounds on the
+  analyst's search terms, as the summary and the server do. The design
+  matches on the tag alone there, which shows 0 deals for a reclassified
+  company.
+- There is no "Preliminary"/"Done" badge, because results only appear once
+  the analysis has settled.
 
 One simplification, noted rather than hidden: `StrategicAnalysis`'s
 "AI-powered" badge and "Based on X's profile" vs. "Sector benchmarks"

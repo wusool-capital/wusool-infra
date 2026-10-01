@@ -21,6 +21,9 @@ for current production evidence and open handover items.
   reclassification on the page.
 - The valuation recorded in Attio now uses the same refined inputs. The lead
   is recorded once the analysis finishes, not when the form is submitted.
+- Valuation adds a Childcare & Early Education sector. DCF margins now
+  mean-revert. The DCF report has an editable illiquidity discount and
+  warnings for a dominant terminal value and an implausibly high margin.
 
 ## 2026-09-30
 

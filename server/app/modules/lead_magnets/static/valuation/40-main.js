@@ -170,7 +170,9 @@ function App(){
 
     // --- DCF pre-calc ---
     const bench=getDamodaranBenchmark(sector);
-    const growth=analystGrowth(sector,analyst);
+    const growth=(analyst&&analyst.dcf&&typeof analyst.dcf.revGrowth==="number")
+      ?{...getIndustryGrowth(sector),...analyst.dcf}
+      :getIndustryGrowth(sector);
     const taxRate=getTaxRate(gate.geo||"");
     const sizePrem=baseRev<5000000?5:baseRev<20000000?4:baseRev<100000000?3:2;
     const ke=bench?parseFloat(bench.ke.toFixed(2)):12;
@@ -192,7 +194,11 @@ function App(){
         const eased=t*t;
         projMargin=baseMargin+(targetMargin-baseMargin)*eased;
       }else{
-        projMargin=baseMargin+(growth.ebitMarginImpr*(i+1));
+        // Margins mean-revert; they do not expand indefinitely. Cap the total
+        // uplift, and on an already-high base assume no expansion at all,
+        // otherwise a 57% margin compounds to an implausible 67% by year 5.
+        const uplift=baseMargin>=30?0:Math.min(growth.ebitMarginImpr*(i+1),5);
+        projMargin=Math.min(baseMargin+uplift,45);
       }
       const projEBITDA=projRev*(projMargin/100);
       const dep=projRev*(growth.daaPct/100);
@@ -217,10 +223,7 @@ function App(){
     const rawTV=(lastFCF*(1+gR))/denom/Math.pow(1+waccVal,rows.length);
     const tv=lastFCF<0?0:rawTV;
     const dcfEV=Math.max(sumDFCF+tv,0);
-    // Matches domain/valuation/valuation_methods.py's `_DEFAULT_DLOM_PCT` —
-    // see the same fix in 30-components.js's `DCFModule`, which overwrites
-    // this pre-calc once it mounts.
-    const dcfEquity=Math.max(dcfEV,0)*(1-DLOM_PCT/100);
+    const dcfEquity=Math.max(dcfEV,0);
 
     // --- Transaction comps pre-calc ---
     const txMatches=matchTransactions(sector,15,analyst&&analyst.transaction_search_terms);
@@ -228,10 +231,8 @@ function App(){
     const txRevM=txList.filter(r=>r.r!=null&&r.r>0).map(r=>r.r);
     const txEbM=txList.filter(r=>r.b!=null&&r.b>0).map(r=>r.b);
     const txRS=getStats(txRevM),txES=getStats(txEbM);
-    const txBaseRev=analystDiscount(analyst,"revenue_discount_pct",40);
-    const txBaseEb=analystDiscount(analyst,"ebitda_discount_pct",20);
-    const txDRev=negEbitda?Math.min(txBaseRev+20,100):txBaseRev;
-    const txDEb=negEbitda?Math.min(txBaseEb+20,100):txBaseEb;
+    const txDRev=negEbitda?Math.min(60,100):40;
+    const txDEb=negEbitda?Math.min(40,100):20;
     const txDiscR=1-txDRev/100,txDiscE=1-txDEb/100;
 
     // --- Industry research pre-calc ---
@@ -277,17 +278,15 @@ function App(){
       const revM=valid.map(c=>c.ev/c.rev);
       const ebM=valid.filter(c=>c.ebitda>0).map(c=>c.ev/c.ebitda);
       const rS=getStats(revM),eS=getStats(ebM);
-      const trRev=analystDiscount(analyst,"revenue_discount_pct",30);
-      const trEb=analystDiscount(analyst,"ebitda_discount_pct",30);
-      const adjDRev=negEbitda?Math.min(trRev+20,100):trRev;
-      const adjDEb=negEbitda?Math.min(trEb+20,100):trEb;
+      const adjDRev=negEbitda?65:50;
+      const adjDEb=negEbitda?65:50;
       const disc=1-adjDRev/100,discEb=1-adjDEb/100;
       setVd(p=>({...p,
         trRevLow:rS.p25*disc,trRevMid:rS.median*disc,trRevHigh:rS.p75*disc,
         trEbLow:eS.p25*discEb,trEbMid:eS.median*discEb,trEbHigh:eS.p75*discEb
       }));
     }
-  },[gate,analyst]);
+  },[gate]);
 
   // When AI comps arrive, update trading comps in vd immediately
   useEffect(()=>{
@@ -298,16 +297,14 @@ function App(){
     const revM=valid.map(c=>c.ev/c.rev);
     const ebM=valid.filter(c=>c.ebitda>0).map(c=>c.ev/c.ebitda);
     const rS=getStats(revM),eS=getStats(ebM);
-    const trRev=analystDiscount(analyst,"revenue_discount_pct",30);
-    const trEb=analystDiscount(analyst,"ebitda_discount_pct",30);
-    const adjDRev=negEbitda?Math.min(trRev+20,100):trRev;
-    const adjDEb=negEbitda?Math.min(trEb+20,100):trEb;
+    const adjDRev=negEbitda?50:30;
+    const adjDEb=negEbitda?50:30;
     const disc=1-adjDRev/100,discEb=1-adjDEb/100;
     setVd(p=>({...p,
       trRevLow:rS.p25*disc,trRevMid:rS.median*disc,trRevHigh:rS.p75*disc,
       trEbLow:eS.p25*discEb,trEbMid:eS.median*discEb,trEbHigh:eS.p75*discEb
     }));
-  },[aiComps,gate,analyst]);
+  },[aiComps,gate]);
 
   if(!gated)return <Gate onSubmit={handleGate}/>;
 
@@ -323,7 +320,7 @@ function App(){
             <h1>Valuation Analysis</h1>
             <p>{gate.companyName} | {(analyst&&analyst.effective_sector)||gate.sector} | {gate.geo}</p>
             {analyst&&analyst.sector_fit==="poor"&&analyst.effective_sector&&<div style={{marginTop:8,fontSize:11.5,color:"#B45309",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",lineHeight:1.5,maxWidth:640}}>
-              <strong>Sector reclassified.</strong> The auto-assigned tag was "{gate.sector}", which does not fit this business. Reclassified as <strong>{analyst.effective_sector}</strong>{analyst.rationale?": "+analyst.rationale:"."} DCF assumptions and deal matching below reflect the corrected classification.
+              <strong>Sector reclassified.</strong> The auto-assigned tag was "{gate.sector}", which does not fit this business. Reclassified as <strong>{analyst.effective_sector}</strong>{analyst.rationale?": "+analyst.rationale:"."} Comparables, DCF assumptions and deal matching below reflect the corrected classification.
             </div>}
           </div>
         </div>
