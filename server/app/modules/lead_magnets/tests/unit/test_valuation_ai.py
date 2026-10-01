@@ -448,9 +448,15 @@ def test_an_explicit_zero_discount_is_not_overridden_to_the_default() -> None:
     it via `is not None`. One AI-judged pair applies to both trading and
     transaction comps alike."""
     from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
 
     inputs = valuation_inputs(
-        {"revenue": 1_000_000, "discounts": {"revenue_discount_pct": 0, "ebitda_discount_pct": 0}}
+        ValuationPayload.model_validate(
+            {
+                "revenue": 1_000_000,
+                "discounts": {"revenue_discount_pct": 0, "ebitda_discount_pct": 0},
+            }
+        )
     )
     assert inputs.trading_haircut_revenue_pct == 0.0
     assert inputs.trading_haircut_ebitda_pct == 0.0
@@ -463,8 +469,9 @@ def test_discounts_absent_still_fall_back_to_the_default() -> None:
     comps have never shared one discount, confirmed against
     `dopamine-valuation.html`."""
     from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
 
-    inputs = valuation_inputs({"revenue": 1_000_000})
+    inputs = valuation_inputs(ValuationPayload.model_validate({"revenue": 1_000_000}))
     assert inputs.trading_haircut_revenue_pct == 30.0
     assert inputs.trading_haircut_ebitda_pct == 30.0
     assert inputs.transaction_haircut_revenue_pct == 40.0
@@ -475,6 +482,7 @@ def test_the_analyst_dcf_and_search_terms_move_the_stored_valuation() -> None:
     """Attio's figure is rebuilt from the stored payload, so the analyst's
     DCF assumptions and dataset terms must reach the blend from there."""
     from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
     from app.modules.lead_magnets.domain.valuation.valuation_methods import value_company
 
     base = {"revenue": 3_000_000, "profit_before_tax": 400_000, "sector": "EdTech"}
@@ -490,20 +498,26 @@ def test_the_analyst_dcf_and_search_terms_move_the_stored_valuation() -> None:
         "transaction_search_terms": ["Childcare", "Education Services"],
         "vc_search_terms": ["Childcare"],
     }
-    inputs = valuation_inputs({**base, **analyst})
+    inputs = valuation_inputs(ValuationPayload.model_validate({**base, **analyst}))
 
     assert inputs.growth_override is not None
     assert inputs.growth_override.capex_pct == 12
     assert inputs.transaction_search_terms == ("Childcare", "Education Services")
-    assert value_company(inputs).mid != value_company(valuation_inputs(base)).mid
+    assert (
+        value_company(inputs).mid
+        != value_company(valuation_inputs(ValuationPayload.model_validate(base))).mid
+    )
 
 
 def test_oversized_analyst_search_terms_are_capped_not_rejected() -> None:
     from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
 
     terms = ["x" * 5_000] * 10_000
     inputs = valuation_inputs(
-        {"revenue": 1_000_000, "transaction_search_terms": terms, "vc_search_terms": terms}
+        ValuationPayload.model_validate(
+            {"revenue": 1_000_000, "transaction_search_terms": terms, "vc_search_terms": terms}
+        )
     )
     assert len(inputs.transaction_search_terms) == 10
     assert len(inputs.vc_search_terms) == 10
@@ -512,8 +526,9 @@ def test_oversized_analyst_search_terms_are_capped_not_rejected() -> None:
 
 def test_no_analyst_output_leaves_the_stored_valuation_unchanged() -> None:
     from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
 
-    inputs = valuation_inputs({"revenue": 1_000_000})
+    inputs = valuation_inputs(ValuationPayload.model_validate({"revenue": 1_000_000}))
     assert inputs.growth_override is None
     assert inputs.transaction_search_terms == ()
     assert inputs.vc_search_terms == ()

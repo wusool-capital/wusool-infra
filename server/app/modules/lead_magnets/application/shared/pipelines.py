@@ -130,9 +130,10 @@ class Pipelines:
         does not. That is what makes a sweeper resume free — no model call,
         and the same figures either way for a given payload.
         """
-        inputs = valuation_inputs(payload)
+        parsed = ValuationPayload.model_validate(payload)
+        inputs = valuation_inputs(parsed)
         result = value_company(inputs)
-        consent = ValuationPayload.model_validate(payload).consent
+        consent = parsed.consent
         return {
             "entry_values": valuation_values(result, inputs, consent=consent),
             "low": result.low,
@@ -252,7 +253,7 @@ def _capped_terms(terms: list[str]) -> tuple[str, ...]:
     return tuple(t[:_MAX_SEARCH_TERM_CHARS] for t in terms[:_MAX_SEARCH_TERMS])
 
 
-def valuation_inputs(payload: JsonObject) -> ValuationInputs:
+def valuation_inputs(parsed: ValuationPayload) -> ValuationInputs:
     """Rebuilds the valuation inputs from a stored payload.
 
     Comparables and overrides are read from whatever `/compare` and
@@ -265,7 +266,6 @@ def valuation_inputs(payload: JsonObject) -> ValuationInputs:
     revenue/EBITDA discount pair applies to both trading and transaction
     comps alike (the model gives one opinion, not four).
     """
-    parsed = ValuationPayload.model_validate(payload)
     comps = [ListedComp(**c.model_dump()) for c in parsed.comps]
     discounts = parsed.discounts
 

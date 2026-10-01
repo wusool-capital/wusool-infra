@@ -32,6 +32,7 @@ from app.modules.lead_magnets.bootstrap import (
     build_valuation_ai,
     run_completion,
 )
+from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
 from app.modules.lead_magnets.domain.valuation.valuation_methods import value_company
 
 router = APIRouter(
@@ -127,7 +128,7 @@ async def submit_lead(
 
     # Same mapper the completion pipeline uses, so this response and the
     # Attio entry can't drift.
-    result = value_company(valuation_inputs(request.model_dump()))
+    result = value_company(valuation_inputs(ValuationPayload.model_validate(request.model_dump())))
     return ValuationResponse(
         run_id=str(run_id),
         low=result.low,
