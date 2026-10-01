@@ -44,7 +44,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     ReadinessValuesInput,
     ValuationPayload,
 )
-from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
+from app.modules.lead_magnets.domain.valuation.valuation_data import GrowthBenchmark, ListedComp
 from app.modules.lead_magnets.domain.valuation.valuation_methods import (
     ValuationInputs,
     value_company,
@@ -130,9 +130,10 @@ class Pipelines:
         does not. That is what makes a sweeper resume free — no model call,
         and the same figures either way for a given payload.
         """
-        inputs = _valuation_inputs(payload)
+        parsed = ValuationPayload.model_validate(payload)
+        inputs = valuation_inputs(parsed)
         result = value_company(inputs)
-        consent = ValuationPayload.model_validate(payload).consent
+        consent = parsed.consent
         return {
             "entry_values": valuation_values(result, inputs, consent=consent),
             "low": result.low,
@@ -242,7 +243,17 @@ class Pipelines:
         }
 
 
-def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
+# Each term is scored against every dataset row on the request path; an
+# analyst returns a handful, so cap rather than reject (a 422 loses the lead).
+_MAX_SEARCH_TERMS = 10
+_MAX_SEARCH_TERM_CHARS = 100
+
+
+def _capped_terms(terms: list[str]) -> tuple[str, ...]:
+    return tuple(t[:_MAX_SEARCH_TERM_CHARS] for t in terms[:_MAX_SEARCH_TERMS])
+
+
+def valuation_inputs(parsed: ValuationPayload) -> ValuationInputs:
     """Rebuilds the valuation inputs from a stored payload.
 
     Comparables and overrides are read from whatever `/compare` and
@@ -255,7 +266,6 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
     revenue/EBITDA discount pair applies to both trading and transaction
     comps alike (the model gives one opinion, not four).
     """
-    parsed = ValuationPayload.model_validate(payload)
     comps = [ListedComp(**c.model_dump()) for c in parsed.comps]
     discounts = parsed.discounts
 
@@ -267,6 +277,20 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
         haircuts["trading_haircut_ebitda_pct"] = discounts.ebitda_discount_pct
         haircuts["transaction_haircut_ebitda_pct"] = discounts.ebitda_discount_pct
 
+    dcf = parsed.dcf
+    growth_override = (
+        GrowthBenchmark(
+            revenue_growth=dcf.revGrowth,
+            ebit_margin_improvement=dcf.ebitMarginImpr,
+            depreciation_pct=dcf.daaPct,
+            capex_pct=dcf.capexPct,
+            working_capital_pct=dcf.nwcPct,
+            terminal_growth=dcf.termGrowth,
+        )
+        if dcf
+        else None
+    )
+
     return ValuationInputs(
         revenue=parsed.revenue,
         profit_before_tax=parsed.profit_before_tax,
@@ -277,5 +301,8 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
         cash=parsed.cash,
         debt=parsed.debt,
         ai_comps=tuple(comps),
+        growth_override=growth_override,
+        transaction_search_terms=_capped_terms(parsed.transaction_search_terms),
+        vc_search_terms=_capped_terms(parsed.vc_search_terms),
         **haircuts,
     )

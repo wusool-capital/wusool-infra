@@ -59,34 +59,62 @@ function getStats(arr){
   return{min:s[0],p25:p(0.25),avg:s.reduce((a,b)=>a+b,0)/n,median:p(0.5),p75:p(0.75),max:s[n-1]};
 }
 
-// Match M&A transactions by sector
-function matchTransactions(sector,limit=15){
-  const resolved=resolveSector(sector);
+// Match M&A transactions by sector. `overrideTerms` (the analyst's dataset
+// terms) replace the tag when it misdescribes the business; mirrors the
+// server's `match_transactions`.
+function matchTransactions(sector,limit=15,overrideTerms){
+  const terms=(overrideTerms&&overrideTerms.length)?overrideTerms:[sector,resolveSector(sector)];
+  const lowered=terms.filter(Boolean).map(t=>String(t).toLowerCase());
   const scored=MA_RAW.map((r,i)=>{
     const verts=(r.v||"").toLowerCase();
     let score=0;
-    if(verts.includes(sector.toLowerCase()))score+=3;
-    if(verts.includes(resolved.toLowerCase()))score+=2;
-    const sectorWords=sector.toLowerCase().split(/[\s&,]+/);
-    sectorWords.forEach(w=>{if(w.length>2&&verts.includes(w))score+=1});
+    lowered.forEach((t,ti)=>{
+      if(verts.includes(t))score+=(ti===0?3:2);
+      t.split(/[\s&,]+/).forEach(w=>{if(w.length>2&&verts.includes(w))score+=1});
+    });
     return{idx:i,score};
   }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,limit);
   return scored.map(x=>x.idx);
 }
 
-// Match VC rounds by sector and stage
-function matchVCRounds(sector,stage){
-  const resolved=resolveSector(sector);
+// Match VC rounds by sector and stage; same override as above.
+function matchVCRounds(sector,stage,overrideTerms){
+  const terms=(overrideTerms&&overrideTerms.length)?overrideTerms:[sector,resolveSector(sector)];
+  const lowered=terms.filter(Boolean).map(t=>String(t).toLowerCase());
   const scored=VC_RAW.map((r,i)=>{
+    const rs=(r.s||"").toLowerCase();
     let score=0;
-    if(r.s&&r.s.toLowerCase()===sector.toLowerCase())score+=3;
-    if(r.s&&r.s.toLowerCase()===resolved.toLowerCase())score+=2;
+    lowered.forEach((t,ti)=>{
+      if(rs===t)score+=(ti===0?3:2);
+      t.split(/[\s&,]+/).forEach(w=>{if(w.length>2&&rs.includes(w))score+=1});
+    });
     if(r.st&&stage&&r.st.toLowerCase()===stage.toLowerCase())score+=2;
-    const sectorWords=sector.toLowerCase().split(/[\s&,]+/);
-    sectorWords.forEach(w=>{if(w.length>2&&(r.s||"").toLowerCase().includes(w))score+=1});
     return{idx:i,score};
   }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
   return scored.map(x=>x.idx);
+}
+
+// Median EBITDA margin of the listed peer set, used to sanity-check the
+// adjusted margin the user entered. An SME running several times peer margin
+// almost always means the owner salary add-back has no replacement-manager
+// cost deducted from it.
+function getPeerMedianMargin(sector,aiComps){
+  let set=(aiComps&&aiComps.length)?aiComps:null;
+  if(!set){
+    const resolved=resolveSector(sector);
+    set=PUBLIC_COMPS[sector]||PUBLIC_COMPS[resolved]||
+        PUBLIC_COMPS[SECTOR_TO_COMPS_KEY[sector]]||PUBLIC_COMPS[SECTOR_TO_COMPS_KEY[resolved]]||[];
+  }
+  const m=set.filter(c=>c&&c.rev>0&&c.ebitda>0).map(c=>c.ebitda/c.rev*100).sort((a,b)=>a-b);
+  if(!m.length)return null;
+  return m[Math.floor(m.length/2)];
+}
+
+// /analyze's discount pair when it gave one, else the default; an explicit
+// 0 is kept.
+function analystDiscount(analyst,key,fallback){
+  const d=analyst&&analyst.discounts;
+  return d&&typeof d[key]==="number"?d[key]:fallback;
 }
 
 
@@ -107,6 +135,7 @@ const INDUSTRY_GROWTH = {
   "Digital Health":         {revGrowth:28,ebitMarginImpr:4,daaPct:5,capexPct:6,nwcPct:3,termGrowth:2.5},
   "Healthtech":             {revGrowth:28,ebitMarginImpr:4,daaPct:5,capexPct:6,nwcPct:3,termGrowth:2.5},
   "EdTech":                 {revGrowth:22,ebitMarginImpr:3,daaPct:4,capexPct:5,nwcPct:3,termGrowth:2.0},
+  "Childcare & Early Education":{revGrowth:14,ebitMarginImpr:2,daaPct:5,capexPct:9,nwcPct:2,termGrowth:2.0},
   "Edtech":                 {revGrowth:22,ebitMarginImpr:3,daaPct:4,capexPct:5,nwcPct:3,termGrowth:2.0},
   "Proptech":               {revGrowth:20,ebitMarginImpr:2,daaPct:5,capexPct:6,nwcPct:4,termGrowth:2.0},
   "Real Estate":            {revGrowth:12,ebitMarginImpr:1,daaPct:4,capexPct:8,nwcPct:4,termGrowth:2.0},
@@ -172,6 +201,7 @@ function detectSectorFromText(text){
   if(/marketplace|platform.connect|two.sided.market/.test(t))return"E-commerce";
   if(/digital.health|healthtech|telehealth|remote.care|remote.patient/.test(t))return"Digital Health";
   if(/health(?!.*edu)|medical|clinic|hospital|pharma|biotech|telemedicine|medtech/.test(t))return"Healthcare";
+  if(/nursery|nurseries|childcare|child.care|daycare|day.care|creche|preschool|pre.school|kindergarten|early.years|early.childhood/.test(t))return"Childcare & Early Education";
   if(/edtech|e-learning|online.learning|online.education|tutoring.platform|learning.management/.test(t))return"EdTech";
   if(/education|school|university|training.platform|course.platform|upskill/.test(t))return"EdTech";
   if(/logistics|shipping|freight|supply.chain|fleet.manag|last.mile|3pl\b/.test(t))return"Logistics";

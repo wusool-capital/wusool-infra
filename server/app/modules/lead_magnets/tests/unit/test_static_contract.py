@@ -136,18 +136,11 @@ def test_valuation_payload_field_names_match_their_request_schemas() -> None:
 
     submit_start = main.index('fetch("/submit-lead"')
     submit_keys = _payload_keys(main[submit_start:], "body:JSON.stringify({")
-    # discounts is the one deliberate omission: TradingComps and
-    # TransactionComps each keep their own independent user-adjustable
-    # discount sliders, so there is no single unambiguous client-side
-    # discount to forward - ValuationInputs already defaults to 50%/50%
-    # when it's absent, the same as a sweeper resume with no model in
-    # reach.
-    required = {
-        name for name, field in ValuationRequest.model_fields.items() if field.is_required()
-    }
-    assert required <= submit_keys
-    assert submit_keys <= set(ValuationRequest.model_fields)
-    assert set(ValuationRequest.model_fields) - submit_keys == {"discounts"}
+    # Sent once /analyze and /compare settle, carrying their comps, discounts,
+    # DCF assumptions and search terms, so Attio values the lead as shown.
+    assert submit_keys == set(ValuationRequest.model_fields)
+    gate_handler = main[main.index("const handleGate") : main.index("const upd=")]
+    assert 'fetch("/submit-lead"' not in gate_handler
 
 
 def test_buyers_payload_field_names_match_the_request_schema() -> None:
@@ -218,21 +211,17 @@ def test_readiness_results_escapes_model_generated_text_before_innerhtml() -> No
         assert f"esc({field})" in js, f"{field} is interpolated into innerHTML unescaped"
 
 
-def test_valuation_client_dcf_applies_the_same_dlom_as_the_server() -> None:
-    """`domain/valuation/valuation_methods.py` always applies a 30% DLOM
-    (`_DEFAULT_DLOM_PCT`) before reporting DCF equity value. Both client-side
-    DCF calculations (`30-components.js`'s `DCFModule`, and `40-main.js`'s
-    pre-calc that seeds it) must apply the same discount, or the interactive
-    report a visitor reads shows a materially higher number than what is
-    actually blended and written to Attio for the same submission."""
+def test_valuation_dcf_module_defaults_to_the_server_dlom() -> None:
+    """`DCFModule`'s editable illiquidity discount starts at the server's 30%
+    (`_DEFAULT_DLOM_PCT`), so the unlocked DCF matches Attio until the visitor
+    edits it. The locked summary's pre-calc is undiscounted on purpose: the
+    AZM-129 design does that."""
     helpers = (static_dir() / "valuation" / "20-helpers.js").read_text()
     assert "const DLOM_PCT=30;" in helpers
 
     components = (static_dir() / "valuation" / "30-components.js").read_text()
-    assert "eqBeforeDlom*(1-DLOM_PCT/100)" in components
-
-    main = (static_dir() / "valuation" / "40-main.js").read_text()
-    assert "Math.max(dcfEV,0)*(1-DLOM_PCT/100)" in main
+    assert "const [dlom,setDlom]=useState(DLOM_PCT);" in components
+    assert "eqPre*(1-(dlom||0)/100)" in components
 
 
 def test_benchmark_percent_validation_rejects_non_numeric_input() -> None:

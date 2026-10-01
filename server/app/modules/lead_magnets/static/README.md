@@ -56,16 +56,47 @@ flight — everywhere else, `/analyze`'s own server-side fallback
 (`domain/valuation/strategic_analysis.py`) already covers the failure case,
 so nothing client-side needs to re-derive it.
 
-Two fields the backend's `/analyze`/`/submit-lead` schemas accept but the
-page deliberately never sends, both because there was never one unambiguous
-client-side value to forward: `AnalyzeRequest.website_text` (the client-side
-scraping that ever populated it was already dead in the live tool before
-this migration) and `ValuationRequest.discounts` (`TradingComps` and
-`TransactionComps` each keep their own independent discount sliders, not a
-single shared one; the server already defaults to 50%/50% when absent, the
-same as a sweeper resume with no model in reach). `test_static_contract.py`
-pins both omissions explicitly, so a *third* field silently missing still
-fails the test.
+One field the backend's `/analyze` schema accepts but the page deliberately
+never sends: `AnalyzeRequest.website_text` (the client-side scraping that
+ever populated it was already dead in the live tool before this migration).
+`test_static_contract.py` pins that omission, so a second missing field
+still fails the test.
+
+The analyst pass (AZM-129) uses the rest of `/analyze`'s response:
+`sector_fit`, `effective_sector`, `rationale`, `discounts`, `dcf` and the two
+search-term lists. They change the numbers only if `/analyze` returns before
+the results are revealed. A late response still updates the strategic read
+text, but never moves the valuation once it's on screen. A poor sector fit
+shows an amber "Sector reclassified" note.
+
+`/submit-lead` fires once `/analyze` and `/compare` have settled (or the 30s
+failsafe has fired), not at gate submit. It carries the comps, discounts, DCF
+assumptions and search terms, so the valuation Attio stores is built from
+the same inputs. A visitor who closes the tab
+during the loader is still recorded, from a `pagehide` handler, using
+whatever inputs have arrived by then. The server caps the analyst's search
+terms (10 terms, 100 characters each) without rejecting the request.
+
+The valuation maths copies the AZM-129 design file, including where it
+differs from the server. So the on-screen figures and the Attio figure are
+not expected to match:
+- The locked summary's DCF is undiscounted.
+- Its trading comps use 50% (65% if EBITDA is negative) on static peers and
+  30% (50%) on `/compare` peers.
+- Its transaction comps use a fixed 40%/20%.
+- After unlock, `DCFModule` applies an editable illiquidity discount
+  (default `DLOM_PCT`), and `TradingComps` defaults to 50% unless the
+  analyst gave a discount.
+- The server applies a fixed 30% DLOM and one analyst discount pair to both
+  comps methods.
+
+Two places deliberately depart from the design:
+- `TransactionComps` and `IndustryResearch` match deals and rounds on the
+  analyst's search terms, as the summary and the server do. The design
+  matches on the tag alone there, which shows 0 deals for a reclassified
+  company.
+- There is no "Preliminary"/"Done" badge, because results only appear once
+  the analysis has settled.
 
 One simplification, noted rather than hidden: `StrategicAnalysis`'s
 "AI-powered" badge and "Based on X's profile" vs. "Sector benchmarks"
