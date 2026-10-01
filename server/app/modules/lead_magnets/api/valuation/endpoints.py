@@ -26,16 +26,13 @@ from app.modules.lead_magnets.api.schemas import (
     ValuationRequest,
     ValuationResponse,
 )
+from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
 from app.modules.lead_magnets.bootstrap import (
     build_submission_service,
     build_valuation_ai,
     run_completion,
 )
-from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
-from app.modules.lead_magnets.domain.valuation.valuation_methods import (
-    ValuationInputs,
-    value_company,
-)
+from app.modules.lead_magnets.domain.valuation.valuation_methods import value_company
 
 router = APIRouter(
     tags=["lead-magnets"],
@@ -128,37 +125,9 @@ async def submit_lead(
 
     background.add_task(run_completion, run_id)
 
-    # Omitted rather than passed as `None` when absent: `ValuationInputs`'
-    # own per-method defaults already apply, and staying in sync with those
-    # defaults is free this way rather than duplicating the numbers here.
-    # One AI-judged discount pair, when present, applies to both trading
-    # and transaction comps alike (the model gives one opinion, not four).
-    haircuts: dict[str, float] = {}
-    if request.discounts:
-        if request.discounts.revenue_discount_pct is not None:
-            haircuts["trading_haircut_revenue_pct"] = request.discounts.revenue_discount_pct
-            haircuts["transaction_haircut_revenue_pct"] = request.discounts.revenue_discount_pct
-        if request.discounts.ebitda_discount_pct is not None:
-            haircuts["trading_haircut_ebitda_pct"] = request.discounts.ebitda_discount_pct
-            haircuts["transaction_haircut_ebitda_pct"] = request.discounts.ebitda_discount_pct
-
-    result = value_company(
-        ValuationInputs(
-            revenue=request.revenue,
-            profit_before_tax=request.profit_before_tax,
-            owner_salary=request.owner_salary,
-            sector=request.sector,
-            geography=request.geography,
-            stage=request.stage,
-            cash=request.cash,
-            debt=request.debt,
-            ai_comps=tuple(
-                ListedComp(co=c.co, tk=c.tk, ev=c.ev, rev=c.rev, ebitda=c.ebitda)
-                for c in request.comps
-            ),
-            **haircuts,
-        )
-    )
+    # Same mapper the completion pipeline uses, so this response and the
+    # Attio entry can't drift.
+    result = value_company(valuation_inputs(request.model_dump()))
     return ValuationResponse(
         run_id=str(run_id),
         low=result.low,

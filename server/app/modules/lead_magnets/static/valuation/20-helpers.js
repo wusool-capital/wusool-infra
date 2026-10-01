@@ -59,34 +59,52 @@ function getStats(arr){
   return{min:s[0],p25:p(0.25),avg:s.reduce((a,b)=>a+b,0)/n,median:p(0.5),p75:p(0.75),max:s[n-1]};
 }
 
-// Match M&A transactions by sector
-function matchTransactions(sector,limit=15){
-  const resolved=resolveSector(sector);
+// Match M&A transactions by sector. `overrideTerms` (the analyst's dataset
+// terms) replace the tag when it misdescribes the business; mirrors the
+// server's `match_transactions`.
+function matchTransactions(sector,limit=15,overrideTerms){
+  const terms=(overrideTerms&&overrideTerms.length)?overrideTerms:[sector,resolveSector(sector)];
+  const lowered=terms.filter(Boolean).map(t=>String(t).toLowerCase());
   const scored=MA_RAW.map((r,i)=>{
     const verts=(r.v||"").toLowerCase();
     let score=0;
-    if(verts.includes(sector.toLowerCase()))score+=3;
-    if(verts.includes(resolved.toLowerCase()))score+=2;
-    const sectorWords=sector.toLowerCase().split(/[\s&,]+/);
-    sectorWords.forEach(w=>{if(w.length>2&&verts.includes(w))score+=1});
+    lowered.forEach((t,ti)=>{
+      if(verts.includes(t))score+=(ti===0?3:2);
+      t.split(/[\s&,]+/).forEach(w=>{if(w.length>2&&verts.includes(w))score+=1});
+    });
     return{idx:i,score};
   }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,limit);
   return scored.map(x=>x.idx);
 }
 
-// Match VC rounds by sector and stage
-function matchVCRounds(sector,stage){
-  const resolved=resolveSector(sector);
+// Match VC rounds by sector and stage; same override as above.
+function matchVCRounds(sector,stage,overrideTerms){
+  const terms=(overrideTerms&&overrideTerms.length)?overrideTerms:[sector,resolveSector(sector)];
+  const lowered=terms.filter(Boolean).map(t=>String(t).toLowerCase());
   const scored=VC_RAW.map((r,i)=>{
+    const rs=(r.s||"").toLowerCase();
     let score=0;
-    if(r.s&&r.s.toLowerCase()===sector.toLowerCase())score+=3;
-    if(r.s&&r.s.toLowerCase()===resolved.toLowerCase())score+=2;
+    lowered.forEach((t,ti)=>{
+      if(rs===t)score+=(ti===0?3:2);
+      t.split(/[\s&,]+/).forEach(w=>{if(w.length>2&&rs.includes(w))score+=1});
+    });
     if(r.st&&stage&&r.st.toLowerCase()===stage.toLowerCase())score+=2;
-    const sectorWords=sector.toLowerCase().split(/[\s&,]+/);
-    sectorWords.forEach(w=>{if(w.length>2&&(r.s||"").toLowerCase().includes(w))score+=1});
     return{idx:i,score};
   }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
   return scored.map(x=>x.idx);
+}
+
+// /analyze's DCF assumptions over the sector benchmark, when it gave any.
+function analystGrowth(sector,analyst){
+  const base=getIndustryGrowth(sector);
+  return analyst&&analyst.dcf?{...base,...analyst.dcf}:base;
+}
+
+// /analyze's discount pair applies to trading and transaction comps alike,
+// as on the server; an explicit 0 is kept.
+function analystDiscount(analyst,key,fallback){
+  const d=analyst&&analyst.discounts;
+  return d&&typeof d[key]==="number"?d[key]:fallback;
 }
 
 
