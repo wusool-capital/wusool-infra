@@ -56,16 +56,25 @@ flight — everywhere else, `/analyze`'s own server-side fallback
 (`domain/valuation/strategic_analysis.py`) already covers the failure case,
 so nothing client-side needs to re-derive it.
 
-Two fields the backend's `/analyze`/`/submit-lead` schemas accept but the
-page deliberately never sends, both because there was never one unambiguous
-client-side value to forward: `AnalyzeRequest.website_text` (the client-side
-scraping that ever populated it was already dead in the live tool before
-this migration) and `ValuationRequest.discounts` (`TradingComps` and
-`TransactionComps` each keep their own independent discount sliders, not a
-single shared one; the server already defaults to 50%/50% when absent, the
-same as a sweeper resume with no model in reach). `test_static_contract.py`
-pins both omissions explicitly, so a *third* field silently missing still
-fails the test.
+One field the backend's `/analyze` schema accepts but the page deliberately
+never sends: `AnalyzeRequest.website_text` (the client-side scraping that
+ever populated it was already dead in the live tool before this migration).
+`test_static_contract.py` pins that omission, so a second missing field
+still fails the test.
+
+The analyst pass (AZM-129) uses the rest of `/analyze`'s response:
+`sector_fit`, `effective_sector`, `rationale`, `discounts`, `dcf` and the two
+search-term lists. They change the numbers only if `/analyze` returns before
+the results are revealed. A late response still updates the strategic read
+text, but never moves the valuation once it's on screen. A poor sector fit
+shows an amber "Sector reclassified" note.
+
+`/submit-lead` fires once `/analyze` and `/compare` have settled (or the 30s
+failsafe has fired), not at gate submit. It carries the comps, discounts, DCF
+assumptions and search terms, so the valuation Attio stores is built from
+the same inputs as the one on screen. Leads are no longer rejected as
+repeats with a 409. The cost: a visitor who closes the tab during the loader
+is never recorded.
 
 One simplification, noted rather than hidden: `StrategicAnalysis`'s
 "AI-powered" badge and "Based on X's profile" vs. "Sector benchmarks"
