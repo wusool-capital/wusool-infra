@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>M&A Readiness Score | Wusool Capital</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="00-styles.css?v=3">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="00-styles.css?v=4">
 </head>
 <body>
 
@@ -15,7 +17,7 @@
 
 <!-- LOADING -->
 <div class="loading-screen" id="loadingScreen">
-  <img src="../img/a0288d00.png" alt="Wusool Capital" style="height:44px;width:auto;display:block;margin:0 auto;filter:brightness(0) invert(1);">
+  <img src="../img/a0288d00.png" alt="Wusool Capital" style="height:26px;width:auto;display:block">
   <div class="loading-ring"></div>
   <div class="loading-text" id="loadingText">Analysing your business...</div>
   <div class="loading-sub">Our AI is reviewing your answers across 5 dimensions of M&amp;A readiness.</div>
@@ -24,6 +26,10 @@
 
 <!-- MAIN CONTAINER -->
 <div class="container">
+
+<header class="tool-header">
+  <img class="logo" src="../img/a0288d00.png" alt="Wusool">
+</header>
 
 <!-- WELCOME -->
 <div class="section active" id="sec0">
@@ -235,7 +241,7 @@
     <h2>✉️ Where should we send your score?</h2>
     <p>Tell us a bit about yourself so we can personalise your results.</p>
   </div>
-  <div style="background:#fff;border:1px solid #E2E4EE;border-radius:4px;padding:24px;">
+  <div style="background:#fff;border:1px solid rgba(0,5,35,.11);border-radius:4px;padding:26px;">
     <div class="contact-grid" style="margin-bottom:14px">
       <div class="form-field"><label>Your Name <span>*</span></label><input type="text" class="form-input" id="cName" placeholder="Ahmed Al Rashidi"></div>
       <div class="form-field"><label>Email Address <span>*</span></label><input type="email" class="form-input" id="cEmail" placeholder="ahmed@company.com"></div>
@@ -270,7 +276,7 @@
   </div>
   <div class="error-msg" id="err6">Please fill in your name, email, business name, sector, and company domain.</div>
   <div class="error-msg" id="errAlready">Sorry, you've already completed this before.</div>
-  <p style="font-size:11px;color:#7F7F7F;margin-top:12px;text-align:center">Your answers are confidential and used only to generate your report. Wusool Capital will never share your data.</p>
+  <p style="font-size:12px;color:rgba(0,5,35,.55);margin-top:14px">Your answers are confidential and used only to generate your report. Wusool Capital will never share your data.</p>
 </div>
 
 <!-- RESULTS -->
@@ -281,7 +287,7 @@
       <div>
         <div class="results-badge">M&amp;A Readiness Report</div>
         <div class="results-name" id="resName"></div>
-        <div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:4px" id="resDate"></div>
+        <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:rgba(255,255,255,.45);margin-top:6px" id="resDate"></div>
       </div>
       <div class="score-circle-wrap">
         <div class="score-circle" id="scoreCircle">
@@ -310,6 +316,7 @@
         <div><h3>Ready to take this further?</h3><p>Talk to a Wusool Capital advisor about your exit strategy.</p></div>
         <div class="cta-actions">
           <button class="btn-cta-white" onclick="window.print()">⬇ Save Report</button>
+          <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" class="btn-cta-outline" style="text-decoration:none">Book a Call →</a>
         </div>
       </div>
     </div>
@@ -346,7 +353,7 @@
 <script src="10-state.js?v=1" onerror="window.__lmFail=1"></script>
 <script src="20-nav.js?v=1" onerror="window.__lmFail=1"></script>
 <script src="30-submit.js?v=3" onerror="window.__lmFail=1"></script>
-<script src="40-results.js?v=2" onerror="window.__lmFail=1"></script>
+<script src="40-results.js?v=3" onerror="window.__lmFail=1"></script>
 <script src="../shared/height.js?v=3"></script>
 <script>
   if(window.__lmFail || typeof renderResults!=="function"){
