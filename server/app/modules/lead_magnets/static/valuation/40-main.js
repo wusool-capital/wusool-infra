@@ -334,7 +334,7 @@ function App(){
               <p style={{fontSize:13,color:"#888",lineHeight:1.5,marginBottom:18}}>Your {gate.sector} business in {gate.geo} has been valued across multiple methods. Get your full report and our team will walk you through the complete analysis.</p>
               {/* Unlocks on click, after a short delay — deliberate choice,
                   not gated on an actual booking confirmation. */}
-              <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" onClick={()=>{if(unlocking)return;setUnlocking(true);setTimeout(()=>setReportUnlocked(true),5000);}} style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box"}}>{unlocking?"Waiting for booking confirmation..":"Get Your Free Valuation Report Now →"}</a>
+              <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" onClick={()=>{if(unlocking)return;setUnlocking(true);setTimeout(()=>setReportUnlocked(true),5000);}} style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"'Inter',sans-serif",boxSizing:"border-box"}}>{unlocking?"Waiting for booking confirmation..":"Get Your Free Valuation Report Now →"}</a>
               <div style={{fontSize:11,color:"#aaa",marginTop:9}}>Free · No commitment · Response within 24 hours</div>
             </div>
           </div>
