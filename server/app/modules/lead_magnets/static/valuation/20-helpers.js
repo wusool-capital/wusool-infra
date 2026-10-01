@@ -94,14 +94,24 @@ function matchVCRounds(sector,stage,overrideTerms){
   return scored.map(x=>x.idx);
 }
 
-// /analyze's DCF assumptions over the sector benchmark, when it gave any.
-function analystGrowth(sector,analyst){
-  const base=getIndustryGrowth(sector);
-  return analyst&&analyst.dcf?{...base,...analyst.dcf}:base;
+// Median EBITDA margin of the listed peer set, used to sanity-check the
+// adjusted margin the user entered. An SME running several times peer margin
+// almost always means the owner salary add-back has no replacement-manager
+// cost deducted from it.
+function getPeerMedianMargin(sector,aiComps){
+  let set=(aiComps&&aiComps.length)?aiComps:null;
+  if(!set){
+    const resolved=resolveSector(sector);
+    set=PUBLIC_COMPS[sector]||PUBLIC_COMPS[resolved]||
+        PUBLIC_COMPS[SECTOR_TO_COMPS_KEY[sector]]||PUBLIC_COMPS[SECTOR_TO_COMPS_KEY[resolved]]||[];
+  }
+  const m=set.filter(c=>c&&c.rev>0&&c.ebitda>0).map(c=>c.ebitda/c.rev*100).sort((a,b)=>a-b);
+  if(!m.length)return null;
+  return m[Math.floor(m.length/2)];
 }
 
-// /analyze's discount pair applies to trading and transaction comps alike,
-// as on the server; an explicit 0 is kept.
+// /analyze's discount pair when it gave one, else the default; an explicit
+// 0 is kept.
 function analystDiscount(analyst,key,fallback){
   const d=analyst&&analyst.discounts;
   return d&&typeof d[key]==="number"?d[key]:fallback;
@@ -125,6 +135,7 @@ const INDUSTRY_GROWTH = {
   "Digital Health":         {revGrowth:28,ebitMarginImpr:4,daaPct:5,capexPct:6,nwcPct:3,termGrowth:2.5},
   "Healthtech":             {revGrowth:28,ebitMarginImpr:4,daaPct:5,capexPct:6,nwcPct:3,termGrowth:2.5},
   "EdTech":                 {revGrowth:22,ebitMarginImpr:3,daaPct:4,capexPct:5,nwcPct:3,termGrowth:2.0},
+  "Childcare & Early Education":{revGrowth:14,ebitMarginImpr:2,daaPct:5,capexPct:9,nwcPct:2,termGrowth:2.0},
   "Edtech":                 {revGrowth:22,ebitMarginImpr:3,daaPct:4,capexPct:5,nwcPct:3,termGrowth:2.0},
   "Proptech":               {revGrowth:20,ebitMarginImpr:2,daaPct:5,capexPct:6,nwcPct:4,termGrowth:2.0},
   "Real Estate":            {revGrowth:12,ebitMarginImpr:1,daaPct:4,capexPct:8,nwcPct:4,termGrowth:2.0},
@@ -190,6 +201,7 @@ function detectSectorFromText(text){
   if(/marketplace|platform.connect|two.sided.market/.test(t))return"E-commerce";
   if(/digital.health|healthtech|telehealth|remote.care|remote.patient/.test(t))return"Digital Health";
   if(/health(?!.*edu)|medical|clinic|hospital|pharma|biotech|telemedicine|medtech/.test(t))return"Healthcare";
+  if(/nursery|nurseries|childcare|child.care|daycare|day.care|creche|preschool|pre.school|kindergarten|early.years|early.childhood/.test(t))return"Childcare & Early Education";
   if(/edtech|e-learning|online.learning|online.education|tutoring.platform|learning.management/.test(t))return"EdTech";
   if(/education|school|university|training.platform|course.platform|upskill/.test(t))return"EdTech";
   if(/logistics|shipping|freight|supply.chain|fleet.manag|last.mile|3pl\b/.test(t))return"Logistics";
