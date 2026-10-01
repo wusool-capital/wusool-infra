@@ -269,6 +269,16 @@ async def test_resume_after_a_landed_attio_write_does_not_write_twice() -> None:
     ]
 
 
+async def test_resume_of_a_run_stored_before_the_id_list_keeps_its_one_buyer_role() -> None:
+    tool_runs, attio = _FakeToolRuns(), _FakeAttio()
+    service, _ = _service(tool_runs, attio)
+    stored = {"org_attio_id": "org-1", "buyer_role_entry_id": "entry-1"}
+
+    await service.complete(_run(payload={"stage": "attio", "ai": {}, "attio": stored}))
+
+    assert tool_runs.finished_subjects[-1].buyer_role_entry_ids == ("entry-1",)
+
+
 async def test_attio_failure_marks_the_run_failed_without_raising() -> None:
     """`complete` never raises: the lead is already recorded, so a failure is
     the sweeper's problem, not the caller's."""

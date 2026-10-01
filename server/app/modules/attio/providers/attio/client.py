@@ -78,6 +78,14 @@ class AttioClient:
                 raise AttioError(resp.status, body)
             return await resp.json()
 
+    async def put(self, path: str, json_body: dict) -> dict:
+        session = await self._get_session()
+        async with session.put(f"{_BASE_URL}{path}", json=json_body) as resp:
+            body = await resp.text()
+            if resp.status >= 400:
+                raise AttioError(resp.status, body)
+            return await resp.json()
+
 
 @lru_cache
 def get_attio_client() -> AttioClient:

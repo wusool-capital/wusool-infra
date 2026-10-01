@@ -12,6 +12,7 @@ from app.modules.attio.providers.attio.entries import (
     patch_person,
     patch_role_entry,
     resolve_role_entry_id,
+    resolve_role_entry_ids_by_vertical,
 )
 
 
@@ -575,3 +576,34 @@ async def test_resolve_role_entry_id_only_entry_id_raises_when_the_entry_is_gone
         await resolve_role_entry_id(
             client, "buyer_role", "org-a", is_test=False, only_entry_id="entry-missing"
         )
+
+
+async def test_by_vertical_scans_once_and_picks_each_verticals_active_entry() -> None:
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("fin-old", "org-a", is_test=False, created_at="2026-01-01"),
+                _entry(
+                    "fin-live", "org-a", is_active=True, is_test=False, target_vertical="Fintech"
+                ),
+                _entry(
+                    "fin-stale",
+                    "org-a",
+                    is_test=False,
+                    created_at="2026-09-01",
+                    target_vertical="Fintech",
+                ),
+                _entry(
+                    "other-org", "org-b", is_active=True, is_test=False, target_vertical="Mobility"
+                ),
+                _entry(
+                    "test-half", "org-a", is_active=True, is_test=True, target_vertical="Mobility"
+                ),
+            ]
+        ]
+    )
+
+    ids = await resolve_role_entry_ids_by_vertical(client, "buyer_role", "org-a", is_test=False)
+
+    assert ids == {None: "fin-old", "Fintech": "fin-live"}
+    assert len(client.post_calls) == 1

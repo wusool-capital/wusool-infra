@@ -595,3 +595,40 @@ async def test_get_started_runs_its_real_pipeline_end_to_end(db_session) -> None
     assert entry_values["est_revenue"] == {"currency_value": 3_268_209.0}
     assert entry_values["est_ebitda"] == {"currency_value": 653_641.0}
     assert entry_values["data_consent"] is True
+
+
+async def test_every_buyer_role_entry_lands_on_the_run_and_survives_a_resume(db_session) -> None:
+    """A buyer submission makes one role per vertical: all their ids reach
+    `tool_runs.buyer_role_entry_ids`, and a resume rebuilds them from
+    `payload.attio` rather than writing Attio again."""
+
+    class _BuyerAttio:
+        calls = 0
+
+        async def write(self, *, tool, payload, ai) -> SubjectRefs:
+            self.calls += 1
+            return SubjectRefs(
+                org_attio_id=f"org-{uuid.uuid4()}",
+                org_name="Gulf Capital",
+                buyer_role_entry_id="entry-fintech",
+                buyer_role_entry_ids=("entry-fintech", "entry-mobility"),
+            )
+
+    repo = ToolRunsRepository(db_session)
+    attio = _BuyerAttio()
+    service = _service(db_session, attio, _Spy(output={"entry_values": {}}))
+
+    run_id = await service.record(
+        tool="buyer_network",
+        payload={"company_name": "Gulf Capital"},
+        email="a@gulfcap.ae",
+        domain="gulfcap.ae",
+    )
+    await service.complete(await repo.get(run_id))
+
+    row = await _row(db_session, run_id)
+    assert row.status == "succeeded"
+    assert row.buyer_role_entry_ids == ["entry-fintech", "entry-mobility"]
+
+    await service.complete(await repo.get(run_id))
+    assert attio.calls == 1

@@ -183,6 +183,7 @@ class ToolRunsRepository:
             "person_attio_id": subjects.person_attio_id,
             "seller_role_id": self._role_id(SellerRole, subjects.seller_role_entry_id),
             "buyer_role_id": self._role_id(BuyerRole, subjects.buyer_role_entry_id),
+            "buyer_role_entry_ids": list(subjects.buyer_role_entry_ids),
         }
         result = await self._session.execute(
             update(ToolRun).where(ToolRun.id == run_id).values(**values).returning(ToolRun.payload)
