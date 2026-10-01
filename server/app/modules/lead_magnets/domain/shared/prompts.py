@@ -203,6 +203,8 @@ Description: {description}
 Revenue: ${revenue:,.0f}
 EBITDA: ${ebitda:,.0f}
 
+STEP 0 - Check the input. If the description and website text do not say what the business actually does (empty, placeholder text such as "test", or one vague phrase), set enough_information to false, set sector_fit to "good" and keep the auto-assigned tag. Do not reclassify a business you cannot identify.
+
 STEP 1 - Judge the tag. The tool's fixed sector list is:
 {sectors}
 
@@ -221,7 +223,7 @@ STEP 6 - Readiness scorecard. Score revenue_scale, profitability and market_cont
 Never use em dashes. Never wrap text in ** markdown.
 
 Respond with ONLY valid JSON, no markdown, no backticks:
-{{"sector_fit":"good|poor","closest_existing_sector":"...","effective_sector":"...","rationale":"one or two sentences on what the business really is and why the tag does or does not fit","discounts":{{"revenue_discount_pct":50,"ebitda_discount_pct":50}},"dcf":{{"revGrowth":0,"ebitMarginImpr":0,"daaPct":0,"capexPct":0,"nwcPct":0,"termGrowth":0}},"transaction_search_terms":["..."],"vc_search_terms":["..."],"pros":[{{"title":"...","body":"..."}}],"cons":[{{"title":"...","body":"..."}}],"insights":[{{"title":"...","body":"..."}}],"fundraise":{{"revenue_scale":{{"score":0,"note":"..."}},"profitability":{{"score":0,"note":"..."}},"market_context":{{"score":0,"note":"..."}},"overall_grade":"...","overall_label":"...","summary":"..."}}}}"""  # noqa: E501
+{{"enough_information":true,"sector_fit":"good|poor","closest_existing_sector":"...","effective_sector":"...","rationale":"one or two sentences on what the business really is and why the tag does or does not fit","discounts":{{"revenue_discount_pct":50,"ebitda_discount_pct":50}},"dcf":{{"revGrowth":0,"ebitMarginImpr":0,"daaPct":0,"capexPct":0,"nwcPct":0,"termGrowth":0}},"transaction_search_terms":["..."],"vc_search_terms":["..."],"pros":[{{"title":"...","body":"..."}}],"cons":[{{"title":"...","body":"..."}}],"insights":[{{"title":"...","body":"..."}}],"fundraise":{{"revenue_scale":{{"score":0,"note":"..."}},"profitability":{{"score":0,"note":"..."}},"market_context":{{"score":0,"note":"..."}},"overall_grade":"...","overall_label":"...","summary":"..."}}}}"""  # noqa: E501
 
 
 def compare_query_prompt(

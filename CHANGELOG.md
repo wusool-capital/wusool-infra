@@ -10,6 +10,14 @@ for current production evidence and open handover items.
 
 ## 2026-10-01
 
+### Fixed
+
+- Back on the first readiness question returns to the welcome screen. It
+  previously left a blank page with only the logo.
+- A valuation with too little description to identify the business keeps
+  the visitor's sector. It no longer shows a confusing "Sector
+  reclassified" note or applies the analyst's guessed assumptions.
+
 ### Changed
 
 - The readiness and valuation tools have a new design: Inter type, a warm

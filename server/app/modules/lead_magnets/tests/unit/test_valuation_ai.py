@@ -24,6 +24,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     SearchQueries,
 )
 from app.modules.lead_magnets.domain.shared.search import SearchResult
+from app.modules.utilities.domain.json_types import JsonObject
 
 # One real model per operation — matches `LeadBedrockClient`'s own dispatch,
 # so a fake's response is validated exactly like a real one would be
@@ -566,7 +567,7 @@ async def test_analyze_success_never_touches_the_fallback() -> None:
         company="Acme",
         domain="acme.com",
         sector="",
-        description="",
+        description="Operator of three physical nurseries in Dubai.",
         geography="",
         revenue=0,
         ebitda=0,
@@ -576,6 +577,71 @@ async def test_analyze_success_never_touches_the_fallback() -> None:
     # exist on the real success path.
     assert result["sector_fit"] == "good"
     assert "discounts" in result and "dcf" in result and "fundraise" in result
+
+
+_POOR_FIT = {
+    "sector_fit": "poor",
+    "effective_sector": "Childcare & Early Education",
+    "rationale": "A physical nursery operator, not software.",
+    "transaction_search_terms": ["Childcare & Early Education"],
+    "vc_search_terms": ["Childcare & Early Education"],
+}
+
+
+async def _analyze(llm: _FakeLlm, *, description: str) -> JsonObject:
+    return await ValuationAi(llm, _FakeSearch()).analyze(
+        company="Acme",
+        domain="acme.com",
+        sector="EdTech",
+        description=description,
+        geography="UAE",
+        revenue=3_000_000,
+        ebitda=550_000,
+    )
+
+
+def test_analyze_prompt_keeps_the_tag_when_the_input_is_too_thin() -> None:
+    prompt = analyze_prompt(
+        company="Acme",
+        domain="acme.com",
+        sector="Biomass",
+        description="This is a test",
+        geography="UAE",
+        revenue=1,
+        ebitda=1,
+        sector_list=["Biomass"],
+    )
+    assert "STEP 0 - Check the input." in prompt
+    assert '"enough_information":true' in prompt
+
+
+async def test_a_real_description_keeps_the_reclassification() -> None:
+    result = await _analyze(
+        _FakeLlm(analyze=_POOR_FIT), description="Operator of three nurseries in Dubai."
+    )
+    assert result["sector_fit"] == "poor"
+    assert result["effective_sector"] == "Childcare & Early Education"
+    assert result["dcf"] is not None and result["discounts"] is not None
+    assert "enough_information" not in result
+
+
+async def test_too_little_information_drops_every_override_but_keeps_the_read() -> None:
+    result = await _analyze(
+        _FakeLlm(analyze={**_POOR_FIT, "enough_information": False}),
+        description="This is a test",
+    )
+    assert result["sector_fit"] is None and result["effective_sector"] is None
+    assert result["rationale"] is None
+    assert result["dcf"] is None and result["discounts"] is None
+    assert result["transaction_search_terms"] == [] and result["vc_search_terms"] == []
+    assert len(result["pros"]) == 3 and result["fundraise"] is not None
+    AnalyzeResponse(**result)
+
+
+async def test_a_blank_description_drops_overrides_even_if_the_model_reclassifies() -> None:
+    result = await _analyze(_FakeLlm(analyze=_POOR_FIT), description="   ")
+    assert result["sector_fit"] is None
+    assert result["dcf"] is None
 
 
 async def test_analyze_response_model_accepts_both_the_full_and_fallback_shape() -> None:
@@ -604,7 +670,7 @@ async def test_analyze_response_model_accepts_both_the_full_and_fallback_shape()
         company="Acme",
         domain="acme.com",
         sector="",
-        description="",
+        description="Operator of three physical nurseries in Dubai.",
         geography="",
         revenue=0,
         ebitda=0,
