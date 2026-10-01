@@ -265,6 +265,9 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
   .gate-card{padding:32px 24px}
 }
 
+@keyframes indetSlide{0%{left:-38%}100%{left:100%}}
+.indet-track{position:relative;height:3px;background:rgba(198,225,238,0.18);border-radius:3px;overflow:hidden;margin:8px 0 2px}
+.indet-fill{position:absolute;top:0;height:100%;width:38%;background:linear-gradient(90deg,rgba(198,225,238,0),#C6E1EE,rgba(198,225,238,0));border-radius:3px;animation:indetSlide 1.5s ease-in-out infinite}
 /* ── EMBEDDED-MODE HEIGHT FIX ──
    `100vh` inside an iframe is the iframe's own current height, not the
    visitor's browser window — the three rules below stretch this page to
