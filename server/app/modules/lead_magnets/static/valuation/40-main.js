@@ -12,10 +12,10 @@ function App(){
   const [unlocking,setUnlocking]=useState(false);
   const [analyzeData,setAnalyzeData]=useState(null);
   const [analyzeStatus,setAnalyzeStatus]=useState("idle");
-  // /analyze's analyst fields, captured only before reveal so the
-  // valuation never moves once shown.
+  // Stage 2. "running" while /analyze and /compare work after reveal,
+  // "refined" once the analyst's inputs are applied, "base" if they never landed.
+  const [analystStatus,setAnalystStatus]=useState("running");
   const [analyst,setAnalyst]=useState(null);
-  const revealedRef=useRef(false);
   const [vd,setVd]=useState({
     dcfEV:0,dcfEquity:0,
     trRevLow:0,trRevMid:0,trRevHigh:0,
@@ -37,13 +37,18 @@ function App(){
 
   // /analyze: sector judgement, discounts, DCF overrides, the strategic
   // read (pros/cons/insights) and the fundraise scorecard, merged into one
-  // call. Runs in parallel with /compare below, during the loading screen,
-  // so the report is fully ready the moment loading ends (no second wait).
+  // call. Runs in parallel with /compare below, in the background after the
+  // 10s reveal; its figures refine the preliminary valuation when they land.
   useEffect(()=>{
     if(!gated||!gate)return;
     let cancelled=false;
     setAnalyzeStatus("loading");
     (async()=>{
+      // Local strategic read first so the preview is never empty.
+      try{
+        const lp=generateStrategicAnalysis(gate,cfg);
+        if(!cancelled)setAnalyzeData({pros:lp.pros,cons:lp.cons,insights:lp.insights});
+      }catch(e){}
       const adjEBITDA=(gate.profitBeforeTax||0)+(gate.ownerSalary||0);
       try{
         const resp=await fetch("/analyze",{
@@ -56,9 +61,11 @@ function App(){
           })
         });
         const data=await resp.json();
-        if(!cancelled){
+        if(!cancelled&&resp.ok){
           setAnalyzeData(data);
-          if(resp.ok&&!revealedRef.current)setAnalyst(data);
+          setAnalyst(data);
+        }
+        if(!cancelled){
           setAnalyzeStatus("done");
         }
       }catch(e){
@@ -96,32 +103,34 @@ function App(){
     return()=>{cancelled=true;};
   },[gated,gate]);
 
-  // Failsafe: never let a hung /analyze call block the results reveal.
+  // Stage 2 settles once both calls have; the watchdog guarantees a terminal
+  // state even if a request never resolves.
   useEffect(()=>{
     if(!gated)return;
-    const failsafe=setTimeout(()=>{
-      setAnalyzeStatus(s=>s==="done"?s:"done");
-    },30000);
-    return()=>clearTimeout(failsafe);
+    const compsFinished=aiCompsStatus==="done"||aiCompsStatus==="fallback";
+    if(!compsFinished||analyzeStatus!=="done")return;
+    setAnalystStatus(analyst&&analyst.dcf?"refined":"base");
+  },[gated,aiCompsStatus,analyzeStatus,analyst]);
+  useEffect(()=>{
+    if(!gated)return;
+    const watchdog=setTimeout(()=>setAnalystStatus(st=>st==="running"?"base":st),ANALYST_TIMEOUT_MS);
+    return()=>clearTimeout(watchdog);
   },[gated]);
-
 
   const gateTimeRef=useRef(null);
   useEffect(()=>{
     if(gated&&!gateTimeRef.current)gateTimeRef.current=Date.now();
   },[gated]);
 
+  // Stage 1 is computed synchronously from the static tables, so the reveal
+  // waits only on the 10s loading screen, never on the network.
   useEffect(()=>{
     if(!gated)return;
-    const compsFinished=aiCompsStatus==="done"||aiCompsStatus==="fallback";
-    const analyzeFinished=analyzeStatus==="done";
-    if(!compsFinished||!analyzeFinished)return;
-    // Ensure minimum 10s loading display so all animation steps tick to done before reveal
     const elapsed=Date.now()-(gateTimeRef.current||Date.now());
     const minDelay=Math.max(10000-elapsed,1000);
-    const timer=setTimeout(()=>{revealedRef.current=true;setResultsReady(true);},minDelay);
+    const timer=setTimeout(()=>setResultsReady(true),minDelay);
     return()=>clearTimeout(timer);
-  },[gated,aiCompsStatus,analyzeStatus]);
+  },[gated]);
 
   // Records the lead once the analysis has settled, so Attio values it with
   // the same comps, discounts and DCF assumptions the visitor sees.
@@ -150,14 +159,14 @@ function App(){
     }).then(r=>{if(!r.ok)console.warn("Lead submission failed:",r.status);})
       .catch(e=>console.warn("Lead submission failed:",e));
   };
-  useEffect(()=>{if(resultsReady)sendLead();},[resultsReady]);
-  // A visitor leaving mid-loader is still recorded, on whatever inputs have
-  // landed so far.
+  useEffect(()=>{if(analystStatus!=="running")sendLead();},[analystStatus]);
+  // A visitor leaving before stage 2 settles is still recorded, on whatever
+  // inputs have landed so far.
   useEffect(()=>{
-    if(!gated||resultsReady)return;
+    if(!gated||analystStatus!=="running")return;
     window.addEventListener("pagehide",sendLead);
     return()=>window.removeEventListener("pagehide",sendLead);
-  },[gated,resultsReady,gate,aiComps,analyst]);
+  },[gated,analystStatus,gate,aiComps,analyst]);
 
   // Pre-compute initial valuation estimates so summary is stable before LinkedIn unlock
   useEffect(()=>{
@@ -309,7 +318,7 @@ function App(){
   if(!gated)return <Gate onSubmit={handleGate}/>;
 
   if(!resultsReady){
-    return <ResultsLoadingScreen gate={gate} compsStatus={aiCompsStatus}/>;
+    return <ResultsLoadingScreen gate={gate}/>;
   }
 
   return(
@@ -326,16 +335,16 @@ function App(){
         </div>
         {reportUnlocked?(
           <div style={{position:"relative"}}>
-            <div data-scroll-stop><ValuationSummary gate={gate} cfg={cfg} vd={vd} unlocked={true}/></div>
+            <div data-scroll-stop><ValuationSummary gate={gate} cfg={cfg} vd={vd} unlocked={true} analystStatus={analystStatus}/></div>
             <div style={{marginTop:24}}>
               <InputsCard gate={gate} cfg={cfg}/>
-              <LinkedInGateV2 gate={gate} cfg={cfg} aiComps={aiComps} onUpdate={upd} vd={vd} unlocked={true} analysis={analyzeData} analyst={analyst}/>
+              <LinkedInGateV2 gate={gate} cfg={cfg} aiComps={aiComps} onUpdate={upd} vd={vd} unlocked={true} analysis={analyzeData} analyst={analyst} analystStatus={analystStatus}/>
             </div>
             <ScrollHint/>
           </div>
         ):(
         <div style={{position:"relative",marginTop:8}}>
-          <LockedPreview gate={gate} cfg={cfg} vd={vd} teaserData={analyzeData?{strengths:analyzeData.pros||[],risks:analyzeData.cons||[],insights:analyzeData.insights||[]}:null}/>
+          <LockedPreview gate={gate} cfg={cfg} vd={vd} analysisData={analyzeData} analystStatus={analystStatus}/>
           <ScrollHint/>
           <div style={{position:"fixed",left:0,right:0,bottom:0,display:"flex",justifyContent:"center",zIndex:50,pointerEvents:"none",padding:"0 16px 24px"}}>
             <div style={{background:"#fff",border:"1px solid #e8e8e8",borderRadius:12,padding:"24px 32px",maxWidth:480,width:"100%",boxShadow:"0 -4px 24px rgba(0,9,54,0.10), 0 16px 48px rgba(0,9,54,0.22)",textAlign:"center",pointerEvents:"auto"}}>

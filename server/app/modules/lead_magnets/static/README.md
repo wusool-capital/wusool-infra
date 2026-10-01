@@ -64,19 +64,25 @@ still fails the test.
 
 The analyst pass (AZM-129) uses the rest of `/analyze`'s response:
 `sector_fit`, `effective_sector`, `rationale`, `discounts`, `dcf` and the two
-search-term lists. They change the numbers only if `/analyze` returns before
-the results are revealed. A late response still updates the strategic read
-text, but never moves the valuation once it's on screen. A poor sector fit
+search-term lists. The reveal is staged, as in the design:
+- Results appear after the 10s loading screen, built from the sector tables
+  and the local strategic read, with a "Preliminary" badge and a progress
+  bar.
+- When `/analyze` and `/compare` settle, the figures refine in place and the
+  badge flips to "Done".
+- `ANALYST_TIMEOUT_MS` is a watchdog: past it, the page settles on the
+  preliminary figures.
+
+A poor sector fit
 shows an amber "Sector reclassified" note. When the input can't identify
 the business, `/analyze` drops every reclassification and override field, so
 the page keeps the visitor's sector and the standard valuation. That covers
 a blank description, and the model's own `enough_information: false`.
 
-`/submit-lead` fires once `/analyze` and `/compare` have settled (or the 30s
-failsafe has fired), not at gate submit. It carries the comps, discounts, DCF
+`/submit-lead` fires when stage 2 settles, not at gate submit. It carries the comps, discounts, DCF
 assumptions and search terms, so the valuation Attio stores is built from
 the same inputs. A visitor who closes the tab
-during the loader is still recorded, from a `pagehide` handler, using
+before stage 2 settles is still recorded, from a `pagehide` handler, using
 whatever inputs have arrived by then. The server caps the analyst's search
 terms (10 terms, 100 characters each) without rejecting the request.
 
@@ -93,13 +99,11 @@ not expected to match:
 - The server applies a fixed 30% DLOM and one analyst discount pair to both
   comps methods.
 
-Two places deliberately depart from the design:
-- `TransactionComps` and `IndustryResearch` match deals and rounds on the
-  analyst's search terms, as the summary and the server do. The design
-  matches on the tag alone there, which shows 0 deals for a reclassified
-  company.
-- There is no "Preliminary"/"Done" badge, because results only appear once
-  the analysis has settled.
+One place deliberately departs from the design: `TransactionComps` and
+`IndustryResearch` match deals and rounds on the analyst's search terms, as
+the summary and the server do. They re-match if the terms land after unlock.
+The design matches on the tag alone there, which shows 0 deals for a
+reclassified company.
 
 One simplification, noted rather than hidden: `StrategicAnalysis`'s
 "AI-powered" badge and "Based on X's profile" vs. "Sector benchmarks"
