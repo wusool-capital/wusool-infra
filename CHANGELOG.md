@@ -20,6 +20,10 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The valuation tool shows a preliminary valuation after the 10-second
+  loading screen, then refines it in place when the analysis lands. A badge
+  marks it Preliminary, then Done. Previously results waited for the
+  analysis.
 - The readiness and valuation tools have a new design: Inter type, a warm
   off-white page and card-style questions. Readiness scores now use shades
   of blue rather than green, amber and red.
