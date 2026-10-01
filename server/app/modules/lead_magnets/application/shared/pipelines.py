@@ -242,6 +242,16 @@ class Pipelines:
         }
 
 
+# Each term is scored against every dataset row on the request path; an
+# analyst returns a handful, so cap rather than reject (a 422 loses the lead).
+_MAX_SEARCH_TERMS = 10
+_MAX_SEARCH_TERM_CHARS = 100
+
+
+def _capped_terms(terms: list[str]) -> tuple[str, ...]:
+    return tuple(t[:_MAX_SEARCH_TERM_CHARS] for t in terms[:_MAX_SEARCH_TERMS])
+
+
 def valuation_inputs(payload: JsonObject) -> ValuationInputs:
     """Rebuilds the valuation inputs from a stored payload.
 
@@ -292,7 +302,7 @@ def valuation_inputs(payload: JsonObject) -> ValuationInputs:
         debt=parsed.debt,
         ai_comps=tuple(comps),
         growth_override=growth_override,
-        transaction_search_terms=tuple(parsed.transaction_search_terms),
-        vc_search_terms=tuple(parsed.vc_search_terms),
+        transaction_search_terms=_capped_terms(parsed.transaction_search_terms),
+        vc_search_terms=_capped_terms(parsed.vc_search_terms),
         **haircuts,
     )

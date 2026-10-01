@@ -498,6 +498,18 @@ def test_the_analyst_dcf_and_search_terms_move_the_stored_valuation() -> None:
     assert value_company(inputs).mid != value_company(valuation_inputs(base)).mid
 
 
+def test_oversized_analyst_search_terms_are_capped_not_rejected() -> None:
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+
+    terms = ["x" * 5_000] * 10_000
+    inputs = valuation_inputs(
+        {"revenue": 1_000_000, "transaction_search_terms": terms, "vc_search_terms": terms}
+    )
+    assert len(inputs.transaction_search_terms) == 10
+    assert len(inputs.vc_search_terms) == 10
+    assert all(len(t) == 100 for t in inputs.transaction_search_terms)
+
+
 def test_no_analyst_output_leaves_the_stored_valuation_unchanged() -> None:
     from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
 

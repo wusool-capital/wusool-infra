@@ -125,11 +125,9 @@ function App(){
 
   // Records the lead once the analysis has settled, so Attio values it with
   // the same comps, discounts and DCF assumptions the visitor sees.
-  // ponytail: a tab closed during the loader is never recorded; add a
-  // pagehide sendBeacon if that shows up.
   const leadSentRef=useRef(false);
-  useEffect(()=>{
-    if(!resultsReady||!gate||leadSentRef.current)return;
+  const sendLead=()=>{
+    if(!gate||leadSentRef.current)return;
     leadSentRef.current=true;
     fetch("/submit-lead",{
       method:"POST",headers:{"Content-Type":"application/json"},keepalive:true,
@@ -151,7 +149,15 @@ function App(){
       })
     }).then(r=>{if(!r.ok)console.warn("Lead submission failed:",r.status);})
       .catch(e=>console.warn("Lead submission failed:",e));
-  },[resultsReady,gate,aiComps,analyst]);
+  };
+  useEffect(()=>{if(resultsReady)sendLead();},[resultsReady]);
+  // A visitor leaving mid-loader is still recorded, on whatever inputs have
+  // landed so far.
+  useEffect(()=>{
+    if(!gated||resultsReady)return;
+    window.addEventListener("pagehide",sendLead);
+    return()=>window.removeEventListener("pagehide",sendLead);
+  },[gated,resultsReady,gate,aiComps,analyst]);
 
   // Pre-compute initial valuation estimates so summary is stable before LinkedIn unlock
   useEffect(()=>{
@@ -316,7 +322,7 @@ function App(){
           <div>
             <h1>Valuation Analysis</h1>
             <p>{gate.companyName} | {(analyst&&analyst.effective_sector)||gate.sector} | {gate.geo}</p>
-            {analyst&&analyst.sector_fit==="poor"&&<div style={{marginTop:8,fontSize:11.5,color:"#B45309",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",lineHeight:1.5,maxWidth:640}}>
+            {analyst&&analyst.sector_fit==="poor"&&analyst.effective_sector&&<div style={{marginTop:8,fontSize:11.5,color:"#B45309",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",lineHeight:1.5,maxWidth:640}}>
               <strong>Sector reclassified.</strong> The auto-assigned tag was "{gate.sector}", which does not fit this business. Reclassified as <strong>{analyst.effective_sector}</strong>{analyst.rationale?": "+analyst.rationale:"."} DCF assumptions and deal matching below reflect the corrected classification.
             </div>}
           </div>
