@@ -67,7 +67,10 @@ The analyst pass (AZM-129) uses the rest of `/analyze`'s response:
 search-term lists. They change the numbers only if `/analyze` returns before
 the results are revealed. A late response still updates the strategic read
 text, but never moves the valuation once it's on screen. A poor sector fit
-shows an amber "Sector reclassified" note.
+shows an amber "Sector reclassified" note. When the input can't identify
+the business, `/analyze` drops every reclassification and override field, so
+the page keeps the visitor's sector and the standard valuation. That covers
+a blank description, and the model's own `enough_information: false`.
 
 `/submit-lead` fires once `/analyze` and `/compare` have settled (or the 30s
 failsafe has fired), not at gate submit. It carries the comps, discounts, DCF

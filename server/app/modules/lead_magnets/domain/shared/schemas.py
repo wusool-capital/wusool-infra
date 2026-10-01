@@ -313,6 +313,9 @@ class AnalyzeResult(BaseModel):
     could claim a strength the report never mentioned.
     """
 
+    # False when the input can't establish what the business does; the
+    # use case then drops every override rather than act on a guess.
+    enough_information: bool = True
     sector_fit: Literal["good", "poor"]
     closest_existing_sector: str = ""
     effective_sector: str = ""
