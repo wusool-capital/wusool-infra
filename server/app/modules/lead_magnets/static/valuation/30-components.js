@@ -276,7 +276,7 @@ function DCFModule({gate,cfg,onUpdate,analyst}){
     const ke=bench?parseFloat(bench.ke.toFixed(2)):12;
     const kd=bench?parseFloat(bench.kd.toFixed(2)):6;
     if(bench)setDamodSource(bench.industry);
-    setTermGrowth(growth.termGrowth);
+    setTermGrowth(growth.termGrowth||2);
     const yr=new Date().getFullYear();
     const rows=[];
     let prevRev=baseRev;

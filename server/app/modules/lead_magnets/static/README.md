@@ -72,9 +72,10 @@ shows an amber "Sector reclassified" note.
 `/submit-lead` fires once `/analyze` and `/compare` have settled (or the 30s
 failsafe has fired), not at gate submit. It carries the comps, discounts, DCF
 assumptions and search terms, so the valuation Attio stores is built from
-the same inputs as the one on screen. Leads are no longer rejected as
-repeats with a 409. The cost: a visitor who closes the tab during the loader
-is never recorded.
+the same inputs as the one on screen. A visitor who closes the tab
+during the loader is still recorded, from a `pagehide` handler, using
+whatever inputs have arrived by then. The server caps the analyst's search
+terms (10 terms, 100 characters each) without rejecting the request.
 
 One simplification, noted rather than hidden: `StrategicAnalysis`'s
 "AI-powered" badge and "Based on X's profile" vs. "Sector benchmarks"
