@@ -910,7 +910,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       <mxCell id="toolRuns" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;dashed=1;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="tool_runs&lt;br&gt;&lt;font style='font-size:8px;font-weight:normal'&gt;Postgres only · tool invocation ledger (NEW)&lt;/font&gt;" vertex="1">
-          <mxGeometry height="294" width="300" x="2204" y="1618" as="geometry" />
+          <mxGeometry height="312" width="300" x="2204" y="1618" as="geometry" />
         </mxCell>
         <mxCell id="toolRun1" parent="toolRuns" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
           <mxGeometry height="18" width="300" y="42" as="geometry" />
@@ -951,8 +951,11 @@
         <mxCell id="toolRun13" parent="toolRuns" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK buyer_role_id -&gt; buyer_role" vertex="1">
           <mxGeometry height="18" width="300" y="258" as="geometry" />
         </mxCell>
-        <mxCell id="toolRun14" parent="toolRuns" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at : timestamptz" vertex="1">
+        <mxCell id="toolRun15" parent="toolRuns" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="buyer_role_entry_ids : text[]  (every buyer_role a run made, NEW 2026-09-30)" vertex="1">
           <mxGeometry height="18" width="300" y="276" as="geometry" />
+        </mxCell>
+        <mxCell id="toolRun14" parent="toolRuns" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="294" as="geometry" />
         </mxCell>
         
       </root>
