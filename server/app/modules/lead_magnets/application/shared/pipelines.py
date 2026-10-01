@@ -44,7 +44,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     ReadinessValuesInput,
     ValuationPayload,
 )
-from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
+from app.modules.lead_magnets.domain.valuation.valuation_data import GrowthBenchmark, ListedComp
 from app.modules.lead_magnets.domain.valuation.valuation_methods import (
     ValuationInputs,
     value_company,
@@ -130,7 +130,7 @@ class Pipelines:
         does not. That is what makes a sweeper resume free — no model call,
         and the same figures either way for a given payload.
         """
-        inputs = _valuation_inputs(payload)
+        inputs = valuation_inputs(payload)
         result = value_company(inputs)
         consent = ValuationPayload.model_validate(payload).consent
         return {
@@ -242,7 +242,7 @@ class Pipelines:
         }
 
 
-def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
+def valuation_inputs(payload: JsonObject) -> ValuationInputs:
     """Rebuilds the valuation inputs from a stored payload.
 
     Comparables and overrides are read from whatever `/compare` and
@@ -267,6 +267,20 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
         haircuts["trading_haircut_ebitda_pct"] = discounts.ebitda_discount_pct
         haircuts["transaction_haircut_ebitda_pct"] = discounts.ebitda_discount_pct
 
+    dcf = parsed.dcf
+    growth_override = (
+        GrowthBenchmark(
+            revenue_growth=dcf.revGrowth,
+            ebit_margin_improvement=dcf.ebitMarginImpr,
+            depreciation_pct=dcf.daaPct,
+            capex_pct=dcf.capexPct,
+            working_capital_pct=dcf.nwcPct,
+            terminal_growth=dcf.termGrowth,
+        )
+        if dcf
+        else None
+    )
+
     return ValuationInputs(
         revenue=parsed.revenue,
         profit_before_tax=parsed.profit_before_tax,
@@ -277,5 +291,8 @@ def _valuation_inputs(payload: JsonObject) -> ValuationInputs:
         cash=parsed.cash,
         debt=parsed.debt,
         ai_comps=tuple(comps),
+        growth_override=growth_override,
+        transaction_search_terms=tuple(parsed.transaction_search_terms),
+        vc_search_terms=tuple(parsed.vc_search_terms),
         **haircuts,
     )

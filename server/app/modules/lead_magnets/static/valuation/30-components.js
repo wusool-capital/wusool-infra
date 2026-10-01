@@ -251,7 +251,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
 
 
 // ===== AUTO DCF MODULE =====
-function DCFModule({gate,cfg,onUpdate}){
+function DCFModule({gate,cfg,onUpdate,analyst}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [open,setOpen]=useState(false);
   usePrintExpand(open,setOpen);
@@ -267,7 +267,7 @@ function DCFModule({gate,cfg,onUpdate}){
     if(initialized||!gate)return;
     const sector=gate.sector||"";
     const bench=getDamodaranBenchmark(sector);
-    const growth=getIndustryGrowth(sector);
+    const growth=analystGrowth(sector,analyst);
     const taxRate=getTaxRate(gate.geo||"");
     const adjEBITDA=(gate.profitBeforeTax||0)+(gate.ownerSalary||0);
     const baseRev=gate.revenue||0;
@@ -410,11 +410,11 @@ function DCFModule({gate,cfg,onUpdate}){
 
 
 // ===== TRADING COMPS MODULE =====
-function TradingComps({gate,cfg,onUpdate,aiComps}){
+function TradingComps({gate,cfg,onUpdate,aiComps,analyst}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [comps,setComps]=useState([]);
-  const [dRev,setDRev]=useState(30);
-  const [dEb,setDEb]=useState(30);
+  const [dRev,setDRev]=useState(()=>analystDiscount(analyst,"revenue_discount_pct",30));
+  const [dEb,setDEb]=useState(()=>analystDiscount(analyst,"ebitda_discount_pct",30));
   const [open,setOpen]=useState(false);
   usePrintExpand(open,setOpen);
   const [initialized,setInitialized]=useState(false);
@@ -539,18 +539,18 @@ function TradingComps({gate,cfg,onUpdate,aiComps}){
 
 
 // ===== TRANSACTION COMPS MODULE =====
-function TransactionComps({gate,cfg,onUpdate}){
+function TransactionComps({gate,cfg,onUpdate,analyst}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [selected,setSelected]=useState(new Set());
-  const [dRev,setDRev]=useState(40);
-  const [dEb,setDEb]=useState(20);
+  const [dRev,setDRev]=useState(()=>analystDiscount(analyst,"revenue_discount_pct",40));
+  const [dEb,setDEb]=useState(()=>analystDiscount(analyst,"ebitda_discount_pct",20));
   const [open,setOpen]=useState(false);
   usePrintExpand(open,setOpen);
   const [initialized,setInitialized]=useState(false);
 
   useEffect(()=>{
     if(initialized||!gate||!gate.sector)return;
-    const matches=matchTransactions(gate.sector,15);
+    const matches=matchTransactions(gate.sector,15,analyst&&analyst.transaction_search_terms);
     if(matches.length){setSelected(new Set(matches));setInitialized(true)}
   },[gate,initialized]);
 
@@ -616,7 +616,7 @@ function TransactionComps({gate,cfg,onUpdate}){
 
 
 // ===== INDUSTRY RESEARCH MODULE =====
-function IndustryResearch({gate,cfg,onUpdate}){
+function IndustryResearch({gate,cfg,onUpdate,analyst}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [selected,setSelected]=useState(new Set());
   const [disc,setDisc]=useState(20);
@@ -626,7 +626,7 @@ function IndustryResearch({gate,cfg,onUpdate}){
 
   useEffect(()=>{
     if(initialized||!gate||!gate.sector)return;
-    const matches=matchVCRounds(gate.sector,gate.stage||"");
+    const matches=matchVCRounds(gate.sector,gate.stage||"",analyst&&analyst.vc_search_terms);
     if(matches.length){setSelected(new Set(matches));setInitialized(true)}
   },[gate,initialized]);
 
@@ -813,15 +813,15 @@ function InputsCard({gate,cfg}){
 // ===== LINKEDIN PAYWALL GATE V2 =====
 // Before unlock: shows generic strategic analysis preview + LinkedIn gate
 // After unlock: removes preview, runs AI strategic analysis + all modules
-function LinkedInGateV2({gate,cfg,aiComps,onUpdate,vd,unlocked,analysis}){
+function LinkedInGateV2({gate,cfg,aiComps,onUpdate,vd,unlocked,analysis,analyst}){
   return(
     <div>
       <div data-scroll-stop><StrategicAnalysis gate={gate} analysis={analysis}/></div>
       <div data-scroll-stop><FundraiseReadiness gate={gate} fundraise={analysis&&analysis.fundraise}/></div>
-      <div data-scroll-stop><DCFModule gate={gate} cfg={cfg} onUpdate={onUpdate}/></div>
-      <div data-scroll-stop><TradingComps gate={gate} cfg={cfg} onUpdate={onUpdate} aiComps={aiComps}/></div>
-      <div data-scroll-stop><TransactionComps gate={gate} cfg={cfg} onUpdate={onUpdate}/></div>
-      <div data-scroll-stop><IndustryResearch gate={gate} cfg={cfg} onUpdate={onUpdate}/></div>
+      <div data-scroll-stop><DCFModule gate={gate} cfg={cfg} onUpdate={onUpdate} analyst={analyst}/></div>
+      <div data-scroll-stop><TradingComps gate={gate} cfg={cfg} onUpdate={onUpdate} aiComps={aiComps} analyst={analyst}/></div>
+      <div data-scroll-stop><TransactionComps gate={gate} cfg={cfg} onUpdate={onUpdate} analyst={analyst}/></div>
+      <div data-scroll-stop><IndustryResearch gate={gate} cfg={cfg} onUpdate={onUpdate} analyst={analyst}/></div>
     </div>
   );
 }

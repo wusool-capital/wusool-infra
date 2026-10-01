@@ -136,18 +136,11 @@ def test_valuation_payload_field_names_match_their_request_schemas() -> None:
 
     submit_start = main.index('fetch("/submit-lead"')
     submit_keys = _payload_keys(main[submit_start:], "body:JSON.stringify({")
-    # discounts is the one deliberate omission: TradingComps and
-    # TransactionComps each keep their own independent user-adjustable
-    # discount sliders, so there is no single unambiguous client-side
-    # discount to forward - ValuationInputs already defaults to 50%/50%
-    # when it's absent, the same as a sweeper resume with no model in
-    # reach.
-    required = {
-        name for name, field in ValuationRequest.model_fields.items() if field.is_required()
-    }
-    assert required <= submit_keys
-    assert submit_keys <= set(ValuationRequest.model_fields)
-    assert set(ValuationRequest.model_fields) - submit_keys == {"discounts"}
+    # Sent once /analyze and /compare settle, carrying their comps, discounts,
+    # DCF assumptions and search terms, so Attio values the lead as shown.
+    assert submit_keys == set(ValuationRequest.model_fields)
+    gate_handler = main[main.index("const handleGate") : main.index("const upd=")]
+    assert 'fetch("/submit-lead"' not in gate_handler
 
 
 def test_buyers_payload_field_names_match_the_request_schema() -> None:

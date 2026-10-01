@@ -447,9 +447,9 @@ def test_an_explicit_zero_discount_is_not_overridden_to_the_default() -> None:
     way `api/valuation/endpoints.py`'s synchronous response already respects
     it via `is not None`. One AI-judged pair applies to both trading and
     transaction comps alike."""
-    from app.modules.lead_magnets.application.shared.pipelines import _valuation_inputs
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
 
-    inputs = _valuation_inputs(
+    inputs = valuation_inputs(
         {"revenue": 1_000_000, "discounts": {"revenue_discount_pct": 0, "ebitda_discount_pct": 0}}
     )
     assert inputs.trading_haircut_revenue_pct == 0.0
@@ -462,13 +462,49 @@ def test_discounts_absent_still_fall_back_to_the_default() -> None:
     """The live tool's own defaults, per method — trading and transaction
     comps have never shared one discount, confirmed against
     `dopamine-valuation.html`."""
-    from app.modules.lead_magnets.application.shared.pipelines import _valuation_inputs
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
 
-    inputs = _valuation_inputs({"revenue": 1_000_000})
+    inputs = valuation_inputs({"revenue": 1_000_000})
     assert inputs.trading_haircut_revenue_pct == 30.0
     assert inputs.trading_haircut_ebitda_pct == 30.0
     assert inputs.transaction_haircut_revenue_pct == 40.0
     assert inputs.transaction_haircut_ebitda_pct == 20.0
+
+
+def test_the_analyst_dcf_and_search_terms_move_the_stored_valuation() -> None:
+    """Attio's figure is rebuilt from the stored payload, so the analyst's
+    DCF assumptions and dataset terms must reach the blend from there."""
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.valuation.valuation_methods import value_company
+
+    base = {"revenue": 3_000_000, "profit_before_tax": 400_000, "sector": "EdTech"}
+    analyst = {
+        "dcf": {
+            "revGrowth": 5,
+            "ebitMarginImpr": 1,
+            "daaPct": 8,
+            "capexPct": 12,
+            "nwcPct": 2,
+            "termGrowth": 2,
+        },
+        "transaction_search_terms": ["Childcare", "Education Services"],
+        "vc_search_terms": ["Childcare"],
+    }
+    inputs = valuation_inputs({**base, **analyst})
+
+    assert inputs.growth_override is not None
+    assert inputs.growth_override.capex_pct == 12
+    assert inputs.transaction_search_terms == ("Childcare", "Education Services")
+    assert value_company(inputs).mid != value_company(valuation_inputs(base)).mid
+
+
+def test_no_analyst_output_leaves_the_stored_valuation_unchanged() -> None:
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+
+    inputs = valuation_inputs({"revenue": 1_000_000})
+    assert inputs.growth_override is None
+    assert inputs.transaction_search_terms == ()
+    assert inputs.vc_search_terms == ()
 
 
 async def test_analyze_falls_back_to_the_deterministic_pros_cons_insights_on_bedrock_failure() -> (

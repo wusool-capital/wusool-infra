@@ -6,14 +6,16 @@ function App(){
   const [aiComps,setAiComps]=useState(null);
   const [aiCompsStatus,setAiCompsStatus]=useState("idle");
   const [resultsReady,setResultsReady]=useState(false);
-  const [alreadySubmitted,setAlreadySubmitted]=useState(false);
-  const [gateSubmitting,setGateSubmitting]=useState(false);
   // Set by the "Get Your Free Valuation Report Now" link's onClick below,
   // after a short delay.
   const [reportUnlocked,setReportUnlocked]=useState(false);
   const [unlocking,setUnlocking]=useState(false);
   const [analyzeData,setAnalyzeData]=useState(null);
   const [analyzeStatus,setAnalyzeStatus]=useState("idle");
+  // /analyze's analyst fields, captured only before reveal so the
+  // valuation never moves once shown.
+  const [analyst,setAnalyst]=useState(null);
+  const revealedRef=useRef(false);
   const [vd,setVd]=useState({
     dcfEV:0,dcfEquity:0,
     trRevLow:0,trRevMid:0,trRevHigh:0,
@@ -23,42 +25,7 @@ function App(){
     indLow:0,indMid:0,indHigh:0
   });
 
-  // Records the lead (and checks for a repeat) the moment the visitor
-  // submits the gate form — not after /analyze and /compare finish. This
-  // is the one place in the lead's life where an AI-enriched `comps` list
-  // could still have been attached (the old flow waited for it), but a
-  // duplicate check that only fires after the whole AI round trip is not
-  // a duplicate check at the submit button, so it's sent empty here and
-  // `value_company()`'s own static-sector fallback covers it — same
-  // deterministic path a sweeper resume already uses.
-  const handleGate=async data=>{
-    setGateSubmitting(true);
-    setAlreadySubmitted(false);
-    try{
-      const r=await fetch("/submit-lead",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          submission_id:window.WUSOOL_SUBMISSION_ID,
-          company:data.companyName||"",name:data.name||null,email:data.email||"",
-          domain:data.domain||null,description:data.description||null,sector:data.sector||null,
-          geography:data.geo||null,stage:data.stage||null,
-          last_raise_revenue:data.lastRaiseRevenue||null,
-          last_raise_pbt:data.lastRaisePBT||null,
-          revenue:data.revenue||0,profit_before_tax:data.profitBeforeTax||null,
-          owner_salary:data.ownerSalary||null,cash:0,debt:0,
-          comps:[],consent:!!data.consent
-        })
-      });
-      if(r.status===409){
-        setAlreadySubmitted(true);
-        setGateSubmitting(false);
-        return;
-      }
-    }catch(e){
-      // A recording failure must never block the visitor from seeing their
-      // own report — only a confirmed 409 does that.
-      console.warn("Lead submission failed:",e);
-    }
+  const handleGate=data=>{
     setGate(data);
     const adjEBITDA=(data.profitBeforeTax||0)+(data.ownerSalary||0);
     const cfgData={revenue:data.revenue,ebitda:adjEBITDA};
@@ -72,9 +39,6 @@ function App(){
   // read (pros/cons/insights) and the fundraise scorecard, merged into one
   // call. Runs in parallel with /compare below, during the loading screen,
   // so the report is fully ready the moment loading ends (no second wait).
-  // Sector-fit/discounts/DCF-override/search-term fields are in the
-  // response but unused here - the live page never read the equivalent
-  // client-composed fields either, so this is not a regression.
   useEffect(()=>{
     if(!gated||!gate)return;
     let cancelled=false;
@@ -92,7 +56,11 @@ function App(){
           })
         });
         const data=await resp.json();
-        if(!cancelled){setAnalyzeData(data);setAnalyzeStatus("done");}
+        if(!cancelled){
+          setAnalyzeData(data);
+          if(resp.ok&&!revealedRef.current)setAnalyst(data);
+          setAnalyzeStatus("done");
+        }
       }catch(e){
         console.warn("Analysis failed:",e);
         if(!cancelled)setAnalyzeStatus("done");
@@ -133,7 +101,7 @@ function App(){
     if(!gated)return;
     const failsafe=setTimeout(()=>{
       setAnalyzeStatus(s=>s==="done"?s:"done");
-    },12000);
+    },30000);
     return()=>clearTimeout(failsafe);
   },[gated]);
 
@@ -151,9 +119,39 @@ function App(){
     // Ensure minimum 10s loading display so all animation steps tick to done before reveal
     const elapsed=Date.now()-(gateTimeRef.current||Date.now());
     const minDelay=Math.max(10000-elapsed,1000);
-    const timer=setTimeout(()=>setResultsReady(true),minDelay);
+    const timer=setTimeout(()=>{revealedRef.current=true;setResultsReady(true);},minDelay);
     return()=>clearTimeout(timer);
   },[gated,aiCompsStatus,analyzeStatus]);
+
+  // Records the lead once the analysis has settled, so Attio values it with
+  // the same comps, discounts and DCF assumptions the visitor sees.
+  // ponytail: a tab closed during the loader is never recorded; add a
+  // pagehide sendBeacon if that shows up.
+  const leadSentRef=useRef(false);
+  useEffect(()=>{
+    if(!resultsReady||!gate||leadSentRef.current)return;
+    leadSentRef.current=true;
+    fetch("/submit-lead",{
+      method:"POST",headers:{"Content-Type":"application/json"},keepalive:true,
+      body:JSON.stringify({
+        submission_id:window.WUSOOL_SUBMISSION_ID,
+        company:gate.companyName||"",name:gate.name||null,email:gate.email||"",
+        domain:gate.domain||null,description:gate.description||null,sector:gate.sector||null,
+        geography:gate.geo||null,stage:gate.stage||null,
+        last_raise_revenue:gate.lastRaiseRevenue||null,
+        last_raise_pbt:gate.lastRaisePBT||null,
+        revenue:gate.revenue||0,profit_before_tax:gate.profitBeforeTax||null,
+        owner_salary:gate.ownerSalary||null,cash:0,debt:0,
+        comps:aiComps||[],
+        discounts:(analyst&&analyst.discounts)||null,
+        dcf:(analyst&&analyst.dcf)||null,
+        transaction_search_terms:(analyst&&analyst.transaction_search_terms)||[],
+        vc_search_terms:(analyst&&analyst.vc_search_terms)||[],
+        consent:!!gate.consent
+      })
+    }).then(r=>{if(!r.ok)console.warn("Lead submission failed:",r.status);})
+      .catch(e=>console.warn("Lead submission failed:",e));
+  },[resultsReady,gate,aiComps,analyst]);
 
   // Pre-compute initial valuation estimates so summary is stable before LinkedIn unlock
   useEffect(()=>{
@@ -166,7 +164,7 @@ function App(){
 
     // --- DCF pre-calc ---
     const bench=getDamodaranBenchmark(sector);
-    const growth=getIndustryGrowth(sector);
+    const growth=analystGrowth(sector,analyst);
     const taxRate=getTaxRate(gate.geo||"");
     const sizePrem=baseRev<5000000?5:baseRev<20000000?4:baseRev<100000000?3:2;
     const ke=bench?parseFloat(bench.ke.toFixed(2)):12;
@@ -219,17 +217,19 @@ function App(){
     const dcfEquity=Math.max(dcfEV,0)*(1-DLOM_PCT/100);
 
     // --- Transaction comps pre-calc ---
-    const txMatches=matchTransactions(sector,15);
+    const txMatches=matchTransactions(sector,15,analyst&&analyst.transaction_search_terms);
     const txList=txMatches.map(idx=>MA_RAW[idx]);
     const txRevM=txList.filter(r=>r.r!=null&&r.r>0).map(r=>r.r);
     const txEbM=txList.filter(r=>r.b!=null&&r.b>0).map(r=>r.b);
     const txRS=getStats(txRevM),txES=getStats(txEbM);
-    const txDRev=negEbitda?Math.min(60,100):40;
-    const txDEb=negEbitda?Math.min(40,100):20;
+    const txBaseRev=analystDiscount(analyst,"revenue_discount_pct",40);
+    const txBaseEb=analystDiscount(analyst,"ebitda_discount_pct",20);
+    const txDRev=negEbitda?Math.min(txBaseRev+20,100):txBaseRev;
+    const txDEb=negEbitda?Math.min(txBaseEb+20,100):txBaseEb;
     const txDiscR=1-txDRev/100,txDiscE=1-txDEb/100;
 
     // --- Industry research pre-calc ---
-    const vcMatches=matchVCRounds(sector,gate.stage||"");
+    const vcMatches=matchVCRounds(sector,gate.stage||"",analyst&&analyst.vc_search_terms);
     const vcList=vcMatches.map(idx=>VC_RAW[idx]);
     const fyM=vcList.filter(r=>r.fm!=null).map(r=>r.fm);
     const fwM=vcList.filter(r=>r.fw!=null).map(r=>r.fw);
@@ -246,7 +246,7 @@ function App(){
       txEbLow:txES.p25*txDiscE,txEbMid:txES.avg*txDiscE,txEbHigh:txES.p75*txDiscE,
       indLow:vcS.p25*vcDisc,indMid:blendedVC*vcDisc,indHigh:vcS.p75*vcDisc
     }));
-  },[gate]);
+  },[gate,analyst]);
 
   // Pre-compute trading comps from static data initially
   useEffect(()=>{
@@ -271,15 +271,17 @@ function App(){
       const revM=valid.map(c=>c.ev/c.rev);
       const ebM=valid.filter(c=>c.ebitda>0).map(c=>c.ev/c.ebitda);
       const rS=getStats(revM),eS=getStats(ebM);
-      const adjDRev=negEbitda?50:30;
-      const adjDEb=negEbitda?50:30;
+      const trRev=analystDiscount(analyst,"revenue_discount_pct",30);
+      const trEb=analystDiscount(analyst,"ebitda_discount_pct",30);
+      const adjDRev=negEbitda?Math.min(trRev+20,100):trRev;
+      const adjDEb=negEbitda?Math.min(trEb+20,100):trEb;
       const disc=1-adjDRev/100,discEb=1-adjDEb/100;
       setVd(p=>({...p,
         trRevLow:rS.p25*disc,trRevMid:rS.median*disc,trRevHigh:rS.p75*disc,
         trEbLow:eS.p25*discEb,trEbMid:eS.median*discEb,trEbHigh:eS.p75*discEb
       }));
     }
-  },[gate]);
+  },[gate,analyst]);
 
   // When AI comps arrive, update trading comps in vd immediately
   useEffect(()=>{
@@ -290,16 +292,18 @@ function App(){
     const revM=valid.map(c=>c.ev/c.rev);
     const ebM=valid.filter(c=>c.ebitda>0).map(c=>c.ev/c.ebitda);
     const rS=getStats(revM),eS=getStats(ebM);
-    const adjDRev=negEbitda?50:30;
-    const adjDEb=negEbitda?50:30;
+    const trRev=analystDiscount(analyst,"revenue_discount_pct",30);
+    const trEb=analystDiscount(analyst,"ebitda_discount_pct",30);
+    const adjDRev=negEbitda?Math.min(trRev+20,100):trRev;
+    const adjDEb=negEbitda?Math.min(trEb+20,100):trEb;
     const disc=1-adjDRev/100,discEb=1-adjDEb/100;
     setVd(p=>({...p,
       trRevLow:rS.p25*disc,trRevMid:rS.median*disc,trRevHigh:rS.p75*disc,
       trEbLow:eS.p25*discEb,trEbMid:eS.median*discEb,trEbHigh:eS.p75*discEb
     }));
-  },[aiComps,gate]);
+  },[aiComps,gate,analyst]);
 
-  if(!gated)return <Gate onSubmit={handleGate} submitting={gateSubmitting} alreadySubmitted={alreadySubmitted}/>;
+  if(!gated)return <Gate onSubmit={handleGate}/>;
 
   if(!resultsReady){
     return <ResultsLoadingScreen gate={gate} compsStatus={aiCompsStatus}/>;
@@ -311,7 +315,10 @@ function App(){
         <div className="page-hdr" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
           <div>
             <h1>Valuation Analysis</h1>
-            <p>{gate.companyName} | {gate.sector} | {gate.geo}</p>
+            <p>{gate.companyName} | {(analyst&&analyst.effective_sector)||gate.sector} | {gate.geo}</p>
+            {analyst&&analyst.sector_fit==="poor"&&<div style={{marginTop:8,fontSize:11.5,color:"#B45309",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",lineHeight:1.5,maxWidth:640}}>
+              <strong>Sector reclassified.</strong> The auto-assigned tag was "{gate.sector}", which does not fit this business. Reclassified as <strong>{analyst.effective_sector}</strong>{analyst.rationale?": "+analyst.rationale:"."} DCF assumptions and deal matching below reflect the corrected classification.
+            </div>}
           </div>
         </div>
         {reportUnlocked?(
@@ -319,7 +326,7 @@ function App(){
             <div data-scroll-stop><ValuationSummary gate={gate} cfg={cfg} vd={vd} unlocked={true}/></div>
             <div style={{marginTop:24}}>
               <InputsCard gate={gate} cfg={cfg}/>
-              <LinkedInGateV2 gate={gate} cfg={cfg} aiComps={aiComps} onUpdate={upd} vd={vd} unlocked={true} analysis={analyzeData}/>
+              <LinkedInGateV2 gate={gate} cfg={cfg} aiComps={aiComps} onUpdate={upd} vd={vd} unlocked={true} analysis={analyzeData} analyst={analyst}/>
             </div>
             <ScrollHint/>
           </div>

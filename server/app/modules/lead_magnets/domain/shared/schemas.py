@@ -134,6 +134,15 @@ class ValuationDiscountsPayload(_Payload):
     ebitda_discount_pct: float | None = None
 
 
+class ValuationDcfPayload(_Payload):
+    revGrowth: float
+    ebitMarginImpr: float
+    daaPct: float
+    capexPct: float
+    nwcPct: float
+    termGrowth: float
+
+
 class ValuationPayload(_Payload):
     revenue: float = 0.0
     profit_before_tax: float | None = None
@@ -147,6 +156,9 @@ class ValuationPayload(_Payload):
     debt: float = 0.0
     comps: list[ValuationCompPayload] = []
     discounts: ValuationDiscountsPayload | None = None
+    dcf: ValuationDcfPayload | None = None
+    transaction_search_terms: list[str] = []
+    vc_search_terms: list[str] = []
     # `None`, not `False`: a resumed/replayed payload from before this field
     # existed has no `consent` key at all, and writing that as an explicit
     # `False` would misrepresent "unknown" as "consent refused" in Attio.

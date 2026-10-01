@@ -183,6 +183,26 @@ def test_submit_lead_with_comps_and_discounts_passes_validation(client) -> None:
     assert response.status_code != 422
 
 
+def test_submit_lead_with_the_analyst_fields_passes_validation(client) -> None:
+    """`/analyze`'s `dcf` and search terms, echoed back verbatim."""
+    response = client.post(
+        "/submit-lead",
+        json=_valuation_payload(
+            dcf={
+                "revGrowth": 12,
+                "ebitMarginImpr": 2,
+                "daaPct": 5,
+                "capexPct": 6,
+                "nwcPct": 3,
+                "termGrowth": 2.5,
+            },
+            transaction_search_terms=["Childcare"],
+            vc_search_terms=["Childcare"],
+        ),
+    )
+    assert response.status_code != 422
+
+
 def _get_started_payload(**overrides) -> dict:
     unique = uuid.uuid4().hex[:8]
     body = {
