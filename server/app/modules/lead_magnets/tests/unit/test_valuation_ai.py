@@ -24,6 +24,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     SearchQueries,
 )
 from app.modules.lead_magnets.domain.shared.search import SearchResult
+from app.modules.utilities.domain.json_types import JsonObject
 
 # One real model per operation — matches `LeadBedrockClient`'s own dispatch,
 # so a fake's response is validated exactly like a real one would be
@@ -447,10 +448,16 @@ def test_an_explicit_zero_discount_is_not_overridden_to_the_default() -> None:
     way `api/valuation/endpoints.py`'s synchronous response already respects
     it via `is not None`. One AI-judged pair applies to both trading and
     transaction comps alike."""
-    from app.modules.lead_magnets.application.shared.pipelines import _valuation_inputs
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
 
-    inputs = _valuation_inputs(
-        {"revenue": 1_000_000, "discounts": {"revenue_discount_pct": 0, "ebitda_discount_pct": 0}}
+    inputs = valuation_inputs(
+        ValuationPayload.model_validate(
+            {
+                "revenue": 1_000_000,
+                "discounts": {"revenue_discount_pct": 0, "ebitda_discount_pct": 0},
+            }
+        )
     )
     assert inputs.trading_haircut_revenue_pct == 0.0
     assert inputs.trading_haircut_ebitda_pct == 0.0
@@ -462,13 +469,70 @@ def test_discounts_absent_still_fall_back_to_the_default() -> None:
     """The live tool's own defaults, per method — trading and transaction
     comps have never shared one discount, confirmed against
     `dopamine-valuation.html`."""
-    from app.modules.lead_magnets.application.shared.pipelines import _valuation_inputs
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
 
-    inputs = _valuation_inputs({"revenue": 1_000_000})
+    inputs = valuation_inputs(ValuationPayload.model_validate({"revenue": 1_000_000}))
     assert inputs.trading_haircut_revenue_pct == 30.0
     assert inputs.trading_haircut_ebitda_pct == 30.0
     assert inputs.transaction_haircut_revenue_pct == 40.0
     assert inputs.transaction_haircut_ebitda_pct == 20.0
+
+
+def test_the_analyst_dcf_and_search_terms_move_the_stored_valuation() -> None:
+    """Attio's figure is rebuilt from the stored payload, so the analyst's
+    DCF assumptions and dataset terms must reach the blend from there."""
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
+    from app.modules.lead_magnets.domain.valuation.valuation_methods import value_company
+
+    base = {"revenue": 3_000_000, "profit_before_tax": 400_000, "sector": "EdTech"}
+    analyst = {
+        "dcf": {
+            "revGrowth": 5,
+            "ebitMarginImpr": 1,
+            "daaPct": 8,
+            "capexPct": 12,
+            "nwcPct": 2,
+            "termGrowth": 2,
+        },
+        "transaction_search_terms": ["Childcare", "Education Services"],
+        "vc_search_terms": ["Childcare"],
+    }
+    inputs = valuation_inputs(ValuationPayload.model_validate({**base, **analyst}))
+
+    assert inputs.growth_override is not None
+    assert inputs.growth_override.capex_pct == 12
+    assert inputs.transaction_search_terms == ("Childcare", "Education Services")
+    assert (
+        value_company(inputs).mid
+        != value_company(valuation_inputs(ValuationPayload.model_validate(base))).mid
+    )
+
+
+def test_oversized_analyst_search_terms_are_capped_not_rejected() -> None:
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
+
+    terms = ["x" * 5_000] * 10_000
+    inputs = valuation_inputs(
+        ValuationPayload.model_validate(
+            {"revenue": 1_000_000, "transaction_search_terms": terms, "vc_search_terms": terms}
+        )
+    )
+    assert len(inputs.transaction_search_terms) == 10
+    assert len(inputs.vc_search_terms) == 10
+    assert all(len(t) == 100 for t in inputs.transaction_search_terms)
+
+
+def test_no_analyst_output_leaves_the_stored_valuation_unchanged() -> None:
+    from app.modules.lead_magnets.application.shared.pipelines import valuation_inputs
+    from app.modules.lead_magnets.domain.shared.schemas import ValuationPayload
+
+    inputs = valuation_inputs(ValuationPayload.model_validate({"revenue": 1_000_000}))
+    assert inputs.growth_override is None
+    assert inputs.transaction_search_terms == ()
+    assert inputs.vc_search_terms == ()
 
 
 async def test_analyze_falls_back_to_the_deterministic_pros_cons_insights_on_bedrock_failure() -> (
@@ -503,7 +567,7 @@ async def test_analyze_success_never_touches_the_fallback() -> None:
         company="Acme",
         domain="acme.com",
         sector="",
-        description="",
+        description="Operator of three physical nurseries in Dubai.",
         geography="",
         revenue=0,
         ebitda=0,
@@ -513,6 +577,71 @@ async def test_analyze_success_never_touches_the_fallback() -> None:
     # exist on the real success path.
     assert result["sector_fit"] == "good"
     assert "discounts" in result and "dcf" in result and "fundraise" in result
+
+
+_POOR_FIT = {
+    "sector_fit": "poor",
+    "effective_sector": "Childcare & Early Education",
+    "rationale": "A physical nursery operator, not software.",
+    "transaction_search_terms": ["Childcare & Early Education"],
+    "vc_search_terms": ["Childcare & Early Education"],
+}
+
+
+async def _analyze(llm: _FakeLlm, *, description: str) -> JsonObject:
+    return await ValuationAi(llm, _FakeSearch()).analyze(
+        company="Acme",
+        domain="acme.com",
+        sector="EdTech",
+        description=description,
+        geography="UAE",
+        revenue=3_000_000,
+        ebitda=550_000,
+    )
+
+
+def test_analyze_prompt_keeps_the_tag_when_the_input_is_too_thin() -> None:
+    prompt = analyze_prompt(
+        company="Acme",
+        domain="acme.com",
+        sector="Biomass",
+        description="This is a test",
+        geography="UAE",
+        revenue=1,
+        ebitda=1,
+        sector_list=["Biomass"],
+    )
+    assert "STEP 0 - Check the input." in prompt
+    assert '"enough_information":true' in prompt
+
+
+async def test_a_real_description_keeps_the_reclassification() -> None:
+    result = await _analyze(
+        _FakeLlm(analyze=_POOR_FIT), description="Operator of three nurseries in Dubai."
+    )
+    assert result["sector_fit"] == "poor"
+    assert result["effective_sector"] == "Childcare & Early Education"
+    assert result["dcf"] is not None and result["discounts"] is not None
+    assert "enough_information" not in result
+
+
+async def test_too_little_information_drops_every_override_but_keeps_the_read() -> None:
+    result = await _analyze(
+        _FakeLlm(analyze={**_POOR_FIT, "enough_information": False}),
+        description="This is a test",
+    )
+    assert result["sector_fit"] is None and result["effective_sector"] is None
+    assert result["rationale"] is None
+    assert result["dcf"] is None and result["discounts"] is None
+    assert result["transaction_search_terms"] == [] and result["vc_search_terms"] == []
+    assert len(result["pros"]) == 3 and result["fundraise"] is not None
+    AnalyzeResponse(**result)
+
+
+async def test_a_blank_description_drops_overrides_even_if_the_model_reclassifies() -> None:
+    result = await _analyze(_FakeLlm(analyze=_POOR_FIT), description="   ")
+    assert result["sector_fit"] is None
+    assert result["dcf"] is None
 
 
 async def test_analyze_response_model_accepts_both_the_full_and_fallback_shape() -> None:
@@ -541,7 +670,7 @@ async def test_analyze_response_model_accepts_both_the_full_and_fallback_shape()
         company="Acme",
         domain="acme.com",
         sector="",
-        description="",
+        description="Operator of three physical nurseries in Dubai.",
         geography="",
         revenue=0,
         ebitda=0,

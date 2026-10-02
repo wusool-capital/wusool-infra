@@ -320,7 +320,7 @@ class CompareResponse(BaseModel):
 
 class ValuationDiscountsIn(BaseModel):
     """`/analyze`'s own `discounts` key, round-tripped back in verbatim.
-    Both fields are optional: `Pipelines._valuation_inputs` already
+    Both fields are optional: `Pipelines.valuation_inputs` already
     defaults each to 50% when absent, so a visitor who never called
     `/analyze` still gets a valuation."""
 
@@ -330,14 +330,14 @@ class ValuationDiscountsIn(BaseModel):
 
 class ValuationRequest(_Strict):
     """The blended valuation submission — DCF, trading comps, transaction
-    comps. Field names match `Pipelines._valuation_inputs`'s stored-payload
+    comps. Field names match `Pipelines.valuation_inputs`'s stored-payload
     keys exactly (`profit_before_tax`, not `ebitda`: `ValuationInputs`
     itself adds the owner's salary back to get to EBITDA, so the raw input
     it wants is pre-addback profit), which is what lets a sweeper resume
     rebuild identical inputs from this same payload.
 
-    `comps` and `discounts` are what the visitor's own prior `/compare` and
-    `/analyze` calls returned, sent back verbatim — this endpoint does not
+    `comps`, `discounts`, `dcf` and the search terms are what the visitor's
+    own prior `/compare` and `/analyze` calls returned, sent back verbatim — this endpoint does not
     re-run either. Their absence is the deterministic-fallback case, not an
     error: the same blend a sweeper resume produces with no model in reach.
     """
@@ -367,6 +367,11 @@ class ValuationRequest(_Strict):
     debt: float = Field(default=0, ge=0)
     comps: list[ComparableOut] = Field(default_factory=list)
     discounts: ValuationDiscountsIn | None = None
+    # `/analyze`'s analyst output, echoed back unbounded like `/analyze` emits
+    # it — a tighter cap here would 422 and lose the lead.
+    dcf: DcfOverridesOut | None = None
+    transaction_search_terms: list[str] = Field(default_factory=list)
+    vc_search_terms: list[str] = Field(default_factory=list)
     consent: bool = False
 
 

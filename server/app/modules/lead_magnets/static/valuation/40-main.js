@@ -6,14 +6,16 @@ function App(){
   const [aiComps,setAiComps]=useState(null);
   const [aiCompsStatus,setAiCompsStatus]=useState("idle");
   const [resultsReady,setResultsReady]=useState(false);
-  const [alreadySubmitted,setAlreadySubmitted]=useState(false);
-  const [gateSubmitting,setGateSubmitting]=useState(false);
   // Set by the "Get Your Free Valuation Report Now" link's onClick below,
   // after a short delay.
   const [reportUnlocked,setReportUnlocked]=useState(false);
   const [unlocking,setUnlocking]=useState(false);
   const [analyzeData,setAnalyzeData]=useState(null);
   const [analyzeStatus,setAnalyzeStatus]=useState("idle");
+  // Stage 2. "running" while /analyze and /compare work after reveal,
+  // "refined" once the analyst's inputs are applied, "base" if they never landed.
+  const [analystStatus,setAnalystStatus]=useState("running");
+  const [analyst,setAnalyst]=useState(null);
   const [vd,setVd]=useState({
     dcfEV:0,dcfEquity:0,
     trRevLow:0,trRevMid:0,trRevHigh:0,
@@ -23,42 +25,7 @@ function App(){
     indLow:0,indMid:0,indHigh:0
   });
 
-  // Records the lead (and checks for a repeat) the moment the visitor
-  // submits the gate form — not after /analyze and /compare finish. This
-  // is the one place in the lead's life where an AI-enriched `comps` list
-  // could still have been attached (the old flow waited for it), but a
-  // duplicate check that only fires after the whole AI round trip is not
-  // a duplicate check at the submit button, so it's sent empty here and
-  // `value_company()`'s own static-sector fallback covers it — same
-  // deterministic path a sweeper resume already uses.
-  const handleGate=async data=>{
-    setGateSubmitting(true);
-    setAlreadySubmitted(false);
-    try{
-      const r=await fetch("/submit-lead",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          submission_id:window.WUSOOL_SUBMISSION_ID,
-          company:data.companyName||"",name:data.name||null,email:data.email||"",
-          domain:data.domain||null,description:data.description||null,sector:data.sector||null,
-          geography:data.geo||null,stage:data.stage||null,
-          last_raise_revenue:data.lastRaiseRevenue||null,
-          last_raise_pbt:data.lastRaisePBT||null,
-          revenue:data.revenue||0,profit_before_tax:data.profitBeforeTax||null,
-          owner_salary:data.ownerSalary||null,cash:0,debt:0,
-          comps:[],consent:!!data.consent
-        })
-      });
-      if(r.status===409){
-        setAlreadySubmitted(true);
-        setGateSubmitting(false);
-        return;
-      }
-    }catch(e){
-      // A recording failure must never block the visitor from seeing their
-      // own report — only a confirmed 409 does that.
-      console.warn("Lead submission failed:",e);
-    }
+  const handleGate=data=>{
     setGate(data);
     const adjEBITDA=(data.profitBeforeTax||0)+(data.ownerSalary||0);
     const cfgData={revenue:data.revenue,ebitda:adjEBITDA};
@@ -70,16 +37,18 @@ function App(){
 
   // /analyze: sector judgement, discounts, DCF overrides, the strategic
   // read (pros/cons/insights) and the fundraise scorecard, merged into one
-  // call. Runs in parallel with /compare below, during the loading screen,
-  // so the report is fully ready the moment loading ends (no second wait).
-  // Sector-fit/discounts/DCF-override/search-term fields are in the
-  // response but unused here - the live page never read the equivalent
-  // client-composed fields either, so this is not a regression.
+  // call. Runs in parallel with /compare below, in the background after the
+  // 10s reveal; its figures refine the preliminary valuation when they land.
   useEffect(()=>{
     if(!gated||!gate)return;
     let cancelled=false;
     setAnalyzeStatus("loading");
     (async()=>{
+      // Local strategic read first so the preview is never empty.
+      try{
+        const lp=generateStrategicAnalysis(gate,cfg);
+        if(!cancelled)setAnalyzeData({pros:lp.pros,cons:lp.cons,insights:lp.insights});
+      }catch(e){}
       const adjEBITDA=(gate.profitBeforeTax||0)+(gate.ownerSalary||0);
       try{
         const resp=await fetch("/analyze",{
@@ -92,7 +61,13 @@ function App(){
           })
         });
         const data=await resp.json();
-        if(!cancelled){setAnalyzeData(data);setAnalyzeStatus("done");}
+        if(!cancelled&&resp.ok){
+          setAnalyzeData(data);
+          setAnalyst(data);
+        }
+        if(!cancelled){
+          setAnalyzeStatus("done");
+        }
       }catch(e){
         console.warn("Analysis failed:",e);
         if(!cancelled)setAnalyzeStatus("done");
@@ -128,32 +103,70 @@ function App(){
     return()=>{cancelled=true;};
   },[gated,gate]);
 
-  // Failsafe: never let a hung /analyze call block the results reveal.
+  // Stage 2 settles once both calls have; the watchdog guarantees a terminal
+  // state even if a request never resolves.
   useEffect(()=>{
     if(!gated)return;
-    const failsafe=setTimeout(()=>{
-      setAnalyzeStatus(s=>s==="done"?s:"done");
-    },12000);
-    return()=>clearTimeout(failsafe);
+    const compsFinished=aiCompsStatus==="done"||aiCompsStatus==="fallback";
+    if(!compsFinished||analyzeStatus!=="done")return;
+    setAnalystStatus(analyst&&analyst.dcf?"refined":"base");
+  },[gated,aiCompsStatus,analyzeStatus,analyst]);
+  useEffect(()=>{
+    if(!gated)return;
+    const watchdog=setTimeout(()=>setAnalystStatus(st=>st==="running"?"base":st),ANALYST_TIMEOUT_MS);
+    return()=>clearTimeout(watchdog);
   },[gated]);
-
 
   const gateTimeRef=useRef(null);
   useEffect(()=>{
     if(gated&&!gateTimeRef.current)gateTimeRef.current=Date.now();
   },[gated]);
 
+  // Stage 1 is computed synchronously from the static tables, so the reveal
+  // waits only on the 10s loading screen, never on the network.
   useEffect(()=>{
     if(!gated)return;
-    const compsFinished=aiCompsStatus==="done"||aiCompsStatus==="fallback";
-    const analyzeFinished=analyzeStatus==="done";
-    if(!compsFinished||!analyzeFinished)return;
-    // Ensure minimum 10s loading display so all animation steps tick to done before reveal
     const elapsed=Date.now()-(gateTimeRef.current||Date.now());
     const minDelay=Math.max(10000-elapsed,1000);
     const timer=setTimeout(()=>setResultsReady(true),minDelay);
     return()=>clearTimeout(timer);
-  },[gated,aiCompsStatus,analyzeStatus]);
+  },[gated]);
+
+  // Records the lead once the analysis has settled, so Attio values it with
+  // the same comps, discounts and DCF assumptions the visitor sees.
+  const leadSentRef=useRef(false);
+  const sendLead=()=>{
+    if(!gate||leadSentRef.current)return;
+    leadSentRef.current=true;
+    fetch("/submit-lead",{
+      method:"POST",headers:{"Content-Type":"application/json"},keepalive:true,
+      body:JSON.stringify({
+        submission_id:window.WUSOOL_SUBMISSION_ID,
+        company:gate.companyName||"",name:gate.name||null,email:gate.email||"",
+        domain:gate.domain||null,description:gate.description||null,sector:gate.sector||null,
+        geography:gate.geo||null,stage:gate.stage||null,
+        last_raise_revenue:gate.lastRaiseRevenue||null,
+        last_raise_pbt:gate.lastRaisePBT||null,
+        revenue:gate.revenue||0,profit_before_tax:gate.profitBeforeTax||null,
+        owner_salary:gate.ownerSalary||null,cash:0,debt:0,
+        comps:aiComps||[],
+        discounts:(analyst&&analyst.discounts)||null,
+        dcf:(analyst&&analyst.dcf)||null,
+        transaction_search_terms:(analyst&&analyst.transaction_search_terms)||[],
+        vc_search_terms:(analyst&&analyst.vc_search_terms)||[],
+        consent:!!gate.consent
+      })
+    }).then(r=>{if(!r.ok)console.warn("Lead submission failed:",r.status);})
+      .catch(e=>console.warn("Lead submission failed:",e));
+  };
+  useEffect(()=>{if(analystStatus!=="running")sendLead();},[analystStatus]);
+  // A visitor leaving before stage 2 settles is still recorded, on whatever
+  // inputs have landed so far.
+  useEffect(()=>{
+    if(!gated||analystStatus!=="running")return;
+    window.addEventListener("pagehide",sendLead);
+    return()=>window.removeEventListener("pagehide",sendLead);
+  },[gated,analystStatus,gate,aiComps,analyst]);
 
   // Pre-compute initial valuation estimates so summary is stable before LinkedIn unlock
   useEffect(()=>{
@@ -166,7 +179,9 @@ function App(){
 
     // --- DCF pre-calc ---
     const bench=getDamodaranBenchmark(sector);
-    const growth=getIndustryGrowth(sector);
+    const growth=(analyst&&analyst.dcf&&typeof analyst.dcf.revGrowth==="number")
+      ?{...getIndustryGrowth(sector),...analyst.dcf}
+      :getIndustryGrowth(sector);
     const taxRate=getTaxRate(gate.geo||"");
     const sizePrem=baseRev<5000000?5:baseRev<20000000?4:baseRev<100000000?3:2;
     const ke=bench?parseFloat(bench.ke.toFixed(2)):12;
@@ -188,7 +203,11 @@ function App(){
         const eased=t*t;
         projMargin=baseMargin+(targetMargin-baseMargin)*eased;
       }else{
-        projMargin=baseMargin+(growth.ebitMarginImpr*(i+1));
+        // Margins mean-revert; they do not expand indefinitely. Cap the total
+        // uplift, and on an already-high base assume no expansion at all,
+        // otherwise a 57% margin compounds to an implausible 67% by year 5.
+        const uplift=baseMargin>=30?0:Math.min(growth.ebitMarginImpr*(i+1),5);
+        projMargin=Math.min(baseMargin+uplift,45);
       }
       const projEBITDA=projRev*(projMargin/100);
       const dep=projRev*(growth.daaPct/100);
@@ -213,13 +232,10 @@ function App(){
     const rawTV=(lastFCF*(1+gR))/denom/Math.pow(1+waccVal,rows.length);
     const tv=lastFCF<0?0:rawTV;
     const dcfEV=Math.max(sumDFCF+tv,0);
-    // Matches domain/valuation/valuation_methods.py's `_DEFAULT_DLOM_PCT` —
-    // see the same fix in 30-components.js's `DCFModule`, which overwrites
-    // this pre-calc once it mounts.
-    const dcfEquity=Math.max(dcfEV,0)*(1-DLOM_PCT/100);
+    const dcfEquity=Math.max(dcfEV,0);
 
     // --- Transaction comps pre-calc ---
-    const txMatches=matchTransactions(sector,15);
+    const txMatches=matchTransactions(sector,15,analyst&&analyst.transaction_search_terms);
     const txList=txMatches.map(idx=>MA_RAW[idx]);
     const txRevM=txList.filter(r=>r.r!=null&&r.r>0).map(r=>r.r);
     const txEbM=txList.filter(r=>r.b!=null&&r.b>0).map(r=>r.b);
@@ -229,7 +245,7 @@ function App(){
     const txDiscR=1-txDRev/100,txDiscE=1-txDEb/100;
 
     // --- Industry research pre-calc ---
-    const vcMatches=matchVCRounds(sector,gate.stage||"");
+    const vcMatches=matchVCRounds(sector,gate.stage||"",analyst&&analyst.vc_search_terms);
     const vcList=vcMatches.map(idx=>VC_RAW[idx]);
     const fyM=vcList.filter(r=>r.fm!=null).map(r=>r.fm);
     const fwM=vcList.filter(r=>r.fw!=null).map(r=>r.fw);
@@ -246,7 +262,7 @@ function App(){
       txEbLow:txES.p25*txDiscE,txEbMid:txES.avg*txDiscE,txEbHigh:txES.p75*txDiscE,
       indLow:vcS.p25*vcDisc,indMid:blendedVC*vcDisc,indHigh:vcS.p75*vcDisc
     }));
-  },[gate]);
+  },[gate,analyst]);
 
   // Pre-compute trading comps from static data initially
   useEffect(()=>{
@@ -271,8 +287,8 @@ function App(){
       const revM=valid.map(c=>c.ev/c.rev);
       const ebM=valid.filter(c=>c.ebitda>0).map(c=>c.ev/c.ebitda);
       const rS=getStats(revM),eS=getStats(ebM);
-      const adjDRev=negEbitda?50:30;
-      const adjDEb=negEbitda?50:30;
+      const adjDRev=negEbitda?65:50;
+      const adjDEb=negEbitda?65:50;
       const disc=1-adjDRev/100,discEb=1-adjDEb/100;
       setVd(p=>({...p,
         trRevLow:rS.p25*disc,trRevMid:rS.median*disc,trRevHigh:rS.p75*disc,
@@ -299,10 +315,10 @@ function App(){
     }));
   },[aiComps,gate]);
 
-  if(!gated)return <Gate onSubmit={handleGate} submitting={gateSubmitting} alreadySubmitted={alreadySubmitted}/>;
+  if(!gated)return <Gate onSubmit={handleGate}/>;
 
   if(!resultsReady){
-    return <ResultsLoadingScreen gate={gate} compsStatus={aiCompsStatus}/>;
+    return <ResultsLoadingScreen gate={gate}/>;
   }
 
   return(
@@ -311,21 +327,24 @@ function App(){
         <div className="page-hdr" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
           <div>
             <h1>Valuation Analysis</h1>
-            <p>{gate.companyName} | {gate.sector} | {gate.geo}</p>
+            <p>{gate.companyName} | {(analyst&&analyst.effective_sector)||gate.sector} | {gate.geo}</p>
+            {analyst&&analyst.sector_fit==="poor"&&analyst.effective_sector&&<div style={{marginTop:8,fontSize:11.5,color:"#B45309",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 12px",lineHeight:1.5,maxWidth:640}}>
+              <strong>Sector reclassified.</strong> The auto-assigned tag was "{gate.sector}", which does not fit this business. Reclassified as <strong>{analyst.effective_sector}</strong>{analyst.rationale?": "+analyst.rationale:"."} Comparables, DCF assumptions and deal matching below reflect the corrected classification.
+            </div>}
           </div>
         </div>
         {reportUnlocked?(
           <div style={{position:"relative"}}>
-            <div data-scroll-stop><ValuationSummary gate={gate} cfg={cfg} vd={vd} unlocked={true}/></div>
+            <div data-scroll-stop><ValuationSummary gate={gate} cfg={cfg} vd={vd} unlocked={true} analystStatus={analystStatus}/></div>
             <div style={{marginTop:24}}>
               <InputsCard gate={gate} cfg={cfg}/>
-              <LinkedInGateV2 gate={gate} cfg={cfg} aiComps={aiComps} onUpdate={upd} vd={vd} unlocked={true} analysis={analyzeData}/>
+              <LinkedInGateV2 gate={gate} cfg={cfg} aiComps={aiComps} onUpdate={upd} vd={vd} unlocked={true} analysis={analyzeData} analyst={analyst} analystStatus={analystStatus}/>
             </div>
             <ScrollHint/>
           </div>
         ):(
         <div style={{position:"relative",marginTop:8}}>
-          <LockedPreview gate={gate} cfg={cfg} vd={vd} teaserData={analyzeData?{strengths:analyzeData.pros||[],risks:analyzeData.cons||[],insights:analyzeData.insights||[]}:null}/>
+          <LockedPreview gate={gate} cfg={cfg} vd={vd} analysisData={analyzeData} analystStatus={analystStatus}/>
           <ScrollHint/>
           <div style={{position:"fixed",left:0,right:0,bottom:0,display:"flex",justifyContent:"center",zIndex:50,pointerEvents:"none",padding:"0 16px 24px"}}>
             <div style={{background:"#fff",border:"1px solid #e8e8e8",borderRadius:12,padding:"24px 32px",maxWidth:480,width:"100%",boxShadow:"0 -4px 24px rgba(0,9,54,0.10), 0 16px 48px rgba(0,9,54,0.22)",textAlign:"center",pointerEvents:"auto"}}>
@@ -334,7 +353,7 @@ function App(){
               <p style={{fontSize:13,color:"#888",lineHeight:1.5,marginBottom:18}}>Your {gate.sector} business in {gate.geo} has been valued across multiple methods. Get your full report and our team will walk you through the complete analysis.</p>
               {/* Unlocks on click, after a short delay — deliberate choice,
                   not gated on an actual booking confirmation. */}
-              <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" onClick={()=>{if(unlocking)return;setUnlocking(true);setTimeout(()=>setReportUnlocked(true),5000);}} style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box"}}>{unlocking?"Waiting for booking confirmation..":"Get Your Free Valuation Report Now →"}</a>
+              <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" onClick={()=>{if(unlocking)return;setUnlocking(true);setTimeout(()=>setReportUnlocked(true),5000);}} style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"'Inter',sans-serif",boxSizing:"border-box"}}>{unlocking?"Waiting for booking confirmation..":"Get Your Free Valuation Report Now →"}</a>
               <div style={{fontSize:11,color:"#aaa",marginTop:9}}>Free · No commitment · Response within 24 hours</div>
             </div>
           </div>
