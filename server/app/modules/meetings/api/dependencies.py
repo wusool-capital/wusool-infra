@@ -21,8 +21,10 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.meetings.application.corrections import CorrectionService
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.bootstrap import (
+    build_correction_service,
     build_feedback_mailer,
     build_feedback_repository,
     build_meetings_service,
@@ -75,3 +77,10 @@ def feedback_mailer() -> EmailSenderPort:
 
 
 FeedbackMailerDep = Annotated[EmailSenderPort, Depends(feedback_mailer)]
+
+
+def get_correction_service() -> CorrectionService:
+    return build_correction_service()
+
+
+CorrectionServiceDep = Annotated[CorrectionService, Depends(get_correction_service)]

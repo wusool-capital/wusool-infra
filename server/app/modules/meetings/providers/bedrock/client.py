@@ -26,8 +26,12 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
+from app.modules.meetings.domain.corrections import CorrectionSuggestion
 from app.modules.meetings.providers.bedrock.boto_client import get_bedrock_runtime_client
-from app.modules.meetings.providers.bedrock.schemas import MeetingSummarySchema
+from app.modules.meetings.providers.bedrock.schemas import (
+    MeetingSummarySchema,
+    TranscriptCorrectionsSchema,
+)
 from app.modules.utilities.domain.bedrock import converse_kwargs
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
@@ -41,6 +45,7 @@ if TYPE_CHECKING:
     from mypy_boto3_bedrock_runtime.type_defs import ConverseResponseTypeDef
 
 _OPERATION = "summarization"
+_CORRECTION_OPERATION = "transcript_correction"
 
 
 class BedrockConverseClient:
@@ -84,6 +89,46 @@ class BedrockConverseClient:
             raise BedrockInvocationError(
                 f"{_OPERATION} output failed validation: {field_errors}"
             ) from exc
+
+    async def suggest_corrections(
+        self,
+        *,
+        model_id: str,
+        prompt: str,
+        system_prompt: str,
+        max_tokens: int,
+        temperature: float,
+    ) -> list[CorrectionSuggestion]:
+        output_schema = TranscriptCorrectionsSchema.model_json_schema()
+
+        def converse() -> ConverseResponseTypeDef:
+            return self._converse(
+                model_id, prompt, system_prompt, max_tokens, temperature, output_schema
+            )
+
+        raw = await invoke_bedrock_with_retry(
+            converse=converse, model_id=model_id, operation=_CORRECTION_OPERATION
+        )
+        try:
+            parsed = TranscriptCorrectionsSchema.model_validate(raw)
+        except ValidationError as exc:
+            # Field paths only: error text would embed transcript-derived input.
+            field_errors = "; ".join(
+                f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}"
+                for err in exc.errors()
+            )
+            raise BedrockInvocationError(
+                f"{_CORRECTION_OPERATION} output failed validation: {field_errors}"
+            ) from exc
+        return [
+            CorrectionSuggestion(
+                segment_id=item.segment_id,
+                original=item.original,
+                suggested=item.suggested,
+                reason=item.reason,
+            )
+            for item in parsed.suggestions
+        ]
 
     def _converse(
         self,

@@ -3,10 +3,13 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, FolderOpen, RefreshCw, Sparkles } from 'lucide-react';
+import { Copy, FolderOpen, Redo2, RefreshCw, Sparkles, Undo2, Wand2 } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { RetranscribeDialog } from './RetranscribeDialog';
 import { useConfig } from '@/contexts/ConfigContext';
+import { Spinner } from '@/components/ui/spinner';
+import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
+import { TranscriptFindReplace } from './TranscriptFindReplace';
 
 
 interface TranscriptButtonGroupProps {
@@ -17,6 +20,8 @@ interface TranscriptButtonGroupProps {
   meetingFolderPath?: string | null;
   onRefetchTranscripts?: () => Promise<void>;
   onSummarize?: () => void;
+  // Present only while the transcript is editable (pre-push).
+  editor?: TranscriptEditorApi;
 }
 
 
@@ -28,6 +33,7 @@ export function TranscriptButtonGroup({
   meetingFolderPath,
   onRefetchTranscripts,
   onSummarize,
+  editor,
 }: TranscriptButtonGroupProps) {
   const { betaFeatures } = useConfig();
   const [showRetranscribeDialog, setShowRetranscribeDialog] = useState(false);
@@ -86,6 +92,52 @@ export function TranscriptButtonGroup({
           </Button>
         )}
       </ButtonGroup>
+
+      {editor && (
+        <div className="flex items-center gap-2">
+          <ButtonGroup>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!editor.canUndo}
+              onClick={() => void editor.undo()}
+              title="Undo (Cmd+Z)"
+            >
+              <Undo2 size={16} />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!editor.canRedo}
+              onClick={() => void editor.redo()}
+              title="Redo (Cmd+Shift+Z)"
+            >
+              <Redo2 size={16} />
+            </Button>
+          </ButtonGroup>
+          <TranscriptFindReplace editor={editor} />
+          <ButtonGroup>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={transcriptCount === 0 || editor.isSuggesting}
+              onClick={() => {
+                Analytics.trackButtonClick('suggest_transcript_fixes', 'meeting_details');
+                void editor.requestSuggestions();
+              }}
+              title="Suggest fixes for misheard words"
+            >
+              {editor.isSuggesting ? <Spinner className="w-4 h-4" /> : <Wand2 size={16} />}
+              <span className="hidden xl:inline">Suggest fixes</span>
+            </Button>
+            {editor.suggestions.size > 0 && (
+              <Button size="sm" variant="outline" onClick={() => void editor.acceptAllSuggestions()}>
+                Accept all ({editor.suggestions.size})
+              </Button>
+            )}
+          </ButtonGroup>
+        </div>
+      )}
 
       {onSummarize && (
         <Button

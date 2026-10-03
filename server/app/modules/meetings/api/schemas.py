@@ -209,3 +209,23 @@ def to_sync_item(status: MeetingSyncStatus) -> DesktopMeetingSyncItem:
 
 def to_company_candidate(org: OrganizationRef) -> DesktopCompanyCandidate:
     return DesktopCompanyCandidate(label=org.name, value=f"attio:{org.attio_id}")
+
+
+class TranscriptSegmentSchema(BaseModel):
+    segment_id: str = Field(..., min_length=1)
+    text: str
+
+
+class TranscriptCorrectionsRequest(BaseModel):
+    segments: list[TranscriptSegmentSchema]
+
+
+class CorrectionSuggestionSchema(BaseModel):
+    segment_id: str
+    original: str
+    suggested: str
+    reason: str
+
+
+class TranscriptCorrectionsResponse(BaseModel):
+    suggestions: list[CorrectionSuggestionSchema]

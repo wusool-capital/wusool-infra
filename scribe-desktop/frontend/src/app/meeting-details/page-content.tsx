@@ -18,6 +18,7 @@ import { useTemplates } from '@/hooks/meeting-details/useTemplates';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
+import { useTranscriptEditor } from '@/hooks/meeting-details/useTranscriptEditor';
 
 export default function PageContent({
   meeting,
@@ -26,6 +27,7 @@ export default function PageContent({
   onAutoGenerateComplete,
   onMeetingUpdated,
   onRefetchTranscripts,
+  onReloadTranscripts,
   // Pagination props for efficient transcript loading
   segments,
   hasMore,
@@ -40,6 +42,7 @@ export default function PageContent({
   onAutoGenerateComplete?: () => void;
   onMeetingUpdated?: () => Promise<void>;
   onRefetchTranscripts?: () => Promise<void>;
+  onReloadTranscripts?: () => Promise<void>;
   // Pagination props
   segments?: any[];
   hasMore?: boolean;
@@ -58,28 +61,18 @@ export default function PageContent({
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
-  const [editedSegments, setEditedSegments] = useState<Record<string, string>>({});
 
   // A meeting is locked for editing once it's been pushed to Scribe --
   // pushed_at is persisted so this holds across app restarts, not just
   // in-session state.
   const isPushed = Boolean(meeting.pushed_at);
 
-  const handleEditSegment = async (id: string, text: string) => {
-    setEditedSegments((prev) => ({ ...prev, [id]: text }));
-    try {
-      await invoke('update_transcript_text', { transcriptId: id, text });
-    } catch (error) {
-      console.error('Failed to save transcript edit:', error);
-      toast.error('Failed to save edit');
-    }
-  };
-
-  const displaySegments = (segments ?? []).map((segment: any) =>
-    editedSegments[segment.id] !== undefined
-      ? { ...segment, text: editedSegments[segment.id] }
-      : segment
-  );
+  const transcriptEditor = useTranscriptEditor({
+    meetingId: meeting.id,
+    segments: segments ?? [],
+    editable: !isPushed,
+    reload: onReloadTranscripts ?? (async () => {}),
+  });
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);
@@ -199,7 +192,7 @@ export default function PageContent({
             meetingId={meeting.id}
             folderPath={meeting.folder_path}
             transcripts={meetingData.transcripts}
-            segments={displaySegments}
+            segments={segments}
             hasMore={hasMore}
             isLoadingMore={isLoadingMore}
             totalCount={totalCount}
@@ -217,7 +210,7 @@ export default function PageContent({
             disableAutoScroll={true}
             // Pagination props for efficient loading
             usePagination={true}
-            segments={displaySegments}
+            segments={segments}
             hasMore={hasMore}
             isLoadingMore={isLoadingMore}
             totalCount={totalCount}
@@ -229,7 +222,7 @@ export default function PageContent({
             onRefetchTranscripts={onRefetchTranscripts}
             // Editable pre-push, summarize opens the push/summary popup
             editable={!isPushed}
-            onEditSegment={handleEditSegment}
+            editor={transcriptEditor}
             onSummarize={() => setShowSummaryDialog(true)}
           />
         )}

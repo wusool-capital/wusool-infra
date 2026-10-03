@@ -4,6 +4,8 @@ import { Transcript, TranscriptSegmentData } from '@/types';
 import { TranscriptView } from '@/components/TranscriptView';
 import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptView';
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
+import { TranscriptSelectionBar } from './TranscriptSelectionBar';
+import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
 import { useMemo } from 'react';
 
 interface TranscriptPanelProps {
@@ -29,7 +31,8 @@ interface TranscriptPanelProps {
 
   // Editable transcript (pre-push only) + summarize entry point
   editable?: boolean;
-  onEditSegment?: (id: string, text: string) => void;
+  onEditSegment?: (id: string, text: string) => void | Promise<unknown>;
+  editor?: TranscriptEditorApi;
   onSummarize?: () => void;
   // Hide the Copy/Recording/Enhance action bar entirely (e.g. inside a
   // read-only tab of an already-pushed meeting).
@@ -54,6 +57,7 @@ export function TranscriptPanel({
   onRefetchTranscripts,
   editable = false,
   onEditSegment,
+  editor,
   onSummarize,
   showActions = true,
 }: TranscriptPanelProps) {
@@ -85,6 +89,7 @@ export function TranscriptPanel({
             meetingFolderPath={meetingFolderPath}
             onRefetchTranscripts={onRefetchTranscripts}
             onSummarize={onSummarize}
+            editor={editable ? editor : undefined}
           />
         </div>
       )}
@@ -107,8 +112,11 @@ export function TranscriptPanel({
           onLoadMore={onLoadMore}
           editable={editable}
           onEditSegment={onEditSegment}
+          editor={editable ? editor : undefined}
         />
       </div>
+
+      {editable && editor && <TranscriptSelectionBar editor={editor} />}
     </div>
   );
 }

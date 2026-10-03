@@ -9,7 +9,9 @@ use crate::{
         models::MeetingModel,
         repositories::{
             meeting::MeetingsRepository, setting::SettingsRepository,
-            transcript::TranscriptsRepository,
+            transcript::{
+                TranscriptEdit, TranscriptMatches, TranscriptRow, TranscriptsRepository,
+            },
         },
     },
     state::AppState,
@@ -1011,6 +1013,126 @@ pub async fn update_transcript_text<R: Runtime>(
     TranscriptsRepository::update_transcript_text(pool, &transcript_id, &text)
         .await
         .map_err(|e| format!("Failed to update transcript {}: {}", transcript_id, e))
+}
+
+/// Pushed meetings are immutable; the UI hides editing, but the backend
+/// must refuse too so a stale view can't alter what was already sent.
+async fn ensure_editable(pool: &sqlx::SqlitePool, meeting_id: &str) -> Result<(), String> {
+    let pushed = TranscriptsRepository::is_meeting_pushed(pool, meeting_id)
+        .await
+        .map_err(|e| format!("Failed to check meeting {}: {}", meeting_id, e))?;
+    if pushed {
+        return Err("This meeting was already pushed and can no longer be edited.".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn edit_transcript_segment<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_id: String,
+    text: String,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::edit_transcript_text(pool, &meeting_id, &segment_id, &text)
+        .await
+        .map_err(|e| format!("Failed to edit segment: {}", e))
+}
+
+#[tauri::command]
+pub async fn delete_transcript_segments<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_ids: Vec<String>,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::delete_transcripts(pool, &meeting_id, &segment_ids)
+        .await
+        .map_err(|e| format!("Failed to delete segments: {}", e))
+}
+
+#[tauri::command]
+pub async fn split_transcript_segment<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_id: String,
+    cursor: usize,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::split_transcript(pool, &meeting_id, &segment_id, cursor)
+        .await
+        .map_err(|e| format!("Failed to split segment: {}", e))
+}
+
+#[tauri::command]
+pub async fn merge_transcript_segments<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_ids: Vec<String>,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::merge_transcripts(pool, &meeting_id, &segment_ids)
+        .await
+        .map_err(|e| format!("Failed to merge segments: {}", e))
+}
+
+#[tauri::command]
+pub async fn find_in_transcripts<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    query: String,
+) -> Result<TranscriptMatches, String> {
+    TranscriptsRepository::find_in_meeting(state.db_manager.pool(), &meeting_id, &query)
+        .await
+        .map_err(|e| format!("Failed to search transcript: {}", e))
+}
+
+#[tauri::command]
+pub async fn replace_in_transcripts<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    find: String,
+    replacement: String,
+    segment_ids: Option<Vec<String>>,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::replace_in_meeting(
+        pool,
+        &meeting_id,
+        &find,
+        &replacement,
+        segment_ids.as_deref(),
+    )
+    .await
+    .map_err(|e| format!("Failed to replace text: {}", e))
+}
+
+/// Undo/redo entry point: removes `delete_ids` and upserts `rows`.
+#[tauri::command]
+pub async fn apply_transcript_edit<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    delete_ids: Vec<String>,
+    rows: Vec<TranscriptRow>,
+) -> Result<(), String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::apply_edit(pool, &meeting_id, &delete_ids, &rows)
+        .await
+        .map_err(|e| format!("Failed to apply edit: {}", e))
 }
 
 #[tauri::command]

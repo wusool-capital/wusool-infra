@@ -12,6 +12,17 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Scribe desktop has more transcript editing controls before you summarize.
+  Select lines with the checkboxes (Shift-click for a range), then delete or
+  merge them. Right-click a line to delete everything before it, which clears
+  small talk in one step, or to split it. Find & replace fixes a misheard
+  name across the whole transcript. "Suggest fixes" proposes corrections you
+  accept or dismiss per line. Undo and redo (Cmd+Z, Cmd+Shift+Z) cover every
+  change. Deleted lines are removed from what Summarize sends.
+- New `POST /desktop/transcripts/corrections` endpoint suggests fixes for
+  speech-to-text errors (misheard words, company names, punctuation and
+  casing) in Scribe desktop transcripts. It never rephrases or removes filler
+  words, and nothing is saved on the server.
 - Scribe desktop stops recording automatically when a meeting ends. Once the
   meeting app or browser releases the microphone, a pill counts down 15
   seconds, with "Keep" and "Stop now" buttons, then stops. It never
