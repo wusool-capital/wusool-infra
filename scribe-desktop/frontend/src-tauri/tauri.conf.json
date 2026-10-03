@@ -88,6 +88,18 @@
                         "core:window:default",
                         "core:app:default"
                     ]
+                },
+                {
+                    "identifier": "recording-pill",
+                    "description": "Recording pill: minimal window/event access only",
+                    "windows": [
+                        "recording-pill"
+                    ],
+                    "permissions": [
+                        "core:event:default",
+                        "core:window:default",
+                        "core:app:default"
+                    ]
                 }
             ]
         }

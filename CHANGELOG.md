@@ -8,6 +8,24 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-03
+
+### Added
+
+- Scribe desktop stops recording automatically when a meeting ends. Once the
+  meeting app or browser releases the microphone, a pill counts down 15
+  seconds, with "Keep recording" and "Stop now" buttons, then stops. It never
+  triggers for recordings where no meeting app was seen. Settings has a
+  toggle to turn auto-stop off and keep the manual prompt.
+- Scribe desktop shows a small floating pill with a timer and pause/resume
+  and stop buttons while recording, whenever the Scribe window is not in
+  front. It is hidden from screen shares.
+
+### Fixed
+
+- Scribe's meeting popup close button now works on the first click and is
+  visible without hovering.
+
 ## 2026-09-30
 
 ### Changed

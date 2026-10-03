@@ -19,6 +19,7 @@
 //
 // macOS only, requires macOS 14.4+ (kAudioHardwarePropertyProcessObjectList).
 
+use super::overlay_window::{close_overlay, show_overlay, OverlaySpec};
 use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
@@ -29,85 +30,20 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 static POPUP_DISMISSED: AtomicBool = AtomicBool::new(false);
 
 const POPUP_LABEL: &str = "meeting-popup";
-const POPUP_WIDTH: f64 = 320.0;
-const POPUP_HEIGHT: f64 = 78.0;
-const POPUP_MARGIN: f64 = 12.0;
-const POPUP_CORNER_RADIUS: f64 = 16.0;
+const POPUP_SPEC: OverlaySpec = OverlaySpec {
+    label: POPUP_LABEL,
+    url: "meeting-popup",
+    width: 320.0,
+    height: 78.0,
+    corner_radius: 16.0,
+};
 
 fn show_popup<R: Runtime>(app: &AppHandle<R>) {
-    if app.get_webview_window(POPUP_LABEL).is_some() {
-        return;
-    }
-
-    // Window creation and window-vibrancy both require the main thread on
-    // macOS (apply_vibrancy panics/errors otherwise) -- this fires from the
-    // detection loop's background task, so dispatch it explicitly.
-    let app_clone = app.clone();
-    let _ = app.run_on_main_thread(move || {
-        if app_clone.get_webview_window(POPUP_LABEL).is_some() {
-            return;
-        }
-
-        let window = match tauri::WebviewWindowBuilder::new(
-            &app_clone,
-            POPUP_LABEL,
-            tauri::WebviewUrl::App("meeting-popup".into()),
-        )
-        .title("")
-        .inner_size(POPUP_WIDTH, POPUP_HEIGHT)
-        .resizable(false)
-        .decorations(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .transparent(true)
-        .focused(false)
-        .build()
-        {
-            Ok(window) => window,
-            Err(err) => {
-                log::warn!("[MeetingDetection] failed to create popup window: {err:?}");
-                return;
-            }
-        };
-
-        if let Ok(Some(monitor)) = window.current_monitor() {
-            let scale = monitor.scale_factor();
-            let screen = monitor.size().to_logical::<f64>(scale);
-            let x = (screen.width - POPUP_WIDTH - POPUP_MARGIN).max(0.0);
-            let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(
-                x,
-                POPUP_MARGIN,
-            )));
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-            // HudWindow is the same dark, translucent, blurred material macOS
-            // uses for its own notification banners.
-            if let Err(err) = apply_vibrancy(
-                &window,
-                NSVisualEffectMaterial::HudWindow,
-                None,
-                Some(POPUP_CORNER_RADIUS),
-            ) {
-                log::warn!("[MeetingDetection] failed to apply popup vibrancy: {err:?}");
-            }
-        }
-
-        let _ = window.show();
-        info!("[MeetingDetection] showing meeting-detected popup");
-    });
+    show_overlay(app, &POPUP_SPEC);
 }
 
 fn close_popup<R: Runtime>(app: &AppHandle<R>) {
-    let app_clone = app.clone();
-    let _ = app.run_on_main_thread(move || {
-        if let Some(window) = app_clone.get_webview_window(POPUP_LABEL) {
-            let _ = window.close();
-            info!("[MeetingDetection] closed meeting-detected popup");
-        }
-    });
+    close_overlay(app, POPUP_LABEL);
 }
 
 /// Invoked by the popup's "Start Recording" button.
@@ -138,7 +74,8 @@ pub async fn meeting_popup_dismiss<R: Runtime>(app: AppHandle<R>) -> Result<(), 
 #[cfg(target_os = "macos")]
 mod macos {
     use super::*;
-    use crate::audio::recording_commands;
+    use crate::audio::meeting_end_tracker::{MeetingEndTracker, MeetingSignal};
+    use crate::audio::{recording_commands, recording_pill, recording_preferences};
     use cidre::core_audio as ca;
     use std::collections::HashSet;
     use std::time::Duration;
@@ -207,6 +144,7 @@ mod macos {
             let mut consecutive_active: u32 = 0;
             let mut consecutive_inactive: u32 = 0;
             let mut last_logged: HashSet<i32> = HashSet::new();
+            let mut end_tracker = MeetingEndTracker::new(INACTIVE_THRESHOLD);
 
             loop {
                 if recording_commands::is_recording().await {
@@ -220,9 +158,32 @@ mod macos {
                     POPUP_DISMISSED.store(true, Ordering::Relaxed);
                     consecutive_active = 0;
                     consecutive_inactive = 0;
+
+                    if recording_pill::take_keep_requested() {
+                        end_tracker.keep_recording();
+                    }
+                    let meeting_active = !active_meeting_processes(own_pid).is_empty();
+                    match end_tracker.observe(meeting_active) {
+                        MeetingSignal::Ended => {
+                            // Fail open to the default (on) if prefs can't be read.
+                            let auto_stop =
+                                recording_preferences::load_recording_preferences(&app)
+                                    .await
+                                    .map(|p| p.auto_stop_on_meeting_end)
+                                    .unwrap_or(true);
+                            info!("[MeetingDetection] meeting ended (auto_stop={auto_stop})");
+                            recording_pill::start_meeting_end_countdown(&app, auto_stop);
+                        }
+                        MeetingSignal::Reacquired => recording_pill::cancel_countdown(&app),
+                        MeetingSignal::Idle => {}
+                    }
+
                     tokio::time::sleep(POLL_INTERVAL).await;
                     continue;
                 }
+
+                end_tracker.reset();
+                recording_pill::cancel_countdown(&app);
 
                 let active = active_meeting_processes(own_pid);
                 let current_pids: HashSet<i32> = active.iter().map(|(pid, _)| *pid).collect();

@@ -36,7 +36,7 @@ export default function MeetingPopupPage() {
           dismiss()
         }}
         aria-label="Dismiss"
-        className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-white/70 opacity-0 transition-opacity hover:bg-white/20 hover:text-white group-hover:opacity-100"
+        className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-white/70 opacity-70 transition-opacity hover:bg-white/20 hover:text-white group-hover:opacity-100"
       >
         <X className="h-3 w-3" />
       </button>

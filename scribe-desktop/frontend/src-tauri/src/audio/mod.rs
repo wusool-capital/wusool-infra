@@ -22,6 +22,9 @@ pub mod stream;
 pub mod recording_manager;
 pub mod recording_commands;
 pub mod recording_preferences;
+pub mod recording_pill;
+pub mod overlay_window;
+pub mod meeting_end_tracker;
 pub mod recording_saver;
 pub mod incremental_saver;  // NEW: Incremental audio saving with checkpoints
 pub mod level_monitor;

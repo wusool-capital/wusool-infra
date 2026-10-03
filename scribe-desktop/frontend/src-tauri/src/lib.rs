@@ -467,6 +467,9 @@ pub fn run() {
             // recording?" popup when a meeting app/browser is using the mic.
             audio::meeting_detection::start_probe(_app.handle().clone());
 
+            // Floating pause/stop pill while recording in the background.
+            audio::recording_pill::init(_app.handle());
+
             // Set models directory to use app_data_dir (unified storage location)
             whisper_engine::commands::set_models_directory(&_app.handle());
 
@@ -566,6 +569,14 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(_) = event {
+                if window.label() == "main" {
+                    let app = window.app_handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        audio::recording_pill::sync(&app).await;
+                    });
+                }
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
                     api.prevent_close();
@@ -585,6 +596,9 @@ pub fn run() {
             read_audio_file,
             audio::meeting_detection::meeting_popup_start_recording,
             audio::meeting_detection::meeting_popup_dismiss,
+            audio::recording_pill::recording_pill_state,
+            audio::recording_pill::recording_pill_stop,
+            audio::recording_pill::recording_pill_keep_recording,
             save_transcript,
             analytics::commands::init_analytics,
             analytics::commands::disable_analytics,
