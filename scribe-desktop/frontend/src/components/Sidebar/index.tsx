@@ -599,7 +599,7 @@ const Sidebar: React.FC = () => {
               ? 'h-8 mx-3 mt-1 px-2 rounded-md text-xs font-semibold uppercase tracking-wide text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground cursor-pointer'
               : cn(
                   'px-2.5 py-2 my-0.5 rounded-lg cursor-pointer',
-                  item.type === 'folder' ? 'text-[13px]' : 'text-sm',
+                  item.type === 'folder' ? 'text-xs' : 'text-sm',
                   isActive
                     ? 'bg-primary/10 text-primary font-medium'
                     : 'hover:bg-accent/60'
