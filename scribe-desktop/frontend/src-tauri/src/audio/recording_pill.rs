@@ -8,7 +8,7 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 const PILL_LABEL: &str = "recording-pill";
 const PILL_SPEC: OverlaySpec = OverlaySpec {
@@ -88,10 +88,29 @@ pub fn start_meeting_end_countdown<R: Runtime>(app: &AppHandle<R>, auto_stop: bo
 
         // The user may have already stopped it from the main window or tray.
         if auto_stop && recording_commands::is_recording().await {
-            crate::tray::focus_main_window(&app);
-            crate::tray::stop_and_finalize(&app).await;
+            stop_and_open_home(&app).await;
         }
     });
+}
+
+/// Stops the recording and leaves Scribe open on its home page. The frontend
+/// would otherwise jump to the saved meeting once it finishes saving.
+async fn stop_and_open_home<R: Runtime>(app: &AppHandle<R>) {
+    crate::tray::focus_main_window(app);
+
+    let window = app.get_webview_window("main");
+    if let Some(window) = &window {
+        let _ = window.eval("sessionStorage.setItem('afterStopGoHome', 'true')");
+    }
+
+    crate::tray::stop_and_finalize(app).await;
+
+    // A failed stop must not leave the flag behind for the next manual stop.
+    if recording_commands::is_recording().await {
+        if let Some(window) = &window {
+            let _ = window.eval("sessionStorage.removeItem('afterStopGoHome')");
+        }
+    }
 }
 
 /// Returns whether a pending countdown was actually cancelled.
@@ -123,8 +142,7 @@ pub async fn recording_pill_state() -> Option<MeetingEndCountdown> {
 #[tauri::command]
 pub async fn recording_pill_stop<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     cancel_countdown(&app);
-    crate::tray::focus_main_window(&app);
-    crate::tray::stop_and_finalize(&app).await;
+    stop_and_open_home(&app).await;
     Ok(())
 }
 

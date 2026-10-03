@@ -335,11 +335,16 @@ export function useRecordingStop(
             duration: 10000,
           });
 
+          // Stops from the meeting popup ask to land on the home page instead
+          // (the toast above still links to the meeting).
+          const goHome = sessionStorage.getItem('afterStopGoHome') === 'true';
+          sessionStorage.removeItem('afterStopGoHome');
+
           // Auto-navigate after a short delay with source parameter
           setTimeout(() => {
-            router.push(`/meeting-details?id=${meetingId}&source=recording`);
+            router.push(goHome ? '/' : `/meeting-details?id=${meetingId}&source=recording`);
             clearTranscripts()
-            Analytics.trackPageView('meeting_details');
+            Analytics.trackPageView(goHome ? 'home' : 'meeting_details');
 
             // Reset to IDLE after navigation
             setStatus(RecordingStatus.IDLE);
