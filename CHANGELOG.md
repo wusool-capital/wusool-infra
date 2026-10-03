@@ -16,9 +16,9 @@ for current production evidence and open handover items.
   Select lines with the checkboxes (Shift-click for a range), then delete or
   merge them. Right-click a line to delete everything before it, which clears
   small talk in one step, or to split it. Find & replace fixes a misheard
-  name across the whole transcript. "Suggest fixes" proposes corrections you
-  accept or dismiss per line. Undo and redo (Cmd+Z, Cmd+Shift+Z) cover every
-  change. Deleted lines are removed from what Summarize sends.
+  name across the whole transcript. Undo and redo (Cmd+Z, Cmd+Shift+Z) cover
+  every change. Deleted lines are removed from what Summarize sends. A
+  "Suggest fixes" button for AI spelling suggestions shows as "Coming soon".
 - New `POST /desktop/transcripts/corrections` endpoint suggests fixes for
   speech-to-text errors (misheard words, company names, punctuation and
   casing) in Scribe desktop transcripts. It never rephrases or removes filler

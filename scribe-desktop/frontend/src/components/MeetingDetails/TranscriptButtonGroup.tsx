@@ -7,7 +7,6 @@ import { Copy, FolderOpen, Redo2, RefreshCw, Sparkles, Undo2, Wand2 } from 'luci
 import Analytics from '@/lib/analytics';
 import { RetranscribeDialog } from './RetranscribeDialog';
 import { useConfig } from '@/contexts/ConfigContext';
-import { Spinner } from '@/components/ui/spinner';
 import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
 import { TranscriptFindReplace } from './TranscriptFindReplace';
 
@@ -116,26 +115,12 @@ export function TranscriptButtonGroup({
             </Button>
           </ButtonGroup>
           <TranscriptFindReplace editor={editor} />
-          <ButtonGroup>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={transcriptCount === 0 || editor.isSuggesting}
-              onClick={() => {
-                Analytics.trackButtonClick('suggest_transcript_fixes', 'meeting_details');
-                void editor.requestSuggestions();
-              }}
-              title="Suggest fixes for misheard words"
-            >
-              {editor.isSuggesting ? <Spinner className="w-4 h-4" /> : <Wand2 size={16} />}
-              <span className="hidden xl:inline">Suggest fixes</span>
-            </Button>
-            {editor.suggestions.size > 0 && (
-              <Button size="sm" variant="outline" onClick={() => void editor.acceptAllSuggestions()}>
-                Accept all ({editor.suggestions.size})
-              </Button>
-            )}
-          </ButtonGroup>
+          {/* Shipped disabled until suggestion quality is validated on real transcripts. */}
+          <Button size="sm" variant="outline" disabled title="Suggest fixes for misheard words: coming soon">
+            <Wand2 size={16} />
+            <span className="hidden xl:inline">Suggest fixes</span>
+            <span className="hidden text-xs text-muted-foreground xl:inline">Coming soon</span>
+          </Button>
         </div>
       )}
 
