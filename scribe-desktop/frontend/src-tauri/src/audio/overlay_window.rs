@@ -115,7 +115,12 @@ mod panel {
         true
     }
 
-    pub(super) fn remove<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    pub(super) fn release<R: Runtime>(app: &AppHandle<R>, label: &str) {
+        // tao reports a closed window only from its own delegate. Without
+        // restoring it the label stays registered and the overlay never shows again.
+        if let Ok(panel) = app.get_webview_panel(label) {
+            panel.set_event_handler(None);
+        }
         let _ = app.remove_webview_panel(label);
     }
 }
@@ -194,7 +199,7 @@ pub(crate) fn close_overlay<R: Runtime>(app: &AppHandle<R>, label: &'static str)
     let app_clone = app.clone();
     let _ = app.run_on_main_thread(move || {
         #[cfg(target_os = "macos")]
-        panel::remove(&app_clone, label);
+        panel::release(&app_clone, label);
 
         if let Some(window) = app_clone.get_webview_window(label) {
             let _ = window.close();
