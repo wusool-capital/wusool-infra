@@ -23,7 +23,9 @@ for current production evidence and open handover items.
 - Scribe's meeting popup close button now works on the first click and is
   visible without hovering. The popups no longer show an oversized
   background rectangle behind the card. Both popups now share a refreshed
-  card design with the WusoolScribe logo.
+  card design with the WusoolScribe logo. On macOS they now behave like
+  system notifications: hover and the pointer cursor work and a click gives
+  immediate feedback, without pulling focus from the meeting app.
 
 ## 2026-09-30
 

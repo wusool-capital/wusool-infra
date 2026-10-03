@@ -394,6 +394,12 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
+    // Non-activating panels for the meeting popups (hover/cursor without stealing focus).
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {

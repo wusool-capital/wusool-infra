@@ -70,15 +70,45 @@ const VARIANTS: Record<Variant, string> = {
   ghost: 'bg-white/[0.08] text-white/85 hover:bg-white/[0.16] hover:text-white',
 }
 
-interface OverlayButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface OverlayButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
   variant: Variant
+  onClick: () => unknown
 }
 
-export function OverlayButton({ variant, className = '', ...props }: OverlayButtonProps) {
+// The overlay closes the moment its action runs, so hold the pressed look
+// briefly or the click would give no visible feedback at all.
+const PRESS_FEEDBACK_MS = 140
+
+export function OverlayButton({
+  variant,
+  onClick,
+  className = '',
+  children,
+  ...props
+}: OverlayButtonProps) {
+  const [pressed, setPressed] = useState(false)
+
+  const handleClick = async () => {
+    if (pressed) return
+    setPressed(true)
+    await new Promise((resolve) => setTimeout(resolve, PRESS_FEEDBACK_MS))
+    try {
+      await onClick()
+    } finally {
+      setPressed(false)
+    }
+  }
+
   return (
     <button
       {...props}
-      className={`flex h-8 items-center justify-center rounded-lg px-3 text-[11.5px] font-semibold outline-none transition active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-white/60 motion-reduce:transition-none motion-reduce:active:scale-100 ${VARIANTS[variant]} ${className}`}
-    />
+      onClick={handleClick}
+      disabled={pressed}
+      className={`flex h-8 cursor-pointer items-center justify-center rounded-lg px-3 text-[11.5px] font-semibold outline-none transition duration-100 hover:brightness-110 active:scale-[0.95] focus-visible:ring-2 focus-visible:ring-white/70 motion-reduce:transition-none motion-reduce:active:scale-100 ${
+        pressed ? 'scale-[0.95] brightness-90 motion-reduce:scale-100' : ''
+      } ${VARIANTS[variant]} ${className}`}
+    >
+      {children}
+    </button>
   )
 }
