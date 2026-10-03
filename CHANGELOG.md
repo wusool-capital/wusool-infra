@@ -8,6 +8,33 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-03
+
+### Added
+
+- Scribe desktop stops recording automatically when a meeting ends. Once the
+  meeting app or browser releases the microphone, a pill counts down 15
+  seconds, with "Keep" and "Stop now" buttons, then stops. It never
+  triggers for recordings where no meeting app was seen. Settings has a
+  toggle to turn auto-stop off, in which case nothing appears and recording
+  continues until it is stopped manually. Record and Stop now on the
+  popups open Scribe's home page, so no extra click is needed.
+
+### Changed
+
+- Scribe desktop's start-recording buttons now react the instant they are
+  clicked. A spinner shows while the transcription model is checked and
+  capture starts. A blocked or failed start puts the button back.
+
+### Fixed
+
+- Scribe's meeting popup close button now works on the first click and is
+  visible without hovering. The popups no longer show an oversized
+  background rectangle behind the card. Both popups now share a refreshed
+  card design with the WusoolScribe logo. On macOS they now behave like
+  system notifications. Hover and the pointer cursor work, and a click gives
+  immediate feedback without pulling focus from the meeting app.
+
 ## 2026-09-30
 
 ### Changed

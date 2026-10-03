@@ -13,6 +13,7 @@ export interface RecordingPreferences {
   file_format: string;
   preferred_mic_device: string | null;
   preferred_system_device: string | null;
+  auto_stop_on_meeting_end: boolean;
 }
 
 interface RecordingSettingsProps {
@@ -25,7 +26,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     auto_save: true,
     file_format: 'mp4',
     preferred_mic_device: null,
-    preferred_system_device: null
+    preferred_system_device: null,
+    auto_stop_on_meeting_end: true
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -118,6 +120,22 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       });
     } catch (error) {
       console.error('Failed to save notification preference:', error);
+      toast.error('Failed to save preference');
+    }
+  };
+
+  const handleAutoStopToggle = async (enabled: boolean) => {
+    const updated = { ...preferences, auto_stop_on_meeting_end: enabled };
+    setPreferences(updated);
+    try {
+      await invoke('set_recording_preferences', { preferences: updated });
+      toast.success('Preference saved');
+      await Analytics.track('auto_stop_on_meeting_end_changed', {
+        enabled: enabled.toString()
+      });
+    } catch (error) {
+      console.error('Failed to save auto-stop preference:', error);
+      setPreferences(preferences);
       toast.error('Failed to save preference');
     }
   };
@@ -225,6 +243,20 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
         <Switch
           checked={showRecordingNotification}
           onCheckedChange={handleNotificationToggle}
+        />
+      </div>
+
+      {/* Auto-stop Toggle */}
+      <div className="flex items-center justify-between p-4 border rounded-lg">
+        <div className="flex-1">
+          <div className="font-medium">Auto-stop When Meeting Ends</div>
+          <div className="text-sm text-muted-foreground">
+            Stop recording after a short countdown when your meeting app releases the microphone. When off, recording continues until you stop it from the tray menu or the app.
+          </div>
+        </div>
+        <Switch
+          checked={preferences.auto_stop_on_meeting_end}
+          onCheckedChange={handleAutoStopToggle}
         />
       </div>
 

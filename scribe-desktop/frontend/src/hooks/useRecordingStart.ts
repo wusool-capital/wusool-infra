@@ -84,6 +84,9 @@ export function useRecordingStart(
     try {
       console.log('handleRecordingStart called - checking Parakeet model status');
 
+      // Optimistic: reflect the click immediately; reverted if the start is blocked or fails.
+      setStatus(RecordingStatus.STARTING, 'Initializing recording...');
+
       // Check if Parakeet transcription model is ready before starting
       const parakeetReady = await checkParakeetReady();
       if (!parakeetReady) {
@@ -111,8 +114,6 @@ export function useRecordingStart(
       const randomTitle = generateMeetingTitle();
       setMeetingTitle(randomTitle);
 
-      // Set STARTING status before initiating backend recording
-      setStatus(RecordingStatus.STARTING, 'Initializing recording...');
 
       // Start the actual backend recording
       console.log('Starting backend recording with meeting:', randomTitle);
@@ -152,6 +153,7 @@ export function useRecordingStart(
           console.log('Auto-starting recording from navigation...');
           setIsAutoStarting(true);
           sessionStorage.removeItem('autoStartRecording'); // Clear the flag
+          setStatus(RecordingStatus.STARTING, 'Initializing recording...');
 
           // Check if Parakeet transcription model is ready before starting
           const parakeetReady = await checkParakeetReady();
@@ -181,8 +183,6 @@ export function useRecordingStart(
             // Generate meeting title
             const generatedMeetingTitle = generateMeetingTitle();
 
-            // Set STARTING status before initiating backend recording
-            setStatus(RecordingStatus.STARTING, 'Initializing recording...');
 
             console.log('Auto-starting backend recording with meeting:', generatedMeetingTitle);
             const result = await recordingService.startRecordingWithDevices(
@@ -240,6 +240,7 @@ export function useRecordingStart(
 
       console.log('Direct start from sidebar - checking Parakeet model status');
       setIsAutoStarting(true);
+      setStatus(RecordingStatus.STARTING, 'Initializing recording...');
 
       // Check if Parakeet transcription model is ready before starting
       const parakeetReady = await checkParakeetReady();
@@ -268,8 +269,6 @@ export function useRecordingStart(
         // Generate meeting title
         const generatedMeetingTitle = generateMeetingTitle();
 
-        // Set STARTING status before initiating backend recording
-        setStatus(RecordingStatus.STARTING, 'Initializing recording...');
 
         console.log('Starting backend recording with meeting:', generatedMeetingTitle);
         const result = await recordingService.startRecordingWithDevices(

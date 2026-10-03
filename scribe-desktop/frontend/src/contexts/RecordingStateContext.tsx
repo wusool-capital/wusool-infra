@@ -41,6 +41,7 @@ interface RecordingStateContextType extends RecordingState {
   setStatus: (status: RecordingStatus, message?: string) => void;
 
   // Computed helpers (derived from status)
+  isStarting: boolean;
   isStopping: boolean;
   isProcessing: boolean;
   isSaving: boolean;
@@ -229,6 +230,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
   const contextValue = useMemo(() => ({
     ...state,
     setStatus,
+    isStarting: state.status === RecordingStatus.STARTING,
     isStopping: state.status === RecordingStatus.STOPPING,
     isProcessing: state.status === RecordingStatus.PROCESSING_TRANSCRIPTS,
     isSaving: state.status === RecordingStatus.SAVING,

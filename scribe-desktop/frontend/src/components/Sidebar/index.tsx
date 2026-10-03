@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog"
 import { VisuallyHidden } from "@/components/ui/visually-hidden"
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 import Logo from '../Logo';
 import { ComplianceNotification } from '../ComplianceNotification';
@@ -98,7 +99,7 @@ const Sidebar: React.FC = () => {
   } = useSidebar();
 
   // Get recording state from RecordingStateContext (single source of truth)
-  const { isRecording } = useRecordingState();
+  const { isRecording, isStarting } = useRecordingState();
   const { deleteMeetings } = useDeleteMeetings();
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
@@ -495,10 +496,12 @@ const Sidebar: React.FC = () => {
                 variant="destructive"
                 size="icon"
                 onClick={handleRecordingToggle}
-                disabled={isRecording}
+                disabled={isRecording || isStarting}
                 className="rounded-full shadow-sm"
               >
-                {isRecording ? (
+                {isStarting ? (
+                  <Spinner className="w-5 h-5" />
+                ) : isRecording ? (
                   <Square className="w-5 h-5" />
                 ) : (
                   <Mic className="w-5 h-5" />
@@ -506,7 +509,7 @@ const Sidebar: React.FC = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              <p>{isRecording ? "Recording in progress..." : "Start Recording"}</p>
+              <p>{isStarting ? "Starting..." : isRecording ? "Recording in progress..." : "Start Recording"}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -855,10 +858,15 @@ const Sidebar: React.FC = () => {
             <Button
               variant="destructive"
               onClick={handleRecordingToggle}
-              disabled={isRecording}
+              disabled={isRecording || isStarting}
               className="w-full shadow-sm"
             >
-              {isRecording ? (
+              {isStarting ? (
+                <>
+                  <Spinner className="w-4 h-4 mr-2" />
+                  <span>Starting...</span>
+                </>
+              ) : isRecording ? (
                 <>
                   <Square className="w-4 h-4 mr-2" />
                   <span>Recording in progress...</span>

@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "WusoolScribe",
-    "version": "0.4.10",
+    "version": "0.5.0",
     "identifier": "com.wusool.scribe",
     "build": {
         "frontendDist": "../out",
@@ -82,6 +82,18 @@
                     "description": "Meeting-detected popup: minimal window/event access only",
                     "windows": [
                         "meeting-popup"
+                    ],
+                    "permissions": [
+                        "core:event:default",
+                        "core:window:default",
+                        "core:app:default"
+                    ]
+                },
+                {
+                    "identifier": "recording-pill",
+                    "description": "Recording pill: minimal window/event access only",
+                    "windows": [
+                        "recording-pill"
                     ],
                     "permissions": [
                         "core:event:default",

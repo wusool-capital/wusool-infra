@@ -394,6 +394,12 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
+    // Non-activating panels for the meeting popups (hover/cursor without stealing focus).
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
@@ -585,6 +591,9 @@ pub fn run() {
             read_audio_file,
             audio::meeting_detection::meeting_popup_start_recording,
             audio::meeting_detection::meeting_popup_dismiss,
+            audio::recording_pill::recording_pill_state,
+            audio::recording_pill::recording_pill_stop,
+            audio::recording_pill::recording_pill_keep_recording,
             save_transcript,
             analytics::commands::init_analytics,
             analytics::commands::disable_analytics,

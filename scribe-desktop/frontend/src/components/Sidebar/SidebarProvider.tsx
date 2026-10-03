@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
 
 // Recovers Scribe summaries the "Check" button in a meeting's push
 // dialog never reached -- that dialog only mounts pre-push, so a
@@ -123,7 +123,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [activeSummaryPolls, setActiveSummaryPolls] = useState<Map<string, NodeJS.Timeout>>(new Map());
 
   // Use recording state from RecordingStateContext (single source of truth)
-  const { isRecording } = useRecordingState();
+  const { isRecording, isStarting, setStatus } = useRecordingState();
 
   const pathname = usePathname();
   const router = useRouter();
@@ -255,7 +255,9 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   // Function to handle recording toggle from sidebar
   const handleRecordingToggle = () => {
-    if (!isRecording) {
+    if (!isRecording && !isStarting) {
+      // Optimistic: show "starting" right away, even while navigating home first.
+      setStatus(RecordingStatus.STARTING, 'Initializing recording...');
       // Check if already on home page
       if (pathname === '/') {
         // Already on home - trigger recording directly via custom event
