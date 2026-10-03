@@ -581,7 +581,9 @@ const Sidebar: React.FC = () => {
   const renderItem = (item: SidebarItem, depth = 0) => {
     const isExpanded = expandedFolders.has(item.id) || searchExpandedFolderIds.has(item.id);
     const paddingLeft = `${depth * 12 + 12}px`;
-    const isActive = item.type === 'file' && currentMeeting?.id === item.id;
+    // currentMeeting outlives the meeting page, so it only counts while one is open.
+    const onMeetingRoute = !!pathname && (pathname.startsWith('/meeting-details') || pathname.startsWith('/notes'));
+    const isActive = onMeetingRoute && item.type === 'file' && currentMeeting?.id === item.id;
     const isMeetingItem = item.id.includes('-') && !item.id.startsWith('intro-call');
 
     // Check if this item has a matching transcript snippet
