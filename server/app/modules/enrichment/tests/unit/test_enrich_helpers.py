@@ -10,7 +10,6 @@ from app.modules.enrichment.application.enrich import (
     _coerce_proposed_value,
     _constrain_to_options,
     _field_line,
-    _is_missing,
 )
 from app.modules.enrichment.domain.field_plans import enrichable_fields_by_name_for
 
@@ -18,29 +17,6 @@ _TARGET_COUNTRY = enrichable_fields_by_name_for("buyer")["target_country"]
 _EMPLOYEE_RANGE = enrichable_fields_by_name_for("seller")["employee_range"]
 _HQ_COUNTRY = enrichable_fields_by_name_for("seller")["hq_country"]
 _NOTABLE_INVESTMENTS = enrichable_fields_by_name_for("buyer")["notable_investments"]
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        (None, True),
-        ("", True),
-        ("   ", True),
-        ([], True),
-        ({}, True),
-        ({"amount": None}, True),
-        (0, False),
-        (0.0, False),
-        (False, False),
-        ("0", False),
-        (["a"], False),
-        ({"amount": 5000}, False),
-        ({"amount": 0}, False),
-        ({"amount": 0.0}, False),
-    ],
-)
-def test_is_missing(value: object, expected: bool) -> None:
-    assert _is_missing(value) is expected
 
 
 def test_coerce_proposed_value_currency() -> None:

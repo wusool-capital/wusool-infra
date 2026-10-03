@@ -12,6 +12,7 @@ from app.modules.attio.providers.attio.entries import (
     patch_person,
     patch_role_entry,
     resolve_role_entry_id,
+    resolve_role_entry_ids_by_vertical,
 )
 
 
@@ -180,6 +181,47 @@ async def test_unset_vertical_only_raises_when_every_entry_has_a_vertical() -> N
     with pytest.raises(RoleEntryNotFoundError):
         await resolve_role_entry_id(
             client, "buyer_role", "org-a", is_test=False, unset_vertical_only=True
+        )
+
+
+async def test_target_vertical_picks_that_verticals_entry_not_the_first_active() -> None:
+    """An org holds one active entry per vertical, so the first active one is
+    the wrong answer for any caller that already knows its vertical.
+    """
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("entry-fintech", "org-a", is_active=True, target_vertical="Fintech"),
+                _entry("entry-health", "org-a", is_active=True, target_vertical="Healthcare"),
+            ]
+        ]
+    )
+
+    entry_id = await resolve_role_entry_id(
+        client, "buyer_role", "org-a", is_test=False, target_vertical="Healthcare"
+    )
+
+    assert entry_id == "entry-health"
+
+
+async def test_target_vertical_raises_when_org_has_no_entry_for_it() -> None:
+    client = _FakeClient(
+        entry_pages=[[_entry("entry-fintech", "org-a", is_active=True, target_vertical="Fintech")]]
+    )
+
+    with pytest.raises(RoleEntryNotFoundError):
+        await resolve_role_entry_id(
+            client, "buyer_role", "org-a", is_test=False, target_vertical="Healthcare"
+        )
+
+
+@pytest.mark.parametrize("other", [{"unset_vertical_only": True}, {"only_entry_id": "entry-1"}])
+async def test_target_vertical_is_exclusive_with_the_other_narrowing_kwargs(
+    other: dict[str, bool | str],
+) -> None:
+    with pytest.raises(ValueError, match="target_vertical"):
+        await resolve_role_entry_id(
+            _FakeClient(), "buyer_role", "org-a", is_test=False, target_vertical="Fintech", **other
         )
 
 
@@ -495,3 +537,73 @@ async def test_patch_person_targets_records_endpoint() -> None:
     path, body = client.patch_calls[0]
     assert path == "/objects/person/records/person-1"
     assert body == {"data": {"values": {"linkedin": "https://linkedin.com/in/dana"}}}
+
+
+async def test_resolve_role_entry_id_only_entry_id_picks_that_entry_of_a_split_org() -> None:
+    """An org split by vertical has several active entries; the edit must
+    land on the role's own, not whichever active one is listed first."""
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("entry-clinic", "org-a", is_active=True),
+                _entry("entry-fintech", "org-a", is_active=True),
+            ]
+        ]
+    )
+
+    entry_id = await resolve_role_entry_id(
+        client, "buyer_role", "org-a", is_test=False, only_entry_id="entry-fintech"
+    )
+
+    assert entry_id == "entry-fintech"
+
+
+async def test_resolve_role_entry_id_only_entry_id_still_respects_the_test_scope() -> None:
+    client = _FakeClient(
+        entry_pages=[[_entry("entry-test", "org-a", is_active=True, is_test=True)]]
+    )
+
+    with pytest.raises(RoleEntryNotFoundError):
+        await resolve_role_entry_id(
+            client, "buyer_role", "org-a", is_test=False, only_entry_id="entry-test"
+        )
+
+
+async def test_resolve_role_entry_id_only_entry_id_raises_when_the_entry_is_gone() -> None:
+    client = _FakeClient(entry_pages=[[_entry("entry-other", "org-a", is_active=True)]])
+
+    with pytest.raises(RoleEntryNotFoundError):
+        await resolve_role_entry_id(
+            client, "buyer_role", "org-a", is_test=False, only_entry_id="entry-missing"
+        )
+
+
+async def test_by_vertical_scans_once_and_picks_each_verticals_active_entry() -> None:
+    client = _FakeClient(
+        entry_pages=[
+            [
+                _entry("fin-old", "org-a", is_test=False, created_at="2026-01-01"),
+                _entry(
+                    "fin-live", "org-a", is_active=True, is_test=False, target_vertical="Fintech"
+                ),
+                _entry(
+                    "fin-stale",
+                    "org-a",
+                    is_test=False,
+                    created_at="2026-09-01",
+                    target_vertical="Fintech",
+                ),
+                _entry(
+                    "other-org", "org-b", is_active=True, is_test=False, target_vertical="Mobility"
+                ),
+                _entry(
+                    "test-half", "org-a", is_active=True, is_test=True, target_vertical="Mobility"
+                ),
+            ]
+        ]
+    )
+
+    ids = await resolve_role_entry_ids_by_vertical(client, "buyer_role", "org-a", is_test=False)
+
+    assert ids == {None: "fin-old", "Fintech": "fin-live"}
+    assert len(client.post_calls) == 1

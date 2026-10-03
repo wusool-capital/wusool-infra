@@ -241,3 +241,29 @@ async def test_concurrent_create_yields_one_active_role() -> None:
             await session.execute(delete(SellerRole).where(SellerRole.org_attio_id == attio_id))
             await session.execute(delete(Organization).where(Organization.attio_id == attio_id))
             await session.commit()
+
+
+async def test_create_persists_source_place_id_even_when_org_row_already_exists(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    # Simulates the Attio webhook inserting the org first: `create` is then a
+    # no-op, so the place id must be written by the follow-up update.
+    attio_id = f"test-org-{uuid.uuid4()}"
+    place_id = f"place-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=attio_id, name="Webhook Won Co"))
+        await session.commit()
+
+    await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+        org_attio_id=attio_id,
+        entry_id="entry-place",
+        is_new_org=True,
+        org_name="Webhook Won Co",
+        role_fields={},
+        source_place_id=place_id,
+    )
+
+    async with db_sessionmaker() as session:
+        org = await OrganizationRepository(session).get_by_id(attio_id)
+    assert org is not None
+    assert org.source_place_id == place_id

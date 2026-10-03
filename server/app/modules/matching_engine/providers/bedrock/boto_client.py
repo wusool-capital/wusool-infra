@@ -3,9 +3,8 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-import boto3
-
 from app.modules.matching_engine.config import get_settings
+from app.modules.utilities.providers.bedrock.client_factory import build_bedrock_runtime_client
 
 if TYPE_CHECKING:
     # boto3-stubs is a dev-only type-checking dependency (see pyproject.toml)
@@ -17,22 +16,10 @@ if TYPE_CHECKING:
 
 @lru_cache
 def get_bedrock_runtime_client() -> BedrockRuntimeClient:
-    """Construction only — no `invoke_model` call in this phase.
-
-    Uses the standard AWS credential provider chain (IAM role, ECS/EC2 task
-    role, local profile, env) unless explicit keys are configured.
-    """
+    """Construction only — no `invoke_model` call in this phase."""
     settings = get_settings()
-    # Both-or-neither: passing only one of the pair makes boto3 raise
-    # PartialCredentialsError at construction instead of falling back to
-    # the credential provider chain.
-    has_explicit_keys = bool(settings.aws_access_key_id and settings.aws_secret_access_key)
-    # Named args, not **kwargs — boto3-stubs resolves the right overload
-    # (and therefore the right return type) by literal service name, which
-    # only works against an explicit keyword call, not a dict unpack.
-    return boto3.client(
-        "bedrock-runtime",
+    return build_bedrock_runtime_client(
         region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id if has_explicit_keys else None,
-        aws_secret_access_key=settings.aws_secret_access_key if has_explicit_keys else None,
+        access_key_id=settings.aws_access_key_id,
+        secret_access_key=settings.aws_secret_access_key,
     )

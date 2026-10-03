@@ -8,6 +8,118 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-30
+
+### Changed
+
+- A Buyer Network submission now creates one buyer role for each sector the
+  buyer ticks, so matching can narrow on each one. Its sectors are no longer
+  written to the organisation. A repeat submission updates the roles for
+  sectors it already has and adds the new ones. An update replaces the
+  role's multi-select answers, such as geography, rather than adding to them.
+- Valuation, benchmark and readiness now record the seller's sector on its
+  seller role, so matching no longer relies only on the organisation's. A
+  resubmission with a new sector replaces the old one.
+- `tool_runs.buyer_role_entry_ids` lists every buyer role a submission made.
+
+## 2026-09-29
+
+### Added
+
+- Seller discovery now creates sellers instead of only suggesting them. Each
+  search looks at up to 20 Google Maps results. It skips any already in the
+  CRM by Google place id or website, and adds the first five new ones.
+- Each new seller is filled in with basic company data, then saved to Attio
+  and the database. It is posted under the match results with Approve and
+  Reject buttons. Approving opens a Qualified deal, as for any other match.
+  It also posts the full enrichment proposal, with web research, for review.
+- A result that only has a similar name to a company already in the CRM is not
+  created. It is posted separately with an "Add as seller" button, so a person
+  decides.
+- Discovery is capped at 10 searches per buyer per day, so a loop can't fill
+  the CRM. The count resets when the service restarts.
+- Company lookups now pass the website to Diffbot and People Data Labs, and
+  report a rate-limit response instead of treating it as "no data".
+
+- `/add-buyer` and `/edit-buyer` now ask for the vertical in a step of its
+  own, before the field form. Pick a vertical the organization already has a
+  role for to edit it, or an unused one to create a new role. An
+  organization can now hold one buyer role per vertical, so `/add-buyer` no
+  longer stops at an organization that already has a buyer role. `/edit-buyer`
+  lists each organization once and edits the role's own Attio entry.
+- Approving a match now creates a Qualified Buy-side deal in Attio and links
+  it to the match. If Attio already has a deal for that buyer and seller, the
+  approver is asked whether to promote it or create a new one. If the
+  database write fails after Attio succeeds, the approver is told what was
+  saved and the sync reconciles the rest.
+- A new `/check-buyer <name>` command checks a buyer's stored criteria
+  against the advisor's own typed context, on its own or before a match
+  run. It flags a stored-criteria conflict (vertical, region, ticket size,
+  or EBITDA) and notes anything required that's still missing.
+- `/find-match` now runs the same check first. A conflict pauses the match
+  behind "Run match anyway"/"Cancel" buttons; missing data alone doesn't —
+  it's noted and the match proceeds.
+- Organizations can now carry the Places id they were discovered from. A
+  company already in the CRM must not be created a second time under a
+  slightly different name. Names cannot decide that reliably. The id can.
+- The id is unique only where it is set. Most organizations came from a form
+  or the old CRM and have none, so a plain uniqueness rule would have allowed
+  just one of them.
+- Two indexes make the sector and geography narrowing run in the database.
+  It previously filtered in Python after fetching every row.
+
+### Changed
+
+- Looking up an organization's active buyer or seller role no longer fails
+  when a duplicate is active. It returns the newest. The shared Attio
+  role-entry lookup can now be scoped to one buyer vertical.
+- `/find-match` now narrows sellers in the database before scoring. It
+  filters on the buyer role's vertical, target region and country, and EV
+  ceiling. A pharma buyer is no longer scored against industrials sellers.
+  Sellers with missing data still pass. The old 1,000-seller cap is gone.
+- Sellers valued outside a buyer's cheque size are no longer removed. They
+  stay in the pool with a low ticket-fit score. A cheque can buy a partial
+  stake in a larger company.
+- What the advisor types into the context box now outranks the CRM. Say
+  "Egypt" for a buyer stored as US, and the search runs on Egypt. It replaces
+  the stored geography or vertical, including in the database narrowing.
+  A stated ticket size or EV cap replaces the stored one too. A bare amount
+  with no label, such as "up to 10M", sets neither. The result message now
+  says so. Explicit limits
+  such as a 500K EBITDA floor can also remove sellers.
+- "Run match anyway" now keeps the advisor's context. Before, it ran on the
+  stored criteria alone. The context box is capped at 900 characters.
+- The `client_type` scoring criterion is retired. It never matched anything.
+  The CRM holds an engagement type where the scorer expected a customer type.
+
+### Fixed
+
+- A buyer's verticals can no longer be silently collapsed by a routine sync.
+  The nightly resync ran against an older deployment on 28 September. It
+  reconciled active roles per organization rather than per vertical. That
+  switched off 639 of 913 live roles. No data was deleted. Only the active
+  flag moved, and it has been restored.
+- The same rule still exists in the PowerShell list sync, which was never
+  taught about verticals. `sync-lists.ps1` now refuses buyer roles unless
+  explicitly forced. The full sync skips them with a warning instead.
+
+### Added
+
+- A repair script restores a buyer's active roles, one per vertical. It
+  applies the same rule as the deployed reconciler. Running it twice changes
+  nothing, which is how the two are verified to agree.
+- Meeting notes now attach to the organization, not to one arbitrary vertical.
+  A note carries no signal saying which vertical it concerned. All 178 links
+  were cleared. The note's company is unchanged.
+- A reviewed script can purge soft-deleted rows from the mirror. It reports
+  the approval history that would cascade away before anything is deleted.
+
+### Changed
+
+- The retired `target_geography` and `geographic_focus` attributes are
+  archived on buyer roles. Every production buyer had already been converted
+  to target region and target country.
+
 ## 2026-09-28
 
 ### Added
@@ -16,6 +128,7 @@ for current production evidence and open handover items.
   removes its recording folder from disk. For a meeting already pushed to
   the server, an opt-in checkbox also soft-deletes the server's `meetings`
   row and deletes its Attio note.
+
 
 ## 2026-09-23
 

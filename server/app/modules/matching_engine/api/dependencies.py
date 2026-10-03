@@ -21,7 +21,10 @@ from app.modules.matching_engine.bootstrap import (
 )
 from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.domain.buyers import BuyerContext
-from app.modules.matching_engine.domain.matching.entities import MatchAnalysisData
+from app.modules.matching_engine.domain.matching.entities import (
+    DiscoveredCandidate,
+    MatchAnalysisData,
+)
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.matching_engine.providers.bedrock.client import BedrockConverseClient
@@ -92,10 +95,71 @@ def _build_slack_notifier() -> SlackWebClientNotifier:
     return build_slack_notifier()
 
 
-async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: str) -> None:
+async def _apply_discrepancy_check(
+    buyer: BuyerContext,
+    advisor_context: str | None,
+    *,
+    channel_id: str,
+    placeholder_ts: str,
+    notifier: SlackWebClientNotifier,
+) -> bool:
+    """Returns True if the match must stop here — a conflict was found and
+    the advisor confirms via buttons before it runs. A missing-only result
+    posts a note and lets matching continue: most roles are missing at
+    least one criterion, so pausing on that would block nearly every run.
+    Never raises — a discrepancy-check failure must never block matching.
+    """
+    from app.modules.discrepancies import check_buyer_discrepancies
+    from app.modules.matching_engine.api.slack.views.discrepancy_gate import (
+        build_discrepancy_gate_blocks,
+    )
+    from app.modules.matching_engine.providers.discrepancies.criteria_reader_adapter import (
+        to_buyer_criteria,
+    )
+
+    try:
+        result = await check_buyer_discrepancies(to_buyer_criteria(buyer), advisor_context)
+    except Exception:
+        logger.exception("discrepancy_check_failed", extra={"buyer_role_id": buyer.buyer_role_id})
+        return False
+
+    if result.report.has_conflicts:
+        await notifier.update_message(
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=result.message,
+            blocks=build_discrepancy_gate_blocks(buyer.buyer_role_id, result, advisor_context),
+        )
+        return True
+
+    if result.report.has_missing:
+        await notifier.post_message(channel=channel_id, text=result.message)
+
+    return False
+
+
+async def run_match_and_post(
+    buyer_role_id: str,
+    requested_by: str,
+    channel_id: str,
+    *,
+    advisor_context: str | None = None,
+    check_discrepancies: bool = True,
+    placeholder_ts: str | None = None,
+) -> None:
     """Shared background-task body for running the match pipeline and
-    posting its result to Slack — used by both the `/find-match` command
-    handler and the buyer-selection modal submission handler.
+    posting its result to Slack — used by the `/find-match` command
+    handler, the buyer-selection modal submission handler, and the
+    discrepancy gate's "Run match anyway" button.
+
+    `check_discrepancies` defaults to True so a future caller that forgets
+    to pass it still gets the gate — the one caller that must skip it (the
+    "Run match anyway" button, which already showed the report once) opts
+    out explicitly instead.
+
+    `placeholder_ts` lets the "Run match anyway" button reuse the
+    discrepancy-report message as the placeholder instead of posting a
+    second one.
 
     Uses the shared out-of-band Slack notifier (no live Slack request in
     flight by the time this runs), not `get_bolt_app().client` — that used
@@ -108,12 +172,12 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
     from app.modules.matching_engine.api.slack.views.match_result import build_match_result_blocks
 
     notifier = _build_slack_notifier()
-    placeholder_ts: str | None = None
     discovery_run_id: uuid.UUID | None = None
     try:
-        placeholder_ts = await notifier.post_message(
-            channel=channel_id, text="✨ *_Finding matches, please wait…_*"
-        )
+        if placeholder_ts is None:
+            placeholder_ts = await notifier.post_message(
+                channel=channel_id, text="✨ *_Finding matches, please wait…_*"
+            )
 
         buyer = await resolve_buyer_by_id(buyer_role_id)
         if buyer is None:
@@ -122,6 +186,15 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
                 ts=placeholder_ts,
                 text="Buyer not found.",
             )
+            return
+
+        if check_discrepancies and await _apply_discrepancy_check(
+            buyer,
+            advisor_context,
+            channel_id=channel_id,
+            placeholder_ts=placeholder_ts,
+            notifier=notifier,
+        ):
             return
 
         # The session backs buyer_repository/meeting_repository only —
@@ -133,7 +206,9 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
         async with get_sessionmaker()() as session:
             service = matching_engine_service(session)
 
-        result = await service.run_match(buyer, requested_by=requested_by)
+        result = await service.run_match(
+            buyer, requested_by=requested_by, advisor_context=advisor_context
+        )
 
         blocks = build_match_result_blocks(result)
         scores = [c.match_score for c in result.results]
@@ -187,9 +262,11 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
 
 async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> None:
     """Below-threshold match quality: hand the run's own (industry,
-    geography) off to `discovery`'s search, as a second message rather than
-    replacing the match-results one — `discovery.find_and_post_leads` posts
-    and owns its own placeholder/update pair.
+    geography) off to `discovery`, which pre-filters against the CRM and
+    auto-creates the genuinely new sellers. Those are appended to this run
+    as `PENDING_REVIEW` rows and posted as a second message with
+    Approve/Reject; name-only look-alikes are posted separately with an
+    "Add as seller" button so a human decides before anything is written.
     """
     idempotency_key = f"discovery:{run_id}"
     if _discovery_idempotency_store.seen(idempotency_key):
@@ -197,7 +274,10 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
     _discovery_idempotency_store.mark(idempotency_key)
 
-    from app.modules.discovery import find_and_post_leads
+    from app.modules.discovery import build_possible_duplicate_blocks, discover_and_create_sellers
+    from app.modules.matching_engine.api.slack.views.discovered_candidates import (
+        build_discovered_candidates_blocks,
+    )
     from app.modules.matching_engine.application.discovery_bridge import extract_query_terms
 
     async with get_sessionmaker()() as session:
@@ -211,6 +291,97 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
     if not industry and not geography:
         return
 
-    await find_and_post_leads(
-        industry=industry, geography=geography, channel_id=channel_id, exclude_terms=exclude_terms
+    notifier = _build_slack_notifier()
+    placeholder_ts = await notifier.post_message(
+        channel=channel_id, text="🔎 *_Searching for potential sellers…_*"
     )
+    try:
+        outcome = await discover_and_create_sellers(
+            industry=industry,
+            geography=geography,
+            quota_key=analysis.run.buyer_role_id,
+            exclude_terms=exclude_terms,
+        )
+    except Exception:
+        logger.exception("seller_discovery_failed", extra={"run_id": str(run_id)})
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text="Seller search failed unexpectedly."
+        )
+        return
+    if outcome.status != "ok":
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text=_DISCOVERY_STATUS_TEXT[outcome.status]
+        )
+        return
+
+    try:
+        async with get_sessionmaker()() as session:
+            service = matching_engine_service(session)
+        await service.append_discovered_candidates(
+            run_id,
+            [
+                DiscoveredCandidate(
+                    seller_role_id=str(created.seller_role_id),
+                    seller_attio_id=created.org_attio_id,
+                    source_url=created.source_url,
+                )
+                for created in outcome.created
+            ],
+        )
+        view = await service.get_match_run_view(run_id)
+    except Exception:
+        # The sellers already exist in the CRM at this point, so this must not
+        # read like the search failed, and it can't be retried.
+        logger.exception("discovered_candidates_review_setup_failed", extra={"run_id": str(run_id)})
+        names = ", ".join(c.org_name for c in outcome.created)
+        await notifier.update_message(
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=(
+                f"Created {len(outcome.created)} seller(s) in the CRM ({names}) but couldn't "
+                "set them up for review. Find them in the CRM."
+            ),
+        )
+        return
+
+    notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
+    if outcome.failed:
+        notes.append(
+            "Couldn't save: "
+            + ", ".join(
+                f"{f.lead.name} (partly saved: {'; '.join(f.landed)})" if f.landed else f.lead.name
+                for f in outcome.failed
+            )
+            + "."
+        )
+    created_ids = {str(c.seller_role_id) for c in outcome.created}
+    discovered = (
+        [r for r in view.results if r.origin == "discovery" and r.seller_role_id in created_ids]
+        if view is not None
+        else []
+    )
+    if discovered:
+        await notifier.update_message(
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=f"Found {len(discovered)} new seller(s)",
+            blocks=build_discovered_candidates_blocks(discovered, notes=notes),
+        )
+    else:
+        detail = " ".join(notes) or "No new potential sellers found."
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text=f"No new sellers created. {detail}"
+        )
+
+    if outcome.possible_duplicates:
+        await notifier.post_message(
+            channel=channel_id,
+            text=f"{len(outcome.possible_duplicates)} possible duplicate(s) found",
+            blocks=build_possible_duplicate_blocks(outcome.possible_duplicates),
+        )
+
+
+_DISCOVERY_STATUS_TEXT = {
+    "disabled": "Seller discovery isn't configured.",
+    "daily_cap_reached": "Daily discovery limit reached for this buyer. Try again tomorrow.",
+}

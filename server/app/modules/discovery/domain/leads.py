@@ -15,6 +15,7 @@ class DiscoveredLead:
     country: str | None = None
     website: str | None = None
     types: tuple[str, ...] = ()
+    place_id: str | None = None
 
 
 def filter_excluded_leads(

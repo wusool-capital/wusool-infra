@@ -63,7 +63,8 @@ persists the run, and posts an Approve/Reject message to Slack.
       -> api/slack/views/match_result.py; if every candidate scored too
       low, that same discovery search is also triggered automatically
       -> api/dependencies.py::trigger_seller_discovery ->
-      app.modules.discovery.find_and_post_leads
+      app.modules.discovery.discover_and_create_sellers, whose created
+      sellers are appended to the run as PENDING_REVIEW rows
 
 4. Approve/Reject button clicked
    -> api/slack/handlers/actions.py -> application/approvals.py

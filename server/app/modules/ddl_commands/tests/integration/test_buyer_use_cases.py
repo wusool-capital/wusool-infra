@@ -130,6 +130,53 @@ async def test_create_raises_when_role_already_exists(
         )
 
 
+async def test_create_allows_a_second_vertical_for_the_same_org(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    async with db_sessionmaker() as session:
+        org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Two Vertical Buyer Co")
+        session.add(org)
+        await session.flush()
+        session.add(BuyerRole(org_attio_id=org.attio_id, is_active=True, target_vertical="Clinic"))
+        await session.flush()
+        await session.commit()
+        attio_id = org.attio_id
+
+    service = BuyerService(_uow_factory(db_sessionmaker))
+    role = await service.create_buyer(
+        org_attio_id=attio_id,
+        entry_id="entry-fintech",
+        is_new_org=False,
+        role_fields={"target_vertical": "Fintech"},
+    )
+
+    assert role.target_vertical == "Fintech"
+    assert await service.buyer_exists(attio_id, "Clinic") is True
+    assert await service.buyer_exists(attio_id, "Fintech") is True
+    assert await service.buyer_exists(attio_id, "Garage") is False
+
+
+async def test_create_raises_when_the_vertical_already_has_a_role(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    async with db_sessionmaker() as session:
+        org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Same Vertical Buyer Co")
+        session.add(org)
+        await session.flush()
+        session.add(BuyerRole(org_attio_id=org.attio_id, is_active=True, target_vertical="Clinic"))
+        await session.flush()
+        await session.commit()
+        attio_id = org.attio_id
+
+    with pytest.raises(BuyerAlreadyExistsError):
+        await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
+            org_attio_id=attio_id,
+            entry_id="entry-dup",
+            is_new_org=False,
+            role_fields={"target_vertical": "Clinic"},
+        )
+
+
 async def test_create_succeeds_when_existing_role_is_inactive(
     db_sessionmaker: async_sessionmaker[AsyncSession],
 ) -> None:

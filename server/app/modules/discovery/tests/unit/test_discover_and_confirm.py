@@ -1,12 +1,24 @@
+from app.modules.discovery.application.base import CreationPolicy
 from app.modules.discovery.application.service import DiscoveryService
 from app.modules.discovery.domain.drafts import SellerDraft
 from app.modules.discovery.domain.leads import DiscoveredLead
-from app.modules.discovery.tests.fakes.ports import FakeLeadSearchClient, FakeSellerDraftPort
+from app.modules.discovery.tests.fakes.ports import (
+    FakeLeadSearchClient,
+    FakeSellerDraftPort,
+    FakeSellerWriterPort,
+)
+from app.modules.utilities import FixedWindowRateLimiter
 
 
 def _service(*, lead_search_client=None) -> tuple[DiscoveryService, FakeSellerDraftPort]:
     draft_port = FakeSellerDraftPort()
-    service = DiscoveryService(lead_search_client=lead_search_client, seller_draft_port=draft_port)
+    service = DiscoveryService(
+        lead_search_client=lead_search_client,
+        seller_draft_port=draft_port,
+        seller_writer_port=FakeSellerWriterPort(),
+        search_limiter=FixedWindowRateLimiter(limit=10),
+        policy=CreationPolicy(lead_limit=5, enrichment_concurrency=2, enrichment_budget_s=30.0),
+    )
     return service, draft_port
 
 

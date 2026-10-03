@@ -36,7 +36,9 @@ Ledger-backed submissions follow this contract:
 2. Return the result when that tool's required calculation is available.
 3. Complete non-blocking AI work where applicable.
 4. Create/update the organization, seller/buyer entry, and person in Attio
-   with an explicit `is_test` value. The person write is best-effort — a
+   with an explicit `is_test` value. A buyer gets one `buyer_role` entry per
+   sector ticked on the form (`target_vertical`); a seller's single entry
+   carries its `sector`. The person write is best-effort — a
    failure there does not fail the run, since the lead is already durable.
 5. Email the visitor an HTML confirmation via SES, with a "Book a Call" link.
 6. Email the internal team an HTML notice via SES, with the submitted details

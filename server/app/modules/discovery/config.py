@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     # (returns no leads) rather than requiring a key to boot — same
     # convention as matching_engine's own web fallback.
     google_places_api_key: str | None = None
-    discovery_lead_search_limit: int = 3
+    discovery_lead_search_limit: int = 5
+    discovery_daily_search_cap: int = 10
+    discovery_enrichment_concurrency: int = 2
+    discovery_enrichment_budget_s: float = 45.0
 
 
 @lru_cache

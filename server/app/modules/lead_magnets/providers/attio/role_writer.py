@@ -74,7 +74,7 @@ class AttioRoleWriter:
                 is_test=self._is_test,
                 unset_vertical_only=unset_vertical_only,
             )
-            await entries.patch_role_entry(self._client, list_slug, entry_id, entry_values)
+            await entries.put_role_entry(self._client, list_slug, entry_id, entry_values)
             return entry_id
         except entries.RoleEntryNotFoundError:
             return await entries.create_role_entry(
@@ -106,6 +106,8 @@ class AttioRoleWriter:
         # raises instead.
         if (mapped := to_sector_focus(sector)) is not None:
             org_values["sector_focus"] = [mapped]
+            # The seller's own identity; matching reads it before the org fallback.
+            entry_values = {**entry_values, "sector": [mapped]}
         if description:
             org_values["description"] = description
         if hq_country:
@@ -135,15 +137,15 @@ class AttioRoleWriter:
         organization_name: str,
         domain: str | None,
         org_type: list[str],
-        sector_focus: list[str],
+        target_verticals: list[str],
         entry_values: dict[str, object],
         organization_attio_id: str | None = None,
         lead_source_detail: str | None = None,
     ) -> SubjectRefs:
-        """Same shape as `write_seller_role`. `org_type`/`sector_focus` are
-        already Attio's own option titles — validated, not mapped, since the
-        form offers the live vocabulary directly rather than a tool-specific
-        one needing translation.
+        """Same shape as `write_seller_role`, but one `buyer_role` entry per
+        vertical: each is its own mandate, matched and reconciled separately.
+        `org_type`/`target_verticals` are already Attio's own option titles —
+        validated, not mapped.
         """
         org_values: dict[str, object] = {"name": organization_name}
         if domain:
@@ -152,24 +154,41 @@ class AttioRoleWriter:
             org_values["lead_source_detail"] = lead_source_detail
         if org_type:
             org_values["type"] = validate_org_type(org_type)
-        if sector_focus:
-            org_values["sector_focus"] = validate_sector_focus(sector_focus)
+        verticals = list(dict.fromkeys(validate_sector_focus(target_verticals)))
 
         org_id, org_web_url = await self._upsert_organization(
             org_values=org_values, organization_attio_id=organization_attio_id
         )
-        # The form asks for no vertical, so this targets the org's
-        # unclassified buyer role rather than overwriting a curated one.
-        entry_id = await self._upsert_role_entry(
-            list_slug=_BUYER_ROLE_LIST,
-            org_id=org_id,
-            entry_values=entry_values,
-            unset_vertical_only=True,
-        )
+        if verticals:
+            # Resolving by vertical makes a resubmission or retry an update, not a duplicate.
+            existing = await entries.resolve_role_entry_ids_by_vertical(
+                self._client, _BUYER_ROLE_LIST, org_id, is_test=self._is_test
+            )
+            entry_ids = []
+            for vertical in verticals:
+                values = {**entry_values, "target_vertical": vertical}
+                if (entry_id := existing.get(vertical)) is not None:
+                    await entries.put_role_entry(self._client, _BUYER_ROLE_LIST, entry_id, values)
+                else:
+                    entry_id = await entries.create_role_entry(
+                        self._client, _BUYER_ROLE_LIST, org_id, values, is_test=self._is_test
+                    )
+                entry_ids.append(entry_id)
+        else:
+            # Only a payload stored before verticals were required: never overwrite a curated role.
+            entry_ids = [
+                await self._upsert_role_entry(
+                    list_slug=_BUYER_ROLE_LIST,
+                    org_id=org_id,
+                    entry_values=entry_values,
+                    unset_vertical_only=True,
+                )
+            ]
 
         return SubjectRefs(
             org_attio_id=org_id,
             org_name=organization_name,
             org_web_url=org_web_url,
-            buyer_role_entry_id=entry_id,
+            buyer_role_entry_id=entry_ids[0],
+            buyer_role_entry_ids=tuple(entry_ids),
         )

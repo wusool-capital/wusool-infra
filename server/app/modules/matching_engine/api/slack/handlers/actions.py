@@ -7,18 +7,29 @@ database — Slack payload state is never trusted on its own (§24).
 
 import json
 import logging
+import re
 import uuid
+from dataclasses import replace
 
+from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_bolt.context.respond.async_respond import AsyncRespond
 from slack_sdk.web.async_client import AsyncWebClient
 
+from app.modules.enrichment import enrich_and_post
 from app.modules.matching_engine.api.dependencies import (
     matching_engine_service,
     run_match_and_post,
     to_match_analysis_schema,
     trigger_seller_discovery,
+)
+from app.modules.matching_engine.api.slack.schemas import DealChoiceValue, RunAnywayValue
+from app.modules.matching_engine.api.slack.views.discovered_candidates import (
+    build_discovered_candidates_blocks,
+)
+from app.modules.matching_engine.api.slack.views.existing_deal_prompt import (
+    build_existing_deal_prompt_blocks,
 )
 from app.modules.matching_engine.api.slack.views.full_analysis import build_full_analysis_blocks
 from app.modules.matching_engine.api.slack.views.match_result import (
@@ -28,6 +39,11 @@ from app.modules.matching_engine.application.approvals import (
     InvalidTransitionError,
     MatchNotFoundError,
 )
+from app.modules.matching_engine.application.errors import (
+    ExistingDealsFoundError,
+    PartialWriteError,
+)
+from app.modules.matching_engine.domain.matching.deals import DealResolution
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
 from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
@@ -63,11 +79,16 @@ def register(app: AsyncApp) -> None:
         if not channel_id:
             return
 
-        selected = view["state"]["values"]["buyer_role_id"]["selected_buyer"]["selected_option"]
+        values = view["state"]["values"]
+        selected = values["buyer_role_id"]["selected_buyer"]["selected_option"]
         buyer_role_id = selected["value"]
+        context_input = values.get("advisor_context", {}).get("context_text")
+        advisor_context = (context_input.get("value") or "").strip() if context_input else ""
 
         _task_runner.run(
-            lambda: run_match_and_post(buyer_role_id, requested_by, channel_id),
+            lambda: run_match_and_post(
+                buyer_role_id, requested_by, channel_id, advisor_context=advisor_context or None
+            ),
             name=f"find-match:{buyer_role_id}",
         )
 
@@ -123,6 +144,36 @@ def register(app: AsyncApp) -> None:
         await ack()
         await _handle_decision(body, client, respond, decision="reject")
 
+    @app.action(re.compile(r"promote_existing_deal_\d+|create_new_deal"))
+    async def handle_deal_choice(
+        ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient, respond: AsyncRespond
+    ) -> None:
+        await ack()
+        try:
+            choice = DealChoiceValue.model_validate_json(body["actions"][0].get("value") or "")
+        except ValidationError:
+            await client.chat_postEphemeral(
+                channel=body["channel"]["id"],
+                user=body["user"]["id"],
+                text="Invalid deal choice.",
+            )
+            return
+        await _handle_decision(
+            body,
+            client,
+            respond,
+            decision="approve",
+            match_result_id=choice.match_result_id,
+            resolution=choice.resolution,
+            existing_deal_id=choice.existing_deal_id,
+            original_ts=choice.message_ts,
+        )
+
+    @app.action("cancel_deal_choice")
+    async def handle_cancel_deal_choice(ack: AsyncAck, respond: AsyncRespond) -> None:
+        await ack()
+        await respond(delete_original=True)
+
     @app.action("discover_more_sellers")
     async def handle_discover_more_sellers(ack: AsyncAck, body: SlackInteractionBody) -> None:
         await ack()
@@ -137,22 +188,103 @@ def register(app: AsyncApp) -> None:
             name=f"discover:{run_id}",
         )
 
+    @app.action("discrepancy_run_match")
+    async def handle_discrepancy_run_match(ack: AsyncAck, body: SlackInteractionBody) -> None:
+        await ack()
+        raw_value = body["actions"][0].get("value")
+        channel_id = body["channel"]["id"]
+        message_ts = body["message"]["ts"]
+        requested_by = body["user"]["id"]
+        if not raw_value:
+            return
+        try:
+            run_value = RunAnywayValue.model_validate_json(raw_value)
+        except ValidationError:
+            # A button posted before the value carried context holds a bare id.
+            run_value = RunAnywayValue(buyer_role_id=raw_value)
+        buyer_role_id = run_value.buyer_role_id
+
+        # Deduped on the message, not the buyer — a double click or a
+        # retried Slack delivery of the same click must never run the match
+        # twice against the same discrepancy-report message.
+        idempotency_key = f"discrepancy_run:{channel_id}:{message_ts}"
+        if _submission_idempotency_store.seen(idempotency_key):
+            logger.info(
+                "discrepancy_run_duplicate_delivery_skipped key=%s",
+                idempotency_key,
+                extra={"key": idempotency_key},
+            )
+            return
+        _submission_idempotency_store.mark(idempotency_key)
+
+        _task_runner.run(
+            # The report already ran once for this message — explicitly
+            # opts out rather than relying on a default, so the gate stays
+            # on by default for every other caller.
+            lambda: run_match_and_post(
+                buyer_role_id,
+                requested_by,
+                channel_id,
+                advisor_context=run_value.advisor_context,
+                placeholder_ts=message_ts,
+                check_discrepancies=False,
+            ),
+            name=f"find-match:{buyer_role_id}",
+        )
+
+    @app.action("discrepancy_cancel")
+    async def handle_discrepancy_cancel(
+        ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        await client.chat_update(
+            channel=body["channel"]["id"], ts=body["message"]["ts"], text="Match cancelled."
+        )
+
+
+def _partial_write_message(exc: PartialWriteError) -> str:
+    if not exc.landed:
+        return f"*Couldn't write the deal to Attio* — nothing was saved. _{exc.cause}_"
+    return (
+        "*Approval failed partway through.* Already saved: "
+        f"{'; '.join(exc.landed)}. Check the match's status before retrying. _{exc.cause}_"
+    )
+
+
+def _enrich_approved_seller(seller_role_id: str | None, channel_id: str) -> None:
+    """A discovered seller only got the basic (structured-provider) tier when it
+    was created; once someone approves it, the full research proposal is worth
+    the Firecrawl/LLM cost. It posts a proposal to review, never writes."""
+    if seller_role_id is None:
+        return
+    _task_runner.run(
+        lambda: enrich_and_post(kind="seller", role_id=seller_role_id, channel_id=channel_id),
+        name=f"enrich-approved:{seller_role_id}",
+    )
+
 
 async def _handle_decision(
-    body: SlackInteractionBody, client: AsyncWebClient, respond: AsyncRespond, decision: str
+    body: SlackInteractionBody,
+    client: AsyncWebClient,
+    respond: AsyncRespond,
+    decision: str,
+    *,
+    match_result_id: uuid.UUID | None = None,
+    resolution: DealResolution | None = None,
+    existing_deal_id: str | None = None,
+    original_ts: str | None = None,
 ) -> None:
-    action = body["actions"][0]
-    match_result_id_raw = action.get("value")
     channel_id = body["channel"]["id"]
     user_id = body["user"]["id"]
 
-    try:
-        match_result_id = uuid.UUID(match_result_id_raw)
-    except (ValueError, TypeError):
-        await client.chat_postEphemeral(
-            channel=channel_id, user=user_id, text="Invalid match reference."
-        )
-        return
+    if match_result_id is None:
+        try:
+            match_result_id = uuid.UUID(body["actions"][0].get("value"))
+        except (ValueError, TypeError):
+            await client.chat_postEphemeral(
+                channel=channel_id, user=user_id, text="Invalid match reference."
+            )
+            return
 
     # The session backs buyer_repository/meeting_repository only —
     # approve_match/reject_match/get_match_run_view never touch either (they
@@ -163,7 +295,12 @@ async def _handle_decision(
 
     try:
         result = (
-            await service.approve_match(match_result_id, user_id)
+            await service.approve_match(
+                match_result_id,
+                user_id,
+                resolution=resolution,
+                existing_deal_id=existing_deal_id,
+            )
             if decision == "approve"
             else await service.reject_match(match_result_id, user_id)
         )
@@ -175,6 +312,28 @@ async def _handle_decision(
     except InvalidTransitionError:
         await client.chat_postEphemeral(
             channel=channel_id, user=user_id, text="This match has already been reviewed."
+        )
+        return
+    except ExistingDealsFoundError as exc:
+        await client.chat_postEphemeral(
+            channel=channel_id,
+            user=user_id,
+            text="Attio already has a deal for this buyer and seller.",
+            blocks=build_existing_deal_prompt_blocks(
+                match_result_id, exc.deals, body.get("message", {}).get("ts")
+            ),
+        )
+        return
+    except PartialWriteError as exc:
+        logger.error(
+            "match_approval_partial_write match_result_id=%s landed=%s",
+            match_result_id,
+            exc.landed,
+            exc_info=exc.cause,
+            extra={"match_result_id": str(match_result_id), "landed": exc.landed},
+        )
+        await client.chat_postEphemeral(
+            channel=channel_id, user=user_id, text=_partial_write_message(exc)
         )
         return
 
@@ -190,9 +349,27 @@ async def _handle_decision(
     # Update the original message in place so a decided candidate's buttons
     # stop looking clickable (§23 — a repeat action must not appear possible).
     view = await service.get_match_run_view(uuid.UUID(result.run_id))
-    if view is not None:
-        await respond(
-            replace_original=True,
-            text=f"Match results for {view.buyer_org_name}",
-            blocks=build_match_result_blocks_from_view(view),
+    if view is None:
+        return
+    # The CRM shortlist and discovered sellers are separate messages; refresh
+    # only the one this decision came from.
+    decided = next((r for r in view.results if r.match_result_id == result.match_result_id), None)
+    if decision == "approve" and decided is not None and decided.origin == "discovery":
+        _enrich_approved_seller(decided.seller_role_id, channel_id)
+    if decided is not None and decided.origin == "discovery":
+        text = f"Discovered sellers for {view.buyer_org_name}"
+        blocks = build_discovered_candidates_blocks(
+            [r for r in view.results if r.origin == "discovery"]
         )
+    else:
+        text = f"Match results for {view.buyer_org_name}"
+        blocks = build_match_result_blocks_from_view(
+            replace(view, results=[r for r in view.results if r.origin == "crm"])
+        )
+    if original_ts is None:
+        await respond(replace_original=True, text=text, blocks=blocks)
+        return
+    # Coming from the ephemeral deal prompt: `respond` would overwrite the
+    # prompt, so refresh the real message and drop the prompt.
+    await client.chat_update(channel=channel_id, ts=original_ts, text=text, blocks=blocks)
+    await respond(delete_original=True)

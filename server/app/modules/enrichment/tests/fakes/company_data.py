@@ -11,10 +11,12 @@ class FakeCompanyDataClient(CompanyDataClient):
     def __init__(self, fields: list[CompanyDataField] | None = None) -> None:
         self.fields = fields or []
         self.calls: list[tuple[str, tuple[str, ...]]] = []
+        self.domains: list[str | None] = []
 
     async def lookup(
-        self, *, org_name: str, fields: tuple[EnrichableField, ...]
+        self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
     ) -> list[CompanyDataField]:
+        self.domains.append(domain)
         self.calls.append((org_name, tuple(f.name for f in fields)))
         requested = {f.name for f in fields}
         return [f for f in self.fields if f.field_name in requested]

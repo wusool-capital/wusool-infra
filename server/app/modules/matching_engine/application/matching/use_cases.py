@@ -22,14 +22,19 @@ import logging
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from typing import Literal
 
+from app.modules.matching_engine.application.approvals import MatchNotFoundError
 from app.modules.matching_engine.application.base import ServiceBase
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
+    DiscoveredCandidate,
     MatchAnalysisData,
 )
+from app.modules.matching_engine.domain.matching.overrides import unlabelled_amount_note
 from app.modules.matching_engine.domain.matching.scoring import select_top_n
+from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 
 logger = logging.getLogger(__name__)
@@ -56,6 +61,8 @@ class MatchRunResult:
     buyer_org_name: str
     results: list[ShortlistedResult] = field(default_factory=list)
     error: str | None = None
+    # Advisor-facing remarks about how their context was (not) applied.
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,8 @@ class MatchResultView:
     status: str
     approved_by: str | None
     decision: str | None
+    origin: Literal["crm", "discovery"] = "crm"
+    source_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -80,7 +89,9 @@ class MatchRunView:
 
 
 class MatchingMixin(ServiceBase):
-    async def run_match(self, buyer: BuyerContext, requested_by: str | None) -> MatchRunResult:
+    async def run_match(
+        self, buyer: BuyerContext, requested_by: str | None, *, advisor_context: str | None = None
+    ) -> MatchRunResult:
         run_id = uuid.uuid4()
         buyer_role_id = uuid.UUID(buyer.buyer_role_id)
         started_at = datetime.now(UTC)
@@ -94,7 +105,9 @@ class MatchingMixin(ServiceBase):
             )
 
         try:
-            return await self._run(run_id, buyer_role_id, buyer, requested_by, started_at)
+            return await self._run(
+                run_id, buyer_role_id, buyer, requested_by, started_at, advisor_context
+            )
         except Exception as exc:
             logger.warning(
                 "match_run_failed run_id=%s error=%s",
@@ -123,6 +136,7 @@ class MatchingMixin(ServiceBase):
         buyer: BuyerContext,
         requested_by: str | None,
         started_at: datetime,
+        advisor_context: str | None,
     ) -> MatchRunResult:
         async with self._uow_factory() as uow:
             latest_version = await uow.match_results.get_latest_requirement_profile_version(
@@ -130,7 +144,9 @@ class MatchingMixin(ServiceBase):
             )
         next_version = (latest_version or 0) + 1
 
-        profile = await self._extraction_service.extract(buyer, next_version=next_version)
+        profile = await self._extraction_service.extract(
+            buyer, next_version=next_version, advisor_context=advisor_context
+        )
 
         async with self._uow_factory() as uow:
             await uow.match_results.update_run_progress(
@@ -142,11 +158,16 @@ class MatchingMixin(ServiceBase):
 
         batch = await self._candidate_retriever.get_candidates(buyer, profile)
 
+        ticket_band = TicketBand.from_buyer(buyer, profile)
         scored: list[tuple[SellerCandidate, CandidateScore]] = [
             (
                 candidate,
                 self._scoring_engine.score(
-                    buyer.buyer_role_id, candidate.seller_role_id, profile, candidate
+                    buyer.buyer_role_id,
+                    candidate.seller_role_id,
+                    profile,
+                    candidate,
+                    ticket_band,
                 ),
             )
             for candidate in batch.passed
@@ -269,8 +290,13 @@ class MatchingMixin(ServiceBase):
                 )
             )
 
+        note = unlabelled_amount_note(advisor_context, profile)
         return MatchRunResult(
-            run_id=str(run_id), status="GENERATED", buyer_org_name=buyer.org_name, results=results
+            run_id=str(run_id),
+            status="GENERATED",
+            buyer_org_name=buyer.org_name,
+            results=results,
+            notes=[note] if note else [],
         )
 
     async def get_match_analysis(self, run_id: uuid.UUID) -> MatchAnalysisData | None:
@@ -317,8 +343,42 @@ class MatchingMixin(ServiceBase):
                     status=c.status,
                     approved_by=c.approved_by,
                     decision=c.decision,
+                    origin=c.origin,
+                    source_url=c.source_url,
                 )
                 for c in candidates
             ]
 
         return MatchRunView(run_id=run.run_id, buyer_org_name=buyer_org_name, results=results)
+
+    async def append_discovered_candidates(
+        self, run_id: uuid.UUID, candidates: list[DiscoveredCandidate]
+    ) -> None:
+        """Adds sellers `discovery` just created as further `PENDING_REVIEW`
+        rows of the run, after the CRM shortlist. Unscored on purpose: they
+        exist so the existing Approve (Qualified deal) / Reject path applies.
+        """
+        if not candidates:
+            return
+        async with self._uow_factory() as uow:
+            run = await uow.match_results.get_run(run_id)
+            if run is None:
+                raise MatchNotFoundError(f"match run {run_id} not found")
+            existing = await uow.match_results.get_candidates(run_id)
+            next_rank = max((c.rank or 0 for c in existing), default=0) + 1
+            await uow.match_results.create_candidates(
+                [
+                    {
+                        "run_id": run_id,
+                        "buyer_attio_id": run.buyer_attio_id,
+                        "buyer_role_id": uuid.UUID(run.buyer_role_id),
+                        "rank": next_rank + offset,
+                        "seller_attio_id": candidate.seller_attio_id,
+                        "seller_role_id": uuid.UUID(candidate.seller_role_id),
+                        "why_chosen_over_alternatives": "Discovered via Google Maps; not scored.",
+                        "status": "PENDING_REVIEW",
+                        "metadata_": {"origin": "discovery", "source_url": candidate.source_url},
+                    }
+                    for offset, candidate in enumerate(candidates)
+                ]
+            )

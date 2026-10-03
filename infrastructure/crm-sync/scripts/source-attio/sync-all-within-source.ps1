@@ -331,6 +331,31 @@ try {
         }
         & (Join-Path $PSScriptRoot "backfill-seller-sector.ps1") @sectorArgs
         $exitedCleanly = $?
+      } elseif ($entity -eq "buyer_role") {
+        # Skipped, loudly, rather than run. sync-lists.ps1 reconciles
+        # `is_active` once per ORGANIZATION (_internal/lists.ps1:340-346) and
+        # knows nothing about `target_vertical`, so since the 2026-09-26
+        # re-grain it switches off every vertical but one -- 913 active
+        # entries down to ~274, which is exactly what the 2026-09-28 nightly
+        # did before prod was deployed to #229.
+        #
+        # Skipped instead of thrown so the rest of the pipeline still runs:
+        # a stale buyer_role is recoverable, a half-finished migration of the
+        # other five entities is worse. buyer_role's `is_active` is owned by
+        # the deployed Python reconciler, which repairs Attio on every full
+        # resync; repair-buyer-role-is-active.ps1 does the same by hand.
+        Write-Host ""
+        Write-Warning @"
+SKIPPING buyer_role: sync-lists.ps1 reconciles is_active per organization and
+would flatten the vertical split (913 active -> ~274).
+
+  - is_active is maintained by the nightly full resync (prod #229 onward)
+  - to repair it by hand: .\repair-buyer-role-is-active.ps1
+  - to force this anyway: .\sync-lists.ps1 -Lists buyer_role -IUnderstandThisReflattensBuyerVerticals
+
+Remove this skip once _internal/lists.ps1 groups by (org, vertical).
+"@
+        $exitedCleanly = $true
       } else {
         $listArgs = @{
           Lists        = @($entity)

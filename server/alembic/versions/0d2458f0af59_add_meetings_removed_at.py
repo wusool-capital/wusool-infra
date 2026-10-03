@@ -10,7 +10,7 @@ Nullable, no backfill. `scribe_pub` already has table-level UPDATE
 (eec9dde1cfbb), which covers writing this new column too.
 
 Revision ID: 0d2458f0af59
-Revises: d8e4b1c60f27
+Revises: 3448dc6c2c03
 Create Date: 2026-09-28 00:00:00.000000
 
 """
@@ -24,7 +24,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0d2458f0af59"
-down_revision: str | Sequence[str] | None = "d8e4b1c60f27"
+down_revision: str | Sequence[str] | None = "3448dc6c2c03"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

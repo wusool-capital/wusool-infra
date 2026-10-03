@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Organization, SellerRole
@@ -67,6 +69,24 @@ async def test_get_by_org_attio_id_finds_existing_active_role(
 
     assert found is not None
     assert found.id == role.id
+
+
+async def test_get_by_org_attio_id_returns_newest_when_several_are_active(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    """Nothing in the DB enforces one active seller per org, so a duplicate
+    must not raise `MultipleResultsFound` in the write path."""
+    await _seller(
+        db_session, throwaway_org, is_active=True, created_at=datetime(2024, 1, 1, tzinfo=UTC)
+    )
+    newest = await _seller(
+        db_session, throwaway_org, is_active=True, created_at=datetime(2024, 6, 1, tzinfo=UTC)
+    )
+
+    found = await SellerRepository(db_session).get_by_org_attio_id(throwaway_org.attio_id)
+
+    assert found is not None
+    assert found.id == newest.id
 
 
 async def test_get_by_org_attio_id_ignores_inactive_role(

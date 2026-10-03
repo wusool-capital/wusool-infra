@@ -22,7 +22,7 @@ re-send the visitor's confirmation, which already landed.
 
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from uuid import UUID
 
 from app.modules.lead_magnets.application.shared.email_dispatch import (
@@ -164,7 +164,12 @@ class SubmissionService:
         """
         stored = run.payload.get("attio")
         if isinstance(stored, dict):
-            return SubjectRefs(**stored)
+            subjects = SubjectRefs(**stored)
+            # JSON hands the tuple back as a list; a run stored before the list existed has one id.
+            ids = tuple(stored.get("buyer_role_entry_ids") or ())
+            if not ids and subjects.buyer_role_entry_id is not None:
+                ids = (subjects.buyer_role_entry_id,)
+            return replace(subjects, buyer_role_entry_ids=ids)
 
         try:
             subjects = await self._attio.write(tool=run.tool, payload=run.payload, ai=ai)

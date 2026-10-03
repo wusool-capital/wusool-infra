@@ -43,6 +43,9 @@ class BuyerContext:
     # could not see. Two fields now, same trap, twice the surface.
     target_region: list[str] = field(default_factory=list)
     target_country: list[str] = field(default_factory=list)
+    # The vertical grain the role now lives at (2026-09-26 re-grain) — one
+    # `BuyerContext` per (org, vertical), not per org.
+    target_vertical: str | None = None
     ebitda_ceiling: Money | None = None
     notable_investments: str | None = None
     key_personnel: str | None = None

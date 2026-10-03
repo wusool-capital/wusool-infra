@@ -27,6 +27,7 @@ class BuyerSummary(BaseModel):
     organization: _BuyerCandidateOrg
     model: str | None = None
     mandate_status: str | None = None
+    target_vertical: str | None = None
 
     @classmethod
     def from_candidate(cls, candidate: BuyerCandidate) -> "BuyerSummary":
@@ -39,6 +40,7 @@ class BuyerSummary(BaseModel):
             ),
             model=candidate.model,
             mandate_status=candidate.mandate_status,
+            target_vertical=candidate.target_vertical,
         )
 
 
