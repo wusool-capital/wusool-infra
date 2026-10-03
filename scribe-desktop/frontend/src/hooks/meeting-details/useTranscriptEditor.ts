@@ -45,7 +45,7 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
 
   // Mirrors state so async handlers and the key listener never read a stale stack.
   const historyRef = useRef(history);
-  const busyRef = useRef(false);
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
   const setHistory = useCallback((next: EditHistory) => {
     historyRef.current = next;
     setHistoryState(next);
@@ -73,25 +73,28 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     [order],
   );
   const clearSelection = useCallback(() => setSelection(EMPTY_SELECTION), []);
+  const allSelected = order.length > 0 && selection.selected.size === order.length;
   const selectAll = useCallback(
     () => setSelection({ selected: new Set(order), anchor: order[0] ?? null }),
     [order],
   );
 
-  // Serializes edits: two overlapping DB writes would corrupt the undo stack.
+  // Runs edits one at a time: overlapping DB writes would corrupt the undo
+  // stack, and a text field's blur-save must finish before a split reads it.
   const guarded = useCallback(
-    async <T,>(failure: string, run: () => Promise<T>): Promise<T | undefined> => {
-      if (!editable || busyRef.current) return undefined;
-      busyRef.current = true;
-      try {
-        return await run();
-      } catch (error) {
-        console.error(failure, error);
-        toast.error(`${failure}: ${errorMessage(error)}`);
-        return undefined;
-      } finally {
-        busyRef.current = false;
-      }
+    <T,>(failure: string, run: () => Promise<T>): Promise<T | undefined> => {
+      if (!editable) return Promise.resolve(undefined);
+      const next = queueRef.current.then(async () => {
+        try {
+          return await run();
+        } catch (error) {
+          console.error(failure, error);
+          toast.error(`${failure}: ${errorMessage(error)}`);
+          return undefined;
+        }
+      });
+      queueRef.current = next;
+      return next;
     },
     [editable],
   );
@@ -213,6 +216,28 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     [guarded, meetingId, commit],
   );
 
+  // Reads the caret from the line's text field, so Split works from the
+  // selection bar as well as the right-click menu.
+  const splitSelected = useCallback(async () => {
+    const [id] = [...selection.selected];
+    if (selection.selected.size !== 1 || id === undefined) return;
+
+    const field = document.querySelector<HTMLTextAreaElement>(`#segment-${CSS.escape(id)} textarea`);
+    const length = field ? Array.from(field.value).length : 0;
+    // selectionStart counts UTF-16 units; the backend splits on code points.
+    const cursor = field ? Array.from(field.value.slice(0, field.selectionStart)).length : 0;
+    if (!field || cursor <= 0 || cursor >= length) {
+      toast.info('Click inside the line where you want to split it, then press Split');
+      return;
+    }
+
+    // Split works on stored text, so save any unsaved typing first.
+    if (field.value !== segments.find((s) => s.id === id)?.text) {
+      if (!(await editText(id, field.value))) return;
+    }
+    await splitAt(id, cursor);
+  }, [selection, segments, editText, splitAt]);
+
   const findMatches = useCallback(
     (query: string) => invoke<TranscriptMatches>('find_in_transcripts', { meetingId, query }),
     [meetingId],
@@ -328,6 +353,7 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     select,
     clearSelection,
     selectAll,
+    allSelected,
     canUndo: history.undo.length > 0,
     canRedo: history.redo.length > 0,
     undo,
@@ -338,6 +364,7 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     mergeSelected,
     mergeWithNext,
     splitAt,
+    splitSelected,
     findOpen,
     setFindOpen,
     findMatches,
