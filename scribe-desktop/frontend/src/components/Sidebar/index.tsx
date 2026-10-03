@@ -20,6 +20,7 @@ import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useDeleteMeetings } from '@/hooks/useDeleteMeetings';
 import { cn } from '@/lib/utils';
+import { RollingLabel } from './RollingLabel';
 
 import {
   Dialog,
@@ -597,7 +598,8 @@ const Sidebar: React.FC = () => {
             item.type === 'folder' && depth === 0
               ? 'h-8 mx-3 mt-1 px-2 rounded-md text-xs font-semibold uppercase tracking-wide text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground cursor-pointer'
               : cn(
-                  'px-2.5 py-2 my-0.5 rounded-lg text-sm cursor-pointer',
+                  'px-2.5 py-2 my-0.5 rounded-lg cursor-pointer',
+                  item.type === 'folder' ? 'text-[13px]' : 'text-sm',
                   isActive
                     ? 'bg-primary/10 text-primary font-medium'
                     : 'hover:bg-accent/60'
@@ -628,7 +630,7 @@ const Sidebar: React.FC = () => {
               ) : (
                 <Folder className="w-4 h-4 mr-2 text-muted-foreground" />
               )}
-              <span className={depth === 0 ? "" : "font-medium"}>{item.title}</span>
+              <RollingLabel text={item.title} className={cn('mr-2', depth !== 0 && 'font-medium')} />
               <div className="ml-auto">
                 {item.id.startsWith(TAG_FOLDER_PREFIX) ? (
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
