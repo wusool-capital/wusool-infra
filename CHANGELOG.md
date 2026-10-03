@@ -33,6 +33,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Scribe desktop's notification popups no longer bring Scribe forward when you
+  press the X on "Start recording?" or "Keep" on the meeting-ended countdown.
+  They now only close the popup, and your meeting app keeps focus.
 - Scribe desktop's start-recording buttons now react the instant they are
   clicked. A spinner shows while the transcription model is checked and
   capture starts. A blocked or failed start puts the button back.

@@ -22,6 +22,7 @@ const MARGIN: f64 = 12.0;
 mod panel {
     use super::{OverlaySpec, MARGIN};
     use tauri::{AppHandle, LogicalPosition, LogicalSize, Position, Runtime, Size, WebviewUrl};
+    use tauri_nspanel::objc2::sel;
     use tauri_nspanel::{
         tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
         TrackingAreaOptions,
@@ -114,8 +115,36 @@ mod panel {
         });
         panel.set_event_handler(Some(handler.as_ref()));
         panel.show();
+        prevent_activation_when_registered(app, spec.label);
         log::info!("[Overlay] {} panel visible={}", spec.label, panel.is_visible());
         true
+    }
+
+    // How long the window server needs to register a freshly shown window; a
+    // flag set earlier is silently dropped.
+    const REGISTRATION_DELAY: std::time::Duration = std::time::Duration::from_millis(300);
+
+    // The class swap skips the window server's non-activating flag, so clicks would raise Scribe's main window.
+    fn prevent_activation_when_registered(app: &AppHandle, label: &'static str) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(REGISTRATION_DELAY).await;
+            let on_main = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                let Ok(panel) = on_main.get_webview_panel(label) else { return };
+                let window = panel.as_panel();
+                let selector = sel!(_setPreventsActivation:);
+                // SAFETY: private selector, only sent after confirming the window responds to it.
+                unsafe {
+                    let responds: bool = msg_send![window, respondsToSelector: selector];
+                    if responds {
+                        let _: () = msg_send![window, _setPreventsActivation: true];
+                    } else {
+                        log::warn!("[Overlay] _setPreventsActivation: unavailable; clicks may raise Scribe");
+                    }
+                }
+            });
+        });
     }
 
     /// Re-shows an already created panel; false if none exists yet.
