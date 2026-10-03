@@ -80,6 +80,9 @@ mod panel {
                     .title("")
                     .resizable(false)
                     .decorations(false)
+                    // The webview needs this too, or its white background shows
+                    // in the card's rounded corners.
+                    .transparent(true)
                     .skip_taskbar(true)
                     .focused(false)
                     .accept_first_mouse(true)
