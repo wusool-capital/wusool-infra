@@ -18,7 +18,7 @@ for current production evidence and open handover items.
   small talk in one step, or to split it. Find & replace fixes a misheard
   name across the whole transcript. Undo and redo (Cmd+Z, Cmd+Shift+Z) cover
   every change. Deleted lines are removed from what Summarize sends. A
-  "Suggest fixes" button for AI spelling suggestions shows as "Coming soon".
+  "Proofread" button for AI spelling suggestions shows as "Coming soon".
 - New `POST /desktop/transcripts/corrections` endpoint suggests fixes for
   speech-to-text errors (misheard words, company names, punctuation and
   casing) in Scribe desktop transcripts. It never rephrases or removes filler

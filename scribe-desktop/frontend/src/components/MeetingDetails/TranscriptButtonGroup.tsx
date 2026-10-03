@@ -123,7 +123,7 @@ export function TranscriptButtonGroup({
               <span tabIndex={0} className="inline-flex cursor-not-allowed">
                 <Button size="sm" variant="outline" disabled className="[&_svg]:size-5">
                   <Wand2 />
-                  Fix suggestions
+                  Proofread
                 </Button>
               </span>
             </TooltipTrigger>
