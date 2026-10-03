@@ -18,6 +18,13 @@ for current production evidence and open handover items.
   triggers for recordings where no meeting app was seen. Settings has a
   toggle to turn auto-stop off and keep the manual prompt.
 
+### Changed
+
+- Scribe desktop's start-recording buttons now react the instant they are
+  clicked, showing a spinner while the transcription model is checked and
+  capture starts, instead of waiting for those to finish. A blocked or failed
+  start puts the button back.
+
 ### Fixed
 
 - Scribe's meeting popup close button now works on the first click and is
