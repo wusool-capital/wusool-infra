@@ -42,9 +42,15 @@ for current production evidence and open handover items.
 - Scribe desktop's start-recording buttons now react the instant they are
   clicked. A spinner shows while the transcription model is checked and
   capture starts. A blocked or failed start puts the button back.
+- Scribe desktop's sidebar shows folder names on one line in a smaller size,
+  and scrolls long names sideways on hover instead of wrapping. The folder
+  page header keeps its meeting and selected counts on one line.
 
 ### Fixed
 
+- Scribe desktop folder pages no longer carry selections over from another
+  folder, which could delete meetings from the folder you had just left. The
+  sidebar also stops highlighting the last opened meeting once you leave it.
 - Scribe's meeting popup close button now works on the first click and is
   visible without hovering. The popups no longer show an oversized
   background rectangle behind the card. Both popups now share a refreshed
