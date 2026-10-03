@@ -748,6 +748,7 @@ pub fn run() {
             push::search_companies,
             push::get_saved_summary,
             push::sync_pushed_meetings,
+            push::delete_remote_meeting,
             feedback::submit_feedback,
             audio::recording_preferences::get_recording_preferences,
             audio::recording_preferences::set_recording_preferences,

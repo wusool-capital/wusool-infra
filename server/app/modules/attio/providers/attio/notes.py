@@ -20,7 +20,7 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from app.modules.attio.providers.attio.client import AttioClient, get_attio_client
+from app.modules.attio.providers.attio.client import AttioClient, AttioError, get_attio_client
 from app.modules.attio.providers.attio.write_values import RecordReferenceValue
 
 logger = logging.getLogger(__name__)
@@ -117,3 +117,19 @@ class AttioNoteWriter:
                 extra={"error": str(exc)},
             )
             return None
+
+    async def delete_note(self, record_id: UUID) -> None:
+        """DELETE a note record from Attio. Unlike `push_note`, this does
+        NOT swallow errors: the caller (the meetings delete flow) must not
+        soft-delete its own `meetings`/`notes` rows if Attio still has the
+        record, or the two stores would disagree about what's deleted with
+        no way to tell. A 404 is the one exception — it means the record is
+        already gone (never pushed successfully, or deleted a second time),
+        which is the caller's desired end state, not a failure.
+        """
+        try:
+            await self._client.delete(f"/objects/{_NOTE_OBJECT_SLUG}/records/{record_id}")
+        except AttioError as exc:
+            if exc.status == 404:
+                return
+            raise

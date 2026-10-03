@@ -27,7 +27,11 @@ class MeetingRepository:
         """
         stmt = (
             select(Meeting)
-            .where(Meeting.org_id == org_attio_id, Meeting.summary.is_not(None))
+            .where(
+                Meeting.org_id == org_attio_id,
+                Meeting.summary.is_not(None),
+                Meeting.removed_at.is_(None),
+            )
             .order_by(Meeting.occurred_at.desc())
         )
         rows = (await self._session.execute(stmt)).scalars().all()

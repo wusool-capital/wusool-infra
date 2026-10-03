@@ -25,6 +25,16 @@ class MeetingNotFoundError(NotFoundError):
     """Raised when a meeting_id has no matching row."""
 
 
+class MeetingStillProcessingError(AppError):
+    """Raised when a delete is requested for a meeting still actively
+    `summarizing` — deleting it now would race the publish flow, which
+    could write a note for a row the caller already believes is gone. A
+    *stalled* `summarizing` row is not affected (see `DeleteMixin`).
+    """
+
+    status_code = 409
+
+
 class UnknownCompanyReferenceError(AppError):
     """Raised when a role selection looks like a bare local-company UUID
     (Scribe-era desktop session data) rather than an `attio:<id>` reference

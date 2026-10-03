@@ -99,3 +99,5 @@ class Meeting(Base):
     summary_json: Mapped[dict | None] = mapped_column(JSONB)
     summary_started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     note_id: Mapped[UUID | None] = mapped_column(ForeignKey("notes.id"))
+    # Desktop-initiated soft delete (AZM-126), mirroring `notes.removed_at`.
+    removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

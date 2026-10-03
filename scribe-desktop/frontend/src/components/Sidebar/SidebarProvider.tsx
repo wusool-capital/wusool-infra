@@ -36,6 +36,7 @@ interface SidebarItem {
   children?: SidebarItem[];
   durationSeconds?: number | null;
   createdAt?: string | null;
+  pushedAt?: string | null;
 }
 
 export interface CurrentMeeting {
@@ -44,6 +45,7 @@ export interface CurrentMeeting {
   pushTag?: string | null;
   durationSeconds?: number | null;
   createdAt?: string | null;
+  pushedAt?: string | null;
 }
 
 // Folders are derived from each meeting's push_tag (set via the Push
@@ -78,7 +80,7 @@ interface SidebarContextType {
   isCollapsed: boolean;
   toggleCollapse: () => void;
   meetings: CurrentMeeting[];
-  setMeetings: (meetings: CurrentMeeting[]) => void;
+  setMeetings: React.Dispatch<React.SetStateAction<CurrentMeeting[]>>;
   isMeetingActive: boolean;
   setIsMeetingActive: (active: boolean) => void;
   handleRecordingToggle: () => void;
@@ -130,11 +132,12 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const fetchMeetings = React.useCallback(async () => {
     if (serverAddress) {
       try {
-        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, created_at?: string, push_tag?: string | null, duration_seconds?: number | null }>;
+        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, created_at?: string, push_tag?: string | null, pushed_at?: string | null, duration_seconds?: number | null }>;
         const transformedMeetings = meetings.map((meeting: any) => ({
           id: meeting.id,
           title: meeting.title,
           pushTag: meeting.push_tag ?? null,
+          pushedAt: meeting.pushed_at ?? null,
           durationSeconds: meeting.duration_seconds ?? null,
           createdAt: meeting.created_at ?? null,
         }));
@@ -202,6 +205,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
         type: 'file' as const,
         durationSeconds: meeting.durationSeconds,
         createdAt: meeting.createdAt,
+        pushedAt: meeting.pushedAt,
       };
       const tag = meeting.pushTag?.trim();
       if (!tag) {

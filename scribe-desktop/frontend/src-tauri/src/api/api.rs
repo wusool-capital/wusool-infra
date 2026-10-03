@@ -759,24 +759,74 @@ pub async fn api_delete_api_key<R: Runtime>(
     }
 }
 
+/// True only if `folder` is a real subdirectory of the current recordings
+/// root (`save_folder`) -- never the root itself. Guards against removing
+/// the wrong thing when `save_folder` was changed after this meeting was
+/// recorded, or for an imported meeting whose folder never lived under it
+/// at all: in either case this returns `false` and the caller just skips
+/// the removal rather than risk `remove_dir_all` on an unexpected path.
+fn is_removable_recording_folder(folder: &std::path::Path, save_folder: &std::path::Path) -> bool {
+    let (Ok(folder), Ok(save_folder)) = (folder.canonicalize(), save_folder.canonicalize()) else {
+        return false;
+    };
+    folder != save_folder && folder.starts_with(&save_folder)
+}
+
 #[tauri::command]
 pub async fn api_delete_meeting<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     meeting_id: String,
+    delete_remote: bool,
     auth_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
     log_info!(
-        "api_delete_meeting called for meeting_id(native): {}, auth_token: {}",
+        "api_delete_meeting called for meeting_id(native): {}, delete_remote: {}, auth_token: {}",
         meeting_id,
+        delete_remote,
         auth_token.is_some()
     );
 
     let pool = state.db_manager.pool();
 
+    let meeting = MeetingsRepository::get_meeting_metadata(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load meeting {}: {}", meeting_id, e))?;
+
+    // Remote delete first: if it fails, keep every local row intact so the
+    // user can retry -- (install_id, local_recording_id) is the only key
+    // left to find this meeting on the server once it's gone locally.
+    if delete_remote {
+        if let Some(meeting) = &meeting {
+            if meeting.pushed_at.is_some() {
+                crate::push::delete_remote_meeting(app.clone(), meeting_id.clone()).await?;
+            }
+        }
+    }
+
     match MeetingsRepository::delete_meeting(pool, &meeting_id).await {
         Ok(true) => {
             log_info!("Successfully deleted meeting {}", meeting_id);
+
+            if let Some(folder_path) = meeting.and_then(|m| m.folder_path) {
+                let folder = std::path::PathBuf::from(&folder_path);
+                let save_folder = crate::audio::recording_preferences::load_recording_preferences(&app)
+                    .await
+                    .map(|prefs| prefs.save_folder)
+                    .ok();
+                match save_folder {
+                    Some(save_folder) if is_removable_recording_folder(&folder, &save_folder) => {
+                        if let Err(e) = std::fs::remove_dir_all(&folder) {
+                            log_warn!("Failed to remove recording folder {}: {}", folder_path, e);
+                        }
+                    }
+                    _ => log_warn!(
+                        "Skipping recording folder removal for {} -- not under the current recordings root",
+                        folder_path
+                    ),
+                }
+            }
+
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Meeting deleted successfully"

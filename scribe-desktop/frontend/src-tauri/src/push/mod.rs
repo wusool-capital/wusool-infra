@@ -706,6 +706,72 @@ pub async fn get_saved_summary(
 }
 
 // ---------------------------------------------------------------------------
+// Delete: removes a pushed meeting from the server (soft-delete) and its
+// Attio note (AZM-126). Keyed on (install_id, local_recording_id) -- the
+// only identifier this app ever has for a pushed meeting, see this file's
+// own docstring on why the remote meeting_id is never persisted.
+// ---------------------------------------------------------------------------
+
+/// DELETE /desktop/meetings/{install_id}/{local_recording_id}. Only a 204
+/// counts as success:
+/// - 404 means this server predates the delete route -- the caller must
+///   NOT drop its local rows, since (install_id, local_recording_id) is
+///   the only key it has left to retry with.
+/// - 409 means the meeting is still actively summarizing server-side --
+///   surfaced distinctly so the caller can tell the user to retry shortly
+///   rather than reporting a generic failure.
+#[tauri::command]
+pub async fn delete_remote_meeting<R: Runtime>(
+    app: AppHandle<R>,
+    local_recording_id: String,
+) -> Result<(), String> {
+    let config = load_push_config(&app);
+    if config.server_url.trim().is_empty() {
+        return Err("Push destination is not configured. Set it in Settings.".to_string());
+    }
+
+    let url = format!(
+        "{}/desktop/meetings/{}/{}",
+        config.server_url.trim_end_matches('/'),
+        config.install_id,
+        local_recording_id
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let mut request = client.delete(&url);
+    if !config.api_key.trim().is_empty() {
+        request = request.header("Authorization", format!("Bearer {}", config.api_key));
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Failed to reach {}: {}", url, e))?;
+    let status = response.status();
+
+    if status == reqwest::StatusCode::NO_CONTENT {
+        return Ok(());
+    }
+    if status == reqwest::StatusCode::CONFLICT {
+        return Err(
+            "This meeting is still being summarized on the server. Retry shortly.".to_string(),
+        );
+    }
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Err(
+            "The server does not support remote delete yet. Update the server, or delete locally only."
+                .to_string(),
+        );
+    }
+    let response_text = response.text().await.unwrap_or_default();
+    error!("Remote delete failed for {}: {} {}", local_recording_id, status, response_text);
+    Err(format!("Remote delete failed ({}): {}", status, response_text))
+}
+
+// ---------------------------------------------------------------------------
 // Buyer/seller tag (push_tag column)
 // ---------------------------------------------------------------------------
 
