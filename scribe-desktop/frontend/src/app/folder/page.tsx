@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { File, Folder, LoaderIcon, SearchIcon, Trash2, X } from 'lucide-react';
+import { File, Folder, LoaderIcon, SearchIcon, SquareCheckBig, Trash2, X } from 'lucide-react';
 import { useSidebar, slugifyTag } from '@/components/Sidebar/SidebarProvider';
 import { useDeleteMeetings } from '@/hooks/useDeleteMeetings';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
@@ -132,7 +132,8 @@ function FolderContent() {
                 </>
               ) : (
                 folderMeetings.length > 0 && (
-                  <Button variant="ghost" size="sm" onClick={() => setSelectionMode(true)}>
+                  <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+                    <SquareCheckBig />
                     Select
                   </Button>
                 )
