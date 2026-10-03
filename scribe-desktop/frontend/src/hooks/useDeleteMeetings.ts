@@ -10,7 +10,7 @@ import { useSidebar, type CurrentMeeting } from '@/components/Sidebar/SidebarPro
 // `api_delete_meeting`, updates the `meetings` list, and reports the
 // result -- rather than two copies drifting apart.
 export function useDeleteMeetings() {
-  const { meetings, setMeetings, currentMeeting, setCurrentMeeting } = useSidebar();
+  const { setMeetings, currentMeeting, setCurrentMeeting } = useSidebar();
   const router = useRouter();
 
   const deleteMeetings = useCallback(
@@ -37,7 +37,8 @@ export function useDeleteMeetings() {
 
       if (deleted.length > 0) {
         const deletedSet = new Set(deleted);
-        setMeetings(meetings.filter((m: CurrentMeeting) => !deletedSet.has(m.id)));
+        // Functional update: a refresh or new recording may have landed during the loop.
+        setMeetings((current) => current.filter((m: CurrentMeeting) => !deletedSet.has(m.id)));
         if (currentMeeting?.id && deletedSet.has(currentMeeting.id)) {
           setCurrentMeeting({ id: 'intro-call', title: '+ New Call' });
           router.push('/');
@@ -61,7 +62,7 @@ export function useDeleteMeetings() {
 
       return { deleted, failed };
     },
-    [meetings, setMeetings, currentMeeting, setCurrentMeeting, router]
+    [setMeetings, currentMeeting, setCurrentMeeting, router]
   );
 
   return { deleteMeetings };

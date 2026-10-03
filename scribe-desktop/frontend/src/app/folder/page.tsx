@@ -78,7 +78,10 @@ function FolderContent() {
     });
   };
 
+  // "Entire folder" means every meeting in it, not just the ones a search shows.
   const allSelected = selectedIds.size > 0 && selectedIds.size === folderMeetings.length;
+  const allVisibleSelected =
+    visibleMeetings.length > 0 && visibleMeetings.every((m) => selectedIds.has(m.id));
   const anyPushedSelected = folderMeetings.some((m) => selectedIds.has(m.id) && !!m.pushedAt);
 
   const handleDeleteConfirm = async () => {
@@ -109,10 +112,10 @@ function FolderContent() {
                     variant="ghost"
                     size="sm"
                     onClick={() =>
-                      setSelectedIds(allSelected ? new Set() : new Set(folderMeetings.map((m) => m.id)))
+                      setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleMeetings.map((m) => m.id)))
                     }
                   >
-                    {allSelected ? 'Deselect all' : 'Select all'}
+                    {allVisibleSelected ? 'Deselect all' : 'Select all'}
                   </Button>
                   <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
                     Cancel
@@ -142,14 +145,22 @@ function FolderContent() {
               <InputGroupInput
                 placeholder={`Search in ${folderName}...`}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSelectedIds(new Set());
+                }}
               />
               <InputGroupAddon>
                 <SearchIcon />
               </InputGroupAddon>
               {searchQuery && (
                 <InputGroupAddon align="inline-end">
-                  <InputGroupButton onClick={() => setSearchQuery('')}>
+                  <InputGroupButton
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedIds(new Set());
+                    }}
+                  >
                     <X />
                   </InputGroupButton>
                 </InputGroupAddon>
