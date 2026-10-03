@@ -23,9 +23,8 @@ for current production evidence and open handover items.
 ### Changed
 
 - Scribe desktop's start-recording buttons now react the instant they are
-  clicked, showing a spinner while the transcription model is checked and
-  capture starts, instead of waiting for those to finish. A blocked or failed
-  start puts the button back.
+  clicked. A spinner shows while the transcription model is checked and
+  capture starts. A blocked or failed start puts the button back.
 
 ### Fixed
 
@@ -33,8 +32,8 @@ for current production evidence and open handover items.
   visible without hovering. The popups no longer show an oversized
   background rectangle behind the card. Both popups now share a refreshed
   card design with the WusoolScribe logo. On macOS they now behave like
-  system notifications: hover and the pointer cursor work and a click gives
-  immediate feedback, without pulling focus from the meeting app.
+  system notifications. Hover and the pointer cursor work, and a click gives
+  immediate feedback without pulling focus from the meeting app.
 
 ## 2026-09-30
 
