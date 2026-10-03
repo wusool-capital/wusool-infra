@@ -118,13 +118,23 @@ mod panel {
         true
     }
 
-    pub(super) fn release<R: Runtime>(app: &AppHandle<R>, label: &str) {
-        // tao reports a closed window only from its own delegate. Without
-        // restoring it the label stays registered and the overlay never shows again.
-        if let Ok(panel) = app.get_webview_panel(label) {
-            panel.set_event_handler(None);
+    /// Re-shows an already created panel; false if none exists yet.
+    pub(super) fn reshow<R: Runtime>(app: &AppHandle<R>, label: &str) -> bool {
+        let shown = app.get_webview_panel(label).map(|panel| panel.show()).is_ok();
+        if shown {
+            log::info!("[Overlay] re-showed {label}");
         }
-        let _ = app.remove_webview_panel(label);
+        shown
+    }
+
+    /// Hides rather than closes: destroying a panel throws an Objective-C
+    /// exception inside tao's event loop, which aborts the whole app.
+    pub(super) fn hide<R: Runtime>(app: &AppHandle<R>, label: &str) -> bool {
+        let hidden = app.get_webview_panel(label).map(|panel| panel.hide()).is_ok();
+        if hidden {
+            log::info!("[Overlay] hid {label}");
+        }
+        hidden
     }
 }
 
@@ -177,6 +187,11 @@ pub(crate) fn show_overlay<R: Runtime>(app: &AppHandle<R>, spec: &'static Overla
     // background tasks, so dispatch it explicitly.
     let app_clone = app.clone();
     let _ = app.run_on_main_thread(move || {
+        #[cfg(target_os = "macos")]
+        if panel::reshow(&app_clone, spec.label) {
+            return;
+        }
+
         if app_clone.get_webview_window(spec.label).is_some() {
             return;
         }
@@ -197,12 +212,14 @@ pub(crate) fn show_overlay<R: Runtime>(app: &AppHandle<R>, spec: &'static Overla
 }
 
 pub(crate) fn close_overlay<R: Runtime>(app: &AppHandle<R>, label: &'static str) {
-    // Existence is checked on the main thread, after any queued show_overlay
-    // has run, so a close can't slip in before the window it should close.
+    // Runs on the main thread, after any queued show_overlay, so a close
+    // can't slip in before the overlay it should close.
     let app_clone = app.clone();
     let _ = app.run_on_main_thread(move || {
         #[cfg(target_os = "macos")]
-        panel::release(&app_clone, label);
+        if panel::hide(&app_clone, label) {
+            return;
+        }
 
         if let Some(window) = app_clone.get_webview_window(label) {
             let _ = window.close();
