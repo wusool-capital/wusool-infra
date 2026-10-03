@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 
 interface OverlayCardProps {
   eyebrow: string
@@ -14,15 +14,10 @@ interface OverlayCardProps {
 
 /** Shared look for Scribe's small always-on-top notifications. */
 export function OverlayCard({ eyebrow, title, subtitle, progress, children }: OverlayCardProps) {
-  const [shown, setShown] = useState(false)
-  useEffect(() => setShown(true), [])
-
+  // No entrance animation: the page counts as hidden while the app is inactive,
+  // which freezes animations at their first frame and leaves the card invisible.
   return (
-    <div
-      className={`relative h-screen w-screen overflow-hidden rounded-[18px] border border-white/[0.09] bg-gradient-to-b from-[#1e1e24] to-[#131316] shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] transition duration-200 ease-out motion-reduce:transition-none ${
-        shown ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
-      }`}
-    >
+    <div className="relative h-screen w-screen overflow-hidden rounded-[18px] border border-white/[0.09] bg-gradient-to-b from-[#1e1e24] to-[#131316] shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
       {/* Soft brand-colour glow behind the logo */}
       <div
         aria-hidden

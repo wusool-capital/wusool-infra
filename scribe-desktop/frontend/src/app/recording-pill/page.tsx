@@ -40,16 +40,17 @@ export default function MeetingEndedPage() {
     return () => clearInterval(id)
   }, [countdown])
 
-  if (!countdown) return null
-
+  // Render the card straight away so it paints even if scripts are throttled
+  // while the app is inactive; the countdown fills in once it loads.
+  const autoStop = countdown?.auto_stop ?? true
   const secondsLeft = Math.ceil(remainingMs / 1000)
-  const progress = remainingMs / (countdown.duration_secs * 1000)
+  const progress = countdown ? remainingMs / (countdown.duration_secs * 1000) : 1
 
   return (
     <OverlayCard
       eyebrow="Meeting ended"
-      title={countdown.auto_stop ? `Stopping in ${secondsLeft}s` : 'Stop recording?'}
-      subtitle={countdown.auto_stop ? 'Your transcript will be saved' : 'The call has ended'}
+      title={!countdown ? 'Stopping soon' : autoStop ? `Stopping in ${secondsLeft}s` : 'Stop recording?'}
+      subtitle={autoStop ? 'Your transcript will be saved' : 'The call has ended'}
       progress={progress}
     >
       <OverlayButton variant="ghost" onClick={() => invoke('recording_pill_keep_recording')}>
