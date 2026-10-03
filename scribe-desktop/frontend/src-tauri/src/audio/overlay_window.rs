@@ -71,7 +71,6 @@ mod panel {
             // NSPanels hide whenever their app is inactive, which is always the
             // case while the user is in the meeting app.
             .hides_on_deactivate(false)
-            .no_activate(true)
             .add_style_mask(StyleMask::empty().nonactivating_panel())
             .collection_behavior(
                 CollectionBehavior::new()
@@ -115,6 +114,7 @@ mod panel {
         });
         panel.set_event_handler(Some(handler.as_ref()));
         panel.show();
+        log::info!("[Overlay] {} panel visible={}", spec.label, panel.is_visible());
         true
     }
 
