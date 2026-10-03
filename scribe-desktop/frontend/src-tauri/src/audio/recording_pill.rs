@@ -24,7 +24,6 @@ pub const COUNTDOWN_SECS: u64 = 15;
 pub struct MeetingEndCountdown {
     pub ends_at_ms: u64,
     pub duration_secs: u64,
-    pub auto_stop: bool,
 }
 
 static COUNTDOWN: Mutex<Option<MeetingEndCountdown>> = Mutex::new(None);
@@ -54,12 +53,11 @@ fn spawn_sync<R: Runtime>(app: &AppHandle<R>) {
     tauri::async_runtime::spawn(async move { sync(&app).await });
 }
 
-pub fn start_meeting_end_countdown<R: Runtime>(app: &AppHandle<R>, auto_stop: bool) {
+pub fn start_meeting_end_countdown<R: Runtime>(app: &AppHandle<R>) {
     let generation = COUNTDOWN_GEN.fetch_add(1, Ordering::SeqCst) + 1;
     let countdown = MeetingEndCountdown {
         ends_at_ms: now_ms() + COUNTDOWN_SECS * 1000,
         duration_secs: COUNTDOWN_SECS,
-        auto_stop,
     };
     *COUNTDOWN.lock().unwrap() = Some(countdown);
     let _ = app.emit("meeting-end-countdown", countdown);
@@ -87,7 +85,7 @@ pub fn start_meeting_end_countdown<R: Runtime>(app: &AppHandle<R>, auto_stop: bo
         spawn_sync(&app);
 
         // The user may have already stopped it from the main window or tray.
-        if auto_stop && recording_commands::is_recording().await {
+        if recording_commands::is_recording().await {
             stop_and_open_home(&app).await;
         }
     });

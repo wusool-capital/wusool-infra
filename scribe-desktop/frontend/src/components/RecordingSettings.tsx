@@ -251,7 +251,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
         <div className="flex-1">
           <div className="font-medium">Auto-stop When Meeting Ends</div>
           <div className="text-sm text-muted-foreground">
-            Stop recording after a short countdown when your meeting app releases the microphone. When off, you'll still get a prompt to stop manually.
+            Stop recording after a short countdown when your meeting app releases the microphone. When off, recording continues until you stop it from the tray menu or the app.
           </div>
         </div>
         <Switch

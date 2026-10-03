@@ -16,7 +16,9 @@ for current production evidence and open handover items.
   meeting app or browser releases the microphone, a pill counts down 15
   seconds, with "Keep" and "Stop now" buttons, then stops. It never
   triggers for recordings where no meeting app was seen. Settings has a
-  toggle to turn auto-stop off and keep the manual prompt.
+  toggle to turn auto-stop off, in which case nothing appears and recording
+  continues until it is stopped manually. Record and Stop now on the
+  popups open Scribe's home page, so no extra click is needed.
 
 ### Changed
 

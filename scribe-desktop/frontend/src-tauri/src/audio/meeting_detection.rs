@@ -168,7 +168,10 @@ mod macos {
                                     .map(|p| p.auto_stop_on_meeting_end)
                                     .unwrap_or(true);
                             info!("[MeetingDetection] meeting ended (auto_stop={auto_stop})");
-                            recording_pill::start_meeting_end_countdown(&app, auto_stop);
+                            // With auto-stop off the user stops manually; no popup.
+                            if auto_stop {
+                                recording_pill::start_meeting_end_countdown(&app);
+                            }
                         }
                         MeetingSignal::Reacquired => {
                             recording_pill::cancel_countdown(&app);
