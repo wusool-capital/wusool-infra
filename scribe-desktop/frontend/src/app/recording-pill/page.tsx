@@ -3,55 +3,24 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { Pause, Play, Square } from 'lucide-react'
-
-interface RecordingState {
-  is_paused: boolean
-  active_duration: number | null
-}
+import { MicOff } from 'lucide-react'
 
 interface MeetingEndCountdown {
   ends_at_ms: number
+  duration_secs: number
   auto_stop: boolean
 }
 
-function formatElapsed(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds))
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = s % 60
-  const mm = String(m).padStart(2, '0')
-  const ss = String(sec).padStart(2, '0')
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
-}
-
-export default function RecordingPillPage() {
-  const [paused, setPaused] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
+export default function MeetingEndedPage() {
   const [countdown, setCountdown] = useState<MeetingEndCountdown | null>(null)
-  const [secondsLeft, setSecondsLeft] = useState(0)
-
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const state = await invoke<RecordingState>('get_recording_state')
-        setPaused(state.is_paused)
-        setElapsed(state.active_duration ?? 0)
-      } catch (error) {
-        console.error('[RecordingPill] failed to read recording state:', error)
-      }
-    }
-    poll()
-    const id = setInterval(poll, 1000)
-    return () => clearInterval(id)
-  }, [])
+  const [remainingMs, setRemainingMs] = useState(0)
 
   // Events can fire before this window's webview is ready, so also pull the
   // current countdown on mount.
   useEffect(() => {
     invoke<MeetingEndCountdown | null>('recording_pill_state')
       .then(setCountdown)
-      .catch((error) => console.error('[RecordingPill] failed to read countdown:', error))
+      .catch((error) => console.error('[MeetingEnded] failed to read countdown:', error))
 
     const unlistenStart = listen<MeetingEndCountdown>('meeting-end-countdown', (e) =>
       setCountdown(e.payload)
@@ -65,76 +34,54 @@ export default function RecordingPillPage() {
 
   useEffect(() => {
     if (!countdown) return
-    const tick = () =>
-      setSecondsLeft(Math.max(0, Math.ceil((countdown.ends_at_ms - Date.now()) / 1000)))
+    const tick = () => setRemainingMs(Math.max(0, countdown.ends_at_ms - Date.now()))
     tick()
-    const id = setInterval(tick, 250)
+    const id = setInterval(tick, 100)
     return () => clearInterval(id)
   }, [countdown])
 
-  const stop = () => invoke('recording_pill_stop')
-  const keepRecording = () => invoke('recording_pill_keep_recording')
-  const togglePause = () => invoke(paused ? 'resume_recording' : 'pause_recording')
+  if (!countdown) return null
 
-  const shell =
-    'flex h-full items-center gap-3 rounded-2xl border border-white/10 bg-[#1c1c1f]/95 px-3 backdrop-blur-xl'
+  const secondsLeft = Math.ceil(remainingMs / 1000)
+  const progress = Math.min(1, remainingMs / (countdown.duration_secs * 1000))
+  const focusRing =
+    'outline-none focus-visible:ring-2 focus-visible:ring-white/60 active:scale-[0.97] motion-reduce:active:scale-100'
 
-  if (countdown) {
-    return (
-      <div className={shell}>
+  return (
+    <div className="relative h-screen w-screen overflow-hidden rounded-2xl border border-white/10 bg-[#1c1c1f]">
+      <div className="flex h-full items-center gap-3 px-3.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-indigo-400 to-indigo-600 shadow-sm">
+          <MicOff className="h-[18px] w-[18px] text-white" strokeWidth={2.25} />
+        </div>
+
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300/90">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300/90">
             Meeting ended
           </p>
-          <p className="text-[13px] font-semibold leading-tight text-white">
+          <p className="truncate text-[13px] font-semibold leading-tight text-white">
             {countdown.auto_stop ? `Stopping in ${secondsLeft}s` : 'Stop recording?'}
           </p>
         </div>
+
         <button
-          onClick={keepRecording}
-          className="rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] font-medium text-white/80 hover:bg-white/20 hover:text-white"
+          onClick={() => invoke('recording_pill_keep_recording')}
+          className={`rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] font-medium text-white/85 transition hover:bg-white/20 hover:text-white ${focusRing}`}
         >
-          Keep recording
+          Keep
         </button>
         <button
-          onClick={stop}
-          className="rounded-lg bg-red-500 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-red-400"
+          onClick={() => invoke('recording_pill_stop')}
+          className={`rounded-lg bg-red-500 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-red-400 ${focusRing}`}
         >
           Stop now
         </button>
       </div>
-    )
-  }
 
-  return (
-    <div className={shell}>
-      <span
-        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-          paused ? 'bg-amber-400' : 'animate-pulse bg-red-500'
-        }`}
+      <div
+        className="absolute bottom-0 left-0 h-[3px] bg-indigo-400/80"
+        style={{ width: `${progress * 100}%` }}
+        aria-hidden
       />
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/55">
-          {paused ? 'Paused' : 'Recording'}
-        </p>
-        <p className="font-mono text-[15px] font-semibold leading-tight text-white">
-          {formatElapsed(elapsed)}
-        </p>
-      </div>
-      <button
-        onClick={togglePause}
-        aria-label={paused ? 'Resume recording' : 'Pause recording'}
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
-      >
-        {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-      </button>
-      <button
-        onClick={stop}
-        aria-label="Stop recording"
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-400"
-      >
-        <Square className="h-3.5 w-3.5 fill-current" />
-      </button>
     </div>
   )
 }

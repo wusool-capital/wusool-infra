@@ -35,7 +35,6 @@ const POPUP_SPEC: OverlaySpec = OverlaySpec {
     url: "meeting-popup",
     width: 320.0,
     height: 78.0,
-    corner_radius: 16.0,
 };
 
 fn show_popup<R: Runtime>(app: &AppHandle<R>) {

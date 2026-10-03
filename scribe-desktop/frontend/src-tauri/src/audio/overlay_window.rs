@@ -1,5 +1,5 @@
 // Shared builder for Scribe's small always-on-top overlays (meeting-detected
-// popup, recording pill) so they behave identically.
+// popup, meeting-ended countdown) so they behave identically.
 
 use log::{info, warn};
 use tauri::{AppHandle, Manager, Runtime};
@@ -9,7 +9,6 @@ pub(crate) struct OverlaySpec {
     pub url: &'static str,
     pub width: f64,
     pub height: f64,
-    pub corner_radius: f64,
 }
 
 const MARGIN: f64 = 12.0;
@@ -41,6 +40,9 @@ pub(crate) fn show_overlay<R: Runtime>(app: &AppHandle<R>, spec: &'static Overla
         .always_on_top(true)
         .skip_taskbar(true)
         .transparent(true)
+        // The native shadow is drawn around the full rectangular window, which
+        // shows as a box larger than the rounded card inside it.
+        .shadow(false)
         .focused(false)
         // The window never takes focus, so without this macOS spends the first
         // click activating it and swallows the button press.
@@ -64,21 +66,6 @@ pub(crate) fn show_overlay<R: Runtime>(app: &AppHandle<R>, spec: &'static Overla
             let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(
                 x, MARGIN,
             )));
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-            // HudWindow is the same dark, translucent, blurred material macOS
-            // uses for its own notification banners.
-            if let Err(err) = apply_vibrancy(
-                &window,
-                NSVisualEffectMaterial::HudWindow,
-                None,
-                Some(spec.corner_radius),
-            ) {
-                warn!("[Overlay] failed to apply vibrancy to {}: {err:?}", spec.label);
-            }
         }
 
         let _ = window.show();

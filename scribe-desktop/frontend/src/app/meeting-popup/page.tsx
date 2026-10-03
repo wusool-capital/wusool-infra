@@ -11,7 +11,7 @@ export default function MeetingPopupPage() {
     <div className="group relative w-screen h-screen">
       <div
         onClick={startRecording}
-        className="flex h-full items-center gap-3 rounded-2xl border border-white/10 bg-[#1c1c1f]/95 px-3 backdrop-blur-xl cursor-pointer transition-colors hover:bg-[#242428]/95"
+        className="flex h-full items-center gap-3 rounded-2xl border border-white/10 bg-[#1c1c1f] px-3 cursor-pointer transition-colors hover:bg-[#242428]"
       >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-indigo-400 to-indigo-600 shadow-sm">
           <Mic className="h-4.5 w-4.5 text-white" strokeWidth={2.25} />
