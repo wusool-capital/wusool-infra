@@ -100,7 +100,7 @@ function FolderView({ tagSlug, folderName }: FolderViewProps) {
         <div className="px-8 py-6">
           <div className="flex items-center gap-3">
             <Folder className="w-6 h-6 flex-shrink-0 text-muted-foreground " />
-            <h1 className="min-w-0 truncate text-2xl font-bold text-foreground " title={folderName}>{folderName}</h1>
+            <h1 className="min-w-0 truncate text-xl font-semibold text-foreground " title={folderName}>{folderName}</h1>
             <span className="flex-shrink-0 whitespace-nowrap text-sm text-muted-foreground ">
               {folderMeetings.length} meeting{folderMeetings.length === 1 ? '' : 's'}
             </span>
@@ -210,7 +210,7 @@ function FolderView({ tagSlug, folderName }: FolderViewProps) {
                     {meeting.title}
                   </span>
                   {(formatMeetingDate(meeting.createdAt) || formatDuration(meeting.durationSeconds)) && (
-                    <span className="flex-shrink-0 ml-auto text-[11px] text-muted-foreground whitespace-nowrap">
+                    <span className="flex-shrink-0 ml-auto text-xs text-muted-foreground whitespace-nowrap">
                       {[formatMeetingDate(meeting.createdAt), formatDuration(meeting.durationSeconds)]
                         .filter(Boolean)
                         .join(' · ')}
