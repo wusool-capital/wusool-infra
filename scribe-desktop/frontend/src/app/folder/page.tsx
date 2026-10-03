@@ -99,15 +99,15 @@ function FolderView({ tagSlug, folderName }: FolderViewProps) {
       <div className="sticky top-0 z-10 bg-muted border-b border-border ">
         <div className="px-8 py-6">
           <div className="flex items-center gap-3">
-            <Folder className="w-6 h-6 text-muted-foreground " />
-            <h1 className="text-2xl font-bold text-foreground ">{folderName}</h1>
-            <span className="text-sm text-muted-foreground ">
+            <Folder className="w-6 h-6 flex-shrink-0 text-muted-foreground " />
+            <h1 className="min-w-0 truncate text-2xl font-bold text-foreground " title={folderName}>{folderName}</h1>
+            <span className="flex-shrink-0 whitespace-nowrap text-sm text-muted-foreground ">
               {folderMeetings.length} meeting{folderMeetings.length === 1 ? '' : 's'}
             </span>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex flex-shrink-0 items-center gap-2">
               {selectionMode ? (
                 <>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="whitespace-nowrap text-sm text-muted-foreground">
                     {selectedIds.size} selected
                   </span>
                   <Button
