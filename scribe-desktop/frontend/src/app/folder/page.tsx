@@ -34,11 +34,13 @@ function formatMeetingDate(createdAt?: string | null): string | null {
   });
 }
 
-function FolderContent() {
-  const searchParams = useSearchParams();
+interface FolderViewProps {
+  tagSlug: string;
+  folderName: string;
+}
+
+function FolderView({ tagSlug, folderName }: FolderViewProps) {
   const router = useRouter();
-  const tagSlug = searchParams.get('tag') ?? '';
-  const folderName = searchParams.get('name') ?? 'Folder';
   const { meetings, setCurrentMeeting } = useSidebar();
   const { deleteMeetings } = useDeleteMeetings();
   const [searchQuery, setSearchQuery] = useState('');
@@ -246,6 +248,14 @@ function FolderContent() {
       </ConfirmationModal>
     </div>
   );
+}
+
+function FolderContent() {
+  const searchParams = useSearchParams();
+  const tagSlug = searchParams.get('tag') ?? '';
+  const folderName = searchParams.get('name') ?? 'Folder';
+  // Same route for every folder, so React would otherwise reuse state (selection, search) across them.
+  return <FolderView key={tagSlug} tagSlug={tagSlug} folderName={folderName} />;
 }
 
 export default function FolderPage() {
