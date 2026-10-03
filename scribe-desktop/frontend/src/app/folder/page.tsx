@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { File, Folder, LoaderIcon, SearchIcon, SquareCheckBig, Trash2, X } from 'lucide-react';
+import { File, Folder, LoaderIcon, SearchIcon, Square, SquareCheckBig, Trash2, X } from 'lucide-react';
 import { useSidebar, slugifyTag } from '@/components/Sidebar/SidebarProvider';
 import { useDeleteMeetings } from '@/hooks/useDeleteMeetings';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
@@ -109,15 +109,17 @@ function FolderContent() {
                     {selectedIds.size} selected
                   </span>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() =>
                       setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleMeetings.map((m) => m.id)))
                     }
                   >
+                    {allVisibleSelected ? <Square /> : <SquareCheckBig />}
                     {allVisibleSelected ? 'Deselect all' : 'Select all'}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
+                  <Button variant="outline" size="sm" onClick={exitSelectionMode}>
+                    <X />
                     Cancel
                   </Button>
                   <Button
@@ -126,7 +128,7 @@ function FolderContent() {
                     disabled={selectedIds.size === 0}
                     onClick={() => setShowDeleteConfirm(true)}
                   >
-                    <Trash2 className="w-4 h-4 mr-1.5" />
+                    <Trash2 />
                     Delete{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
                   </Button>
                 </>
