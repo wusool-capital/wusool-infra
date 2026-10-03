@@ -110,16 +110,22 @@ fn toggle_recording_handler<R: Runtime>(app: &AppHandle<R>) {
                 }
             }
         } else {
-            // Immediately show starting state
-            set_tray_state(&app_clone, RecordingState::Starting);
-
-            log::info!("Emitting start recording event from tray");
-            if let Some(window) = app_clone.get_webview_window("main") {
-                let _ = window.eval("sessionStorage.setItem('autoStartRecording', 'true')"); // Set the flag to start recording automatically
-                let _ = window.eval("window.location.assign('/')");
-            }
+            start_recording_from_home(&app_clone);
         }
     });
+}
+
+/// Sends the main window home with an auto-start flag. Unlike an in-page event
+/// this works from any route and even if the home page isn't mounted yet.
+pub(crate) fn start_recording_from_home<R: Runtime>(app: &AppHandle<R>) {
+    // Immediately show starting state
+    set_tray_state(app, RecordingState::Starting);
+
+    log::info!("Starting recording via home page auto-start");
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.eval("sessionStorage.setItem('autoStartRecording', 'true')"); // Set the flag to start recording automatically
+        let _ = window.eval("window.location.assign('/')");
+    }
 }
 
 fn pause_recording_handler<R: Runtime>(app: &AppHandle<R>) {

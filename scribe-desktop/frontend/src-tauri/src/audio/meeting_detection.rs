@@ -22,7 +22,7 @@
 use super::overlay_window::{close_overlay, show_overlay, OverlaySpec};
 use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Runtime};
 
 /// Set when the user dismisses the popup for the meeting currently in
 /// progress, so it doesn't immediately reappear next poll. Cleared once the
@@ -51,14 +51,11 @@ pub async fn meeting_popup_start_recording<R: Runtime>(app: AppHandle<R>) -> Res
     POPUP_DISMISSED.store(false, Ordering::Relaxed);
     close_popup(&app);
 
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.show();
-        let _ = main.set_focus();
-    }
+    crate::tray::focus_main_window(&app);
 
-    // Reuse the same event the tray icon uses to toggle recording from the
-    // main window's existing listener (src/app/layout.tsx).
-    let _ = app.emit("request-recording-toggle", ());
+    // The tray's start path works from any page; an in-page event is lost
+    // if the home page isn't mounted yet.
+    crate::tray::start_recording_from_home(&app);
     Ok(())
 }
 
