@@ -33,8 +33,8 @@ const POPUP_LABEL: &str = "meeting-popup";
 const POPUP_SPEC: OverlaySpec = OverlaySpec {
     label: POPUP_LABEL,
     url: "meeting-popup",
-    width: 320.0,
-    height: 78.0,
+    width: 360.0,
+    height: 76.0,
 };
 
 fn show_popup<R: Runtime>(app: &AppHandle<R>) {

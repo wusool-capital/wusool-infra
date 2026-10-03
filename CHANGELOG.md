@@ -22,7 +22,8 @@ for current production evidence and open handover items.
 
 - Scribe's meeting popup close button now works on the first click and is
   visible without hovering. The popups no longer show an oversized
-  background rectangle behind the card.
+  background rectangle behind the card. Both popups now share a refreshed
+  card design with the WusoolScribe logo.
 
 ## 2026-09-30
 
