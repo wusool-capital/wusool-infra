@@ -53,6 +53,7 @@ def to_meeting_record(meeting: Meeting) -> MeetingRecord:
         summary_json=meeting.summary_json,
         summary_started_at=meeting.summary_started_at,
         note_id=meeting.note_id,
+        removed_at=meeting.removed_at,
     )
 
 

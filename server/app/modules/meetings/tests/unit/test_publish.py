@@ -50,6 +50,7 @@ _DEFAULT_MEETING = MeetingRecord(
     summary_json=None,
     summary_started_at=None,
     note_id=None,
+    removed_at=None,
 )
 
 
@@ -106,6 +107,9 @@ class _FakeMeetingsRepository:
     async def get_by_id(self, meeting_id):
         return self.meeting
 
+    async def soft_delete(self, meeting_id):
+        raise NotImplementedError
+
     async def list_by_install_id(self, install_id, *, limit):
         raise NotImplementedError
 
@@ -141,6 +145,9 @@ class _FakeNotesRepository:
         )
         return note_id or self.returned_id
 
+    async def soft_delete(self, note_id):
+        raise NotImplementedError
+
 
 @dataclass
 class _FakeNoteWriter:
@@ -166,6 +173,9 @@ class _FakeNoteWriter:
             }
         )
         return self.returned_id
+
+    async def delete_note(self, record_id):
+        raise NotImplementedError
 
 
 @dataclass

@@ -59,6 +59,7 @@ class MeetingRecord:
     summary_json: JsonObject | None
     summary_started_at: datetime | None
     note_id: UUID | None
+    removed_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)

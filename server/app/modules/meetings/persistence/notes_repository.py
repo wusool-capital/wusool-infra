@@ -7,7 +7,9 @@ Implements `application.ports.notes.NotesRepositoryPort`.
 
 from uuid import UUID
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import func
 
 from app.models import Note
 
@@ -55,3 +57,13 @@ class NotesRepository:
             self._session.add(note)
             await self._session.flush()
         return note.id
+
+    async def soft_delete(self, note_id: UUID) -> None:
+        """Sets `removed_at`, mirroring the `ddl_commands` webhook's own
+        `delete_note` (`persistence/attio_sync.py`), which will set the same
+        column again — harmlessly — if the Attio `record.deleted` event for
+        this note arrives afterward.
+        """
+        await self._session.execute(
+            update(Note).where(Note.id == note_id).values(removed_at=func.now())
+        )

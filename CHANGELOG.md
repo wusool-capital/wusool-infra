@@ -8,6 +8,15 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-09-28
+
+### Added
+
+- Scribe desktop can now delete a meeting or a whole tag folder, and always
+  removes its recording folder from disk. For a meeting already pushed to
+  the server, an opt-in checkbox also soft-deletes the server's `meetings`
+  row and deletes its Attio note.
+
 ## 2026-09-23
 
 ### Added

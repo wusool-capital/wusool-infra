@@ -6,17 +6,22 @@ offers only "is true" and "is false", never "is empty".
 """
 
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 
+from app.modules.attio.providers.attio.client import AttioError
 from app.modules.attio.providers.attio.notes import AttioNoteWriter
 from app.modules.meetings import bootstrap
 
 
 class _FakeClient:
-    def __init__(self, response: dict | None = None) -> None:
+    def __init__(
+        self, response: dict | None = None, *, delete_error: AttioError | None = None
+    ) -> None:
         self.post_calls: list[tuple[str, dict]] = []
+        self.delete_calls: list[str] = []
+        self._delete_error = delete_error
         self._response = response or {
             "data": {"id": {"record_id": "3f1d2c4e-0000-4000-8000-000000000001"}}
         }
@@ -24,6 +29,11 @@ class _FakeClient:
     async def post(self, path: str, json_body: dict) -> dict:
         self.post_calls.append((path, json_body))
         return self._response
+
+    async def delete(self, path: str) -> None:
+        self.delete_calls.append(path)
+        if self._delete_error is not None:
+            raise self._delete_error
 
 
 async def _push(writer: AttioNoteWriter) -> UUID | None:
@@ -117,3 +127,30 @@ async def test_push_note_sends_only_the_matching_role_id() -> None:
     values = body["data"]["values"]
     assert values["buyer_role_id"] == "entry-42"
     assert "seller_role_id" not in values
+
+
+async def test_delete_note_calls_the_right_path() -> None:
+    client = _FakeClient()
+    record_id = uuid4()
+
+    await AttioNoteWriter(client, is_test=False, note_type="Meeting").delete_note(record_id)
+
+    assert client.delete_calls == [f"/objects/note/records/{record_id}"]
+
+
+async def test_delete_note_treats_404_as_success() -> None:
+    client = _FakeClient(delete_error=AttioError(404, "not found"))
+
+    # Must not raise — a 404 means the record is already gone, the caller's
+    # desired end state, not a failure.
+    await AttioNoteWriter(client, is_test=False, note_type="Meeting").delete_note(uuid4())
+
+
+async def test_delete_note_raises_on_any_other_error() -> None:
+    """Unlike `push_note`, a delete failure must propagate — the caller
+    (the meetings delete flow) must not soft-delete its own rows while
+    Attio still has the record."""
+    client = _FakeClient(delete_error=AttioError(500, "boom"))
+
+    with pytest.raises(AttioError):
+        await AttioNoteWriter(client, is_test=False, note_type="Meeting").delete_note(uuid4())
