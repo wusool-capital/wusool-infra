@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Hand cursor on anything clickable. :where() keeps specificity at zero so an explicit cursor-* class still wins. */
+  :where(
+      a[href],
+      button,
+      summary,
+      label[for],
+      [role='button'],
+      [role='tab'],
+      [role='switch'],
+      [role='checkbox'],
+      [role='radio'],
+      [role='menuitem'],
+      [role='option'],
+      input[type='checkbox'],
+      input[type='radio'],
+      input[type='range'],
+      input[type='file']
+    ):not(:disabled, [aria-disabled='true'], [data-disabled]) {
+    cursor: pointer;
+  }
+}
+
 @keyframes vibrate {
   0% {
     transform: translate(0);

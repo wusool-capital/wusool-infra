@@ -33,6 +33,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Scribe desktop now shows the hand cursor on every clickable control,
+  including menu and dropdown items. Disabled controls and the read-only
+  transcript timestamps keep the normal arrow.
 - Scribe desktop's notification popups no longer bring Scribe forward when you
   press the X on "Start recording?" or "Keep" on the meeting-ended countdown.
   They now only close the popup, and your meeting app keeps focus.
