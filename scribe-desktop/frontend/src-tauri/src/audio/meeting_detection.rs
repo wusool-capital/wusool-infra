@@ -174,7 +174,9 @@ mod macos {
                             info!("[MeetingDetection] meeting ended (auto_stop={auto_stop})");
                             recording_pill::start_meeting_end_countdown(&app, auto_stop);
                         }
-                        MeetingSignal::Reacquired => recording_pill::cancel_countdown(&app),
+                        MeetingSignal::Reacquired => {
+                            recording_pill::cancel_countdown(&app);
+                        }
                         MeetingSignal::Idle => {}
                     }
 

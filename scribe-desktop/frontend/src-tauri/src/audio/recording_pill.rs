@@ -82,10 +82,23 @@ pub fn start_meeting_end_countdown<R: Runtime>(app: &AppHandle<R>, auto_stop: bo
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(COUNTDOWN_SECS)).await;
-        if COUNTDOWN_GEN.load(Ordering::SeqCst) != generation {
+
+        // Checked and cleared under one lock so a concurrent "Keep recording"
+        // either cancels us here or sees nothing left to cancel.
+        let expired = {
+            let mut countdown = COUNTDOWN.lock().unwrap();
+            if COUNTDOWN_GEN.load(Ordering::SeqCst) != generation {
+                false
+            } else {
+                *countdown = None;
+                true
+            }
+        };
+        if !expired {
             return;
         }
-        clear_countdown(&app);
+        let _ = app.emit("meeting-end-countdown-cleared", ());
+        spawn_sync(&app);
 
         // The user may have already stopped it from the main window or tray.
         if auto_stop && recording_commands::is_recording().await {
@@ -95,18 +108,19 @@ pub fn start_meeting_end_countdown<R: Runtime>(app: &AppHandle<R>, auto_stop: bo
     });
 }
 
-fn clear_countdown<R: Runtime>(app: &AppHandle<R>) {
-    *COUNTDOWN.lock().unwrap() = None;
+/// Returns whether a pending countdown was actually cancelled.
+pub fn cancel_countdown<R: Runtime>(app: &AppHandle<R>) -> bool {
+    {
+        let mut countdown = COUNTDOWN.lock().unwrap();
+        if countdown.is_none() {
+            return false;
+        }
+        COUNTDOWN_GEN.fetch_add(1, Ordering::SeqCst);
+        *countdown = None;
+    }
     let _ = app.emit("meeting-end-countdown-cleared", ());
     spawn_sync(app);
-}
-
-pub fn cancel_countdown<R: Runtime>(app: &AppHandle<R>) {
-    if COUNTDOWN.lock().unwrap().is_none() {
-        return;
-    }
-    COUNTDOWN_GEN.fetch_add(1, Ordering::SeqCst);
-    clear_countdown(app);
+    true
 }
 
 /// True once if the user pressed "Keep recording" since the last check.
@@ -130,7 +144,9 @@ pub async fn recording_pill_stop<R: Runtime>(app: AppHandle<R>) -> Result<(), St
 
 #[tauri::command]
 pub async fn recording_pill_keep_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
-    KEEP_REQUESTED.store(true, Ordering::SeqCst);
-    cancel_countdown(&app);
+    // Only re-arm the tracker if the click beat the countdown's expiry.
+    if cancel_countdown(&app) {
+        KEEP_REQUESTED.store(true, Ordering::SeqCst);
+    }
     Ok(())
 }

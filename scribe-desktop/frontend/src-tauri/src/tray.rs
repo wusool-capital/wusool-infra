@@ -1,9 +1,12 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     Emitter,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::TrayIconBuilder,
     AppHandle, Manager, Runtime,
 };
+
+static STOP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub enum RecordingState {
@@ -163,6 +166,18 @@ fn stop_recording_handler<R: Runtime>(app: &AppHandle<R>) {
 /// Stops the recording and hands off to the frontend for saving. Shared by the
 /// tray, the recording pill and meeting-end auto-stop.
 pub(crate) async fn stop_and_finalize<R: Runtime>(app: &AppHandle<R>) {
+    // A double-click or a click racing auto-stop must not stop twice: the
+    // second call would re-emit recording-stop-complete and re-run saving.
+    if STOP_IN_PROGRESS.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    if crate::audio::recording_commands::is_recording().await {
+        finalize_stop(app).await;
+    }
+    STOP_IN_PROGRESS.store(false, Ordering::SeqCst);
+}
+
+async fn finalize_stop<R: Runtime>(app: &AppHandle<R>) {
     // Immediately show stopping state
     set_tray_state(app, RecordingState::Stopping);
 

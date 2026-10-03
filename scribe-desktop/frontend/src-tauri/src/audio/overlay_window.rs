@@ -87,10 +87,8 @@ pub(crate) fn show_overlay<R: Runtime>(app: &AppHandle<R>, spec: &'static Overla
 }
 
 pub(crate) fn close_overlay<R: Runtime>(app: &AppHandle<R>, label: &'static str) {
-    if app.get_webview_window(label).is_none() {
-        return;
-    }
-
+    // Existence is checked on the main thread, after any queued show_overlay
+    // has run, so a close can't slip in before the window it should close.
     let app_clone = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(window) = app_clone.get_webview_window(label) {
