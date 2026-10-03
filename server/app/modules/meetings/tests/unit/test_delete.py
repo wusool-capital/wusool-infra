@@ -249,3 +249,14 @@ async def test_meeting_with_no_note_skips_attio_entirely() -> None:
     assert note_writer.delete_calls == []
     assert notes_repo.soft_delete_calls == []
     assert meetings_repo.soft_delete_calls == [_MEETING_ID]
+
+
+async def test_soft_delete_returning_false_raises_409() -> None:
+    """The row changed under us (re-summarizing / concurrent delete): never
+    claim success for a delete that didn't happen."""
+    meeting = _meeting(note_id=None)
+    service, meetings_repo, _, _ = _service(meeting=meeting)
+    meetings_repo.soft_delete_result = False
+
+    with pytest.raises(MeetingStillProcessingError):
+        await service.delete_meeting(_INSTALL_ID, _LOCAL_RECORDING_ID)

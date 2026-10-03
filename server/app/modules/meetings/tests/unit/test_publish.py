@@ -81,6 +81,8 @@ class _FakeMeetingsRepository:
     mark_failed_calls: list[dict[str, object]] = field(default_factory=list)
     set_note_id_calls: list[dict[str, object]] = field(default_factory=list)
     fail_set_note_id: bool = False
+    removed_after_first_get: bool = False
+    _gets: int = 0
 
     async def get_by_install_and_recording(self, install_id, local_recording_id):
         raise NotImplementedError
@@ -105,6 +107,9 @@ class _FakeMeetingsRepository:
         raise NotImplementedError
 
     async def get_by_id(self, meeting_id):
+        self._gets += 1
+        if self.removed_after_first_get and self._gets > 1:
+            return None
         return self.meeting
 
     async def soft_delete(self, meeting_id):
@@ -386,3 +391,17 @@ async def test_primary_role_reaches_meeting_note_and_attio() -> None:
 
     assert notes_repo.calls[0]["primary_role"] == "internal"
     assert note_writer.calls[0]["primary_role"] == "internal"
+
+
+async def test_meeting_deleted_mid_summarization_creates_no_note() -> None:
+    """A stalled meeting deleted while its task was still running must not
+    leave an orphan Attio/Postgres note behind."""
+    meeting = _meeting(org_id=_ORG_ID, primary_role=None)
+    service, meetings_repo, notes_repo, note_writer, _ = _service(meeting=meeting)
+    meetings_repo.removed_after_first_get = True
+
+    await service.summarize_and_publish(_MEETING_ID)
+
+    assert note_writer.calls == []
+    assert notes_repo.calls == []
+    assert meetings_repo.set_note_id_calls == []

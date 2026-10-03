@@ -47,10 +47,15 @@ class DeleteMixin(ServiceBase):
             )
 
         # Attio before Postgres: if the Attio delete raises (anything but a
-        # 404), nothing below runs and the request's own session rolls back
-        # — the two stores must never end up disagreeing about what's gone.
+        # 404), nothing below runs. If a later Postgres write fails, Attio is
+        # already gone, but every step is idempotent so a retry converges.
         if meeting.note_id is not None:
             await self._note_writer.delete_note(meeting.note_id)
             await self._notes_repository.soft_delete(meeting.note_id)
 
-        await self._meetings_repository.soft_delete(meeting.id)
+        # False means the row changed under us (re-summarizing, or a concurrent
+        # delete won) — report it rather than claiming a delete that didn't happen.
+        if not await self._meetings_repository.soft_delete(meeting.id):
+            raise MeetingStillProcessingError(
+                f"Meeting {meeting.id} changed state during delete; retry shortly."
+            )

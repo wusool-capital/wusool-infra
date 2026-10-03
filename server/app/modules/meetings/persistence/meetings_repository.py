@@ -112,7 +112,9 @@ class MeetingsRepository:
         if title is not None:
             values["title"] = title
         await self._session.execute(
-            update(Meeting).where(Meeting.id == meeting_id).values(**values)
+            update(Meeting)
+            .where(Meeting.id == meeting_id, Meeting.removed_at.is_(None))
+            .values(**values)
         )
 
     async def mark_failed(self, meeting_id: UUID, *, reason: str) -> None:
@@ -124,7 +126,7 @@ class MeetingsRepository:
         """
         await self._session.execute(
             update(Meeting)
-            .where(Meeting.id == meeting_id)
+            .where(Meeting.id == meeting_id, Meeting.removed_at.is_(None))
             .values(
                 status="failed",
                 metadata_=Meeting.metadata_.op("||")(cast({"failure_reason": reason}, JSONB)),
@@ -133,7 +135,9 @@ class MeetingsRepository:
 
     async def set_note_id(self, meeting_id: UUID, *, note_id: UUID) -> None:
         await self._session.execute(
-            update(Meeting).where(Meeting.id == meeting_id).values(note_id=note_id)
+            update(Meeting)
+            .where(Meeting.id == meeting_id, Meeting.removed_at.is_(None))
+            .values(note_id=note_id)
         )
 
     async def recover_stalled(self, meeting_id: UUID, *, cutoff: datetime) -> bool:
@@ -161,7 +165,9 @@ class MeetingsRepository:
         `PublishMixin`, which can only reach a row still `summarizing`, and
         `recover_stalled`'s guard above) all treat a removed meeting as gone.
         """
-        meeting = await self._session.get(Meeting, meeting_id)
+        # populate_existing: the identity map may hold a copy loaded before a
+        # concurrent soft-delete committed, which would hide `removed_at`.
+        meeting = await self._session.get(Meeting, meeting_id, populate_existing=True)
         if meeting is None or meeting.removed_at is not None:
             return None
         return to_meeting_record(meeting)
