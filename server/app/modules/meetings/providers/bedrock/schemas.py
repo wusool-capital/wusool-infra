@@ -25,3 +25,14 @@ class MeetingSummarySchema(BaseModel):
     risks: list[str]
     deal_momentum: str
     keywords: list[str]
+
+
+class CorrectionItemSchema(BaseModel):
+    segment_id: str
+    original: str
+    suggested: str
+    reason: str
+
+
+class TranscriptCorrectionsSchema(BaseModel):
+    suggestions: list[CorrectionItemSchema]

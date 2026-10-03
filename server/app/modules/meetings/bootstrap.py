@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.attio import attio_is_test
 from app.modules.attio.providers.attio.notes import AttioNoteWriter
+from app.modules.meetings.application.corrections import CorrectionService
 from app.modules.meetings.application.ports.note_writer import NoteWriterPort
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
@@ -33,6 +34,10 @@ from app.modules.meetings.providers.bedrock.client import BedrockConverseClient
 from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
 
 logger = logging.getLogger(__name__)
+
+# Keeps each correction call's output well inside the model's token limit.
+_CORRECTION_MAX_CHARS_PER_BATCH = 12_000
+_MAX_CONCURRENT_CORRECTION_CALLS = 4
 
 
 def build_meetings_repository(session: AsyncSession) -> MeetingsRepository:
@@ -89,6 +94,24 @@ def build_summarization_service() -> SummarizationService:
         summary_max_tokens=settings.summary_max_tokens,
         summary_max_tokens_per_chunk=settings.summary_max_tokens_per_chunk,
     )
+
+
+def build_correction_service() -> CorrectionService:
+    settings = get_settings()
+    return CorrectionService(
+        build_bedrock_client(),
+        model_id=settings.aws_bedrock_model_id,
+        max_tokens=settings.summary_max_tokens,
+        max_chars_per_batch=_CORRECTION_MAX_CHARS_PER_BATCH,
+        gate=_correction_semaphore(),
+    )
+
+
+@lru_cache
+def _correction_semaphore() -> asyncio.Semaphore:
+    """Process-wide, like `_summary_semaphore`, but separate so corrections
+    can't starve summarization of Bedrock capacity."""
+    return asyncio.Semaphore(_MAX_CONCURRENT_CORRECTION_CALLS)
 
 
 @lru_cache

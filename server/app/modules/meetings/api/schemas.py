@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
 from app.modules.meetings.domain.organization_ref import OrganizationRef
@@ -209,3 +209,39 @@ def to_sync_item(status: MeetingSyncStatus) -> DesktopMeetingSyncItem:
 
 def to_company_candidate(org: OrganizationRef) -> DesktopCompanyCandidate:
     return DesktopCompanyCandidate(label=org.name, value=f"attio:{org.attio_id}")
+
+
+class TranscriptSegmentSchema(BaseModel):
+    segment_id: str = Field(..., min_length=1)
+    text: str
+
+
+# Roughly 3.5 hours of speech; each 12k chars costs one Bedrock call.
+_MAX_CORRECTION_SEGMENTS = 5000
+_MAX_CORRECTION_TOTAL_CHARS = 200_000
+
+
+class TranscriptCorrectionsRequest(BaseModel):
+    segments: list[TranscriptSegmentSchema] = Field(..., max_length=_MAX_CORRECTION_SEGMENTS)
+
+    @field_validator("segments")
+    @classmethod
+    def _bounded_and_unique(
+        cls, segments: list[TranscriptSegmentSchema]
+    ) -> list[TranscriptSegmentSchema]:
+        if len({s.segment_id for s in segments}) != len(segments):
+            raise ValueError("segment_id values must be unique")
+        if sum(len(s.text) for s in segments) > _MAX_CORRECTION_TOTAL_CHARS:
+            raise ValueError(f"transcript exceeds {_MAX_CORRECTION_TOTAL_CHARS} characters")
+        return segments
+
+
+class CorrectionSuggestionSchema(BaseModel):
+    segment_id: str
+    original: str
+    suggested: str
+    reason: str
+
+
+class TranscriptCorrectionsResponse(BaseModel):
+    suggestions: list[CorrectionSuggestionSchema]

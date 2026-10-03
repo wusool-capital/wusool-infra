@@ -12,6 +12,17 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Scribe desktop has more transcript editing controls before you summarize.
+  Select lines with the checkboxes (Shift-click for a range), then delete or
+  merge them. Right-click a line to delete everything before it, which clears
+  small talk in one step, or to split it. Find & replace fixes a misheard
+  name across the whole transcript. Undo and redo (Cmd+Z, Cmd+Shift+Z) cover
+  every change. Deleted lines are removed from what Summarize sends. A
+  "Proofread" button for AI spelling suggestions shows as "Coming soon".
+- New `POST /desktop/transcripts/corrections` endpoint suggests fixes for
+  speech-to-text errors (misheard words, company names, punctuation and
+  casing) in Scribe desktop transcripts. It never rephrases or removes filler
+  words, and nothing is saved on the server.
 - Scribe desktop stops recording automatically when a meeting ends. Once the
   meeting app or browser releases the microphone, a pill counts down 15
   seconds, with "Keep" and "Stop now" buttons, then stops. It never
@@ -22,6 +33,12 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Scribe desktop now shows the hand cursor on every clickable control,
+  including menu and dropdown items. Disabled controls and the read-only
+  transcript timestamps keep the normal arrow.
+- Scribe desktop's notification popups no longer bring Scribe forward when you
+  press the X on "Start recording?" or "Keep" on the meeting-ended countdown.
+  They now only close the popup, and your meeting app keeps focus.
 - Scribe desktop's start-recording buttons now react the instant they are
   clicked. A spinner shows while the transcription model is checked and
   capture starts. A blocked or failed start puts the button back.

@@ -50,6 +50,13 @@ meeting is actively `summarizing` — a *stalled* `summarizing` row is deleted
 anyway, matching `application/status.py`'s own stall cutoff. See
 `application/delete.py`.
 
+`POST /desktop/transcripts/corrections` returns speech-to-text fix
+suggestions for the desktop transcript editor. Stateless (no DB writes):
+`CorrectionService` batches segments, asks Bedrock (forced tool call, via
+the `CorrectorLLM` port) per batch, and drops any suggestion with an unknown
+`segment_id`, an `original` that doesn't match the segment, or a no-op
+`suggested`.
+
 ## Structure
 
 _New to this codebase's layering? See [the modular monolith guide](../../../../docs/internal/dev/MODULAR_MONOLITH_GUIDE.md)._

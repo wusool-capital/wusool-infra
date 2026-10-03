@@ -25,6 +25,7 @@ interface UsePaginatedTranscriptsReturn {
     loadMore: () => Promise<void>;
     reset: () => void;
     refetch: () => Promise<void>;
+    reloadLoaded: () => Promise<void>;
 }
 
 /**
@@ -89,7 +90,8 @@ export function usePaginatedTranscripts({
     // Load transcripts at specific offset
     const loadTranscriptsAtOffset = useCallback(async (
         offset: number,
-        append: boolean = true
+        append: boolean = true,
+        limit: number = DEFAULT_PAGE_SIZE
     ): Promise<Transcript[]> => {
         if (!meetingId) return [];
 
@@ -98,7 +100,7 @@ export function usePaginatedTranscripts({
                 'api_get_meeting_transcripts',
                 {
                     meetingId,
-                    limit: DEFAULT_PAGE_SIZE,
+                    limit,
                     offset,
                 }
             );
@@ -166,6 +168,13 @@ export function usePaginatedTranscripts({
         }
     }, [meetingId, reset, loadMetadata, loadTranscriptsAtOffset]);
 
+    // Re-reads the already-loaded range so edits show up without resetting
+    // scroll position or the pages the user has scrolled through.
+    const reloadLoaded = useCallback(async () => {
+        if (!meetingId) return;
+        await loadTranscriptsAtOffset(0, false, Math.max(DEFAULT_PAGE_SIZE, offsetRef.current));
+    }, [meetingId, loadTranscriptsAtOffset]);
+
     // Initial load
     useEffect(() => {
         if (!meetingId) {
@@ -211,5 +220,6 @@ export function usePaginatedTranscripts({
         loadMore,
         reset,
         refetch,
+        reloadLoaded,
     };
 }

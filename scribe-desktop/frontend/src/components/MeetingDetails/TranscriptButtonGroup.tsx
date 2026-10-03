@@ -3,10 +3,13 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, FolderOpen, RefreshCw, Sparkles } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Copy, FolderOpen, Redo2, RefreshCw, Sparkles, Undo2, Wand2 } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { RetranscribeDialog } from './RetranscribeDialog';
 import { useConfig } from '@/contexts/ConfigContext';
+import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
+import { TranscriptFindReplace } from './TranscriptFindReplace';
 
 
 interface TranscriptButtonGroupProps {
@@ -17,6 +20,8 @@ interface TranscriptButtonGroupProps {
   meetingFolderPath?: string | null;
   onRefetchTranscripts?: () => Promise<void>;
   onSummarize?: () => void;
+  // Present only while the transcript is editable (pre-push).
+  editor?: TranscriptEditorApi;
 }
 
 
@@ -28,6 +33,7 @@ export function TranscriptButtonGroup({
   meetingFolderPath,
   onRefetchTranscripts,
   onSummarize,
+  editor,
 }: TranscriptButtonGroupProps) {
   const { betaFeatures } = useConfig();
   const [showRetranscribeDialog, setShowRetranscribeDialog] = useState(false);
@@ -86,6 +92,45 @@ export function TranscriptButtonGroup({
           </Button>
         )}
       </ButtonGroup>
+
+      {editor && (
+        <div className="flex items-center gap-2">
+          <ButtonGroup>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!editor.canUndo}
+              onClick={() => void editor.undo()}
+              title="Undo (Cmd+Z)"
+            >
+              <Undo2 size={16} />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!editor.canRedo}
+              onClick={() => void editor.redo()}
+              title="Redo (Cmd+Shift+Z)"
+            >
+              <Redo2 size={16} />
+            </Button>
+          </ButtonGroup>
+          <TranscriptFindReplace editor={editor} />
+          {/* Shipped disabled until suggestion quality is validated on real transcripts. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* A disabled button gets no hover events, so the tooltip hangs off this wrapper. */}
+              <span tabIndex={0} className="inline-flex cursor-not-allowed">
+                <Button size="sm" variant="outline" disabled className="[&_svg]:size-5">
+                  <Wand2 />
+                  Proofread
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Coming soon</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
 
       {onSummarize && (
         <Button
