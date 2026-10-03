@@ -660,7 +660,7 @@ const Sidebar: React.FC = () => {
                 )}
                 <span className="flex-1 truncate min-w-0" title={item.title}>{item.title}</span>
                 {isMeetingItem && (formatMeetingDate(item.createdAt) || formatDuration(item.durationSeconds)) && (
-                  <span className="flex-shrink-0 ml-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                  <span className="flex-shrink-0 ml-2 text-xs text-muted-foreground whitespace-nowrap">
                     {[formatMeetingDate(item.createdAt), formatDuration(item.durationSeconds)]
                       .filter(Boolean)
                       .join(' · ')}
