@@ -266,13 +266,18 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     () =>
       guarded('Failed to apply suggestions', async () => {
         const batch: TranscriptEdit = { before: [], after: [] };
-        for (const suggestion of visibleSuggestions.values()) {
-          const edit = await editTextRaw(suggestion.segment_id, suggestion.suggested);
-          batch.before.push(...edit.before);
-          batch.after.push(...edit.after);
+        try {
+          for (const suggestion of visibleSuggestions.values()) {
+            const edit = await editTextRaw(suggestion.segment_id, suggestion.suggested);
+            batch.before.push(...edit.before);
+            batch.after.push(...edit.after);
+          }
+          setSuggestions([]);
+        } finally {
+          // If a write fails midway, the earlier ones are already saved, so
+          // they must still be undoable and visible.
+          if (batch.after.length > 0) await commit(batch);
         }
-        if (batch.after.length > 0) await commit(batch);
-        setSuggestions([]);
       }),
     [guarded, visibleSuggestions, editTextRaw, commit],
   );

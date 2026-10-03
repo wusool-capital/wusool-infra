@@ -216,13 +216,20 @@ impl TranscriptsRepository {
         Ok(TranscriptEdit { before: vec![original], after })
     }
 
-    /// Merges the given segments into the earliest one.
+    /// Merges the given segments into the earliest one. Only adjacent
+    /// segments may merge; the UI checks too, but a stale selection can slip through.
     pub async fn merge_transcripts(
         pool: &SqlitePool,
         meeting_id: &str,
         ids: &[String],
     ) -> Result<TranscriptEdit, SqlxError> {
-        if ids.len() < 2 {
+        let mut unique: Vec<&String> = Vec::with_capacity(ids.len());
+        for id in ids {
+            if !unique.contains(&id) {
+                unique.push(id);
+            }
+        }
+        if unique.len() < 2 {
             return Err(SqlxError::Protocol(
                 "merge needs at least two segments".to_string(),
             ));
@@ -230,8 +237,24 @@ impl TranscriptsRepository {
         let mut conn = pool.acquire().await?;
         let mut tx = conn.begin().await?;
 
-        let mut before = Vec::with_capacity(ids.len());
-        for id in ids {
+        let ordered_ids: Vec<String> = Self::fetch_meeting_rows(&mut tx, meeting_id)
+            .await?
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        let mut positions = Vec::with_capacity(unique.len());
+        for id in &unique {
+            positions.push(ordered_ids.iter().position(|o| o == *id).ok_or(SqlxError::RowNotFound)?);
+        }
+        positions.sort_unstable();
+        if positions.windows(2).any(|w| w[1] != w[0] + 1) {
+            return Err(SqlxError::Protocol(
+                "only adjacent segments can be merged".to_string(),
+            ));
+        }
+
+        let mut before = Vec::with_capacity(unique.len());
+        for id in unique {
             before.push(Self::fetch_row(&mut tx, meeting_id, id).await?);
         }
         before.sort_by(|a, b| {
@@ -601,6 +624,21 @@ mod tests {
         assert_eq!(merged.audio_start_time, Some(0.0));
         assert_eq!(merged.audio_end_time, Some(8.0));
         assert_eq!(merged.duration, Some(8.0));
+    }
+
+    #[tokio::test]
+    async fn merge_rejects_non_adjacent_and_ignores_duplicate_ids() {
+        let pool = seeded_pool().await;
+
+        let skipping = vec!["a".to_string(), "c".to_string()];
+        assert!(TranscriptsRepository::merge_transcripts(&pool, MEETING, &skipping).await.is_err());
+
+        let one_real = vec!["a".to_string(), "a".to_string()];
+        assert!(TranscriptsRepository::merge_transcripts(&pool, MEETING, &one_real).await.is_err());
+
+        let with_dupe = vec!["a".to_string(), "b".to_string(), "b".to_string()];
+        TranscriptsRepository::merge_transcripts(&pool, MEETING, &with_dupe).await.unwrap();
+        assert_eq!(texts(&pool).await, vec!["Hello there Wasool is great", "wasool again"]);
     }
 
     #[tokio::test]

@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Keeps each correction call's output well inside the model's token limit.
 _CORRECTION_MAX_CHARS_PER_BATCH = 12_000
+_MAX_CONCURRENT_CORRECTION_CALLS = 4
 
 
 def build_meetings_repository(session: AsyncSession) -> MeetingsRepository:
@@ -102,7 +103,15 @@ def build_correction_service() -> CorrectionService:
         model_id=settings.aws_bedrock_model_id,
         max_tokens=settings.summary_max_tokens,
         max_chars_per_batch=_CORRECTION_MAX_CHARS_PER_BATCH,
+        gate=_correction_semaphore(),
     )
+
+
+@lru_cache
+def _correction_semaphore() -> asyncio.Semaphore:
+    """Process-wide, like `_summary_semaphore`, but separate so corrections
+    can't starve summarization of Bedrock capacity."""
+    return asyncio.Semaphore(_MAX_CONCURRENT_CORRECTION_CALLS)
 
 
 @lru_cache

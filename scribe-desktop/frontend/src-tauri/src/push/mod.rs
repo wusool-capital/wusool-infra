@@ -350,9 +350,10 @@ pub async fn suggest_transcript_corrections<R: Runtime>(
     }
 
     let url = format!("{}/desktop/transcripts/corrections", config.server_url.trim_end_matches('/'));
-    // Long meetings are chunked server-side across several LLM calls.
+    // Long meetings are chunked server-side across several LLM calls, and the
+    // server caps a request at ~200k characters (~17 batches, 4 at a time).
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
+        .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 

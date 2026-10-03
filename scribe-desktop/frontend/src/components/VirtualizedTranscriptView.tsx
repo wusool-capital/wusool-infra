@@ -163,7 +163,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
         e.shiftKey ? 'range' : e.metaKey || e.ctrlKey ? 'toggle' : 'single';
 
     const handleSplit = async () => {
-        const cursor = textareaRef.current?.selectionStart ?? 0;
+        // selectionStart counts UTF-16 units; the backend splits on code points.
+        const cursor = Array.from(draft.slice(0, textareaRef.current?.selectionStart ?? 0)).length;
         // Split works on stored text, so flush any unsaved typing first.
         if (draft !== text) await onEditSegment?.(id, draft);
         onSplit?.(id, cursor);

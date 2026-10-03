@@ -100,6 +100,7 @@ from app.modules.meetings.domain.roles import momentum_applies as _roles_momentu
 __all__ = [
     "CORRECTION_SYSTEM_PROMPT",
     "build_correction_prompt",
+    "sanitize_segment_text",
     "SYSTEM_PROMPT",
     "build_chunk_summary_prompt",
     "build_merge_prompt",
@@ -956,9 +957,14 @@ CORRECTION_SYSTEM_PROMPT = (
 )
 
 
+def sanitize_segment_text(text: str) -> str:
+    """The exact text the model sees, so its echoed `original` can be matched back."""
+    return _strip_delimiter_tokens(text)
+
+
 def build_correction_prompt(segments: Sequence[TranscriptSegment]) -> str:
     lines = "\n".join(
-        json.dumps({"segment_id": s.segment_id, "text": _strip_delimiter_tokens(s.text)})
+        json.dumps({"segment_id": s.segment_id, "text": sanitize_segment_text(s.text)})
         for s in segments
     )
     start, end = _TRANSCRIPT_DELIMITER

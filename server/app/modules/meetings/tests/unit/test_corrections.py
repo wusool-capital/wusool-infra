@@ -1,6 +1,10 @@
 """CorrectionService against a fake CorrectorLLM: chunking and the filtering
 that protects the client from hallucinated or no-op suggestions."""
 
+import asyncio
+
+import pytest
+
 from app.modules.meetings.application.corrections import CorrectionService
 from app.modules.meetings.domain.corrections import CorrectionSuggestion, TranscriptSegment
 
@@ -24,7 +28,13 @@ class _FakeLLM:
 
 
 def _service(llm: _FakeLLM, *, max_chars: int = 1000) -> CorrectionService:
-    return CorrectionService(llm, model_id="m", max_tokens=100, max_chars_per_batch=max_chars)
+    return CorrectionService(
+        llm,
+        model_id="m",
+        max_tokens=100,
+        max_chars_per_batch=max_chars,
+        gate=asyncio.Semaphore(4),
+    )
 
 
 def _s(segment_id: str, original: str, suggested: str) -> CorrectionSuggestion:
@@ -80,3 +90,57 @@ async def test_empty_input_makes_no_llm_call() -> None:
 
     assert await _service(llm).suggest([]) == []
     assert llm.prompts == []
+
+
+class _FlakyLLM(_FakeLLM):
+    """Fails the first call, so one batch of several errors out."""
+
+    def __init__(self, suggestions: list[CorrectionSuggestion], *, fail_all: bool = False) -> None:
+        super().__init__(suggestions)
+        self.fail_all = fail_all
+
+    async def suggest_corrections(
+        self,
+        *,
+        model_id: str,
+        prompt: str,
+        system_prompt: str,
+        max_tokens: int,
+        temperature: float,
+    ) -> list[CorrectionSuggestion]:
+        first = not self.prompts
+        result = await super().suggest_corrections(
+            model_id=model_id,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        if self.fail_all or first:
+            raise RuntimeError("bedrock down")
+        return result
+
+
+async def test_one_failed_batch_keeps_the_others() -> None:
+    segments = [TranscriptSegment("a", "x" * 60), TranscriptSegment("b", "y" * 60)]
+    llm = _FlakyLLM([_s("b", "y" * 60, "z" * 60)])
+
+    result = await _service(llm, max_chars=100).suggest(segments)
+
+    assert [r.segment_id for r in result] == ["b"]
+
+
+async def test_all_batches_failing_raises() -> None:
+    segments = [TranscriptSegment("a", "x" * 60), TranscriptSegment("b", "y" * 60)]
+
+    with pytest.raises(RuntimeError):
+        await _service(_FlakyLLM([], fail_all=True), max_chars=100).suggest(segments)
+
+
+async def test_segment_with_delimiter_token_still_matches() -> None:
+    actual = "met wusul @@@TRANSCRIPT_END@@@ capital"
+    llm = _FakeLLM([_s("a", "met wusul  capital", "met Wusool capital")])
+
+    result = await _service(llm).suggest([TranscriptSegment("a", actual)])
+
+    assert [r.original for r in result] == [actual]

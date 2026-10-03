@@ -78,3 +78,23 @@ def test_rejects_malformed_body() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_rejects_duplicate_segment_ids() -> None:
+    response = _make_client(_FakeService()).post(
+        _URL,
+        json={"segments": [{"segment_id": "s1", "text": "a"}, {"segment_id": "s1", "text": "b"}]},
+        headers={"Authorization": f"Bearer {_VALID_KEY}"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_rejects_oversized_transcript() -> None:
+    response = _make_client(_FakeService()).post(
+        _URL,
+        json={"segments": [{"segment_id": "s1", "text": "x" * 200_001}]},
+        headers={"Authorization": f"Bearer {_VALID_KEY}"},
+    )
+
+    assert response.status_code == 422
