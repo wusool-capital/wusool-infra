@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Copy, FolderOpen, Redo2, RefreshCw, Sparkles, Undo2, Wand2 } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { RetranscribeDialog } from './RetranscribeDialog';
@@ -116,11 +117,18 @@ export function TranscriptButtonGroup({
           </ButtonGroup>
           <TranscriptFindReplace editor={editor} />
           {/* Shipped disabled until suggestion quality is validated on real transcripts. */}
-          <Button size="sm" variant="outline" disabled title="Suggest fixes for misheard words: coming soon">
-            <Wand2 size={16} />
-            <span className="hidden xl:inline">Suggest fixes</span>
-            <span className="hidden text-xs text-muted-foreground xl:inline">Coming soon</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* A disabled button gets no hover events, so the tooltip hangs off this wrapper. */}
+              <span tabIndex={0} className="inline-flex cursor-not-allowed">
+                <Button size="sm" variant="outline" disabled className="[&_svg]:size-5">
+                  <Wand2 />
+                  Fix suggestions
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Coming soon</TooltipContent>
+          </Tooltip>
         </div>
       )}
 
