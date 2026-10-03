@@ -32,9 +32,7 @@ class DeleteMixin(ServiceBase):
 
         if meeting.status == "summarizing":
             cutoff = datetime.now(UTC) - _STALL_TIMEOUT
-            stalled = (
-                meeting.summary_started_at is not None and meeting.summary_started_at < cutoff
-            )
+            stalled = meeting.summary_started_at is not None and meeting.summary_started_at < cutoff
             if not stalled:
                 raise MeetingStillProcessingError(
                     f"Meeting {meeting.id} is still summarizing; retry shortly."
