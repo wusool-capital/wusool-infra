@@ -657,8 +657,7 @@ def register(app: AsyncApp) -> None:
                 org_name=org_name,
                 org_extracted=org_extracted,
                 role_extracted=role_extracted,
-                # Only a new org: never overwrite an existing org's place id.
-                source_place_id=metadata.get("source_place_id") if is_new_org else None,
+                source_place_id=metadata.get("source_place_id"),
             )
         except SellerAlreadyExistsError:
             await client.chat_postEphemeral(

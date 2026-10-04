@@ -101,7 +101,15 @@ class SellerService(ServiceBase):
             if source_place_id is not None:
                 # `create` is DO NOTHING on an Attio-webhook race, which would
                 # silently drop the place id; Attio has no such attribute.
-                await uow.organizations.update(org_attio_id, source_place_id=source_place_id)
+                org = await uow.organizations.get_by_id(org_attio_id)
+                # Fill only an empty slot, and never trip the unique index after
+                # the Attio writes already landed.
+                if (
+                    org is not None
+                    and org.source_place_id is None
+                    and await uow.organizations.find_by_place_id(source_place_id) is None
+                ):
+                    await uow.organizations.update(org_attio_id, source_place_id=source_place_id)
 
             # Serializes concurrent /add-seller for this org: the check below
             # is application-level, so without this both could pass it.

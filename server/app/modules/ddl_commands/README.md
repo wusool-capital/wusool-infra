@@ -105,7 +105,7 @@ enrichment, returns the lead unwritten as `UnverifiedSeller` when a provider's
 website doesn't match the Maps website (see `discovery/README.md`), then
 writes once. A reviewed lead's `source_place_id` travels through the
 organization-selection and add-form `private_metadata` to the same write
-(new organizations only, so an existing org's place id is never overwritten). `source_place_id` goes to Postgres only: Attio has
+(set only when the organization has none and no other organization holds it). `source_place_id` goes to Postgres only: Attio has
 no such attribute, and the sync's `COALESCE` keeps it.
 
 ## Why Attio-first, not a Postgres-only write
