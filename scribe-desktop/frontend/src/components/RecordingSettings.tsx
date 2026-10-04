@@ -61,7 +61,11 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
   useEffect(() => {
     invoke<boolean>('get_open_at_login')
       .then(setOpenAtLogin)
-      .catch((error) => console.error('Failed to read open-at-login state:', error));
+      .catch((error) => {
+        console.error('Failed to read open-at-login state:', error);
+        // Leave the toggle usable so it can still be turned on or off.
+        setOpenAtLogin(false);
+      });
   }, []);
 
   // Load recording notification preference

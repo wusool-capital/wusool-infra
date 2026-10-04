@@ -441,23 +441,20 @@ pub fn run() {
             // with no visible way to bring it forward. Force focus explicitly
             // on every startup - harmless on a normal launch, load-bearing
             // after an update relaunch.
-            // A login launch stays in the tray instead of popping the window up.
-            if autostart::launched_at_login() {
-                if let Some(window) = _app.get_webview_window("main") {
-                    if let Err(e) = window.hide() {
-                        log::error!("Failed to hide main window on login launch: {}", e);
-                    }
+            // The main window is created hidden (tauri.conf.json), so a login
+            // launch stays in the tray, but only if the tray exists to reopen it.
+            let tray_ready = match tray::create_tray(_app.handle()) {
+                Ok(()) => true,
+                Err(e) => {
+                    log::error!("Failed to create system tray: {}", e);
+                    false
                 }
-            } else {
+            };
+            if !(autostart::launched_at_login() && tray_ready) {
                 tray::focus_main_window(_app.handle());
             }
 
             autostart::apply_default(_app.handle());
-
-            // Initialize system tray
-            if let Err(e) = tray::create_tray(_app.handle()) {
-                log::error!("Failed to create system tray: {}", e);
-            }
 
             // Initialize notification system with proper defaults
             log::info!("Initializing notification system...");
@@ -602,6 +599,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             autostart::get_open_at_login,
             autostart::set_open_at_login,
+            autostart::prepare_relaunch,
             start_recording,
             stop_recording,
             is_recording,

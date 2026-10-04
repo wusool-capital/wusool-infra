@@ -10,8 +10,17 @@ const STORE_FILE: &str = "preferences.json";
 #[cfg(not(debug_assertions))]
 const DEFAULT_APPLIED_KEY: &str = "open_at_login_default_applied";
 
+// A restart reuses the original args, so this env var (inherited by the child) marks it as not a login launch.
+const SHOW_WINDOW_ENV: &str = "WUSOOLSCRIBE_SHOW_WINDOW";
+
 pub fn launched_at_login() -> bool {
-    std::env::args().any(|arg| arg == LOGIN_LAUNCH_ARG)
+    std::env::var_os(SHOW_WINDOW_ENV).is_none() && std::env::args().any(|arg| arg == LOGIN_LAUNCH_ARG)
+}
+
+/// Called before an update restart so the relaunched app shows its window.
+#[tauri::command]
+pub fn prepare_relaunch() {
+    std::env::set_var(SHOW_WINDOW_ENV, "1");
 }
 
 /// Turns open-at-login on the first time this runs, for new and existing users alike.
