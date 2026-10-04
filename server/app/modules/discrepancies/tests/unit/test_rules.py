@@ -336,3 +336,106 @@ def test_template_message_single_missing_item_has_no_join() -> None:
     report = DiscrepancyReport(buyer_role_id="role-8", missing=_MISSING[2:])
     message = template_message(_CURSOR, report, context_checked=True)
     assert message == "Heads up: Cursor's profile is missing EBITDA."
+
+
+def _geo_buyer(regions: list[str], countries: list[str]) -> BuyerCriteria:
+    return BuyerCriteria(
+        buyer_role_id="role-geo",
+        org_name="Geo Capital",
+        target_vertical=None,
+        target_region=regions,
+        target_country=countries,
+    )
+
+
+@pytest.mark.parametrize(
+    ("regions", "countries", "stated", "conflicts"),
+    [
+        # Country-only buyer: a different country conflicts, the same one (any spelling) doesn't.
+        ([], ["Saudi Arabia"], ParsedContext(countries=("United Arab Emirates",)), True),
+        ([], ["Turkey"], ParsedContext(countries=("Türkiye",)), False),
+        # A stored region covers the countries it resolves to.
+        (["GCC"], [], ParsedContext(countries=("Egypt",)), True),
+        (["GCC"], [], ParsedContext(countries=("United Arab Emirates",)), False),
+        (["MENATP"], [], ParsedContext(countries=("Turkey",)), False),
+        # Region and country are a union: either one covering the place is enough.
+        (["GCC"], ["Egypt"], ParsedContext(countries=("Egypt",)), False),
+        (
+            ["Europe"],
+            ["United Arab Emirates"],
+            ParsedContext(countries=("United Arab Emirates",)),
+            False,
+        ),
+        # An unresolvable stored region is ruled out only via a disjoint home region.
+        (["Europe"], [], ParsedContext(countries=("United Arab Emirates",)), True),
+        (["Europe"], [], ParsedContext(countries=("Turkey",)), False),
+        (["Global"], [], ParsedContext(countries=("Japan",)), False),
+        # A stated region against a country-only buyer.
+        ([], ["Germany"], ParsedContext(region="GCC"), True),
+        ([], ["Saudi Arabia"], ParsedContext(region="GCC"), False),
+        ([], ["Germany"], ParsedContext(region="Europe"), False),
+        # Several stated places conflict only when every one falls outside.
+        ([], ["Saudi Arabia"], ParsedContext(countries=("Saudi Arabia", "Egypt")), False),
+        # No stored geography never conflicts — that's a missing field instead.
+        ([], [], ParsedContext(countries=("Egypt",)), False),
+    ],
+)
+def test_geography_conflict_uses_region_and_country_together(
+    regions: list[str], countries: list[str], stated: ParsedContext, conflicts: bool
+) -> None:
+    found = find_conflicts(_geo_buyer(regions, countries), stated)
+    assert any(c.criterion is Criterion.GEOGRAPHY for c in found) is conflicts
+
+
+def test_geography_conflict_lists_both_stored_fields() -> None:
+    (conflict,) = find_conflicts(
+        _geo_buyer(["GCC"], ["Egypt"]), ParsedContext(countries=("Germany",))
+    )
+    assert conflict.stored == "GCC, Egypt"
+    assert conflict.stated == "Germany"
+
+
+def test_country_only_buyer_can_conflict() -> None:
+    assert can_conflict(_geo_buyer([], ["Saudi Arabia"]))
+
+
+@pytest.mark.parametrize(
+    ("regions", "countries", "missing"),
+    [([], [], True), (["GCC"], [], False), ([], ["Egypt"], False), (["GCC"], ["Egypt"], False)],
+)
+def test_geography_missing_only_when_region_and_country_both_empty(
+    regions: list[str], countries: list[str], missing: bool
+) -> None:
+    flagged = {d.criterion for d in find_missing(_geo_buyer(regions, countries))}
+    assert (Criterion.GEOGRAPHY in flagged) is missing
+
+
+def test_ebitda_ceiling_alone_is_not_missing() -> None:
+    criteria = BuyerCriteria(
+        buyer_role_id="role-9", org_name="Ceiling Capital", target_vertical=None, ebitda_ceiling=5.0
+    )
+    assert Criterion.EBITDA not in {d.criterion for d in find_missing(criteria)}
+
+
+def test_template_message_echoes_what_the_note_was_read_as() -> None:
+    context = ParsedContext(
+        verticals=("Pharmaceuticals / Biotech",),
+        countries=("United Arab Emirates",),
+        ticket_low=5_000_000.0,
+        ticket_high=15_000_000.0,
+    )
+    report = DiscrepancyReport(buyer_role_id="role-8")
+    message = template_message(_CURSOR, report, context_checked=True, context=context)
+    assert message.endswith(
+        "_Read your note as: Pharmaceuticals / Biotech · United Arab Emirates · "
+        "ticket USD 5,000,000 - USD 15,000,000_"
+    )
+
+
+@pytest.mark.parametrize(("context_checked", "context"), [(True, ParsedContext()), (False, None)])
+def test_template_message_skips_the_echo_when_nothing_was_read(
+    context_checked: bool, context: ParsedContext | None
+) -> None:
+    report = DiscrepancyReport(buyer_role_id="role-8")
+    message = template_message(_CURSOR, report, context_checked=context_checked, context=context)
+    assert "Read your note as" not in message

@@ -89,3 +89,34 @@ def test_check_buyer_with_one_match_shows_picker(monkeypatch) -> None:
     assert response.status_code == 200
     assert len(updated) == 1
     assert updated[0]["view"].callback_id == "discrepancy_buyer_picker_modal"
+
+
+def test_check_buyer_search_failure_replaces_the_loading_modal(monkeypatch) -> None:
+    mock_slack_auth(monkeypatch)
+    updated: list[dict] = []
+
+    async def fake_views_open(self, **kwargs):
+        return {"view": {"id": "V_TEST"}}
+
+    async def fake_views_update(self, **kwargs):
+        updated.append(kwargs)
+        return {"ok": True}
+
+    async def failing_search_buyers(name: str) -> list[BuyerCriteria]:
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
+    monkeypatch.setattr(commands_module, "search_buyers", failing_search_buyers)
+
+    response = post_slack_command(
+        app,
+        get_settings().slack_signing_secret,
+        command="/check-buyer",
+        text="Shahroukh",
+        trigger_id="trigger.search-fails",
+    )
+
+    assert response.status_code == 200
+    assert len(updated) == 1
+    assert "Couldn't search buyers" in str(updated[0]["view"].blocks[0].text.text)

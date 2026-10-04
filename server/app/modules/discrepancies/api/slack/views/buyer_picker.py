@@ -3,19 +3,16 @@
 `BuyerCriteria`. Block Kit builders only, no logic.
 """
 
-import json
-
 from slack_sdk.models.blocks import InputBlock
 from slack_sdk.models.blocks.basic_components import Option
 from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
 from slack_sdk.models.views import View
 
+from app.modules.discrepancies.api.slack.schemas import CheckBuyerModalMetadata
 from app.modules.discrepancies.domain.criteria import BuyerCriteria
 
 
-def build_buyer_picker_modal(
-    candidates: list[BuyerCriteria], *, requested_by: str, channel_id: str
-) -> View:
+def build_buyer_picker_modal(candidates: list[BuyerCriteria], *, channel_id: str) -> View:
     options = []
     for candidate in candidates:
         # HQ country disambiguates two orgs that would otherwise render
@@ -33,7 +30,7 @@ def build_buyer_picker_modal(
     return View(
         type="modal",
         callback_id="discrepancy_buyer_picker_modal",
-        private_metadata=json.dumps({"requested_by": requested_by, "channel_id": channel_id}),
+        private_metadata=CheckBuyerModalMetadata(channel_id=channel_id).model_dump_json(),
         title="Check buyer",
         submit="Check",
         close="Cancel",

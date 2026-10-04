@@ -38,10 +38,15 @@ class ParsedContext:
 
     verticals: tuple[str, ...] = ()
     region: str | None = None
+    countries: tuple[str, ...] = ()
     ticket_low: float | None = None
     ticket_high: float | None = None
     ebitda_low: float | None = None
     ebitda_high: float | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        return self == ParsedContext()
 
 
 @dataclass(frozen=True)

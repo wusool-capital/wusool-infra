@@ -29,6 +29,7 @@ class DiscrepancyCheckResult:
     message: str
     # False when the note couldn't be read, so conflicts may be unflagged.
     context_checked: bool
+    context: ParsedContext = ParsedContext()
 
 
 class DiscrepancyCheckService:
@@ -53,6 +54,9 @@ class DiscrepancyCheckService:
         report = run_checks(criteria, context)
         return DiscrepancyCheckResult(
             report=report,
-            message=template_message(criteria, report, context_checked=context_checked),
+            message=template_message(
+                criteria, report, context_checked=context_checked, context=context
+            ),
             context_checked=context_checked,
+            context=context,
         )

@@ -1,13 +1,12 @@
-"""Resolves a `geography` string (originates from `buyer_roles.target_geography`
-— see `ddl_commands.api.buyers.BUYER_ROLE_FIELDS`'s `target_geography` spec:
-`"UAE", "KSA", "Kuwait", "Bahrain", "Qatar", "Oman", "GCC-wide", "Egypt",
-"Global"` — or free text) to a concrete search scope, for the handful of
-values a live geocode call gets wrong or can't answer at all.
+"""Resolves a `geography` string (a buyer's `target_region`/`target_country`
+value — see `ddl_commands.api.buyers.BUYER_ROLE_FIELDS` — or free text) to a
+concrete search scope, for the handful of values a live geocode call gets
+wrong or can't answer at all.
 
-7 of those 9 controlled-vocabulary values geocode correctly as single
-countries via Google's Geocoding API (verified live, 2026-09-15) — those
-stay on the live-geocode path in `providers/google_places/client.py`. Only
-two kinds of token need resolving here, without a network call:
+Single countries geocode correctly via Google's Geocoding API (verified
+live, 2026-09-15) — those stay on the live-geocode path in
+`providers/google_places/client.py`. Only two kinds of token need resolving
+here, without a network call:
 
 - A real multi-country region with no single coordinate (`GCC-wide`).
   Geocoding the bare string is actively wrong, not just unhelpful: Google
@@ -23,13 +22,9 @@ two kinds of token need resolving here, without a network call:
   for an unrestricted search, not an unresolvable one, and should never be
   logged or treated the same as "couldn't figure out what this means."
 
-MENA is included per the same `organizations.region` vocabulary the ddl_commands
-module already uses (`ddl_commands/api/organizations.py`'s `region` field) —
-not (yet) part of `target_geography`'s own controlled vocabulary, but a
-plausible free-text/soft-preference value. Only GCC/MENA/unrestricted are
-covered; the table is a plain dict, trivially extended if another value
-proves common enough to be worth hardcoding rather than falling through to
-a live geocode of the literal string.
+GCC, MENA and MENATP are the `target_region` blocs covered here; the table
+is a plain dict, trivially extended if another value proves common enough to
+be worth hardcoding rather than falling through to a live geocode.
 """
 
 from dataclasses import dataclass, field
@@ -111,6 +106,27 @@ _MENA_VIEWPORT = Rectangle(
     low=LatLng(latitude=11.0, longitude=-13.0), high=LatLng(latitude=40.0, longitude=63.5)
 )
 
+# MENA plus Turkey and Pakistan. An abbreviation, so it must never reach a live geocode.
+_MENATP_COUNTRIES = _MENA_COUNTRIES | {"Türkiye", "Turkey", "Pakistan"}
+_MENATP_VIEWPORT = Rectangle(
+    low=LatLng(latitude=11.0, longitude=-13.0), high=LatLng(latitude=42.5, longitude=77.5)
+)
+
+# The buyer `target_region` options, owned here because this module resolves them.
+# Drift against `ddl_commands`' field spec: `tests/test_discrepancies_region_vocabulary.py`.
+TARGET_REGION_OPTIONS: tuple[str, ...] = (
+    "GCC",
+    "MENA",
+    "MENATP",
+    "Africa",
+    "Asia",
+    "Europe",
+    "Southeast Asia",
+    "Latin America",
+    "Emerging Markets",
+    "Global",
+)
+
 _KNOWN_REGIONS: dict[str, GeographyScope] = {
     "gcc": GeographyScope(countries=_GCC_COUNTRIES, viewport=_GCC_VIEWPORT),
     "gcc-wide": GeographyScope(countries=_GCC_COUNTRIES, viewport=_GCC_VIEWPORT),
@@ -132,6 +148,7 @@ _KNOWN_REGIONS: dict[str, GeographyScope] = {
     # this module exists to close. Routing it through this table instead
     # gives it the same real country-list enforcement as GCC/MENA.
     "middle east": GeographyScope(countries=_MENA_COUNTRIES, viewport=_MENA_VIEWPORT),
+    "menatp": GeographyScope(countries=_MENATP_COUNTRIES, viewport=_MENATP_VIEWPORT),
     # Not a place, so there is nothing to geocode and nothing to enforce: it
     # describes a class of economy, not an area. Left to geocode it would be
     # another "GCC" -- a plausible-looking result for something that is not a
@@ -160,3 +177,24 @@ def resolve_known(token: str) -> GeographyScope | None:
     if normalized in _UNRESTRICTED_TOKENS:
         return GeographyScope(unrestricted=True)
     return _KNOWN_REGIONS.get(normalized)
+
+
+# Spellings of one country seen across Attio fields (`hq_country`, `geographic_focus`,
+# `target_country`) and Google's geocoder; all lowercase.
+_COUNTRY_ALIASES: tuple[frozenset[str], ...] = (
+    frozenset({"united arab emirates", "uae", "u.a.e."}),
+    frozenset({"saudi arabia", "ksa", "saudi"}),
+    frozenset({"united kingdom", "uk", "u.k."}),
+    frozenset({"united states", "usa", "us", "u.s."}),
+    frozenset({"türkiye", "turkey"}),
+    frozenset({"hong kong", "hong kong sar"}),
+)
+
+
+def country_spellings(country: str) -> frozenset[str]:
+    """Every lowercase spelling of `country`, itself included."""
+    normalized = country.strip().lower()
+    for group in _COUNTRY_ALIASES:
+        if normalized in group:
+            return group
+    return frozenset({normalized})

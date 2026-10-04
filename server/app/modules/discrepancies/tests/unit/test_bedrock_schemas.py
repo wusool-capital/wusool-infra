@@ -49,3 +49,13 @@ def test_a_pasted_note_tag_cannot_close_the_data_block() -> None:
 
     assert prompt.count("<note>") == 1
     assert prompt.count("</note>") == 1
+
+
+def test_countries_are_canonicalised_and_off_list_ones_dropped() -> None:
+    extracted = ExtractedContext(
+        countries=["united arab emirates", "Saudi Arabia", "Atlantis", "Saudi Arabia"]
+    )
+
+    assert extracted.to_domain() == ParsedContext(
+        countries=("United Arab Emirates", "Saudi Arabia")
+    )
