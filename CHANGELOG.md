@@ -23,6 +23,12 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Sellers found via Google Maps after `/find-match` are only saved
+  automatically when the website Diffbot/People Data Labs matched is the same
+  as the Google Maps one. Otherwise nothing is saved, and a "Website check"
+  message shows both websites and the proposed values with a **Review & Save**
+  button that opens the prefilled add-seller form. A reviewed seller keeps its
+  Google Maps place id, so the next search skips it.
 - Scribe desktop's "Processing recording" and "Finalizing transcription"
   messages now look the same after you stop a meeting. They also sit in the
   same spot instead of jumping between two styles.

@@ -33,8 +33,10 @@ Slack service per command.
    cannot alter their scores.
 5. The run and candidate results are committed atomically, then posted to
    Slack with review actions.
-6. A weak result can trigger Google Places seller discovery. Selecting a
-   result opens the ordinary, prefilled add-seller form.
+6. A weak result can trigger Google Places seller discovery. New leads are
+   enriched and saved only when the website Diffbot/People Data Labs matched
+   is the Google Maps one; otherwise a "Website check" message's
+   **Review & Save** opens the ordinary, prefilled add-seller form.
 
 ### Profile changes and enrichment
 
@@ -87,8 +89,9 @@ before posting review actions to Slack.
 
 If requirement extraction or reasoning fails, the run stops and reports an
 error instead of inventing a result. If every CRM candidate scores below the
-discovery threshold, public seller discovery can offer unverified leads.
-None becomes a CRM seller until an operator completes the add-seller flow.
+discovery threshold, public seller discovery runs. A lead whose enrichment
+website doesn't match Google Maps, or a name-only CRM look-alike, becomes a
+CRM seller only when an operator completes the add-seller flow.
 
 ## Processing rules and failures
 

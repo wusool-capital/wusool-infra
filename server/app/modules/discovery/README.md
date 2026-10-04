@@ -46,7 +46,23 @@ write (`CreateMixin.discover_and_create`):
   reviewing every hit, so it comes back as a `PossibleDuplicate`, posted with
   an "Add as seller" button. The `/add-seller` organization search is the
   human's final check.
-- **No match**: enriched (basic tier) and created in one Attio-first write.
+- **No match**: enriched (basic tier), then website-checked (below), then
+  created in one Attio-first write.
+
+## The website check
+
+Diffbot/PDL resolve a company by name plus the Maps domain, and can still
+match a different company. Before writing, each provider that contributed
+fields must report a homepage that matches the lead's Maps website
+(`websites_match`: same host after dropping `www.`, or a subdomain of it).
+
+- **All match**, or no provider fields were merged (timeout, failure, no hit):
+  written as before.
+- **Any mismatch**, a provider with no website, or a Maps lead with no
+  website: *not* written. Comes back as an `UnverifiedSeller` and is posted
+  one message per lead, styled like `enrichment`'s proposal. **Review & Save**
+  (`discover_add_seller`) opens the prefilled `/add-seller` form. The lead's
+  `place_id` rides along, so the next run skips it even if the domain changed.
 
 Places returns up to 20 results for the price of one, so the search asks for
 all of them and the pre-filter picks the first `DISCOVERY_LEAD_SEARCH_LIMIT`
