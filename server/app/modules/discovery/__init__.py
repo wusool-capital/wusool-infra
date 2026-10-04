@@ -7,8 +7,9 @@ exact `place_id` or domain match skips a lead; a name-only match is *not*
 created and comes back as a `PossibleDuplicate` for a human to add via
 `SellerDraftPort` (whose `/add-seller` org search is the final check).
 
-Reads and writes are delegated through `SellerWriterPort`/`SellerDraftPort`
-— this module never talks to Attio or Postgres directly; `ddl_commands`
+CRM reads and writes are delegated through `SellerWriterPort`/`SellerDraftPort`
+— this module never touches Attio or the CRM tables; it owns only
+`discovery_reviews` (leads awaiting a website review). `ddl_commands`
 implements the adapters and `server/main.py` wires them (see
 `ddl_commands/providers/discovery/`).
 

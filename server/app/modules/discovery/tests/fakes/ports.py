@@ -82,3 +82,26 @@ class FakeSellerWriterPort(SellerWriterPort):
             )
         finally:
             self.in_flight -= 1
+
+
+class FakeReviewStore:
+    """In-memory `ReviewStore`; `fail` makes every call raise."""
+
+    def __init__(self, pending: set[str] | None = None, fail: bool = False) -> None:
+        self.drafts: dict[str, SellerDraft] = {}
+        self.pending = pending or set()
+        self.fail = fail
+
+    async def pending_place_ids(self, place_ids: list[str]) -> set[str]:
+        if self.fail:
+            raise RuntimeError("db down")
+        return (self.pending | set(self.drafts)) & set(place_ids)
+
+    async def add(self, unverified: UnverifiedSeller) -> None:
+        if self.fail:
+            raise RuntimeError("db down")
+        assert unverified.draft.source_place_id is not None
+        self.drafts[unverified.draft.source_place_id] = unverified.draft
+
+    async def get_draft(self, place_id: str) -> SellerDraft | None:
+        return self.drafts.get(place_id)

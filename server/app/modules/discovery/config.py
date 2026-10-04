@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
 
+    database_url: str
     slack_bot_token: str
     slack_signing_secret: str
 

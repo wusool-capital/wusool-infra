@@ -319,6 +319,8 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         count = len(outcome.needs_review)
         verb = "needs" if count == 1 else "need"
         notes.append(f"{count} {verb} a website review before saving (below).")
+    if outcome.awaiting_review:
+        notes.append(f"{outcome.awaiting_review} still awaiting an earlier website review.")
     if outcome.failed:
         notes.append(
             "Couldn't save: "

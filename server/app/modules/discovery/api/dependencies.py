@@ -16,9 +16,14 @@ from app.modules.discovery.application.base import CreationPolicy
 from app.modules.discovery.application.ports.seller_draft import SellerDraftPort
 from app.modules.discovery.application.ports.seller_writer import SellerWriterPort
 from app.modules.discovery.application.service import DiscoveryService
-from app.modules.discovery.bootstrap import build_discovery_service, build_lead_search_client
+from app.modules.discovery.bootstrap import (
+    build_discovery_service,
+    build_lead_search_client,
+    build_review_store,
+)
 from app.modules.discovery.config import get_settings
 from app.modules.discovery.domain.drafts import SellerDraft
+from app.modules.discovery.persistence.database import get_sessionmaker
 from app.modules.discovery.providers.google_places.client import GooglePlacesClient
 from app.modules.utilities import FixedWindowRateLimiter, NotFoundError, get_shared_ephemeral_store
 
@@ -95,6 +100,7 @@ def discovery_service() -> DiscoveryService:
         lead_search_client=_lead_search_client(),
         seller_draft_port=_seller_draft_port(),
         seller_writer_port=_seller_writer_port(),
+        review_store=build_review_store(get_sessionmaker()),
         search_limiter=_search_limiter(),
         policy=_creation_policy(),
     )

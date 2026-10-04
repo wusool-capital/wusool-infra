@@ -9,6 +9,7 @@ they come back as `UnverifiedSeller` for a human to review.
 
 import asyncio
 import logging
+from dataclasses import replace
 
 from app.modules.discovery.application.base import ServiceBase
 from app.modules.discovery.domain.crm import CrmMatchKind
@@ -61,9 +62,11 @@ class CreateMixin(ServiceBase):
             # way nothing was written, so it shouldn't cost a daily run.
             self._search_limiter.refund(quota_key)
 
+        pending = await self._pending_reviews(leads)
         to_create: list[DiscoveredLead] = []
         possible_duplicates: list[PossibleDuplicate] = []
         already_in_crm = 0
+        awaiting_review = 0
         for lead in leads:
             if len(to_create) + len(possible_duplicates) >= self._policy.lead_limit:
                 break
@@ -74,6 +77,9 @@ class CreateMixin(ServiceBase):
                 possible_duplicates.append(
                     PossibleDuplicate(lead=lead, existing_org_name=match.org_name or "")
                 )
+            elif lead.place_id in pending:
+                # Its earlier card still works; don't pay to enrich it again.
+                awaiting_review += 1
             else:
                 to_create.append(lead)
 
@@ -82,10 +88,34 @@ class CreateMixin(ServiceBase):
             status="ok",
             created=created,
             possible_duplicates=tuple(possible_duplicates),
-            needs_review=needs_review,
+            needs_review=tuple([await self._store_for_review(u) for u in needs_review]),
             failed=failed,
             already_in_crm=already_in_crm,
+            awaiting_review=awaiting_review,
         )
+
+    async def _pending_reviews(self, leads: list[DiscoveredLead]) -> set[str]:
+        """Fails open: a store outage re-posts a lead rather than hiding it."""
+        try:
+            return await self._review_store.pending_place_ids(
+                [lead.place_id for lead in leads if lead.place_id]
+            )
+        except Exception:
+            logger.exception("discovery_pending_reviews_lookup_failed")
+            return set()
+
+    async def _store_for_review(self, unverified: UnverifiedSeller) -> UnverifiedSeller:
+        """Without a stored row the card falls back to a short-lived token, so
+        the lead is never lost, only not deduplicated."""
+        place_id = unverified.draft.source_place_id
+        if place_id is None:
+            return unverified
+        try:
+            await self._review_store.add(unverified)
+        except Exception:
+            logger.exception("discovery_review_store_failed", extra={"place_id": place_id})
+            return unverified
+        return replace(unverified, review_id=place_id)
 
     async def _create_all(
         self, leads: list[DiscoveredLead]

@@ -122,3 +122,17 @@ def test_needs_review_truncates_a_long_value_to_fit_slacks_section_limit() -> No
     assert all(len(b.get("text", {}).get("text", "")) <= 3000 for b in blocks)
     assert blocks[3]["text"]["text"].count("…") == 1
     assert decode_draft(blocks[-1]["accessory"]["value"]).values == draft.values
+
+
+def test_a_stored_review_gets_a_durable_review_button() -> None:
+    unverified = UnverifiedSeller(
+        draft=SellerDraft(org_name="Acme Co", source_place_id="p1"),
+        maps_website=None,
+        provider_websites=(),
+        values=(),
+        review_id="p1",
+    )
+
+    button = build_needs_review_blocks(unverified)[-1].to_dict()["accessory"]
+
+    assert (button["action_id"], button["value"]) == ("discover_review_seller", "p1")

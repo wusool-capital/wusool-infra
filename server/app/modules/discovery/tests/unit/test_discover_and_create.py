@@ -9,6 +9,7 @@ from app.modules.discovery.domain.crm import CrmMatch, CrmMatchKind
 from app.modules.discovery.domain.leads import DiscoveredLead
 from app.modules.discovery.tests.fakes.ports import (
     FakeLeadSearchClient,
+    FakeReviewStore,
     FakeSellerDraftPort,
     FakeSellerWriterPort,
 )
@@ -30,12 +31,14 @@ def _service(
     cap: int = 10,
     lead_limit: int = 5,
     concurrency: int = 2,
+    store: FakeReviewStore | None = None,
 ) -> tuple[DiscoveryService, FakeSellerWriterPort]:
     writer = writer or FakeSellerWriterPort()
     service = DiscoveryService(
         lead_search_client=client or FakeLeadSearchClient(leads),
         seller_draft_port=FakeSellerDraftPort(),
         seller_writer_port=writer,
+        review_store=store or FakeReviewStore(),
         search_limiter=FixedWindowRateLimiter(limit=cap),
         policy=CreationPolicy(
             lead_limit=lead_limit, enrichment_concurrency=concurrency, enrichment_budget_s=30.0
@@ -53,6 +56,7 @@ async def test_disabled_without_a_search_client() -> None:
         lead_search_client=None,
         seller_draft_port=FakeSellerDraftPort(),
         seller_writer_port=FakeSellerWriterPort(),
+        review_store=FakeReviewStore(),
         search_limiter=FixedWindowRateLimiter(limit=10),
         policy=CreationPolicy(lead_limit=5, enrichment_concurrency=2, enrichment_budget_s=30.0),
     )
@@ -143,15 +147,38 @@ async def test_one_failed_write_does_not_abort_the_batch() -> None:
     assert {c.org_name for c in outcome.created} == {"Lead 0", "Lead 2"}
 
 
-async def test_an_unverified_lead_is_returned_for_review_not_created() -> None:
+async def test_an_unverified_lead_is_stored_and_returned_for_review_not_created() -> None:
     writer = FakeSellerWriterPort(review_names=frozenset({"Lead 1"}))
-    service, _ = _service(leads=_leads(3), writer=writer)
+    store = FakeReviewStore()
+    service, _ = _service(leads=_leads(3), writer=writer, store=store)
 
     outcome = await _run(service)
 
-    assert [u.draft.org_name for u in outcome.needs_review] == ["Lead 1"]
+    assert [(u.draft.org_name, u.review_id) for u in outcome.needs_review] == [("Lead 1", "p1")]
+    assert set(store.drafts) == {"p1"}
     assert {c.org_name for c in outcome.created} == {"Lead 0", "Lead 2"}
     assert outcome.failed == ()
+
+
+async def test_a_lead_already_awaiting_review_is_skipped_and_its_slot_refilled() -> None:
+    writer = FakeSellerWriterPort()
+    service, _ = _service(
+        leads=_leads(4), writer=writer, store=FakeReviewStore(pending={"p0"}), lead_limit=3
+    )
+
+    outcome = await _run(service)
+
+    assert outcome.awaiting_review == 1
+    assert [d.org_name for d in writer.created] == ["Lead 1", "Lead 2", "Lead 3"]
+
+
+async def test_a_store_outage_still_returns_the_lead_with_a_token_fallback() -> None:
+    writer = FakeSellerWriterPort(review_names=frozenset({"Lead 0"}))
+    service, _ = _service(leads=_leads(1), writer=writer, store=FakeReviewStore(fail=True))
+
+    outcome = await _run(service)
+
+    assert [(u.draft.org_name, u.review_id) for u in outcome.needs_review] == [("Lead 0", None)]
 
 
 async def test_creation_concurrency_is_bounded() -> None:

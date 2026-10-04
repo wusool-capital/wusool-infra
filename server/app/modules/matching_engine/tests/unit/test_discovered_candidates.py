@@ -280,6 +280,18 @@ async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, h
     assert review["blocks"][-1].to_dict()["accessory"]["text"]["text"] == "Review & Save"
 
 
+async def test_trigger_notes_leads_still_awaiting_an_earlier_review(monkeypatch, harness) -> None:
+    monkeypatch.setattr(
+        discovery_module,
+        "discover_and_create_sellers",
+        AsyncMock(return_value=DiscoveryOutcome(status="ok", awaiting_review=2)),
+    )
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    assert "2 still awaiting an earlier website review." in harness.notifier.updates[-1]["text"]
+
+
 async def test_one_failed_review_post_does_not_stop_the_others(monkeypatch, harness) -> None:
     def _unverified(name: str) -> UnverifiedSeller:
         return UnverifiedSeller(

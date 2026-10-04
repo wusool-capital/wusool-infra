@@ -9,8 +9,9 @@ Two buttons per lead means `ActionsBlock`, not a `SectionBlock` accessory —
 Slack allows only one accessory per section.
 
 `build_needs_review_blocks` renders one lead whose website couldn't be
-confirmed, styled like `enrichment`'s proposal message, with the same
-`discover_add_seller` action on its "Review & Save" button.
+confirmed, styled like `enrichment`'s proposal message. Its "Review & Save"
+button is `discover_review_seller` (value: the stored review's place id), or
+`discover_add_seller` with a draft token when the review couldn't be stored.
 """
 
 from collections.abc import Sequence
@@ -105,6 +106,11 @@ def build_needs_review_blocks(unverified: UnverifiedSeller) -> list[Block]:
         )
         for value in unverified.values
     )
+    # A stored review survives restarts; the draft token is the fallback.
+    if unverified.review_id:
+        action_id, value = "discover_review_seller", unverified.review_id
+    else:
+        action_id, value = "discover_add_seller", encode_draft(draft)
     blocks.append(DividerBlock())
     blocks.append(
         SectionBlock(
@@ -113,10 +119,7 @@ def build_needs_review_blocks(unverified: UnverifiedSeller) -> list[Block]:
                 "Review these values in the add form before they're saved."
             ),
             accessory=ButtonElement(
-                action_id="discover_add_seller",
-                text="Review & Save",
-                style="primary",
-                value=encode_draft(draft),
+                action_id=action_id, text="Review & Save", style="primary", value=value
             ),
         )
     )

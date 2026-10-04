@@ -47,6 +47,8 @@ class UnverifiedSeller:
     # (provider, website it matched) per provider that contributed fields.
     provider_websites: tuple[tuple[str, str | None], ...]
     values: tuple[ReviewValue, ...]
+    # Set once stored, so the card's button can load the draft back by it.
+    review_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,3 +73,5 @@ class DiscoveryOutcome:
     needs_review: tuple[UnverifiedSeller, ...] = ()
     failed: tuple[FailedLead, ...] = ()
     already_in_crm: int = 0
+    # Leads skipped because an earlier run already flagged them for review.
+    awaiting_review: int = 0
