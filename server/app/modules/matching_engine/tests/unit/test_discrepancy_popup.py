@@ -1,5 +1,5 @@
-"""AZM-133: missing or conflicting buyer criteria show a "Run anyway" popup
-before `/find-match` runs, instead of a channel message under the placeholder.
+"""AZM-133: every `/find-match` shows a popup listing missing or conflicting
+buyer criteria; the match only starts when "Run anyway" is clicked.
 """
 
 from types import SimpleNamespace
@@ -31,7 +31,7 @@ _MISSING = DiscrepancyCheckResult(
 
 
 def test_gate_modal_runs_anyway_on_submit_and_round_trips_metadata() -> None:
-    view = build_discrepancy_gate_modal(_GATE, _MISSING).to_dict()
+    view = build_discrepancy_gate_modal(_GATE, _MISSING.message).to_dict()
 
     assert view["callback_id"] == "discrepancy_gate_modal"
     assert view["submit"]["text"] == "Run anyway"
@@ -47,40 +47,28 @@ def harness(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     return SimpleNamespace(run=run, client=client)
 
 
-async def test_findings_show_the_popup_and_do_not_run(monkeypatch, harness) -> None:
-    monkeypatch.setattr(actions, "find_buyer_discrepancies", AsyncMock(return_value=_MISSING))
+@pytest.mark.parametrize(
+    ("findings", "expected_text"),
+    [(_MISSING, _MISSING.message), (None, actions._CLEAR_TEXT)],
+)
+async def test_check_fills_the_popup_and_never_runs_the_match(
+    monkeypatch, harness, findings, expected_text
+) -> None:
+    monkeypatch.setattr(actions, "find_buyer_discrepancies", AsyncMock(return_value=findings))
 
-    await actions._gate_then_match(harness.client, "V1", _GATE)
+    await actions._show_discrepancies(harness.client, "V1", _GATE)
 
     view = harness.client.views_update.await_args.kwargs["view"].to_dict()
     assert view["callback_id"] == "discrepancy_gate_modal"
+    assert view["blocks"][0]["text"]["text"] == expected_text
     harness.run.assert_not_awaited()
 
 
-async def test_clear_buyer_runs_the_match_without_a_second_check(monkeypatch, harness) -> None:
-    monkeypatch.setattr(actions, "find_buyer_discrepancies", AsyncMock(return_value=None))
-
-    await actions._gate_then_match(harness.client, "V1", _GATE)
-
-    harness.run.assert_awaited_once_with(
-        "buyer-1", "U1", "C1", advisor_context="UAE only", check_discrepancies=False
-    )
-
-
-async def test_closed_modal_still_runs_a_confirmed_clear_match(monkeypatch, harness) -> None:
-    monkeypatch.setattr(actions, "find_buyer_discrepancies", AsyncMock(return_value=None))
-    harness.client.views_update.side_effect = SlackApiError("not_found", {"ok": False})
-
-    await actions._gate_then_match(harness.client, "V1", _GATE)
-
-    harness.run.assert_awaited_once()
-
-
-async def test_closed_modal_with_findings_runs_nothing(monkeypatch, harness) -> None:
+async def test_closed_modal_is_logged_not_raised(monkeypatch, harness) -> None:
     monkeypatch.setattr(actions, "find_buyer_discrepancies", AsyncMock(return_value=_MISSING))
     harness.client.views_update.side_effect = SlackApiError("not_found", {"ok": False})
 
-    await actions._gate_then_match(harness.client, "V1", _GATE)
+    await actions._show_discrepancies(harness.client, "V1", _GATE)
 
     harness.run.assert_not_awaited()
 

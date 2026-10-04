@@ -39,11 +39,9 @@ def build_discrepancy_gate_blocks(
     return blocks
 
 
-def build_discrepancy_gate_modal(
-    metadata: DiscrepancyGateMetadata, result: DiscrepancyCheckResult
-) -> View:
-    """Popup shown before the match runs when the buyer has missing or
-    conflicting criteria. Submitting ("Run anyway") starts the match."""
+def build_discrepancy_gate_modal(metadata: DiscrepancyGateMetadata, message: str) -> View:
+    """Popup shown before every `/find-match` run, listing any missing or
+    conflicting criteria. Submitting ("Run anyway") is the only way to start it."""
     return View(
         type="modal",
         callback_id="discrepancy_gate_modal",
@@ -51,5 +49,5 @@ def build_discrepancy_gate_modal(
         title="Before we match",
         submit="Run anyway",
         close="Cancel",
-        blocks=[SectionBlock(text=result.message[:_MAX_SECTION_CHARS])],
+        blocks=[SectionBlock(text=message[:_MAX_SECTION_CHARS])],
     )

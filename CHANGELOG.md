@@ -12,9 +12,10 @@ for current production evidence and open handover items.
 
 ### Changed
 
-- `/find-match` now shows missing or conflicting buyer details in a popup
-  before the match runs, with a **Run anyway** button, instead of posting
-  them as a channel message under "Finding matches".
+- `/find-match` now always opens a popup after you confirm the buyer, listing
+  any missing or conflicting buyer details. The match only starts when you
+  click **Run anyway**. These details used to be posted as a channel message
+  while the match had already started.
 
 ### Fixed
 

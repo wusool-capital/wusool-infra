@@ -57,8 +57,6 @@ from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.notifications import (
     SlackInteractionBody,
     SlackViewSubmissionPayload,
-    build_loading_modal,
-    build_notice_modal,
 )
 from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
 
@@ -107,11 +105,15 @@ def register(app: AsyncApp) -> None:
             advisor_context=advisor_context or None,
         )
 
-        # Keeps the modal open so it can become the discrepancy popup.
-        await ack(response_action="update", view=build_loading_modal("Find match"))
+        # The popup opens with "Run anyway" already live, so it is never stuck if
+        # the background update below lands before this one.
+        await ack(
+            response_action="update",
+            view=build_discrepancy_gate_modal(gate, _CHECKING_TEXT),
+        )
         _task_runner.run(
-            lambda: _gate_then_match(client, view_id, gate),
-            name=f"find-match:{gate.buyer_role_id}",
+            lambda: _show_discrepancies(client, view_id, gate),
+            name=f"find-match-check:{gate.buyer_role_id}",
         )
 
     @app.view("discrepancy_gate_modal")
@@ -299,39 +301,22 @@ def register(app: AsyncApp) -> None:
         )
 
 
-async def _gate_then_match(
+_CHECKING_TEXT = ":hourglass_flowing_sand: _Checking the buyer's profile…_"
+_CLEAR_TEXT = "No missing or conflicting details found for this buyer."
+
+
+async def _show_discrepancies(
     client: AsyncWebClient, view_id: str, gate: DiscrepancyGateMetadata
 ) -> None:
-    """Shows the discrepancy popup if the buyer has gaps or conflicts;
-    otherwise runs the match straight away."""
+    """Fills the popup with the check result. Never runs the match — only
+    "Run anyway" does."""
     findings = await find_buyer_discrepancies(gate.buyer_role_id, gate.advisor_context)
-    if findings is not None:
-        try:
-            await client.views_update(
-                view_id=view_id, view=build_discrepancy_gate_modal(gate, findings)
-            )
-        except SlackApiError:
-            # Modal closed mid-check: nothing was confirmed, so nothing runs.
-            logger.info("discrepancy_gate_modal_gone view_id=%s", view_id)
-        return
-
+    text = findings.message if findings else _CLEAR_TEXT
     try:
-        await client.views_update(
-            view_id=view_id,
-            view=build_notice_modal(
-                "Find match", "Running the match — results will post in the channel."
-            ),
-        )
+        await client.views_update(view_id=view_id, view=build_discrepancy_gate_modal(gate, text))
     except SlackApiError:
-        # The advisor already confirmed the buyer; a closed modal shouldn't cancel that.
-        logger.info("find_match_notice_modal_gone view_id=%s", view_id)
-    await run_match_and_post(
-        gate.buyer_role_id,
-        gate.requested_by,
-        gate.channel_id,
-        advisor_context=gate.advisor_context,
-        check_discrepancies=False,
-    )
+        # Closed, or already submitted via "Run anyway" — nothing left to show.
+        logger.info("discrepancy_gate_modal_gone view_id=%s", view_id)
 
 
 def _partial_write_message(exc: PartialWriteError) -> str:

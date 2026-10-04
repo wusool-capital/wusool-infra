@@ -38,9 +38,9 @@ flowchart TD
 1. Run `/find-match <buyer name>`, for example `/find-match Raoof Capital`.
 2. If several buyers have similar names, select the intended record. If none
    appears, check the spelling or add the buyer first.
-3. If the buyer's profile is missing details or conflicts with what you typed,
-   a popup lists them. Choose **Run anyway** to match now, or **Cancel** to
-   fix the profile first (for example with `/enrich-buyer`).
+3. A popup lists any details missing from the buyer's profile or conflicting
+   with what you typed. Choose **Run anyway** to start the match, or
+   **Cancel** to fix the profile first (for example with `/enrich-buyer`).
 4. Wait while the Toolkit compares eligible sellers. It returns a ranked
    shortlist with a fit score, data-confidence score, and explanation.
 5. Use **View Full Analysis** to inspect the reasoning.

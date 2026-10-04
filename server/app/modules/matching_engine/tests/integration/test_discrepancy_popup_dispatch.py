@@ -50,7 +50,7 @@ def dispatched(monkeypatch: pytest.MonkeyPatch) -> dict:
     return record
 
 
-def test_buyer_selection_keeps_the_modal_open_for_the_popup(dispatched) -> None:
+def test_buyer_selection_opens_the_run_anyway_popup_without_matching(dispatched) -> None:
     payload = _submission(
         "buyer_selection_modal",
         "V_SELECT",
@@ -61,8 +61,13 @@ def test_buyer_selection_keeps_the_modal_open_for_the_popup(dispatched) -> None:
     response = post_interactivity(app, get_settings().slack_signing_secret, payload)
 
     assert response.status_code == 200
-    assert response.json()["response_action"] == "update"
-    assert dispatched["names"] == ["find-match:buyer-1"]
+    body = response.json()
+    assert body["response_action"] == "update"
+    # The first popup already carries the button, so a lost update can't strand it.
+    assert body["view"]["callback_id"] == "discrepancy_gate_modal"
+    assert body["view"]["submit"]["text"] == "Run anyway"
+    assert dispatched["names"] == ["find-match-check:buyer-1"]
+    assert dispatched["runs"] == []
 
 
 def test_run_anyway_starts_the_match_without_rechecking(dispatched) -> None:
