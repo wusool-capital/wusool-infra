@@ -20,9 +20,16 @@ pub struct RecordingPreferences {
     pub preferred_mic_device: Option<String>,
     #[serde(default)]
     pub preferred_system_device: Option<String>,
+    /// Stop recording automatically (after a countdown) when the meeting app releases the mic.
+    #[serde(default = "default_auto_stop_on_meeting_end")]
+    pub auto_stop_on_meeting_end: bool,
     #[cfg(target_os = "macos")]
     #[serde(default)]
     pub system_audio_backend: Option<String>,
+}
+
+fn default_auto_stop_on_meeting_end() -> bool {
+    true
 }
 
 impl Default for RecordingPreferences {
@@ -33,6 +40,7 @@ impl Default for RecordingPreferences {
             file_format: "mp4".to_string(),
             preferred_mic_device: None,
             preferred_system_device: None,
+            auto_stop_on_meeting_end: default_auto_stop_on_meeting_end(),
             #[cfg(target_os = "macos")]
             system_audio_backend: Some("coreaudio".to_string()),
         }

@@ -78,6 +78,18 @@ class AttioClient:
                 raise AttioError(resp.status, body)
             return await resp.json()
 
+    async def delete(self, path: str) -> None:
+        """Unlike `get`/`post`/`patch`, Attio's DELETE returns an empty body
+        (204), so this never calls `resp.json()`. Still raises `AttioError`
+        for any non-2xx status, a 404 included — the note-delete caller is
+        the one that decides a 404 means "already gone".
+        """
+        session = await self._get_session()
+        async with session.delete(f"{_BASE_URL}{path}") as resp:
+            if resp.status >= 400:
+                body = await resp.text()
+                raise AttioError(resp.status, body)
+
     async def put(self, path: str, json_body: dict) -> dict:
         session = await self._get_session()
         async with session.put(f"{_BASE_URL}{path}", json=json_body) as resp:

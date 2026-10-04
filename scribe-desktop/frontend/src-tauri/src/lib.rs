@@ -394,6 +394,12 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
+    // Non-activating panels for the meeting popups (hover/cursor without stealing focus).
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
@@ -585,6 +591,9 @@ pub fn run() {
             read_audio_file,
             audio::meeting_detection::meeting_popup_start_recording,
             audio::meeting_detection::meeting_popup_dismiss,
+            audio::recording_pill::recording_pill_state,
+            audio::recording_pill::recording_pill_stop,
+            audio::recording_pill::recording_pill_keep_recording,
             save_transcript,
             analytics::commands::init_analytics,
             analytics::commands::disable_analytics,
@@ -705,6 +714,13 @@ pub fn run() {
             api::api_get_meeting_transcripts,
             api::api_save_meeting_title,
             api::update_transcript_text,
+            api::edit_transcript_segment,
+            api::delete_transcript_segments,
+            api::split_transcript_segment,
+            api::merge_transcript_segments,
+            api::find_in_transcripts,
+            api::replace_in_transcripts,
+            api::apply_transcript_edit,
             api::api_save_transcript,
             api::open_meeting_folder,
             api::test_backend_connection,
@@ -746,8 +762,10 @@ pub fn run() {
             push::get_push_status,
             push::update_meeting_tag,
             push::search_companies,
+            push::suggest_transcript_corrections,
             push::get_saved_summary,
             push::sync_pushed_meetings,
+            push::delete_remote_meeting,
             feedback::submit_feedback,
             audio::recording_preferences::get_recording_preferences,
             audio::recording_preferences::set_recording_preferences,

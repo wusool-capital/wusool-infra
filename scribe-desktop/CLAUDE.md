@@ -46,6 +46,9 @@ pnpm run tauri:dev:vulkan   # AMD/Intel Vulkan
 pnpm run tauri:dev:cpu      # CPU-only (no GPU)
 ```
 
+**Builds**: when the user asks to build the app, always do a production build
+(`pnpm run tauri:build`), never `tauri:dev`/`clean_run.sh`.
+
 **Updater signing**: `bundle.createUpdaterArtifacts` is `true`, so any production
 build (`pnpm run tauri:build`, `clean_build.sh`) needs `TAURI_SIGNING_PRIVATE_KEY`
 (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has a passphrase) exported, or

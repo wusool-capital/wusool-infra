@@ -74,6 +74,12 @@ class PublishMixin(ServiceBase):
             title=summary.title,
         )
 
+        # Deleted while summarizing (a stalled row can be deleted): its row is
+        # gone to us, so don't create an orphan Attio note for it.
+        if await self._meetings_repository.get_by_id(meeting_id) is None:
+            logger.info("summarize_and_publish_meeting_removed meeting_id=%s", meeting_id)
+            return
+
         # Every meeting files a note now, org_id or not — an unanchored
         # note used to be skipped entirely ("unreadable in Attio and
         # unqueryable in Postgres"), but `notes.organization_id` was made

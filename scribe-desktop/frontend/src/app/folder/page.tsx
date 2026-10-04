@@ -2,10 +2,14 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { File, Folder, LoaderIcon, SearchIcon, X } from 'lucide-react';
+import { File, Folder, LoaderIcon, SearchIcon, Square, SquareCheckBig, Trash2, X } from 'lucide-react';
 import { useSidebar, slugifyTag } from '@/components/Sidebar/SidebarProvider';
+import { useDeleteMeetings } from '@/hooks/useDeleteMeetings';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ConfirmationModal } from '@/components/ConfirmationModel/confirmation-modal';
 
 // Mirrors Sidebar/index.tsx's formatDuration/formatMeetingDate (not
 // shared: these are a few lines each, not worth extracting).
@@ -36,7 +40,12 @@ function FolderContent() {
   const tagSlug = searchParams.get('tag') ?? '';
   const folderName = searchParams.get('name') ?? 'Folder';
   const { meetings, setCurrentMeeting } = useSidebar();
+  const { deleteMeetings } = useDeleteMeetings();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteRemoteChecked, setDeleteRemoteChecked] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Matches SidebarProvider.baseItems' own grouping key exactly, so this
   // list is always identical to what the sidebar folder represents.
@@ -55,6 +64,34 @@ function FolderContent() {
     return folderMeetings.filter((m) => m.title.toLowerCase().includes(query));
   }, [folderMeetings, searchQuery]);
 
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelected = (meetingId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(meetingId)) next.delete(meetingId);
+      else next.add(meetingId);
+      return next;
+    });
+  };
+
+  // "Entire folder" means every meeting in it, not just the ones a search shows.
+  const allSelected = selectedIds.size > 0 && selectedIds.size === folderMeetings.length;
+  const allVisibleSelected =
+    visibleMeetings.length > 0 && visibleMeetings.every((m) => selectedIds.has(m.id));
+  const anyPushedSelected = folderMeetings.some((m) => selectedIds.has(m.id) && !!m.pushedAt);
+
+  const handleDeleteConfirm = async () => {
+    setShowDeleteConfirm(false);
+    const ids = Array.from(selectedIds);
+    exitSelectionMode();
+    await deleteMeetings(ids, anyPushedSelected && deleteRemoteChecked);
+    setDeleteRemoteChecked(false);
+  };
+
   return (
     <div className="h-screen bg-muted flex flex-col">
       <div className="sticky top-0 z-10 bg-muted border-b border-border ">
@@ -65,6 +102,45 @@ function FolderContent() {
             <span className="text-sm text-muted-foreground ">
               {folderMeetings.length} meeting{folderMeetings.length === 1 ? '' : 's'}
             </span>
+            <div className="ml-auto flex items-center gap-2">
+              {selectionMode ? (
+                <>
+                  <span className="text-sm text-muted-foreground">
+                    {selectedIds.size} selected
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleMeetings.map((m) => m.id)))
+                    }
+                  >
+                    {allVisibleSelected ? <Square /> : <SquareCheckBig />}
+                    {allVisibleSelected ? 'Deselect all' : 'Select all'}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={exitSelectionMode}>
+                    <X />
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={selectedIds.size === 0}
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    <Trash2 />
+                    Delete{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+                  </Button>
+                </>
+              ) : (
+                folderMeetings.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+                    <SquareCheckBig />
+                    Select
+                  </Button>
+                )
+              )}
+            </div>
           </div>
 
           <div className="mt-4">
@@ -72,14 +148,22 @@ function FolderContent() {
               <InputGroupInput
                 placeholder={`Search in ${folderName}...`}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSelectedIds(new Set());
+                }}
               />
               <InputGroupAddon>
                 <SearchIcon />
               </InputGroupAddon>
               {searchQuery && (
                 <InputGroupAddon align="inline-end">
-                  <InputGroupButton onClick={() => setSearchQuery('')}>
+                  <InputGroupButton
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedIds(new Set());
+                    }}
+                  >
                     <X />
                   </InputGroupButton>
                 </InputGroupAddon>
@@ -101,11 +185,22 @@ function FolderContent() {
                 <button
                   key={meeting.id}
                   onClick={() => {
+                    if (selectionMode) {
+                      toggleSelected(meeting.id);
+                      return;
+                    }
                     setCurrentMeeting({ id: meeting.id, title: meeting.title });
                     router.push(`/meeting-details?id=${meeting.id}`);
                   }}
                   className="w-full flex items-center gap-3 p-3 bg-card border border-border rounded-lg hover:bg-accent/60 hover:border-foreground/30 transition-colors text-left"
                 >
+                  {selectionMode && (
+                    <Checkbox
+                      checked={selectedIds.has(meeting.id)}
+                      onCheckedChange={() => toggleSelected(meeting.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
                   <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-muted ">
                     <File className="w-4 h-4 text-muted-foreground " />
                   </div>
@@ -125,6 +220,30 @@ function FolderContent() {
           )}
         </div>
       </ScrollArea>
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        text={
+          allSelected
+            ? `This will delete the entire "${folderName}" folder and all ${selectedIds.size} meeting${selectedIds.size === 1 ? '' : 's'} in it. This action cannot be undone.`
+            : `Delete ${selectedIds.size} meeting${selectedIds.size === 1 ? '' : 's'} from this folder? This action cannot be undone.`
+        }
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => {
+          setShowDeleteConfirm(false);
+          setDeleteRemoteChecked(false);
+        }}
+      >
+        {anyPushedSelected && (
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={deleteRemoteChecked}
+              onCheckedChange={(checked) => setDeleteRemoteChecked(checked === true)}
+            />
+            Also delete from Wusool server &amp; Attio
+          </label>
+        )}
+      </ConfirmationModal>
     </div>
   );
 }

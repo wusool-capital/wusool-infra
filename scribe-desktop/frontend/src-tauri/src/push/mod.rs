@@ -33,6 +33,7 @@ use uuid::Uuid;
 
 use crate::database::models::MeetingModel;
 use crate::database::repositories::meeting::MeetingsRepository;
+use crate::database::repositories::transcript::TranscriptsRepository;
 use crate::state::AppState;
 
 const PUSH_CONFIG_STORE: &str = "push_config.json";
@@ -296,6 +297,84 @@ pub async fn search_companies<R: Runtime>(
 
     serde_json::from_str(&response_text)
         .map_err(|e| format!("Search server returned an unexpected response: {}", e))
+}
+
+#[derive(Debug, Serialize)]
+struct CorrectionSegment {
+    segment_id: String,
+    text: String,
+}
+
+#[derive(Debug, Serialize)]
+struct CorrectionRequest {
+    segments: Vec<CorrectionSegment>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CorrectionSuggestion {
+    pub segment_id: String,
+    pub original: String,
+    pub suggested: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CorrectionResponse {
+    suggestions: Vec<CorrectionSuggestion>,
+}
+
+/// Runs in Rust, not JS, so the push API key never reaches the webview.
+#[tauri::command]
+pub async fn suggest_transcript_corrections<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<Vec<CorrectionSuggestion>, String> {
+    let config = load_push_config(&app);
+    if config.server_url.trim().is_empty() {
+        return Err("Push destination is not configured. Set it in Settings.".to_string());
+    }
+
+    let rows = TranscriptsRepository::list_meeting_rows(state.db_manager.pool(), &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load transcript: {}", e))?;
+    let body = CorrectionRequest {
+        segments: rows
+            .into_iter()
+            .filter(|r| !r.transcript.trim().is_empty())
+            .map(|r| CorrectionSegment { segment_id: r.id, text: r.transcript })
+            .collect(),
+    };
+    if body.segments.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let url = format!("{}/desktop/transcripts/corrections", config.server_url.trim_end_matches('/'));
+    // Long meetings are chunked server-side across several LLM calls, and the
+    // server caps a request at ~200k characters (~17 batches, 4 at a time).
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let mut request = client.post(&url).json(&body);
+    if !config.api_key.trim().is_empty() {
+        request = request.header("Authorization", format!("Bearer {}", config.api_key));
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Failed to reach {}: {}", url, e))?;
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("Suggestion request failed ({}): {}", status, response_text));
+    }
+
+    serde_json::from_str::<CorrectionResponse>(&response_text)
+        .map(|r| r.suggestions)
+        .map_err(|e| format!("Server returned an unexpected response: {}", e))
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -703,6 +782,72 @@ pub async fn get_saved_summary(
     let summary = serde_json::from_str(&contents)
         .map_err(|e| format!("Failed to parse {}: {}", summary_path.display(), e))?;
     Ok(Some(summary))
+}
+
+// ---------------------------------------------------------------------------
+// Delete: removes a pushed meeting from the server (soft-delete) and its
+// Attio note (AZM-126). Keyed on (install_id, local_recording_id) -- the
+// only identifier this app ever has for a pushed meeting, see this file's
+// own docstring on why the remote meeting_id is never persisted.
+// ---------------------------------------------------------------------------
+
+/// DELETE /desktop/meetings/{install_id}/{local_recording_id}. Only a 204
+/// counts as success:
+/// - 404 means this server predates the delete route -- the caller must
+///   NOT drop its local rows, since (install_id, local_recording_id) is
+///   the only key it has left to retry with.
+/// - 409 means the meeting is still actively summarizing server-side --
+///   surfaced distinctly so the caller can tell the user to retry shortly
+///   rather than reporting a generic failure.
+#[tauri::command]
+pub async fn delete_remote_meeting<R: Runtime>(
+    app: AppHandle<R>,
+    local_recording_id: String,
+) -> Result<(), String> {
+    let config = load_push_config(&app);
+    if config.server_url.trim().is_empty() {
+        return Err("Push destination is not configured. Set it in Settings.".to_string());
+    }
+
+    let url = format!(
+        "{}/desktop/meetings/{}/{}",
+        config.server_url.trim_end_matches('/'),
+        config.install_id,
+        local_recording_id
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let mut request = client.delete(&url);
+    if !config.api_key.trim().is_empty() {
+        request = request.header("Authorization", format!("Bearer {}", config.api_key));
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Failed to reach {}: {}", url, e))?;
+    let status = response.status();
+
+    if status == reqwest::StatusCode::NO_CONTENT {
+        return Ok(());
+    }
+    if status == reqwest::StatusCode::CONFLICT {
+        return Err(
+            "This meeting is still being summarized on the server. Retry shortly.".to_string(),
+        );
+    }
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Err(
+            "The server does not support remote delete yet. Update the server, or delete locally only."
+                .to_string(),
+        );
+    }
+    let response_text = response.text().await.unwrap_or_default();
+    error!("Remote delete failed for {}: {} {}", local_recording_id, status, response_text);
+    Err(format!("Remote delete failed ({}): {}", status, response_text))
 }
 
 // ---------------------------------------------------------------------------

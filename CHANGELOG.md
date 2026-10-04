@@ -8,6 +8,50 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-03
+
+### Added
+
+- Scribe desktop has more transcript editing controls before you summarize.
+  Select lines with the checkboxes (Shift-click for a range), then delete or
+  merge them. Right-click a line to delete everything before it, which clears
+  small talk in one step, or to split it. Find & replace fixes a misheard
+  name across the whole transcript. Undo and redo (Cmd+Z, Cmd+Shift+Z) cover
+  every change. Deleted lines are removed from what Summarize sends. A
+  "Proofread" button for AI spelling suggestions shows as "Coming soon".
+- New `POST /desktop/transcripts/corrections` endpoint suggests fixes for
+  speech-to-text errors (misheard words, company names, punctuation and
+  casing) in Scribe desktop transcripts. It never rephrases or removes filler
+  words, and nothing is saved on the server.
+- Scribe desktop stops recording automatically when a meeting ends. Once the
+  meeting app or browser releases the microphone, a pill counts down 15
+  seconds, with "Keep" and "Stop now" buttons, then stops. It never
+  triggers for recordings where no meeting app was seen. Settings has a
+  toggle to turn auto-stop off, in which case nothing appears and recording
+  continues until it is stopped manually. Record and Stop now on the
+  popups open Scribe's home page, so no extra click is needed.
+
+### Changed
+
+- Scribe desktop now shows the hand cursor on every clickable control,
+  including menu and dropdown items. Disabled controls and the read-only
+  transcript timestamps keep the normal arrow.
+- Scribe desktop's notification popups no longer bring Scribe forward when you
+  press the X on "Start recording?" or "Keep" on the meeting-ended countdown.
+  They now only close the popup, and your meeting app keeps focus.
+- Scribe desktop's start-recording buttons now react the instant they are
+  clicked. A spinner shows while the transcription model is checked and
+  capture starts. A blocked or failed start puts the button back.
+
+### Fixed
+
+- Scribe's meeting popup close button now works on the first click and is
+  visible without hovering. The popups no longer show an oversized
+  background rectangle behind the card. Both popups now share a refreshed
+  card design with the WusoolScribe logo. On macOS they now behave like
+  system notifications. Hover and the pointer cursor work, and a click gives
+  immediate feedback without pulling focus from the meeting app.
+
 ## 2026-10-01
 
 ### Fixed
@@ -148,6 +192,16 @@ for current production evidence and open handover items.
 - The retired `target_geography` and `geographic_focus` attributes are
   archived on buyer roles. Every production buyer had already been converted
   to target region and target country.
+
+## 2026-09-28
+
+### Added
+
+- Scribe desktop can now delete a meeting or a whole tag folder, and always
+  removes its recording folder from disk. For a meeting already pushed to
+  the server, an opt-in checkbox also soft-deletes the server's `meetings`
+  row and deletes its Attio note.
+
 
 ## 2026-09-23
 

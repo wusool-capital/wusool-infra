@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,9 +17,10 @@ interface ConfirmationModalProps {
   onCancel: () => void;
   text: string;
   isOpen: boolean;
+  children?: ReactNode;
 }
 
-export function ConfirmationModal({ onConfirm, onCancel, text, isOpen }: ConfirmationModalProps) {
+export function ConfirmationModal({ onConfirm, onCancel, text, isOpen, children }: ConfirmationModalProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
       <AlertDialogContent>
@@ -26,6 +28,7 @@ export function ConfirmationModal({ onConfirm, onCancel, text, isOpen }: Confirm
           <AlertDialogTitle>Confirm Delete</AlertDialogTitle>
           <AlertDialogDescription>{text}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children && <div className="px-1">{children}</div>}
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
           <AlertDialogAction

@@ -10,6 +10,10 @@ members = [
 edition = "2021"
 rust-version = "1.77"
 
+# Xcode 27's ld corrupts proc-macro dylibs when rustc strips debuginfo, so macOS 27 can't load them.
+[profile.release]
+strip = "none"
+
 # Shared dependencies that can be inherited by workspace members
 [workspace.dependencies]
 anyhow = "1.0"

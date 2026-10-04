@@ -46,12 +46,12 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   // Use global recording state context for pause state (syncs with tray operations)
   const recordingState = useRecordingState();
   const isPaused = recordingState.isPaused;
+  const isStarting = recordingState.isStarting;
 
   const [showPlayback, setShowPlayback] = useState(false);
   const [recordingPath, setRecordingPath] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
@@ -395,7 +395,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                           className={`w-12 h-12 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel ? 'bg-muted-foreground/40' : 'bg-destructive hover:bg-destructive/90'
                             } rounded-full text-destructive-foreground transition-colors relative`}
                         >
-                          {isValidatingModel ? (
+                          {isValidatingModel || isStarting ? (
                             <Spinner className="h-5 w-5 text-destructive-foreground" />
                           ) : (
                             <Mic size={20} />

@@ -12,6 +12,18 @@ import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
 import { ScrollArea } from "./ui/scroll-area";
+import { Checkbox } from "./ui/checkbox";
+import { Button } from "./ui/button";
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
+} from "./ui/context-menu";
+import { Check, X } from "lucide-react";
+import { CorrectionSuggestion, SelectMode, diffSpan } from "@/lib/transcriptEditor";
+import type { TranscriptEditorApi } from "@/hooks/meeting-details/useTranscriptEditor";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -41,7 +53,9 @@ export interface VirtualizedTranscriptViewProps {
     /** Allow editing segment text -- false once the meeting is pushed. */
     editable?: boolean;
     /** Called on blur with the segment id and its edited text. */
-    onEditSegment?: (id: string, text: string) => void;
+    onEditSegment?: (id: string, text: string) => void | Promise<unknown>;
+    /** Selection, bulk edit and suggestion actions; only used when `editable`. */
+    editor?: TranscriptEditorApi;
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
@@ -71,6 +85,36 @@ function cleanStopWords(text: string): string {
     return cleanedText.replace(/\s+/g, ' ').trim();
 }
 
+function SuggestionDiff({
+    suggestion,
+    onAccept,
+    onDismiss,
+}: {
+    suggestion: CorrectionSuggestion;
+    onAccept: () => void;
+    onDismiss: () => void;
+}) {
+    const { prefix, removed, added, suffix } = diffSpan(suggestion.original, suggestion.suggested);
+    return (
+        <div className="mt-1 ml-2 flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1">
+            <div className="flex-1 text-sm leading-relaxed">
+                <span>{prefix}</span>
+                {removed && <del className="text-destructive/80">{removed}</del>}
+                {removed && added && ' '}
+                {added && <ins className="text-success no-underline font-medium">{added}</ins>}
+                <span>{suffix}</span>
+                <div className="text-xs text-muted-foreground">{suggestion.reason}</div>
+            </div>
+            <Button size="icon" variant="ghost" className="h-6 w-6" title="Accept" onClick={onAccept}>
+                <Check size={14} />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-6 w-6" title="Dismiss" onClick={onDismiss}>
+                <X size={14} />
+            </Button>
+        </div>
+    );
+}
+
 // Memoized transcript segment component
 const TranscriptSegment = memo(function TranscriptSegment({
     id,
@@ -81,6 +125,14 @@ const TranscriptSegment = memo(function TranscriptSegment({
     showConfidence,
     editable,
     onEditSegment,
+    selected,
+    onSelect,
+    suggestion,
+    onAcceptSuggestion,
+    onDismissSuggestion,
+    onDeleteBefore,
+    onMergeWithNext,
+    onSplit,
 }: {
     id: string;
     timestamp: number;
@@ -89,21 +141,55 @@ const TranscriptSegment = memo(function TranscriptSegment({
     isStreaming: boolean;
     showConfidence: boolean;
     editable?: boolean;
-    onEditSegment?: (id: string, text: string) => void;
+    onEditSegment?: (id: string, text: string) => void | Promise<unknown>;
+    selected?: boolean;
+    onSelect?: (id: string, mode: SelectMode) => void;
+    suggestion?: CorrectionSuggestion;
+    onAcceptSuggestion?: (suggestion: CorrectionSuggestion) => void;
+    onDismissSuggestion?: (segmentId: string) => void;
+    onDeleteBefore?: (id: string) => void;
+    onMergeWithNext?: (id: string) => void;
+    onSplit?: (id: string, cursor: number) => void;
 }) {
     const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
     const [draft, setDraft] = useState(text);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Keep the draft in sync if the underlying segment text changes from
     // outside this component (e.g. a fresh fetch after push).
     useEffect(() => setDraft(text), [text]);
 
-    return (
-        <div id={`segment-${id}`} className="mb-3">
+    const selectMode = (e: React.MouseEvent): SelectMode =>
+        e.shiftKey ? 'range' : e.metaKey || e.ctrlKey ? 'toggle' : 'single';
+
+    const handleSplit = async () => {
+        // selectionStart counts UTF-16 units; the backend splits on code points.
+        const cursor = Array.from(draft.slice(0, textareaRef.current?.selectionStart ?? 0)).length;
+        // Split works on stored text, so flush any unsaved typing first.
+        if (draft !== text) await onEditSegment?.(id, draft);
+        onSplit?.(id, cursor);
+    };
+
+    const row = (
+        <div
+            id={`segment-${id}`}
+            className={`mb-3 rounded-md ${selected ? 'bg-primary/10' : ''}`}
+        >
             <div className="flex items-start gap-2">
+                {editable && onSelect && (
+                    <Checkbox
+                        checked={selected}
+                        aria-label="Select line"
+                        className="mt-1.5 select-none"
+                        onClick={(e) => onSelect(id, e.shiftKey ? 'range' : 'toggle')}
+                    />
+                )}
                 <Tooltip>
                     <TooltipTrigger>
-                        <span className="text-xs text-muted-foreground mt-1 flex-shrink-0 min-w-[50px]">
+                        <span
+                            className={`text-xs text-muted-foreground mt-1 flex-shrink-0 min-w-[50px] ${editable && onSelect ? 'cursor-pointer select-none' : 'cursor-default'}`}
+                            onClick={(e) => editable && onSelect?.(id, selectMode(e))}
+                        >
                             {formatRecordingTime(timestamp)}
                         </span>
                     </TooltipTrigger>
@@ -116,6 +202,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 <div className="flex-1">
                     {editable ? (
                         <Textarea
+                            ref={textareaRef}
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
                             onBlur={() => {
@@ -131,9 +218,32 @@ const TranscriptSegment = memo(function TranscriptSegment({
                     ) : (
                         <p className="text-base text-foreground leading-relaxed">{displayText}</p>
                     )}
+                    {editable && suggestion && (
+                        <SuggestionDiff
+                            suggestion={suggestion}
+                            onAccept={() => onAcceptSuggestion?.(suggestion)}
+                            onDismiss={() => onDismissSuggestion?.(id)}
+                        />
+                    )}
                 </div>
             </div>
         </div>
+    );
+
+    if (!editable || !onSelect) return row;
+
+    return (
+        <ContextMenu>
+            <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+            <ContextMenuContent>
+                <ContextMenuItem onSelect={() => onDeleteBefore?.(id)}>
+                    Delete everything before this line
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem onSelect={() => onMergeWithNext?.(id)}>Merge with next line</ContextMenuItem>
+                <ContextMenuItem onSelect={handleSplit}>Split at cursor</ContextMenuItem>
+            </ContextMenuContent>
+        </ContextMenu>
     );
 });
 
@@ -153,6 +263,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     onLoadMore,
     editable = false,
     onEditSegment,
+    editor,
 }) => {
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -191,6 +302,27 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         segments,
         isRecording,
         enableStreaming
+    );
+
+    const renderSegment = (segment: TranscriptSegmentData, isStreaming: boolean) => (
+        <TranscriptSegment
+            id={segment.id}
+            timestamp={segment.timestamp}
+            text={getDisplayText(segment)}
+            confidence={segment.confidence}
+            isStreaming={isStreaming}
+            showConfidence={showConfidence}
+            editable={editable}
+            onEditSegment={editor?.editText ?? onEditSegment}
+            selected={editor?.selectedIds.has(segment.id)}
+            onSelect={editor?.select}
+            suggestion={editor?.suggestions.get(segment.id)}
+            onAcceptSuggestion={editor?.acceptSuggestion}
+            onDismissSuggestion={editor?.dismissSuggestion}
+            onDeleteBefore={editor?.deleteBefore}
+            onMergeWithNext={editor?.mergeWithNext}
+            onSplit={editor?.splitAt}
+        />
     );
 
     // Infinite scroll: IntersectionObserver to trigger loading more
@@ -320,16 +452,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         transform: `translateY(${virtualRow.start}px)`,
                                     }}
                                 >
-                                    <TranscriptSegment
-                                        id={segment.id}
-                                        timestamp={segment.timestamp}
-                                        text={getDisplayText(segment)}
-                                        confidence={segment.confidence}
-                                        isStreaming={isStreaming}
-                                        showConfidence={showConfidence}
-                                        editable={editable}
-                                        onEditSegment={onEditSegment}
-                                    />
+                                    {renderSegment(segment, isStreaming)}
                                 </div>
                             );
                         })}
@@ -378,16 +501,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.15 }}
                                 >
-                                    <TranscriptSegment
-                                        id={segment.id}
-                                        timestamp={segment.timestamp}
-                                        text={getDisplayText(segment)}
-                                        confidence={segment.confidence}
-                                        isStreaming={isStreaming}
-                                        showConfidence={showConfidence}
-                                        editable={editable}
-                                        onEditSegment={onEditSegment}
-                                    />
+                                    {renderSegment(segment, isStreaming)}
                                 </motion.div>
                             );
                         })}

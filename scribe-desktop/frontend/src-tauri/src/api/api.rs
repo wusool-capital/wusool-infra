@@ -9,7 +9,9 @@ use crate::{
         models::MeetingModel,
         repositories::{
             meeting::MeetingsRepository, setting::SettingsRepository,
-            transcript::TranscriptsRepository,
+            transcript::{
+                TranscriptEdit, TranscriptMatches, TranscriptRow, TranscriptsRepository,
+            },
         },
     },
     state::AppState,
@@ -759,24 +761,74 @@ pub async fn api_delete_api_key<R: Runtime>(
     }
 }
 
+/// True only if `folder` is a real subdirectory of the current recordings
+/// root (`save_folder`) -- never the root itself. Guards against removing
+/// the wrong thing when `save_folder` was changed after this meeting was
+/// recorded, or for an imported meeting whose folder never lived under it
+/// at all: in either case this returns `false` and the caller just skips
+/// the removal rather than risk `remove_dir_all` on an unexpected path.
+fn is_removable_recording_folder(folder: &std::path::Path, save_folder: &std::path::Path) -> bool {
+    let (Ok(folder), Ok(save_folder)) = (folder.canonicalize(), save_folder.canonicalize()) else {
+        return false;
+    };
+    folder != save_folder && folder.starts_with(&save_folder)
+}
+
 #[tauri::command]
 pub async fn api_delete_meeting<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     meeting_id: String,
+    delete_remote: bool,
     auth_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
     log_info!(
-        "api_delete_meeting called for meeting_id(native): {}, auth_token: {}",
+        "api_delete_meeting called for meeting_id(native): {}, delete_remote: {}, auth_token: {}",
         meeting_id,
+        delete_remote,
         auth_token.is_some()
     );
 
     let pool = state.db_manager.pool();
 
+    let meeting = MeetingsRepository::get_meeting_metadata(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load meeting {}: {}", meeting_id, e))?;
+
+    // Remote delete first: if it fails, keep every local row intact so the
+    // user can retry -- (install_id, local_recording_id) is the only key
+    // left to find this meeting on the server once it's gone locally.
+    if delete_remote {
+        if let Some(meeting) = &meeting {
+            if meeting.pushed_at.is_some() {
+                crate::push::delete_remote_meeting(app.clone(), meeting_id.clone()).await?;
+            }
+        }
+    }
+
     match MeetingsRepository::delete_meeting(pool, &meeting_id).await {
         Ok(true) => {
             log_info!("Successfully deleted meeting {}", meeting_id);
+
+            if let Some(folder_path) = meeting.and_then(|m| m.folder_path) {
+                let folder = std::path::PathBuf::from(&folder_path);
+                let save_folder = crate::audio::recording_preferences::load_recording_preferences(&app)
+                    .await
+                    .map(|prefs| prefs.save_folder)
+                    .ok();
+                match save_folder {
+                    Some(save_folder) if is_removable_recording_folder(&folder, &save_folder) => {
+                        if let Err(e) = std::fs::remove_dir_all(&folder) {
+                            log_warn!("Failed to remove recording folder {}: {}", folder_path, e);
+                        }
+                    }
+                    _ => log_warn!(
+                        "Skipping recording folder removal for {} -- not under the current recordings root",
+                        folder_path
+                    ),
+                }
+            }
+
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Meeting deleted successfully"
@@ -961,6 +1013,126 @@ pub async fn update_transcript_text<R: Runtime>(
     TranscriptsRepository::update_transcript_text(pool, &transcript_id, &text)
         .await
         .map_err(|e| format!("Failed to update transcript {}: {}", transcript_id, e))
+}
+
+/// Pushed meetings are immutable; the UI hides editing, but the backend
+/// must refuse too so a stale view can't alter what was already sent.
+async fn ensure_editable(pool: &sqlx::SqlitePool, meeting_id: &str) -> Result<(), String> {
+    let pushed = TranscriptsRepository::is_meeting_pushed(pool, meeting_id)
+        .await
+        .map_err(|e| format!("Failed to check meeting {}: {}", meeting_id, e))?;
+    if pushed {
+        return Err("This meeting was already pushed and can no longer be edited.".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn edit_transcript_segment<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_id: String,
+    text: String,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::edit_transcript_text(pool, &meeting_id, &segment_id, &text)
+        .await
+        .map_err(|e| format!("Failed to edit segment: {}", e))
+}
+
+#[tauri::command]
+pub async fn delete_transcript_segments<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_ids: Vec<String>,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::delete_transcripts(pool, &meeting_id, &segment_ids)
+        .await
+        .map_err(|e| format!("Failed to delete segments: {}", e))
+}
+
+#[tauri::command]
+pub async fn split_transcript_segment<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_id: String,
+    cursor: usize,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::split_transcript(pool, &meeting_id, &segment_id, cursor)
+        .await
+        .map_err(|e| format!("Failed to split segment: {}", e))
+}
+
+#[tauri::command]
+pub async fn merge_transcript_segments<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_ids: Vec<String>,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::merge_transcripts(pool, &meeting_id, &segment_ids)
+        .await
+        .map_err(|e| format!("Failed to merge segments: {}", e))
+}
+
+#[tauri::command]
+pub async fn find_in_transcripts<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    query: String,
+) -> Result<TranscriptMatches, String> {
+    TranscriptsRepository::find_in_meeting(state.db_manager.pool(), &meeting_id, &query)
+        .await
+        .map_err(|e| format!("Failed to search transcript: {}", e))
+}
+
+#[tauri::command]
+pub async fn replace_in_transcripts<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    find: String,
+    replacement: String,
+    segment_ids: Option<Vec<String>>,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::replace_in_meeting(
+        pool,
+        &meeting_id,
+        &find,
+        &replacement,
+        segment_ids.as_deref(),
+    )
+    .await
+    .map_err(|e| format!("Failed to replace text: {}", e))
+}
+
+/// Undo/redo entry point: removes `delete_ids` and upserts `rows`.
+#[tauri::command]
+pub async fn apply_transcript_edit<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    delete_ids: Vec<String>,
+    rows: Vec<TranscriptRow>,
+) -> Result<(), String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::apply_edit(pool, &meeting_id, &delete_ids, &rows)
+        .await
+        .map_err(|e| format!("Failed to apply edit: {}", e))
 }
 
 #[tauri::command]
