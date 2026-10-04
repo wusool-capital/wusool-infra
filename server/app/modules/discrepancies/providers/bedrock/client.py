@@ -1,25 +1,27 @@
 """Real AWS Bedrock implementation of `ContextExtractor`, using the
-Converse API. Mirrors `enrichment.providers.bedrock.client
-.BedrockConverseClient`'s validate -> repair-prompt retry -> fail-closed
-policy, narrowed to this module's single context-extraction operation.
+Converse API. The validate -> repair-prompt retry -> fail-closed policy is
+the shared `utilities` `invoke_validated`, same as `enrichment`'s client.
 """
 
 from __future__ import annotations
 
-import json
 import re
 from typing import TYPE_CHECKING
 
-from pydantic import ValidationError
-
 from app.modules.discrepancies.domain.criteria import ParsedContext
-from app.modules.discrepancies.domain.vocabulary import REGION_OPTIONS, VERTICAL_OPTIONS
+from app.modules.discrepancies.domain.vocabulary import (
+    COUNTRY_OPTIONS,
+    REGION_OPTIONS,
+    VERTICAL_OPTIONS,
+)
 from app.modules.discrepancies.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.discrepancies.providers.bedrock.schemas import ExtractedContext
-from app.modules.utilities import BedrockInvocationError
 from app.modules.utilities.domain.bedrock import converse_kwargs
 from app.modules.utilities.domain.json_types import JsonObject
-from app.modules.utilities.providers.bedrock.retry import invoke_bedrock_with_retry
+from app.modules.utilities.providers.bedrock.retry import (
+    invoke_bedrock_with_retry,
+    invoke_validated,
+)
 
 if TYPE_CHECKING:
     from mypy_boto3_bedrock_runtime.type_defs import ConverseResponseTypeDef
@@ -31,6 +33,7 @@ def _system_prompt() -> str:
     # Regex-era edge cases plus known false-conflict cases; obvious geography is left to the model.
     verticals = "\n".join(f"- {v}" for v in sorted(VERTICAL_OPTIONS))
     regions = "\n".join(f"- {r}" for r in REGION_OPTIONS)
+    countries = ", ".join(COUNTRY_OPTIONS)
     return (
         "An M&A advisor wrote the note in the user message, inside <note> tags, about "
         "the buyer they are searching for. Extract only what the note asks targets to "
@@ -44,11 +47,13 @@ def _system_prompt() -> str:
         'Specialist Clinics). If the note names several sectors ("pharma or healthcare"), '
         "include the options for each. Most likely option first. Empty list if the note "
         'names no sector or asks for any sector ("generalist").\n'
-        "- region: one option from the region list, copied exactly, only if clearly stated "
-        "or implied; otherwise null. Pick the most specific option that covers every "
-        "place named (UAE -> GCC, not MENATP; KSA and UAE -> GCC); null if no single "
-        "option covers them all. MENATP means MENA plus Turkey and Pakistan. Where the "
-        "advisor's client is based is not a target region.\n"
+        "- region: one option from the region list, copied exactly, only if the note names "
+        'a region itself ("Gulf" -> GCC, "Middle East" -> MENA); otherwise null. Never '
+        "turn named countries into a region: they go in countries. MENATP means MENA plus "
+        "Turkey and Pakistan. Where the advisor's client is based is not a target region.\n"
+        "- countries: every specific country the note names as a target, copied exactly "
+        "from the country list (UAE -> United Arab Emirates, KSA -> Saudi Arabia). Empty "
+        "if the note names only a region or no place at all.\n"
         '- Anything negated or excluded ("no pharma", "excluding UAE") is left out.\n'
         '- All amounts are absolute USD numbers: "$5M" -> 5000000, "$500K" -> 500000.\n'
         "- An amount in any currency other than USD gives null. Never convert currencies.\n"
@@ -66,9 +71,10 @@ def _system_prompt() -> str:
         "and no EBITDA.\n\n"
         f"Vertical options:\n{verticals}\n\n"
         f"Region options:\n{regions}\n\n"
+        f"Country options: {countries}\n\n"
         'Example: "Pharmaceuticals / Biotech in GCC, ticket size $5-15M, EBITDA at least '
         '$2M" -> {"verticals": ["Pharmaceuticals / Biotech"], "region": "GCC", '
-        '"ticket_low_usd": 5000000, "ticket_high_usd": 15000000, '
+        '"countries": [], "ticket_low_usd": 5000000, "ticket_high_usd": 15000000, '
         '"ebitda_low_usd": 2000000, "ebitda_high_usd": null}'
     )
 
@@ -84,15 +90,6 @@ def _build_prompt(text: str) -> str:
     return f"<note>\n{_NOTE_TAG.sub('', text)}\n</note>\n\nReturn JSON matching the schema only."
 
 
-def _repair_prompt(raw: JsonObject, error: str) -> str:
-    return (
-        "Your previous response did not match the required schema.\n"
-        f"Error: {error}\n"
-        f"Previous response: {json.dumps(raw)}\n"
-        "Return corrected, schema-valid JSON only."
-    )
-
-
 class BedrockContextExtractor:
     def __init__(self, *, model_id: str, temperature: float, max_tokens: int) -> None:
         self._client = get_bedrock_runtime_client()
@@ -101,34 +98,21 @@ class BedrockContextExtractor:
         self._max_tokens = max_tokens
 
     async def extract(self, text: str) -> ParsedContext:
-        raw = await self._invoke(_build_prompt(text), _OUTPUT_SCHEMA)
-        validated, error = self._validate(raw)
-
-        if validated is None:
-            raw_retry = await self._invoke(_repair_prompt(raw, error or ""), _OUTPUT_SCHEMA)
-            validated, error = self._validate(raw_retry)
-
-        if validated is None:
-            raise BedrockInvocationError(
-                f"discrepancy context extraction failed validation after one repair "
-                f"attempt: {error}"
-            )
+        validated = await invoke_validated(
+            schema=ExtractedContext,
+            invoke=self._invoke,
+            prompt=_build_prompt(text),
+            operation=_OPERATION,
+        )
         return validated.to_domain()
 
-    @staticmethod
-    def _validate(raw: JsonObject) -> tuple[ExtractedContext | None, str | None]:
-        try:
-            return ExtractedContext.model_validate(raw), None
-        except ValidationError as exc:
-            return None, str(exc)
-
-    async def _invoke(self, prompt: str, output_schema: JsonObject) -> JsonObject:
+    async def _invoke(self, prompt: str) -> JsonObject:
         def converse() -> ConverseResponseTypeDef:
             return self._client.converse(
                 **converse_kwargs(
                     model_id=self._model_id,
                     prompt=prompt,
-                    output_schema=output_schema,
+                    output_schema=_OUTPUT_SCHEMA,
                     max_tokens=self._max_tokens,
                     temperature=self._temperature,
                     system_prompt=_SYSTEM_PROMPT,

@@ -4,11 +4,18 @@ Bedrock clients. No real AWS calls: `converse` is a plain callable the test
 controls.
 """
 
+from collections.abc import Awaitable, Callable
+
 import pytest
 from botocore.exceptions import ClientError, EndpointConnectionError
+from pydantic import BaseModel
 
+from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
-from app.modules.utilities.providers.bedrock.retry import invoke_bedrock_with_retry
+from app.modules.utilities.providers.bedrock.retry import (
+    invoke_bedrock_with_retry,
+    invoke_validated,
+)
 
 
 def _converse_response(input_dict: dict) -> dict:
@@ -115,3 +122,41 @@ async def test_raises_bedrock_invocation_error_after_exhausting_attempts() -> No
         )
 
     assert calls == 2
+
+
+class _Answer(BaseModel):
+    message: str
+
+
+def _scripted_invoke(
+    *responses: JsonObject,
+) -> tuple[list[str], Callable[[str], Awaitable[JsonObject]]]:
+    prompts: list[str] = []
+    queue = list(responses)
+
+    async def invoke(prompt: str) -> JsonObject:
+        prompts.append(prompt)
+        return queue.pop(0)
+
+    return prompts, invoke
+
+
+async def test_invoke_validated_returns_the_model_without_a_repair() -> None:
+    prompts, invoke = _scripted_invoke({"message": "ok"})
+    result = await invoke_validated(schema=_Answer, invoke=invoke, prompt="p", operation="op")
+    assert result == _Answer(message="ok")
+    assert prompts == ["p"]
+
+
+async def test_invoke_validated_repairs_once_with_the_schema_error() -> None:
+    prompts, invoke = _scripted_invoke({"wrong": 1}, {"message": "fixed"})
+    result = await invoke_validated(schema=_Answer, invoke=invoke, prompt="p", operation="op")
+    assert result == _Answer(message="fixed")
+    assert len(prompts) == 2
+    assert "did not match the required schema" in prompts[1]
+
+
+async def test_invoke_validated_fails_closed_after_one_repair() -> None:
+    _, invoke = _scripted_invoke({"wrong": 1}, {"still": "wrong"})
+    with pytest.raises(BedrockInvocationError, match="op failed validation"):
+        await invoke_validated(schema=_Answer, invoke=invoke, prompt="p", operation="op")
