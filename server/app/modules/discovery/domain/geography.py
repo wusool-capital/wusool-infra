@@ -188,6 +188,7 @@ _COUNTRY_ALIASES: tuple[frozenset[str], ...] = (
     frozenset({"united states", "usa", "us", "u.s."}),
     frozenset({"türkiye", "turkey"}),
     frozenset({"hong kong", "hong kong sar"}),
+    frozenset({"palestine", "palestinian authority"}),
 )
 
 

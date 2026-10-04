@@ -396,3 +396,14 @@ def test_geography_requirements_are_a_union_not_an_intersection() -> None:
     survivors, _ = apply_structured_filters(profile, [uae, egypt, germany])
 
     assert [s.seller_role_id for s in survivors] == ["uae", "egypt"]
+
+
+def test_geography_requirements_are_scored_once_as_a_union() -> None:
+    profile = _profile([_geography("GCC"), _geography("United Kingdom"), _geography("Egypt")])
+    seller = _seller("uae", geographic_focus=["UAE"])
+
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "uae", profile, seller)
+
+    geography = [c for c in score.criteria if c.criterion == "geography"]
+    assert [c.result for c in geography] == ["Pass"]
+    assert score.overall_score == 100.0

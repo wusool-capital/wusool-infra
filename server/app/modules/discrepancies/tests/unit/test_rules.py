@@ -358,6 +358,8 @@ def _geo_buyer(regions: list[str], countries: list[str]) -> BuyerCriteria:
         (["GCC"], [], ParsedContext(countries=("Egypt",)), True),
         (["GCC"], [], ParsedContext(countries=("United Arab Emirates",)), False),
         (["MENATP"], [], ParsedContext(countries=("Turkey",)), False),
+        (["MENA"], [], ParsedContext(countries=("Palestinian Authority",)), False),
+        ([], ["Palestinian Authority"], ParsedContext(region="MENA"), False),
         # Region and country are a union: either one covering the place is enough.
         (["GCC"], ["Egypt"], ParsedContext(countries=("Egypt",)), False),
         (

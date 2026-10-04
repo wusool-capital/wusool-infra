@@ -205,6 +205,24 @@ def _geography_matches(target: str, candidate: SellerCandidate) -> bool:
     return bool(places & wanted)
 
 
+def _geography_values(profile: RequirementProfile, *, confirmed_only: bool) -> list[str | None]:
+    return [
+        r.value
+        for r in profile.hard_requirements
+        if normalize_criterion(r.criterion) in _GEOGRAPHY_KEYS
+        and (r.human_confirmed or not confirmed_only)
+    ]
+
+
+def _evaluate_any(
+    criterion: str, values: list[str | None], candidate: SellerCandidate
+) -> tuple[str, RequirementSource, float]:
+    """A buyer's regions and countries are a union, so geography values pass
+    together: any one passing is a Pass."""
+    outcomes = [_evaluate_criterion(criterion, v, candidate) for v in values]
+    return next((o for o in outcomes if o[0] == "Pass"), outcomes[0])
+
+
 def apply_structured_filters(
     profile: RequirementProfile, candidates: list[SellerCandidate]
 ) -> tuple[list[SellerCandidate], list[FilterSkipped]]:
@@ -217,13 +235,7 @@ def apply_structured_filters(
     """
     passed = list(candidates)
     filters_skipped: list[FilterSkipped] = []
-    # A buyer's regions and countries are a union, so confirmed geography values
-    # are applied together as one OR filter, not ANDed one after another.
-    geography_values = [
-        r.value
-        for r in profile.hard_requirements
-        if r.human_confirmed and normalize_criterion(r.criterion) in _GEOGRAPHY_KEYS
-    ]
+    geography_values = _geography_values(profile, confirmed_only=True)
     geography_applied = False
 
     for requirement in profile.hard_requirements:
@@ -258,9 +270,7 @@ def apply_structured_filters(
         survivors = []
         exempted = 0
         for candidate in passed:
-            outcomes = [_evaluate_criterion(requirement.criterion, v, candidate) for v in values]
-            data_backing = outcomes[0][1]
-            result = "Pass" if any(o[0] == "Pass" for o in outcomes) else outcomes[0][0]
+            result, data_backing, _ = _evaluate_any(requirement.criterion, values, candidate)
             if data_backing == "unavailable":
                 exempted += 1
                 survivors.append(candidate)
@@ -316,6 +326,8 @@ class ScoringEngine:
         weighted_sum = 0.0
         weighted_confidence_sum = 0.0
         total_weight = 0.0
+        geography_values = _geography_values(profile, confirmed_only=False)
+        geography_scored = False
 
         # Hard requirements carry full weight and are always evaluated here
         # regardless of human_confirmed — §13: unconfirmed ones must still
@@ -338,9 +350,16 @@ class ScoringEngine:
                 )
                 continue
 
+            # Geography values are scored once together, matching the Stage 1 union.
+            is_geography = normalize_criterion(requirement.criterion) in _GEOGRAPHY_KEYS
+            if is_geography and geography_scored:
+                continue
+            geography_scored = geography_scored or is_geography
+            values = geography_values if is_geography else [requirement.value]
+
             weight = 1.0
-            result, data_backing, sub_score = _evaluate_criterion(
-                requirement.criterion, requirement.value, candidate
+            result, data_backing, sub_score = _evaluate_any(
+                requirement.criterion, values, candidate
             )
             criteria.append(
                 CriterionScore(
