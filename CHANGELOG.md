@@ -24,8 +24,8 @@ for current production evidence and open handover items.
 ### Changed
 
 - Scribe desktop's "Processing recording" and "Finalizing transcription"
-  messages after you stop a meeting now look the same and sit in the same spot,
-  instead of jumping between two different styles and positions.
+  messages now look the same after you stop a meeting. They also sit in the
+  same spot instead of jumping between two styles.
 
 ## 2026-10-03
 
