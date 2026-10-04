@@ -221,9 +221,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       folder.children!.push(fileItem);
     }
 
-    const sortedTagFolders = Array.from(tagFolders.values()).sort((a, b) =>
-      a.title.localeCompare(b.title)
-    );
+    // `meetings` is newest-first, so Map insertion order is most-recent-folder-first.
+    const sortedTagFolders = Array.from(tagFolders.values());
 
     return [
       {
