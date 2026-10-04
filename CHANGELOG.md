@@ -62,8 +62,30 @@ for current production evidence and open handover items.
 - If your note can't be read, the message lists what's missing and says the
   note couldn't be checked. It never reports that nothing conflicts. An empty
   note is checked instantly.
+- A buyer's target regions and target countries now count together. Geography
+  is reported missing only when both are empty, and a country you name, such
+  as "UAE", is flagged only when neither the buyer's regions nor countries
+  cover it. Before, a buyer with only target countries was never checked.
+- The `/find-match` and `/check-buyer` messages end with how your note was
+  read, for example "Read your note as: Pharmaceuticals / Biotech · United
+  Arab Emirates", so a misread is easy to spot.
+- EBITDA is reported missing only when both the floor and the ceiling are
+  empty.
 
 ### Fixed
+
+- `/find-match` matches a buyer's regions and countries together: a GCC buyer
+  now matches a seller tagged "UAE" or "KSA", and a buyer targeting GCC plus
+  Egypt keeps sellers from either. Before, each geography had to match on its
+  own, and region names never matched a seller's country.
+- A region you name in your `/find-match` note that can't be listed country by
+  country, such as Europe, no longer drops almost every seller.
+- Google Maps seller search after `/find-match` covers every target region and
+  country, not just the first.
+- Country names written differently across the CRM, such as Turkey and
+  Türkiye or Hong Kong and Hong Kong SAR, now match each other.
+- `/check-buyer` shows an error in its popup if the buyer search fails,
+  instead of staying on the loading screen.
 
 - Sellers found via Google Maps after `/find-match` are numbered from 1 in
   their own message, instead of continuing on from the CRM shortlist.

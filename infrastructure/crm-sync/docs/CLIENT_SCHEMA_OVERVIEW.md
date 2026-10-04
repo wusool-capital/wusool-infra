@@ -151,7 +151,8 @@ Type: list | API identifier: `buyer_role` | Parent: `organizations`
 | `notable_investments` | `text` | attio | - |
 | `key_personnel` | `text` | attio | - |
 | `relationship_warmth` | `enum` | attio | - |
-| `target_geography` | `enum[]` (multiselect) | attio | - |
+| `target_region` | `enum[]` (multiselect) | attio | - |
+| `target_country` | `enum[]` (multiselect) | attio | - |
 | `last_mandate_briefing_date` | `date` | attio | - |
 | `prior_gcc_acquisition` | `text` | attio | - |
 | `target_vertical` | `enum` (single-select) | attio | - |
@@ -180,8 +181,11 @@ vocabulary is enumerated (SOURCE's `geographic_focus` is still
 value outside its options — `Africa` and `Pakistan` have no equivalent among
 `target_geography`'s nine. Text on both sides makes the copy lossless.
 
-`target_geography` remains **authoritative for matching**; `geographic_focus` is
-a preserved value awaiting a mapping decision, not a competing source. Likewise
+`target_region` and `target_country` (which replaced `target_geography` on
+2026-09-26) are **authoritative for matching**, read as a union: a buyer covers
+every country of its regions plus its listed countries, and has no geography
+restriction only when both are empty. `geographic_focus` is a preserved value
+awaiting a mapping decision, not a competing source. Likewise
 `check_size_min`/`check_size_max` stay authoritative over `ticket_size`. The
 Organization-level columns these derive from **stay in place** — see the
 `organizations` note in the PostgreSQL section.
@@ -558,7 +562,8 @@ This column list is abridged: it omits the 2026-08-19 handover block (`estimated
 | `notable_investments` | `text` | Yes | - | - | - |
 | `key_personnel` | `text` | Yes | - | - | - |
 | `relationship_warmth` | `text` | Yes | - | - | - |
-| `target_geography` | `text[]` | No | - | - | `'{}'` |
+| `target_region` | `text[]` | No | - | - | `'{}'` |
+| `target_country` | `text[]` | No | - | - | `'{}'` |
 | `last_mandate_briefing_date` | `date` | Yes | - | - | - |
 | `prior_gcc_acquisition` | `text` | Yes | - | - | - |
 | `target_vertical` | `text` | Yes | - | - | - |
