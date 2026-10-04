@@ -99,8 +99,11 @@ def _build_slack_notifier() -> SlackWebClientNotifier:
 async def find_buyer_discrepancies(
     buyer_role_id: str, advisor_context: str | None
 ) -> DiscrepancyCheckResult | None:
-    """The check result, or None if the buyer no longer exists. Raises if the
-    check itself fails, so callers never mistake a failure for a clear profile.
+    """Checks the buyer's profile for missing details and for conflicts with
+    the advisor's typed context. Returns None if the buyer no longer exists.
+
+    Errors are left to propagate on purpose: the popup then says "couldn't
+    check" instead of wrongly showing that nothing is missing.
     """
     from app.modules.discrepancies import check_buyer_discrepancies
     from app.modules.matching_engine.providers.discrepancies.criteria_reader_adapter import (

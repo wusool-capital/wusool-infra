@@ -76,6 +76,10 @@ def register(app: AsyncApp) -> None:
         view: SlackViewSubmissionPayload,
         client: AsyncWebClient,
     ) -> None:
+        """Handles "Continue" on the confirm-buyer popup: swaps it for the
+        "Before we match" popup and checks the buyer in the background. Never
+        runs the match itself — only "Run anyway" (`discrepancy_gate_modal`) does.
+        """
         view_id = view.get("id")
         idempotency_key = f"buyer_selection_submission:{view_id}" if view_id else None
         if idempotency_key and _submission_idempotency_store.seen(idempotency_key):
@@ -100,16 +104,15 @@ def register(app: AsyncApp) -> None:
                 advisor_context=advisor_context or None,
             )
         except (KeyError, TypeError, ValueError):
-            # Ack anyway: an un-acked submission shows Slack's connection error.
+            # Close the popup cleanly; without an ack Slack shows "trouble connecting".
             logger.warning("buyer_selection_invalid_submission view_id=%s", view_id, exc_info=True)
             await ack()
             return
 
-        # Marked only once parsing succeeds, so a failed submission can be retried.
+        # Recorded only after parsing works, so a corrected resubmit isn't skipped as a duplicate.
         if idempotency_key:
             _submission_idempotency_store.mark(idempotency_key)
-        # The popup opens with "Run anyway" already live, so it is never stuck if
-        # the background update below lands before this one.
+        # "Run anyway" works immediately; the background check only swaps in the message text.
         await ack(
             response_action="update",
             view=build_discrepancy_gate_modal(gate, _CHECKING_TEXT),
