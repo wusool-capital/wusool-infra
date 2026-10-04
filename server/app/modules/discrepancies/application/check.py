@@ -13,7 +13,7 @@ from app.modules.discrepancies.domain.criteria import (
     DiscrepancyReport,
     ParsedContext,
 )
-from app.modules.discrepancies.domain.rules import run_checks, template_message
+from app.modules.discrepancies.domain.rules import ground, run_checks, template_message
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class DiscrepancyCheckService:
         context_checked = True
         if context_text and context_text.strip():
             try:
-                context = await self._extractor.extract(context_text)
+                context = ground(await self._extractor.extract(context_text), context_text)
             except Exception:
                 logger.exception(
                     "discrepancy_context_extraction_failed buyer_role_id=%s",

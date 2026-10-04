@@ -12,11 +12,11 @@ def test_off_list_vertical_and_region_are_dropped_amounts_pass_through() -> None
         region="UAE",
         ticket_low_usd=5_000_000.0,
         ticket_high_usd=15_000_000.0,
-        ebitda_usd=2_000_000.0,
+        ebitda_low_usd=2_000_000.0,
     )
 
     assert extracted.to_domain() == ParsedContext(
-        ticket_low=5_000_000.0, ticket_high=15_000_000.0, ebitda=2_000_000.0
+        ticket_low=5_000_000.0, ticket_high=15_000_000.0, ebitda_low=2_000_000.0
     )
 
 
@@ -26,3 +26,7 @@ def test_listed_vertical_and_region_are_kept() -> None:
     assert extracted.to_domain() == ParsedContext(
         vertical="Pharmaceuticals / Biotech", region="GCC"
     )
+
+
+def test_option_case_is_normalized_to_the_canonical_string() -> None:
+    assert ExtractedContext(region=" gcc ").to_domain().region == "GCC"

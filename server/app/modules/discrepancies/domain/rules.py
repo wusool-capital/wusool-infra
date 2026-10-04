@@ -3,6 +3,9 @@ null/thin), as pure functions. The advisor's note arrives already extracted
 as a `ParsedContext`; rules decide and `template_message` writes the words.
 """
 
+import re
+from dataclasses import replace
+
 from app.modules.discovery.domain.geography import resolve_known
 from app.modules.discrepancies.domain.criteria import (
     BuyerCriteria,
@@ -16,6 +19,13 @@ from app.modules.discrepancies.domain.vocabulary import (
     is_unrestricted_region,
 )
 from app.modules.enrichment.domain.missingness import is_missing
+
+# Mirrors `matching_engine`'s `_TICKET_WORDS`: an amount is only trusted when
+# the note names what it measures. Bare "deal" is too loose to count.
+_TICKET_WORDS = re.compile(
+    r"\b(tickets?|che(?:que|ck)s?|invest(?:ment|ing)?|deal[\s-]sizes?)\b", re.IGNORECASE
+)
+_EBITDA_WORDS = re.compile(r"\bebitda\b", re.IGNORECASE)
 
 
 def _vertical_conflict(criteria: BuyerCriteria, stated: str | None) -> Discrepancy | None:
@@ -62,44 +72,46 @@ def _region_conflict(criteria: BuyerCriteria, stated: str | None) -> Discrepancy
     )
 
 
-def _format_amount(value: float | None) -> str:
-    return f"USD {value:,.0f}" if value is not None else "not set"
+def _format_bounds(low: float | None, high: float | None) -> str:
+    if low is not None and high is not None:
+        return f"USD {low:,.0f}" if low == high else f"USD {low:,.0f} - USD {high:,.0f}"
+    if low is not None:
+        return f"at least USD {low:,.0f}"
+    return f"up to USD {high:,.0f}" if high is not None else "not set"
 
 
-def _format_range(low: float | None, high: float | None) -> str:
-    return f"{_format_amount(low)} - {_format_amount(high)}"
-
-
-def _ticket_conflict(
-    criteria: BuyerCriteria, low: float | None, high: float | None
+def _band_conflict(
+    criterion: Criterion,
+    stored: tuple[float | None, float | None],
+    stated: tuple[float | None, float | None],
 ) -> Discrepancy | None:
-    if low is None or (criteria.check_size_min is None and criteria.check_size_max is None):
-        return None
-    stated_high = high if high is not None else low
-    below = criteria.check_size_max is not None and low > criteria.check_size_max
-    above = criteria.check_size_min is not None and stated_high < criteria.check_size_min
-    if not (below or above):
+    """Conflict only when the stated range can't overlap the stored band —
+    an open bound ("at least $2M") is never treated as an exact amount."""
+    stored_low, stored_high = stored
+    stated_low, stated_high = stated
+    entirely_above = stated_low is not None and stored_high is not None and stated_low > stored_high
+    entirely_below = stated_high is not None and stored_low is not None and stated_high < stored_low
+    if not (entirely_above or entirely_below):
         return None
     return Discrepancy(
-        Criterion.TICKET_BAND,
+        criterion,
         "conflict",
-        stored=_format_range(criteria.check_size_min, criteria.check_size_max),
-        stated=_format_range(low, stated_high),
+        stored=_format_bounds(stored_low, stored_high),
+        stated=_format_bounds(stated_low, stated_high),
     )
 
 
-def _ebitda_conflict(criteria: BuyerCriteria, stated: float | None) -> Discrepancy | None:
-    if stated is None or (criteria.ebitda_floor is None and criteria.ebitda_ceiling is None):
-        return None
-    below = criteria.ebitda_floor is not None and stated < criteria.ebitda_floor
-    above = criteria.ebitda_ceiling is not None and stated > criteria.ebitda_ceiling
-    if not (below or above):
-        return None
-    return Discrepancy(
-        Criterion.EBITDA,
-        "conflict",
-        stored=_format_range(criteria.ebitda_floor, criteria.ebitda_ceiling),
-        stated=_format_amount(stated),
+def ground(context: ParsedContext, note: str) -> ParsedContext:
+    """Hybrid guard: keep an extracted amount only if the advisor's own words
+    name what it measures. Only ever removes what the LLM found, never adds."""
+    names_ticket = _TICKET_WORDS.search(note) is not None
+    names_ebitda = _EBITDA_WORDS.search(note) is not None
+    return replace(
+        context,
+        ticket_low=context.ticket_low if names_ticket else None,
+        ticket_high=context.ticket_high if names_ticket else None,
+        ebitda_low=context.ebitda_low if names_ebitda else None,
+        ebitda_high=context.ebitda_high if names_ebitda else None,
     )
 
 
@@ -107,8 +119,16 @@ def find_conflicts(criteria: BuyerCriteria, context: ParsedContext) -> tuple[Dis
     conflicts = (
         _vertical_conflict(criteria, context.vertical),
         _region_conflict(criteria, context.region),
-        _ticket_conflict(criteria, context.ticket_low, context.ticket_high),
-        _ebitda_conflict(criteria, context.ebitda),
+        _band_conflict(
+            Criterion.TICKET_BAND,
+            (criteria.check_size_min, criteria.check_size_max),
+            (context.ticket_low, context.ticket_high),
+        ),
+        _band_conflict(
+            Criterion.EBITDA,
+            (criteria.ebitda_floor, criteria.ebitda_ceiling),
+            (context.ebitda_low, context.ebitda_high),
+        ),
     )
     return tuple(c for c in conflicts if c is not None)
 

@@ -1,6 +1,6 @@
 """`DiscrepancyCheckService` orchestration — an empty note never calls the
-extractor; an extracted note feeds the rules; an extraction failure still
-lists what's missing and flags the note as unchecked.
+extractor; an extracted note is grounded, then feeds the rules; an extraction
+failure still lists what's missing and flags the note as unchecked.
 """
 
 import pytest
@@ -34,7 +34,9 @@ async def test_empty_note_never_calls_the_extractor(context_text: str | None) ->
 
 @pytest.mark.asyncio
 async def test_extracted_conflict_is_reported() -> None:
-    extractor = FakeContextExtractor(ParsedContext(ticket_low=50_000_000.0))
+    extractor = FakeContextExtractor(
+        ParsedContext(ticket_low=50_000_000.0, ticket_high=50_000_000.0)
+    )
     service = DiscrepancyCheckService(extractor=extractor)
 
     result = await service.check(_CRITERIA, "ticket size $50M")
@@ -43,6 +45,19 @@ async def test_extracted_conflict_is_reported() -> None:
     assert result.context_checked
     assert [d.criterion.value for d in result.report.conflicts] == ["ticket_band"]
     assert result.message.startswith("Heads up: Shahroukh Capital's profile says ticket band")
+
+
+@pytest.mark.asyncio
+async def test_amounts_the_note_never_names_are_dropped_before_the_rules() -> None:
+    extractor = FakeContextExtractor(
+        ParsedContext(ticket_low=50_000_000.0, ticket_high=50_000_000.0)
+    )
+    service = DiscrepancyCheckService(extractor=extractor)
+
+    result = await service.check(_CRITERIA, "targets with $50M revenue")
+
+    assert result.context_checked
+    assert result.report.conflicts == ()
 
 
 @pytest.mark.asyncio

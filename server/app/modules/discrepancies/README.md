@@ -4,8 +4,12 @@ Checks a buyer role for two things before a match runs: does the
 advisor's own typed context conflict with what's on file (vertical,
 geography, ticket band, EBITDA), and is anything required missing from the
 buyer's profile. The one Bedrock call only reads the advisor's free-text
-note into a `ParsedContext` (vertical, region, ticket, EBITDA); deterministic
-rules decide and a fixed template writes the message. An empty note skips
+note into a `ParsedContext` (vertical, region, ticket and EBITDA bounds).
+`domain/rules.py::ground` then drops any amount whose measure the note never
+names (the same guard `matching_engine` uses), so rules can only remove what
+the LLM found. Conflicts need the stated range to miss the stored band
+entirely ("at least $2M" never conflicts with $5-15M), and a fixed template
+writes the message. An empty note skips
 Bedrock. If the note can't be read, the result still lists what's missing and
 sets `context_checked=False`, so the message never claims "no conflicts".
 

@@ -13,6 +13,7 @@ from app.modules.discrepancies.domain.criteria import (
 from app.modules.discrepancies.domain.rules import (
     find_conflicts,
     find_missing,
+    ground,
     run_checks,
     template_message,
 )
@@ -42,18 +43,79 @@ def test_find_conflicts_no_vertical_conflict_on_match() -> None:
 
 
 def test_find_conflicts_ticket_outside_band() -> None:
-    conflicts = find_conflicts(_CRITERIA, ParsedContext(ticket_low=20_000_000.0))
+    conflicts = find_conflicts(
+        _CRITERIA, ParsedContext(ticket_low=20_000_000.0, ticket_high=20_000_000.0)
+    )
     assert any(c.criterion.value == "ticket_band" for c in conflicts)
 
 
 def test_find_conflicts_ticket_inside_band_is_not_flagged() -> None:
-    conflicts = find_conflicts(_CRITERIA, ParsedContext(ticket_low=10_000_000.0))
+    conflicts = find_conflicts(
+        _CRITERIA, ParsedContext(ticket_low=10_000_000.0, ticket_high=10_000_000.0)
+    )
     assert not any(c.criterion.value == "ticket_band" for c in conflicts)
 
 
 def test_find_conflicts_ebitda_below_floor() -> None:
-    conflicts = find_conflicts(_CRITERIA, ParsedContext(ebitda=500_000.0))
+    conflicts = find_conflicts(
+        _CRITERIA, ParsedContext(ebitda_low=500_000.0, ebitda_high=500_000.0)
+    )
     assert any(c.criterion.value == "ebitda" for c in conflicts)
+
+
+@pytest.mark.parametrize(
+    ("low", "high", "conflict"),
+    [
+        (2_000_000.0, None, False),  # "at least $2M" overlaps $5-15M
+        (None, 10_000_000.0, False),  # "up to $10M" overlaps $5-15M
+        (20_000_000.0, None, True),  # "at least $20M" is entirely above
+        (None, 3_000_000.0, True),  # "up to $3M" is entirely below
+        (1_000_000.0, 6_000_000.0, False),  # a range overlapping the band
+    ],
+)
+def test_ticket_conflict_only_when_stated_range_cannot_overlap(
+    low: float | None, high: float | None, conflict: bool
+) -> None:
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(ticket_low=low, ticket_high=high))
+    assert any(c.criterion.value == "ticket_band" for c in conflicts) is conflict
+
+
+def test_ebitda_range_overlapping_the_floor_is_not_a_conflict() -> None:
+    context = ParsedContext(ebitda_low=1_000_000.0, ebitda_high=3_000_000.0)
+    assert find_conflicts(_CRITERIA, context) == ()
+
+
+def test_open_bound_reads_naturally_in_the_conflict() -> None:
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(ticket_low=20_000_000.0))
+    assert conflicts[0].stored == "USD 5,000,000 - USD 15,000,000"
+    assert conflicts[0].stated == "at least USD 20,000,000"
+
+
+_ALL_AMOUNTS = ParsedContext(
+    vertical="Garage", ticket_low=1.0, ticket_high=2.0, ebitda_low=3.0, ebitda_high=4.0
+)
+
+
+@pytest.mark.parametrize(
+    ("note", "keeps_ticket", "keeps_ebitda"),
+    [
+        ("ticket size $1-2M, EBITDA $3-4M", True, True),
+        ("check size $1-2M", True, False),
+        ("we invest $1-2M", True, False),
+        ("EBITDA of $3-4M", False, True),
+        ("$1-2M", False, False),
+        ("a deal for $1-2M", False, False),
+    ],
+)
+def test_ground_drops_amounts_the_note_never_names(
+    note: str, keeps_ticket: bool, keeps_ebitda: bool
+) -> None:
+    grounded = ground(_ALL_AMOUNTS, note)
+    assert grounded.vertical == "Garage"
+    assert (grounded.ticket_low is not None) is keeps_ticket
+    assert (grounded.ticket_high is not None) is keeps_ticket
+    assert (grounded.ebitda_low is not None) is keeps_ebitda
+    assert (grounded.ebitda_high is not None) is keeps_ebitda
 
 
 def test_ticket_conflict_message_never_shows_the_literal_none() -> None:
@@ -66,7 +128,9 @@ def test_ticket_conflict_message_never_shows_the_literal_none() -> None:
         check_size_min=5_000_000.0,
         check_size_max=None,
     )
-    conflicts = find_conflicts(criteria, ParsedContext(ticket_low=1_000_000.0))
+    conflicts = find_conflicts(
+        criteria, ParsedContext(ticket_low=1_000_000.0, ticket_high=1_000_000.0)
+    )
     ticket = next(c for c in conflicts if c.criterion.value == "ticket_band")
     assert "None" not in ticket.stored
     assert "None" not in ticket.stated
@@ -80,7 +144,7 @@ def test_ebitda_conflict_message_never_shows_the_literal_none() -> None:
         ebitda_floor=2_000_000.0,
         ebitda_ceiling=None,
     )
-    conflicts = find_conflicts(criteria, ParsedContext(ebitda=500_000.0))
+    conflicts = find_conflicts(criteria, ParsedContext(ebitda_low=500_000.0, ebitda_high=500_000.0))
     ebitda = next(c for c in conflicts if c.criterion.value == "ebitda")
     assert "None" not in ebitda.stored
 
