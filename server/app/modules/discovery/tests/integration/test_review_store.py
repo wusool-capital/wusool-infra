@@ -5,7 +5,6 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.models import DiscoveryReview
 from app.modules.discovery.config import get_settings
@@ -16,16 +15,13 @@ from app.modules.utilities.persistence.engine import get_sessionmaker
 
 
 async def test_add_get_and_pending_round_trip() -> None:
-    engine = create_async_engine(get_settings().database_url)
+    sessionmaker = get_sessionmaker(get_settings().database_url)
     try:
-        async with engine.connect():
-            pass
+        async with sessionmaker() as session:
+            await session.connection()
     except Exception as exc:
         pytest.skip(f"database not reachable: {exc}")
-    finally:
-        await engine.dispose()
 
-    sessionmaker = get_sessionmaker(get_settings().database_url)
     store = SqlAlchemyReviewStore(sessionmaker)
     place_id = f"place-{uuid.uuid4()}"
     draft = SellerDraft(
