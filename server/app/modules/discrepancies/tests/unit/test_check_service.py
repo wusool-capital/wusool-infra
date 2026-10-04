@@ -85,3 +85,45 @@ async def test_extraction_failure_still_lists_missing_and_never_claims_clear() -
     assert "EBITDA" in result.message
     assert "couldn't be checked for conflicts" in result.message
     assert "no missing or conflicting" not in result.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_country_only_buyer_reads_the_note_and_flags_a_different_country() -> None:
+    extractor = FakeContextExtractor(ParsedContext(countries=("Egypt",)))
+    service = DiscrepancyCheckService(extractor=extractor)
+    buyer = BuyerCriteria(
+        buyer_role_id="role-3",
+        org_name="Riyadh Partners",
+        target_vertical=None,
+        target_country=["Saudi Arabia"],
+    )
+
+    result = await service.check(buyer, "only Egypt")
+
+    assert extractor.texts == ["only Egypt"]
+    assert [d.stated for d in result.report.conflicts] == ["Egypt"]
+
+
+@pytest.mark.asyncio
+async def test_result_carries_the_grounded_context_and_echoes_it() -> None:
+    # "$3M" is never labelled, so grounding drops it before the echo.
+    extractor = FakeContextExtractor(
+        ParsedContext(countries=("United Arab Emirates",), ticket_low=3_000_000.0)
+    )
+    service = DiscrepancyCheckService(extractor=extractor)
+
+    result = await service.check(_CRITERIA, "UAE, around $3M")
+
+    assert result.context == ParsedContext(countries=("United Arab Emirates",))
+    assert result.message.endswith("_Read your note as: United Arab Emirates_")
+
+
+@pytest.mark.asyncio
+async def test_extraction_failure_never_echoes_a_reading() -> None:
+    service = DiscrepancyCheckService(extractor=FakeContextExtractor(RuntimeError("down")))
+
+    result = await service.check(_CRITERIA, "pharma, UAE")
+
+    assert not result.context_checked
+    assert result.context == ParsedContext()
+    assert "Read your note as" not in result.message

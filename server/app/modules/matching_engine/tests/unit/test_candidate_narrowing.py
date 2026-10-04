@@ -116,3 +116,16 @@ def test_country_aliases_cover_turkiye() -> None:
     narrowing = CandidateNarrowing.from_buyer(_buyer(target_country=["Turkey"]))
 
     assert {"turkey", "türkiye"} <= narrowing.countries
+
+
+def test_stated_menatp_narrows_to_its_countries_including_turkiye() -> None:
+    narrowing = CandidateNarrowing.from_buyer(_buyer(), _profile_stating_geography("MENATP"))
+
+    assert {"pakistan", "türkiye", "turkey", "egypt"} <= narrowing.countries
+    assert "europe" not in narrowing.countries
+
+
+def test_stated_country_alias_is_kept_as_a_country() -> None:
+    narrowing = CandidateNarrowing.from_buyer(_buyer(), _profile_stating_geography("KSA"))
+
+    assert {"ksa", "saudi arabia"} <= narrowing.countries

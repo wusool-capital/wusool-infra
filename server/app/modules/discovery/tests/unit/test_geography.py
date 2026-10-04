@@ -2,7 +2,14 @@
 `providers/google_places/client.py::_resolve_geography` checks before ever
 calling Google's Geocoding API. Pure function, no network."""
 
-from app.modules.discovery.domain.geography import GeographyScope, resolve_known
+import pytest
+
+from app.modules.discovery.domain.geography import (
+    TARGET_REGION_OPTIONS,
+    GeographyScope,
+    country_spellings,
+    resolve_known,
+)
 
 
 def test_gcc_wide_resolves_to_the_six_gcc_states() -> None:
@@ -71,3 +78,39 @@ def test_an_unrecognized_token_resolves_to_none() -> None:
     already geocodes correctly on its own (verified live)."""
     assert resolve_known("UAE") is None
     assert resolve_known("Some Random City") is None
+
+
+def test_menatp_is_mena_plus_turkey_and_pakistan() -> None:
+    mena, menatp = resolve_known("MENA"), resolve_known("MENATP")
+
+    assert mena is not None and menatp is not None
+    assert mena.countries < menatp.countries
+    assert {"Türkiye", "Pakistan"} <= menatp.countries
+    assert menatp.viewport is not None
+
+
+def test_every_target_region_option_resolves_or_is_left_to_geocoding() -> None:
+    # Abbreviations must never reach a live geocode; plain place names may.
+    abbreviations = {"GCC", "MENA", "MENATP", "Emerging Markets", "Global"}
+    for option in TARGET_REGION_OPTIONS:
+        assert (resolve_known(option) is not None) is (option in abbreviations)
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("UAE", "United Arab Emirates"),
+        ("KSA", "Saudi Arabia"),
+        ("Türkiye", "Turkey"),
+        ("Hong Kong SAR", "Hong Kong"),
+        ("Palestine", "Palestinian Authority"),
+        ("USA", "United States"),
+    ],
+)
+def test_country_spellings_are_symmetric(a: str, b: str) -> None:
+    assert country_spellings(a) == country_spellings(b)
+    assert b.lower() in country_spellings(a)
+
+
+def test_an_unaliased_country_spells_only_itself_normalised() -> None:
+    assert country_spellings("  Egypt ") == frozenset({"egypt"})
