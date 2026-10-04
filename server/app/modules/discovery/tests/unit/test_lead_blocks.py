@@ -3,10 +3,14 @@ Maps, Add as seller), which Slack requires as an `ActionsBlock` since a
 `SectionBlock` allows only one accessory button.
 """
 
-from app.modules.discovery.api.dependencies import decode_lead
-from app.modules.discovery.api.slack.views import build_possible_duplicate_blocks
+from app.modules.discovery.api.dependencies import decode_draft
+from app.modules.discovery.api.slack.views import (
+    build_needs_review_blocks,
+    build_possible_duplicate_blocks,
+)
+from app.modules.discovery.domain.drafts import SellerDraft, draft_from_lead
 from app.modules.discovery.domain.leads import DiscoveredLead
-from app.modules.discovery.domain.outcome import PossibleDuplicate
+from app.modules.discovery.domain.outcome import PossibleDuplicate, ReviewValue, UnverifiedSeller
 
 
 def _dup(lead: DiscoveredLead, existing: str = "Acme Holdings") -> PossibleDuplicate:
@@ -36,8 +40,8 @@ def test_each_lead_gets_a_view_on_maps_and_add_as_seller_button() -> None:
     assert view_on_maps["url"] == lead.source_url
     assert add_as_seller["action_id"] == "discover_add_seller"
     assert add_as_seller["text"]["text"] == "Add as seller"
-    # `encode_lead` returns a fresh store token each call — compare by decoding.
-    assert decode_lead(add_as_seller["value"]) == lead
+    # `encode_draft` returns a fresh store token each call — compare by decoding.
+    assert decode_draft(add_as_seller["value"]) == draft_from_lead(lead)
 
 
 def test_the_existing_org_it_may_duplicate_is_named() -> None:
@@ -72,3 +76,33 @@ def test_multiple_leads_each_get_their_own_actions_block() -> None:
     assert len(action_blocks) == 2
     assert action_blocks[0].to_dict()["elements"][0]["url"] == "https://maps.example.com/acme"
     assert action_blocks[1].to_dict()["elements"][0]["url"] == "https://maps.example.com/beta"
+
+
+def test_needs_review_shows_both_websites_the_values_and_a_review_button() -> None:
+    draft = SellerDraft(
+        org_name="Acme Co",
+        values={"domains": ["acme.com"], "employee_range": "11-50"},
+        source_urls=("https://maps.example/acme",),
+        source_place_id="p1",
+    )
+    unverified = UnverifiedSeller(
+        draft=draft,
+        maps_website="acme.com",
+        provider_websites=(("Diffbot", "acme-group.de"), ("People Data Labs", None)),
+        values=(ReviewValue("employee_range", "11-50", 0.9, "Sourced from Diffbot."),),
+    )
+
+    blocks = [b.to_dict() for b in build_needs_review_blocks(unverified)]
+
+    assert blocks[0]["text"]["text"].startswith("*Website check for Acme Co*")
+    assert blocks[2]["text"]["text"] == (
+        "*website*\nGoogle Maps: acme.com\nDiffbot: acme-group.de\nPeople Data Labs: none"
+    )
+    assert blocks[3]["text"]["text"] == (
+        "*employee_range*\nProposed: 11-50\nConfidence: 90% — Sourced from Diffbot."
+    )
+    button = blocks[-1]["accessory"]
+    assert button["action_id"] == "discover_add_seller"
+    assert button["text"]["text"] == "Review & Save"
+    assert button["style"] == "primary"
+    assert decode_draft(button["value"]) == draft

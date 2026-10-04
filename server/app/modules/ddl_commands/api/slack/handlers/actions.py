@@ -517,7 +517,11 @@ def register(app: AsyncApp) -> None:
         # `prefill` only exists for sellers (`discovery`'s hand-off) —
         # `build_buyer_add_form_modal` has no such parameter, so it's never
         # passed for a buyer.
-        prefill_kwargs = {"prefill": prefill} if kind == "seller" else {}
+        prefill_kwargs = (
+            {"prefill": prefill, "source_place_id": metadata.get("source_place_id")}
+            if kind == "seller"
+            else {}
+        )
 
         selected = view["state"]["values"]["organization_id"]["selected_organization"][
             "selected_option"
@@ -653,6 +657,7 @@ def register(app: AsyncApp) -> None:
                 org_name=org_name,
                 org_extracted=org_extracted,
                 role_extracted=role_extracted,
+                source_place_id=metadata.get("source_place_id"),
             )
         except SellerAlreadyExistsError:
             await client.chat_postEphemeral(

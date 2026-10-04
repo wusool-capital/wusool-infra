@@ -11,9 +11,10 @@ draft was handed to `SellerDraftPort`.
 import pytest
 
 import app.modules.discovery.api.slack.handlers as handlers_module
-from app.modules.discovery.api.dependencies import encode_lead
+from app.modules.discovery.api.dependencies import encode_draft
 from app.modules.discovery.bootstrap import create_app
 from app.modules.discovery.config import get_settings
+from app.modules.discovery.domain.drafts import draft_from_lead
 from app.modules.discovery.domain.leads import DiscoveredLead
 from tests.slack_test_helpers import (
     mock_slack_auth,
@@ -39,7 +40,9 @@ def _block_action_payload(lead: DiscoveredLead) -> dict:
         "user": {"id": "U_TEST"},
         "channel": {"id": "C_TEST"},
         "trigger_id": "trigger.123",
-        "actions": [{"action_id": "discover_add_seller", "value": encode_lead(lead)}],
+        "actions": [
+            {"action_id": "discover_add_seller", "value": encode_draft(draft_from_lead(lead))}
+        ],
     }
 
 

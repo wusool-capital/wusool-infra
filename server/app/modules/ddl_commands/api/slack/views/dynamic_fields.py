@@ -177,6 +177,13 @@ def wrap_prefill_value(spec: FieldSpec, value: PrefillValue | None) -> PrefillVa
     """
     if spec.kind == "currency" and isinstance(value, (int, float)):
         return {"amount": value, "currency": "USD"}
+    # A prefill that round-tripped through a JSON token carries dates as
+    # ISO strings; the date picker needs a real `date`.
+    if spec.kind == "date" and isinstance(value, str):
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
     return value
 
 

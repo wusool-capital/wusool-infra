@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.modules.ddl_commands.api.schemas import FieldSpec
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import (
     extract_field_value,
@@ -269,3 +271,10 @@ def test_wrap_prefill_value_passes_non_currency_values_through_unchanged() -> No
 
 def test_wrap_prefill_value_passes_none_through_unchanged() -> None:
     assert wrap_prefill_value(_REVENUE_SPEC, None) is None
+
+
+def test_wrap_prefill_value_parses_an_iso_date_from_a_json_token() -> None:
+    spec = FieldSpec("foundation_date", "Founded", "date")
+
+    assert wrap_prefill_value(spec, "2015-03-01") == date(2015, 3, 1)
+    assert wrap_prefill_value(spec, "not a date") is None

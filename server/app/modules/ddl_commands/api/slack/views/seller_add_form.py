@@ -34,6 +34,7 @@ def build_seller_add_form_modal(
     prefill_name: str = "",
     duplicate_candidates: list[str] | None = None,
     prefill: dict[str, PrefillValue] | None = None,
+    source_place_id: str | None = None,
 ) -> View:
     is_new_org = org is None
     blocks: list[Block] = []
@@ -84,6 +85,9 @@ def build_seller_add_form_modal(
                 "org_name": None if org is None else org.name,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
+                # A discovered lead's Google place id, so the next discovery
+                # run recognizes it even if the operator changed the domain.
+                "source_place_id": source_place_id,
             }
         ),
         title="Add seller",

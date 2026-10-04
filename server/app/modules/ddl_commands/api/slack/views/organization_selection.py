@@ -41,7 +41,9 @@ NEW_ORGANIZATION_VALUE = "__new__"
 
 def _encode_selection_payload(candidate_names: list[str], prefill: dict[str, PrefillValue]) -> str:
     return get_shared_ephemeral_store().put(
-        json.dumps({"candidate_names": candidate_names, "prefill": prefill})
+        # `default=str`: a discovery prefill can carry a `date`;
+        # `wrap_prefill_value` parses it back.
+        json.dumps({"candidate_names": candidate_names, "prefill": prefill}, default=str)
     )
 
 
@@ -75,6 +77,7 @@ def build_organization_selection_modal(
     requested_by: str,
     channel_id: str,
     prefill: dict[str, PrefillValue] | None = None,
+    source_place_id: str | None = None,
 ) -> View:
     options = []
     for org in candidates:
@@ -96,6 +99,7 @@ def build_organization_selection_modal(
                 "search_term": search_term,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
+                "source_place_id": source_place_id,
                 "payload_token": _encode_selection_payload(
                     [org.name for org in candidates], prefill or {}
                 ),

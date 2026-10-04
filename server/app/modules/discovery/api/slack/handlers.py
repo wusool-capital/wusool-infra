@@ -1,7 +1,8 @@
 """Registers `discover_add_seller` on the shared Bolt app — the button is
-emitted for leads that fuzzy-matched an existing CRM organization and so were
-not auto-created (see `build_possible_duplicate_blocks`). The coupling to
-`matching_engine`, which posts that message, is a shared action_id/value
+emitted for leads that were not auto-created: a fuzzy name match against an
+existing CRM organization (`build_possible_duplicate_blocks`), or a website
+the enrichment provider didn't confirm (`build_needs_review_blocks`). The
+coupling to `matching_engine`, which posts that message, is a shared action_id/value
 contract, not a Python import.
 
 Clicking it hands the lead to `ddl_commands`' `/add-seller` flow through
@@ -15,8 +16,7 @@ from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_sdk.web.async_client import AsyncWebClient
 
-from app.modules.discovery.api.dependencies import decode_lead, discovery_service
-from app.modules.discovery.domain.drafts import draft_from_lead
+from app.modules.discovery.api.dependencies import decode_draft, discovery_service
 from app.modules.notifications import SlackInteractionBody
 
 logger = logging.getLogger(__name__)
@@ -34,10 +34,10 @@ def register_handlers(app: AsyncApp) -> None:
         trigger_id = body["trigger_id"]
 
         try:
-            lead = decode_lead(action["value"])
+            draft = decode_draft(action["value"])
         except Exception:
             # A stale/legacy button value (e.g. after a deploy changes
-            # `DiscoveredLead`'s shape) must not fail silently after `ack()`
+            # `SellerDraft`'s shape) must not fail silently after `ack()`
             # has already fired — the operator needs to see *something*.
             logger.exception("discover_lead_decode_failed")
             await client.chat_postEphemeral(
@@ -48,12 +48,12 @@ def register_handlers(app: AsyncApp) -> None:
         try:
             await discovery_service().open_confirm_form(
                 trigger_id=trigger_id,
-                draft=draft_from_lead(lead),
+                draft=draft,
                 channel_id=channel_id,
                 requested_by=user_id,
             )
         except Exception:
-            logger.exception("discover_confirm_form_failed", extra={"lead_name": lead.name})
+            logger.exception("discover_confirm_form_failed", extra={"lead_name": draft.org_name})
             await client.chat_postEphemeral(
-                channel=channel_id, user=user_id, text=f"Couldn't process *{lead.name}*."
+                channel=channel_id, user=user_id, text=f"Couldn't process *{draft.org_name}*."
             )
