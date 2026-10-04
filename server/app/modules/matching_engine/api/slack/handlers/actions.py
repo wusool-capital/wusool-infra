@@ -305,8 +305,7 @@ def register(app: AsyncApp) -> None:
 
 
 _CHECKING_TEXT = ":hourglass_flowing_sand: _Checking the buyer's profile…_"
-_CLEAR_TEXT = "No missing or conflicting details found for this buyer."
-_FINDINGS_FALLBACK_TEXT = "This buyer's profile has missing or conflicting details."
+_FIX_FIRST_TEXT = "Fill these in first for a more accurate match, or click Run anyway."
 _BUYER_GONE_TEXT = "This buyer could not be found. It may have been removed."
 _CHECK_FAILED_TEXT = (
     ":warning: Couldn't check this buyer's profile, so missing or conflicting "
@@ -330,10 +329,10 @@ async def _show_discrepancies(
     else:
         if result is None:
             text = _BUYER_GONE_TEXT
-        elif result.report.is_clear:
-            text = _CLEAR_TEXT
+        elif result.report.has_missing:
+            text = f"{result.message}\n\n{_FIX_FIRST_TEXT}"
         else:
-            text = result.message.strip() or _FINDINGS_FALLBACK_TEXT
+            text = result.message
 
     # A fast check could otherwise land before the ack's "Checking…" view and be overwritten.
     await asyncio.sleep(max(0.0, _MIN_UPDATE_DELAY_S - (time.monotonic() - started)))

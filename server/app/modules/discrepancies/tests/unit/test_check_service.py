@@ -1,14 +1,13 @@
-"""`DiscrepancyCheckService` orchestration — a clear report never calls the
-phraser; a flagged one calls it once; a phraser failure falls back to the
-plain template rather than losing the check.
+"""`DiscrepancyCheckService` orchestration — an empty note never calls the
+extractor; an extracted note is grounded, then feeds the rules; an extraction
+failure still lists what's missing and flags the note as unchecked.
 """
 
 import pytest
 
 from app.modules.discrepancies.application.check import DiscrepancyCheckService
-from app.modules.discrepancies.domain.criteria import BuyerCriteria
-from app.modules.discrepancies.domain.rules import template_message
-from app.modules.discrepancies.tests.fakes.phraser import FakePhraser
+from app.modules.discrepancies.domain.criteria import BuyerCriteria, ParsedContext
+from app.modules.discrepancies.tests.fakes.context_extractor import FakeContextExtractor
 
 _CRITERIA = BuyerCriteria(
     buyer_role_id="role-1",
@@ -17,44 +16,72 @@ _CRITERIA = BuyerCriteria(
     target_region=["GCC"],
     check_size_min=5_000_000.0,
     check_size_max=15_000_000.0,
-    ebitda_floor=2_000_000.0,
 )
 
 
 @pytest.mark.asyncio
-async def test_clear_report_never_calls_the_phraser() -> None:
-    phraser = FakePhraser({"message": "should never be used"})
-    service = DiscrepancyCheckService(
-        phraser=phraser, model_id="m", temperature=0.2, max_tokens=256
-    )
+@pytest.mark.parametrize("context_text", [None, "", "   "])
+async def test_empty_note_never_calls_the_extractor(context_text: str | None) -> None:
+    extractor = FakeContextExtractor(ParsedContext(verticals=("Garage",)))
+    service = DiscrepancyCheckService(extractor=extractor)
 
-    result = await service.check(_CRITERIA, "no criteria mentioned")
+    result = await service.check(_CRITERIA, context_text)
 
-    assert result.report.is_clear
-    assert phraser.prompts == []
-
-
-@pytest.mark.asyncio
-async def test_flagged_report_calls_the_phraser_once() -> None:
-    phraser = FakePhraser({"message": "Heads up: the ticket size you gave is outside range."})
-    service = DiscrepancyCheckService(
-        phraser=phraser, model_id="m", temperature=0.2, max_tokens=256
-    )
-
-    result = await service.check(_CRITERIA, "ticket size $50M")
-
-    assert not result.report.is_clear
-    assert len(phraser.prompts) == 1
-    assert result.message == "Heads up: the ticket size you gave is outside range."
+    assert extractor.texts == []
+    assert result.context_checked
+    assert result.report.conflicts == ()
 
 
 @pytest.mark.asyncio
-async def test_phraser_error_falls_back_to_template() -> None:
-    phraser = FakePhraser("__raise__")
-    service = DiscrepancyCheckService(
-        phraser=phraser, model_id="m", temperature=0.2, max_tokens=256
+async def test_buyer_with_nothing_to_conflict_never_calls_the_extractor() -> None:
+    extractor = FakeContextExtractor(ParsedContext(verticals=("Garage",)))
+    service = DiscrepancyCheckService(extractor=extractor)
+    empty = BuyerCriteria(buyer_role_id="role-2", org_name="Empty Capital", target_vertical=None)
+
+    result = await service.check(empty, "fintech in GCC, ticket $5M")
+
+    assert extractor.texts == []
+    assert result.context_checked
+    assert len(result.report.missing) == 4
+
+
+@pytest.mark.asyncio
+async def test_extracted_conflict_is_reported() -> None:
+    extractor = FakeContextExtractor(
+        ParsedContext(ticket_low=50_000_000.0, ticket_high=50_000_000.0)
     )
+    service = DiscrepancyCheckService(extractor=extractor)
 
     result = await service.check(_CRITERIA, "ticket size $50M")
 
-    assert result.message == template_message(_CRITERIA, result.report)
+    assert extractor.texts == ["ticket size $50M"]
+    assert result.context_checked
+    assert [d.criterion.value for d in result.report.conflicts] == ["ticket_band"]
+    assert result.message.startswith("Heads up: Shahroukh Capital's profile says ticket band")
+
+
+@pytest.mark.asyncio
+async def test_amounts_the_note_never_names_are_dropped_before_the_rules() -> None:
+    extractor = FakeContextExtractor(
+        ParsedContext(ticket_low=50_000_000.0, ticket_high=50_000_000.0)
+    )
+    service = DiscrepancyCheckService(extractor=extractor)
+
+    result = await service.check(_CRITERIA, "targets with $50M revenue")
+
+    assert result.context_checked
+    assert result.report.conflicts == ()
+
+
+@pytest.mark.asyncio
+async def test_extraction_failure_still_lists_missing_and_never_claims_clear() -> None:
+    service = DiscrepancyCheckService(extractor=FakeContextExtractor(RuntimeError("bedrock down")))
+
+    result = await service.check(_CRITERIA, "ticket size $50M")
+
+    assert not result.context_checked
+    assert result.report.conflicts == ()
+    assert [d.criterion.value for d in result.report.missing] == ["ebitda"]
+    assert "EBITDA" in result.message
+    assert "couldn't be checked for conflicts" in result.message
+    assert "no missing or conflicting" not in result.message.lower()

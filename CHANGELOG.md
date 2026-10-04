@@ -45,6 +45,23 @@ for current production evidence and open handover items.
   while the match ran, and conflicts paused it behind buttons in the channel.
   If the check itself fails, the popup says so rather than showing an
   all-clear.
+- `/find-match` and `/check-buyer` now understand everyday wording in your
+  note, such as "pharma tech only, UAE, $5-15M ticket". Each problem gets one
+  plain sentence, for example "Heads up: Cursor's profile says vertical is
+  Pharma, but you said Garage."
+- An amount in your note only counts as a ticket size when you label it as a
+  ticket, check size, investment or deal size.
+- Open-ended amounts such as "at least $2M ticket" or "EBITDA $1-3M" only
+  conflict when they can't overlap the buyer's range.
+- A sector that fits several profile options, such as "clinics", only
+  conflicts when none of them match. Anything you exclude, such as "no
+  pharma", is not checked.
+- A region you name is flagged only when it can't overlap the buyer's, for
+  example GCC against a Europe-only buyer. Before, region conflicts were never
+  raised.
+- If your note can't be read, the message lists what's missing and says the
+  note couldn't be checked. It never reports that nothing conflicts. An empty
+  note is checked instantly.
 
 ### Fixed
 

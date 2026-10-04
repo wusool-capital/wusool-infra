@@ -30,6 +30,21 @@ class BuyerCriteria:
 
 
 @dataclass(frozen=True)
+class ParsedContext:
+    """What the advisor asked for in their note; amounts are absolute USD.
+    A single bound set means open-ended ("at least" / "up to"). `verticals`
+    holds every option the note could mean (most likely first), since options
+    overlap."""
+
+    verticals: tuple[str, ...] = ()
+    region: str | None = None
+    ticket_low: float | None = None
+    ticket_high: float | None = None
+    ebitda_low: float | None = None
+    ebitda_high: float | None = None
+
+
+@dataclass(frozen=True)
 class Discrepancy:
     criterion: Criterion
     kind: DiscrepancyKind
