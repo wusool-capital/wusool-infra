@@ -35,4 +35,5 @@
 
 ## Release Notes
 
+* [Scribe changelog](release-notes/scribe-changelog.md)
 * [September 2026](release-notes/september-2026.md)

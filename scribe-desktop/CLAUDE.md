@@ -405,6 +405,7 @@ $env:RUST_LOG="debug"; ./clean_run_windows.bat
   - `fix/*`: Bug fixes
   - `enhance/*`: Feature enhancements
   - Current: `fix/audio-mixing` (working on audio pipeline improvements)
+- **Changelog**: On every Scribe version bump, add an entry to `gitbook/release-notes/scribe-changelog.md` (newest first, user-facing). The tray and update dialog link to it.
 
 ## Key Files Reference
 

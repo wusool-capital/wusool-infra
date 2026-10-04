@@ -231,6 +231,14 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
                   </div>
                 </ScrollArea>
               )}
+
+              <button
+                type="button"
+                onClick={() => invoke('open_changelog')}
+                className="text-sm text-primary hover:underline"
+              >
+                View full changelog
+              </button>
             </>
           )}
 
