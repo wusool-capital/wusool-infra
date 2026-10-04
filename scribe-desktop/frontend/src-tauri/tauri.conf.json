@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "WusoolScribe",
-    "version": "0.6.0",
+    "version": "0.7.4",
     "identifier": "com.wusool.scribe",
     "build": {
         "frontendDist": "../out",
@@ -17,6 +17,7 @@
                 "height": 700,
                 "resizable": true,
                 "fullscreen": false,
+                "visible": false,
                 "theme": "Light",
                 "decorations": true
             }

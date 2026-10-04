@@ -221,8 +221,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       folder.children!.push(fileItem);
     }
 
-    const sortedTagFolders = Array.from(tagFolders.values()).sort((a, b) =>
-      a.title.localeCompare(b.title)
+    const newestMeetingAt = (folder: SidebarItem) =>
+      Math.max(...(folder.children ?? []).map((c) => new Date(c.createdAt ?? 0).getTime() || 0));
+    const sortedTagFolders = Array.from(tagFolders.values()).sort(
+      (a, b) => newestMeetingAt(b) - newestMeetingAt(a)
     );
 
     return [

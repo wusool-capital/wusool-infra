@@ -92,11 +92,20 @@ module.exports = {
   				to: {
   					height: '0'
   				}
+  			},
+  			'label-roll': {
+  				from: {
+  					transform: 'translateX(0)'
+  				},
+  				to: {
+  					transform: 'translateX(var(--roll-distance))'
+  				}
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'label-roll': 'label-roll var(--roll-duration) linear 0.3s forwards'
   		}
   	}
   },
