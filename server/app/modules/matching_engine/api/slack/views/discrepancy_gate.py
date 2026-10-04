@@ -3,11 +3,15 @@ discrepancy check finds a conflict — the advisor confirms before the
 expensive matching workflow proceeds. Block Kit builders only, no logic.
 """
 
-from slack_sdk.models.blocks import ActionsBlock, Block, DividerBlock
+from slack_sdk.models.blocks import ActionsBlock, Block, DividerBlock, SectionBlock
 from slack_sdk.models.blocks.block_elements import ButtonElement
+from slack_sdk.models.views import View
 
 from app.modules.discrepancies import DiscrepancyCheckResult, build_discrepancy_blocks
-from app.modules.matching_engine.api.slack.schemas import RunAnywayValue
+from app.modules.matching_engine.api.slack.schemas import DiscrepancyGateMetadata, RunAnywayValue
+
+# Slack caps a section's text at 3,000 characters.
+_MAX_SECTION_CHARS = 3000
 
 
 def build_discrepancy_gate_blocks(
@@ -33,3 +37,19 @@ def build_discrepancy_gate_blocks(
         )
     )
     return blocks
+
+
+def build_discrepancy_gate_modal(
+    metadata: DiscrepancyGateMetadata, result: DiscrepancyCheckResult
+) -> View:
+    """Popup shown before the match runs when the buyer has missing or
+    conflicting criteria. Submitting ("Run anyway") starts the match."""
+    return View(
+        type="modal",
+        callback_id="discrepancy_gate_modal",
+        private_metadata=metadata.model_dump_json(exclude_none=True),
+        title="Before we match",
+        submit="Run anyway",
+        close="Cancel",
+        blocks=[SectionBlock(text=result.message[:_MAX_SECTION_CHARS])],
+    )

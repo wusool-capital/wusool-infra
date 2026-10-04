@@ -8,6 +8,19 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-04
+
+### Changed
+
+- `/find-match` now shows missing or conflicting buyer details in a popup
+  before the match runs, with a **Run anyway** button, instead of posting
+  them as a channel message under "Finding matches".
+
+### Fixed
+
+- Sellers found via Google Maps after `/find-match` are numbered from 1 in
+  their own message, instead of continuing on from the CRM shortlist.
+
 ## 2026-10-03
 
 ### Added

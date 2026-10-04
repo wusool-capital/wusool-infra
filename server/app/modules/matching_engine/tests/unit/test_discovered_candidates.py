@@ -125,6 +125,18 @@ def test_pending_discovered_candidate_gets_approve_and_reject_only() -> None:
     assert "2 more already in the CRM." in dicts[-1]["elements"][0]["text"]
 
 
+def test_discovered_sellers_are_numbered_from_one_not_by_stored_rank() -> None:
+    """AZM-133: stored ranks continue after the CRM shortlist (4, 5, ...)."""
+    rows = [replace(_view(), rank=rank, seller_org_name=f"Co {rank}") for rank in (4, 5, 6)]
+    sections = [
+        b.to_dict()["text"]["text"]
+        for b in build_discovered_candidates_blocks(rows)
+        if b.to_dict()["type"] == "section"
+    ]
+
+    assert [s.split(".")[0] for s in sections] == ["*1", "*2", "*3"]
+
+
 def test_decided_discovered_candidate_shows_the_decision_not_buttons() -> None:
     dicts = [
         b.to_dict() for b in build_discovered_candidates_blocks([_view("APPROVED", "APPROVED")])

@@ -9,6 +9,7 @@ from functools import lru_cache
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.discrepancies import DiscrepancyCheckResult
 from app.modules.matching_engine.api.buyers import BuyerResolutionRead, BuyerSummary
 from app.modules.matching_engine.api.matching import MatchAnalysis, MatchResultRead, MatchScoreRead
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
@@ -136,6 +137,28 @@ async def _apply_discrepancy_check(
         await notifier.post_message(channel=channel_id, text=result.message)
 
     return False
+
+
+async def find_buyer_discrepancies(
+    buyer_role_id: str, advisor_context: str | None
+) -> DiscrepancyCheckResult | None:
+    """The check result when the buyer has missing or conflicting criteria,
+    else None. Never raises — a failed check must never block matching.
+    """
+    from app.modules.discrepancies import check_buyer_discrepancies
+    from app.modules.matching_engine.providers.discrepancies.criteria_reader_adapter import (
+        to_buyer_criteria,
+    )
+
+    try:
+        buyer = await resolve_buyer_by_id(buyer_role_id)
+        if buyer is None:
+            return None
+        result = await check_buyer_discrepancies(to_buyer_criteria(buyer), advisor_context)
+    except Exception:
+        logger.exception("discrepancy_check_failed", extra={"buyer_role_id": buyer_role_id})
+        return None
+    return None if result.report.is_clear else result
 
 
 async def run_match_and_post(

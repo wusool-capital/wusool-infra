@@ -15,18 +15,27 @@ from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_bolt.context.respond.async_respond import AsyncRespond
+from slack_sdk.errors import SlackApiError
 from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.enrichment import enrich_and_post
 from app.modules.matching_engine.api.dependencies import (
+    find_buyer_discrepancies,
     matching_engine_service,
     run_match_and_post,
     to_match_analysis_schema,
     trigger_seller_discovery,
 )
-from app.modules.matching_engine.api.slack.schemas import DealChoiceValue, RunAnywayValue
+from app.modules.matching_engine.api.slack.schemas import (
+    DealChoiceValue,
+    DiscrepancyGateMetadata,
+    RunAnywayValue,
+)
 from app.modules.matching_engine.api.slack.views.discovered_candidates import (
     build_discovered_candidates_blocks,
+)
+from app.modules.matching_engine.api.slack.views.discrepancy_gate import (
+    build_discrepancy_gate_modal,
 )
 from app.modules.matching_engine.api.slack.views.existing_deal_prompt import (
     build_existing_deal_prompt_blocks,
@@ -45,7 +54,12 @@ from app.modules.matching_engine.application.errors import (
 )
 from app.modules.matching_engine.domain.matching.deals import DealResolution
 from app.modules.matching_engine.persistence.database import get_sessionmaker
-from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
+from app.modules.notifications import (
+    SlackInteractionBody,
+    SlackViewSubmissionPayload,
+    build_loading_modal,
+    build_notice_modal,
+)
 from app.modules.utilities import get_shared_idempotency_store, get_shared_task_runner
 
 logger = logging.getLogger(__name__)
@@ -57,14 +71,16 @@ _submission_idempotency_store = get_shared_idempotency_store()
 def register(app: AsyncApp) -> None:
     @app.view("buyer_selection_modal")
     async def handle_buyer_selection_submission(
-        ack: AsyncAck, body: SlackInteractionBody, view: SlackViewSubmissionPayload
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
     ) -> None:
-        await ack()
-
         view_id = view.get("id")
         if view_id:
             idempotency_key = f"buyer_selection_submission:{view_id}"
             if _submission_idempotency_store.seen(idempotency_key):
+                await ack()
                 logger.info(
                     "buyer_selection_duplicate_delivery_skipped key=%s",
                     idempotency_key,
@@ -76,20 +92,61 @@ def register(app: AsyncApp) -> None:
         metadata = json.loads(view.get("private_metadata") or "{}")
         requested_by = metadata.get("requested_by") or body["user"]["id"]
         channel_id = metadata.get("channel_id")
-        if not channel_id:
+        if not channel_id or not view_id:
+            await ack()
             return
 
         values = view["state"]["values"]
         selected = values["buyer_role_id"]["selected_buyer"]["selected_option"]
-        buyer_role_id = selected["value"]
         context_input = values.get("advisor_context", {}).get("context_text")
         advisor_context = (context_input.get("value") or "").strip() if context_input else ""
+        gate = DiscrepancyGateMetadata(
+            buyer_role_id=selected["value"],
+            channel_id=channel_id,
+            requested_by=requested_by,
+            advisor_context=advisor_context or None,
+        )
+
+        # Keeps the modal open so it can become the discrepancy popup.
+        await ack(response_action="update", view=build_loading_modal("Find match"))
+        _task_runner.run(
+            lambda: _gate_then_match(client, view_id, gate),
+            name=f"find-match:{gate.buyer_role_id}",
+        )
+
+    @app.view("discrepancy_gate_modal")
+    async def handle_discrepancy_gate_submission(
+        ack: AsyncAck, view: SlackViewSubmissionPayload
+    ) -> None:
+        await ack()
+
+        view_id = view.get("id")
+        if view_id:
+            idempotency_key = f"discrepancy_gate_submission:{view_id}"
+            if _submission_idempotency_store.seen(idempotency_key):
+                logger.info(
+                    "discrepancy_gate_duplicate_delivery_skipped key=%s",
+                    idempotency_key,
+                    extra={"key": idempotency_key},
+                )
+                return
+            _submission_idempotency_store.mark(idempotency_key)
+
+        try:
+            gate = DiscrepancyGateMetadata.model_validate_json(view.get("private_metadata") or "")
+        except ValidationError:
+            logger.warning("discrepancy_gate_invalid_metadata view_id=%s", view_id)
+            return
 
         _task_runner.run(
             lambda: run_match_and_post(
-                buyer_role_id, requested_by, channel_id, advisor_context=advisor_context or None
+                gate.buyer_role_id,
+                gate.requested_by,
+                gate.channel_id,
+                advisor_context=gate.advisor_context,
+                check_discrepancies=False,
             ),
-            name=f"find-match:{buyer_role_id}",
+            name=f"find-match:{gate.buyer_role_id}",
         )
 
     @app.action("view_full_analysis")
@@ -240,6 +297,41 @@ def register(app: AsyncApp) -> None:
         await client.chat_update(
             channel=body["channel"]["id"], ts=body["message"]["ts"], text="Match cancelled."
         )
+
+
+async def _gate_then_match(
+    client: AsyncWebClient, view_id: str, gate: DiscrepancyGateMetadata
+) -> None:
+    """Shows the discrepancy popup if the buyer has gaps or conflicts;
+    otherwise runs the match straight away."""
+    findings = await find_buyer_discrepancies(gate.buyer_role_id, gate.advisor_context)
+    if findings is not None:
+        try:
+            await client.views_update(
+                view_id=view_id, view=build_discrepancy_gate_modal(gate, findings)
+            )
+        except SlackApiError:
+            # Modal closed mid-check: nothing was confirmed, so nothing runs.
+            logger.info("discrepancy_gate_modal_gone view_id=%s", view_id)
+        return
+
+    try:
+        await client.views_update(
+            view_id=view_id,
+            view=build_notice_modal(
+                "Find match", "Running the match — results will post in the channel."
+            ),
+        )
+    except SlackApiError:
+        # The advisor already confirmed the buyer; a closed modal shouldn't cancel that.
+        logger.info("find_match_notice_modal_gone view_id=%s", view_id)
+    await run_match_and_post(
+        gate.buyer_role_id,
+        gate.requested_by,
+        gate.channel_id,
+        advisor_context=gate.advisor_context,
+        check_discrepancies=False,
+    )
 
 
 def _partial_write_message(exc: PartialWriteError) -> str:

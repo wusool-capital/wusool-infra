@@ -31,8 +31,9 @@ def build_discovered_candidates_blocks(
         ),
         DividerBlock(),
     ]
-    for candidate in results:
-        blocks.extend(_candidate_blocks(candidate))
+    # Stored rank continues after the CRM shortlist; this message restarts at 1.
+    for position, candidate in enumerate(results, start=1):
+        blocks.extend(_candidate_blocks(candidate, position))
     blocks.extend(
         ContextBlock(elements=[MarkdownTextObject(text=f"_{sanitize_mrkdwn(note)}_")])
         for note in notes
@@ -40,8 +41,8 @@ def build_discovered_candidates_blocks(
     return blocks
 
 
-def _candidate_blocks(candidate: MatchResultView) -> list[Block]:
-    text = f"*{candidate.rank}. {sanitize_mrkdwn(candidate.seller_org_name)}*"
+def _candidate_blocks(candidate: MatchResultView, position: int) -> list[Block]:
+    text = f"*{position}. {sanitize_mrkdwn(candidate.seller_org_name)}*"
     if candidate.source_url:
         text += f"\n<{candidate.source_url}|View on Maps>"
     blocks: list[Block] = [SectionBlock(text=text)]
