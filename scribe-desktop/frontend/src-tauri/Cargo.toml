@@ -1,6 +1,6 @@
 [package]
 name = "wusoolscribe"
-version = "0.7.2"
+version = "0.7.3"
 description = "Desktop companion app for Wusool Scribe"
 authors = ["Azmora"]
 license = "MIT"
