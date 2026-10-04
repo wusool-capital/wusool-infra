@@ -31,13 +31,36 @@ REGION_OPTIONS: tuple[str, ...] = (
     "Global",
 )
 
-# Regions with no single-country meaning — a stated "Global" or "Emerging
-# Markets" context never conflicts with any stored region.
-_UNRESTRICTED_REGIONS = frozenset({"Global", "Emerging Markets"})
+# Region pairs that share no country. Any pair not listed counts as
+# overlapping (never a conflict) — so Global/Emerging Markets, nesting
+# (GCC in MENA in MENATP) and fuzzy borders (Africa/MENA, Asia/Europe via
+# Turkey and Russia) stay silent. Hand-reviewed; extend only with clear cases.
+_DISJOINT_REGIONS: frozenset[frozenset[str]] = frozenset(
+    frozenset(pair)
+    for pair in (
+        ("GCC", "Africa"),
+        ("GCC", "Europe"),
+        ("GCC", "Southeast Asia"),
+        ("GCC", "Latin America"),
+        ("MENA", "Europe"),
+        ("MENA", "Southeast Asia"),
+        ("MENA", "Latin America"),
+        ("MENATP", "Southeast Asia"),
+        ("MENATP", "Latin America"),
+        ("Africa", "Asia"),
+        ("Africa", "Europe"),
+        ("Africa", "Southeast Asia"),
+        ("Africa", "Latin America"),
+        ("Asia", "Latin America"),
+        ("Europe", "Southeast Asia"),
+        ("Europe", "Latin America"),
+        ("Southeast Asia", "Latin America"),
+    )
+)
 
 
-def is_unrestricted_region(region: str) -> bool:
-    return region in _UNRESTRICTED_REGIONS
+def regions_disjoint(a: str, b: str) -> bool:
+    return frozenset((a, b)) in _DISJOINT_REGIONS
 
 
 class Criterion(StrEnum):

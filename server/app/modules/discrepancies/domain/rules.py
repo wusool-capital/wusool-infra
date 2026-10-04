@@ -6,7 +6,6 @@ as a `ParsedContext`; rules decide and `template_message` writes the words.
 import re
 from dataclasses import replace
 
-from app.modules.discovery.domain.geography import resolve_known
 from app.modules.discrepancies.domain.criteria import (
     BuyerCriteria,
     Discrepancy,
@@ -16,7 +15,7 @@ from app.modules.discrepancies.domain.criteria import (
 from app.modules.discrepancies.domain.vocabulary import (
     CRITERION_LABELS,
     Criterion,
-    is_unrestricted_region,
+    regions_disjoint,
 )
 from app.modules.enrichment.domain.missingness import is_missing
 
@@ -36,36 +35,12 @@ def _vertical_conflict(criteria: BuyerCriteria, candidates: tuple[str, ...]) -> 
 
 
 def _region_conflict(criteria: BuyerCriteria, stated: str | None) -> Discrepancy | None:
-    if (
-        stated is None
-        or not criteria.target_region
-        or stated in criteria.target_region
-        or is_unrestricted_region(stated)
-    ):
+    """Conflict only when the stated region shares no country with any stored
+    one; an unknown or legacy stored value is never disjoint, so stays silent."""
+    if stated is None or not criteria.target_region:
         return None
-
-    covered_countries: set[str] = set()
-    for stored in criteria.target_region:
-        if is_unrestricted_region(stored):
-            return None
-        scope = resolve_known(stored)
-        if scope is None:
-            # An unresolvable stored region (Africa, Asia, Europe, ...) —
-            # can't rule out coverage, so stay silent rather than guess.
-            return None
-        if scope.unrestricted:
-            return None
-        covered_countries |= scope.countries
-
-    stated_scope = resolve_known(stated)
-    covered = (
-        stated_scope is None
-        or stated_scope.unrestricted
-        or bool(stated_scope.countries & covered_countries)
-    )
-    if covered:
+    if not all(regions_disjoint(stated, stored) for stored in criteria.target_region):
         return None
-
     return Discrepancy(
         Criterion.GEOGRAPHY, "conflict", stored=", ".join(criteria.target_region), stated=stated
     )

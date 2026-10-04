@@ -17,7 +17,11 @@ from app.modules.discrepancies.domain.rules import (
     run_checks,
     template_message,
 )
-from app.modules.discrepancies.domain.vocabulary import Criterion
+from app.modules.discrepancies.domain.vocabulary import (
+    _DISJOINT_REGIONS,
+    REGION_OPTIONS,
+    Criterion,
+)
 
 _CRITERIA = BuyerCriteria(
     buyer_role_id="role-1",
@@ -177,16 +181,35 @@ def test_find_conflicts_geography_stored_mena_covers_stated_gcc() -> None:
     assert not any(c.criterion.value == "geography" for c in conflicts)
 
 
-def test_find_conflicts_geography_unresolvable_stored_region_skips_check() -> None:
-    """Africa can't be resolved to a country set — stay silent rather than guess."""
+@pytest.mark.parametrize(
+    ("stored", "stated", "conflict"),
+    [
+        (["Africa"], "GCC", True),
+        (["Latin America"], "Europe", True),
+        (["Europe", "Africa"], "GCC", True),
+        (["Europe", "GCC"], "GCC", False),
+        # Overlapping or fuzzy borders never conflict.
+        (["Africa"], "MENA", False),
+        (["Europe"], "MENATP", False),
+        (["Asia"], "GCC", False),
+        (["Asia"], "Southeast Asia", False),
+        (["Global"], "Latin America", False),
+        (["North America"], "GCC", False),  # legacy value outside the options
+    ],
+)
+def test_find_conflicts_geography_only_for_disjoint_regions(
+    stored: list[str], stated: str, conflict: bool
+) -> None:
     criteria = BuyerCriteria(
-        buyer_role_id="role-3",
-        org_name="Other Capital",
-        target_vertical=None,
-        target_region=["Africa"],
+        buyer_role_id="role-3", org_name="Other Capital", target_vertical=None, target_region=stored
     )
-    conflicts = find_conflicts(criteria, ParsedContext(region="GCC"))
-    assert not any(c.criterion.value == "geography" for c in conflicts)
+    conflicts = find_conflicts(criteria, ParsedContext(region=stated))
+    assert any(c.criterion.value == "geography" for c in conflicts) is conflict
+
+
+def test_disjoint_region_table_only_names_real_options() -> None:
+    names = {name for pair in _DISJOINT_REGIONS for name in pair}
+    assert names <= set(REGION_OPTIONS)
 
 
 def test_find_conflicts_geography_global_context_never_conflicts() -> None:
