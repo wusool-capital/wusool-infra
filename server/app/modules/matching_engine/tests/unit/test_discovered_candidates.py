@@ -15,6 +15,8 @@ from app.modules.discovery import (
     DiscoveryOutcome,
     FailedLead,
     PossibleDuplicate,
+    SellerDraft,
+    UnverifiedSeller,
 )
 from app.modules.matching_engine.api import dependencies as deps
 from app.modules.matching_engine.api.slack.views.discovered_candidates import (
@@ -253,6 +255,29 @@ async def test_trigger_appends_created_sellers_and_posts_duplicates_separately(
     assert "Couldn't save: Bad Co." in rendered
     assert len(harness.notifier.posts) == 2  # the placeholder, then the duplicates message
     assert "possible duplicate" in harness.notifier.posts[1]["text"]
+
+
+async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, harness) -> None:
+    unverified = UnverifiedSeller(
+        draft=SellerDraft(org_name="Acme Co", source_urls=("https://maps.example/acme",)),
+        maps_website="acme.com",
+        provider_websites=(("Diffbot", "acme-group.de"),),
+        values=(),
+    )
+    monkeypatch.setattr(
+        discovery_module,
+        "discover_and_create_sellers",
+        AsyncMock(return_value=DiscoveryOutcome(status="ok", needs_review=(unverified,))),
+    )
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    assert harness.notifier.updates[-1]["text"] == (
+        "No new sellers created. 1 need a website review before saving (below)."
+    )
+    review = harness.notifier.posts[1]
+    assert review["text"] == "Website check for Acme Co"
+    assert review["blocks"][-1].to_dict()["accessory"]["text"]["text"] == "Review & Save"
 
 
 async def test_trigger_reports_the_daily_cap_and_creates_nothing(monkeypatch, harness) -> None:

@@ -230,7 +230,9 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
     auto-creates the genuinely new sellers. Those are appended to this run
     as `PENDING_REVIEW` rows and posted as a second message with
     Approve/Reject; name-only look-alikes are posted separately with an
-    "Add as seller" button so a human decides before anything is written.
+    "Add as seller" button, and leads whose website Diffbot/PDL didn't
+    confirm get one "Review & Save" message each, so a human decides before
+    anything is written.
     """
     idempotency_key = f"discovery:{run_id}"
     if _discovery_idempotency_store.seen(idempotency_key):
@@ -238,7 +240,11 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
     _discovery_idempotency_store.mark(idempotency_key)
 
-    from app.modules.discovery import build_possible_duplicate_blocks, discover_and_create_sellers
+    from app.modules.discovery import (
+        build_needs_review_blocks,
+        build_possible_duplicate_blocks,
+        discover_and_create_sellers,
+    )
     from app.modules.matching_engine.api.slack.views.discovered_candidates import (
         build_discovered_candidates_blocks,
     )
@@ -309,6 +315,8 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
 
     notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
+    if outcome.needs_review:
+        notes.append(f"{len(outcome.needs_review)} need a website review before saving (below).")
     if outcome.failed:
         notes.append(
             "Couldn't save: "
@@ -335,6 +343,15 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         detail = " ".join(notes) or "No new potential sellers found."
         await notifier.update_message(
             channel=channel_id, ts=placeholder_ts, text=f"No new sellers created. {detail}"
+        )
+
+    # One message per lead: each can carry a dozen field sections, and
+    # Slack caps a message at 50 blocks.
+    for unverified in outcome.needs_review:
+        await notifier.post_message(
+            channel=channel_id,
+            text=f"Website check for {unverified.draft.org_name}",
+            blocks=build_needs_review_blocks(unverified),
         )
 
     if outcome.possible_duplicates:

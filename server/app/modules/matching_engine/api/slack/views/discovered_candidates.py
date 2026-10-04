@@ -24,7 +24,7 @@ def build_discovered_candidates_blocks(
                 MarkdownTextObject(
                     text=(
                         f"*{len(results)} new seller(s)* found via Google Maps and added to the "
-                        "CRM. Unverified and unscored; approve to open a Qualified deal."
+                        "CRM. Unscored; approve to open a Qualified deal."
                     )
                 )
             ]
