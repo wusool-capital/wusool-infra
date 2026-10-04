@@ -56,7 +56,7 @@ class BuyerContext:
     # every other construction of `BuyerContext` is unaffected. `org_hq_country`
     # is the buyer's own HQ, not their target market — never treat it as a
     # `geography` criterion value (a UK-HQ'd buyer can mandate GCC-only deals;
-    # `target_geography` above is the field that actually says so).
+    # `target_region`/`target_country` above are the fields that actually say so).
     org_hq_country: str | None = None
     org_sector_focus: list[str] = field(default_factory=list)
     org_description: str | None = None

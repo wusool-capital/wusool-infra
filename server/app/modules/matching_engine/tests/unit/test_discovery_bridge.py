@@ -156,3 +156,18 @@ def test_falls_back_to_a_capped_free_text_query_when_the_description_is_long() -
     industry, _, _ = extract_query_terms(profile)
 
     assert industry == "Mid-market companies suitable for buyout investment, with demonstrated"
+
+
+def test_every_geography_value_reaches_discovery_once() -> None:
+    profile = _profile(
+        hard_requirements=[
+            _hard("sector", "healthcare"),
+            _hard("geography", "GCC"),
+            _hard("geography", "Egypt"),
+        ],
+        soft_preferences=[_soft("geography", "GCC")],
+    )
+
+    _, geography, _ = extract_query_terms(profile)
+
+    assert geography == "GCC, Egypt"

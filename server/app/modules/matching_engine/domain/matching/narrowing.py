@@ -9,7 +9,11 @@ missing data is never dropped here, same pass-through rule as
 
 from dataclasses import dataclass
 
-from app.modules.discovery.domain.geography import resolve_known
+from app.modules.discovery.domain.geography import (
+    TARGET_REGION_OPTIONS,
+    country_spellings,
+    resolve_known,
+)
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.overrides import advisor_stated_values
 from app.modules.matching_engine.domain.requirements import RequirementProfile
@@ -18,16 +22,14 @@ from app.modules.utilities.domain.money import Money
 # `target_region` options that resolve to a country list — the rest (Africa,
 # Europe, ...) can't be enumerated, so they disable geography. Aliases are
 # spellings sellers' `region` is known to carry, so they aren't dropped as strangers.
-_RESOLVABLE_REGIONS = ("GCC", "GCC-wide", "Gulf", "MENA", "Middle East")
+_RESOLVABLE_REGIONS = ("GCC", "GCC-wide", "Gulf", "MENA", "Middle East", "MENATP")
 
-# Abbreviations seen in organizations' `hq_country`/`geographic_focus`, which
-# hold whatever was typed; the buyer vocabulary uses full names only.
-_COUNTRY_ALIASES: dict[str, tuple[str, ...]] = {
-    "united arab emirates": ("uae", "u.a.e."),
-    "saudi arabia": ("ksa", "saudi"),
-    "united kingdom": ("uk", "u.k."),
-    "united states": ("usa", "us", "u.s."),
-}
+_REGION_NAMES = frozenset(r.lower() for r in TARGET_REGION_OPTIONS)
+
+
+def _is_region(value: str) -> bool:
+    # An unresolvable region (Europe) is still a region, never a literal country to match.
+    return resolve_known(value) is not None or value.strip().lower() in _REGION_NAMES
 
 
 @dataclass(frozen=True)
@@ -54,8 +56,8 @@ class CandidateNarrowing:
         if "sector" in stated:
             vertical = stated["sector"][0]
         if "geography" in stated:
-            target_regions = [v for v in stated["geography"] if resolve_known(v) is not None]
-            target_countries = [v for v in stated["geography"] if resolve_known(v) is None]
+            target_regions = [v for v in stated["geography"] if _is_region(v)]
+            target_countries = [v for v in stated["geography"] if not _is_region(v)]
 
         ev_ceiling = _amount(buyer.ev_ceiling)
         if profile and profile.advisor_limits.ev_ceiling is not None:
@@ -98,8 +100,7 @@ def _accepted_geography(
         if scope is not None and {c.lower() for c in scope.countries} & countries:
             regions.add(name.lower())
 
-    for country, aliases in _COUNTRY_ALIASES.items():
-        if country in countries:
-            countries.update(aliases)
+    for country in list(countries):
+        countries |= country_spellings(country)
 
     return frozenset(regions), frozenset(countries)

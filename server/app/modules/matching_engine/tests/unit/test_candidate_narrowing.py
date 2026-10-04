@@ -6,6 +6,7 @@ from dataclasses import replace
 
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
+from app.modules.matching_engine.domain.requirements import HardRequirement, RequirementProfile
 from app.modules.utilities.domain.money import Money
 
 
@@ -28,6 +29,11 @@ def _buyer(**overrides: object) -> BuyerContext:
         contact_person_id=None,
     )
     return replace(base, **overrides)
+
+
+def _profile_stating_geography(value: str) -> RequirementProfile:
+    stated = HardRequirement("geography", value, "advisor_context", "high", True)
+    return RequirementProfile([stated], [], None, None, {}, 0.8, "model", 1)
 
 
 def test_empty_buyer_narrows_nothing() -> None:
@@ -72,7 +78,8 @@ def test_country_only_buyer_also_accepts_an_overlapping_seller_region() -> None:
 def test_unrelated_country_does_not_accept_gulf_regions() -> None:
     narrowing = CandidateNarrowing.from_buyer(_buyer(target_country=["Pakistan"]))
 
-    assert narrowing.regions == frozenset()
+    # MENATP is the one region that includes Pakistan.
+    assert narrowing.regions == frozenset({"menatp"})
 
 
 def test_unrestricted_region_disables_geography() -> None:
@@ -96,3 +103,16 @@ def test_gulf_country_also_accepts_its_common_abbreviations_and_region_spellings
 
     assert {"uae", "u.a.e."} <= narrowing.countries
     assert {"gcc", "gulf", "middle east"} <= narrowing.regions
+
+
+def test_stated_unresolvable_region_disables_geography_not_a_literal_country() -> None:
+    profile = _profile_stating_geography("Europe")
+    narrowing = CandidateNarrowing.from_buyer(_buyer(target_region=["GCC"]), profile)
+
+    assert not narrowing.narrows_geography
+
+
+def test_country_aliases_cover_turkiye() -> None:
+    narrowing = CandidateNarrowing.from_buyer(_buyer(target_country=["Turkey"]))
+
+    assert {"turkey", "türkiye"} <= narrowing.countries

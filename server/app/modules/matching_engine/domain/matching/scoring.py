@@ -13,6 +13,7 @@ can't drift apart because there's only one list.
 
 from dataclasses import dataclass
 
+from app.modules.discovery.domain.geography import country_spellings, resolve_known
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     CriterionScore,
@@ -150,13 +151,7 @@ def _evaluate_criterion(
     if key in _GEOGRAPHY_KEYS:
         if not candidate.geographic_focus and not candidate.hq_country:
             return "Unknown", "unavailable", 50.0
-        target = value.strip().lower()
-        in_focus = any(target == g.strip().lower() for g in candidate.geographic_focus)
-        # `hq_country` is a ", "-joined multi-value (an org can be headquartered
-        # across jurisdictions), so an equality check on the whole string would
-        # score every multi-country org as Fail.
-        in_hq = any(target == c.strip().lower() for c in (candidate.hq_country or "").split(","))
-        passes = in_focus or in_hq
+        passes = _geography_matches(value, candidate)
         return ("Pass" if passes else "Fail"), "crm_field", (100.0 if passes else 0.0)
 
     if key in _SECTOR_KEYS:
@@ -194,6 +189,22 @@ def _evaluate_criterion(
     return "Unknown", "unavailable", 50.0
 
 
+def _geography_matches(target: str, candidate: SellerCandidate) -> bool:
+    """A region matches any of its countries; a country matches any spelling
+    of itself, since org data mixes "UAE" and "United Arab Emirates"."""
+    scope = resolve_known(target)
+    if scope is not None and scope.unrestricted:
+        return True
+    wanted = country_spellings(target) | {target.strip().lower()}
+    if scope is not None:
+        wanted |= {s for c in scope.countries for s in country_spellings(c)}
+    # `hq_country` is a ", "-joined multi-value (an org can be headquartered
+    # across jurisdictions), so it's split before matching.
+    places = {g.strip().lower() for g in candidate.geographic_focus}
+    places |= {c.strip().lower() for c in (candidate.hq_country or "").split(",") if c.strip()}
+    return bool(places & wanted)
+
+
 def apply_structured_filters(
     profile: RequirementProfile, candidates: list[SellerCandidate]
 ) -> tuple[list[SellerCandidate], list[FilterSkipped]]:
@@ -206,6 +217,14 @@ def apply_structured_filters(
     """
     passed = list(candidates)
     filters_skipped: list[FilterSkipped] = []
+    # A buyer's regions and countries are a union, so confirmed geography values
+    # are applied together as one OR filter, not ANDed one after another.
+    geography_values = [
+        r.value
+        for r in profile.hard_requirements
+        if r.human_confirmed and normalize_criterion(r.criterion) in _GEOGRAPHY_KEYS
+    ]
+    geography_applied = False
 
     for requirement in profile.hard_requirements:
         key = normalize_criterion(requirement.criterion)
@@ -230,12 +249,18 @@ def apply_structured_filters(
             )
             continue
 
+        is_geography = key in _GEOGRAPHY_KEYS
+        if is_geography and geography_applied:
+            continue
+        geography_applied = geography_applied or is_geography
+        values = geography_values if is_geography else [requirement.value]
+
         survivors = []
         exempted = 0
         for candidate in passed:
-            result, data_backing, _ = _evaluate_criterion(
-                requirement.criterion, requirement.value, candidate
-            )
+            outcomes = [_evaluate_criterion(requirement.criterion, v, candidate) for v in values]
+            data_backing = outcomes[0][1]
+            result = "Pass" if any(o[0] == "Pass" for o in outcomes) else outcomes[0][0]
             if data_backing == "unavailable":
                 exempted += 1
                 survivors.append(candidate)
