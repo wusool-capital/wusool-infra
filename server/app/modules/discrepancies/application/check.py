@@ -34,7 +34,8 @@ def _build_prompt(criteria: BuyerCriteria, report: DiscrepancyReport) -> str:
     return (
         "Write one short, friendly Slack message (2-4 sentences) for an M&A advisor, "
         "summarizing the discrepancies below before they run a match. State facts only, "
-        "never invent a number or criterion not listed here.\n\n"
+        "never invent a number or criterion not listed here. No sign-off and no offer "
+        "of further help (e.g. 'Let me know if...').\n\n"
         + "\n".join(lines)
         + '\n\nReturn JSON: {"message": "<the sentence(s)>"}'
     )
