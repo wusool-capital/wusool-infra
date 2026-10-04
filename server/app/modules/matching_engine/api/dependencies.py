@@ -350,18 +350,27 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
     # One message per lead: each can carry a dozen field sections, and
     # Slack caps a message at 50 blocks.
     for unverified in outcome.needs_review:
-        await notifier.post_message(
-            channel=channel_id,
-            text=f"Website check for {unverified.draft.org_name}",
-            blocks=build_needs_review_blocks(unverified),
-        )
+        # One bad card must not cost the operator every card after it.
+        try:
+            await notifier.post_message(
+                channel=channel_id,
+                text=f"Website check for {unverified.draft.org_name}",
+                blocks=build_needs_review_blocks(unverified),
+            )
+        except Exception:
+            logger.exception(
+                "discovery_review_post_failed", extra={"lead": unverified.draft.org_name}
+            )
 
     if outcome.possible_duplicates:
-        await notifier.post_message(
-            channel=channel_id,
-            text=f"{len(outcome.possible_duplicates)} possible duplicate(s) found",
-            blocks=build_possible_duplicate_blocks(outcome.possible_duplicates),
-        )
+        try:
+            await notifier.post_message(
+                channel=channel_id,
+                text=f"{len(outcome.possible_duplicates)} possible duplicate(s) found",
+                blocks=build_possible_duplicate_blocks(outcome.possible_duplicates),
+            )
+        except Exception:
+            logger.exception("discovery_duplicates_post_failed", extra={"run_id": str(run_id)})
 
 
 _DISCOVERY_STATUS_TEXT = {

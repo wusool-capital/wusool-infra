@@ -280,6 +280,35 @@ async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, h
     assert review["blocks"][-1].to_dict()["accessory"]["text"]["text"] == "Review & Save"
 
 
+async def test_one_failed_review_post_does_not_stop_the_others(monkeypatch, harness) -> None:
+    def _unverified(name: str) -> UnverifiedSeller:
+        return UnverifiedSeller(
+            draft=SellerDraft(org_name=name), maps_website=None, provider_websites=(), values=()
+        )
+
+    monkeypatch.setattr(
+        discovery_module,
+        "discover_and_create_sellers",
+        AsyncMock(
+            return_value=DiscoveryOutcome(
+                status="ok", needs_review=(_unverified("Bad Co"), _unverified("Good Co"))
+            )
+        ),
+    )
+    original = harness.notifier.post_message
+
+    async def _flaky(**kwargs: object) -> str:
+        if kwargs["text"] == "Website check for Bad Co":
+            raise RuntimeError("invalid_blocks")
+        return await original(**kwargs)
+
+    harness.notifier.post_message = _flaky
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    assert [p["text"] for p in harness.notifier.posts][-1] == "Website check for Good Co"
+
+
 async def test_trigger_reports_the_daily_cap_and_creates_nothing(monkeypatch, harness) -> None:
     monkeypatch.setattr(
         discovery_module,

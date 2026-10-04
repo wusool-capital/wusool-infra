@@ -70,8 +70,15 @@ def build_possible_duplicate_blocks(duplicates: Sequence[PossibleDuplicate]) -> 
     return blocks
 
 
+# Slack rejects a section over 3000 chars; the form still gets the full value.
+_MAX_VALUE_CHARS = 300
+
+
 def _render(value: DraftValue) -> str:
-    return sanitize_mrkdwn(", ".join(value) if isinstance(value, list) else str(value))
+    text = ", ".join(value) if isinstance(value, list) else str(value)
+    if len(text) > _MAX_VALUE_CHARS:
+        text = text[:_MAX_VALUE_CHARS].rstrip() + "…"
+    return sanitize_mrkdwn(text)
 
 
 def build_needs_review_blocks(unverified: UnverifiedSeller) -> list[Block]:

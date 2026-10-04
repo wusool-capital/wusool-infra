@@ -106,3 +106,19 @@ def test_needs_review_shows_both_websites_the_values_and_a_review_button() -> No
     assert button["text"]["text"] == "Review & Save"
     assert button["style"] == "primary"
     assert decode_draft(button["value"]) == draft
+
+
+def test_needs_review_truncates_a_long_value_to_fit_slacks_section_limit() -> None:
+    draft = SellerDraft(org_name="Acme Co", values={"description": "word " * 800})
+    unverified = UnverifiedSeller(
+        draft=draft,
+        maps_website=None,
+        provider_websites=(("Diffbot", "acme.com"),),
+        values=(ReviewValue("description", "word " * 800, 0.9, "Sourced from Diffbot."),),
+    )
+
+    blocks = [b.to_dict() for b in build_needs_review_blocks(unverified)]
+
+    assert all(len(b.get("text", {}).get("text", "")) <= 3000 for b in blocks)
+    assert blocks[3]["text"]["text"].count("…") == 1
+    assert decode_draft(blocks[-1]["accessory"]["value"]).values == draft.values
