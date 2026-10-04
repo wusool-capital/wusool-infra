@@ -33,13 +33,25 @@ _CRITERIA = BuyerCriteria(
 
 
 def test_find_conflicts_vertical_mismatch() -> None:
-    conflicts = find_conflicts(_CRITERIA, ParsedContext(vertical="Garage"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(verticals=("Garage",)))
     assert any(c.criterion.value == "vertical" for c in conflicts)
 
 
 def test_find_conflicts_no_vertical_conflict_on_match() -> None:
-    conflicts = find_conflicts(_CRITERIA, ParsedContext(vertical="Pharmaceuticals / Biotech"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(verticals=("Pharmaceuticals / Biotech",)))
     assert not any(c.criterion.value == "vertical" for c in conflicts)
+
+
+def test_find_conflicts_no_vertical_conflict_when_stored_is_any_candidate() -> None:
+    """Options overlap ("biotech" fits two), so any candidate match is no conflict."""
+    context = ParsedContext(verticals=("Biotech / Longevity", "Pharmaceuticals / Biotech"))
+    assert find_conflicts(_CRITERIA, context) == ()
+
+
+def test_vertical_conflict_names_the_most_likely_candidate() -> None:
+    context = ParsedContext(verticals=("Clinic", "Dental / Specialist Clinics"))
+    conflicts = find_conflicts(_CRITERIA, context)
+    assert conflicts[0].stated == "Clinic"
 
 
 def test_find_conflicts_ticket_outside_band() -> None:
@@ -92,7 +104,7 @@ def test_open_bound_reads_naturally_in_the_conflict() -> None:
 
 
 _ALL_AMOUNTS = ParsedContext(
-    vertical="Garage", ticket_low=1.0, ticket_high=2.0, ebitda_low=3.0, ebitda_high=4.0
+    verticals=("Garage",), ticket_low=1.0, ticket_high=2.0, ebitda_low=3.0, ebitda_high=4.0
 )
 
 
@@ -111,7 +123,7 @@ def test_ground_drops_amounts_the_note_never_names(
     note: str, keeps_ticket: bool, keeps_ebitda: bool
 ) -> None:
     grounded = ground(_ALL_AMOUNTS, note)
-    assert grounded.vertical == "Garage"
+    assert grounded.verticals == ("Garage",)
     assert (grounded.ticket_low is not None) is keeps_ticket
     assert (grounded.ticket_high is not None) is keeps_ticket
     assert (grounded.ebitda_low is not None) is keeps_ebitda

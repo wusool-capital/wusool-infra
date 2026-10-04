@@ -22,7 +22,7 @@ _CRITERIA = BuyerCriteria(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("context_text", [None, "", "   "])
 async def test_empty_note_never_calls_the_extractor(context_text: str | None) -> None:
-    extractor = FakeContextExtractor(ParsedContext(vertical="Garage"))
+    extractor = FakeContextExtractor(ParsedContext(verticals=("Garage",)))
     service = DiscrepancyCheckService(extractor=extractor)
 
     result = await service.check(_CRITERIA, context_text)

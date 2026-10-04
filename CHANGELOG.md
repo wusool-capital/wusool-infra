@@ -42,8 +42,9 @@ for current production evidence and open handover items.
   Garage." An amount only counts as a ticket size when you label it (ticket,
   check size, investment or deal size). Open-ended amounts such as "at least
   $2M ticket" or "EBITDA $1-3M" only conflict when they can't overlap the
-  buyer's range, and anything you exclude ("no pharma") or list several of
-  ("pharma or healthcare") is not checked. If your note can't be read, the
+  buyer's range. A sector that fits several profile options ("clinics")
+  only conflicts when none of them match, and anything you exclude ("no
+  pharma") is not checked. If your note can't be read, the
   message lists what's missing and says the note couldn't be checked, instead
   of reporting no conflicts. An empty note is checked instantly.
 

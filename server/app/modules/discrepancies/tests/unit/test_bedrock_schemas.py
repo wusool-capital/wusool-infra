@@ -8,7 +8,7 @@ from app.modules.discrepancies.providers.bedrock.schemas import ExtractedContext
 
 def test_off_list_vertical_and_region_are_dropped_amounts_pass_through() -> None:
     extracted = ExtractedContext(
-        vertical="pharma tech",
+        verticals=["pharma tech"],
         region="UAE",
         ticket_low_usd=5_000_000.0,
         ticket_high_usd=15_000_000.0,
@@ -20,11 +20,14 @@ def test_off_list_vertical_and_region_are_dropped_amounts_pass_through() -> None
     )
 
 
-def test_listed_vertical_and_region_are_kept() -> None:
-    extracted = ExtractedContext(vertical="Pharmaceuticals / Biotech", region="GCC")
+def test_listed_verticals_are_kept_off_list_ones_dropped() -> None:
+    extracted = ExtractedContext(
+        verticals=["Pharmaceuticals / Biotech", "biotech / longevity", "Garage-ish"],
+        region="GCC",
+    )
 
     assert extracted.to_domain() == ParsedContext(
-        vertical="Pharmaceuticals / Biotech", region="GCC"
+        verticals=("Pharmaceuticals / Biotech", "Biotech / Longevity"), region="GCC"
     )
 
 

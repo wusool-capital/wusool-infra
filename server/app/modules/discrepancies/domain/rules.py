@@ -28,12 +28,11 @@ _TICKET_WORDS = re.compile(
 _EBITDA_WORDS = re.compile(r"\bebitda\b", re.IGNORECASE)
 
 
-def _vertical_conflict(criteria: BuyerCriteria, stated: str | None) -> Discrepancy | None:
-    if stated is None or criteria.target_vertical is None or stated == criteria.target_vertical:
+def _vertical_conflict(criteria: BuyerCriteria, candidates: tuple[str, ...]) -> Discrepancy | None:
+    stored = criteria.target_vertical
+    if not candidates or stored is None or stored in candidates:
         return None
-    return Discrepancy(
-        Criterion.VERTICAL, "conflict", stored=criteria.target_vertical, stated=stated
-    )
+    return Discrepancy(Criterion.VERTICAL, "conflict", stored=stored, stated=candidates[0])
 
 
 def _region_conflict(criteria: BuyerCriteria, stated: str | None) -> Discrepancy | None:
@@ -117,7 +116,7 @@ def ground(context: ParsedContext, note: str) -> ParsedContext:
 
 def find_conflicts(criteria: BuyerCriteria, context: ParsedContext) -> tuple[Discrepancy, ...]:
     conflicts = (
-        _vertical_conflict(criteria, context.vertical),
+        _vertical_conflict(criteria, context.verticals),
         _region_conflict(criteria, context.region),
         _band_conflict(
             Criterion.TICKET_BAND,

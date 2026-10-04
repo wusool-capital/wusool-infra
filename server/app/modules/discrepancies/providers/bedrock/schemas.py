@@ -2,7 +2,7 @@
 DTO. Never trust raw LLM text past this boundary.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.modules.discrepancies.domain.criteria import ParsedContext
 from app.modules.discrepancies.domain.vocabulary import REGION_OPTIONS, VERTICAL_OPTIONS
@@ -17,7 +17,7 @@ def _canonical(value: str | None, options: dict[str, str]) -> str | None:
 
 # Plain `str`, not `Literal`: one off-list value must not fail the whole note.
 class ExtractedContext(BaseModel):
-    vertical: str | None = None
+    verticals: list[str] = Field(default_factory=list)
     region: str | None = None
     ticket_low_usd: float | None = None
     ticket_high_usd: float | None = None
@@ -26,7 +26,9 @@ class ExtractedContext(BaseModel):
 
     def to_domain(self) -> ParsedContext:
         return ParsedContext(
-            vertical=_canonical(self.vertical, _VERTICALS),
+            verticals=tuple(
+                dict.fromkeys(v for v in (_canonical(c, _VERTICALS) for c in self.verticals) if v)
+            ),
             region=_canonical(self.region, _REGIONS),
             ticket_low=self.ticket_low_usd,
             ticket_high=self.ticket_high_usd,
