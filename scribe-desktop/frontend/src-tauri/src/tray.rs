@@ -5,6 +5,10 @@ use tauri::{
     tray::TrayIconBuilder,
     AppHandle, Manager, Runtime,
 };
+use tauri_plugin_shell::ShellExt;
+
+const CHANGELOG_URL: &str =
+    "https://wusool-capital.gitbook.io/docs/vttVgqrltuEtLAJkX7dL/release-notes/scribe-changelog";
 
 static STOP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
@@ -56,6 +60,7 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, item_id: &str) {
             }
         }
         "check_updates" => check_updates_handler(app),
+        "view_changelog" => open_changelog_in_browser(app),
         "quit" => app.exit(0),
         _ => {}
     }
@@ -228,6 +233,19 @@ async fn finalize_stop<R: Runtime>(app: &AppHandle<R>) {
             update_tray_menu_async(app).await;
         }
     }
+}
+
+fn open_changelog_in_browser<R: Runtime>(app: &AppHandle<R>) {
+    #[allow(deprecated)]
+    if let Err(e) = app.shell().open(CHANGELOG_URL, None) {
+        log::error!("Failed to open changelog: {}", e);
+    }
+}
+
+/// Lets the frontend open the changelog without duplicating the URL.
+#[tauri::command]
+pub fn open_changelog<R: Runtime>(app: AppHandle<R>) {
+    open_changelog_in_browser(&app);
 }
 
 fn check_updates_handler<R: Runtime>(app: &AppHandle<R>) {
@@ -416,6 +434,7 @@ fn build_menu<R: Runtime>(
         .item(&MenuItemBuilder::with_id("open_window", "Open Main Window").build(app)?)
         .item(&MenuItemBuilder::with_id("settings", "Settings").build(app)?)
         .item(&MenuItemBuilder::with_id("check_updates", "Check for Updates").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_changelog", "View Changelog").build(app)?)
         .item(&PredefinedMenuItem::separator(app)?)
         .item(&MenuItemBuilder::with_id("quit", "Quit").build(app)?)
         .build()
