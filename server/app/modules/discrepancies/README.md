@@ -10,8 +10,11 @@ one matches none of them.
 `domain/rules.py::ground` then drops any amount whose measure the note never
 names (the same guard `matching_engine` uses), so rules can only remove what
 the LLM found. Conflicts need the stated range to miss the stored band
-entirely ("at least $2M" never conflicts with $5-15M), and a fixed template
-writes the message. An empty note skips
+entirely ("at least $2M" never conflicts with $5-15M). A region conflicts
+only when it shares no country with any stored one, per the hand-reviewed
+pairs in `domain/vocabulary.py::_DISJOINT_REGIONS`. A fixed template writes
+the message. The extraction rules sit in the Bedrock system prompt
+(`providers/bedrock/client.py`); the note is sent on its own. An empty note skips
 Bedrock. If the note can't be read, the result still lists what's missing and
 sets `context_checked=False`, so the message never claims "no conflicts".
 

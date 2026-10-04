@@ -44,7 +44,9 @@ for current production evidence and open handover items.
   $2M ticket" or "EBITDA $1-3M" only conflict when they can't overlap the
   buyer's range. A sector that fits several profile options ("clinics")
   only conflicts when none of them match, and anything you exclude ("no
-  pharma") is not checked. If your note can't be read, the
+  pharma") is not checked. A region you name is flagged only when it can't
+  overlap the buyer's (for example GCC against a Europe-only buyer); before,
+  region conflicts were never raised. If your note can't be read, the
   message lists what's missing and says the note couldn't be checked, instead
   of reporting no conflicts. An empty note is checked instantly.
 
