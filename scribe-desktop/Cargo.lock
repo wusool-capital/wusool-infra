@@ -9166,7 +9166,7 @@ dependencies = [
 
 [[package]]
 name = "wusoolscribe"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "async-trait",
