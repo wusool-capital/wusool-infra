@@ -26,6 +26,17 @@ for current production evidence and open handover items.
 - Scribe desktop's "Processing recording" and "Finalizing transcription"
   messages now look the same after you stop a meeting. They also sit in the
   same spot instead of jumping between two styles.
+- `/find-match` now always opens a popup after you confirm the buyer, listing
+  any missing or conflicting buyer details. The match only starts when you
+  click **Run anyway**. Before, missing details were posted as a channel note
+  while the match ran, and conflicts paused it behind buttons in the channel.
+  If the check itself fails, the popup says so rather than showing an
+  all-clear.
+
+### Fixed
+
+- Sellers found via Google Maps after `/find-match` are numbered from 1 in
+  their own message, instead of continuing on from the CRM shortlist.
 
 ## 2026-10-03
 

@@ -29,3 +29,15 @@ class RunAnywayValue(BaseModel):
 
     buyer_role_id: str
     advisor_context: str | None = None
+
+
+class DiscrepancyGateMetadata(BaseModel):
+    """The discrepancy-gate modal's `private_metadata`: everything "Run anyway"
+    needs to start the match once the buyer-selection modal is gone."""
+
+    model_config = ConfigDict(frozen=True)
+
+    buyer_role_id: str
+    channel_id: str
+    requested_by: str
+    advisor_context: str | None = None

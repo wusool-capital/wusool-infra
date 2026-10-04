@@ -38,10 +38,13 @@ flowchart TD
 1. Run `/find-match <buyer name>`, for example `/find-match Raoof Capital`.
 2. If several buyers have similar names, select the intended record. If none
    appears, check the spelling or add the buyer first.
-3. Wait while the Toolkit compares eligible sellers. It returns a ranked
+3. A popup lists any details missing from the buyer's profile or conflicting
+   with what you typed. Choose **Run anyway** to start the match, or
+   **Cancel** to fix the profile first (for example with `/enrich-buyer`).
+4. Wait while the Toolkit compares eligible sellers. It returns a ranked
    shortlist with a fit score, data-confidence score, and explanation.
-4. Use **View Full Analysis** to inspect the reasoning.
-5. Choose **Approve Match** or **Reject Match** when you have decided.
+5. Use **View Full Analysis** to inspect the reasoning.
+6. Choose **Approve Match** or **Reject Match** when you have decided.
 
 **Expected result:** Slack shows scored sellers with fit and data-confidence
 scores. Verify high scores when confidence is low.

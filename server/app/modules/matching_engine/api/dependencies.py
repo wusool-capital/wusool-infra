@@ -9,6 +9,7 @@ from functools import lru_cache
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.discrepancies import DiscrepancyCheckResult
 from app.modules.matching_engine.api.buyers import BuyerResolutionRead, BuyerSummary
 from app.modules.matching_engine.api.matching import MatchAnalysis, MatchResultRead, MatchScoreRead
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
@@ -95,47 +96,24 @@ def _build_slack_notifier() -> SlackWebClientNotifier:
     return build_slack_notifier()
 
 
-async def _apply_discrepancy_check(
-    buyer: BuyerContext,
-    advisor_context: str | None,
-    *,
-    channel_id: str,
-    placeholder_ts: str,
-    notifier: SlackWebClientNotifier,
-) -> bool:
-    """Returns True if the match must stop here — a conflict was found and
-    the advisor confirms via buttons before it runs. A missing-only result
-    posts a note and lets matching continue: most roles are missing at
-    least one criterion, so pausing on that would block nearly every run.
-    Never raises — a discrepancy-check failure must never block matching.
+async def find_buyer_discrepancies(
+    buyer_role_id: str, advisor_context: str | None
+) -> DiscrepancyCheckResult | None:
+    """Checks the buyer's profile for missing details and for conflicts with
+    the advisor's typed context. Returns None if the buyer no longer exists.
+
+    Errors are left to propagate on purpose: the popup then says "couldn't
+    check" instead of wrongly showing that nothing is missing.
     """
     from app.modules.discrepancies import check_buyer_discrepancies
-    from app.modules.matching_engine.api.slack.views.discrepancy_gate import (
-        build_discrepancy_gate_blocks,
-    )
     from app.modules.matching_engine.providers.discrepancies.criteria_reader_adapter import (
         to_buyer_criteria,
     )
 
-    try:
-        result = await check_buyer_discrepancies(to_buyer_criteria(buyer), advisor_context)
-    except Exception:
-        logger.exception("discrepancy_check_failed", extra={"buyer_role_id": buyer.buyer_role_id})
-        return False
-
-    if result.report.has_conflicts:
-        await notifier.update_message(
-            channel=channel_id,
-            ts=placeholder_ts,
-            text=result.message,
-            blocks=build_discrepancy_gate_blocks(buyer.buyer_role_id, result, advisor_context),
-        )
-        return True
-
-    if result.report.has_missing:
-        await notifier.post_message(channel=channel_id, text=result.message)
-
-    return False
+    buyer = await resolve_buyer_by_id(buyer_role_id)
+    if buyer is None:
+        return None
+    return await check_buyer_discrepancies(to_buyer_criteria(buyer), advisor_context)
 
 
 async def run_match_and_post(
@@ -144,20 +122,15 @@ async def run_match_and_post(
     channel_id: str,
     *,
     advisor_context: str | None = None,
-    check_discrepancies: bool = True,
     placeholder_ts: str | None = None,
 ) -> None:
     """Shared background-task body for running the match pipeline and
-    posting its result to Slack — used by the `/find-match` command
-    handler, the buyer-selection modal submission handler, and the
-    discrepancy gate's "Run match anyway" button.
+    posting its result to Slack — used by the discrepancy popup's "Run
+    anyway" submit and by "Run match anyway" buttons on in-channel gate
+    messages posted before the popup existed. Discrepancies are checked by
+    the popup beforehand, never here.
 
-    `check_discrepancies` defaults to True so a future caller that forgets
-    to pass it still gets the gate — the one caller that must skip it (the
-    "Run match anyway" button, which already showed the report once) opts
-    out explicitly instead.
-
-    `placeholder_ts` lets the "Run match anyway" button reuse the
+    `placeholder_ts` lets a legacy "Run match anyway" button reuse its
     discrepancy-report message as the placeholder instead of posting a
     second one.
 
@@ -186,15 +159,6 @@ async def run_match_and_post(
                 ts=placeholder_ts,
                 text="Buyer not found.",
             )
-            return
-
-        if check_discrepancies and await _apply_discrepancy_check(
-            buyer,
-            advisor_context,
-            channel_id=channel_id,
-            placeholder_ts=placeholder_ts,
-            notifier=notifier,
-        ):
             return
 
         # The session backs buyer_repository/meeting_repository only —

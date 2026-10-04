@@ -68,7 +68,7 @@ async def check_buyer_discrepancies(
     criteria: BuyerCriteria, context_text: str | None
 ) -> DiscrepancyCheckResult:
     """Used directly by `/find-match` (`matching_engine.api.dependencies
-    .run_match_and_post`), which already has the buyer's full context and
+    .find_buyer_discrepancies`), which already has the buyer's full context and
     maps it to `BuyerCriteria` itself — no need to go through the Port's
     own `get()` a second time."""
     return await _check_service().check(criteria, context_text)

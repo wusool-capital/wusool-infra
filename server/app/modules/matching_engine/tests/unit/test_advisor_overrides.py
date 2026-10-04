@@ -8,14 +8,8 @@ from dataclasses import replace
 import pytest
 from pydantic import ValidationError
 
-from app.modules.discrepancies.application.check import DiscrepancyCheckResult
-from app.modules.discrepancies.domain.criteria import Discrepancy, DiscrepancyReport
-from app.modules.discrepancies.domain.vocabulary import Criterion
 from app.modules.matching_engine.api.slack.schemas import RunAnywayValue
 from app.modules.matching_engine.api.slack.views.buyer_selection import _MAX_CONTEXT_CHARS
-from app.modules.matching_engine.api.slack.views.discrepancy_gate import (
-    build_discrepancy_gate_blocks,
-)
 from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
 from app.modules.matching_engine.domain.matching.overrides import (
     UNLABELLED_AMOUNT_NOTE,
@@ -111,21 +105,6 @@ def test_narrowing_ignores_unconfirmed_advisor_lookalikes() -> None:
     narrowing = CandidateNarrowing.from_buyer(buyer, _profile(llm_guess))
 
     assert narrowing.countries >= {"united states"}
-
-
-def test_run_anyway_button_carries_the_advisor_context() -> None:
-    conflict = Discrepancy(Criterion.GEOGRAPHY, "conflict", stored="United States", stated="Egypt")
-    result = DiscrepancyCheckResult(
-        report=DiscrepancyReport(buyer_role_id="buyer-1", conflicts=(conflict,), missing=()),
-        message="Heads up.",
-    )
-
-    blocks = build_discrepancy_gate_blocks("buyer-1", result, "I want Egypt")
-
-    button = blocks[-1].elements[0]
-    assert RunAnywayValue.model_validate_json(button.value) == RunAnywayValue(
-        buyer_role_id="buyer-1", advisor_context="I want Egypt"
-    )
 
 
 def test_worst_case_context_still_fits_a_slack_button_value() -> None:
