@@ -17,6 +17,9 @@ for current production evidence and open handover items.
   window, so it is already running for your meetings. Existing users get it
   switched on the first time they run this version, and macOS shows a
   "Background Items Added" notice. Turning the setting off sticks.
+- Scribe desktop meetings that belong to a folder have a back button at the
+  top that returns to that folder's meeting list. It always goes to the
+  meeting's own folder, never to another one you visited earlier.
 
 ## 2026-10-03
 
