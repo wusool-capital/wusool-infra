@@ -39,6 +39,14 @@ _CLEAR = DiscrepancyCheckResult(
     message="No missing or conflicting details found for Buyer.",
     context_checked=True,
 )
+_CONFLICT = DiscrepancyCheckResult(
+    report=DiscrepancyReport(
+        buyer_role_id="buyer-1",
+        conflicts=(Discrepancy(Criterion.VERTICAL, "conflict", stored="Garage", stated="Fintech"),),
+    ),
+    message="Heads up: Buyer's profile says vertical is Garage, but you said Fintech.",
+    context_checked=True,
+)
 _UNCHECKED = DiscrepancyCheckResult(
     report=DiscrepancyReport(buyer_role_id="buyer-1"),
     message="Nothing is missing from Buyer's profile, but your note couldn't be checked.",
@@ -84,8 +92,9 @@ def _check_returns(monkeypatch: pytest.MonkeyPatch, **kwargs: object) -> None:
     [
         ({"return_value": _MISSING}, f"{_MISSING.message}\n\n{actions._FIX_FIRST_TEXT}"),
         ({"return_value": _CLEAR}, _CLEAR.message),
-        # An unread note is not an all-clear, so it still asks to fix first.
-        ({"return_value": _UNCHECKED}, f"{_UNCHECKED.message}\n\n{actions._FIX_FIRST_TEXT}"),
+        # "Fill these in" only makes sense when a field is actually missing.
+        ({"return_value": _CONFLICT}, _CONFLICT.message),
+        ({"return_value": _UNCHECKED}, _UNCHECKED.message),
         ({"return_value": None}, actions._BUYER_GONE_TEXT),
         # A failed check must never read as an all-clear.
         ({"side_effect": RuntimeError("bedrock down")}, actions._CHECK_FAILED_TEXT),

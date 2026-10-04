@@ -33,6 +33,19 @@ async def test_empty_note_never_calls_the_extractor(context_text: str | None) ->
 
 
 @pytest.mark.asyncio
+async def test_buyer_with_nothing_to_conflict_never_calls_the_extractor() -> None:
+    extractor = FakeContextExtractor(ParsedContext(verticals=("Garage",)))
+    service = DiscrepancyCheckService(extractor=extractor)
+    empty = BuyerCriteria(buyer_role_id="role-2", org_name="Empty Capital", target_vertical=None)
+
+    result = await service.check(empty, "fintech in GCC, ticket $5M")
+
+    assert extractor.texts == []
+    assert result.context_checked
+    assert len(result.report.missing) == 4
+
+
+@pytest.mark.asyncio
 async def test_extracted_conflict_is_reported() -> None:
     extractor = FakeContextExtractor(
         ParsedContext(ticket_low=50_000_000.0, ticket_high=50_000_000.0)

@@ -14,22 +14,28 @@ from app.modules.discrepancies.domain.criteria import (
 )
 from app.modules.discrepancies.domain.vocabulary import (
     CRITERION_LABELS,
+    GENERALIST_VERTICAL,
     Criterion,
+    region_can_conflict,
     regions_disjoint,
 )
 from app.modules.enrichment.domain.missingness import is_missing
 
-# Mirrors `matching_engine`'s `_TICKET_WORDS`: an amount is only trusted when
-# the note names what it measures. Bare "deal" is too loose to count.
+# Wider than `matching_engine`'s list; bare "check" (the verb) and "deal" are too loose.
 _TICKET_WORDS = re.compile(
-    r"\b(tickets?|che(?:que|ck)s?|invest(?:ment|ing)?|deal[\s-]sizes?)\b", re.IGNORECASE
+    r"\b(tickets?|che(?:que|ck)(?:[\s-]sizes?|s)|invest\w*|deal[\s-]sizes?)\b", re.IGNORECASE
 )
 _EBITDA_WORDS = re.compile(r"\bebitda\b", re.IGNORECASE)
 
 
 def _vertical_conflict(criteria: BuyerCriteria, candidates: tuple[str, ...]) -> Discrepancy | None:
     stored = criteria.target_vertical
-    if not candidates or stored is None or stored in candidates:
+    if (
+        not candidates
+        or stored in (None, GENERALIST_VERTICAL)
+        or stored in candidates
+        or GENERALIST_VERTICAL in candidates
+    ):
         return None
     return Discrepancy(Criterion.VERTICAL, "conflict", stored=stored, stated=candidates[0])
 
@@ -86,6 +92,23 @@ def ground(context: ParsedContext, note: str) -> ParsedContext:
         ticket_high=context.ticket_high if names_ticket else None,
         ebitda_low=context.ebitda_low if names_ebitda else None,
         ebitda_high=context.ebitda_high if names_ebitda else None,
+    )
+
+
+def can_conflict(criteria: BuyerCriteria) -> bool:
+    """False when no stored criterion could ever conflict, so the note needn't be read."""
+    return (
+        criteria.target_vertical not in (None, GENERALIST_VERTICAL)
+        or any(region_can_conflict(r) for r in criteria.target_region)
+        or any(
+            v is not None
+            for v in (
+                criteria.check_size_min,
+                criteria.check_size_max,
+                criteria.ebitda_floor,
+                criteria.ebitda_ceiling,
+            )
+        )
     )
 
 

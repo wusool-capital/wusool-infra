@@ -329,10 +329,10 @@ async def _show_discrepancies(
     else:
         if result is None:
             text = _BUYER_GONE_TEXT
-        elif result.report.is_clear and result.context_checked:
-            text = result.message
-        else:
+        elif result.report.has_missing:
             text = f"{result.message}\n\n{_FIX_FIRST_TEXT}"
+        else:
+            text = result.message
 
     # A fast check could otherwise land before the ack's "Checking…" view and be overwritten.
     await asyncio.sleep(max(0.0, _MIN_UPDATE_DELAY_S - (time.monotonic() - started)))

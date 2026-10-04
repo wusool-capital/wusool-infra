@@ -15,6 +15,15 @@ def _canonical(value: str | None, options: dict[str, str]) -> str | None:
     return options.get(value.strip().casefold()) if value else None
 
 
+def _bounds(low: float | None, high: float | None) -> tuple[float | None, float | None]:
+    # A non-positive amount is never a real limit; reversed bounds are a model slip.
+    low = low if low is not None and low > 0 else None
+    high = high if high is not None and high > 0 else None
+    if low is not None and high is not None and low > high:
+        return high, low
+    return low, high
+
+
 # Plain `str`, not `Literal`: one off-list value must not fail the whole note.
 class ExtractedContext(BaseModel):
     verticals: list[str] = Field(default_factory=list)
@@ -25,13 +34,15 @@ class ExtractedContext(BaseModel):
     ebitda_high_usd: float | None = None
 
     def to_domain(self) -> ParsedContext:
+        ticket_low, ticket_high = _bounds(self.ticket_low_usd, self.ticket_high_usd)
+        ebitda_low, ebitda_high = _bounds(self.ebitda_low_usd, self.ebitda_high_usd)
         return ParsedContext(
             verticals=tuple(
                 dict.fromkeys(v for v in (_canonical(c, _VERTICALS) for c in self.verticals) if v)
             ),
             region=_canonical(self.region, _REGIONS),
-            ticket_low=self.ticket_low_usd,
-            ticket_high=self.ticket_high_usd,
-            ebitda_low=self.ebitda_low_usd,
-            ebitda_high=self.ebitda_high_usd,
+            ticket_low=ticket_low,
+            ticket_high=ticket_high,
+            ebitda_low=ebitda_low,
+            ebitda_high=ebitda_high,
         )

@@ -13,7 +13,12 @@ from app.modules.discrepancies.domain.criteria import (
     DiscrepancyReport,
     ParsedContext,
 )
-from app.modules.discrepancies.domain.rules import ground, run_checks, template_message
+from app.modules.discrepancies.domain.rules import (
+    can_conflict,
+    ground,
+    run_checks,
+    template_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +40,7 @@ class DiscrepancyCheckService:
     ) -> DiscrepancyCheckResult:
         context = ParsedContext()
         context_checked = True
-        if context_text and context_text.strip():
+        if context_text and context_text.strip() and can_conflict(criteria):
             try:
                 context = ground(await self._extractor.extract(context_text), context_text)
             except Exception:

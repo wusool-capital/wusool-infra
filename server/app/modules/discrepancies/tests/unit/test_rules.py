@@ -11,6 +11,7 @@ from app.modules.discrepancies.domain.criteria import (
     ParsedContext,
 )
 from app.modules.discrepancies.domain.rules import (
+    can_conflict,
     find_conflicts,
     find_missing,
     ground,
@@ -50,6 +51,50 @@ def test_find_conflicts_no_vertical_conflict_when_stored_is_any_candidate() -> N
     """Options overlap ("biotech" fits two), so any candidate match is no conflict."""
     context = ParsedContext(verticals=("Biotech / Longevity", "Pharmaceuticals / Biotech"))
     assert find_conflicts(_CRITERIA, context) == ()
+
+
+@pytest.mark.parametrize(
+    ("stored", "candidates"),
+    [
+        ("Diversified / Generalist", ("Pharmaceuticals / Biotech",)),
+        ("Pharmaceuticals / Biotech", ("Diversified / Generalist",)),
+    ],
+)
+def test_generalist_vertical_never_conflicts(stored: str, candidates: tuple[str, ...]) -> None:
+    criteria = BuyerCriteria(buyer_role_id="role-9", org_name="Gen Capital", target_vertical=stored)
+    assert find_conflicts(criteria, ParsedContext(verticals=candidates)) == ()
+
+
+@pytest.mark.parametrize(
+    ("criteria", "expected"),
+    [
+        (BuyerCriteria(buyer_role_id="r", org_name="Empty", target_vertical=None), False),
+        (
+            BuyerCriteria(
+                buyer_role_id="r",
+                org_name="Open",
+                target_vertical="Diversified / Generalist",
+                target_region=["Global"],
+            ),
+            False,
+        ),
+        (BuyerCriteria(buyer_role_id="r", org_name="V", target_vertical="Garage"), True),
+        (
+            BuyerCriteria(
+                buyer_role_id="r", org_name="R", target_vertical=None, target_region=["GCC"]
+            ),
+            True,
+        ),
+        (
+            BuyerCriteria(buyer_role_id="r", org_name="E", target_vertical=None, ebitda_floor=0.0),
+            True,
+        ),
+    ],
+)
+def test_can_conflict_only_when_a_stored_criterion_could_conflict(
+    criteria: BuyerCriteria, expected: bool
+) -> None:
+    assert can_conflict(criteria) is expected
 
 
 def test_vertical_conflict_names_the_most_likely_candidate() -> None:
@@ -121,6 +166,10 @@ _ALL_AMOUNTS = ParsedContext(
         ("EBITDA of $3-4M", False, True),
         ("$1-2M", False, False),
         ("a deal for $1-2M", False, False),
+        ("Investments of $1-2M", True, False),
+        ("investor writing $1-2M", True, False),
+        ("cheque size $1-2M", True, False),
+        ("please double-check fit; $1-2M revenue", False, False),
     ],
 )
 def test_ground_drops_amounts_the_note_never_names(

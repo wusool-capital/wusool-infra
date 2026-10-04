@@ -7,7 +7,10 @@ never imports `matching_engine`.
 
 from enum import StrEnum
 
-from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
+from app.modules.lead_magnets.domain.shared.sector_options import (
+    SECTOR_FOCUS_OPTIONS,
+    SectorFocus,
+)
 
 # The live `sector_focus`/`target_vertical` options — reused rather than
 # copied a third time; already drift-tested against Attio in
@@ -31,10 +34,7 @@ REGION_OPTIONS: tuple[str, ...] = (
     "Global",
 )
 
-# Region pairs that share no country. Any pair not listed counts as
-# overlapping (never a conflict) — so Global/Emerging Markets, nesting
-# (GCC in MENA in MENATP) and fuzzy borders (Africa/MENA, Asia/Europe via
-# Turkey and Russia) stay silent. Hand-reviewed; extend only with clear cases.
+# Hand-reviewed region pairs sharing no country; unlisted, nested or fuzzy pairs never conflict.
 _DISJOINT_REGIONS: frozenset[frozenset[str]] = frozenset(
     frozenset(pair)
     for pair in (
@@ -61,6 +61,14 @@ _DISJOINT_REGIONS: frozenset[frozenset[str]] = frozenset(
 
 def regions_disjoint(a: str, b: str) -> bool:
     return frozenset((a, b)) in _DISJOINT_REGIONS
+
+
+def region_can_conflict(region: str) -> bool:
+    return any(region in pair for pair in _DISJOINT_REGIONS)
+
+
+# A generalist mandate covers every sector, so it never conflicts, like Global.
+GENERALIST_VERTICAL: str = SectorFocus.DIVERSIFIED_GENERALIST.value
 
 
 class Criterion(StrEnum):

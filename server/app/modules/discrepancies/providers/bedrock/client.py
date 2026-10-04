@@ -7,6 +7,7 @@ policy, narrowed to this module's single context-extraction operation.
 from __future__ import annotations
 
 import json
+import re
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
@@ -27,8 +28,7 @@ _OPERATION = "discrepancy_context_extraction"
 
 
 def _system_prompt() -> str:
-    # Rules carried over from the deleted regex parser's edge cases, plus
-    # cases that would raise false conflicts. Obvious geography is left to the model.
+    # Regex-era edge cases plus known false-conflict cases; obvious geography is left to the model.
     verticals = "\n".join(f"- {v}" for v in sorted(VERTICAL_OPTIONS))
     regions = "\n".join(f"- {r}" for r in REGION_OPTIONS)
     return (
@@ -75,10 +75,13 @@ def _system_prompt() -> str:
 
 # Stable rules live in the system prompt, so the repair retry keeps them too.
 _SYSTEM_PROMPT = _system_prompt()
+_OUTPUT_SCHEMA = ExtractedContext.model_json_schema()
+# Stops a pasted "</note>" from closing the data block early.
+_NOTE_TAG = re.compile(r"</?note\s*>", re.IGNORECASE)
 
 
 def _build_prompt(text: str) -> str:
-    return f"<note>\n{text}\n</note>\n\nReturn JSON matching the schema only."
+    return f"<note>\n{_NOTE_TAG.sub('', text)}\n</note>\n\nReturn JSON matching the schema only."
 
 
 def _repair_prompt(raw: JsonObject, error: str) -> str:
@@ -98,12 +101,11 @@ class BedrockContextExtractor:
         self._max_tokens = max_tokens
 
     async def extract(self, text: str) -> ParsedContext:
-        output_schema = ExtractedContext.model_json_schema()
-        raw = await self._invoke(_build_prompt(text), output_schema)
+        raw = await self._invoke(_build_prompt(text), _OUTPUT_SCHEMA)
         validated, error = self._validate(raw)
 
         if validated is None:
-            raw_retry = await self._invoke(_repair_prompt(raw, error or ""), output_schema)
+            raw_retry = await self._invoke(_repair_prompt(raw, error or ""), _OUTPUT_SCHEMA)
             validated, error = self._validate(raw_retry)
 
         if validated is None:
