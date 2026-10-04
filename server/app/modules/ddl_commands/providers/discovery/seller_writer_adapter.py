@@ -38,7 +38,7 @@ from app.modules.discovery import (
     SellerWriteError,
     UnverifiedSeller,
 )
-from app.modules.discovery.domain.drafts import hostname, websites_match
+from app.modules.discovery.domain.drafts import company_hostname, websites_match
 from app.modules.enrichment import BasicEnrichment, ProviderEvidence, propose_basic_seller_fields
 
 logger = logging.getLogger(__name__)
@@ -46,14 +46,14 @@ logger = logging.getLogger(__name__)
 _SELLER_FIELDS_BY_NAME = {**SELLER_ROLE_FIELDS_BY_NAME, **ORGANIZATION_FIELDS_BY_NAME}
 
 
-def _verified(website: str | None, evidence: tuple[ProviderEvidence, ...]) -> bool:
+def _verified(website: str | None, evidence: list[ProviderEvidence]) -> bool:
     return website is not None and all(
         e.website is not None and websites_match(website, e.website) for e in evidence
     )
 
 
 def _domain_variants(website: str | None) -> list[str]:
-    host = hostname(website) if website else None
+    host = company_hostname(website) if website else None
     return [host, f"www.{host}"] if host else []
 
 
@@ -95,29 +95,36 @@ class DdlCommandsSellerWriterAdapter:
         role_extracted: dict[str, PrefillValue | None] = {
             n: v for n, v in prefill.items() if n in SELLER_ROLE_FIELDS_BY_NAME
         }
-        try:
-            OrganizationUpdate.model_validate(org_extracted)
-            SellerUpdate.model_validate(role_extracted)
-        except ValidationError as exc:
-            raise SellerWriteError(f"invalid seller values ({exc.error_count()})") from exc
 
         domains = draft.values.get("domains")
-        website = f"https://{domains[0]}" if isinstance(domains, list) and domains else None
+        maps_host = domains[0] if isinstance(domains, list) and domains else None
+        website = f"https://{maps_host}" if maps_host else None
         used = [v for v in enriched if v.field_name in prefill]
-        if used and not _verified(website, enrichment.evidence):
+        used_names = {v.field_name for v in used}
+        # Only providers whose fields survive into the write need vouching for.
+        evidence = [e for e in enrichment.evidence if used_names.intersection(e.field_names)]
+        # Before validation: a wrong-company value that fails it should reach a
+        # human, not fail the lead.
+        if used and not _verified(website, evidence):
             return UnverifiedSeller(
                 draft=replace(
                     draft,
                     values={n: v for n, v in prefill.items() if not isinstance(v, dict)},
                 ),
-                maps_website=domains[0] if isinstance(domains, list) and domains else None,
-                provider_websites=tuple((e.provider, e.website) for e in enrichment.evidence),
+                maps_website=maps_host,
+                provider_websites=tuple((e.provider, e.website) for e in evidence),
                 values=tuple(
                     ReviewValue(v.field_name, value, v.confidence, v.rationale)
                     for v in used
                     if not isinstance(value := prefill[v.field_name], dict)
                 ),
             )
+        try:
+            OrganizationUpdate.model_validate(org_extracted)
+            SellerUpdate.model_validate(role_extracted)
+        except ValidationError as exc:
+            raise SellerWriteError(f"invalid seller values ({exc.error_count()})") from exc
+
         async with self._write_lock:
             # Re-check under the lock: another lead in this run, or another
             # run, may have created this company since `find_existing` looked.

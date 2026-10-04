@@ -291,3 +291,44 @@ async def test_no_maps_website_with_provider_fields_returns_for_review(monkeypat
     assert write == []
     assert isinstance(result, UnverifiedSeller)
     assert result.maps_website is None
+
+
+async def test_a_provider_whose_fields_were_all_dropped_is_not_checked(monkeypatch, write) -> None:
+    """PDL's only field is out of vocabulary, so its missing website is moot."""
+    enrichment = BasicEnrichment(
+        values=(
+            _proposed("employee_range", "11-50", WriteTarget.ORGANIZATION),
+            _proposed("sector_focus", ["Not A Sector"], WriteTarget.ORGANIZATION),
+        ),
+        evidence=(
+            ProviderEvidence("Diffbot", "acme.example", ("employee_range",)),
+            ProviderEvidence("People Data Labs", None, ("sector_focus",)),
+        ),
+    )
+    monkeypatch.setattr(module, "propose_basic_seller_fields", _returning(enrichment))
+
+    created = await module.DdlCommandsSellerWriterAdapter().enrich_and_create(
+        _draft(), enrichment_timeout_s=5
+    )
+
+    assert len(write) == 1
+    assert created.enriched_fields == ("employee_range",)
+
+
+async def test_an_invalid_value_from_an_unverified_provider_goes_to_review(
+    monkeypatch, write
+) -> None:
+    """Validation runs after the website check, so a wrong company's bad value
+    reaches a human instead of failing the lead."""
+    enrichment = BasicEnrichment(
+        values=(_proposed("description", "x" * 5000, WriteTarget.ORGANIZATION),),
+        evidence=(ProviderEvidence("Diffbot", "other.example", ("description",)),),
+    )
+    monkeypatch.setattr(module, "propose_basic_seller_fields", _returning(enrichment))
+
+    result = await module.DdlCommandsSellerWriterAdapter().enrich_and_create(
+        _draft(), enrichment_timeout_s=5
+    )
+
+    assert write == []
+    assert isinstance(result, UnverifiedSeller)

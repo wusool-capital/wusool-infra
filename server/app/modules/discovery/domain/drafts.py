@@ -51,6 +51,34 @@ def hostname(url: str) -> str | None:
     return host if "." in host else None
 
 
+# ponytail: fixed list of social/site-builder hosts; extend as new platforms show up.
+_PLATFORM_HOSTS = (
+    "facebook.com",
+    "instagram.com",
+    "linkedin.com",
+    "x.com",
+    "twitter.com",
+    "tiktok.com",
+    "youtube.com",
+    "linktr.ee",
+    "wa.me",
+    "google.com",
+    "wordpress.com",
+    "squarespace.com",
+    "wixsite.com",
+    "business.site",
+)
+
+
+def company_hostname(url: str) -> str | None:
+    """`hostname`, but `None` for a shared platform (an Instagram page, a
+    `sites.google.com` site): that host names the platform, not the company."""
+    host = hostname(url)
+    if host is None or any(host == p or host.endswith(f".{p}") for p in _PLATFORM_HOSTS):
+        return None
+    return host
+
+
 def websites_match(a: str, b: str) -> bool:
     """Same host, or one a subdomain of the other (`shop.acme.com` vs
     `acme.com`) — a near miss only costs an extra human review."""
@@ -78,7 +106,7 @@ def draft_from_lead(lead: DiscoveredLead) -> SellerDraft:
         values["sector_focus"] = [lead.category]
     if lead.country:
         values["hq_country"] = lead.country
-    if lead.website and (domain := hostname(lead.website)):
+    if lead.website and (domain := company_hostname(lead.website)):
         values["domains"] = [domain]
     return SellerDraft(
         org_name=lead.name,

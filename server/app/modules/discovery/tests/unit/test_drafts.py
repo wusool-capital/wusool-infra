@@ -1,6 +1,11 @@
 import pytest
 
-from app.modules.discovery.domain.drafts import draft_from_lead, hostname, websites_match
+from app.modules.discovery.domain.drafts import (
+    company_hostname,
+    draft_from_lead,
+    hostname,
+    websites_match,
+)
 from app.modules.discovery.domain.leads import DiscoveredLead
 
 
@@ -118,3 +123,24 @@ def test_hostname_accepts_schemeless_provider_websites() -> None:
 )
 def test_websites_match(a: str, b: str, expected: bool) -> None:
     assert websites_match(a, b) is expected
+
+
+@pytest.mark.parametrize(
+    "website",
+    [
+        "https://sites.google.com/view/acme",
+        "https://www.instagram.com/acme",
+        "https://acme.wordpress.com",
+        "https://m.facebook.com/acme",
+    ],
+)
+def test_a_shared_platform_website_is_not_a_company_domain(website: str) -> None:
+    """A platform host would otherwise "match" the platform company itself."""
+    lead = DiscoveredLead(name="Acme Co", source_url="https://maps.example", website=website)
+
+    assert company_hostname(website) is None
+    assert "domains" not in draft_from_lead(lead).values
+
+
+def test_company_hostname_keeps_ordinary_company_sites() -> None:
+    assert company_hostname("https://www.acme-google.com") == "acme-google.com"
