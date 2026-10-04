@@ -143,6 +143,17 @@ async def test_one_failed_write_does_not_abort_the_batch() -> None:
     assert {c.org_name for c in outcome.created} == {"Lead 0", "Lead 2"}
 
 
+async def test_an_unverified_lead_is_returned_for_review_not_created() -> None:
+    writer = FakeSellerWriterPort(review_names=frozenset({"Lead 1"}))
+    service, _ = _service(leads=_leads(3), writer=writer)
+
+    outcome = await _run(service)
+
+    assert [u.draft.org_name for u in outcome.needs_review] == ["Lead 1"]
+    assert {c.org_name for c in outcome.created} == {"Lead 0", "Lead 2"}
+    assert outcome.failed == ()
+
+
 async def test_creation_concurrency_is_bounded() -> None:
     writer = FakeSellerWriterPort(create_delay_s=0.01)
     service, _ = _service(leads=_leads(5), writer=writer, concurrency=2)

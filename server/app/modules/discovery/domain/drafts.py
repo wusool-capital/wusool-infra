@@ -4,17 +4,16 @@ form — in Postgres's own value shape (matching what
 """
 
 from dataclasses import dataclass, field
+from datetime import date
 from urllib.parse import urlsplit
 
 from app.modules.discovery.domain.leads import DiscoveredLead
 
-# Every value this module actually writes is either `hq_country`'s bare
-# string or `sector_focus`/`domains`' single-item list — narrower than
-# `ddl_commands.api.schemas.PrefillValue` (which this module can't import;
-# it lives in `ddl_commands.api`, and `discovery -> ddl_commands` isn't a
-# real dependency edge — see this module's own `__init__.py`), so this
-# bounds `SellerDraft.values` without reaching across the boundary.
-DraftValue = str | list[str]
+# Maps values (`hq_country`'s string, `sector_focus`/`domains`' lists) plus
+# merged enrichment values a review draft carries. Mirrors
+# `ddl_commands.api.schemas.PrefillValue` minus JSON objects, without
+# importing across the module boundary.
+DraftValue = str | float | bool | int | date | list[str]
 
 
 @dataclass(frozen=True)
@@ -41,13 +40,26 @@ def hostname(url: str) -> str | None:
     depending on the Slack handler's own blanket `except Exception` to
     catch it.
     """
+    # Diffbot/PDL homepages often arrive schemeless (`acme.com`), which
+    # `urlsplit` would read as a path.
+    if "://" not in url:
+        url = f"//{url}"
     try:
         host = urlsplit(url).hostname
     except ValueError:
         return None
-    if not host:
-        return None
-    return host.lower().removeprefix("www.").rstrip(".") or None
+    host = (host or "").lower().removeprefix("www.").rstrip(".")
+    # A dotless host (`not-a-url`) is free text, not a company domain.
+    return host if "." in host else None
+
+
+def websites_match(a: str, b: str) -> bool:
+    """Same host, or one a subdomain of the other (`shop.acme.com` vs
+    `acme.com`) — a near miss only costs an extra human review."""
+    host_a, host_b = hostname(a), hostname(b)
+    if not host_a or not host_b:
+        return False
+    return host_a == host_b or host_a.endswith(f".{host_b}") or host_b.endswith(f".{host_a}")
 
 
 def draft_from_lead(lead: DiscoveredLead) -> SellerDraft:

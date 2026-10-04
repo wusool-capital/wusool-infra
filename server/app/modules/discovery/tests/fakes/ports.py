@@ -9,7 +9,7 @@ from app.modules.discovery.application.ports.seller_writer import SellerWriterPo
 from app.modules.discovery.domain.crm import CrmMatch, CrmMatchKind
 from app.modules.discovery.domain.drafts import SellerDraft
 from app.modules.discovery.domain.leads import DiscoveredLead
-from app.modules.discovery.domain.outcome import CreatedSeller, SellerWriteError
+from app.modules.discovery.domain.outcome import CreatedSeller, SellerWriteError, UnverifiedSeller
 
 
 class FakeLeadSearchClient(LeadSearchClient):
@@ -36,16 +36,19 @@ class FakeSellerDraftPort(SellerDraftPort):
 
 class FakeSellerWriterPort(SellerWriterPort):
     """`matches` maps a lead name to its CRM match (default: no match);
-    `fail_names` raise `SellerWriteError` on create."""
+    `fail_names` raise `SellerWriteError` on create; `review_names` come
+    back unwritten as `UnverifiedSeller`."""
 
     def __init__(
         self,
         matches: dict[str, CrmMatch] | None = None,
         fail_names: frozenset[str] = frozenset(),
+        review_names: frozenset[str] = frozenset(),
         create_delay_s: float = 0.0,
     ) -> None:
         self.matches = matches or {}
         self.fail_names = fail_names
+        self.review_names = review_names
         self.create_delay_s = create_delay_s
         self.created: list[SellerDraft] = []
         self.timeouts: list[float] = []
@@ -57,13 +60,17 @@ class FakeSellerWriterPort(SellerWriterPort):
 
     async def enrich_and_create(
         self, draft: SellerDraft, *, enrichment_timeout_s: float
-    ) -> CreatedSeller:
+    ) -> CreatedSeller | UnverifiedSeller:
         self.in_flight += 1
         self.max_in_flight = max(self.max_in_flight, self.in_flight)
         try:
             await asyncio.sleep(self.create_delay_s)
             if draft.org_name in self.fail_names:
                 raise SellerWriteError("attio down", landed=("organization created in Attio",))
+            if draft.org_name in self.review_names:
+                return UnverifiedSeller(
+                    draft=draft, maps_website=None, provider_websites=(), values=()
+                )
             self.created.append(draft)
             self.timeouts.append(enrichment_timeout_s)
             return CreatedSeller(

@@ -54,6 +54,7 @@ class DiffbotOrganization(BaseModel):
     angellistUri: str | None = None
     facebookUri: str | None = None
     twitterUri: str | None = None
+    homepageUri: str | None = None
     origin: str | None = None
 
 

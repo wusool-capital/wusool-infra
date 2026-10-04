@@ -2,7 +2,9 @@
 
 Replaces the human `/add-seller` step as the dedupe gate: an exact `place_id`
 or domain hit skips a lead, a name-only hit is handed back for a human to
-decide, and only leads with no CRM match are written.
+decide, and only leads with no CRM match are written — unless their enriched
+fields came from a provider whose website disagrees with Maps', in which case
+they come back as `UnverifiedSeller` for a human to review.
 """
 
 import asyncio
@@ -18,6 +20,7 @@ from app.modules.discovery.domain.outcome import (
     FailedLead,
     PossibleDuplicate,
     SellerWriteError,
+    UnverifiedSeller,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,23 +77,24 @@ class CreateMixin(ServiceBase):
             else:
                 to_create.append(lead)
 
-        created, failed = await self._create_all(to_create)
+        created, needs_review, failed = await self._create_all(to_create)
         return DiscoveryOutcome(
             status="ok",
             created=created,
             possible_duplicates=tuple(possible_duplicates),
+            needs_review=needs_review,
             failed=failed,
             already_in_crm=already_in_crm,
         )
 
     async def _create_all(
         self, leads: list[DiscoveredLead]
-    ) -> tuple[tuple[CreatedSeller, ...], tuple[FailedLead, ...]]:
+    ) -> tuple[tuple[CreatedSeller, ...], tuple[UnverifiedSeller, ...], tuple[FailedLead, ...]]:
         semaphore = asyncio.Semaphore(self._policy.enrichment_concurrency)
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self._policy.enrichment_budget_s
 
-        async def _create(lead: DiscoveredLead) -> CreatedSeller | FailedLead:
+        async def _create(lead: DiscoveredLead) -> CreatedSeller | UnverifiedSeller | FailedLead:
             async with semaphore:
                 try:
                     return await self._seller_writer_port.enrich_and_create(
@@ -106,5 +110,6 @@ class CreateMixin(ServiceBase):
 
         results = await asyncio.gather(*(_create(lead) for lead in leads))
         created = tuple(r for r in results if isinstance(r, CreatedSeller))
+        needs_review = tuple(r for r in results if isinstance(r, UnverifiedSeller))
         failed = tuple(r for r in results if isinstance(r, FailedLead))
-        return created, failed
+        return created, needs_review, failed

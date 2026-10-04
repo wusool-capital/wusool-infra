@@ -17,9 +17,11 @@ from app.modules.enrichment.domain.field_plans import (
 )
 from app.modules.enrichment.domain.missingness import is_missing
 from app.modules.enrichment.domain.proposals import (
+    BasicEnrichment,
     EnrichmentProposal,
     FieldValue,
     ProposedFieldValue,
+    ProviderEvidence,
 )
 from app.modules.enrichment.domain.research_context import (
     CompanyContext,
@@ -159,16 +161,14 @@ class EnrichMixin(ServiceBase):
             if is_missing(current_values.get(field.name))
         ]
 
-        proposed: list[ProposedFieldValue] = []
-        proposed.extend(
-            await self._structured_lookup(
-                kind=target.kind,
-                org_name=target.org_name,
-                domain=context.domains[0] if context.domains else None,
-                missing=missing,
-                current_values=current_values,
-            )
+        structured, _ = await self._structured_lookup(
+            kind=target.kind,
+            org_name=target.org_name,
+            domain=context.domains[0] if context.domains else None,
+            missing=missing,
+            current_values=current_values,
         )
+        proposed: list[ProposedFieldValue] = list(structured)
         resolved_names = {v.field_name for v in proposed}
         still_missing = [f for f in missing if f.name not in resolved_names]
 
@@ -186,7 +186,7 @@ class EnrichMixin(ServiceBase):
 
     async def propose_basic(
         self, *, org_name: str, domain: str | None, current_values: JsonObject
-    ) -> tuple[ProposedFieldValue, ...]:
+    ) -> BasicEnrichment:
         """Basic-tier seller enrichment for a lead that has no saved role yet,
         so there is nothing for `RoleReaderPort` to load: the caller's own
         draft values stand in for the current ones."""
@@ -196,14 +196,14 @@ class EnrichMixin(ServiceBase):
             for field in enrichable_fields_for(kind.value)
             if is_missing(current_values.get(field.name))
         ]
-        proposed = await self._structured_lookup(
+        proposed, evidence = await self._structured_lookup(
             kind=kind,
             org_name=org_name,
             domain=domain,
             missing=missing,
             current_values=current_values,
         )
-        return tuple(proposed)
+        return BasicEnrichment(values=tuple(proposed), evidence=tuple(evidence))
 
     async def _structured_lookup(
         self,
@@ -213,7 +213,7 @@ class EnrichMixin(ServiceBase):
         domain: str | None,
         missing: list[EnrichableField],
         current_values: JsonObject,
-    ) -> list[ProposedFieldValue]:
+    ) -> tuple[list[ProposedFieldValue], list[ProviderEvidence]]:
         """A company-data provider's schema is firmographic — revenue,
         employee count, HQ country, socials, years active, location count
         — a seller target's `missing` fields already are entirely that
@@ -227,14 +227,17 @@ class EnrichMixin(ServiceBase):
         if kind is EnrichmentTargetKind.BUYER:
             missing = [f for f in missing if f.write_target is WriteTarget.ORGANIZATION]
         if not missing:
-            return []
+            return [], []
 
         proposed: list[ProposedFieldValue] = []
+        evidence: list[ProviderEvidence] = []
         remaining = list(missing)
         for client in self._company_data_clients:
             if not remaining:
                 break
-            fields = await client.lookup(org_name=org_name, fields=tuple(remaining), domain=domain)
+            result = await client.lookup(org_name=org_name, fields=tuple(remaining), domain=domain)
+            fields = result.fields
+            used_before = len(proposed)
             for field in fields:
                 if field.field_name not in {f.name for f in remaining}:
                     continue
@@ -261,9 +264,17 @@ class EnrichMixin(ServiceBase):
                         rationale=f"Sourced from {field.provider}.",
                     )
                 )
+            if used := proposed[used_before:]:
+                evidence.append(
+                    ProviderEvidence(
+                        provider=fields[0].provider,
+                        website=result.website,
+                        field_names=tuple(v.field_name for v in used),
+                    )
+                )
             resolved_now = {f.field_name for f in fields}
             remaining = [f for f in remaining if f.name not in resolved_now]
-        return proposed
+        return proposed, evidence
 
     async def _research_and_extract(
         self,

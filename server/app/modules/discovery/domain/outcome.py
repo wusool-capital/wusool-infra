@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
+from app.modules.discovery.domain.drafts import DraftValue, SellerDraft
 from app.modules.discovery.domain.leads import DiscoveredLead
 
 DiscoveryStatus = Literal["ok", "disabled", "daily_cap_reached"]
@@ -29,6 +30,26 @@ class CreatedSeller:
 
 
 @dataclass(frozen=True)
+class ReviewValue:
+    field_name: str
+    value: DraftValue
+    confidence: float
+    rationale: str
+
+
+@dataclass(frozen=True)
+class UnverifiedSeller:
+    """Not written: a provider's website didn't match (or couldn't be checked
+    against) Google Maps', so its fields may describe another company."""
+
+    draft: SellerDraft
+    maps_website: str | None
+    # (provider, website it matched) per provider that contributed fields.
+    provider_websites: tuple[tuple[str, str | None], ...]
+    values: tuple[ReviewValue, ...]
+
+
+@dataclass(frozen=True)
 class PossibleDuplicate:
     lead: DiscoveredLead
     existing_org_name: str
@@ -47,5 +68,6 @@ class DiscoveryOutcome:
     status: DiscoveryStatus
     created: tuple[CreatedSeller, ...] = ()
     possible_duplicates: tuple[PossibleDuplicate, ...] = ()
+    needs_review: tuple[UnverifiedSeller, ...] = ()
     failed: tuple[FailedLead, ...] = ()
     already_in_crm: int = 0

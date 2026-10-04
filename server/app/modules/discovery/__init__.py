@@ -29,7 +29,9 @@ from app.modules.discovery.domain.outcome import (
     DiscoveryOutcome,
     FailedLead,
     PossibleDuplicate,
+    ReviewValue,
     SellerWriteError,
+    UnverifiedSeller,
 )
 
 __all__ = [
@@ -40,10 +42,12 @@ __all__ = [
     "DiscoveryOutcome",
     "FailedLead",
     "PossibleDuplicate",
+    "ReviewValue",
     "SellerDraft",
     "SellerDraftPort",
     "SellerWriteError",
     "SellerWriterPort",
+    "UnverifiedSeller",
     "build_possible_duplicate_blocks",
     "discover_and_create_sellers",
 ]

@@ -601,12 +601,37 @@ async def test_propose_basic_uses_structured_providers_with_the_domain() -> None
         company_data_clients=(client,),
     )
 
-    values = await service.propose_basic(
+    result = await service.propose_basic(
         org_name="Acme Co", domain="acme.example", current_values={"description": "kept"}
     )
 
-    assert [v.field_name for v in values] == ["hq_country"]
+    assert [v.field_name for v in result.values] == ["hq_country"]
     assert client.domains == ["acme.example"]
     assert research.queries == []
     requested = client.calls[0][1]
     assert "description" not in requested
+
+
+def _field(name: str, provider: str) -> CompanyDataField:
+    return CompanyDataField(
+        field_name=name, value="x", source_url="https://d.example", provider=provider
+    )
+
+
+async def test_propose_basic_reports_each_contributing_providers_website() -> None:
+    """Discovery checks every provider that contributed fields against Maps."""
+    diffbot = FakeCompanyDataClient([_field("description", "Diffbot")], website="acme.com")
+    pdl = FakeCompanyDataClient([_field("linkedin", "PDL")], website=None)
+    unused = FakeCompanyDataClient([], website="other.com")
+    service, _ = _service(
+        current_values={},
+        extraction_response={"fields": []},
+        company_data_clients=(diffbot, pdl, unused),
+    )
+
+    result = await service.propose_basic(org_name="Acme", domain="acme.com", current_values={})
+
+    assert [(e.provider, e.website, e.field_names) for e in result.evidence] == [
+        ("Diffbot", "acme.com", ("description",)),
+        ("PDL", None, ("linkedin",)),
+    ]

@@ -8,7 +8,7 @@ from typing import Protocol
 from app.modules.discovery.domain.crm import CrmMatch
 from app.modules.discovery.domain.drafts import SellerDraft
 from app.modules.discovery.domain.leads import DiscoveredLead
-from app.modules.discovery.domain.outcome import CreatedSeller
+from app.modules.discovery.domain.outcome import CreatedSeller, UnverifiedSeller
 
 
 class SellerWriterPort(Protocol):
@@ -16,9 +16,11 @@ class SellerWriterPort(Protocol):
 
     async def enrich_and_create(
         self, draft: SellerDraft, *, enrichment_timeout_s: float
-    ) -> CreatedSeller:
+    ) -> CreatedSeller | UnverifiedSeller:
         """Enriches (basic tier) within `enrichment_timeout_s`, then writes
-        once, Attio first. A timeout only skips enrichment.
+        once, Attio first. A timeout only skips enrichment. Returns
+        `UnverifiedSeller` without writing when the enriched fields came from
+        a provider whose website doesn't match the lead's Maps website.
 
         Raises `SellerWriteError` when the write fails.
         """

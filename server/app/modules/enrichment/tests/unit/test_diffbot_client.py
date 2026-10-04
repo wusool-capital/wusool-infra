@@ -6,9 +6,14 @@ validation, not end-to-end.
 
 from datetime import date
 
+import aiohttp
+import pytest
+
 from app.modules.enrichment.domain.field_plans import enrichable_fields_for
+from app.modules.enrichment.providers.diffbot import client as diffbot_client
 from app.modules.enrichment.providers.diffbot.client import (
     _REQUEST_TIMEOUT,
+    DiffbotCompanyDataClient,
     _map_entity,
     _parse_founding_date,
 )
@@ -19,6 +24,7 @@ from app.modules.enrichment.providers.diffbot.schemas import (
     DiffbotOrganization,
     DiffbotRevenue,
 )
+from app.modules.utilities.domain.json_types import JsonObject
 
 _ALL_SELLER_FIELDS = {f.name for f in enrichable_fields_for("seller")}
 
@@ -150,3 +156,17 @@ def test_request_timeout_is_bounded() -> None:
     """
     assert _REQUEST_TIMEOUT.total is not None
     assert 0 < _REQUEST_TIMEOUT.total <= 30
+
+
+async def test_lookup_returns_the_matched_homepage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Discovery compares this against Google Maps' website before writing."""
+
+    async def _fake_fetch_json(**_: str | aiohttp.ClientTimeout | dict[str, str]) -> JsonObject:
+        return {"data": [{"entity": {"name": "Acme", "homepageUri": "acme.com"}}]}
+
+    monkeypatch.setattr(diffbot_client, "fetch_json", _fake_fetch_json)
+
+    result = await DiffbotCompanyDataClient("key").lookup(org_name="Acme", fields=())
+
+    assert result.website == "acme.com"
+    assert result.fields == []
