@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from app.modules.discovery.application.ports.research import LeadSearchClient
+from app.modules.discovery.application.ports.review_store import ReviewStore
 from app.modules.discovery.application.ports.seller_draft import SellerDraftPort
 from app.modules.discovery.application.ports.seller_writer import SellerWriterPort
 from app.modules.utilities import FixedWindowRateLimiter
@@ -22,11 +23,13 @@ class ServiceBase:
         lead_search_client: LeadSearchClient | None,
         seller_draft_port: SellerDraftPort,
         seller_writer_port: SellerWriterPort,
+        review_store: ReviewStore,
         search_limiter: FixedWindowRateLimiter,
         policy: CreationPolicy,
     ) -> None:
         self._lead_search_client = lead_search_client
         self._seller_draft_port = seller_draft_port
         self._seller_writer_port = seller_writer_port
+        self._review_store = review_store
         self._search_limiter = search_limiter
         self._policy = policy

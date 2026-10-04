@@ -13,7 +13,10 @@ from datetime import date
 
 import aiohttp
 
-from app.modules.enrichment.application.ports.company_data import CompanyDataField
+from app.modules.enrichment.application.ports.company_data import (
+    CompanyDataField,
+    CompanyDataResult,
+)
 from app.modules.enrichment.domain.employee_bands import bucket_employee_count
 from app.modules.enrichment.domain.field_plans import EnrichableField
 from app.modules.enrichment.domain.proposals import FieldValue
@@ -102,7 +105,7 @@ class DiffbotCompanyDataClient:
 
     async def lookup(
         self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
-    ) -> list[CompanyDataField]:
+    ) -> CompanyDataResult:
         requested = {f.name for f in fields}
         params = {"token": self._api_key, "type": "Organization", "name": org_name}
         if domain:
@@ -115,14 +118,15 @@ class DiffbotCompanyDataClient:
             org_name=org_name,
         )
         if body is None:
-            return []
+            return CompanyDataResult(fields=[])
 
         try:
             parsed = DiffbotEnhanceResponse.model_validate(body)
         except Exception:
             logger.warning("diffbot_response_unparseable org_name=%s", org_name)
-            return []
+            return CompanyDataResult(fields=[])
 
         if not parsed.data:
-            return []
-        return _map_entity(parsed.data[0].entity, requested)
+            return CompanyDataResult(fields=[])
+        entity = parsed.data[0].entity
+        return CompanyDataResult(fields=_map_entity(entity, requested), website=entity.homepageUri)

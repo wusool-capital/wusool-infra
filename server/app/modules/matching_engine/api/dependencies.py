@@ -230,7 +230,9 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
     auto-creates the genuinely new sellers. Those are appended to this run
     as `PENDING_REVIEW` rows and posted as a second message with
     Approve/Reject; name-only look-alikes are posted separately with an
-    "Add as seller" button so a human decides before anything is written.
+    "Add as seller" button, and leads whose website Diffbot/PDL didn't
+    confirm get one "Review & Save" message each, so a human decides before
+    anything is written.
     """
     idempotency_key = f"discovery:{run_id}"
     if _discovery_idempotency_store.seen(idempotency_key):
@@ -238,7 +240,12 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
     _discovery_idempotency_store.mark(idempotency_key)
 
-    from app.modules.discovery import build_possible_duplicate_blocks, discover_and_create_sellers
+    from app.modules.discovery import (
+        build_needs_review_blocks,
+        build_possible_duplicate_blocks,
+        discover_and_create_sellers,
+        mark_review_posted,
+    )
     from app.modules.matching_engine.api.slack.views.discovered_candidates import (
         build_discovered_candidates_blocks,
     )
@@ -309,6 +316,12 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
 
     notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
+    if outcome.needs_review:
+        count = len(outcome.needs_review)
+        verb = "needs" if count == 1 else "need"
+        notes.append(f"{count} {verb} a website review before saving (below).")
+    if outcome.awaiting_review:
+        notes.append(f"{outcome.awaiting_review} still awaiting an earlier website review.")
     if outcome.failed:
         notes.append(
             "Couldn't save: "
@@ -337,12 +350,33 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
             channel=channel_id, ts=placeholder_ts, text=f"No new sellers created. {detail}"
         )
 
+    # One message per lead: each can carry a dozen field sections, and
+    # Slack caps a message at 50 blocks.
+    for unverified in outcome.needs_review:
+        # One bad card must not cost the operator every card after it.
+        try:
+            await notifier.post_message(
+                channel=channel_id,
+                text=f"Website check for {unverified.draft.org_name}",
+                blocks=build_needs_review_blocks(unverified),
+            )
+            # Unmarked, the next run re-flags the lead instead of hiding it.
+            if unverified.review_id:
+                await mark_review_posted(unverified.review_id)
+        except Exception:
+            logger.exception(
+                "discovery_review_post_failed", extra={"lead": unverified.draft.org_name}
+            )
+
     if outcome.possible_duplicates:
-        await notifier.post_message(
-            channel=channel_id,
-            text=f"{len(outcome.possible_duplicates)} possible duplicate(s) found",
-            blocks=build_possible_duplicate_blocks(outcome.possible_duplicates),
-        )
+        try:
+            await notifier.post_message(
+                channel=channel_id,
+                text=f"{len(outcome.possible_duplicates)} possible duplicate(s) found",
+                blocks=build_possible_duplicate_blocks(outcome.possible_duplicates),
+            )
+        except Exception:
+            logger.exception("discovery_duplicates_post_failed", extra={"run_id": str(run_id)})
 
 
 _DISCOVERY_STATUS_TEXT = {

@@ -26,6 +26,16 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Sellers found via Google Maps after `/find-match` are saved automatically
+  only when Diffbot or People Data Labs matched the same website as Google
+  Maps.
+- When the websites don't match, nothing is saved. A "Website check" message
+  shows both websites and the proposed values. Its **Review & Save** button
+  opens the prefilled add-seller form and keeps working after a restart.
+- For 30 days, later searches skip a lead that is already waiting for review.
+  Websites on Instagram, Facebook, Google Sites, Salla, Zid, Shopify and
+  similar platforms count as "no website". A reviewed seller keeps its Google
+  Maps place id, so the next search skips it.
 - Scribe desktop's "Processing recording" and "Finalizing transcription"
   messages now look the same after you stop a meeting. They also sit in the
   same spot instead of jumping between two styles.

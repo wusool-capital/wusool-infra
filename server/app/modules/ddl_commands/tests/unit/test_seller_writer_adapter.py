@@ -11,8 +11,19 @@ import pytest
 
 from app.modules.ddl_commands.api.write_errors import PartialWriteError
 from app.modules.ddl_commands.providers.discovery import seller_writer_adapter as module
-from app.modules.discovery import CrmMatchKind, DiscoveredLead, SellerDraft, SellerWriteError
-from app.modules.enrichment import ProposedFieldValue, WriteTarget
+from app.modules.discovery import (
+    CrmMatchKind,
+    DiscoveredLead,
+    SellerDraft,
+    SellerWriteError,
+    UnverifiedSeller,
+)
+from app.modules.enrichment import (
+    BasicEnrichment,
+    ProposedFieldValue,
+    ProviderEvidence,
+    WriteTarget,
+)
 
 
 def _org(attio_id: str = "org-1", name: str = "Acme Holdings") -> SimpleNamespace:
@@ -100,6 +111,13 @@ def _draft(**extra: object) -> SellerDraft:
     )
 
 
+def _enriched(website: str | None) -> BasicEnrichment:
+    return BasicEnrichment(
+        values=(_proposed("employee_range", "11-50", WriteTarget.ORGANIZATION),),
+        evidence=(ProviderEvidence("Diffbot", website, ("employee_range",)),),
+    )
+
+
 @pytest.fixture
 def write(monkeypatch: pytest.MonkeyPatch, lookups) -> list[dict]:
     calls: list[dict] = []
@@ -113,9 +131,9 @@ def write(monkeypatch: pytest.MonkeyPatch, lookups) -> list[dict]:
 
 
 async def test_creates_once_with_enrichment_and_place_id(monkeypatch, write) -> None:
-    async def _enrich(**kwargs: object) -> tuple[ProposedFieldValue, ...]:
+    async def _enrich(**kwargs: object) -> BasicEnrichment:
         assert kwargs["domain"] == "acme.example"
-        return (_proposed("employee_range", "11-50", WriteTarget.ORGANIZATION),)
+        return _enriched(website="https://www.acme.example/")
 
     monkeypatch.setattr(module, "propose_basic_seller_fields", _enrich)
 
@@ -134,9 +152,9 @@ async def test_creates_once_with_enrichment_and_place_id(monkeypatch, write) -> 
 
 
 async def test_enrichment_timeout_still_writes_the_lead(monkeypatch, write) -> None:
-    async def _slow(**kwargs: object) -> tuple[ProposedFieldValue, ...]:
+    async def _slow(**kwargs: object) -> BasicEnrichment:
         await asyncio.sleep(1)
-        return ()
+        return BasicEnrichment(values=())
 
     monkeypatch.setattr(module, "propose_basic_seller_fields", _slow)
 
@@ -149,7 +167,7 @@ async def test_enrichment_timeout_still_writes_the_lead(monkeypatch, write) -> N
 
 
 async def test_exhausted_budget_skips_enrichment(monkeypatch, write) -> None:
-    async def _never(**kwargs: object) -> tuple[ProposedFieldValue, ...]:
+    async def _never(**kwargs: object) -> BasicEnrichment:
         raise AssertionError("must not enrich with no budget left")
 
     monkeypatch.setattr(module, "propose_basic_seller_fields", _never)
@@ -163,7 +181,7 @@ async def test_exhausted_budget_skips_enrichment(monkeypatch, write) -> None:
 
 
 async def test_enrichment_error_does_not_block_the_write(monkeypatch, write) -> None:
-    async def _boom(**kwargs: object) -> tuple[ProposedFieldValue, ...]:
+    async def _boom(**kwargs: object) -> BasicEnrichment:
         raise RuntimeError("provider exploded")
 
     monkeypatch.setattr(module, "propose_basic_seller_fields", _boom)
@@ -192,7 +210,9 @@ async def test_partial_write_reports_what_landed(monkeypatch, lookups) -> None:
         raise PartialWriteError(["organization 'Acme Co' created in Attio"], RuntimeError("db"))
 
     monkeypatch.setattr(module, "write_seller_add", _fail)
-    monkeypatch.setattr(module, "propose_basic_seller_fields", _returning(()))
+    monkeypatch.setattr(
+        module, "propose_basic_seller_fields", _returning(BasicEnrichment(values=()))
+    )
 
     with pytest.raises(SellerWriteError) as exc_info:
         await module.DdlCommandsSellerWriterAdapter().enrich_and_create(
@@ -204,7 +224,9 @@ async def test_partial_write_reports_what_landed(monkeypatch, lookups) -> None:
 
 async def test_domain_created_since_the_lookup_aborts_the_write(monkeypatch, write) -> None:
     monkeypatch.setattr(module, "find_organization_by_domains", _returning(_org()))
-    monkeypatch.setattr(module, "propose_basic_seller_fields", _returning(()))
+    monkeypatch.setattr(
+        module, "propose_basic_seller_fields", _returning(BasicEnrichment(values=()))
+    )
 
     # A branch of the same company: different place id, same website.
     with pytest.raises(SellerWriteError, match="already in the CRM"):
@@ -224,12 +246,89 @@ async def test_enrichment_runs_outside_the_write_lock(monkeypatch, write) -> Non
     adapter = module.DdlCommandsSellerWriterAdapter()
     inside_enrichment: list[bool] = []
 
-    async def _enrich(**kwargs: object) -> tuple[ProposedFieldValue, ...]:
+    async def _enrich(**kwargs: object) -> BasicEnrichment:
         inside_enrichment.append(adapter._write_lock.locked())
-        return ()
+        return BasicEnrichment(values=())
 
     monkeypatch.setattr(module, "propose_basic_seller_fields", _enrich)
 
     await adapter.enrich_and_create(_draft(), enrichment_timeout_s=5)
 
     assert inside_enrichment == [False]
+
+
+@pytest.mark.parametrize("provider_website", ["acme-group.de", None])
+async def test_unverified_provider_website_returns_for_review(
+    monkeypatch, write, provider_website: str | None
+) -> None:
+    monkeypatch.setattr(
+        module, "propose_basic_seller_fields", _returning(_enriched(provider_website))
+    )
+
+    result = await module.DdlCommandsSellerWriterAdapter().enrich_and_create(
+        _draft(), enrichment_timeout_s=5
+    )
+
+    assert write == []
+    assert isinstance(result, UnverifiedSeller)
+    assert result.maps_website == "acme.example"
+    assert result.provider_websites == (("Diffbot", provider_website),)
+    assert [(v.field_name, v.value) for v in result.values] == [("employee_range", "11-50")]
+    assert result.draft.values["employee_range"] == "11-50"
+    assert result.draft.source_place_id == "p1"
+
+
+async def test_no_maps_website_with_provider_fields_returns_for_review(monkeypatch, write) -> None:
+    """Diffbot matched on name alone, so nothing anchors it to this lead."""
+    monkeypatch.setattr(
+        module, "propose_basic_seller_fields", _returning(_enriched("acme.example"))
+    )
+
+    result = await module.DdlCommandsSellerWriterAdapter().enrich_and_create(
+        SellerDraft(org_name="Acme Co", source_place_id="p1"), enrichment_timeout_s=5
+    )
+
+    assert write == []
+    assert isinstance(result, UnverifiedSeller)
+    assert result.maps_website is None
+
+
+async def test_a_provider_whose_fields_were_all_dropped_is_not_checked(monkeypatch, write) -> None:
+    """PDL's only field is out of vocabulary, so its missing website is moot."""
+    enrichment = BasicEnrichment(
+        values=(
+            _proposed("employee_range", "11-50", WriteTarget.ORGANIZATION),
+            _proposed("sector_focus", ["Not A Sector"], WriteTarget.ORGANIZATION),
+        ),
+        evidence=(
+            ProviderEvidence("Diffbot", "acme.example", ("employee_range",)),
+            ProviderEvidence("People Data Labs", None, ("sector_focus",)),
+        ),
+    )
+    monkeypatch.setattr(module, "propose_basic_seller_fields", _returning(enrichment))
+
+    created = await module.DdlCommandsSellerWriterAdapter().enrich_and_create(
+        _draft(), enrichment_timeout_s=5
+    )
+
+    assert len(write) == 1
+    assert created.enriched_fields == ("employee_range",)
+
+
+async def test_an_invalid_value_from_an_unverified_provider_goes_to_review(
+    monkeypatch, write
+) -> None:
+    """Validation runs after the website check, so a wrong company's bad value
+    reaches a human instead of failing the lead."""
+    enrichment = BasicEnrichment(
+        values=(_proposed("description", "x" * 5000, WriteTarget.ORGANIZATION),),
+        evidence=(ProviderEvidence("Diffbot", "other.example", ("description",)),),
+    )
+    monkeypatch.setattr(module, "propose_basic_seller_fields", _returning(enrichment))
+
+    result = await module.DdlCommandsSellerWriterAdapter().enrich_and_create(
+        _draft(), enrichment_timeout_s=5
+    )
+
+    assert write == []
+    assert isinstance(result, UnverifiedSeller)

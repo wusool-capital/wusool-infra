@@ -49,10 +49,13 @@ flowchart TD
 **Expected result:** Slack shows scored sellers with fit and data-confidence
 scores. Verify high scores when confidence is low.
 
-If no CRM seller clears the internal threshold, the bot can show up to three
-unverified leads from a public web search. **Add as seller** opens the normal
-add-seller flow; the lead is not saved until you complete that flow. **Find
-more sellers** repeats the public search.
+If no CRM seller clears the internal threshold, the bot searches Google Maps
+for new sellers. A lead is saved automatically only when the website Diffbot
+or People Data Labs found matches the Google Maps website. Otherwise a
+**Website check** message shows both websites and the proposed values.
+**Review & Save** opens the normal add-seller form. Nothing is saved until you
+complete it. Leads that look like an existing organization get **Add as
+seller** instead. **Find more sellers** repeats the public search.
 
 Match results never contact an organization or change its profile or deal.
 Approval and rejection record only the decision, after a current-data check.

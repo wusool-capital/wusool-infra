@@ -11,9 +11,10 @@ draft was handed to `SellerDraftPort`.
 import pytest
 
 import app.modules.discovery.api.slack.handlers as handlers_module
-from app.modules.discovery.api.dependencies import encode_lead
+from app.modules.discovery.api.dependencies import encode_draft
 from app.modules.discovery.bootstrap import create_app
 from app.modules.discovery.config import get_settings
+from app.modules.discovery.domain.drafts import draft_from_lead
 from app.modules.discovery.domain.leads import DiscoveredLead
 from tests.slack_test_helpers import (
     mock_slack_auth,
@@ -39,7 +40,9 @@ def _block_action_payload(lead: DiscoveredLead) -> dict:
         "user": {"id": "U_TEST"},
         "channel": {"id": "C_TEST"},
         "trigger_id": "trigger.123",
-        "actions": [{"action_id": "discover_add_seller", "value": encode_lead(lead)}],
+        "actions": [
+            {"action_id": "discover_add_seller", "value": encode_draft(draft_from_lead(lead))}
+        ],
     }
 
 
@@ -110,3 +113,56 @@ def test_discover_add_seller_reports_a_malformed_button_value_without_crashing(
 
     assert response.status_code == 200
     assert "Couldn't process" in posted[0]["text"]
+
+
+def test_discover_review_seller_opens_the_stored_review(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    class _FakeService:
+        async def open_review_form(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr(handlers_module, "discovery_service", lambda: _FakeService())
+
+    response = _post_interactivity(
+        {
+            "type": "block_actions",
+            "user": {"id": "U_TEST"},
+            "channel": {"id": "C_TEST"},
+            "trigger_id": "trigger.123",
+            "actions": [{"action_id": "discover_review_seller", "value": "place-1"}],
+        }
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        {
+            "trigger_id": "trigger.123",
+            "review_id": "place-1",
+            "channel_id": "C_TEST",
+            "requested_by": "U_TEST",
+        }
+    ]
+
+
+def test_discover_review_seller_reports_an_unknown_review(monkeypatch) -> None:
+    posted = mock_slack_ephemeral(monkeypatch)
+
+    class _MissingService:
+        async def open_review_form(self, **_kwargs):
+            raise RuntimeError("gone")
+
+    monkeypatch.setattr(handlers_module, "discovery_service", lambda: _MissingService())
+
+    response = _post_interactivity(
+        {
+            "type": "block_actions",
+            "user": {"id": "U_TEST"},
+            "channel": {"id": "C_TEST"},
+            "trigger_id": "trigger.123",
+            "actions": [{"action_id": "discover_review_seller", "value": "place-1"}],
+        }
+    )
+
+    assert response.status_code == 200
+    assert posted[0]["text"] == "Couldn't process that lead."

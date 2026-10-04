@@ -12,7 +12,7 @@ from app.modules.enrichment.api.dependencies import (
     propose_and_post,
     resolve_target,
 )
-from app.modules.enrichment.domain.proposals import ProposedFieldValue
+from app.modules.enrichment.domain.proposals import BasicEnrichment
 from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ async def enrich_and_post(*, kind: str, role_id: str, channel_id: str) -> None:
 
 async def propose_basic_seller_fields(
     *, org_name: str, domain: str | None, current_values: JsonObject
-) -> tuple[ProposedFieldValue, ...]:
+) -> BasicEnrichment:
     """Basic-tier (structured providers only) seller enrichment for a company
     that isn't saved yet — used by discovery to fill a lead before its one
     Attio-first write. Never writes anything."""

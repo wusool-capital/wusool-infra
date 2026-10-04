@@ -41,6 +41,11 @@ tracking and `propose`'s `still_missing`). There is no cross-source
 confidence comparison; this optimizes for skipping moot calls, not for
 picking the best of several answers.
 
+Each structured provider also returns the homepage of the company it
+matched (`CompanyDataResult.website`). `propose_basic` reports it per
+contributing provider as `ProviderEvidence`, so `discovery` can check it
+against Google Maps before writing; `propose` ignores it.
+
 Both structured tiers are optional (`DIFFBOT_API_KEY`/
 `PEOPLE_DATA_LABS_API_KEY` unset just skips that tier) and are never called
 for a buyer target at all: none of `BUYER_ENRICHABLE_FIELDS` (AUM,

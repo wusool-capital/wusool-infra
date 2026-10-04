@@ -29,6 +29,7 @@ from app.models.buyer_intel import BuyerIntel
 from app.models.buyer_role import BuyerRole
 from app.models.deal import Deal
 from app.models.deal_stage_event import DealStageEvent
+from app.models.discovery_review import DiscoveryReview
 from app.models.document import Document
 from app.models.feedback_submission import FeedbackSubmission
 from app.models.graph_edge import GraphEdge
@@ -55,6 +56,7 @@ __all__ = [
     "BuyerRole",
     "Deal",
     "DealStageEvent",
+    "DiscoveryReview",
     "Document",
     "FeedbackSubmission",
     "GraphEdge",

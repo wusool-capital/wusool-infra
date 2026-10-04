@@ -15,7 +15,10 @@ from datetime import date
 
 import aiohttp
 
-from app.modules.enrichment.application.ports.company_data import CompanyDataField
+from app.modules.enrichment.application.ports.company_data import (
+    CompanyDataField,
+    CompanyDataResult,
+)
 from app.modules.enrichment.domain.employee_bands import bucket_employee_count
 from app.modules.enrichment.domain.field_plans import EnrichableField
 from app.modules.enrichment.domain.proposals import FieldValue
@@ -82,7 +85,7 @@ class PeopleDataLabsCompanyDataClient:
 
     async def lookup(
         self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
-    ) -> list[CompanyDataField]:
+    ) -> CompanyDataResult:
         requested = {f.name for f in fields}
         params = {"api_key": self._api_key, "name": org_name}
         if domain:
@@ -95,12 +98,12 @@ class PeopleDataLabsCompanyDataClient:
             org_name=org_name,
         )
         if body is None:
-            return []
+            return CompanyDataResult(fields=[])
 
         try:
             parsed = PdlCompanyResponse.model_validate(body)
         except Exception:
             logger.warning("people_data_labs_response_unparseable org_name=%s", org_name)
-            return []
+            return CompanyDataResult(fields=[])
 
-        return _map_response(parsed, requested)
+        return CompanyDataResult(fields=_map_response(parsed, requested), website=parsed.website)

@@ -2,14 +2,20 @@
 
 from datetime import date
 
+import aiohttp
+import pytest
+
+from app.modules.enrichment.providers.people_data_labs import client as pdl_client
 from app.modules.enrichment.providers.people_data_labs.client import (
     _REQUEST_TIMEOUT,
+    PeopleDataLabsCompanyDataClient,
     _map_response,
 )
 from app.modules.enrichment.providers.people_data_labs.schemas import (
     PdlCompanyResponse,
     PdlLocation,
 )
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 def test_request_timeout_is_bounded() -> None:
@@ -96,3 +102,16 @@ def test_map_response_drops_foundation_fields_on_an_out_of_range_founded_year() 
     assert "foundation_date" not in resolved
     assert "years_active" not in resolved
     assert resolved["linkedin"].value == "https://linkedin.com/company/acme"
+
+
+async def test_lookup_returns_the_matched_website(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Discovery compares this against Google Maps' website before writing."""
+
+    async def _fake_fetch_json(**_: str | aiohttp.ClientTimeout | dict[str, str]) -> JsonObject:
+        return {"name": "acme", "website": "acme.com"}
+
+    monkeypatch.setattr(pdl_client, "fetch_json", _fake_fetch_json)
+
+    result = await PeopleDataLabsCompanyDataClient("key").lookup(org_name="Acme", fields=())
+
+    assert result.website == "acme.com"

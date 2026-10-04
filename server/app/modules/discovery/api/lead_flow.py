@@ -20,3 +20,9 @@ async def discover_and_create_sellers(
         quota_key=quota_key,
         exclude_terms=exclude_terms,
     )
+
+
+async def mark_review_posted(review_id: str) -> None:
+    """`UnverifiedSeller.review_id`'s card is in Slack, so later runs may skip
+    its lead. Until called, the lead is treated as never flagged."""
+    await discovery_service().mark_review_posted(review_id)

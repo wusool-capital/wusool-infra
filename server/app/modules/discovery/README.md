@@ -15,11 +15,12 @@ _New to this codebase's layering? See
 domain/            # DiscoveredLead, SellerDraft, CrmMatch, DiscoveryOutcome
 application/        # DiscoverMixin, CreateMixin (pre-filter + create), ConfirmMixin, ports/
 providers/          # Google Places client (replaced the Firecrawl Maps scraper)
-api/                # discover_and_create_sellers (called by matching_engine), discover_add_seller handler
+persistence/        # SqlAlchemyReviewStore — leads awaiting a website review (discovery_reviews)
+api/                # discover_and_create_sellers (called by matching_engine), discover_add_seller/discover_review_seller handlers
 ```
 
-No `persistence/` layer, and no database connection at all — the CRM is
-reached only through `SellerWriterPort`.
+The only table this module owns is `discovery_reviews` (behind `ReviewStore`);
+the CRM itself is reached only through `SellerWriterPort`.
 
 ## Public contract
 
@@ -46,7 +47,35 @@ write (`CreateMixin.discover_and_create`):
   reviewing every hit, so it comes back as a `PossibleDuplicate`, posted with
   an "Add as seller" button. The `/add-seller` organization search is the
   human's final check.
-- **No match**: enriched (basic tier) and created in one Attio-first write.
+- **No match**: enriched (basic tier), then website-checked (below), then
+  created in one Attio-first write.
+
+## The website check
+
+Diffbot/PDL resolve a company by name plus the Maps domain, and can still
+match a different company. Before writing, each provider that contributed
+fields must report a homepage that matches the lead's Maps website
+(`websites_match`: same host after dropping `www.`, or a subdomain of it).
+
+- **All match**, or no provider fields were merged (timeout, failure, no hit):
+  written as before.
+- **Any mismatch**, a provider with no website, or a Maps lead with no
+  website: *not* written. Comes back as an `UnverifiedSeller`, is stored in
+  `discovery_reviews` by place id, and is posted one message per lead, styled
+  like `enrichment`'s proposal. **Review & Save** (`discover_review_seller`)
+  loads the stored draft and opens the prefilled `/add-seller` form. The
+  lead's `place_id` rides along to the save.
+
+Once its card is in Slack (`matching_engine` calls `mark_review_posted`),
+later runs skip the lead for 30 days (counted as "awaiting review"), so it
+isn't enriched or posted again. A card that never posted hides nothing; an
+ignored one comes back with a fresh card after 30 days. If the store is down,
+or the lead has no place id, the card falls back to a short-lived
+`discover_add_seller` token and the lead isn't deduplicated.
+
+Shared-platform websites (Instagram, Facebook, `sites.google.com`,
+`*.wordpress.com`, Salla, Zid, Shopify, link shorteners, ...) count as "no website": they name the platform, not the
+company, so they are never used for the CRM domain lookup or the check.
 
 Places returns up to 20 results for the price of one, so the search asks for
 all of them and the pre-filter picks the first `DISCOVERY_LEAD_SEARCH_LIMIT`

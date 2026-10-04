@@ -49,6 +49,7 @@ class DdlCommandsSellerDraftAdapter:
                     requested_by=requested_by,
                     channel_id=channel_id,
                     prefill=prefill,
+                    source_place_id=draft.source_place_id,
                 ),
             )
             return
@@ -61,5 +62,6 @@ class DdlCommandsSellerDraftAdapter:
                 channel_id=channel_id,
                 prefill_name=draft.org_name,
                 prefill=prefill,
+                source_place_id=draft.source_place_id,
             ),
         )
