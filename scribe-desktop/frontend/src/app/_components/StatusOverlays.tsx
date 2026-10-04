@@ -1,4 +1,4 @@
-import { Spinner } from "@/components/ui/spinner";
+import { StatusMessage } from "@/components/StatusMessage";
 
 interface StatusOverlaysProps {
   // Status flags
@@ -20,12 +20,11 @@ function StatusOverlay({ show, message }: StatusOverlayProps) {
     // excludes the sidebar's own width - see the recording-controls
     // overlay in page.tsx for why this replaced fixed + a JS-guessed
     // marginLeft(sidebarCollapsed ? ... : ...).
-    <div className="absolute bottom-4 left-0 right-0 z-10 pointer-events-none">
+    <div className="absolute bottom-12 left-0 right-0 z-10 pointer-events-none">
       <div className="flex justify-center pl-8">
         <div className="w-2/3 max-w-[750px] flex justify-center">
-          <div className="bg-card rounded-lg shadow-lg px-4 py-2 flex items-center space-x-2 pointer-events-auto">
-            <Spinner className="text-foreground" />
-            <span className="text-sm text-foreground">{message}</span>
+          <div className="bg-card rounded-full shadow-lg px-4 py-2 pointer-events-auto">
+            <StatusMessage message={message} />
           </div>
         </div>
       </div>

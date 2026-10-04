@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
+import { StatusMessage } from '@/components/StatusMessage';
 import Analytics from '@/lib/analytics';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 
@@ -346,10 +347,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       <div className="flex flex-col space-y-2">
         <div className="flex items-center space-x-2 bg-card rounded-full shadow-lg px-4 py-2">
           {isProcessing && !isParentProcessing ? (
-            <div className="flex items-center space-x-2">
-              <Spinner className="h-5 w-5" />
-              <span className="text-sm text-muted-foreground">Processing recording...</span>
-            </div>
+            <StatusMessage message="Processing recording..." />
           ) : (
             <>
               {showPlayback ? (

@@ -21,6 +21,12 @@ for current production evidence and open handover items.
   top that returns to that folder's meeting list. It always goes to the
   meeting's own folder, never to another one you visited earlier.
 
+### Changed
+
+- Scribe desktop's "Processing recording" and "Finalizing transcription"
+  messages after you stop a meeting now look the same and sit in the same spot,
+  instead of jumping between two different styles and positions.
+
 ## 2026-10-03
 
 ### Added
