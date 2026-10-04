@@ -316,7 +316,9 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
 
     notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
     if outcome.needs_review:
-        notes.append(f"{len(outcome.needs_review)} need a website review before saving (below).")
+        count = len(outcome.needs_review)
+        verb = "needs" if count == 1 else "need"
+        notes.append(f"{count} {verb} a website review before saving (below).")
     if outcome.failed:
         notes.append(
             "Couldn't save: "

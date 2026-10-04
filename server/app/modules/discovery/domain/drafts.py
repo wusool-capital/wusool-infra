@@ -9,10 +9,8 @@ from urllib.parse import urlsplit
 
 from app.modules.discovery.domain.leads import DiscoveredLead
 
-# Maps values (`hq_country`'s string, `sector_focus`/`domains`' lists) plus
-# merged enrichment values a review draft carries. Mirrors
-# `ddl_commands.api.schemas.PrefillValue` minus JSON objects, without
-# importing across the module boundary.
+# Mirrors `ddl_commands`' `PrefillValue` minus JSON objects; that module is
+# off-limits to `discovery`.
 DraftValue = str | float | bool | int | date | list[str]
 
 

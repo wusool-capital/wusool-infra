@@ -273,7 +273,7 @@ async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, h
     await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
 
     assert harness.notifier.updates[-1]["text"] == (
-        "No new sellers created. 1 need a website review before saving (below)."
+        "No new sellers created. 1 needs a website review before saving (below)."
     )
     review = harness.notifier.posts[1]
     assert review["text"] == "Website check for Acme Co"
