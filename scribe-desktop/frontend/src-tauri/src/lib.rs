@@ -38,6 +38,7 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod api;
 pub mod audio;
+pub mod autostart;
 pub mod config;
 pub mod console_utils;
 pub mod database;
@@ -414,6 +415,10 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![autostart::LOGIN_LAUNCH_ARG]),
+        ))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -436,7 +441,18 @@ pub fn run() {
             // with no visible way to bring it forward. Force focus explicitly
             // on every startup - harmless on a normal launch, load-bearing
             // after an update relaunch.
-            tray::focus_main_window(_app.handle());
+            // A login launch stays in the tray instead of popping the window up.
+            if autostart::launched_at_login() {
+                if let Some(window) = _app.get_webview_window("main") {
+                    if let Err(e) = window.hide() {
+                        log::error!("Failed to hide main window on login launch: {}", e);
+                    }
+                }
+            } else {
+                tray::focus_main_window(_app.handle());
+            }
+
+            autostart::apply_default(_app.handle());
 
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
@@ -584,6 +600,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            autostart::get_open_at_login,
+            autostart::set_open_at_login,
             start_recording,
             stop_recording,
             is_recording,

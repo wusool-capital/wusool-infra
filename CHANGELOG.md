@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-04
+
+### Added
+
+- Scribe desktop has an "Open at Login" setting under Recording, on by
+  default. Scribe starts in the menu bar when you log in, without opening its
+  window, so it is already running for your meetings. Existing users get it
+  switched on the first time they run this version, and macOS shows a
+  "Background Items Added" notice. Turning the setting off sticks.
+
 ## 2026-10-03
 
 ### Added
