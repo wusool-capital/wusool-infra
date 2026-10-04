@@ -14,8 +14,10 @@ for current production evidence and open handover items.
 
 - `/find-match` now always opens a popup after you confirm the buyer, listing
   any missing or conflicting buyer details. The match only starts when you
-  click **Run anyway**. These details used to be posted as a channel message
-  while the match had already started.
+  click **Run anyway**. Before, missing details were posted as a channel note
+  while the match ran, and conflicts paused it behind buttons in the channel.
+  If the check itself fails, the popup says so rather than showing an
+  all-clear.
 
 ### Fixed
 

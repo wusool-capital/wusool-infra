@@ -5,9 +5,11 @@ the result back into a Slack message. Every action re-validates against the
 database — Slack payload state is never trusted on its own (§24).
 """
 
+import asyncio
 import json
 import logging
 import re
+import time
 import uuid
 from dataclasses import replace
 
@@ -75,46 +77,48 @@ def register(app: AsyncApp) -> None:
         client: AsyncWebClient,
     ) -> None:
         view_id = view.get("id")
-        if view_id:
-            idempotency_key = f"buyer_selection_submission:{view_id}"
-            if _submission_idempotency_store.seen(idempotency_key):
-                await ack()
-                logger.info(
-                    "buyer_selection_duplicate_delivery_skipped key=%s",
-                    idempotency_key,
-                    extra={"key": idempotency_key},
-                )
-                return
-            _submission_idempotency_store.mark(idempotency_key)
+        idempotency_key = f"buyer_selection_submission:{view_id}" if view_id else None
+        if idempotency_key and _submission_idempotency_store.seen(idempotency_key):
+            await ack()
+            logger.info(
+                "buyer_selection_duplicate_delivery_skipped key=%s",
+                idempotency_key,
+                extra={"key": idempotency_key},
+            )
+            return
 
-        metadata = json.loads(view.get("private_metadata") or "{}")
-        requested_by = metadata.get("requested_by") or body["user"]["id"]
-        channel_id = metadata.get("channel_id")
-        if not channel_id or not view_id:
+        try:
+            metadata = json.loads(view.get("private_metadata") or "{}")
+            values = view["state"]["values"]
+            selected = values["buyer_role_id"]["selected_buyer"]["selected_option"]
+            context_input = values.get("advisor_context", {}).get("context_text")
+            advisor_context = (context_input.get("value") or "").strip() if context_input else ""
+            gate = DiscrepancyGateMetadata(
+                buyer_role_id=selected["value"],
+                channel_id=metadata.get("channel_id"),
+                requested_by=metadata.get("requested_by") or body["user"]["id"],
+                advisor_context=advisor_context or None,
+            )
+        except (KeyError, TypeError, ValueError):
+            # Ack anyway: an un-acked submission shows Slack's connection error.
+            logger.warning("buyer_selection_invalid_submission view_id=%s", view_id, exc_info=True)
             await ack()
             return
 
-        values = view["state"]["values"]
-        selected = values["buyer_role_id"]["selected_buyer"]["selected_option"]
-        context_input = values.get("advisor_context", {}).get("context_text")
-        advisor_context = (context_input.get("value") or "").strip() if context_input else ""
-        gate = DiscrepancyGateMetadata(
-            buyer_role_id=selected["value"],
-            channel_id=channel_id,
-            requested_by=requested_by,
-            advisor_context=advisor_context or None,
-        )
-
+        # Marked only once parsing succeeds, so a failed submission can be retried.
+        if idempotency_key:
+            _submission_idempotency_store.mark(idempotency_key)
         # The popup opens with "Run anyway" already live, so it is never stuck if
         # the background update below lands before this one.
         await ack(
             response_action="update",
             view=build_discrepancy_gate_modal(gate, _CHECKING_TEXT),
         )
-        _task_runner.run(
-            lambda: _show_discrepancies(client, view_id, gate),
-            name=f"find-match-check:{gate.buyer_role_id}",
-        )
+        if view_id:
+            _task_runner.run(
+                lambda: _show_discrepancies(client, view_id, gate),
+                name=f"find-match-check:{gate.buyer_role_id}",
+            )
 
     @app.view("discrepancy_gate_modal")
     async def handle_discrepancy_gate_submission(
@@ -146,7 +150,6 @@ def register(app: AsyncApp) -> None:
                 gate.requested_by,
                 gate.channel_id,
                 advisor_context=gate.advisor_context,
-                check_discrepancies=False,
             ),
             name=f"find-match:{gate.buyer_role_id}",
         )
@@ -277,16 +280,13 @@ def register(app: AsyncApp) -> None:
         _submission_idempotency_store.mark(idempotency_key)
 
         _task_runner.run(
-            # The report already ran once for this message — explicitly
-            # opts out rather than relying on a default, so the gate stays
-            # on by default for every other caller.
+            # Buttons on gate messages posted before the popup existed.
             lambda: run_match_and_post(
                 buyer_role_id,
                 requested_by,
                 channel_id,
                 advisor_context=run_value.advisor_context,
                 placeholder_ts=message_ts,
-                check_discrepancies=False,
             ),
             name=f"find-match:{buyer_role_id}",
         )
@@ -303,6 +303,14 @@ def register(app: AsyncApp) -> None:
 
 _CHECKING_TEXT = ":hourglass_flowing_sand: _Checking the buyer's profile…_"
 _CLEAR_TEXT = "No missing or conflicting details found for this buyer."
+_FINDINGS_FALLBACK_TEXT = "This buyer's profile has missing or conflicting details."
+_BUYER_GONE_TEXT = "This buyer could not be found. It may have been removed."
+_CHECK_FAILED_TEXT = (
+    ":warning: Couldn't check this buyer's profile, so missing or conflicting "
+    "details may not be shown."
+)
+# ponytail: fixed delay, since Slack gives no signal for when the ack's view is applied.
+_MIN_UPDATE_DELAY_S = 1.5
 
 
 async def _show_discrepancies(
@@ -310,13 +318,30 @@ async def _show_discrepancies(
 ) -> None:
     """Fills the popup with the check result. Never runs the match — only
     "Run anyway" does."""
-    findings = await find_buyer_discrepancies(gate.buyer_role_id, gate.advisor_context)
-    text = findings.message if findings else _CLEAR_TEXT
+    started = time.monotonic()
+    try:
+        result = await find_buyer_discrepancies(gate.buyer_role_id, gate.advisor_context)
+    except Exception:
+        logger.exception("discrepancy_check_failed", extra={"buyer_role_id": gate.buyer_role_id})
+        text = _CHECK_FAILED_TEXT
+    else:
+        if result is None:
+            text = _BUYER_GONE_TEXT
+        elif result.report.is_clear:
+            text = _CLEAR_TEXT
+        else:
+            text = result.message.strip() or _FINDINGS_FALLBACK_TEXT
+
+    # A fast check could otherwise land before the ack's "Checking…" view and be overwritten.
+    await asyncio.sleep(max(0.0, _MIN_UPDATE_DELAY_S - (time.monotonic() - started)))
     try:
         await client.views_update(view_id=view_id, view=build_discrepancy_gate_modal(gate, text))
-    except SlackApiError:
-        # Closed, or already submitted via "Run anyway" — nothing left to show.
-        logger.info("discrepancy_gate_modal_gone view_id=%s", view_id)
+    except SlackApiError as exc:
+        if exc.response.get("error") == "not_found":
+            # Closed, or already submitted via "Run anyway" — nothing left to show.
+            logger.info("discrepancy_gate_modal_gone view_id=%s", view_id)
+        else:
+            logger.warning("discrepancy_gate_update_failed view_id=%s", view_id, exc_info=True)
 
 
 def _partial_write_message(exc: PartialWriteError) -> str:
