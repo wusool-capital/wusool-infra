@@ -34,11 +34,13 @@ function formatMeetingDate(createdAt?: string | null): string | null {
   });
 }
 
-function FolderContent() {
-  const searchParams = useSearchParams();
+interface FolderViewProps {
+  tagSlug: string;
+  folderName: string;
+}
+
+function FolderView({ tagSlug, folderName }: FolderViewProps) {
   const router = useRouter();
-  const tagSlug = searchParams.get('tag') ?? '';
-  const folderName = searchParams.get('name') ?? 'Folder';
   const { meetings, setCurrentMeeting } = useSidebar();
   const { deleteMeetings } = useDeleteMeetings();
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,15 +99,15 @@ function FolderContent() {
       <div className="sticky top-0 z-10 bg-muted border-b border-border ">
         <div className="px-8 py-6">
           <div className="flex items-center gap-3">
-            <Folder className="w-6 h-6 text-muted-foreground " />
-            <h1 className="text-2xl font-bold text-foreground ">{folderName}</h1>
-            <span className="text-sm text-muted-foreground ">
+            <Folder className="w-6 h-6 flex-shrink-0 text-muted-foreground " />
+            <h1 className="min-w-0 truncate text-xl font-semibold text-foreground " title={folderName}>{folderName}</h1>
+            <span className="flex-shrink-0 whitespace-nowrap text-sm text-muted-foreground ">
               {folderMeetings.length} meeting{folderMeetings.length === 1 ? '' : 's'}
             </span>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex flex-shrink-0 items-center gap-2">
               {selectionMode ? (
                 <>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="whitespace-nowrap text-sm text-muted-foreground">
                     {selectedIds.size} selected
                   </span>
                   <Button
@@ -208,7 +210,7 @@ function FolderContent() {
                     {meeting.title}
                   </span>
                   {(formatMeetingDate(meeting.createdAt) || formatDuration(meeting.durationSeconds)) && (
-                    <span className="flex-shrink-0 ml-auto text-[11px] text-muted-foreground whitespace-nowrap">
+                    <span className="flex-shrink-0 ml-auto text-xs text-muted-foreground whitespace-nowrap">
                       {[formatMeetingDate(meeting.createdAt), formatDuration(meeting.durationSeconds)]
                         .filter(Boolean)
                         .join(' · ')}
@@ -246,6 +248,14 @@ function FolderContent() {
       </ConfirmationModal>
     </div>
   );
+}
+
+function FolderContent() {
+  const searchParams = useSearchParams();
+  const tagSlug = searchParams.get('tag') ?? '';
+  const folderName = searchParams.get('name') ?? 'Folder';
+  // Same route for every folder, so React would otherwise reuse state (selection, search) across them.
+  return <FolderView key={tagSlug} tagSlug={tagSlug} folderName={folderName} />;
 }
 
 export default function FolderPage() {

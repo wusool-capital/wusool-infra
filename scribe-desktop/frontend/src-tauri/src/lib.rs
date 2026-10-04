@@ -38,6 +38,7 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod api;
 pub mod audio;
+pub mod autostart;
 pub mod config;
 pub mod console_utils;
 pub mod database;
@@ -414,6 +415,10 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![autostart::LOGIN_LAUNCH_ARG]),
+        ))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -436,12 +441,20 @@ pub fn run() {
             // with no visible way to bring it forward. Force focus explicitly
             // on every startup - harmless on a normal launch, load-bearing
             // after an update relaunch.
-            tray::focus_main_window(_app.handle());
-
-            // Initialize system tray
-            if let Err(e) = tray::create_tray(_app.handle()) {
-                log::error!("Failed to create system tray: {}", e);
+            // The main window is created hidden (tauri.conf.json), so a login
+            // launch stays in the tray, but only if the tray exists to reopen it.
+            let tray_ready = match tray::create_tray(_app.handle()) {
+                Ok(()) => true,
+                Err(e) => {
+                    log::error!("Failed to create system tray: {}", e);
+                    false
+                }
+            };
+            if !(autostart::launched_at_login() && tray_ready) {
+                tray::focus_main_window(_app.handle());
             }
+
+            autostart::apply_default(_app.handle());
 
             // Initialize notification system with proper defaults
             log::info!("Initializing notification system...");
@@ -584,6 +597,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            autostart::get_open_at_login,
+            autostart::set_open_at_login,
+            autostart::prepare_relaunch,
             start_recording,
             stop_recording,
             is_recording,

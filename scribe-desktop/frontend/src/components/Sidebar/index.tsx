@@ -20,6 +20,7 @@ import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useDeleteMeetings } from '@/hooks/useDeleteMeetings';
 import { cn } from '@/lib/utils';
+import { RollingLabel } from './RollingLabel';
 
 import {
   Dialog,
@@ -580,7 +581,9 @@ const Sidebar: React.FC = () => {
   const renderItem = (item: SidebarItem, depth = 0) => {
     const isExpanded = expandedFolders.has(item.id) || searchExpandedFolderIds.has(item.id);
     const paddingLeft = `${depth * 12 + 12}px`;
-    const isActive = item.type === 'file' && currentMeeting?.id === item.id;
+    // currentMeeting outlives the meeting page, so it only counts while one is open.
+    const onMeetingRoute = !!pathname && (pathname.startsWith('/meeting-details') || pathname.startsWith('/notes'));
+    const isActive = onMeetingRoute && item.type === 'file' && currentMeeting?.id === item.id;
     const isMeetingItem = item.id.includes('-') && !item.id.startsWith('intro-call');
 
     // Check if this item has a matching transcript snippet
@@ -628,7 +631,7 @@ const Sidebar: React.FC = () => {
               ) : (
                 <Folder className="w-4 h-4 mr-2 text-muted-foreground" />
               )}
-              <span className={depth === 0 ? "" : "font-medium"}>{item.title}</span>
+              <RollingLabel text={item.title} className={cn('mr-2', depth !== 0 && 'font-medium')} />
               <div className="ml-auto">
                 {item.id.startsWith(TAG_FOLDER_PREFIX) ? (
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -656,7 +659,7 @@ const Sidebar: React.FC = () => {
                 )}
                 <span className="flex-1 truncate min-w-0" title={item.title}>{item.title}</span>
                 {isMeetingItem && (formatMeetingDate(item.createdAt) || formatDuration(item.durationSeconds)) && (
-                  <span className="flex-shrink-0 ml-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                  <span className="flex-shrink-0 ml-2 text-xs text-muted-foreground whitespace-nowrap">
                     {[formatMeetingDate(item.createdAt), formatDuration(item.durationSeconds)]
                       .filter(Boolean)
                       .join(' · ')}

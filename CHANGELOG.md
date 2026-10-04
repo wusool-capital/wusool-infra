@@ -10,8 +10,22 @@ for current production evidence and open handover items.
 
 ## 2026-10-04
 
+### Added
+
+- Scribe desktop has an "Open at Login" setting under Recording, on by
+  default. Scribe starts in the menu bar when you log in, without opening its
+  window, so it is already running for your meetings. Existing users get it
+  switched on the first time they run this version, and macOS shows a
+  "Background Items Added" notice. Turning the setting off sticks.
+- Scribe desktop meetings that belong to a folder have a back button at the
+  top that returns to that folder's meeting list. It always goes to the
+  meeting's own folder, never to another one you visited earlier.
+
 ### Changed
 
+- Scribe desktop's "Processing recording" and "Finalizing transcription"
+  messages now look the same after you stop a meeting. They also sit in the
+  same spot instead of jumping between two styles.
 - `/find-match` now always opens a popup after you confirm the buyer, listing
   any missing or conflicting buyer details. The match only starts when you
   click **Run anyway**. Before, missing details were posted as a channel note
@@ -58,9 +72,15 @@ for current production evidence and open handover items.
 - Scribe desktop's start-recording buttons now react the instant they are
   clicked. A spinner shows while the transcription model is checked and
   capture starts. A blocked or failed start puts the button back.
+- Scribe desktop's sidebar shows folder names on one line in a smaller size,
+  and scrolls long names sideways on hover instead of wrapping. The folder
+  page header keeps its meeting and selected counts on one line.
 
 ### Fixed
 
+- Scribe desktop folder pages no longer carry selections over from another
+  folder, which could delete meetings from the folder you had just left. The
+  sidebar also stops highlighting the last opened meeting once you leave it.
 - Scribe's meeting popup close button now works on the first click and is
   visible without hovering. The popups no longer show an oversized
   background rectangle behind the card. Both popups now share a refreshed

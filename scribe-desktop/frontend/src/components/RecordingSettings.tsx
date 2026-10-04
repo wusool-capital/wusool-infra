@@ -32,6 +32,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showRecordingNotification, setShowRecordingNotification] = useState(true);
+  // null until the OS login-item state is read, since it's the source of truth.
+  const [openAtLogin, setOpenAtLogin] = useState<boolean | null>(null);
 
   // Load recording preferences on component mount
   useEffect(() => {
@@ -54,6 +56,16 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     };
 
     loadPreferences();
+  }, []);
+
+  useEffect(() => {
+    invoke<boolean>('get_open_at_login')
+      .then(setOpenAtLogin)
+      .catch((error) => {
+        console.error('Failed to read open-at-login state:', error);
+        // Leave the toggle usable so it can still be turned on or off.
+        setOpenAtLogin(false);
+      });
   }, []);
 
   // Load recording notification preference
@@ -120,6 +132,22 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       });
     } catch (error) {
       console.error('Failed to save notification preference:', error);
+      toast.error('Failed to save preference');
+    }
+  };
+
+  const handleOpenAtLoginToggle = async (enabled: boolean) => {
+    const previous = openAtLogin;
+    setOpenAtLogin(enabled);
+    try {
+      await invoke('set_open_at_login', { enabled });
+      toast.success('Preference saved');
+      await Analytics.track('open_at_login_changed', {
+        enabled: enabled.toString()
+      });
+    } catch (error) {
+      console.error('Failed to save open-at-login preference:', error);
+      setOpenAtLogin(previous);
       toast.error('Failed to save preference');
     }
   };
@@ -257,6 +285,21 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
         <Switch
           checked={preferences.auto_stop_on_meeting_end}
           onCheckedChange={handleAutoStopToggle}
+        />
+      </div>
+
+      {/* Open at login Toggle */}
+      <div className="flex items-center justify-between p-4 border rounded-lg">
+        <div className="flex-1">
+          <div className="font-medium">Open at Login</div>
+          <div className="text-sm text-muted-foreground">
+            Start Scribe in the background when you log in, so it is already running for your meetings. Find it in the menu bar.
+          </div>
+        </div>
+        <Switch
+          checked={openAtLogin ?? false}
+          disabled={openAtLogin === null}
+          onCheckedChange={handleOpenAtLoginToggle}
         />
       </div>
 

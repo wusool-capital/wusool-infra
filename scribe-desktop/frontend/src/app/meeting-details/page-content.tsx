@@ -1,8 +1,12 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { Summary, SummaryResponse } from '@/types';
-import { useSidebar } from '@/components/Sidebar/SidebarProvider';
+import { useSidebar, slugifyTag } from '@/components/Sidebar/SidebarProvider';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
@@ -66,6 +70,10 @@ export default function PageContent({
   // pushed_at is persisted so this holds across app restarts, not just
   // in-session state.
   const isPushed = Boolean(meeting.pushed_at);
+
+  const router = useRouter();
+  // Derived from the meeting's own tag rather than history, so Back can only ever lead to its folder.
+  const folderName: string | undefined = meeting.push_tag?.trim() || undefined;
 
   const transcriptEditor = useTranscriptEditor({
     meetingId: meeting.id,
@@ -186,6 +194,29 @@ export default function PageContent({
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex flex-col h-screen bg-muted "
     >
+      {folderName && (
+        <div className="flex items-center px-4 py-2 border-b border-border bg-card">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="max-w-xs"
+                  onClick={() =>
+                    router.push(`/folder?tag=${encodeURIComponent(slugifyTag(folderName))}&name=${encodeURIComponent(folderName)}`)
+                  }
+                >
+                  <ArrowLeft />
+                  <span className="truncate">{folderName}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Back to {folderName}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
         {isPushed ? (
           <PushedMeetingView
