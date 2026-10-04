@@ -62,11 +62,20 @@ _PLATFORM_HOSTS = (
     "youtube.com",
     "linktr.ee",
     "wa.me",
+    "wa.link",
+    "fb.com",
+    "t.me",
+    "snapchat.com",
+    "bit.ly",
+    "goo.gl",
     "google.com",
     "wordpress.com",
     "squarespace.com",
     "wixsite.com",
     "business.site",
+    "myshopify.com",
+    "salla.sa",
+    "zid.store",
 )
 
 

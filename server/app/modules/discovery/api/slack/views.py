@@ -71,7 +71,8 @@ def build_possible_duplicate_blocks(duplicates: Sequence[PossibleDuplicate]) -> 
     return blocks
 
 
-# Slack rejects a section over 3000 chars; the form still gets the full value.
+# Slack rejects a section over 3000 chars; value and rationale are capped
+# separately, and the form still gets the full value.
 _MAX_VALUE_CHARS = 300
 
 
@@ -101,7 +102,7 @@ def build_needs_review_blocks(unverified: UnverifiedSeller) -> list[Block]:
             text=(
                 f"*{value.field_name}*\n"
                 f"Proposed: {_render(value.value)}\n"
-                f"Confidence: {value.confidence:.0%} — {sanitize_mrkdwn(value.rationale)}"
+                f"Confidence: {value.confidence:.0%} — {_render(value.rationale)}"
             )
         )
         for value in unverified.values

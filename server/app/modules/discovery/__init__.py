@@ -18,7 +18,7 @@ Public cross-module facade — see the module-boundary rule in
 listed in `__all__` here.
 """
 
-from app.modules.discovery.api.lead_flow import discover_and_create_sellers
+from app.modules.discovery.api.lead_flow import discover_and_create_sellers, mark_review_posted
 from app.modules.discovery.api.slack.views import (
     build_needs_review_blocks,
     build_possible_duplicate_blocks,
@@ -55,4 +55,5 @@ __all__ = [
     "build_needs_review_blocks",
     "build_possible_duplicate_blocks",
     "discover_and_create_sellers",
+    "mark_review_posted",
 ]

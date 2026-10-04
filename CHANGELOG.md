@@ -28,9 +28,9 @@ for current production evidence and open handover items.
   as the Google Maps one. Otherwise nothing is saved, and a "Website check"
   message shows both websites and the proposed values with a **Review & Save**
   button that opens the prefilled add-seller form. The card keeps working
-  after a restart, and later searches skip a lead already waiting for review
-  instead of posting it again. Websites on Instagram, Facebook, Google Sites
-  and similar platforms count as "no website". A reviewed seller keeps its
+  after a restart, and for 30 days later searches skip a lead already waiting
+  for review instead of looking it up and posting it again. Websites on Instagram, Facebook, Google Sites,
+  Salla, Zid, Shopify and similar platforms count as "no website". A reviewed seller keeps its
   Google Maps place id, so the next search skips it.
 - Scribe desktop's "Processing recording" and "Finalizing transcription"
   messages now look the same after you stop a meeting. They also sit in the

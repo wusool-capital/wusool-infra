@@ -263,7 +263,10 @@ async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, h
         maps_website="acme.com",
         provider_websites=(("Diffbot", "acme-group.de"),),
         values=(),
+        review_id="p1",
     )
+    marked = AsyncMock()
+    monkeypatch.setattr(discovery_module, "mark_review_posted", marked)
     monkeypatch.setattr(
         discovery_module,
         "discover_and_create_sellers",
@@ -277,6 +280,7 @@ async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, h
     )
     review = harness.notifier.posts[1]
     assert review["text"] == "Website check for Acme Co"
+    marked.assert_awaited_once_with("p1")
     assert review["blocks"][-1].to_dict()["accessory"]["text"]["text"] == "Review & Save"
 
 
@@ -295,8 +299,15 @@ async def test_trigger_notes_leads_still_awaiting_an_earlier_review(monkeypatch,
 async def test_one_failed_review_post_does_not_stop_the_others(monkeypatch, harness) -> None:
     def _unverified(name: str) -> UnverifiedSeller:
         return UnverifiedSeller(
-            draft=SellerDraft(org_name=name), maps_website=None, provider_websites=(), values=()
+            draft=SellerDraft(org_name=name),
+            maps_website=None,
+            provider_websites=(),
+            values=(),
+            review_id=name,
         )
+
+    marked = AsyncMock()
+    monkeypatch.setattr(discovery_module, "mark_review_posted", marked)
 
     monkeypatch.setattr(
         discovery_module,
@@ -319,6 +330,7 @@ async def test_one_failed_review_post_does_not_stop_the_others(monkeypatch, harn
     await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
 
     assert [p["text"] for p in harness.notifier.posts][-1] == "Website check for Good Co"
+    marked.assert_awaited_once_with("Good Co")  # the failed card stays unmarked
 
 
 async def test_trigger_reports_the_daily_cap_and_creates_nothing(monkeypatch, harness) -> None:

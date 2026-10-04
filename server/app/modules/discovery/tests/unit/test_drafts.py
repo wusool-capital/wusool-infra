@@ -144,3 +144,16 @@ def test_a_shared_platform_website_is_not_a_company_domain(website: str) -> None
 
 def test_company_hostname_keeps_ordinary_company_sites() -> None:
     assert company_hostname("https://www.acme-google.com") == "acme-google.com"
+
+
+@pytest.mark.parametrize(
+    "website",
+    [
+        "https://salla.sa/acme",
+        "https://acme.zid.store",
+        "https://acme.myshopify.com",
+        "https://t.me/acme",
+    ],
+)
+def test_regional_store_builders_and_messengers_are_platforms(website: str) -> None:
+    assert company_hostname(website) is None

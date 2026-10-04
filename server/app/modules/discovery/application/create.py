@@ -10,6 +10,7 @@ they come back as `UnverifiedSeller` for a human to review.
 import asyncio
 import logging
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 from app.modules.discovery.application.base import ServiceBase
 from app.modules.discovery.domain.crm import CrmMatchKind
@@ -29,6 +30,8 @@ logger = logging.getLogger(__name__)
 # One Places call returns up to 20 at the same price as 1, so search wide and
 # let the CRM pre-filter, not the API, decide which few survive.
 _CANDIDATE_POOL = 20
+# An ignored review card stops hiding its lead after this, so it gets a fresh look.
+_REVIEW_EXPIRY = timedelta(days=30)
 
 
 class CreateMixin(ServiceBase):
@@ -98,7 +101,8 @@ class CreateMixin(ServiceBase):
         """Fails open: a store outage re-posts a lead rather than hiding it."""
         try:
             return await self._review_store.pending_place_ids(
-                [lead.place_id for lead in leads if lead.place_id]
+                [lead.place_id for lead in leads if lead.place_id],
+                flagged_since=datetime.now(UTC) - _REVIEW_EXPIRY,
             )
         except Exception:
             logger.exception("discovery_pending_reviews_lookup_failed")
@@ -116,6 +120,10 @@ class CreateMixin(ServiceBase):
             logger.exception("discovery_review_store_failed", extra={"place_id": place_id})
             return unverified
         return replace(unverified, review_id=place_id)
+
+    async def mark_review_posted(self, review_id: str) -> None:
+        """Called once the card reached Slack: only then may it hide its lead."""
+        await self._review_store.mark_posted(review_id)
 
     async def _create_all(
         self, leads: list[DiscoveredLead]

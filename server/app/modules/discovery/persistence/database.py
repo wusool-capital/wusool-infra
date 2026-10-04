@@ -5,15 +5,10 @@ module's own `persistence/database.py`.
 
 from functools import lru_cache
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.discovery.config import get_settings
 from app.modules.utilities.persistence import engine as _engine
-
-
-@lru_cache
-def get_engine() -> AsyncEngine:
-    return _engine.get_engine(get_settings().database_url)
 
 
 @lru_cache

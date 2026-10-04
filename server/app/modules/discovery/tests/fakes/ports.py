@@ -1,6 +1,7 @@
 """Fakes for discovery's ports — no network, no Slack."""
 
 import asyncio
+from datetime import datetime
 from uuid import uuid4
 
 from app.modules.discovery.application.ports.research import LeadSearchClient
@@ -85,23 +86,30 @@ class FakeSellerWriterPort(SellerWriterPort):
 
 
 class FakeReviewStore:
-    """In-memory `ReviewStore`; `fail` makes every call raise."""
+    """In-memory `ReviewStore`. `pending` seeds already-posted reviews; `fail`
+    makes every call raise."""
 
     def __init__(self, pending: set[str] | None = None, fail: bool = False) -> None:
         self.drafts: dict[str, SellerDraft] = {}
-        self.pending = pending or set()
+        self.posted: set[str] = set(pending or ())
         self.fail = fail
+        self.flagged_since: list[datetime] = []
 
-    async def pending_place_ids(self, place_ids: list[str]) -> set[str]:
+    async def pending_place_ids(self, place_ids: list[str], *, flagged_since: datetime) -> set[str]:
         if self.fail:
             raise RuntimeError("db down")
-        return (self.pending | set(self.drafts)) & set(place_ids)
+        self.flagged_since.append(flagged_since)
+        return self.posted & set(place_ids)
 
     async def add(self, unverified: UnverifiedSeller) -> None:
         if self.fail:
             raise RuntimeError("db down")
         assert unverified.draft.source_place_id is not None
         self.drafts[unverified.draft.source_place_id] = unverified.draft
+        self.posted.discard(unverified.draft.source_place_id)
+
+    async def mark_posted(self, place_id: str) -> None:
+        self.posted.add(place_id)
 
     async def get_draft(self, place_id: str) -> SellerDraft | None:
         return self.drafts.get(place_id)

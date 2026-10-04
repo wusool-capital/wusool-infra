@@ -244,6 +244,7 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         build_needs_review_blocks,
         build_possible_duplicate_blocks,
         discover_and_create_sellers,
+        mark_review_posted,
     )
     from app.modules.matching_engine.api.slack.views.discovered_candidates import (
         build_discovered_candidates_blocks,
@@ -359,6 +360,9 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
                 text=f"Website check for {unverified.draft.org_name}",
                 blocks=build_needs_review_blocks(unverified),
             )
+            # Unmarked, the next run re-flags the lead instead of hiding it.
+            if unverified.review_id:
+                await mark_review_posted(unverified.review_id)
         except Exception:
             logger.exception(
                 "discovery_review_post_failed", extra={"lead": unverified.draft.org_name}

@@ -374,7 +374,8 @@ Indexes: `idx_feedback_submissions_created_at` (DESC),
 Google Maps leads `discovery` held back for a human website review instead
 of auto-creating (AZM-134): a Diffbot/People Data Labs website didn't match,
 or couldn't be checked against, the Maps one. Backs the "Review & Save"
-button across restarts, and later runs skip a lead while its row exists.
+button across restarts; later runs skip a lead for 30 days after its card was
+posted.
 Postgres-only operational state, never synced to Attio. No FK: the lead has
 no CRM record yet.
 
@@ -383,7 +384,8 @@ no CRM record yet.
 | place_id | text | no | | PK; the Google place id |
 | org_name | text | no | | |
 | draft | jsonb | no | | the prefilled add-seller values, parsed by `discovery.persistence` |
-| flagged_at | timestamptz | no | `now()` | first time the lead was flagged |
+| flagged_at | timestamptz | no | `now()` | reset on every re-flag; the 30-day window counts from it |
+| posted_at | timestamptz | yes | | set once the card reached Slack; unposted rows never suppress |
 
 ---
 

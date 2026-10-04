@@ -2,7 +2,8 @@
 
 Google Maps leads `discovery` held back for a human website review (AZM-134)
 instead of auto-creating. Keyed by Google place id: backs the durable
-"Review & Save" button and stops later runs re-posting the same lead. See
+"Review & Save" button and stops later runs re-posting the same lead for 30
+days once its card was posted (`posted_at`). See
 `app/models/discovery_review.py`. Postgres-only, never synced to Attio.
 
 Additive, no backfill.
@@ -40,6 +41,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        sa.Column("posted_at", postgresql.TIMESTAMP(timezone=True), nullable=True),
     )
 
 

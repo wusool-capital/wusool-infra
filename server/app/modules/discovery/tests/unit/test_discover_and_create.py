@@ -1,6 +1,8 @@
 """`discover_and_create` — CRM pre-filter classification, refill after
 exclusions, the per-day cap, bounded concurrency, and failure isolation."""
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from app.modules.discovery.application.base import CreationPolicy
@@ -170,6 +172,31 @@ async def test_a_lead_already_awaiting_review_is_skipped_and_its_slot_refilled()
 
     assert outcome.awaiting_review == 1
     assert [d.org_name for d in writer.created] == ["Lead 1", "Lead 2", "Lead 3"]
+
+
+async def test_a_flagged_lead_is_only_hidden_once_its_card_was_posted() -> None:
+    """A card that never reached Slack must not hide its lead."""
+    writer = FakeSellerWriterPort(review_names=frozenset({"Lead 0"}))
+    store = FakeReviewStore()
+    service, _ = _service(leads=_leads(1), writer=writer, store=store)
+
+    await _run(service, key="a")
+    unposted = await _run(service, key="b")
+    await service.mark_review_posted("p0")
+    posted = await _run(service, key="c")
+
+    assert [u.draft.org_name for u in unposted.needs_review] == ["Lead 0"]
+    assert (posted.needs_review, posted.awaiting_review) == ((), 1)
+
+
+async def test_pending_reviews_expire_after_thirty_days() -> None:
+    store = FakeReviewStore()
+    service, _ = _service(leads=_leads(1), store=store)
+
+    await _run(service)
+
+    age = datetime.now(UTC) - store.flagged_since[0]
+    assert timedelta(days=30) <= age < timedelta(days=30, minutes=1)
 
 
 async def test_a_store_outage_still_returns_the_lead_with_a_token_fallback() -> None:

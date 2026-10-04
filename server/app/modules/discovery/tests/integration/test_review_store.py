@@ -1,7 +1,7 @@
 """`SqlAlchemyReviewStore` against a real Postgres; skipped when none is reachable."""
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import delete
@@ -35,11 +35,20 @@ async def test_add_get_and_pending_round_trip() -> None:
         source_place_id=place_id,
     )
     unverified = UnverifiedSeller(draft=draft, maps_website=None, provider_websites=(), values=())
+    since = datetime.now(UTC) - timedelta(days=30)
     try:
         await store.add(unverified)
         await store.add(unverified)  # an upsert, not a duplicate-key error
+        assert await store.pending_place_ids([place_id], flagged_since=since) == set()
 
-        assert await store.pending_place_ids([place_id, "other"]) == {place_id}
+        await store.mark_posted(place_id)
+        assert await store.pending_place_ids([place_id, "other"], flagged_since=since) == {place_id}
+        future = datetime.now(UTC) + timedelta(days=1)
+        assert await store.pending_place_ids([place_id], flagged_since=future) == set()
+
+        await store.add(unverified)  # a re-flag needs a fresh post
+        assert await store.pending_place_ids([place_id], flagged_since=since) == set()
+
         loaded = await store.get_draft(place_id)
         assert loaded is not None
         assert loaded.values == {
