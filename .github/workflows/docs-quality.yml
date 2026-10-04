@@ -35,4 +35,4 @@ jobs:
           version: 3.17.0
           sync: false
           fail_level: warning
-          files: '["CHANGELOG.md", "gitbook/README.md", "gitbook/SUMMARY.md", "gitbook/user-guide", "gitbook/technical", "gitbook/operations", "gitbook/deliverables"]'
+          files: '["CHANGELOG.md", "gitbook/README.md", "gitbook/SUMMARY.md", "gitbook/user-guide", "gitbook/technical", "gitbook/operations", "gitbook/deliverables", "gitbook/release-notes/scribe-changelog.md"]'
