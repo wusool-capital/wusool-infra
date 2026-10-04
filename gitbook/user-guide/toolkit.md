@@ -52,9 +52,9 @@ scores. Verify high scores when confidence is low.
 If no CRM seller clears the internal threshold, the bot searches Google Maps
 for new sellers. A lead is saved automatically only when the website Diffbot
 or People Data Labs found matches the Google Maps website. Otherwise a
-**Website check** message shows both websites and the proposed values;
-**Review & Save** opens the normal add-seller form, and nothing is saved until
-you complete it. Leads that look like an existing organization get **Add as
+**Website check** message shows both websites and the proposed values.
+**Review & Save** opens the normal add-seller form. Nothing is saved until you
+complete it. Leads that look like an existing organization get **Add as
 seller** instead. **Find more sellers** repeats the public search.
 
 Match results never contact an organization or change its profile or deal.
