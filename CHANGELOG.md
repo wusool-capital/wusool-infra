@@ -12,6 +12,9 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Scribe has a changelog page in the GitBook docs listing what changed in
+  each version. The menu-bar "View Changelog" item and a "View full
+  changelog" link in the update dialog open it in your browser.
 - Scribe desktop has an "Open at Login" setting under Recording, on by
   default. Scribe starts in the menu bar when you log in, without opening its
   window, so it is already running for your meetings. Existing users get it
