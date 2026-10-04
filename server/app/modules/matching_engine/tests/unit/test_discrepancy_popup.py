@@ -31,10 +31,18 @@ _MISSING = DiscrepancyCheckResult(
         buyer_role_id="buyer-1",
         missing=(Discrepancy(Criterion.EBITDA, "missing", stored="(not set)"),),
     ),
-    message="Hey! Just a heads up, EBITDA is missing.",
+    message="Heads up: Buyer's profile is missing EBITDA.",
+    context_checked=True,
 )
 _CLEAR = DiscrepancyCheckResult(
-    report=DiscrepancyReport(buyer_role_id="buyer-1"), message="No conflicts."
+    report=DiscrepancyReport(buyer_role_id="buyer-1"),
+    message="No missing or conflicting details found for Buyer.",
+    context_checked=True,
+)
+_UNCHECKED = DiscrepancyCheckResult(
+    report=DiscrepancyReport(buyer_role_id="buyer-1"),
+    message="Nothing is missing from Buyer's profile, but your note couldn't be checked.",
+    context_checked=False,
 )
 
 
@@ -74,8 +82,10 @@ def _check_returns(monkeypatch: pytest.MonkeyPatch, **kwargs: object) -> None:
 @pytest.mark.parametrize(
     ("check", "expected_text"),
     [
-        ({"return_value": _MISSING}, _MISSING.message),
-        ({"return_value": _CLEAR}, actions._CLEAR_TEXT),
+        ({"return_value": _MISSING}, f"{_MISSING.message}\n\n{actions._FIX_FIRST_TEXT}"),
+        ({"return_value": _CLEAR}, _CLEAR.message),
+        # An unread note is not an all-clear, so it still asks to fix first.
+        ({"return_value": _UNCHECKED}, f"{_UNCHECKED.message}\n\n{actions._FIX_FIRST_TEXT}"),
         ({"return_value": None}, actions._BUYER_GONE_TEXT),
         # A failed check must never read as an all-clear.
         ({"side_effect": RuntimeError("bedrock down")}, actions._CHECK_FAILED_TEXT),
@@ -88,12 +98,6 @@ async def test_popup_text_matches_the_check_outcome_and_never_runs(
 
     assert await harness.show() == expected_text
     harness.run.assert_not_awaited()
-
-
-async def test_blank_phrased_message_falls_back_to_a_generic_warning(monkeypatch, harness) -> None:
-    _check_returns(monkeypatch, return_value=DiscrepancyCheckResult(_MISSING.report, "  "))
-
-    assert await harness.show() == actions._FINDINGS_FALLBACK_TEXT
 
 
 @pytest.mark.parametrize(

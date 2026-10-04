@@ -4,13 +4,19 @@ no Bedrock call. Deterministic rules only.
 
 import pytest
 
-from app.modules.discrepancies.domain.criteria import BuyerCriteria
+from app.modules.discrepancies.domain.criteria import (
+    BuyerCriteria,
+    Discrepancy,
+    DiscrepancyReport,
+    ParsedContext,
+)
 from app.modules.discrepancies.domain.rules import (
     find_conflicts,
     find_missing,
-    parse_context,
     run_checks,
+    template_message,
 )
+from app.modules.discrepancies.domain.vocabulary import Criterion
 
 _CRITERIA = BuyerCriteria(
     buyer_role_id="role-1",
@@ -25,101 +31,28 @@ _CRITERIA = BuyerCriteria(
 )
 
 
-def test_parse_context_finds_vertical_and_region() -> None:
-    parsed = parse_context("Looking for Pharmaceuticals / Biotech targets in GCC")
-    assert parsed.vertical == "Pharmaceuticals / Biotech"
-    assert parsed.region == "GCC"
-
-
-def test_parse_context_prefers_longer_region_phrase() -> None:
-    parsed = parse_context("Only interested in Southeast Asia")
-    assert parsed.region == "Southeast Asia"
-
-
-def test_parse_context_word_boundary_avoids_european_false_positive() -> None:
-    assert parse_context("A European buyer").region is None
-
-
-def test_parse_context_ebitda_amount_by_keyword_proximity() -> None:
-    assert parse_context("EBITDA floor of $2M").ebitda == 2_000_000.0
-
-
-def test_parse_context_ticket_amount_by_keyword_proximity() -> None:
-    parsed = parse_context("ticket size $5-15M")
-    assert parsed.ticket_low == 5_000_000.0
-    assert parsed.ticket_high == 15_000_000.0
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "ticket size $5M-15M",
-        "ticket size $5M to $15M",
-        "ticket size $5M-15",
-    ],
-)
-def test_parse_context_ticket_range_keeps_the_upper_bound_when_both_sides_have_a_suffix(
-    text: str,
-) -> None:
-    """Regression: each bound used to only read the range's trailing
-    suffix, so "$5M-15M" silently collapsed to (5M, 5M) — a real conflict
-    against a buyer's upper ticket bound would never have been flagged.
-    """
-    parsed = parse_context(text)
-    assert parsed.ticket_low == 5_000_000.0
-    assert parsed.ticket_high == 15_000_000.0
-
-
-def test_parse_context_ignores_amount_with_no_nearby_keyword() -> None:
-    """ "$20M revenue" must never be read as a ticket-size conflict."""
-    parsed = parse_context("targets with $20M revenue")
-    assert parsed.ticket_low is None
-    assert parsed.ebitda is None
-
-
-def test_parse_context_picks_the_closer_keyword_when_both_are_present() -> None:
-    """Regression: a fixed EBITDA-first priority used to win even when the
-    ticket keyword actually sat right next to the amount.
-    """
-    parsed = parse_context("Not ebitda-focused, but ticket size is $5M.")
-    assert parsed.ticket_low == 5_000_000.0
-    assert parsed.ebitda is None
-
-
-def test_parse_context_single_letter_suffix_must_attach_without_a_space() -> None:
-    """Regression: "5 M&A" used to read as a stated $5M ticket size — a
-    single-letter suffix (K/M/B) may only attach directly to the number."""
-    parsed = parse_context("we do 5 M&A deals a year, ticket size range applies")
-    assert parsed.ticket_low is None
-    assert parsed.ticket_high is None
-
-
-def test_parse_context_normalizes_million_word_and_usd_prefix() -> None:
-    assert parse_context("EBITDA of USD 5 million").ebitda == 5_000_000.0
-
-
 def test_find_conflicts_vertical_mismatch() -> None:
-    conflicts = find_conflicts(_CRITERIA, parse_context("Looking at Garage targets"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(vertical="Garage"))
     assert any(c.criterion.value == "vertical" for c in conflicts)
 
 
 def test_find_conflicts_no_vertical_conflict_on_match() -> None:
-    conflicts = find_conflicts(_CRITERIA, parse_context("Pharmaceuticals / Biotech only"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(vertical="Pharmaceuticals / Biotech"))
     assert not any(c.criterion.value == "vertical" for c in conflicts)
 
 
 def test_find_conflicts_ticket_outside_band() -> None:
-    conflicts = find_conflicts(_CRITERIA, parse_context("ticket size $20M"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(ticket_low=20_000_000.0))
     assert any(c.criterion.value == "ticket_band" for c in conflicts)
 
 
 def test_find_conflicts_ticket_inside_band_is_not_flagged() -> None:
-    conflicts = find_conflicts(_CRITERIA, parse_context("ticket size $10M"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(ticket_low=10_000_000.0))
     assert not any(c.criterion.value == "ticket_band" for c in conflicts)
 
 
 def test_find_conflicts_ebitda_below_floor() -> None:
-    conflicts = find_conflicts(_CRITERIA, parse_context("EBITDA of $500K"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(ebitda=500_000.0))
     assert any(c.criterion.value == "ebitda" for c in conflicts)
 
 
@@ -133,7 +66,7 @@ def test_ticket_conflict_message_never_shows_the_literal_none() -> None:
         check_size_min=5_000_000.0,
         check_size_max=None,
     )
-    conflicts = find_conflicts(criteria, parse_context("ticket size $1M"))
+    conflicts = find_conflicts(criteria, ParsedContext(ticket_low=1_000_000.0))
     ticket = next(c for c in conflicts if c.criterion.value == "ticket_band")
     assert "None" not in ticket.stored
     assert "None" not in ticket.stated
@@ -147,13 +80,13 @@ def test_ebitda_conflict_message_never_shows_the_literal_none() -> None:
         ebitda_floor=2_000_000.0,
         ebitda_ceiling=None,
     )
-    conflicts = find_conflicts(criteria, parse_context("EBITDA of $500K"))
+    conflicts = find_conflicts(criteria, ParsedContext(ebitda=500_000.0))
     ebitda = next(c for c in conflicts if c.criterion.value == "ebitda")
     assert "None" not in ebitda.stored
 
 
 def test_find_conflicts_geography_stated_gcc_covered_by_stored_gcc() -> None:
-    conflicts = find_conflicts(_CRITERIA, parse_context("GCC only"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(region="GCC"))
     assert not any(c.criterion.value == "geography" for c in conflicts)
 
 
@@ -164,7 +97,7 @@ def test_find_conflicts_geography_stored_mena_covers_stated_gcc() -> None:
         target_vertical=None,
         target_region=["MENA"],
     )
-    conflicts = find_conflicts(criteria, parse_context("GCC targets only"))
+    conflicts = find_conflicts(criteria, ParsedContext(region="GCC"))
     assert not any(c.criterion.value == "geography" for c in conflicts)
 
 
@@ -176,12 +109,12 @@ def test_find_conflicts_geography_unresolvable_stored_region_skips_check() -> No
         target_vertical=None,
         target_region=["Africa"],
     )
-    conflicts = find_conflicts(criteria, parse_context("GCC targets only"))
+    conflicts = find_conflicts(criteria, ParsedContext(region="GCC"))
     assert not any(c.criterion.value == "geography" for c in conflicts)
 
 
 def test_find_conflicts_geography_global_context_never_conflicts() -> None:
-    conflicts = find_conflicts(_CRITERIA, parse_context("Global mandate"))
+    conflicts = find_conflicts(_CRITERIA, ParsedContext(region="Global"))
     assert not any(c.criterion.value == "geography" for c in conflicts)
 
 
@@ -206,7 +139,52 @@ def test_find_missing_does_not_flag_a_legitimate_zero_floor() -> None:
     assert not any(d.criterion.value == "ebitda" for d in missing)
 
 
-@pytest.mark.parametrize("context_text", [None, "", "no criteria mentioned here"])
-def test_run_checks_clear_report_has_no_conflicts(context_text: str | None) -> None:
-    report = run_checks(_CRITERIA, context_text)
-    assert report.conflicts == ()
+def test_run_checks_empty_context_has_no_conflicts() -> None:
+    assert run_checks(_CRITERIA, ParsedContext()).conflicts == ()
+
+
+_CURSOR = BuyerCriteria(buyer_role_id="role-8", org_name="Cursor", target_vertical="Pharma")
+_VERTICAL_CONFLICT = Discrepancy(Criterion.VERTICAL, "conflict", stored="Pharma", stated="Garage")
+_MISSING = (
+    Discrepancy(Criterion.GEOGRAPHY, "missing", stored="(not set)"),
+    Discrepancy(Criterion.TICKET_BAND, "missing", stored="(not set)"),
+    Discrepancy(Criterion.EBITDA, "missing", stored="(not set)"),
+)
+_CONFLICT_LINE = "Heads up: Cursor's profile says vertical is Pharma, but you said Garage."
+_MISSING_LINE = "Heads up: Cursor's profile is missing geography, ticket band and EBITDA."
+
+
+@pytest.mark.parametrize(
+    ("conflicts", "missing", "context_checked", "expected"),
+    [
+        ((), (), True, "No missing or conflicting details found for Cursor."),
+        ((_VERTICAL_CONFLICT,), (), True, _CONFLICT_LINE),
+        ((), _MISSING, True, _MISSING_LINE),
+        ((_VERTICAL_CONFLICT,), _MISSING, True, f"{_CONFLICT_LINE}\n{_MISSING_LINE}"),
+        ((), _MISSING, False, f"{_MISSING_LINE}\nYour note couldn't be checked for conflicts."),
+        (
+            (),
+            (),
+            False,
+            "Nothing is missing from Cursor's profile, but your note couldn't be checked "
+            "for conflicts.",
+        ),
+    ],
+)
+def test_template_message_uses_the_approved_wording(
+    conflicts: tuple[Discrepancy, ...],
+    missing: tuple[Discrepancy, ...],
+    context_checked: bool,
+    expected: str,
+) -> None:
+    report = DiscrepancyReport(buyer_role_id="role-8", conflicts=conflicts, missing=missing)
+    message = template_message(_CURSOR, report, context_checked=context_checked)
+    assert message == expected
+    if not context_checked:
+        assert "no missing or conflicting" not in message.lower()
+
+
+def test_template_message_single_missing_item_has_no_join() -> None:
+    report = DiscrepancyReport(buyer_role_id="role-8", missing=_MISSING[2:])
+    message = template_message(_CURSOR, report, context_checked=True)
+    assert message == "Heads up: Cursor's profile is missing EBITDA."

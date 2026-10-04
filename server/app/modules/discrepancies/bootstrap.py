@@ -13,14 +13,19 @@ from fastapi import FastAPI, Request, Response
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 
 from app.modules.discrepancies.config import get_settings
-from app.modules.discrepancies.providers.bedrock.client import BedrockConverseClient
+from app.modules.discrepancies.providers.bedrock.client import BedrockContextExtractor
 from app.modules.notifications import SlackWebClientNotifier, build_bolt_app, get_slack_client
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging
 
 
-def build_bedrock_phraser() -> BedrockConverseClient:
-    return BedrockConverseClient()
+def build_context_extractor() -> BedrockContextExtractor:
+    settings = get_settings()
+    return BedrockContextExtractor(
+        model_id=settings.aws_bedrock_model_id_extraction,
+        temperature=settings.llm_temperature,
+        max_tokens=settings.llm_max_tokens,
+    )
 
 
 def build_slack_notifier() -> SlackWebClientNotifier:

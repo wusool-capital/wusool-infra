@@ -45,3 +45,12 @@ class Criterion(StrEnum):
     GEOGRAPHY = "geography"
     TICKET_BAND = "ticket_band"
     EBITDA = "ebitda"
+
+
+# Display wording for the advisor-facing message; enum values stay snake_case.
+CRITERION_LABELS: dict[Criterion, str] = {
+    Criterion.VERTICAL: "vertical",
+    Criterion.GEOGRAPHY: "geography",
+    Criterion.TICKET_BAND: "ticket band",
+    Criterion.EBITDA: "EBITDA",
+}

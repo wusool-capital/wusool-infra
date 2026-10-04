@@ -30,6 +30,17 @@ class BuyerCriteria:
 
 
 @dataclass(frozen=True)
+class ParsedContext:
+    """What the advisor asked for in their note; amounts are absolute USD."""
+
+    vertical: str | None = None
+    region: str | None = None
+    ticket_low: float | None = None
+    ticket_high: float | None = None
+    ebitda: float | None = None
+
+
+@dataclass(frozen=True)
 class Discrepancy:
     criterion: Criterion
     kind: DiscrepancyKind

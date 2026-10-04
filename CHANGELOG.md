@@ -35,6 +35,14 @@ for current production evidence and open handover items.
   while the match ran, and conflicts paused it behind buttons in the channel.
   If the check itself fails, the popup says so rather than showing an
   all-clear.
+- `/find-match` and `/check-buyer` now understand everyday wording in your
+  note, such as "pharma tech only, UAE, $5-15M ticket", when they check it
+  against the buyer's profile. Each problem gets one plain sentence, for
+  example "Heads up: Cursor's profile says vertical is Pharma, but you said
+  Garage." An amount only counts as a ticket size when you label it (ticket,
+  check size, investment or deal size). If your note can't be read, the
+  message lists what's missing and says the note couldn't be checked, instead
+  of reporting no conflicts. An empty note is checked instantly.
 
 ### Fixed
 

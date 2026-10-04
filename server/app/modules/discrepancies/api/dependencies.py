@@ -11,10 +11,9 @@ from app.modules.discrepancies.application.check import (
     DiscrepancyCheckResult,
     DiscrepancyCheckService,
 )
+from app.modules.discrepancies.application.ports.context_extractor import ContextExtractor
 from app.modules.discrepancies.application.ports.criteria_reader import BuyerCriteriaReaderPort
-from app.modules.discrepancies.application.ports.phraser import DiscrepancyPhraser
-from app.modules.discrepancies.bootstrap import build_bedrock_phraser
-from app.modules.discrepancies.config import get_settings
+from app.modules.discrepancies.bootstrap import build_context_extractor
 from app.modules.discrepancies.domain.criteria import BuyerCriteria
 
 _criteria_reader_port_holder: BuyerCriteriaReaderPort | None = None
@@ -35,18 +34,12 @@ def _criteria_reader_port() -> BuyerCriteriaReaderPort:
 
 
 @lru_cache
-def _phraser() -> DiscrepancyPhraser:
-    return build_bedrock_phraser()
+def _extractor() -> ContextExtractor:
+    return build_context_extractor()
 
 
 def _check_service() -> DiscrepancyCheckService:
-    settings = get_settings()
-    return DiscrepancyCheckService(
-        phraser=_phraser(),
-        model_id=settings.aws_bedrock_model_id_extraction,
-        temperature=settings.llm_temperature,
-        max_tokens=settings.llm_max_tokens,
-    )
+    return DiscrepancyCheckService(extractor=_extractor())
 
 
 async def search_buyers(name: str) -> list[BuyerCriteria]:
