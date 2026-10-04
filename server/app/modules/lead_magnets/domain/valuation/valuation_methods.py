@@ -41,7 +41,7 @@ from app.modules.lead_magnets.domain.valuation.valuation import (
     tax_rate,
     wacc_benchmark,
 )
-from app.modules.lead_magnets.domain.valuation.valuation_data import ListedComp
+from app.modules.lead_magnets.domain.valuation.valuation_data import GrowthBenchmark, ListedComp
 
 # Growth decelerates over the projection: flat for two years, then easing off.
 _DECELERATION = (1.0, 1.0, 0.8, 0.65, 0.5)
@@ -93,6 +93,11 @@ class ValuationInputs:
     # The model's comparables when it produced any; the static sector set
     # is used when it did not.
     ai_comps: tuple[ListedComp, ...] = field(default_factory=tuple)
+    # The analyst's DCF assumptions and dataset terms, replacing the sector
+    # tag's when the tag misdescribes the business.
+    growth_override: GrowthBenchmark | None = None
+    transaction_search_terms: tuple[str, ...] = ()
+    vc_search_terms: tuple[str, ...] = ()
 
     @property
     def adjusted_ebitda(self) -> float:
@@ -165,7 +170,7 @@ def project(inputs: ValuationInputs) -> tuple[ProjectionYear, ...]:
     quadratic easing, so improvement accelerates as it scales, rather than
     being written off at its current margin.
     """
-    growth = growth_benchmark(inputs.sector)
+    growth = inputs.growth_override or growth_benchmark(inputs.sector)
     revenue = inputs.revenue or 0
     base_margin = (inputs.adjusted_ebitda / revenue) * 100 if revenue > 0 else 5.0
     target_margin = max(growth.ebit_margin_improvement * 5 + 5, 15)
@@ -246,7 +251,7 @@ def wacc(
 def discounted_cash_flow(inputs: ValuationInputs) -> DcfResult:
     """Free cash flow to the firm, discounted at WACC, with a Gordon growth
     terminal value."""
-    growth = growth_benchmark(inputs.sector)
+    growth = inputs.growth_override or growth_benchmark(inputs.sector)
     benchmark = wacc_benchmark(inputs.sector)
     cost_of_equity = round(benchmark[0], 2) if benchmark else _DEFAULT_COST_OF_EQUITY
     cost_of_debt = round(benchmark[1], 2) if benchmark else _DEFAULT_COST_OF_DEBT
@@ -362,7 +367,9 @@ def transaction_comps(inputs: ValuationInputs) -> tuple[MultipleRange, MultipleR
     haircut is additive with the negative-EBITDA surcharge — there is no size
     discount, because private deal comparables are already SME-scale.
     """
-    deals = match_transactions(inputs.sector)
+    deals = match_transactions(
+        inputs.sector, override_terms=list(inputs.transaction_search_terms) or None
+    )
     revenue_multiples = [d.ev_revenue for d in deals if d.ev_revenue and d.ev_revenue > 0]
     ebitda_multiples = [d.ev_ebitda for d in deals if d.ev_ebitda and d.ev_ebitda > 0]
     negative_ebitda = inputs.adjusted_ebitda < 0
@@ -397,7 +404,9 @@ def industry_research(
     The mid blends the current-year and forward multiples; the range comes
     from the quartiles of both pooled together.
     """
-    rounds = match_vc_rounds(inputs.sector, inputs.stage)
+    rounds = match_vc_rounds(
+        inputs.sector, inputs.stage, override_terms=list(inputs.vc_search_terms) or None
+    )
     current = [r.fy_multiple for r in rounds if r.fy_multiple is not None]
     forward = [r.forward_multiple for r in rounds if r.forward_multiple is not None]
 

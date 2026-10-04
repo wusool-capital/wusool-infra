@@ -52,6 +52,35 @@ for current production evidence and open handover items.
   system notifications. Hover and the pointer cursor work, and a click gives
   immediate feedback without pulling focus from the meeting app.
 
+## 2026-10-01
+
+### Fixed
+
+- Back on the first readiness question returns to the welcome screen. It
+  previously left a blank page with only the logo.
+- A valuation with too little description to identify the business keeps
+  the visitor's sector. It no longer shows a confusing "Sector
+  reclassified" note or applies the analyst's guessed assumptions.
+
+### Changed
+
+- The valuation tool shows a preliminary valuation after the 10-second
+  loading screen, then refines it in place when the analysis lands. A badge
+  marks it Preliminary, then Done. Previously results waited for the
+  analysis.
+- The readiness and valuation tools have a new design: Inter type, a warm
+  off-white page and card-style questions. Readiness scores now use shades
+  of blue rather than green, amber and red.
+- The valuation tool now acts on the analyst's judgement of the business.
+  When the auto-assigned sector tag is a poor fit, it uses the analyst's
+  growth assumptions, discounts and deal-matching terms. The page flags the
+  reclassification.
+- The valuation recorded in Attio now uses the same refined inputs. The lead
+  is recorded once the analysis finishes, not when the form is submitted.
+- Valuation adds a Childcare & Early Education sector. DCF margins now
+  mean-revert. The DCF report has an editable illiquidity discount and
+  warnings for a dominant terminal value and an implausibly high margin.
+
 ## 2026-09-30
 
 ### Changed

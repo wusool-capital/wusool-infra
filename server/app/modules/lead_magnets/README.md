@@ -176,7 +176,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /compare` | serves | Haiku plans queries, Firecrawl runs them, Sonnet selects; shortfall filled from static data |
 | `POST /buyer/apply` | serves | No blocking model call; a best-effort Haiku qualification note, never shown to the applicant |
 | `POST /get-started` | serves | No model at all — pure seller lead capture; the form's own figures go straight to `seller_role` |
-| `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline |
+| `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline from the visitor's `/compare` comps and `/analyze` discounts, DCF overrides and search terms |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
 visitor reads while still in the tool, long before there is a submission to

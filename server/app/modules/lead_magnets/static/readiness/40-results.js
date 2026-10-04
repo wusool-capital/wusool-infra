@@ -7,7 +7,7 @@ function renderResults(data,name,biz,sector){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('resultsScreen').classList.add('active');
   const score=data.overallScore;
-  const color=score>=75?'#16DA80':score>=55?'#f5a623':'#DC2626';
+  const color=score>=75?'#C6E1EE':score>=55?'#7FB4CE':'#8FA3B8';
   document.getElementById('scoreNum').textContent=score;
   document.getElementById('scoreNum').style.color=color;
   document.getElementById('scoreCircle').style.borderColor=color;
@@ -24,7 +24,7 @@ function renderResults(data,name,biz,sector){
   grid.innerHTML='';
   data.dimensions.forEach(dim=>{
     const pct=dim.score;
-    const c=pct>=65?'#16DA80':pct>=40?'#f5a623':'#DC2626';
+    const c=pct>=65?'#000523':pct>=40?'#5A93B0':'#98A2B3';
     const card=document.createElement('div');
     card.className='dim-card';
     card.innerHTML=`<div class="dim-header"><span class="dim-label">${esc(dim.name)}</span><span class="dim-score-badge" style="background:${c}20;color:${c}">${pct}</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:${pct}%;background:${c}"></div></div><div class="dim-insight">${esc(dim.insight)}</div>`;

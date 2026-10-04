@@ -159,7 +159,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
             <textarea ref={descRef} className={"fi"+(descAutoFilled&&f.description?" enriched":"")} name="description" value={f.description} onChange={ch} placeholder="e.g. We build AI-powered supply chain software for mid-market manufacturers" style={{minHeight:64,overflow:"hidden",resize:"none"}}/>
             {enrichFailed&&<div className="fh" style={{color:"#B45309",background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:8,padding:"8px 10px",marginTop:6}}>We could not auto-detect this company. Please write a short description and select the sector manually so we can match the right comparables.</div>}
           </div>
-          <div className="row2">
+          <div className="row2" style={{gridTemplateColumns:"1fr 1fr"}}>
             <div className="fg" style={{minWidth:0}}>
               <label className="fl">
                 Industry / Sector *
@@ -251,7 +251,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
 
 
 // ===== AUTO DCF MODULE =====
-function DCFModule({gate,cfg,onUpdate}){
+function DCFModule({gate,cfg,onUpdate,analyst,aiComps}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [open,setOpen]=useState(false);
   usePrintExpand(open,setOpen);
@@ -260,14 +260,23 @@ function DCFModule({gate,cfg,onUpdate}){
   const [pf,setPf]=useState([]);
   const [cash,setCash]=useState(0);
   const [debt,setDebt]=useState(0);
+  // Trading and transaction comps are haircut for illiquidity, the DCF was not,
+  // so the methods were not comparable and the DCF sat far above the others.
+  const [dlom,setDlom]=useState(DLOM_PCT);
   const [initialized,setInitialized]=useState(false);
   const [damodSource,setDamodSource]=useState(null);
 
+  const analystKey=analyst?JSON.stringify(analyst.dcf||{}):"";
   useEffect(()=>{
-    if(initialized||!gate)return;
+    // Re-runs when the analyst pass lands so its assumptions replace the
+    // static sector defaults rather than being ignored by the init guard.
+    if(!gate)return;
+    if(initialized&&!analystKey)return;
     const sector=gate.sector||"";
     const bench=getDamodaranBenchmark(sector);
-    const growth=getIndustryGrowth(sector);
+    const growth=(analyst&&analyst.dcf&&typeof analyst.dcf.revGrowth==="number")
+      ?{...getIndustryGrowth(sector),...analyst.dcf}
+      :getIndustryGrowth(sector);
     const taxRate=getTaxRate(gate.geo||"");
     const adjEBITDA=(gate.profitBeforeTax||0)+(gate.ownerSalary||0);
     const baseRev=gate.revenue||0;
@@ -276,7 +285,7 @@ function DCFModule({gate,cfg,onUpdate}){
     const ke=bench?parseFloat(bench.ke.toFixed(2)):12;
     const kd=bench?parseFloat(bench.kd.toFixed(2)):6;
     if(bench)setDamodSource(bench.industry);
-    setTermGrowth(growth.termGrowth);
+    setTermGrowth(growth.termGrowth||2);
     const yr=new Date().getFullYear();
     const rows=[];
     let prevRev=baseRev;
@@ -295,7 +304,11 @@ function DCFModule({gate,cfg,onUpdate}){
         const eased=t*t; // quadratic easing
         projMargin=baseMargin+(targetMargin-baseMargin)*eased;
       }else{
-        projMargin=baseMargin+(growth.ebitMarginImpr*(i+1));
+        // Margins mean-revert; they do not expand indefinitely. Cap the total
+        // uplift, and on an already-high base assume no expansion at all,
+        // otherwise a 57% margin compounds to an implausible 67% by year 5.
+        const uplift=baseMargin>=30?0:Math.min(growth.ebitMarginImpr*(i+1),5);
+        projMargin=Math.min(baseMargin+uplift,45);
       }
       const projEBITDA=projRev*(projMargin/100);
       const dep=projRev*(growth.daaPct/100);
@@ -308,7 +321,7 @@ function DCFModule({gate,cfg,onUpdate}){
     setPf(rows);
     setWaccInputs({ke,kd,sp:sizePrem,eqVal:Math.max(baseRev*3,1000000),d:0,tax:taxRate});
     setInitialized(true);
-  },[gate,initialized]);
+  },[gate,analystKey]);
 
   const wacc=useMemo(()=>{
     if(!wacc_inputs)return 0.12;
@@ -336,13 +349,12 @@ function DCFModule({gate,cfg,onUpdate}){
     // Floor terminal value: if projected FCF never turns positive, TV should not be a large negative drag
     const tv=lastFCF<0?0:rawTV;
     const ev=Math.max(sumDFCF+tv,0);
-    const eqBeforeDlom=Math.max(ev+cash-(wacc_inputs.d||0),0);
-    // Matches domain/valuation/valuation_methods.py's `_DEFAULT_DLOM_PCT` —
-    // without it this report shows an equity value ~1.43x higher than the
-    // blend actually written to Attio for the same submission.
-    const eqV=eqBeforeDlom*(1-DLOM_PCT/100);
-    return{rows,tv,ev,eqVal:eqV,sumDFCF,tvFloored:lastFCF<0};
-  },[pf,wacc,wacc_inputs,termGrowth,cash]);
+    const eqPre=Math.max(ev+cash-(wacc_inputs.d||0),0);
+    const eqV=eqPre*(1-(dlom||0)/100);
+    const tvShare=ev>0?tv/ev:0;
+    const impliedExit=(wacc-gR)>0?1/(wacc-gR):0;
+    return{rows,tv,ev,eqVal:eqV,eqPre,sumDFCF,tvShare,impliedExit,tvFloored:lastFCF<0};
+  },[pf,wacc,wacc_inputs,termGrowth,cash,dlom]);
 
   useEffect(()=>{onUpdate({dcfEV:dcfCalc.ev,dcfEquity:dcfCalc.eqVal})},[dcfCalc.ev,dcfCalc.eqVal]);
 
@@ -392,15 +404,42 @@ function DCFModule({gate,cfg,onUpdate}){
           <td className="calc">{r.df.toFixed(4)}</td><td className="calc">{fmt(r.dfcf,cur)}</td></tr>
         ))}</tbody></table>
         </div>
+        {dcfCalc.tvShare>0.75&&<div style={{background:"rgba(245,166,35,0.10)",border:"1px solid rgba(245,166,35,0.4)",padding:"9px 13px",borderRadius:8,marginBottom:12,fontSize:12,color:"#8a5a00",lineHeight:1.5}}>
+          <strong>Terminal value is {(dcfCalc.tvShare*100).toFixed(0)}% of enterprise value.</strong> Most of this answer rests on one assumption rather than on the forecast years. Treat the DCF as indicative and lean on the market-based methods.
+        </div>}
+        {(()=>{
+          const rev=cfg.revenue||0, eb=cfg.ebitda||0;
+          if(rev<=0||eb<=0)return null;
+          const own=gate.ownerSalary||0;
+          const m=eb/rev*100;
+          const peer=getPeerMedianMargin(gate.sector||"",aiComps);
+          if(peer===null||m<peer*1.8)return null;
+          // Salary that would bring the margin back to roughly peer level.
+          const implied=Math.max(eb-rev*(peer/100),0);
+          return(
+            <div style={{background:"rgba(245,166,35,0.10)",border:"1px solid rgba(245,166,35,0.4)",padding:"10px 14px",borderRadius:8,marginBottom:12,fontSize:12,color:"#8a5a00",lineHeight:1.55}}>
+              <strong>Adjusted EBITDA margin of {m.toFixed(0)}% is {(m/peer).toFixed(1)}x the listed peer median of {peer.toFixed(0)}%.</strong>{" "}
+              Operators at scale do not run these margins, so this usually means the full owner salary was added back without deducting the cost of hiring someone to do that job. A buyer will insist on that deduction.
+              {own>0&&<> You added back {fmt(own,cur)} of owner salary. Deducting a market-rate replacement would lower adjusted EBITDA and every valuation below it.</>}
+              {" "}Roughly {fmt(implied,cur)} of the current EBITDA sits above peer-level margin.
+            </div>
+          );
+        })()}
         <div className="sub-hdr">Bridge to Equity</div>
         <div className="cfg-grid">
           <div className="ib"><label>Cash on Hand ($)</label><NumInput className="fi input-blue" value={cash} onChange={v=>setCash(v)}/></div>
           <div className="ib"><label>Total Debt ($)</label><NumInput className="fi input-blue" value={debt} onChange={v=>{setDebt(v);chW("d",v)}}/></div>
+          <div className="ib"><label>Illiquidity Discount (%) <Tip text="A DCF values the business as if freely tradeable. Trading and transaction comps here are already discounted for private-company illiquidity, so without this the DCF sits well above the other methods and drags the blended range up."/></label><NumInput className="fi input-blue" value={dlom} onChange={v=>setDlom(v)}/></div>
         </div>
         <div style={{display:"flex",gap:12,marginTop:8}}>
           <div className="sum-card" style={{flex:1}}><div className="lbl">Terminal Value{dcfCalc.tvFloored?" (floored)":""}</div><div className="val">{fmt(dcfCalc.tv,cur)}</div></div>
           <div className="sum-card" style={{flex:1}}><div className="lbl">Enterprise Value</div><div className="val">{fmt(dcfCalc.ev,cur)}</div></div>
-          <div className="sum-card accent" style={{flex:1}}><div className="lbl">Equity Value</div><div className="val">{fmt(dcfCalc.eqVal,cur)}</div></div>
+          <div className="sum-card accent" style={{flex:1}}><div className="lbl">Equity Value (after {dlom}% discount)</div><div className="val">{fmt(dcfCalc.eqVal,cur)}</div></div>
+        </div>
+        <div style={{display:"flex",gap:12,marginTop:10,flexWrap:"wrap"}}>
+          <div className="stat-box" style={{flex:1,minWidth:150}}><div className="stat-lbl">Undiscounted Equity</div><div className="stat-val">{fmt(dcfCalc.eqPre,cur)}</div></div>
+          <div className="stat-box" style={{flex:1,minWidth:150}}><div className="stat-lbl">Terminal Value Share</div><div className="stat-val">{(dcfCalc.tvShare*100).toFixed(0)}%</div></div>
+          <div className="stat-box" style={{flex:1,minWidth:150}}><div className="stat-lbl">Implied Exit on FCF</div><div className="stat-val">{fmtM(dcfCalc.impliedExit)}</div></div>
         </div>
         {dcfCalc.tvFloored&&<div style={{fontSize:11,color:"var(--gg)",marginTop:8,lineHeight:1.5}}>Terminal value set to $0 because the projected Year 5 FCF remains negative. In practice, investors would value this company primarily on revenue multiples and market-based methods. Adjust the EBIT projections above to reflect your path to profitability.</div>}
       </div>}
@@ -410,11 +449,18 @@ function DCFModule({gate,cfg,onUpdate}){
 
 
 // ===== TRADING COMPS MODULE =====
-function TradingComps({gate,cfg,onUpdate,aiComps}){
+function TradingComps({gate,cfg,onUpdate,aiComps,analyst,analystStatus}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [comps,setComps]=useState([]);
-  const [dRev,setDRev]=useState(30);
-  const [dEb,setDEb]=useState(30);
+  const [dRev,setDRev]=useState(50);
+  const [dEb,setDEb]=useState(50);
+  // Analyst-recommended discounts supersede the 50% default once stage 2 lands.
+  useEffect(()=>{
+    const d=analyst&&analyst.discounts;
+    if(!d)return;
+    if(typeof d.revenue_discount_pct==="number")setDRev(d.revenue_discount_pct);
+    if(typeof d.ebitda_discount_pct==="number")setDEb(d.ebitda_discount_pct);
+  },[analyst]);
   const [open,setOpen]=useState(false);
   usePrintExpand(open,setOpen);
   const [initialized,setInitialized]=useState(false);
@@ -496,7 +542,7 @@ function TradingComps({gate,cfg,onUpdate,aiComps}){
   return(
     <div className="mod">
       <div className="mod-hdr" onClick={()=>setOpen(!open)}>
-        <div className="mod-title"><div className="mod-icon">2</div>Trading Comparables<span className="auto-badge">Auto-populated</span></div>
+        <div className="mod-title"><div className="mod-icon">2</div>Trading Comparables<span className="auto-badge">{aiComps?"Analyst-researched":"Sector benchmark"}</span></div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <span style={{fontSize:12,fontWeight:700,color:"var(--bb)"}}>{fmtM(calc.revMid)} EV/Rev</span>
           <span className="mod-toggle">{open?"\u25BC":"\u25B6"}</span>
@@ -504,6 +550,8 @@ function TradingComps({gate,cfg,onUpdate,aiComps}){
       </div>
       {open&&<div className="mod-body">
         <div style={{fontSize:12,color:"var(--gg)",marginBottom:12}}>Public comparables for <strong>{gate?gate.sector:""}</strong>. Figures in $M.</div>
+        {!aiComps&&analystStatus==="running"&&<div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",padding:"8px 12px",borderRadius:6,marginBottom:10,fontSize:12,color:"#1D4ED8"}}>Sector-benchmark peers shown while a tailored peer set is being researched.</div>}
+        {!aiComps&&analystStatus==="base"&&<div style={{background:"#F8F8F8",border:"1px solid #e8e8e8",padding:"8px 12px",borderRadius:6,marginBottom:10,fontSize:11.5,color:"var(--gg)"}}>Sector-benchmark peer set. Review the fit for this specific business, or edit the rows below, before sharing externally.</div>}
         {negEbitda&&<div style={{background:"rgba(240,48,84,0.07)",padding:"8px 12px",borderRadius:6,marginBottom:10,fontSize:12,color:"var(--sp)",fontWeight:600}}>Negative EBITDA: +20% surcharge applied</div>}
 
         <div className="scroll-table">
@@ -539,7 +587,7 @@ function TradingComps({gate,cfg,onUpdate,aiComps}){
 
 
 // ===== TRANSACTION COMPS MODULE =====
-function TransactionComps({gate,cfg,onUpdate}){
+function TransactionComps({gate,cfg,onUpdate,analyst}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [selected,setSelected]=useState(new Set());
   const [dRev,setDRev]=useState(40);
@@ -548,11 +596,14 @@ function TransactionComps({gate,cfg,onUpdate}){
   usePrintExpand(open,setOpen);
   const [initialized,setInitialized]=useState(false);
 
+  // Re-matches once when the analyst's terms land after mount.
+  const termsKey=JSON.stringify((analyst&&analyst.transaction_search_terms)||[]);
   useEffect(()=>{
-    if(initialized||!gate||!gate.sector)return;
-    const matches=matchTransactions(gate.sector,15);
+    if(!gate||!gate.sector)return;
+    if(initialized&&termsKey==="[]")return;
+    const matches=matchTransactions(gate.sector,15,analyst&&analyst.transaction_search_terms);
     if(matches.length){setSelected(new Set(matches));setInitialized(true)}
-  },[gate,initialized]);
+  },[gate,termsKey]);
 
   const negEbitda=(cfg.ebitda||0)<0;
 
@@ -616,7 +667,7 @@ function TransactionComps({gate,cfg,onUpdate}){
 
 
 // ===== INDUSTRY RESEARCH MODULE =====
-function IndustryResearch({gate,cfg,onUpdate}){
+function IndustryResearch({gate,cfg,onUpdate,analyst}){
   const cur=(gate&&gate.inputCurrency)||"USD";
   const [selected,setSelected]=useState(new Set());
   const [disc,setDisc]=useState(20);
@@ -624,11 +675,14 @@ function IndustryResearch({gate,cfg,onUpdate}){
   usePrintExpand(open,setOpen);
   const [initialized,setInitialized]=useState(false);
 
+  // Re-matches once when the analyst's terms land after mount.
+  const termsKey=JSON.stringify((analyst&&analyst.vc_search_terms)||[]);
   useEffect(()=>{
-    if(initialized||!gate||!gate.sector)return;
-    const matches=matchVCRounds(gate.sector,gate.stage||"");
+    if(!gate||!gate.sector)return;
+    if(initialized&&termsKey==="[]")return;
+    const matches=matchVCRounds(gate.sector,gate.stage||"",analyst&&analyst.vc_search_terms);
     if(matches.length){setSelected(new Set(matches));setInitialized(true)}
-  },[gate,initialized]);
+  },[gate,termsKey]);
 
   const selectedList=useMemo(()=>[...selected].map((idx,i)=>{
     const r=VC_RAW[idx];
@@ -675,7 +729,8 @@ function IndustryResearch({gate,cfg,onUpdate}){
 
 
 // ===== VALUATION SUMMARY (shown at TOP) =====
-function ValuationSummary({gate,cfg,vd,unlocked=true}){
+function ValuationSummary({gate,cfg,vd,unlocked=true,analystStatus}){
+
   const cur=(gate&&gate.inputCurrency)||"USD";
   const rev=cfg.revenue||0;
   const ebitda=cfg.ebitda||0;
@@ -709,43 +764,28 @@ function ValuationSummary({gate,cfg,vd,unlocked=true}){
     return{low:s[0],mid:s[1],high:s[2]};
   },[methods]);
 
-  // FREEZE: the AI-powered comps propagate into `vd` slightly after the results
-  // reveal, which used to make the blended range shift between the summary and the
-  // full report. We commit the blended value ONCE, after the method set has
-  // stabilised (all expected methods in, or a 30s safety cap), and display the
-  // frozen value everywhere so the two views can never disagree.
-  const [frozen,setFrozen]=useState(null);
-  const settleTimer=useRef(null);
-  const capTimer=useRef(null);
-  useEffect(()=>{
-    if(frozen)return;
-    if(!methods.length)return;
-    // Debounce: wait 1.5s after the last change to `methods` before committing,
-    // so late-arriving AI comps are included rather than freezing on a partial set.
-    if(settleTimer.current)clearTimeout(settleTimer.current);
-    settleTimer.current=setTimeout(()=>{
-      setFrozen(blended);
-    },1500);
-    // Safety cap: never wait more than 30s total; commit whatever is present.
-    if(!capTimer.current){
-      capTimer.current=setTimeout(()=>{
-        setFrozen(f=>f||blended);
-      },30000);
-    }
-    return()=>{if(settleTimer.current)clearTimeout(settleTimer.current);};
-  },[methods,blended,frozen]);
-
-  const shown=frozen||blended;
+  // The old build froze this value to hide a silent mid-session shift. That is
+  // no longer the right fix: the two stages are now explicit, so the number is
+  // allowed to move once, and the header says which stage produced it.
+  const shown=blended;
 
   return(
     <div className="val-hero">
-      <div className="val-hero-label">Implied Enterprise Value</div>
+      <div className="val-hero-label" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <span>Implied Enterprise Value</span>
+        {analystStatus==="running"&&<span style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(198,225,238,0.18)",border:"1px solid rgba(198,225,238,0.45)",borderRadius:20,padding:"2px 10px",fontSize:10,letterSpacing:"0.5px",color:"#C6E1EE",textTransform:"none",fontWeight:700}}>Preliminary</span>}
+        {(analystStatus==="refined"||analystStatus==="base")&&<span style={{background:"rgba(22,218,128,0.15)",border:"1px solid rgba(22,218,128,0.5)",borderRadius:20,padding:"2px 10px",fontSize:10,letterSpacing:"0.5px",color:"var(--ng)",textTransform:"none",fontWeight:700}}>Done</span>}
+      </div>
       <div className="val-hero-amount">
         {methods.length===0?"Computing...":(fmtResult(shown.low,cur)+" \u2013 "+fmtResult(shown.high,cur))}
       </div>
       <div className="val-hero-range">
         {methods.length>0&&("Mid-point: "+fmtResult(shown.mid,cur))}
       </div>
+      {analystStatus==="running"&&<div style={{marginBottom:12}}>
+        <div className="indet-track"><div className="indet-fill"></div></div>
+        <div style={{fontSize:11.5,opacity:0.6,marginTop:6}}>Finalising your valuation.</div>
+      </div>}
       <div className="val-hero-sub">Blended across {methods.length} method{methods.length!==1?"s":""} | {gate?gate.sector:""} | {new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
       {!hasEbitda&&methods.length>0&&<div style={{fontSize:11,opacity:0.6,marginTop:6,lineHeight:1.4}}>Note: Pre-profit company. Valuation weighted toward revenue-based methods. EBITDA multiples excluded.</div>}
       {methods.length>0&&<div style={unlocked?{}:{filter:"blur(2.5px)",pointerEvents:"none",userSelect:"none",opacity:0.7}}>
@@ -813,15 +853,15 @@ function InputsCard({gate,cfg}){
 // ===== LINKEDIN PAYWALL GATE V2 =====
 // Before unlock: shows generic strategic analysis preview + LinkedIn gate
 // After unlock: removes preview, runs AI strategic analysis + all modules
-function LinkedInGateV2({gate,cfg,aiComps,onUpdate,vd,unlocked,analysis}){
+function LinkedInGateV2({gate,cfg,aiComps,onUpdate,vd,unlocked,analysis,analyst,analystStatus}){
   return(
     <div>
       <div data-scroll-stop><StrategicAnalysis gate={gate} analysis={analysis}/></div>
       <div data-scroll-stop><FundraiseReadiness gate={gate} fundraise={analysis&&analysis.fundraise}/></div>
-      <div data-scroll-stop><DCFModule gate={gate} cfg={cfg} onUpdate={onUpdate}/></div>
-      <div data-scroll-stop><TradingComps gate={gate} cfg={cfg} onUpdate={onUpdate} aiComps={aiComps}/></div>
-      <div data-scroll-stop><TransactionComps gate={gate} cfg={cfg} onUpdate={onUpdate}/></div>
-      <div data-scroll-stop><IndustryResearch gate={gate} cfg={cfg} onUpdate={onUpdate}/></div>
+      <div data-scroll-stop><DCFModule gate={gate} cfg={cfg} onUpdate={onUpdate} analyst={analyst} aiComps={aiComps}/></div>
+      <div data-scroll-stop><TradingComps gate={gate} cfg={cfg} onUpdate={onUpdate} aiComps={aiComps} analyst={analyst} analystStatus={analystStatus}/></div>
+      <div data-scroll-stop><TransactionComps gate={gate} cfg={cfg} onUpdate={onUpdate} analyst={analyst}/></div>
+      <div data-scroll-stop><IndustryResearch gate={gate} cfg={cfg} onUpdate={onUpdate} analyst={analyst}/></div>
     </div>
   );
 }
@@ -1124,7 +1164,7 @@ function FundraiseReadiness({fundraise}){
 }
 
 // ===== RESULTS LOADING SCREEN =====
-function ResultsLoadingScreen({gate,compsStatus}){
+function ResultsLoadingScreen({gate}){
   const [elapsed,setElapsed]=useState(0);
   useEffect(()=>{
     const t=setInterval(()=>setElapsed(s=>s+1),1000);
@@ -1135,17 +1175,15 @@ function ResultsLoadingScreen({gate,compsStatus}){
     {label:"Analyzing financial inputs",threshold:0},
     {label:"Computing DCF projections",threshold:2},
     {label:"Matching transaction comparables",threshold:4},
-    {label:"Sourcing AI-powered trading comps",threshold:5},
+    {label:"Benchmarking against listed peers",threshold:5},
     {label:"Calibrating valuation ranges",threshold:7}
   ];
 
-  const compsLoaded=compsStatus==="done"||compsStatus==="fallback";
-  const allDone=compsLoaded&&elapsed>=9;
-
-  const getStepState=(step,i)=>{
+  // Purely time-based now: stage 1 is a local calculation, so nothing here
+  // waits on the network. The 10s cadence is deliberate pacing, not latency.
+  const getStepState=(step)=>{
     if(elapsed>=step.threshold+2)return "done";
-    if(i===4&&compsLoaded&&elapsed>=step.threshold)return allDone?"done":"active";
-    if(elapsed>=step.threshold)return elapsed>=step.threshold+2?"done":"active";
+    if(elapsed>=step.threshold)return "active";
     return "pending";
   };
 
@@ -1162,7 +1200,7 @@ function ResultsLoadingScreen({gate,compsStatus}){
         </div>
         <div className="results-loader-steps">
           {steps.map((step,i)=>{
-            const state=getStepState(step,i);
+            const state=getStepState(step);
             return(
               <div key={i} className={"results-loader-step "+state}>
                 <div className="results-loader-step-icon">
@@ -1182,14 +1220,14 @@ function ResultsLoadingScreen({gate,compsStatus}){
 // ===== LOCKED PREVIEW (pre-unlock layout) =====
 // Order: Strategic teaser (2 green bullets sharp + rest blurred) -> Valuation hero
 // (big number sharp, table blurred) -> remaining module titles sharp, bodies blurred.
-function LockedPreview({gate,cfg,vd,teaserData}){
+function LockedPreview({gate,cfg,vd,analysisData,analystStatus}){
   const localPrev=useMemo(()=>(gate&&cfg)?generateStrategicAnalysis(gate,cfg):null,[gate,cfg]);
 
-  const teaser=teaserData;
+  const teaser=analysisData;
   const tLoading=!teaser;
 
-  const strengths=(teaser&&teaser.strengths&&teaser.strengths.length?teaser.strengths:(localPrev?localPrev.pros:[]))||[];
-  const risks=(teaser&&teaser.risks&&teaser.risks.length?teaser.risks:(localPrev?localPrev.cons:[]))||[];
+  const strengths=(teaser&&teaser.pros&&teaser.pros.length?teaser.pros:(localPrev?localPrev.pros:[]))||[];
+  const risks=(teaser&&teaser.cons&&teaser.cons.length?teaser.cons:(localPrev?localPrev.cons:[]))||[];
   const insights=(teaser&&teaser.insights&&teaser.insights.length?teaser.insights:(localPrev?localPrev.insights:[]))||[];
   const greenBullets=strengths.slice(0,2);
   const blurredRisk=risks[0];
@@ -1251,7 +1289,7 @@ function LockedPreview({gate,cfg,vd,teaserData}){
 
       {/* 2. VALUATION HERO - big number sharp, breakdown table blurred */}
       <div id="locked-valuation-hero" data-scroll-stop>
-        <ValuationSummary gate={gate} cfg={cfg} vd={vd} unlocked={false}/>
+        <ValuationSummary gate={gate} cfg={cfg} vd={vd} unlocked={false} analystStatus={analystStatus}/>
       </div>
 
       {/* 3. REMAINING MODULES - titles sharp, bodies blurred */}

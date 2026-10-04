@@ -41,6 +41,19 @@ logger = logging.getLogger(__name__)
 
 # The live prompt asks for 6 to 8 listed peers.
 _TARGET_COMPS = 8
+
+# Thin input: keep the strategic read and scorecard, drop everything that
+# reclassifies the business or overrides the valuation.
+_NO_RECLASSIFICATION: JsonObject = {
+    "sector_fit": None,
+    "closest_existing_sector": None,
+    "effective_sector": None,
+    "rationale": None,
+    "discounts": None,
+    "dcf": None,
+    "transaction_search_terms": [],
+    "vc_search_terms": [],
+}
 _RESULTS_PER_QUERY = 5
 
 
@@ -113,7 +126,10 @@ class ValuationAi:
             # only — none of AnalyzeResult's other fields have a fallback),
             # so this method's own contract stays `JsonObject` rather than a
             # union type, matching `/analyze`'s existing schema-free response.
-            return result.model_dump()
+            analysis = result.model_dump()
+            analysis.pop("enough_information")
+            identified = result.enough_information and (description.strip() or website_text.strip())
+            return analysis if identified else {**analysis, **_NO_RECLASSIFICATION}
         except Exception:  # noqa: BLE001 - falls back rather than showing an error
             logger.warning("lead_magnet_analyze_failed_using_fallback")
             fallback = generate_strategic_analysis(
