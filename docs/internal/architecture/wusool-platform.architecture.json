@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "1a5d4f2db789e548da62beb0962034837b600cdf"
+      "revision": "8f0a14fa2a12fb2bff733330d5d9446bed7b9f41"
     }
   },
   "components": [
@@ -29,7 +29,7 @@
       "sublabel": "lead magnets",
       "pos": [40, 300],
       "size": [150, 64],
-      "sources": [{ "path": "docs/technical/lead-tools.md", "label": "Lead tools" }]
+      "sources": [{ "path": "gitbook/technical/lead-tools.md", "label": "Lead tools" }]
     },
     {
       "id": "scribe",
@@ -38,7 +38,7 @@
       "sublabel": "desktop meeting API",
       "pos": [40, 430],
       "size": [150, 64],
-      "sources": [{ "path": "docs/technical/scribe.md", "label": "Scribe flow" }]
+      "sources": [{ "path": "gitbook/technical/scribe.md", "label": "Scribe flow" }]
     },
     {
       "id": "attio",
@@ -47,7 +47,7 @@
       "sublabel": "CRM of record",
       "pos": [330, 80],
       "size": [150, 64],
-      "sources": [{ "path": "docs/technical/attio-sync.md", "label": "CRM sync" }]
+      "sources": [{ "path": "gitbook/technical/attio-sync.md", "label": "CRM sync" }]
     },
     {
       "id": "toolkit",
@@ -76,7 +76,7 @@
       "sublabel": "matching + summaries",
       "pos": [620, 105],
       "size": [170, 64],
-      "sources": [{ "path": "docs/technical/toolkit.md", "label": "AI dependency" }]
+      "sources": [{ "path": "gitbook/technical/toolkit.md", "label": "AI dependency" }]
     },
     {
       "id": "research",
@@ -85,7 +85,7 @@
       "sublabel": "Firecrawl + Diffbot + PDL",
       "pos": [620, 500],
       "size": [190, 64],
-      "sources": [{ "path": "docs/technical/toolkit.md", "label": "Enrichment providers" }]
+      "sources": [{ "path": "gitbook/technical/toolkit.md", "label": "Enrichment providers" }]
     },
     {
       "id": "n8n",
@@ -95,7 +95,7 @@
       "tag": "EC2 / persistent volume",
       "pos": [930, 280],
       "size": [180, 70],
-      "sources": [{ "path": "docs/technical/n8n.md", "label": "n8n runtime" }]
+      "sources": [{ "path": "gitbook/technical/n8n.md", "label": "n8n runtime" }]
     },
     {
       "id": "github",
@@ -113,7 +113,7 @@
       "sublabel": "SSM + CloudWatch + Secrets Manager",
       "pos": [930, 500],
       "size": [210, 64],
-      "sources": [{ "path": "docs/operations/monitoring-and-incidents.md", "label": "Operations" }]
+      "sources": [{ "path": "gitbook/operations/monitoring-and-incidents.md", "label": "Operations" }]
     },
     {
       "id": "sanity",
@@ -152,7 +152,7 @@
     { "from": "slack", "to": "toolkit", "label": "HTTPS /slack/events", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [195, 248] },
     { "from": "website", "to": "toolkit", "label": "HTTPS lead magnets", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [205, 290] },
     { "from": "scribe", "to": "toolkit", "label": "HTTPS /desktop/*", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [205, 410] },
-    { "from": "attio", "to": "toolkit", "label": "signed POST /webhooks/attio", "variant": "security", "route": "orthogonal-h", "labelAt": [300, 155] },
+    { "from": "attio", "to": "toolkit", "label": "signed POST /webhooks/attio", "variant": "security" },
     { "from": "toolkit", "to": "attio", "label": "CRM writes", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "via": [[415, 220], [450, 220], [450, 190], [405, 190]], "labelAt": [470, 180] },
     { "from": "toolkit", "to": "postgres", "label": "SQL / DATABASE_URL", "variant": "emphasis", "labelAt": [560, 365] },
     { "from": "toolkit", "to": "bedrock", "label": "AWS SDK / instance role", "variant": "dashed", "labelAt": [545, 220] },
@@ -161,8 +161,8 @@
     { "from": "github", "to": "n8n", "label": "OpenTofu + SSM bootstrap", "variant": "emphasis", "labelAt": [1140, 160] },
     { "from": "operations", "to": "toolkit", "label": "logs + health", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "labelAt": [560, 395] },
     { "from": "operations", "to": "postgres", "label": "private access", "variant": "security", "fromSide": "top", "toSide": "bottom", "via": [[1035, 450], [850, 450], [850, 410], [705, 410]], "labelAt": [850, 475] },
-    { "from": "sanity", "to": "toolkit", "label": "signed publish webhook", "variant": "security", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "labelAt": [330, 560] },
-    { "from": "toolkit", "to": "webflow", "label": "card sync / CMS API", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "labelAt": [150, 560] }
+    { "from": "sanity", "to": "toolkit", "label": "signed publish webhook", "variant": "security" },
+    { "from": "toolkit", "to": "webflow", "label": "card sync / CMS API", "variant": "dashed" }
   ],
   "cards": [
     {
