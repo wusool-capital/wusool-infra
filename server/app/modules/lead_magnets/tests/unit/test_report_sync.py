@@ -196,14 +196,3 @@ async def test_a_render_superseded_by_a_newer_edit_is_dropped_and_touches_nothin
     await _sync(source=source, cms=cms).sync(slug="buyouts-in-the-gcc", previous_slug=None)
 
     assert source.saved == [] and cms.calls == []
-
-
-async def test_without_a_webflow_token_reports_still_render_but_get_no_card() -> None:
-    source, renderer = _FakeSource(_report(), stale=True), _FakeRenderer()
-
-    await ReportSync(source=source, cms=None, renderer=renderer).sync(
-        slug="buyouts-in-the-gcc", previous_slug="old-slug"
-    )
-
-    assert renderer.rendered == ["<p>x</p>"]
-    assert len(source.saved) == 1

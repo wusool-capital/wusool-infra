@@ -67,9 +67,7 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    - `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`
    - `LEAD_MAGNET_SANITY_WRITE_TOKEN`, an **Editor** API token (API → Tokens).
      It is used only to save the flattened report back.
-   - `LEAD_MAGNET_WEBFLOW_API_TOKEN`, a Webflow site token with `CMS:read` and `CMS:write`.
-     Optional: leave it out to test without Webflow; reports then serve only at
-     `/report/?slug=<slug>` on the tools host, with no `/insights` card.
+   - `LEAD_MAGNET_WEBFLOW_API_TOKEN`, a Webflow site token with `CMS:read` and `CMS:write`
 
 ## Publishing a report
 

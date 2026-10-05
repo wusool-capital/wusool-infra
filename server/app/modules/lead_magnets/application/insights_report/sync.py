@@ -23,14 +23,8 @@ logger = logging.getLogger(__name__)
 
 class ReportSync:
     def __init__(
-        self,
-        *,
-        source: ReportSourcePort,
-        cms: InsightsCmsPort | None,
-        renderer: ReportRendererPort,
+        self, *, source: ReportSourcePort, cms: InsightsCmsPort, renderer: ReportRendererPort
     ) -> None:
-        """`cms` is `None` until a Webflow token is set: reports still render
-        and can be read at their direct URL, but get no `/insights` card."""
         self._source = source
         self._cms = cms
         self._renderer = renderer
@@ -68,9 +62,6 @@ class ReportSync:
             await self._unpublish(slug)
             return
 
-        if self._cms is None:
-            logger.info("insights_report_card_skipped reason=no_webflow_token slug=%s", slug)
-            return
         item = await self._cms.find(slug)
         if item is not None and not item.gated:
             # Hand-written articles are never gated; a clashing slug must not overwrite one.
@@ -90,8 +81,6 @@ class ReportSync:
             await self._cms.update(item.id, report, featured=featured)
 
     async def _unpublish(self, slug: str) -> None:
-        if self._cms is None:
-            return
         item = await self._cms.find(slug)
         if item is not None and item.gated:
             await self._cms.unpublish(item.id)
