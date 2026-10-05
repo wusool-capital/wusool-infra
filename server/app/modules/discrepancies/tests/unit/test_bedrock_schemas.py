@@ -3,7 +3,8 @@ region outside the option lists, so an LLM guess never becomes a conflict.
 """
 
 from app.modules.discrepancies.domain.criteria import ParsedContext
-from app.modules.discrepancies.providers.bedrock.client import _build_prompt
+from app.modules.discrepancies.domain.vocabulary import COUNTRY_OPTIONS
+from app.modules.discrepancies.providers.bedrock.client import _SYSTEM_PROMPT, _build_prompt
 from app.modules.discrepancies.providers.bedrock.schemas import ExtractedContext
 
 
@@ -49,3 +50,25 @@ def test_a_pasted_note_tag_cannot_close_the_data_block() -> None:
 
     assert prompt.count("<note>") == 1
     assert prompt.count("</note>") == 1
+
+
+def test_countries_are_canonicalised_and_off_list_ones_dropped() -> None:
+    extracted = ExtractedContext(
+        countries=["united arab emirates", "Saudi Arabia", "Atlantis", "Saudi Arabia"]
+    )
+
+    assert extracted.to_domain() == ParsedContext(
+        countries=("United Arab Emirates", "Saudi Arabia")
+    )
+
+
+def test_system_prompt_lists_every_country_and_keeps_countries_out_of_region() -> None:
+    assert all(country in _SYSTEM_PROMPT for country in COUNTRY_OPTIONS)
+    assert "Never turn named countries into a region" in _SYSTEM_PROMPT
+    assert '"countries": []' in _SYSTEM_PROMPT
+
+
+def test_off_list_region_is_dropped_but_countries_survive() -> None:
+    extracted = ExtractedContext(region="Gulf states", countries=["Qatar"])
+
+    assert extracted.to_domain() == ParsedContext(countries=("Qatar",))

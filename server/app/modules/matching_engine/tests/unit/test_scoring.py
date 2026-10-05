@@ -358,3 +358,88 @@ def test_ticket_fit_is_absent_without_a_check_size() -> None:
     score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "s1", _profile(), _seller(), None)
 
     assert all(c.criterion != "ticket_fit" for c in score.criteria)
+
+
+def _geography(value: str) -> HardRequirement:
+    return HardRequirement(
+        criterion="geography",
+        value=value,
+        source="crm_field",
+        confidence="high",
+        human_confirmed=True,
+    )
+
+
+def test_geography_region_matches_its_countries_in_any_spelling() -> None:
+    uae = _seller("uae", geographic_focus=["UAE"])
+    egypt = _seller("egypt", geographic_focus=["Egypt"])
+
+    survivors, _ = apply_structured_filters(_profile([_geography("GCC")]), [uae, egypt])
+
+    assert [s.seller_role_id for s in survivors] == ["uae"]
+
+
+def test_geography_country_matches_hq_country_alias() -> None:
+    seller = replace(_seller("ksa"), hq_country="KSA")
+
+    survivors, _ = apply_structured_filters(_profile([_geography("Saudi Arabia")]), [seller])
+
+    assert [s.seller_role_id for s in survivors] == ["ksa"]
+
+
+def test_geography_requirements_are_a_union_not_an_intersection() -> None:
+    uae = _seller("uae", geographic_focus=["United Arab Emirates"])
+    egypt = _seller("egypt", geographic_focus=["Egypt"])
+    germany = _seller("germany", geographic_focus=["Germany"])
+    profile = _profile([_geography("GCC"), _geography("Egypt")])
+
+    survivors, _ = apply_structured_filters(profile, [uae, egypt, germany])
+
+    assert [s.seller_role_id for s in survivors] == ["uae", "egypt"]
+
+
+def test_geography_requirements_are_scored_once_as_a_union() -> None:
+    profile = _profile([_geography("GCC"), _geography("United Kingdom"), _geography("Egypt")])
+    seller = _seller("uae", geographic_focus=["UAE"])
+
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "uae", profile, seller)
+
+    geography = [c for c in score.criteria if c.criterion == "geography"]
+    assert [c.result for c in geography] == ["Pass"]
+    assert score.overall_score == 100.0
+
+
+def test_global_geography_requirement_never_eliminates() -> None:
+    seller = _seller("anywhere", geographic_focus=["Brazil"])
+
+    survivors, _ = apply_structured_filters(_profile([_geography("Global")]), [seller])
+
+    assert [s.seller_role_id for s in survivors] == ["anywhere"]
+
+
+def test_seller_without_geography_data_is_exempted_once_for_the_union() -> None:
+    profile = _profile([_geography("GCC"), _geography("Egypt")])
+
+    survivors, skipped = apply_structured_filters(profile, [_seller("blank")])
+
+    assert [s.seller_role_id for s in survivors] == ["blank"]
+    assert [(f.reason, f.candidates_exempted) for f in skipped] == [("no_populated_field", 1)]
+
+
+def test_unconfirmed_geography_is_left_out_of_the_filter_union() -> None:
+    unconfirmed = replace(_geography("Germany"), human_confirmed=False)
+    germany = _seller("germany", geographic_focus=["Germany"])
+
+    survivors, _ = apply_structured_filters(_profile([_geography("GCC"), unconfirmed]), [germany])
+
+    assert survivors == []
+
+
+def test_unconfirmed_geography_still_counts_in_the_scored_union() -> None:
+    unconfirmed = replace(_geography("Germany"), human_confirmed=False)
+    germany = _seller("germany", geographic_focus=["Germany"])
+    profile = _profile([_geography("GCC"), unconfirmed])
+
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "germany", profile, germany)
+
+    assert [c.result for c in score.criteria if c.criterion == "geography"] == ["Pass"]

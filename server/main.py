@@ -54,7 +54,7 @@ from app.modules.discovery.api.dependencies import (
 from app.modules.discovery.api.slack.handlers import (
     register_handlers as register_discovery_handlers,
 )
-from app.modules.discrepancies.api.dependencies import configure_criteria_reader_port
+from app.modules.discrepancies import configure_criteria_reader_port
 from app.modules.discrepancies.api.slack.handlers import (
     register_handlers as register_discrepancies_handlers,
 )

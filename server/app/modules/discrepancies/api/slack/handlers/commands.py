@@ -49,7 +49,18 @@ def register(app: AsyncApp) -> None:
         view_id = await open_loading_modal(
             client, trigger_id=command["trigger_id"], title="Check buyer"
         )
-        candidates = await search_buyers(buyer_name)
+        try:
+            candidates = await search_buyers(buyer_name)
+        except Exception:
+            # Otherwise the modal is stuck on its loading view with no way forward.
+            logger.exception("check_buyer_search_failed", extra={"buyer_name": buyer_name})
+            await client.views_update(
+                view_id=view_id,
+                view=build_notice_modal(
+                    "Check buyer", "Couldn't search buyers right now. Please try again."
+                ),
+            )
+            return
 
         if not candidates:
             await client.views_update(
@@ -62,5 +73,5 @@ def register(app: AsyncApp) -> None:
 
         await client.views_update(
             view_id=view_id,
-            view=build_buyer_picker_modal(candidates, requested_by=user_id, channel_id=channel_id),
+            view=build_buyer_picker_modal(candidates, channel_id=channel_id),
         )

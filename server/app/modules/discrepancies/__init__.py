@@ -21,7 +21,6 @@ from app.modules.discrepancies.api.dependencies import (
     check_buyer_discrepancies,
     configure_criteria_reader_port,
 )
-from app.modules.discrepancies.api.slack.views.report import build_discrepancy_blocks
 from app.modules.discrepancies.application.check import DiscrepancyCheckResult
 from app.modules.discrepancies.application.ports.criteria_reader import BuyerCriteriaReaderPort
 from app.modules.discrepancies.domain.criteria import BuyerCriteria, DiscrepancyReport
@@ -31,7 +30,6 @@ __all__ = [
     "BuyerCriteriaReaderPort",
     "DiscrepancyCheckResult",
     "DiscrepancyReport",
-    "build_discrepancy_blocks",
     "check_buyer_discrepancies",
     "configure_criteria_reader_port",
 ]

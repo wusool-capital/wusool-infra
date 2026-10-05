@@ -121,7 +121,8 @@
         {"source": "notable_investments", "target": "notable_investments", "transform": "attio_native", "status": "confirmed"},
         {"source": "key_personnel", "target": "key_personnel", "transform": "attio_native", "status": "confirmed"},
         {"source": "relationship_warmth", "target": "relationship_warmth", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
-        {"source": "target_geography", "target": "target_geography", "transform": "single_select_title_or_report_multiple", "status": "confirmed"},
+        {"source": "target_geography", "target": "target_region", "transform": "split_target_geography_region_titles", "status": "confirmed"},
+        {"source": "target_geography", "target": "target_country", "transform": "split_target_geography_country_titles", "status": "confirmed"},
         {"source": "last_mandate_briefing_date", "target": "last_mandate_briefing_date", "transform": "date", "status": "confirmed"},
         {"source": "prior_gcc_acquisition", "target": "prior_gcc_acquisition", "transform": "attio_native", "status": "confirmed"}
       ]

@@ -4,8 +4,10 @@ as a `ParsedContext`; rules decide and `template_message` writes the words.
 """
 
 import re
+from collections.abc import Iterable
 from dataclasses import replace
 
+from app.modules.discovery.domain.geography import country_spellings, resolve_known
 from app.modules.discrepancies.domain.criteria import (
     BuyerCriteria,
     Discrepancy,
@@ -15,6 +17,7 @@ from app.modules.discrepancies.domain.criteria import (
 from app.modules.discrepancies.domain.vocabulary import (
     CRITERION_LABELS,
     GENERALIST_VERTICAL,
+    REGION_OPTIONS,
     Criterion,
     region_can_conflict,
     regions_disjoint,
@@ -40,15 +43,61 @@ def _vertical_conflict(criteria: BuyerCriteria, candidates: tuple[str, ...]) -> 
     return Discrepancy(Criterion.VERTICAL, "conflict", stored=stored, stated=candidates[0])
 
 
-def _region_conflict(criteria: BuyerCriteria, stated: str | None) -> Discrepancy | None:
-    """Conflict only when the stated region shares no country with any stored
-    one; an unknown or legacy stored value is never disjoint, so stays silent."""
-    if stated is None or not criteria.target_region:
+def _spellings(countries: Iterable[str]) -> set[str]:
+    return {s for c in countries for s in country_spellings(c)}
+
+
+def _country_outside(country: str, criteria: BuyerCriteria) -> bool:
+    """True only when the country is provably outside every stored region and
+    country. An unresolvable stored region (Europe) is ruled out via a disjoint
+    region the country sits in."""
+    spellings = country_spellings(country)
+    if spellings & _spellings(criteria.target_country):
+        return False
+    home = [
+        r
+        for r in REGION_OPTIONS
+        if (scope := resolve_known(r)) is not None and spellings & _spellings(scope.countries)
+    ]
+    for region in criteria.target_region:
+        scope = resolve_known(region)
+        if scope is not None and scope.unrestricted:
+            return False
+        if scope is not None:
+            if spellings & _spellings(scope.countries):
+                return False
+        elif not any(regions_disjoint(h, region) for h in home):
+            return False
+    return True
+
+
+def _region_outside(region: str, criteria: BuyerCriteria) -> bool:
+    if not all(regions_disjoint(region, stored) for stored in criteria.target_region):
+        return False
+    if not criteria.target_country:
+        return True
+    scope = resolve_known(region)
+    if scope is None or scope.unrestricted:
+        return False
+    return not (_spellings(criteria.target_country) & _spellings(scope.countries))
+
+
+def _geography_conflict(criteria: BuyerCriteria, context: ParsedContext) -> Discrepancy | None:
+    """Conflict only when every stated place falls outside the buyer's regions and
+    countries combined; anything that can't be resolved stays silent."""
+    stated = ([context.region] if context.region else []) + list(context.countries)
+    if not stated or not (criteria.target_region or criteria.target_country):
         return None
-    if not all(regions_disjoint(stated, stored) for stored in criteria.target_region):
+    outside = [_country_outside(c, criteria) for c in context.countries]
+    if context.region:
+        outside.append(_region_outside(context.region, criteria))
+    if not all(outside):
         return None
     return Discrepancy(
-        Criterion.GEOGRAPHY, "conflict", stored=", ".join(criteria.target_region), stated=stated
+        Criterion.GEOGRAPHY,
+        "conflict",
+        stored=", ".join([*criteria.target_region, *criteria.target_country]),
+        stated=", ".join(stated),
     )
 
 
@@ -100,6 +149,7 @@ def can_conflict(criteria: BuyerCriteria) -> bool:
     return (
         criteria.target_vertical not in (None, GENERALIST_VERTICAL)
         or any(region_can_conflict(r) for r in criteria.target_region)
+        or bool(criteria.target_country)
         or any(
             v is not None
             for v in (
@@ -115,7 +165,7 @@ def can_conflict(criteria: BuyerCriteria) -> bool:
 def find_conflicts(criteria: BuyerCriteria, context: ParsedContext) -> tuple[Discrepancy, ...]:
     conflicts = (
         _vertical_conflict(criteria, context.verticals),
-        _region_conflict(criteria, context.region),
+        _geography_conflict(criteria, context),
         _band_conflict(
             Criterion.TICKET_BAND,
             (criteria.check_size_min, criteria.check_size_max),
@@ -138,7 +188,7 @@ def find_missing(criteria: BuyerCriteria) -> tuple[Discrepancy, ...]:
         missing.append(Discrepancy(Criterion.GEOGRAPHY, "missing", stored="(not set)"))
     if is_missing(criteria.check_size_min) and is_missing(criteria.check_size_max):
         missing.append(Discrepancy(Criterion.TICKET_BAND, "missing", stored="(not set)"))
-    if is_missing(criteria.ebitda_floor):
+    if is_missing(criteria.ebitda_floor) and is_missing(criteria.ebitda_ceiling):
         missing.append(Discrepancy(Criterion.EBITDA, "missing", stored="(not set)"))
     return tuple(missing)
 
@@ -155,10 +205,25 @@ def _join(items: list[str]) -> str:
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
+def _context_summary(context: ParsedContext) -> str:
+    parts = [" or ".join(context.verticals)] if context.verticals else []
+    parts += [p for p in (context.region, *context.countries) if p]
+    if context.ticket_low is not None or context.ticket_high is not None:
+        parts.append(f"ticket {_format_bounds(context.ticket_low, context.ticket_high)}")
+    if context.ebitda_low is not None or context.ebitda_high is not None:
+        parts.append(f"EBITDA {_format_bounds(context.ebitda_low, context.ebitda_high)}")
+    return " · ".join(parts)
+
+
 def template_message(
-    criteria: BuyerCriteria, report: DiscrepancyReport, *, context_checked: bool
+    criteria: BuyerCriteria,
+    report: DiscrepancyReport,
+    *,
+    context_checked: bool,
+    context: ParsedContext | None = None,
 ) -> str:
-    """Never says "no conflicting details" unless the note was actually checked."""
+    """Never says "no conflicting details" unless the note was actually checked.
+    Echoes what was read from the note so a misread is visible."""
     org = criteria.org_name
     lines = [
         f"Heads up: {org}'s profile says {CRITERION_LABELS[d.criterion]} is {d.stored}, "
@@ -177,4 +242,6 @@ def template_message(
         )
     elif report.is_clear:
         lines.append(f"No missing or conflicting details found for {org}.")
+    if context_checked and context is not None and not context.is_empty:
+        lines.append(f"_Read your note as: {_context_summary(context)}_")
     return "\n".join(lines)

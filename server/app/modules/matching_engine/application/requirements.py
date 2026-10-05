@@ -114,10 +114,12 @@ class BuyerRequirementExtractionService:
             "deal_structure_tolerance": buyer.deal_structure_tolerance,
             "earnout_tolerance": buyer.earnout_tolerance,
             "profitable_only": buyer.profitable_only,
-            "target_region (broad regions the buyer targets, e.g. GCC, MENA)": (
+            "target_region (broad regions the buyer targets, e.g. GCC, MENA; together "
+            "with target_country a union -- emit one geography requirement per value)": (
                 buyer.target_region
             ),
-            "target_country (specific countries the buyer targets)": buyer.target_country,
+            "target_country (specific countries the buyer targets, in addition to "
+            "target_region)": buyer.target_country,
             "sector_focus": buyer.org_sector_focus,
         }
         # Real CRM data, but none of it is itself a criterion value — folded
@@ -125,7 +127,7 @@ class BuyerRequirementExtractionService:
         # instead, same as free text, never `human_confirmed: true`.
         context_fields = {
             "org_hq_country (buyer's own HQ -- NOT their target geography, "
-            "see target_geography above for that)": buyer.org_hq_country,
+            "see target_region/target_country above for that)": buyer.org_hq_country,
             "org_region (buyer's own HQ region -- NOT their target geography)": buyer.org_region,
             "org_type": buyer.org_type,
             "org_categories": buyer.org_categories,

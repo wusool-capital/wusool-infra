@@ -4,13 +4,14 @@ action re-validates against the buyer-criteria Port — Slack payload state
 is never trusted on its own.
 """
 
-import json
 import logging
 
+from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
 
 from app.modules.discrepancies.api.dependencies import check_buyer_by_id
+from app.modules.discrepancies.api.slack.schemas import CheckBuyerModalMetadata
 from app.modules.discrepancies.api.slack.views.report import build_discrepancy_blocks
 from app.modules.discrepancies.bootstrap import build_slack_notifier
 from app.modules.notifications import SlackViewSubmissionPayload
@@ -41,10 +42,14 @@ def register(app: AsyncApp) -> None:
                 return
             _submission_idempotency_store.mark(idempotency_key)
 
-        metadata = json.loads(view.get("private_metadata") or "{}")
-        channel_id = metadata.get("channel_id")
-        if not channel_id:
+        try:
+            metadata = CheckBuyerModalMetadata.model_validate_json(
+                view.get("private_metadata") or ""
+            )
+        except ValidationError:
+            logger.warning("check_buyer_metadata_invalid view_id=%s", view_id)
             return
+        channel_id = metadata.channel_id
 
         values = view["state"]["values"]
         selected = values["buyer_role_id"]["selected_buyer"]["selected_option"]
