@@ -21,7 +21,13 @@ async function submitGateForm(e){
   e.preventDefault();
   const form=document.getElementById("gate-form");
   const err=document.getElementById("e-form");
+  const emailErr=document.getElementById("e-email");
   err.classList.remove("show");
+  emailErr.classList.remove("show");
+  if(!document.getElementById("email").checkValidity()){
+    emailErr.classList.add("show");
+    return;
+  }
   if(!form.checkValidity()){
     err.classList.add("show");
     return;
@@ -42,6 +48,12 @@ async function submitGateForm(e){
 
   try{
     const r=await fetch(REPORT_URL+"/unlock",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    if(r.status===422){
+      emailErr.classList.add("show");
+      btn.disabled=false;
+      btn.textContent="Read the full report";
+      return;
+    }
     if(!r.ok)throw new Error("unlock failed: "+r.status);
     render(await r.json());
   }catch(error){

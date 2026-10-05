@@ -510,10 +510,20 @@ class BuyerApplyResponse(BaseModel):
     run_id: str
 
 
+# The WHATWG `type="email"` grammar (what the page's own input enforces), plus at
+# least one dot in the domain, so "dana@acme" and free text like "<x>@a" fail.
+_EMAIL_PATTERN = (
+    r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+"
+    r"@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+)
+
+
 class ReportUnlockRequest(_Strict):
     """The gate on an insights report (PRD 3): name, email and organisation.
 
-    Any email is accepted, free-mail included, by decision. Field names
+    The page asks for a work email, but free-mail is still accepted, by
+    decision; only malformed addresses are rejected. Field names
     match `AttioIdentityPayload` (`name`, `email`, `company`), which is what
     the background org and person write reads back from the stored payload.
     """
@@ -521,7 +531,7 @@ class ReportUnlockRequest(_Strict):
     submission_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=200)
     company: str = Field(min_length=1, max_length=200)
-    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    email: str = Field(min_length=3, max_length=320, pattern=_EMAIL_PATTERN)
 
 
 class ReportResponse(BaseModel):

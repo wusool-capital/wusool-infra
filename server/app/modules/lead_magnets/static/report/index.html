@@ -23,10 +23,11 @@
     <form id="gate-form">
       <div class="grid">
         <div class="fg"><label for="name">Full name *</label><input class="fi" type="text" id="name" name="name" autocomplete="name" placeholder="Jane Doe" maxlength="200" required></div>
-        <div class="fg"><label for="email">Email *</label><input class="fi" type="email" id="email" name="email" autocomplete="email" placeholder="you@company.com" maxlength="320" required></div>
+        <div class="fg"><label for="email">Work email *</label><input class="fi" type="email" id="email" name="email" autocomplete="email" placeholder="you@yourcompany.com" pattern="[^@\s]+@[^@\s]+\.[^@\s]+" maxlength="320" required aria-describedby="email-hint"><p class="hint" id="email-hint">Please use your work email address.</p></div>
       </div>
       <div class="fg"><label for="company">Organization *</label><input class="fi" type="text" id="company" name="company" autocomplete="organization" placeholder="Acme Trading LLC" maxlength="200" required></div>
       <p class="note">By continuing you agree to Wusool Capital's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+      <div class="errtext" id="e-email">Please enter a valid work email, like you@yourcompany.com.</div>
       <div class="errtext" id="e-form">Something went wrong. Please check your details and try again.</div>
       <button class="btn btn-p" type="submit" id="submit-btn">Read the full report</button>
     </form>

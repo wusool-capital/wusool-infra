@@ -167,12 +167,38 @@ def test_unlock_returns_the_whole_report_and_remembers_the_reader(client, world)
     assert len(world.completed) == 1
 
 
-def test_unlock_rejects_a_malformed_email(client) -> None:
+@pytest.mark.parametrize(
+    "email",
+    [
+        "not-an-email",
+        "dana@acme",
+        "dana@@acme.ae",
+        "dana acme@acme.ae",
+        "<script>@acme.ae",
+        "dana@acme..ae",
+        "dana@-acme.ae",
+        "@acme.ae",
+        " dana@acme.ae",
+    ],
+)
+def test_unlock_rejects_anything_that_is_not_an_email(client, email: str) -> None:
     response = client.post(
         "/reports/buyouts-in-the-gcc/unlock",
-        json={"submission_id": "s", "name": "D", "email": "not-an-email", "company": "A"},
+        json={"submission_id": "s", "name": "D", "email": email, "company": "A"},
     )
     assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "email"]
+
+
+@pytest.mark.parametrize(
+    "email", ["dana@acme.ae", "dana.k+reports@mail.acme-group.com", "dana@gmail.com"]
+)
+def test_unlock_accepts_real_addresses_including_free_mail(client, email: str) -> None:
+    response = client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "D", "email": email, "company": "A"},
+    )
+    assert response.status_code == 200
 
 
 def test_a_returning_reader_skips_the_gate_and_logs_one_read_per_new_report(client, world) -> None:
