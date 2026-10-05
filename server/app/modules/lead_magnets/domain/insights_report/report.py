@@ -51,9 +51,13 @@ class CmsItem:
     gated: bool
 
 
+# Bump when the renderer's output changes, so published reports are flattened again.
+RENDER_VERSION = "2"
+
+
 def fingerprint(html: str) -> str:
     """Identifies one version of a report's source HTML, so it is flattened once."""
-    return hashlib.sha256(html.encode()).hexdigest()
+    return hashlib.sha256(f"{RENDER_VERSION}\n{html}".encode()).hexdigest()
 
 
 def reading_time(html: str) -> str:

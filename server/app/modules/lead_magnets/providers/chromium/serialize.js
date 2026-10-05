@@ -51,8 +51,9 @@ async () => {
     // Only the layout survives; a standalone viewer's "desk" margin would waste the embed's width.
     freeze(host, ['display', 'position', 'box-sizing']);
     for (const child of host.children) {
+      // Not the viewer's page gaps, shadows or corners: on the site, pages read as one document.
       freeze(child, ['display', 'position', 'width', 'height', 'container-type', 'overflow', 'box-sizing',
-                     'background-color', 'border-radius', 'box-shadow', 'margin-top']);
+                     'background-color']);
       child.style.marginLeft = child.style.marginRight = 'auto';
     }
   }
