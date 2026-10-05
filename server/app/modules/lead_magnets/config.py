@@ -53,6 +53,8 @@ class Settings(BaseSettings):
 
     # Per-IP, per-hour cap on the endpoints that spend money.
     lead_magnet_rate_per_hour: int = 20
+    # Per-IP hourly cap on report views: fine behind office NAT, stops quota-draining scans.
+    lead_magnet_report_reads_per_hour: int = 300
 
     # Attio `workspace_membership_id` of the advisor a new inbound deal is
     # assigned to. Every deal in the live workspace has an owner, so a
@@ -85,6 +87,17 @@ class Settings(BaseSettings):
     # defaults only, not duplicated there.
     lead_magnet_email_from: str = "contact@wusoolcapital.com"
     lead_magnet_email_to: str = "ramzy@wusoolcapital.com jules@wusoolcapital.com"
+
+    # Gated reports. A blank project id disables `/reports/*`, so local dev needs no Sanity.
+    lead_magnet_sanity_project_id: str = ""
+    lead_magnet_sanity_dataset: str = "production"
+    # Secrets Manager only. Blank rejects every Sanity webhook (503).
+    lead_magnet_sanity_webhook_secret: str = ""
+    # Secrets Manager only: an Editor token, used solely to save flattened reports back.
+    lead_magnet_sanity_write_token: str = ""
+    lead_magnet_webflow_api_token: str = ""
+    # The live site's "Insights" collection; a fixed infra fact, like the model ids above.
+    lead_magnet_webflow_insights_collection_id: str = "69aaa645fa60624091050e8e"
 
     @field_validator("database_url")
     @classmethod

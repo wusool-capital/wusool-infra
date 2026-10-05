@@ -80,6 +80,7 @@ class _FakeRoleWriter:
     def __init__(self) -> None:
         self.seller_calls: list[dict] = []
         self.buyer_calls: list[dict] = []
+        self.org_calls: list[dict] = []
 
     async def write_seller_role(self, **kwargs):
         self.seller_calls.append(kwargs)
@@ -90,6 +91,13 @@ class _FakeRoleWriter:
 
     async def write_buyer_role(self, **kwargs):
         self.buyer_calls.append(kwargs)
+        return SubjectRefs(
+            org_attio_id=kwargs.get("organization_attio_id") or "org-new",
+            org_name=kwargs["organization_name"],
+        )
+
+    async def write_organization(self, **kwargs):
+        self.org_calls.append(kwargs)
         return SubjectRefs(
             org_attio_id=kwargs.get("organization_attio_id") or "org-new",
             org_name=kwargs["organization_name"],
@@ -529,3 +537,23 @@ async def test_get_started_routes_through_the_seller_branch_with_its_own_field_n
     assert subjects.person_attio_id == "person-9"
     assert deal.calls[0]["deal_type"] == "Sell-side"
     assert subjects.deal_attio_id == "deal-9"
+
+
+async def test_a_report_reader_writes_an_org_and_a_person_but_no_role_or_deal() -> None:
+    """PRD 3 names exactly these two records for an insights reader."""
+    organizations = _FakeOrganizations([_Candidate(attio_id="org-1", domains=["acme.com"])])
+    writer, person, deal = _FakeRoleWriter(), _FakePersonWriter(), _FakeDealWriter()
+    role_attio_writer = bootstrap._RoleAttioWriter(writer, organizations, person, deal)
+
+    await role_attio_writer.write(
+        tool="insights_report",
+        payload={"name": "Dana", "email": "dana@acme.com", "company": "Acme", "domain": "acme.com"},
+        ai={},
+    )
+
+    (org_call,) = writer.org_calls
+    assert org_call["organization_attio_id"] == "org-1"
+    assert org_call["lead_source_detail"] == "Insights & Reports"
+    assert person.calls[0]["email"] == "dana@acme.com"
+    assert person.calls[0]["organization_attio_id"] == "org-1"
+    assert writer.seller_calls == writer.buyer_calls == deal.calls == []

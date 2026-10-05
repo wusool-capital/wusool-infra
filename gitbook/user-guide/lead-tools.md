@@ -11,6 +11,25 @@ are recorded for follow-up in Attio.
 | **GCC SME Benchmark** | A comparison with relevant peer companies |
 | **Buyer Network** | Registration as a buyer seeking acquisitions |
 
+## Publish a gated report
+
+Gated reports are written in the Wusool Reports Studio (Sanity), not in
+Webflow.
+
+1. Create a **Report** and fill in the title, slug, excerpt, and the pasted
+   report HTML. Cover image, author, primary silo, and date are optional.
+2. Tick **Pin to top of /insights** to make it the featured card. This
+   unpins the card that is currently featured.
+3. Publish.
+
+**Expected result:** shortly after publishing, the report has a card on
+`wusoolcapital.com/insights` and its own page there. Readers see the first
+quarter, then a short form. A reader who completes it appears in Attio as a
+person and an organization. Returning readers skip the form.
+
+Changing a published report's slug moves it to the new URL, and the old URL
+stops working. Unpublishing it in the Studio removes the card.
+
 ## Use a tool
 
 1. Open the relevant tool page on the Wusool Capital website.

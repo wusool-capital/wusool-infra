@@ -74,6 +74,8 @@ class Pipelines:
             return await self._buyer_network(payload)
         if tool == "get_started":
             return self._get_started(payload)
+        if tool == "insights_report":
+            return {}  # a report unlock computes nothing; it only writes the reader to Attio
         raise NotImplementedError(f"no pipeline for tool {tool!r} yet")
 
     def fallback(self, tool: str, payload: JsonObject) -> JsonObject | None:

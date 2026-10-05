@@ -177,6 +177,9 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /buyer/apply` | serves | No blocking model call; a best-effort Haiku qualification note, never shown to the applicant |
 | `POST /get-started` | serves | No model at all — pure seller lead capture; the form's own figures go straight to `seller_role` |
 | `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline from the visitor's `/compare` comps and `/analyze` discounts, DCF overrides and search terms |
+| `GET /reports/{slug}` | serves | Gated insights report: the first 25% for a new reader, the whole report for a returning one |
+| `POST /reports/{slug}/unlock` | serves | The report gate (name, email, organisation); returns the whole report and records the reader |
+| `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook; syncs the Webflow Insights card |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
 visitor reads while still in the tool, long before there is a submission to
@@ -188,6 +191,65 @@ All four ledger-backed endpoints (`/benchmark`, `/readiness/score`,
 dependency teardown. Two reasons, both load-bearing: the contract is that
 the lead is durable before the visitor is told anything, and the background
 completion opens its own session, so an uncommitted row is invisible to it.
+
+## Gated insights reports (PRD 3)
+
+The business publishes a report in the Sanity Studio (`sanity/` at the repo
+root). The report then appears at `wusoolcapital.com/insights/<slug>` with
+the first 25% open and the rest behind one short form. There are three parts:
+
+- **Content.** `providers/sanity/report_source.py` reads the published report
+  over GROQ and caches it, misses included, for 5 minutes per process. The
+  cache holds at most 512 slugs, and page views have their own per-IP limit
+  (`LEAD_MAGNET_REPORT_READS_PER_HOUR`), so slug-scanning can't drain the
+  Free quota. The
+  Free-plan dataset is public, which is an accepted risk described in
+  `sanity/README.md`.
+- **Flattening.** Some exports draw their pages with JavaScript. "Buyouts in
+  the GCC" is a self-unpacking design-tool bundle whose 40 A4 pages and
+  React tables exist only after its scripts run. On each publish,
+  `application/insights_report/sync.py` opens a new HTML version once in
+  headless Chromium (`providers/chromium/renderer.py`, network blocked, one
+  render at a time, capped at 30 s) and saves the drawn page back to
+  Sanity's hidden `renderedHtml`, plus where the free preview ends
+  (`renderedPreviewEnd`), so readers never re-split. Readers are served only
+  that copy; an unrendered report is a 404. The save is guarded by the
+  document revision it read, so an older render that finishes late is
+  dropped. The playbook renders in about 2.4 s and peaks at about 300 MB RAM.
+  Hidden copies (`<template>`, `<noscript>`, `[hidden]`) are removed so
+  they can't leak into the preview.
+- **Gate.** `domain/insights_report/split.py` cuts between block elements,
+  never at an inline tag, at about 25% of the text. `GET /reports/{slug}` never sends the
+  rest to a new reader. `POST /reports/{slug}/unlock` records an
+  `insights_report` run through the write contract, returns the whole
+  report, and sets the `wusool_reader` cookie, which holds the run id.
+  - A returning reader skips the form.
+  - Their first visit to a *different* report records one more run, keyed
+    `<reader>:<slug>`, so every report read becomes one `activities` row
+    for PRD 2.
+- **Card.** `application/insights_report/sync.py`, triggered by the Sanity
+  webhook, creates or updates the Webflow Insights item with `gated = true`.
+  The webhook replies 202 at once and syncs in the background, so Sanity
+  never times out and retries mid-sync. A failed sync is only logged
+  (`insights_report_sync_failed`); republishing the report repairs it.
+  Signatures older than 10 minutes are rejected as replays.
+  It uses the live endpoints, which should need no Publish in Webflow; that
+  is not yet verified.
+  - It never touches an item with `gated = false`. Every hand-written
+    article is ungated.
+  - The one exception is turning `featured` off on the card that is
+    currently pinned, when a new report is featured.
+  - The pin moves only when the edit ticked or unticked it (`featuredChanged`
+    in the webhook projection). Otherwise a typo fix on an older, still-ticked
+    report would take the pin back.
+
+CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
+writes an **organisation and a person only**, with no role and no deal.
+`AttioRoleWriter.write_organization` links an existing org without patching
+it. The org domain comes from the reader's email unless the address is
+free-mail. No emails are sent (`email_dispatch.sends_emails`). The
+"Insights & Reports" option must exist on `lead_source_detail` in Attio
+before this ships.
 
 ## The write contract
 
@@ -549,6 +611,12 @@ WHERE status = 'succeeded' AND person_attio_id IS NULL
 ```
 
 ## Not built yet
+
+- Gated reports verified live. Not yet checked:
+  - that a live-API Webflow item shows on `/insights` without a site
+    publish;
+  - that the Insights template hides the body when Gated is on;
+  - the 25% cut against the real "Buyouts in the GCC" playbook.
 
 - `POST /buyer/apply` and `POST /submit-lead` verified against a real
   Attio/Postgres pair — both built and unit-tested, but never exercised

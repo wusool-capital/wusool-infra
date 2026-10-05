@@ -28,6 +28,7 @@ from uuid import UUID
 from app.modules.lead_magnets.application.shared.email_dispatch import (
     build_confirmation_email,
     build_internal_email,
+    sends_emails,
 )
 from app.modules.lead_magnets.application.shared.ports import AttioWriterPort, ToolRunsPort
 from app.modules.lead_magnets.domain.shared.dedup import idempotency_key
@@ -196,7 +197,12 @@ class SubmissionService:
             return True
 
         recipient = run.payload.get("email")
-        if not isinstance(recipient, str) or not recipient or not self._email_from:
+        if (
+            not isinstance(recipient, str)
+            or not recipient
+            or not self._email_from
+            or not sends_emails(run.tool)
+        ):
             await self._tool_runs.set_stage(
                 run.id, stage="email_confirmation", output={"sent": False}
             )
@@ -228,7 +234,7 @@ class SubmissionService:
         if run.payload.get("email_internal"):
             return True
 
-        if not self._email_to or not self._email_from:
+        if not self._email_to or not self._email_from or not sends_emails(run.tool):
             await self._tool_runs.set_stage(run.id, stage="email_internal", output={"sent": False})
             return True
 

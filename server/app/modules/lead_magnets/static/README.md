@@ -291,6 +291,38 @@ uses, and divided by the pegged 3.6725 before posting — the same conversion
 `benchmark/30-helpers.js`'s `toCalc` already does. Every destination
 downstream is USD and nothing server-side converts.
 
+## report
+
+One page serves every gated insights report. `embed.js` passes the report as
+`?slug=`, taken from `data-report` on the Webflow Insights template. It only
+does so after checking the slug against the shape the server accepts, so the
+iframe path still comes only from `TOOLS`. The iframe starts at height 0
+rather than 100vh, so a page without a report takes no space.
+
+`10-main.js` fetches `GET /reports/<slug>` and renders whatever HTML comes
+back, either the 25% preview or the whole report, into `#report`. It shows
+the gate when `locked` is true. On unlock it re-renders with the whole
+report rather than appending the rest. That restores any wrapper element the
+preview cut left open, and the reader keeps their place.
+
+Reports reach this page already flattened (`providers/chromium/renderer.py`),
+so every report is static HTML here. Fixed-width exports, such as 794 px A4
+pages, are scaled with CSS `zoom` to fill the frame (`fit()` in
+`10-main.js`), up on desktop and down on a phone. Reflowing HTML stays at
+1:1. On a phone, fixed pages mean pinch-to-zoom reading, a limit of
+fixed-page documents.
+
+While locked, `#gate` overlays the end of the preview: the last stretch is
+blurred behind the "Keep reading" card, and the page ends at the card. The
+preview ends at 25% of the report's drawn height. The renderer marks that
+block with `data-wusool-gate`, and the server cuts there.
+
+The report's own `<style>` applies to the whole iframe document. The gate's
+rules are therefore all scoped under `#gate`. Nothing in a report can run
+code here: the renderer strips `<script>`, inline `on*` handlers,
+`javascript:` URLs, iframes, objects, `<base>` and meta refreshes before
+saving. `test_report_renderer.py` pins this, and CI fails if it can't run.
+
 ## shared/submission-id.js
 
 One id per page load, for every tool. It must not be generated inside a

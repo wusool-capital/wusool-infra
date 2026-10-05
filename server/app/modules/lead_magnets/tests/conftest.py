@@ -29,8 +29,10 @@ def _reset_rate_limiter():
     test's request with a spurious 429 depending on run order.
     """
     deps._limiter = None
+    deps._read_limiter = None
     yield
     deps._limiter = None
+    deps._read_limiter = None
 
 
 @pytest.fixture

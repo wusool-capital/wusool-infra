@@ -15,7 +15,13 @@ from app.modules.utilities.domain.json_types import JsonObject
 
 ToolRunStatus = Literal["running", "succeeded", "failed", "abandoned"]
 Tool = Literal[
-    "valuation", "readiness", "benchmark", "buyer_network", "get_started", "attio_webhook"
+    "valuation",
+    "readiness",
+    "benchmark",
+    "buyer_network",
+    "get_started",
+    "insights_report",
+    "attio_webhook",
 ]
 
 # Which step of the write contract last completed. Persisted inside

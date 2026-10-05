@@ -293,6 +293,8 @@ _LEAD_SOURCE_DETAIL_LABELS: Mapping[str, str] = {
     "benchmark": "GCC SME Benchmark",
     "buyer_network": "Buyer Form",
     "get_started": "Get Started",
+    # Must exist as an option in Attio before this ships; Attio rejects an unknown select option.
+    "insights_report": "Insights & Reports",
 }
 
 

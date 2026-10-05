@@ -19,6 +19,7 @@ from app.modules.lead_magnets.api.schemas import (
     EnrichRequest,
     GetStartedRequest,
     ReadinessRequest,
+    ReportUnlockRequest,
     ValuationRequest,
 )
 from app.modules.lead_magnets.api.static import static_dir
@@ -284,3 +285,16 @@ def test_no_page_mints_its_own_submission_id(tool_dir: Path) -> None:
         assert "crypto.randomUUID" not in js.read_text(), (
             f"{js.name} mints its own submission id; use window.WUSOOL_SUBMISSION_ID"
         )
+
+
+def test_report_gate_payload_field_names_match_the_request_schema() -> None:
+    js = (static_dir() / "report" / "10-main.js").read_text()
+    assert _payload_keys(js, "const payload={") == set(ReportUnlockRequest.model_fields)
+
+
+def test_report_gate_asks_for_a_work_email_and_only_accepts_emails() -> None:
+    html = (static_dir() / "report" / "index.html").read_text()
+    field = re.search(r'<input[^>]*id="email"[^>]*>', html).group(0)
+    assert 'type="email"' in field and "required" in field
+    assert r'pattern="[^@\s]+@[^@\s]+\.[^@\s]+"' in field, "a dot in the domain is required"
+    assert '<label for="email">Work email *</label>' in html
