@@ -1,8 +1,9 @@
 """Sanity implementation of `ReportSourcePort`.
 
-Reads the uncached `api.sanity.io` host rather than the CDN: the CDN can
-still serve the old document just after a publish, and the in-process cache
-below already keeps request volume far inside the Free plan's quota.
+Page views read the CDN host, which has the Free plan's larger quota (1M
+requests a month against the API host's 250k). The publish webhook reads the
+uncached API host through `refresh`, because the CDN can still serve the old
+document just after a publish.
 
 No token: the dataset is public on the Free plan, and API version
 2025-02-19 defaults to the `published` perspective, so drafts never leak.
@@ -46,28 +47,30 @@ class _QueryResponse(BaseModel):
 
 class SanityReportSource:
     def __init__(self, *, project_id: str, dataset: str, timeout_s: float = 10.0) -> None:
-        self._url = f"https://{project_id}.api.sanity.io/{_API_VERSION}/data/query/{dataset}"
+        path = f"/{_API_VERSION}/data/query/{dataset}"
+        self._cdn_url = f"https://{project_id}.apicdn.sanity.io{path}"
+        self._api_url = f"https://{project_id}.api.sanity.io{path}"
         self._timeout_s = timeout_s
-        # ponytail: per-process cache; a webhook clears one worker, the TTL bounds the rest.
+        # ponytail: per-process cache; a webhook refreshes one worker, the TTL bounds the rest.
         self._cache: dict[str, tuple[float, ReportDocument | None]] = {}
 
     async def get(self, slug: str) -> ReportDocument | None:
         cached = self._cache.get(slug)
         if cached is not None and cached[0] > time.monotonic():
             return cached[1]
-        report = await self._fetch(slug)
         # Misses are cached too, or every unknown slug would hit Sanity on each page view.
+        return self._store(slug, await self._fetch(self._cdn_url, slug))
+
+    async def refresh(self, slug: str) -> ReportDocument | None:
+        return self._store(slug, await self._fetch(self._api_url, slug))
+
+    def _store(self, slug: str, report: ReportDocument | None) -> ReportDocument | None:
         self._cache[slug] = (time.monotonic() + _CACHE_TTL_S, report)
         return report
 
-    def invalidate(self, slug: str) -> None:
-        self._cache.pop(slug, None)
-
-    async def _fetch(self, slug: str) -> ReportDocument | None:
+    async def _fetch(self, url: str, slug: str) -> ReportDocument | None:
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-            response = await client.get(
-                self._url, params={"query": _QUERY, "$slug": json.dumps(slug)}
-            )
+            response = await client.get(url, params={"query": _QUERY, "$slug": json.dumps(slug)})
         response.raise_for_status()
         doc = _QueryResponse.model_validate_json(response.content).result
         if doc is None:

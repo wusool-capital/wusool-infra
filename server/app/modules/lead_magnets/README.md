@@ -213,7 +213,8 @@ the first 25% open and the rest behind one short form. There are three parts:
     for PRD 2.
 - **Card.** `application/insights_report/sync.py`, triggered by the Sanity
   webhook, creates or updates the Webflow Insights item with `gated = true`.
-  It uses the live endpoints, so nobody has to press Publish.
+  It uses the live endpoints, which should need no Publish in Webflow; that
+  is not yet verified.
   - It never touches an item with `gated = false`. Every hand-written
     article is ungated.
   - The one exception is turning `featured` off on the card that is

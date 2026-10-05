@@ -21,11 +21,12 @@ class ReportSync:
         """`slug` is `None` when the report was deleted or unpublished;
         `previous_slug` differs from it when an editor renamed the slug."""
         if previous_slug and previous_slug != slug:
+            await self._source.refresh(previous_slug)
             await self._unpublish(previous_slug)
         if slug is None:
             return
 
-        report = await self._source.get(slug)
+        report = await self._source.refresh(slug)
         if report is None:
             await self._unpublish(slug)
             return

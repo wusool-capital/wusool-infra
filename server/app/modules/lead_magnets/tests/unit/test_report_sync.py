@@ -15,10 +15,10 @@ class _FakeSource:
         self._reports = {r.slug: r for r in reports}
 
     async def get(self, slug: str) -> ReportDocument | None:
-        return self._reports.get(slug)
+        raise AssertionError("the sync must read fresh, never the cached copy")
 
-    def invalidate(self, slug: str) -> None:
-        pass
+    async def refresh(self, slug: str) -> ReportDocument | None:
+        return self._reports.get(slug)
 
 
 class _FakeCms:

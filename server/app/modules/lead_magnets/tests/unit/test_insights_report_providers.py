@@ -75,26 +75,27 @@ async def test_sanity_report_is_parsed_and_cached(monkeypatch) -> None:
     assert report is not None and report.author == "Jules Chasles"
     assert report.featured is False
     assert len(requests) == 1, "the second read comes from the cache"
-    assert requests[0].url.host == "p.api.sanity.io"
+    assert requests[0].url.host == "p.apicdn.sanity.io", "page views use the CDN quota"
     assert requests[0].url.params["$slug"] == '"buyouts-in-the-gcc"'
 
 
-async def test_a_missing_report_is_none_and_invalidate_refetches(monkeypatch) -> None:
-    calls = 0
+async def test_misses_are_cached_and_refresh_reads_fresh_into_the_cache(monkeypatch) -> None:
+    hosts: list[str] = []
+    published = False
 
     def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        return httpx.Response(200, json={"result": None})
+        hosts.append(request.url.host)
+        return httpx.Response(200, json={"result": _SANITY_REPORT if published else None})
 
     _use_transport(monkeypatch, handler)
     source = SanityReportSource(project_id="p", dataset="production")
 
-    assert await source.get("nope") is None
-    assert await source.get("nope") is None
-    source.invalidate("nope")
-    assert await source.get("nope") is None
-    assert calls == 2
+    assert await source.get("buyouts-in-the-gcc") is None
+    assert await source.get("buyouts-in-the-gcc") is None
+    published = True
+    assert await source.refresh("buyouts-in-the-gcc") is not None
+    assert await source.get("buyouts-in-the-gcc") is not None
+    assert hosts == ["p.apicdn.sanity.io", "p.api.sanity.io"]
 
 
 def _sign(body: bytes, secret: str, timestamp: str = "1791210000000") -> str:
@@ -199,6 +200,6 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
     assert sent[1] == (
         "PATCH",
         "/v2/collections/insights/items/lbo/live",
-        {"isDraft": False, "fieldData": {"featured": False}},
-    )
+        {"fieldData": {"featured": False}},
+    ), "the unpin must not change a hand-written article's draft state"
     assert sent[2][:2] == ("DELETE", "/v2/collections/insights/items/item-1/live")

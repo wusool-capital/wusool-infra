@@ -48,7 +48,6 @@ class _World:
     recorded: list[dict] = field(default_factory=list)
     completed: list[UUID] = field(default_factory=list)
     runs: dict[UUID, ToolRunRecord] = field(default_factory=dict)
-    invalidated: list[str] = field(default_factory=list)
     synced: list[tuple[str | None, str | None]] = field(default_factory=list)
 
 
@@ -59,8 +58,8 @@ class _Source:
     async def get(self, slug: str) -> ReportDocument | None:
         return {r.slug: r for r in (_REPORT, _OTHER)}.get(slug)
 
-    def invalidate(self, slug: str) -> None:
-        self._world.invalidated.append(slug)
+    async def refresh(self, slug: str) -> ReportDocument | None:
+        return await self.get(slug)
 
 
 class _Session:
@@ -213,7 +212,6 @@ def test_the_sanity_webhook_syncs_only_when_signed(client, world) -> None:
     assert unsigned.status_code == 401
     assert signed.status_code == 204
     assert world.synced == [("new-slug", "old-slug")]
-    assert world.invalidated == ["new-slug", "old-slug"]
 
 
 def test_the_sanity_webhook_is_off_until_configured(client, world) -> None:

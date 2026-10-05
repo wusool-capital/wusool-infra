@@ -10,8 +10,9 @@ unlocks after a name, email and organisation form.
 1. An editor publishes a report here.
 2. Sanity's webhook calls `POST https://tools.wusoolcapital.com/reports/webhooks/sanity`.
 3. The toolkit server creates or updates the matching card in the Webflow
-   Insights collection with **Gated** on, through the live API. Nobody has to
-   press Publish in Webflow.
+   Insights collection with **Gated** on, through the live API. This is
+   meant to need no Publish in Webflow, which is not yet verified against
+   the live site.
 4. The Insights template's embed loads `/report/?slug=<slug>` from the
    toolkit server, which reads the HTML from Sanity and gates it.
 

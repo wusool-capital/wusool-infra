@@ -306,9 +306,10 @@ report rather than appending the rest. That restores any wrapper element the
 preview cut left open, and the reader keeps their place.
 
 The report's own `<style>` applies to the whole iframe document. The gate's
-rules are therefore all scoped under `#gate`. Scripts inside a report don't
-run: `innerHTML` never executes them. The report HTML is trusted staff
-content, the same as a Webflow Embed, and is not sanitised.
+rules are therefore all scoped under `#gate`. `<script>` tags inside a report
+don't run, because `innerHTML` never executes them. Inline handlers such as
+`onerror` and `onload` *do* run, on the tools origin. The report HTML is
+trusted staff content, the same as a Webflow Embed, and is not sanitised.
 
 ## shared/submission-id.js
 

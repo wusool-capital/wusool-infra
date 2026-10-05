@@ -4,8 +4,8 @@ Field slugs are the live Insights collection's own (read through the
 Webflow API, 2026-10-05). Option and Team ids are resolved by name at sync
 time, never hardcoded, so renaming an author in Webflow doesn't break this.
 
-Every write uses the `/live` endpoints: the card goes straight to the live
-site without anyone pressing Publish in the Designer.
+Every write uses the `/live` endpoints, so the card should reach the live site
+without a Designer publish. Not yet verified with a real token.
 """
 
 import logging
@@ -113,7 +113,8 @@ class _FeaturedPatch(BaseModel):
 class _ItemWrite(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    is_draft: bool = Field(default=False, alias="isDraft")
+    # Omitted on the unpin write: it must not change a hand-written article's draft state.
+    is_draft: bool | None = Field(default=None, alias="isDraft")
     field_data: InsightFieldData | _FeaturedPatch = Field(alias="fieldData")
 
 
@@ -139,11 +140,11 @@ class WebflowInsightsCms:
         return CmsItem(id=item.id, gated=bool(item.field_data.gated))
 
     async def create(self, report: ReportDocument) -> None:
-        body = _ItemWrite(field_data=await self.field_data(report))
+        body = _ItemWrite(is_draft=False, field_data=await self.field_data(report))
         await self._request("POST", f"/collections/{self._collection_id}/items/live", body=body)
 
     async def update(self, item_id: str, report: ReportDocument) -> None:
-        body = _ItemWrite(field_data=await self.field_data(report))
+        body = _ItemWrite(is_draft=False, field_data=await self.field_data(report))
         await self._request(
             "PATCH", f"/collections/{self._collection_id}/items/{item_id}/live", body=body
         )

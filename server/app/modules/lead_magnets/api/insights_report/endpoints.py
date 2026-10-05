@@ -180,10 +180,6 @@ async def sanity_webhook(request: Request) -> None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid signature")
 
     event = SanityWebhookBody.model_validate_json(body)
-    source = build_report_source()
-    for slug in (event.slug, event.previous_slug):
-        if slug:
-            source.invalidate(slug)
     await build_report_sync().sync(slug=event.slug, previous_slug=event.previous_slug)
 
 

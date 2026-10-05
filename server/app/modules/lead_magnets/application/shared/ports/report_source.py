@@ -8,7 +8,10 @@ from app.modules.lead_magnets.domain.insights_report.report import ReportDocumen
 
 class ReportSourcePort(Protocol):
     async def get(self, slug: str) -> ReportDocument | None:
-        """The published report, or `None` when it doesn't exist or isn't published."""
+        """The published report, or `None` when it doesn't exist or isn't
+        published. May be a few minutes stale."""
         ...
 
-    def invalidate(self, slug: str) -> None: ...
+    async def refresh(self, slug: str) -> ReportDocument | None:
+        """Like `get`, but never stale, and replaces the cached copy."""
+        ...
