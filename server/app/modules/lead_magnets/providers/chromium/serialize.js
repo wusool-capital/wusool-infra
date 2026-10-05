@@ -65,6 +65,20 @@ async () => {
     if (st.textContent.includes(':not(:defined)'))
       st.textContent = st.textContent.replace(/[^{}]*:not\(:defined\)[^{}]*\{[^}]*\}/g, '');
   document.querySelectorAll('script').forEach((s) => s.remove());
+  // Readers load this on our tools origin: no code, no embedded third-party frames, no redirects.
+  document.querySelectorAll('iframe, frame, frameset, object, embed, applet, base, meta[http-equiv]')
+    .forEach((e) => e.remove());
+  const urlAttrs = ['href', 'src', 'action', 'formaction', 'xlink:href', 'data', 'srcdoc'];
+  for (const el of document.querySelectorAll('*')) {
+    for (const attr of [...el.attributes]) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.replace(/[\s\u0000-\u001f]/g, '').toLowerCase();
+      if (name.startsWith('on') || name === 'srcdoc' ||
+          (urlAttrs.includes(name) && /^(javascript|vbscript|data:text\/html)/.test(value))) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  }
   markGate(0.25);
   return '<!DOCTYPE html>' + document.documentElement.outerHTML;
 }

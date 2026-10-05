@@ -20,6 +20,7 @@ as it stands rather than holding the render lock forever.
 """
 
 import asyncio
+import re
 from pathlib import Path
 
 from playwright.async_api import Route, WebSocketRoute, async_playwright
@@ -33,6 +34,9 @@ _ISOLATED = [
     "--proxy-bypass-list=<-loopback>",
     "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
 ]
+
+# A refresh navigates mid-render and destroys the page being saved; it never belongs in a report.
+_META_REFRESH = re.compile(r"<meta\b[^>]*http-equiv\s*=\s*[\"']?refresh[^>]*>", re.IGNORECASE)
 
 _HERE = Path(__file__).parent
 _WAIT_FOR_QUIET = (_HERE / "wait_for_quiet.js").read_text()
@@ -64,7 +68,7 @@ class ChromiumReportRenderer:
                 page.set_default_timeout(_TIMEOUT_MS)
                 await page.route("**/*", _block)
                 await page.route_web_socket("**/*", _block_socket)
-                await page.set_content(html, wait_until="load")
+                await page.set_content(_META_REFRESH.sub("", html), wait_until="load")
                 settle = {"quietMs": _QUIET_MS, "maxMs": _SETTLE_MAX_MS}
                 await page.evaluate(_WAIT_FOR_QUIET, settle)
                 await page.evaluate("document.fonts.ready.then(() => true)")

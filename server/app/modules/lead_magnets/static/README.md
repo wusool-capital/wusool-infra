@@ -318,10 +318,10 @@ preview ends at 25% of the report's drawn height. The renderer marks that
 block with `data-wusool-gate`, and the server cuts there.
 
 The report's own `<style>` applies to the whole iframe document. The gate's
-rules are therefore all scoped under `#gate`. `<script>` tags inside a report
-don't run, because `innerHTML` never executes them. Inline handlers such as
-`onerror` and `onload` *do* run, on the tools origin. The report HTML is
-trusted staff content, the same as a Webflow Embed, and is not sanitised.
+rules are therefore all scoped under `#gate`. Nothing in a report can run
+code here: the renderer strips `<script>`, inline `on*` handlers,
+`javascript:` URLs, iframes, objects, `<base>` and meta refreshes before
+saving. `test_report_renderer.py` pins this, and CI fails if it can't run.
 
 ## shared/submission-id.js
 

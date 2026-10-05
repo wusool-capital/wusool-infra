@@ -52,7 +52,7 @@ class CmsItem:
 
 
 # Bump when the renderer's output changes, so published reports are flattened again.
-RENDER_VERSION = "2"
+RENDER_VERSION = "3"
 
 
 def fingerprint(html: str) -> str:
