@@ -114,6 +114,24 @@
       "pos": [930, 500],
       "size": [210, 64],
       "sources": [{ "path": "docs/operations/monitoring-and-incidents.md", "label": "Operations" }]
+    },
+    {
+      "id": "sanity",
+      "type": "external",
+      "label": "Sanity",
+      "sublabel": "gated report HTML",
+      "pos": [330, 600],
+      "size": [170, 64],
+      "sources": [{ "path": "sanity/README.md", "label": "Reports Studio" }]
+    },
+    {
+      "id": "webflow",
+      "type": "external",
+      "label": "Webflow CMS",
+      "sublabel": "Insights cards",
+      "pos": [40, 600],
+      "size": [150, 64],
+      "sources": [{ "path": "server/app/modules/lead_magnets/providers/webflow/insights_cms.py", "label": "Insights card sync" }]
     }
   ],
   "boundaries": [
@@ -142,7 +160,9 @@
     { "from": "github", "to": "toolkit", "label": "ECR digest + SSM", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[1020, 180], [1160, 180], [1160, 250], [415, 250]], "labelAt": [780, 180] },
     { "from": "github", "to": "n8n", "label": "OpenTofu + SSM bootstrap", "variant": "emphasis", "labelAt": [1140, 160] },
     { "from": "operations", "to": "toolkit", "label": "logs + health", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "labelAt": [560, 395] },
-    { "from": "operations", "to": "postgres", "label": "private access", "variant": "security", "fromSide": "top", "toSide": "bottom", "via": [[1035, 450], [850, 450], [850, 410], [705, 410]], "labelAt": [850, 475] }
+    { "from": "operations", "to": "postgres", "label": "private access", "variant": "security", "fromSide": "top", "toSide": "bottom", "via": [[1035, 450], [850, 450], [850, 410], [705, 410]], "labelAt": [850, 475] },
+    { "from": "sanity", "to": "toolkit", "label": "signed publish webhook", "variant": "security", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "labelAt": [330, 560] },
+    { "from": "toolkit", "to": "webflow", "label": "card sync / CMS API", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "labelAt": [150, 560] }
   ],
   "cards": [
     {
@@ -150,7 +170,8 @@
       "title": "Shared application boundary",
       "items": [
         "Slack, website lead magnets, Attio webhooks, and Scribe use one Toolkit FastAPI process",
-        "Toolkit liveness is /health; database readiness is /readiness and /ready"
+        "Toolkit liveness is /health; database readiness is /readiness and /ready",
+        "Gated insights reports: Sanity holds the HTML; the Toolkit gates it and syncs the Webflow Insights card"
       ]
     },
     {

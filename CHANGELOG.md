@@ -8,6 +8,22 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-05
+
+### Added
+
+- Insights reports can be published behind a lead gate. The business writes
+  a report in the new Wusool Reports Studio (Sanity) and publishes it. Its
+  `/insights` card is then created in Webflow automatically, with no Webflow
+  publish step.
+  - Readers see the first quarter of the report, then a short name, email
+    and organisation form. The full report opens in place without a reload.
+  - Each reader becomes an organisation and a person in Attio, with no role
+    and no deal, plus an interaction row. Returning readers skip the form.
+  - Ticking "Pin to top of /insights" makes a report the featured card and
+    unpins the previous one.
+  - Existing hand-written articles stay open.
+
 ## 2026-10-04
 
 ### Added

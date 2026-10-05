@@ -173,6 +173,32 @@ that was never wired up.
 Rollback for any tool: revert that one `<script>` tag in Webflow back to
 the old embed. Nothing server-side needs to change.
 
+### Gated insights reports
+
+These are a one-time Designer change. Nothing is needed per report:
+
+1. On the **Insights Template** page, add an Embed element:
+
+   ```html
+   <script src="https://tools.wusoolcapital.com/embed.js"
+           data-tool="report" data-report="{{slug}}"></script>
+   ```
+
+   Bind `data-report` to the item's Slug. Give the Embed a conditional
+   visibility of **Gated is on**, using the collection's existing switch.
+2. On the same template, hide Body Content, Key Takeaways and FAQ when
+   **Gated** is on. The report replaces them.
+3. Set `LEAD_MAGNET_SANITY_PROJECT_ID`, `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`
+   and `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the
+   Secrets Manager `env` map, then add the Sanity webhook described in
+   `sanity/README.md`.
+4. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
+   Without it, the org write for every unlock fails.
+
+Sanity report slugs share the Insights collection's URL space. The sync
+refuses to overwrite an ungated (hand-written) item with the same slug and
+logs `insights_report_sync_skipped_ungated`.
+
 ## 8. The sweeper
 
 `bootstrap.run_sweeper_forever()` is started as a background task in

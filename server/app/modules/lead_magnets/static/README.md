@@ -291,6 +291,25 @@ uses, and divided by the pegged 3.6725 before posting — the same conversion
 `benchmark/30-helpers.js`'s `toCalc` already does. Every destination
 downstream is USD and nothing server-side converts.
 
+## report
+
+One page serves every gated insights report. `embed.js` passes the report as
+`?slug=`, taken from `data-report` on the Webflow Insights template. It only
+does so after checking the slug against the shape the server accepts, so the
+iframe path still comes only from `TOOLS`. The iframe starts at height 0
+rather than 100vh, so a page without a report takes no space.
+
+`10-main.js` fetches `GET /reports/<slug>` and renders whatever HTML comes
+back, either the 25% preview or the whole report, into `#report`. It shows
+the gate when `locked` is true. On unlock it re-renders with the whole
+report rather than appending the rest. That restores any wrapper element the
+preview cut left open, and the reader keeps their place.
+
+The report's own `<style>` applies to the whole iframe document. The gate's
+rules are therefore all scoped under `#gate`. Scripts inside a report don't
+run: `innerHTML` never executes them. The report HTML is trusted staff
+content, the same as a Webflow Embed, and is not sanitised.
+
 ## shared/submission-id.js
 
 One id per page load, for every tool. It must not be generated inside a
