@@ -1,4 +1,4 @@
-"""The Sanity reader, the Sanity webhook signature, and the Webflow card
+"""The Sanity reader, the Sanity webhook signature guard, and the Webflow card
 mapping, each against recorded response shapes through `httpx.MockTransport`.
 The Webflow collection below is a trimmed copy of the live Insights schema."""
 
@@ -11,9 +11,9 @@ import json
 import httpx
 import pytest
 
+from app.modules.lead_magnets.api.dependencies import is_valid_sanity_signature
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
-from app.modules.lead_magnets.providers.sanity.webhook import is_valid_signature
 from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
 
 _SANITY_REPORT = {
@@ -105,12 +105,12 @@ def _sign(body: bytes, secret: str, timestamp: str = "1791210000000") -> str:
 def test_webhook_signature_matches_sanitys_format() -> None:
     body = json.dumps({"slug": "a"}).encode()
 
-    assert is_valid_signature(body, _sign(body, "s3cret"), "s3cret")
-    assert not is_valid_signature(body, _sign(body, "other"), "s3cret")
-    assert not is_valid_signature(body + b" ", _sign(body, "s3cret"), "s3cret")
-    assert not is_valid_signature(body, None, "s3cret")
-    assert not is_valid_signature(body, "garbage", "s3cret")
-    assert not is_valid_signature(body, _sign(body, ""), "")
+    assert is_valid_sanity_signature(body, _sign(body, "s3cret"), "s3cret")
+    assert not is_valid_sanity_signature(body, _sign(body, "other"), "s3cret")
+    assert not is_valid_sanity_signature(body + b" ", _sign(body, "s3cret"), "s3cret")
+    assert not is_valid_sanity_signature(body, None, "s3cret")
+    assert not is_valid_sanity_signature(body, "garbage", "s3cret")
+    assert not is_valid_sanity_signature(body, _sign(body, ""), "")
 
 
 def _webflow_handler(request: httpx.Request) -> httpx.Response:

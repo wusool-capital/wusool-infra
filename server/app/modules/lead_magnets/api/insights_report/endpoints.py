@@ -24,11 +24,17 @@ from fastapi import (
 )
 
 from app.modules.lead_magnets.api.dependencies import (
+    SANITY_SIGNATURE_HEADER,
     SessionDep,
+    is_valid_sanity_signature,
     rate_limit,
     require_allowed_origin,
 )
-from app.modules.lead_magnets.api.schemas import ReportResponse, ReportUnlockRequest
+from app.modules.lead_magnets.api.schemas import (
+    ReportResponse,
+    ReportUnlockRequest,
+    SanityWebhookBody,
+)
 from app.modules.lead_magnets.application.shared.ports import ReportSourcePort
 from app.modules.lead_magnets.bootstrap import (
     build_report_source,
@@ -41,11 +47,6 @@ from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, org_domain
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload
-from app.modules.lead_magnets.providers.sanity.webhook import (
-    SIGNATURE_HEADER,
-    SanityWebhookBody,
-    is_valid_signature,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ async def sanity_webhook(request: Request) -> None:
 
     body = await request.body()
     secret = settings.lead_magnet_sanity_webhook_secret
-    if not is_valid_signature(body, request.headers.get(SIGNATURE_HEADER), secret):
+    if not is_valid_sanity_signature(body, request.headers.get(SANITY_SIGNATURE_HEADER), secret):
         logger.warning("insights_report_webhook_bad_signature")
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid signature")
 

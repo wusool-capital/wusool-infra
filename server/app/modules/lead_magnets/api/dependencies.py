@@ -9,7 +9,11 @@ POST), and what addresses that is an origin allowlist plus a per-IP
 throttle.
 """
 
+import base64
+import hashlib
+import hmac
 import logging
+import re
 from collections.abc import AsyncIterator
 from typing import Annotated
 
@@ -89,3 +93,22 @@ async def rate_limit(request: Request) -> None:
     if not _get_limiter().check(ip):
         logger.warning("lead_magnet_rate_limited ip=%s", ip)
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "rate limit exceeded")
+
+
+SANITY_SIGNATURE_HEADER = "sanity-webhook-signature"
+_SANITY_SIGNATURE = re.compile(r"^t=(\d+)[, ]+v1=([^, ]+)$")
+
+
+def is_valid_sanity_signature(body: bytes, header: str | None, secret: str) -> bool:
+    """Mirrors `@sanity/webhook`: the header is `t=<ms>,v1=<sig>`, where `sig`
+    is the unpadded base64url HMAC-SHA256 of `"<t>.<raw body>"`. Must run on
+    the raw bytes, since re-encoded JSON can differ."""
+    if not header or not secret:
+        return False
+    match = _SANITY_SIGNATURE.match(header.strip())
+    if match is None:
+        return False
+    timestamp, signature = match.groups()
+    digest = hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).digest()
+    expected = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+    return hmac.compare_digest(expected, signature)

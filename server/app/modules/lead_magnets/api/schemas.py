@@ -528,3 +528,13 @@ class ReportResponse(BaseModel):
     title: str
     html: str
     locked: bool
+
+
+class SanityWebhookBody(BaseModel):
+    """The projection configured on the Sanity webhook (`sanity/README.md`):
+    `slug` is null on delete or unpublish; `previousSlug` differs on a rename."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    slug: str | None = None
+    previous_slug: str | None = Field(default=None, alias="previousSlug")
