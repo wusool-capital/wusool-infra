@@ -6,6 +6,7 @@ Dockerfile does); skipped where it isn't there.
 import pytest
 from playwright.async_api import async_playwright
 
+from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.providers.chromium.renderer import ChromiumReportRenderer
 
 _EXPORT = """<!DOCTYPE html><html><head>
@@ -46,3 +47,15 @@ async def test_a_script_built_export_becomes_static_html() -> None:
     assert "SOURCE TEMPLATE WITH EVERY PAGE" not in html, "the hidden source would leak"
     assert ":not(:defined)" not in html, "it would hide the page once scripts are gone"
     assert "width: 794px" in html, "the shadow-DOM page width is copied inline"
+
+
+async def test_the_gate_is_marked_at_a_quarter_of_the_drawn_height() -> None:
+    if not await _chromium_available():
+        pytest.skip("Chromium is not installed (run `playwright install --only-shell chromium`)")
+    paragraphs = "".join(f'<p style="height:100px;margin:0">p{n}</p>' for n in range(20))
+
+    html = await ChromiumReportRenderer().render(f"<body style='margin:0'>{paragraphs}</body>")
+    preview, _ = split_report(html)
+
+    assert html.count("data-wusool-gate") == 1
+    assert preview.count("<p") == 5, "25% of 20 equal-height blocks"

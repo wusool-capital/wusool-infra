@@ -177,10 +177,10 @@ the old embed. Nothing server-side needs to change.
 
 These are a one-time Designer change. Nothing is needed per report:
 
-1. On the **Insights Template** page, add an Embed element. Put it in the
-   full-width section (`.section-inner-insights`, 1200 px), not inside the
-   760 px article body: A4 report pages are 794 px wide and would otherwise
-   shrink on desktop too.
+1. On the **Insights Template** page, add an Embed element directly under the
+   author row (`.insights-template-details`), before the first
+   `.breakline-thoughts` divider. Set its width to 100% so it spans the
+   whole content row (1008 px on desktop); the report scales to fill it.
 
    ```html
    <script src="https://tools.wusoolcapital.com/embed.js"
@@ -189,8 +189,10 @@ These are a one-time Designer change. Nothing is needed per report:
 
    Bind `data-report` to the item's Slug. Give the Embed a conditional
    visibility of **Gated is on**, using the collection's existing switch.
-2. On the same template, hide Body Content, Key Takeaways and FAQ when
-   **Gated** is on. The report replaces them.
+2. On the same template, give the article column (`.div-block-27`) and the
+   `.breakline-thoughts` dividers the visibility condition **Gated is not
+   set**. The report replaces the article, and the dividers would otherwise
+   remain as stray lines.
 3. Set `LEAD_MAGNET_SANITY_PROJECT_ID`, `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`,
    `LEAD_MAGNET_SANITY_WRITE_TOKEN` (a Sanity Editor token) and
    `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the

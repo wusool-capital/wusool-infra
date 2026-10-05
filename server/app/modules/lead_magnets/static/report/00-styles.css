@@ -3,11 +3,20 @@
   --navy:#000523; --navy-80:rgba(0,5,35,.80); --navy-55:rgba(0,5,35,.55); --navy-30:rgba(0,5,35,.28);
   --navy-12:rgba(0,5,35,.11); --navy-06:rgba(0,5,35,.05); --white:#fff; --r:4px;
 }
-body{margin:0}
+body{margin:0;overflow-x:hidden}
+/* A report's own "html,body{height:100%}" ratchets a self-sizing iframe ever taller. */
+html,body{height:auto!important;min-height:0!important}
 
-#gate{position:relative;font-family:'DM Sans',sans-serif;color:var(--navy);padding:0 0 24px}
-#gate .fade{height:140px;margin-top:-140px;position:relative;background:linear-gradient(rgba(255,255,255,0),#fff);pointer-events:none}
-#gate .card{background:var(--white);border:1px solid var(--navy-12);border-radius:var(--r);padding:30px;max-width:640px;margin:0 auto;box-sizing:border-box}
+/* The gate sits over the end of the preview, so the page ends at the card. */
+#stage{position:relative}
+#stage.locked{min-height:720px;overflow:hidden}
+#gate{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:flex-end;justify-content:center;
+  padding:0 16px 32px;font-family:'DM Sans',sans-serif;color:var(--navy);box-sizing:border-box}
+#gate .veil{position:absolute;inset:-240px 0 0 0;pointer-events:auto;
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);background:rgba(255,255,255,.55);
+  -webkit-mask-image:linear-gradient(transparent,#000 240px);mask-image:linear-gradient(transparent,#000 240px)}
+#gate .card{position:relative;background:var(--white);border:1px solid var(--navy-12);border-radius:var(--r);
+  padding:30px;width:100%;max-width:640px;box-sizing:border-box;box-shadow:0 16px 48px rgba(0,5,35,.18)}
 #gate .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--navy-55)}
 #gate h2{font-size:24px;font-weight:600;letter-spacing:-.02em;margin:10px 0 6px}
 #gate .lede{font-size:15px;color:var(--navy-80);margin:0 0 20px}

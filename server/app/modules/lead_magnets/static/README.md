@@ -307,10 +307,15 @@ preview cut left open, and the reader keeps their place.
 
 Reports reach this page already flattened (`providers/chromium/renderer.py`),
 so every report is static HTML here. Fixed-width exports, such as 794 px A4
-pages, are shrunk to the frame with CSS `zoom` (`fit()` in `10-main.js`)
-instead of scrolling sideways. On a phone that means pinch-to-zoom reading,
-which is a limit of fixed-page documents. A "flowing" export from the
-design tool would reflow instead.
+pages, are scaled with CSS `zoom` to fill the frame (`fit()` in
+`10-main.js`), up on desktop and down on a phone. Reflowing HTML stays at
+1:1. On a phone, fixed pages mean pinch-to-zoom reading, a limit of
+fixed-page documents.
+
+While locked, `#gate` overlays the end of the preview: the last stretch is
+blurred behind the "Keep reading" card, and the page ends at the card. The
+preview ends at 25% of the report's drawn height. The renderer marks that
+block with `data-wusool-gate`, and the server cuts there.
 
 The report's own `<style>` applies to the whole iframe document. The gate's
 rules are therefore all scoped under `#gate`. `<script>` tags inside a report

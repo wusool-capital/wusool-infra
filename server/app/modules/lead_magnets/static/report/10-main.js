@@ -6,16 +6,24 @@ const REPORT_URL="/reports/"+encodeURIComponent(SLUG);
 function render(data){
   document.getElementById("report").innerHTML=data.html;
   document.getElementById("gate").classList.toggle("hide",!data.locked);
+  document.getElementById("stage").classList.toggle("locked",data.locked);
   fit();
 }
 
-// Fixed-width exports (A4 is 794px) shrink to the frame instead of scrolling sideways.
+// Fixed-width exports (A4 is 794px) scale to fill the frame, up or down; reflowing HTML stays 1:1.
 function fit(){
   const report=document.getElementById("report");
   report.style.zoom="";
-  const natural=report.scrollWidth;
+  report.style.width="min-content";
+  const narrowest=report.scrollWidth;
+  report.style.width="max-content";
+  const widest=report.scrollWidth;
+  report.style.width="";
   const available=document.documentElement.clientWidth;
-  if(natural>available)report.style.zoom=String(available/natural);
+  let scale=1;
+  if(widest<=available)scale=available/widest;
+  else if(narrowest>available)scale=available/narrowest;
+  report.style.zoom=String(scale);
 }
 window.addEventListener("resize",fit);
 

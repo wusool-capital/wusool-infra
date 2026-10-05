@@ -93,3 +93,17 @@ def test_inline_tags_are_never_a_cut_point() -> None:
 
     assert preview.endswith("</p>")
     assert "<strong>bold</strong>" not in preview or preview.count("<p>") == preview.count("</p>")
+
+
+def test_the_renderers_height_marker_wins_over_the_text_share() -> None:
+    """The renderer knows the drawn layout; a tall image-heavy page carries
+    little text, so a text share would put the gate too low."""
+    html = _doc(
+        f"<section>{_WORDS}</section><section data-wusool-gate>{_WORDS}</section>"
+        f"<section>{_WORDS}</section>"
+    )
+
+    preview, rest = split_report(html)
+
+    assert preview + rest == html
+    assert rest.startswith("<section data-wusool-gate>")

@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
 PREVIEW_SHARE = 0.25
+# Set by the renderer on the block nearest 25% of the drawn height, a truer cut than text.
+GATE_MARKER = "data-wusool-gate"
 # How far past the share a cut may land before the crossing block is split instead.
 _OVERSHOOT = 0.10
 
@@ -89,6 +91,7 @@ class _Tree(HTMLParser):
         self._html = html
         self._line_starts = [0] + [i + 1 for i, char in enumerate(html) if char == "\n"]
         self.root = _Node("#root", 0, 0, 0)
+        self.gate_at: int | None = None
         self._stack = [self.root]
         self._text = 0
         self._muted = 0
@@ -99,6 +102,8 @@ class _Tree(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         start = self._offset()
+        if self.gate_at is None and any(name == GATE_MARKER for name, _ in attrs):
+            self.gate_at = start
         content_start = start + len(self.get_starttag_text() or "")
         node = _Node(tag, start, self._text, content_start)
         self._stack[-1].children.append(node)
@@ -155,11 +160,14 @@ def _blocks(node: _Node) -> list[_Node]:
 
 
 def split_report(html: str, share: float = PREVIEW_SHARE) -> tuple[str, str]:
-    """`(preview, rest)`. When no cut can leave anything gated, everything is
-    gated: the preview is then only what precedes the content."""
+    """`(preview, rest)`. Cuts before the renderer's `GATE_MARKER` when present,
+    else by text. When no cut can leave anything gated, everything is gated:
+    the preview is then only what precedes the content."""
     parser = _Tree(html)
     parser.feed(html)
     tree = parser.finish()
+    if parser.gate_at is not None:
+        return html[: parser.gate_at], html[parser.gate_at :]
 
     body = _find(tree, "body") or tree
     total = body.text_end - body.text_start
