@@ -86,7 +86,8 @@
 
   // Sanity bound only — not a layout value. Stops a pathological page from
   // asking for a million-pixel iframe.
-  var maxHeight = 20000;
+  // A full report is far taller: the 40-page A4 playbook is ~46,000px.
+  var maxHeight = tool === "report" ? 200000 : 20000;
 
   // event.source === iframe.contentWindow is what disambiguates this
   // embed's messages from any other wusool iframe on the same host page —
