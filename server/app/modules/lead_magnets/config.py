@@ -95,6 +95,7 @@ class Settings(BaseSettings):
     lead_magnet_sanity_webhook_secret: str = ""
     # Secrets Manager only: an Editor token, used solely to save flattened reports back.
     lead_magnet_sanity_write_token: str = ""
+    # Blank skips the Webflow card; reports still render and serve at their direct URL.
     lead_magnet_webflow_api_token: str = ""
     # The live site's "Insights" collection; a fixed infra fact, like the model ids above.
     lead_magnet_webflow_insights_collection_id: str = "69aaa645fa60624091050e8e"

@@ -271,14 +271,15 @@ def build_report_renderer() -> ChromiumReportRenderer:
 
 def build_report_sync() -> ReportSync:
     settings = get_settings()
-    return ReportSync(
-        source=build_report_source(),
-        cms=WebflowInsightsCms(
+    cms = (
+        WebflowInsightsCms(
             token=settings.lead_magnet_webflow_api_token,
             collection_id=settings.lead_magnet_webflow_insights_collection_id,
-        ),
-        renderer=build_report_renderer(),
+        )
+        if settings.lead_magnet_webflow_api_token
+        else None
     )
+    return ReportSync(source=build_report_source(), cms=cms, renderer=build_report_renderer())
 
 
 def build_valuation_ai() -> ValuationAi:

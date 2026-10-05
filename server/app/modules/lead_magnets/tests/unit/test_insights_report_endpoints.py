@@ -251,7 +251,7 @@ def test_the_sanity_webhook_syncs_only_when_signed(client, world) -> None:
 
 
 def test_the_sanity_webhook_is_off_until_configured(client, world) -> None:
-    world.settings.lead_magnet_webflow_api_token = ""
+    world.settings.lead_magnet_sanity_write_token = ""
     body = b"{}"
     assert (
         client.post("/reports/webhooks/sanity", content=body, headers=_signed(body)).status_code

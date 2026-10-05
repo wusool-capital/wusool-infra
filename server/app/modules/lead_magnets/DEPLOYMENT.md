@@ -194,7 +194,10 @@ These are a one-time Designer change. Nothing is needed per report:
 3. Set `LEAD_MAGNET_SANITY_PROJECT_ID`, `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`,
    `LEAD_MAGNET_SANITY_WRITE_TOKEN` (a Sanity Editor token) and
    `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the
-   Secrets Manager `env` map. Then add the Sanity webhook described in
+   Secrets Manager `env` map. The Webflow token is optional: without it,
+   reports still render and serve at `/report/?slug=<slug>` on the tools
+   host, but no `/insights` card is created. Use that to test before
+   granting Webflow access. Then add the Sanity webhook described in
    `sanity/README.md`, using its filter and projection exactly.
 
 The image now carries headless Chromium (see `server/Dockerfile`), about
