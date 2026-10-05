@@ -11,7 +11,7 @@ unlocks after a name, email and organisation form.
 2. Sanity's webhook calls `POST https://tools.wusoolcapital.com/reports/webhooks/sanity`.
 3. The toolkit server opens the pasted HTML once in headless Chromium and
    saves what it draws back to the report as static HTML, in the hidden
-   `renderedHtml` field. This is how exports that build their pages with
+   `renderedHtml` field (with `renderedPreviewEnd`, where the free part ends). This is how exports that build their pages with
    JavaScript, like "Buyouts in the GCC", become splittable. It then creates
    or updates the matching card in the Webflow Insights collection with
    **Gated** on, through the live API. This is

@@ -10,6 +10,7 @@ import base64
 import hashlib
 import hmac
 import json
+import time
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
@@ -20,16 +21,21 @@ from fastapi.testclient import TestClient
 from app.modules.lead_magnets.api import dependencies as deps
 from app.modules.lead_magnets.api.insights_report import endpoints
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument
+from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.domain.shared.tool_run import ToolRunRecord
 
 _REST = "GATED-REST-OF-THE-REPORT"
+_HTML = "".join(f"<p>part {n} " + "word " * 50 + "</p>" for n in range(3)) + f"<p>{_REST}</p>"
 _REPORT = ReportDocument(
     slug="buyouts-in-the-gcc",
     title="Buyouts in the GCC",
-    html="".join(f"<p>part {n} " + "word " * 50 + "</p>" for n in range(3)) + f"<p>{_REST}</p>",
+    html=_HTML,
     excerpt="E",
+    preview_end=len(split_report(_HTML)[0]),
 )
-_OTHER = ReportDocument(slug="other-report", title="Other", html=_REPORT.html, excerpt="E")
+_OTHER = ReportDocument(
+    slug="other-report", title="Other", html=_HTML, excerpt="E", preview_end=_REPORT.preview_end
+)
 _SECRET = "s3cret"
 
 
@@ -225,7 +231,7 @@ def test_an_unknown_reader_cookie_still_sees_the_gate(client) -> None:
 
 
 def _signed(body: bytes) -> dict[str, str]:
-    timestamp = "1791210000000"
+    timestamp = str(int(time.time() * 1000))
     digest = hmac.new(_SECRET.encode(), timestamp.encode() + b"." + body, hashlib.sha256).digest()
     signature = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
     return {"sanity-webhook-signature": f"t={timestamp},v1={signature}"}
@@ -240,7 +246,7 @@ def test_the_sanity_webhook_syncs_only_when_signed(client, world) -> None:
     signed = client.post("/reports/webhooks/sanity", content=body, headers=_signed(body))
 
     assert unsigned.status_code == 401
-    assert signed.status_code == 204
+    assert signed.status_code == 202
     assert world.synced == [("new-slug", "old-slug", True)]
 
 

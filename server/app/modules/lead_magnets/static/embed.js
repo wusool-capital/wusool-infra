@@ -47,9 +47,7 @@
     return;
   }
 
-  // A gated report is one page for every report; `data-report` picks which.
-  // The slug is checked against the same shape the server accepts, so the
-  // path still comes only from the map above.
+  // Validated like the server's slug, so the iframe path still comes only from TOOLS.
   if (tool === "report") {
     var slug = script.getAttribute("data-report") || "";
     if (!/^[a-z0-9-]{1,256}$/.test(slug)) return;

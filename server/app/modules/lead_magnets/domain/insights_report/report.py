@@ -23,6 +23,8 @@ class ReportDocument:
     title: str
     html: str
     excerpt: str
+    # Where the free preview ends in `html`; set at publish, so readers never re-split.
+    preview_end: int = 0
     published_at: str | None = None
     updated_at: str | None = None
     cover_url: str | None = None
@@ -36,6 +38,7 @@ class ReportSource:
     """The HTML as the editor pasted it, and which version was last flattened."""
 
     document_id: str
+    revision: str
     html: str
     rendered_from: str | None
 

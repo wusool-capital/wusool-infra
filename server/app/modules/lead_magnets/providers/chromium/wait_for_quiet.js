@@ -1,9 +1,12 @@
-(quietMs) => new Promise((resolve) => {
-  // Resolves once the DOM has gone `quietMs` without a mutation. A bundle's
-  // loader swaps in the real document some time after `load`, so `load` alone is too early.
+({ quietMs, maxMs }) => new Promise((resolve) => {
+  // Bundles swap in the real page after `load`; maxMs caps pages that never settle.
   let timer;
-  const done = () => { observer.disconnect(); resolve(true); };
-  const observer = new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(done, quietMs); });
+  const done = () => { observer.disconnect(); clearTimeout(cap); resolve(true); };
+  const observer = new MutationObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(done, quietMs);
+  });
   observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
   timer = setTimeout(done, quietMs);
+  const cap = setTimeout(done, maxMs);
 })

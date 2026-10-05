@@ -20,6 +20,9 @@ class ReportSourcePort(Protocol):
         """The pasted HTML, never stale. `None` when not published."""
         ...
 
-    async def save_rendered(self, document_id: str, html: str, rendered_from: str) -> None:
-        """Stores the flattened HTML that `get` serves from then on."""
+    async def save_rendered(
+        self, source: ReportSource, *, html: str, preview_end: int, rendered_from: str
+    ) -> bool:
+        """Stores the flattened HTML that `get` serves from then on. `False`
+        when the document changed since `source` was read; nothing is saved."""
         ...

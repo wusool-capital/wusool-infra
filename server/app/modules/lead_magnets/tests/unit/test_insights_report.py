@@ -81,3 +81,15 @@ def test_a_big_content_wrapper_beside_small_siblings_is_cut_inside() -> None:
 
     assert preview + rest == html
     assert [f"p{n} " in preview for n in range(8)] == [True, True] + [False] * 6
+
+
+def test_inline_tags_are_never_a_cut_point() -> None:
+    """Found in review: a <strong> inside a long paragraph was cut after,
+    ending the preview mid-sentence."""
+    long_paragraph = f"<p>{_WORDS * 3}<strong>bold</strong>{_WORDS * 3}</p>"
+    html = _doc(f"<p>intro</p>{long_paragraph}<p>{_WORDS}</p><p>{_WORDS}</p>")
+
+    preview, _ = split_report(html)
+
+    assert preview.endswith("</p>")
+    assert "<strong>bold</strong>" not in preview or preview.count("<p>") == preview.count("</p>")

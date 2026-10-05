@@ -1,7 +1,5 @@
 async () => {
-  // Saves the drawn page as static HTML: blob: assets inlined as data: URLs,
-  // shadow-DOM page styles copied inline (shadow DOM doesn't serialize), and
-  // every script removed.
+  // Static snapshot: assets inlined, shadow-DOM styles copied out, scripts removed.
   const toData = async (url) => {
     const blob = await (await fetch(url)).blob();
     return await new Promise((resolve) => {
@@ -31,11 +29,10 @@ async () => {
       child.style.marginLeft = child.style.marginRight = 'auto';
     }
   }
-  // The design tool's unrendered source template stays in the DOM, hidden; it
-  // holds every page's text, which would otherwise leak into the free preview.
-  document.querySelectorAll('x-dc').forEach((e) => e.remove());
-  // "Hide until the custom element is defined" never clears once scripts are gone.
-  // Only on sheets that have one: the pattern is quadratic on large inlined-font sheets.
+  // Hidden copies (a bundle's source template, noscript fallbacks) would leak gated text.
+  document.querySelectorAll('x-dc, template, noscript, [hidden]').forEach((e) => e.remove());
+  // With scripts gone, ":not(:defined)" hiding would never clear.
+  // Guarded: the regex is quadratic on large inlined-font sheets.
   for (const st of document.querySelectorAll('style'))
     if (st.textContent.includes(':not(:defined)'))
       st.textContent = st.textContent.replace(/[^{}]*:not\(:defined\)[^{}]*\{[^}]*\}/g, '');

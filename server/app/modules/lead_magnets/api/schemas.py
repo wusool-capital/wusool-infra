@@ -510,8 +510,7 @@ class BuyerApplyResponse(BaseModel):
     run_id: str
 
 
-# The WHATWG `type="email"` grammar (what the page's own input enforces), plus at
-# least one dot in the domain, so "dana@acme" and free text like "<x>@a" fail.
+# The browser's own email grammar, plus a dot in the domain, so "dana@acme" fails.
 _EMAIL_PATTERN = (
     r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+"
     r"@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"

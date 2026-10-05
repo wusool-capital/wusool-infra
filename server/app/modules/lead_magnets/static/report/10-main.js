@@ -2,17 +2,14 @@
 const SLUG=new URLSearchParams(location.search).get("slug")||"";
 const REPORT_URL="/reports/"+encodeURIComponent(SLUG);
 
-// The server sends either the preview (locked) or the whole report. On
-// unlock the whole report replaces the preview, which restores any wrapper
-// element the preview cut left open — the reader keeps their place.
+// Unlock re-renders the whole report, restoring wrappers the preview cut left open.
 function render(data){
   document.getElementById("report").innerHTML=data.html;
   document.getElementById("gate").classList.toggle("hide",!data.locked);
   fit();
 }
 
-// Fixed-width exports (an A4 page is 794px) shrink to the frame instead of
-// scrolling sideways. Reflowing HTML never exceeds the frame, so it is untouched.
+// Fixed-width exports (A4 is 794px) shrink to the frame instead of scrolling sideways.
 function fit(){
   const report=document.getElementById("report");
   report.style.zoom="";

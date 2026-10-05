@@ -1,7 +1,6 @@
 import {defineField, defineType} from 'sanity'
 
-// Exact Webflow names: the sync resolves them to Webflow ids by name.
-// Team collection and the Insights "Primary Silo" options, read 2026-10-05.
+// Exact Webflow names (read 2026-10-05); the sync resolves them to Webflow ids.
 const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar']
 const SILOS = [
   'Sell Your Business',
@@ -71,6 +70,7 @@ export const report = defineType({
     }),
     // Written by the toolkit server after each publish: the report as a browser draws it.
     defineField({name: 'renderedHtml', type: 'text', hidden: true, readOnly: true}),
+    defineField({name: 'renderedPreviewEnd', type: 'number', hidden: true, readOnly: true}),
     defineField({name: 'renderedFrom', type: 'string', hidden: true, readOnly: true}),
   ],
 })

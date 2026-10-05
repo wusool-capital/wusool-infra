@@ -7,12 +7,13 @@ import functools
 import hashlib
 import hmac
 import json
+import time
 
 import httpx
 import pytest
 
 from app.modules.lead_magnets.api.dependencies import is_valid_sanity_signature
-from app.modules.lead_magnets.domain.insights_report.report import ReportDocument
+from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, ReportSource
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
 from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
 
@@ -20,6 +21,7 @@ _SANITY_REPORT = {
     "slug": "buyouts-in-the-gcc",
     "title": "Buyouts in the GCC",
     "html": "<p>Body</p>",
+    "previewEnd": 5,
     "excerpt": "The eight-part playbook.",
     "publishedAt": "2026-10-05T08:00:00.000Z",
     "updatedAt": "2026-10-05T09:00:00Z",
@@ -98,7 +100,8 @@ async def test_misses_are_cached_and_refresh_reads_fresh_into_the_cache(monkeypa
     assert hosts == ["p.apicdn.sanity.io", "p.api.sanity.io"]
 
 
-def _sign(body: bytes, secret: str, timestamp: str = "1791210000000") -> str:
+def _sign(body: bytes, secret: str, timestamp: str | None = None) -> str:
+    timestamp = timestamp or str(int(time.time() * 1000))
     digest = hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).digest()
     return f"t={timestamp},v1=" + base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
 
@@ -112,6 +115,16 @@ def test_webhook_signature_matches_sanitys_format() -> None:
     assert not is_valid_sanity_signature(body, None, "s3cret")
     assert not is_valid_sanity_signature(body, "garbage", "s3cret")
     assert not is_valid_sanity_signature(body, _sign(body, ""), "")
+
+
+def test_a_signature_older_than_ten_minutes_is_a_replay() -> None:
+    body = b'{"slug": "a"}'
+    now_ms = int(time.time() * 1000)
+    eleven_minutes_ago = str(now_ms - 11 * 60 * 1000)
+    one_retry_later = str(now_ms - 60 * 1000)
+
+    assert not is_valid_sanity_signature(body, _sign(body, "s", eleven_minutes_ago), "s")
+    assert is_valid_sanity_signature(body, _sign(body, "s", one_retry_later), "s")
 
 
 def _webflow_handler(request: httpx.Request) -> httpx.Response:
@@ -253,30 +266,33 @@ async def test_readers_only_ever_get_the_flattened_html(monkeypatch) -> None:
 async def test_source_reads_the_pasted_html_and_its_rendered_version(monkeypatch) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.host == "p.api.sanity.io", "never the possibly-stale CDN"
-        result = {"_id": "doc-1", "html": "<p>raw</p>", "renderedFrom": "abc"}
+        result = {"_id": "doc-1", "_rev": "r1", "html": "<p>raw</p>", "renderedFrom": "abc"}
         return httpx.Response(200, json={"result": result})
 
     _use_transport(monkeypatch, handler)
     source = await SanityReportSource(project_id="p", dataset="production").source("r")
 
     assert source is not None
-    assert (source.document_id, source.html, source.rendered_from) == ("doc-1", "<p>raw</p>", "abc")
+    assert (source.document_id, source.revision, source.rendered_from) == ("doc-1", "r1", "abc")
 
 
-async def test_save_rendered_patches_the_hidden_fields_with_the_write_token(monkeypatch) -> None:
+async def test_save_rendered_is_guarded_by_the_revision_it_read(monkeypatch) -> None:
     sent: list[httpx.Request] = []
+    status = 200
 
     def handler(request: httpx.Request) -> httpx.Response:
         sent.append(request)
-        return httpx.Response(200, json={"results": [{"id": "doc-1"}]})
+        return httpx.Response(status, json={})
 
     _use_transport(monkeypatch, handler)
-    source = SanityReportSource(project_id="p", dataset="production", write_token="tok")
+    store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
+    read = ReportSource(document_id="doc-1", revision="r1", html="<p>raw</p>", rendered_from=None)
 
-    await source.save_rendered("doc-1", "<p>flat</p>", "abc")
+    assert await store.save_rendered(read, html="<p>flat</p>", preview_end=3, rendered_from="abc")
+    status = 409
+    assert not await store.save_rendered(read, html="<p>x</p>", preview_end=1, rendered_from="d")
 
-    (request,) = sent
-    assert request.method == "POST"
+    request = sent[0]
     assert request.url.path == "/v2025-02-19/data/mutate/production"
     assert request.headers["authorization"] == "Bearer tok"
     assert json.loads(request.content) == {
@@ -284,7 +300,12 @@ async def test_save_rendered_patches_the_hidden_fields_with_the_write_token(monk
             {
                 "patch": {
                     "id": "doc-1",
-                    "set": {"renderedHtml": "<p>flat</p>", "renderedFrom": "abc"},
+                    "ifRevisionID": "r1",
+                    "set": {
+                        "renderedHtml": "<p>flat</p>",
+                        "renderedPreviewEnd": 3,
+                        "renderedFrom": "abc",
+                    },
                 }
             }
         ]

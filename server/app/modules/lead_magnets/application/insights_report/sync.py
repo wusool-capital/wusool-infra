@@ -16,6 +16,7 @@ from app.modules.lead_magnets.application.shared.ports import (
     ReportSourcePort,
 )
 from app.modules.lead_magnets.domain.insights_report.report import fingerprint
+from app.modules.lead_magnets.domain.insights_report.split import split_report
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,14 @@ class ReportSync:
         source = await self._source.source(slug)
         if source is not None and source.rendered_from != (version := fingerprint(source.html)):
             rendered = await self._renderer.render(source.html)
-            await self._source.save_rendered(source.document_id, rendered, version)
+            preview, _ = split_report(rendered)
+            saved = await self._source.save_rendered(
+                source, html=rendered, preview_end=len(preview), rendered_from=version
+            )
+            if not saved:
+                # Edited again mid-render; that edit's own webhook syncs the newer version.
+                logger.info("insights_report_sync_superseded slug=%s", slug)
+                return
 
         report = await self._source.refresh(slug)
         if report is None:

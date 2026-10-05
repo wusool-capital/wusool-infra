@@ -53,8 +53,7 @@ class Settings(BaseSettings):
 
     # Per-IP, per-hour cap on the endpoints that spend money.
     lead_magnet_rate_per_hour: int = 20
-    # Per-IP, per-hour cap on report page views: generous for a reader on an
-    # office NAT, low enough that slug-scanning can't drain the Sanity quota.
+    # Per-IP hourly cap on report views: fine behind office NAT, stops quota-draining scans.
     lead_magnet_report_reads_per_hour: int = 300
 
     # Attio `workspace_membership_id` of the advisor a new inbound deal is
@@ -89,8 +88,7 @@ class Settings(BaseSettings):
     lead_magnet_email_from: str = "contact@wusoolcapital.com"
     lead_magnet_email_to: str = "ramzy@wusoolcapital.com jules@wusoolcapital.com"
 
-    # Gated reports (PRD 3). Blank project id turns `/reports/*` off (404),
-    # so local dev and the Slack-bot path boot without a Sanity project.
+    # Gated reports. A blank project id disables `/reports/*`, so local dev needs no Sanity.
     lead_magnet_sanity_project_id: str = ""
     lead_magnet_sanity_dataset: str = "production"
     # Secrets Manager only. Blank rejects every Sanity webhook (503).

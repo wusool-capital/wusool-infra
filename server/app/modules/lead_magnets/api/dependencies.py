@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import logging
 import re
+import time
 from collections.abc import AsyncIterator
 from typing import Annotated
 
@@ -114,6 +115,8 @@ async def rate_limit_reads(request: Request) -> None:
 
 SANITY_SIGNATURE_HEADER = "sanity-webhook-signature"
 _SANITY_SIGNATURE = re.compile(r"^t=(\d+)[, ]+v1=([^, ]+)$")
+# Sanity retries twice, 30 s apart; anything older is a replay.
+_SANITY_MAX_AGE_MS = 10 * 60 * 1000
 
 
 def is_valid_sanity_signature(body: bytes, header: str | None, secret: str) -> bool:
@@ -126,6 +129,8 @@ def is_valid_sanity_signature(body: bytes, header: str | None, secret: str) -> b
     if match is None:
         return False
     timestamp, signature = match.groups()
+    if abs(time.time() * 1000 - int(timestamp)) > _SANITY_MAX_AGE_MS:
+        return False
     digest = hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).digest()
     expected = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
     return hmac.compare_digest(expected, signature)

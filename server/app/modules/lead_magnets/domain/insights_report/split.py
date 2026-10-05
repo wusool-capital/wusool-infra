@@ -34,6 +34,42 @@ _VOID = frozenset(
 )
 # Text in these never counts towards the share, and they are never a block to cut after.
 _NO_TEXT = frozenset({"head", "title", "style", "script", "template", "noscript"})
+# Cutting at these would split a paragraph mid-sentence.
+_INLINE = frozenset(
+    {
+        "a",
+        "abbr",
+        "b",
+        "bdi",
+        "bdo",
+        "br",
+        "cite",
+        "code",
+        "data",
+        "del",
+        "dfn",
+        "em",
+        "font",
+        "i",
+        "img",
+        "ins",
+        "kbd",
+        "label",
+        "mark",
+        "q",
+        "s",
+        "samp",
+        "small",
+        "span",
+        "strong",
+        "sub",
+        "sup",
+        "time",
+        "u",
+        "var",
+        "wbr",
+    }
+)
 
 
 @dataclass
@@ -115,7 +151,7 @@ def _find(node: _Node, tag: str) -> _Node | None:
 
 
 def _blocks(node: _Node) -> list[_Node]:
-    return [child for child in node.children if child.tag not in _NO_TEXT]
+    return [c for c in node.children if c.tag not in _NO_TEXT and c.tag not in _INLINE]
 
 
 def split_report(html: str, share: float = PREVIEW_SHARE) -> tuple[str, str]:

@@ -210,11 +210,16 @@ the first 25% open and the rest behind one short form. There are three parts:
   React tables exist only after its scripts run. On each publish,
   `application/insights_report/sync.py` opens a new HTML version once in
   headless Chromium (`providers/chromium/renderer.py`, network blocked, one
-  render at a time) and saves the drawn page back to Sanity's hidden
-  `renderedHtml`. Readers are served that copy. The playbook renders in
-  about 2.4 s and peaks at about 300 MB RAM.
-- **Gate.** `domain/insights_report/split.py` cuts on a top-level block
-  boundary at about 25% of the text. `GET /reports/{slug}` never sends the
+  render at a time, capped at 30 s) and saves the drawn page back to
+  Sanity's hidden `renderedHtml`, plus where the free preview ends
+  (`renderedPreviewEnd`), so readers never re-split. Readers are served only
+  that copy; an unrendered report is a 404. The save is guarded by the
+  document revision it read, so an older render that finishes late is
+  dropped. The playbook renders in about 2.4 s and peaks at about 300 MB RAM.
+  Hidden copies (`<template>`, `<noscript>`, `[hidden]`) are removed so
+  they can't leak into the preview.
+- **Gate.** `domain/insights_report/split.py` cuts between block elements,
+  never at an inline tag, at about 25% of the text. `GET /reports/{slug}` never sends the
   rest to a new reader. `POST /reports/{slug}/unlock` records an
   `insights_report` run through the write contract, returns the whole
   report, and sets the `wusool_reader` cookie, which holds the run id.
@@ -224,6 +229,10 @@ the first 25% open and the rest behind one short form. There are three parts:
     for PRD 2.
 - **Card.** `application/insights_report/sync.py`, triggered by the Sanity
   webhook, creates or updates the Webflow Insights item with `gated = true`.
+  The webhook replies 202 at once and syncs in the background, so Sanity
+  never times out and retries mid-sync. A failed sync is only logged
+  (`insights_report_sync_failed`); republishing the report repairs it.
+  Signatures older than 10 minutes are rejected as replays.
   It uses the live endpoints, which should need no Publish in Webflow; that
   is not yet verified.
   - It never touches an item with `gated = false`. Every hand-written

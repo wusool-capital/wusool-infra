@@ -29,10 +29,11 @@ _CACHE_TTL_S = 300
 _CACHE_MAX = 512
 _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
-    '"slug": slug.current, title, "html": renderedHtml, excerpt, publishedAt, '
-    '"updatedAt": _updatedAt, "coverUrl": cover.asset->url, featured, author, silo}'
+    '"slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
+    'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
+    "featured, author, silo}"
 )
-_SOURCE_QUERY = '*[_type == "report" && slug.current == $slug][0]{_id, html, renderedFrom}'
+_SOURCE_QUERY = '*[_type == "report" && slug.current == $slug][0]{_id, _rev, html, renderedFrom}'
 
 
 class _SanityReport(BaseModel):
@@ -41,6 +42,7 @@ class _SanityReport(BaseModel):
     slug: str
     title: str
     html: str | None = None
+    preview_end: int | None = Field(default=None, alias="previewEnd")
     excerpt: str
     published_at: str | None = Field(default=None, alias="publishedAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
@@ -58,6 +60,7 @@ class _SanitySource(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     id: str = Field(alias="_id")
+    rev: str = Field(alias="_rev")
     html: str
     rendered_from: str | None = Field(default=None, alias="renderedFrom")
 
@@ -70,6 +73,7 @@ class _RenderedFields(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     rendered_html: str = Field(alias="renderedHtml")
+    rendered_preview_end: int = Field(alias="renderedPreviewEnd")
     rendered_from: str = Field(alias="renderedFrom")
 
 
@@ -77,6 +81,8 @@ class _Patch(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
+    # Sanity rejects the patch (409) if the document moved on since it was read.
+    if_revision_id: str = Field(alias="ifRevisionID")
     set_: _RenderedFields = Field(alias="set")
 
 
@@ -118,19 +124,18 @@ class SanityReportSource:
         doc = _SourceResponse.model_validate_json(response.content).result
         if doc is None:
             return None
-        return ReportSource(document_id=doc.id, html=doc.html, rendered_from=doc.rendered_from)
-
-    async def save_rendered(self, document_id: str, html: str, rendered_from: str) -> None:
-        body = _Mutations(
-            mutations=[
-                _PatchMutation(
-                    patch=_Patch(
-                        id=document_id,
-                        set_=_RenderedFields(rendered_html=html, rendered_from=rendered_from),
-                    )
-                )
-            ]
+        return ReportSource(
+            document_id=doc.id, revision=doc.rev, html=doc.html, rendered_from=doc.rendered_from
         )
+
+    async def save_rendered(
+        self, source: ReportSource, *, html: str, preview_end: int, rendered_from: str
+    ) -> bool:
+        fields = _RenderedFields(
+            rendered_html=html, rendered_preview_end=preview_end, rendered_from=rendered_from
+        )
+        patch = _Patch(id=source.document_id, if_revision_id=source.revision, set_=fields)
+        body = _Mutations(mutations=[_PatchMutation(patch=patch)])
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
             response = await client.post(
                 self._mutate_url,
@@ -140,7 +145,10 @@ class SanityReportSource:
                     "content-type": "application/json",
                 },
             )
+        if response.status_code == 409:
+            return False
         response.raise_for_status()
+        return True
 
     def _store(self, slug: str, report: ReportDocument | None) -> ReportDocument | None:
         self._cache.pop(slug, None)
@@ -158,12 +166,13 @@ class SanityReportSource:
     async def _fetch(self, url: str, slug: str) -> ReportDocument | None:
         response = await self._get(url, _QUERY, slug)
         doc = _QueryResponse.model_validate_json(response.content).result
-        if doc is None or doc.html is None:
+        if doc is None or doc.html is None or doc.preview_end is None:
             return None
         return ReportDocument(
             slug=doc.slug,
             title=doc.title,
             html=doc.html,
+            preview_end=doc.preview_end,
             excerpt=doc.excerpt,
             published_at=doc.published_at,
             updated_at=doc.updated_at,

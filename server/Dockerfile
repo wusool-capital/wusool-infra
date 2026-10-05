@@ -51,9 +51,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# Headless Chromium for lead_magnets' report flattening, which runs only on a
-# Sanity publish. Installed as root (it apt-installs system libraries), into
-# a path the unprivileged `app` user can read. This layer is ~590 MB (measured).
+# Chromium flattens reports on publish; root installs its system libraries. ~590 MB layer.
 RUN playwright install --with-deps --only-shell chromium \
     && rm -rf /var/lib/apt/lists/*
 

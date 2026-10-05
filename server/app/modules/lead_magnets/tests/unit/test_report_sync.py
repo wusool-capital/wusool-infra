@@ -8,6 +8,7 @@ from app.modules.lead_magnets.domain.insights_report.report import (
     ReportSource,
     fingerprint,
 )
+from app.modules.lead_magnets.domain.insights_report.split import split_report
 
 
 def _report(slug: str = "buyouts-in-the-gcc", *, featured: bool = False) -> ReportDocument:
@@ -22,7 +23,8 @@ class _FakeSource:
     def __init__(self, *reports: ReportDocument, stale: bool = False) -> None:
         self._reports = {r.slug: r for r in reports}
         self._stale = stale
-        self.saved: list[tuple[str, str, str]] = []
+        self.superseded = False
+        self.saved: list[tuple[str, str, int, str]] = []
 
     async def get(self, slug: str) -> ReportDocument | None:
         raise AssertionError("the sync must read fresh, never the cached copy")
@@ -35,10 +37,20 @@ class _FakeSource:
         if report is None:
             return None
         rendered_from = None if self._stale else fingerprint(report.html)
-        return ReportSource(document_id=f"id-{slug}", html=report.html, rendered_from=rendered_from)
+        return ReportSource(
+            document_id=f"id-{slug}",
+            revision="rev-1",
+            html=report.html,
+            rendered_from=rendered_from,
+        )
 
-    async def save_rendered(self, document_id: str, html: str, rendered_from: str) -> None:
-        self.saved.append((document_id, html, rendered_from))
+    async def save_rendered(
+        self, source: ReportSource, *, html: str, preview_end: int, rendered_from: str
+    ) -> bool:
+        if self.superseded:
+            return False
+        self.saved.append((source.document_id, html, preview_end, rendered_from))
+        return True
 
 
 class _FakeRenderer:
@@ -159,9 +171,9 @@ async def test_a_new_html_version_is_flattened_once_and_saved_back() -> None:
     )
 
     assert renderer.rendered == ["<p>x</p>"]
-    assert source.saved == [
-        ("id-buyouts-in-the-gcc", "<flat><p>x</p></flat>", fingerprint("<p>x</p>"))
-    ]
+    flat = "<flat><p>x</p></flat>"
+    preview_end = len(split_report(flat)[0])
+    assert source.saved == [("id-buyouts-in-the-gcc", flat, preview_end, fingerprint("<p>x</p>"))]
 
 
 async def test_an_already_flattened_version_is_not_rendered_again() -> None:
@@ -173,3 +185,14 @@ async def test_an_already_flattened_version_is_not_rendered_again() -> None:
     )
 
     assert renderer.rendered == [] and source.saved == []
+
+
+async def test_a_render_superseded_by_a_newer_edit_is_dropped_and_touches_nothing() -> None:
+    """Two quick publishes: the older render loses the revision check and must
+    not then write the card; the newer edit's own webhook does that."""
+    source, cms = _FakeSource(_report(), stale=True), _FakeCms()
+    source.superseded = True
+
+    await _sync(source=source, cms=cms).sync(slug="buyouts-in-the-gcc", previous_slug=None)
+
+    assert source.saved == [] and cms.calls == []
