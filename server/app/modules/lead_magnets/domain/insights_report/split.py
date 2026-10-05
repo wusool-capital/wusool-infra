@@ -1,7 +1,9 @@
 """Cuts a report into the free preview and the gated rest. Pure.
 
-The cut always falls on the end of a top-level block, so neither half splits
-a paragraph or a table. `preview + rest` is the original string, unchanged:
+The cut always falls between two blocks, so neither half splits a paragraph
+or a table. It goes as deep as it must to land near the share: a block that
+would overshoot it, such as one `<main>` holding the whole report, is cut
+inside rather than after. `preview + rest` is the original string, unchanged:
 the page re-renders both together on unlock, which restores any wrapper the
 cut left open in the preview.
 """
@@ -10,6 +12,8 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
 PREVIEW_SHARE = 0.25
+# How far past the share a cut may land before the crossing block is split instead.
+_OVERSHOOT = 0.10
 
 _VOID = frozenset(
     {
@@ -35,6 +39,7 @@ _NO_TEXT = frozenset({"head", "title", "style", "script", "template", "noscript"
 @dataclass
 class _Node:
     tag: str
+    start: int
     text_start: int
     content_start: int
     end: int = -1
@@ -47,7 +52,7 @@ class _Tree(HTMLParser):
         super().__init__(convert_charrefs=True)
         self._html = html
         self._line_starts = [0] + [i + 1 for i, char in enumerate(html) if char == "\n"]
-        self.root = _Node("#root", 0, 0)
+        self.root = _Node("#root", 0, 0, 0)
         self._stack = [self.root]
         self._text = 0
         self._muted = 0
@@ -57,8 +62,9 @@ class _Tree(HTMLParser):
         return self._line_starts[line - 1] + column
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        content_start = self._offset() + len(self.get_starttag_text() or "")
-        node = _Node(tag, self._text, content_start)
+        start = self._offset()
+        content_start = start + len(self.get_starttag_text() or "")
+        node = _Node(tag, start, self._text, content_start)
         self._stack[-1].children.append(node)
         if tag in _VOID:
             node.end, node.text_end = content_start, self._text
@@ -68,8 +74,9 @@ class _Tree(HTMLParser):
             self._muted += 1
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        end = self._offset() + len(self.get_starttag_text() or "")
-        self._stack[-1].children.append(_Node(tag, self._text, end, end, self._text))
+        start = self._offset()
+        end = start + len(self.get_starttag_text() or "")
+        self._stack[-1].children.append(_Node(tag, start, self._text, end, end, self._text))
 
     def handle_endtag(self, tag: str) -> None:
         depth = next(
@@ -112,19 +119,28 @@ def _blocks(node: _Node) -> list[_Node]:
 
 
 def split_report(html: str, share: float = PREVIEW_SHARE) -> tuple[str, str]:
-    """`(preview, rest)`. A report with no second block to cut after keeps
-    everything gated: the preview is then only what precedes the content."""
+    """`(preview, rest)`. When no cut can leave anything gated, everything is
+    gated: the preview is then only what precedes the content."""
     parser = _Tree(html)
     parser.feed(html)
     tree = parser.finish()
 
-    root = _find(tree, "body") or tree
-    while len(blocks := _blocks(root)) == 1:
-        root = blocks[0]
-    if len(blocks) < 2:
-        return html[: root.content_start], html[root.content_start :]
-
-    target = root.text_start + share * (root.text_end - root.text_start)
-    candidates = blocks[:-1]  # cutting after the last block would gate nothing
-    cut = next((block for block in candidates if block.text_end >= target), candidates[-1]).end
+    body = _find(tree, "body") or tree
+    total = body.text_end - body.text_start
+    cut = _cut(body, body.text_start + share * total, _OVERSHOOT * total)
     return html[:cut], html[cut:]
+
+
+def _cut(root: _Node, target: float, slack: float) -> int:
+    blocks = _blocks(root)
+    for i, block in enumerate(blocks):
+        if block.text_end < target:
+            continue
+        is_last = i == len(blocks) - 1
+        if not is_last and block.text_end - target <= slack:
+            return block.end
+        if _blocks(block):
+            return _cut(block, target, slack)
+        # A single block too big to split: cut before it, never after.
+        return blocks[i - 1].end if i else root.content_start
+    return blocks[-2].end if len(blocks) > 1 else root.content_start

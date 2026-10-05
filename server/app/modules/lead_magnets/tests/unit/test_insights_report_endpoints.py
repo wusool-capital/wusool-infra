@@ -40,6 +40,7 @@ class _Settings:
     lead_magnet_webflow_api_token: str = "token"
     lead_magnet_allowed_origins: str = ""
     lead_magnet_rate_per_hour: int = 20
+    lead_magnet_report_reads_per_hour: int = 300
 
 
 @dataclass
@@ -81,8 +82,8 @@ def world(monkeypatch) -> _World:
             return world.runs.get(run_id)
 
     class _Sync:
-        async def sync(self, *, slug, previous_slug):
-            world.synced.append((slug, previous_slug))
+        async def sync(self, *, slug, previous_slug, featured_changed):
+            world.synced.append((slug, previous_slug, featured_changed))
 
     async def fake_completion(run_id: UUID) -> None:
         world.completed.append(run_id)
@@ -230,14 +231,16 @@ def _signed(body: bytes) -> dict[str, str]:
 
 
 def test_the_sanity_webhook_syncs_only_when_signed(client, world) -> None:
-    body = json.dumps({"slug": "new-slug", "previousSlug": "old-slug"}).encode()
+    body = json.dumps(
+        {"slug": "new-slug", "previousSlug": "old-slug", "featuredChanged": True}
+    ).encode()
 
     unsigned = client.post("/reports/webhooks/sanity", content=body)
     signed = client.post("/reports/webhooks/sanity", content=body, headers=_signed(body))
 
     assert unsigned.status_code == 401
     assert signed.status_code == 204
-    assert world.synced == [("new-slug", "old-slug")]
+    assert world.synced == [("new-slug", "old-slug", True)]
 
 
 def test_the_sanity_webhook_is_off_until_configured(client, world) -> None:
@@ -247,3 +250,11 @@ def test_the_sanity_webhook_is_off_until_configured(client, world) -> None:
         client.post("/reports/webhooks/sanity", content=body, headers=_signed(body)).status_code
         == 503
     )
+
+
+def test_report_page_views_have_their_own_per_ip_limit(client, world) -> None:
+    world.settings.lead_magnet_report_reads_per_hour = 2
+
+    statuses = [client.get("/reports/buyouts-in-the-gcc").status_code for _ in range(3)]
+
+    assert statuses == [200, 200, 429]

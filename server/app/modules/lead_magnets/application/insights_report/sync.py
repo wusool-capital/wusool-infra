@@ -17,9 +17,16 @@ class ReportSync:
         self._source = source
         self._cms = cms
 
-    async def sync(self, *, slug: str | None, previous_slug: str | None) -> None:
+    async def sync(
+        self, *, slug: str | None, previous_slug: str | None, featured_changed: bool = False
+    ) -> None:
         """`slug` is `None` when the report was deleted or unpublished;
-        `previous_slug` differs from it when an editor renamed the slug."""
+        `previous_slug` differs from it when an editor renamed the slug.
+
+        The pin only moves when this edit ticked or unticked it. Pinning a
+        newer report unpins the older card in Webflow only, so the older
+        report still says "pinned" in Sanity; acting on that on every edit
+        would steal the pin back on a typo fix."""
         if previous_slug and previous_slug != slug:
             await self._source.refresh(previous_slug)
             await self._unpublish(previous_slug)
@@ -37,16 +44,17 @@ class ReportSync:
             logger.warning("insights_report_sync_skipped_ungated slug=%s", slug)
             return
 
-        if report.featured:
+        featured = report.featured if featured_changed else None
+        if featured:
             # One pinned card only; this is the sync's single write to articles it didn't create.
             for item_id in await self._cms.featured_ids():
                 if item is None or item_id != item.id:
                     await self._cms.unfeature(item_id)
 
         if item is None:
-            await self._cms.create(report)
+            await self._cms.create(report, featured=featured)
         else:
-            await self._cms.update(item.id, report)
+            await self._cms.update(item.id, report, featured=featured)
 
     async def _unpublish(self, slug: str) -> None:
         item = await self._cms.find(slug)

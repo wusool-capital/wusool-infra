@@ -69,3 +69,15 @@ def test_reading_time_ignores_markup_and_styles() -> None:
 def test_org_domain_comes_from_the_email_except_free_mail() -> None:
     assert org_domain("Dana@AcmeGroup.ae") == "acmegroup.ae"
     assert org_domain("dana@gmail.com") is None
+
+
+def test_a_big_content_wrapper_beside_small_siblings_is_cut_inside() -> None:
+    """Found in review: <header><main>everything</main><footer> used to cut
+    after <main>, putting the whole report in the free preview."""
+    paragraphs = "".join(f"<p>p{n} {_WORDS}</p>" for n in range(8))
+    html = _doc(f"<header>T</header><main>{paragraphs}</main><footer>(c)</footer>")
+
+    preview, rest = split_report(html)
+
+    assert preview + rest == html
+    assert [f"p{n} " in preview for n in range(8)] == [True, True] + [False] * 6

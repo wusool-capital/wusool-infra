@@ -135,12 +135,14 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
         silo="Buy a Business",
     )
 
-    data = (await cms.field_data(report)).model_dump(mode="json", by_alias=True, exclude_none=True)
+    data = (await cms.field_data(report, featured=True)).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
 
     for required in ("name", "slug", "content-type", "body-content", "excerpt"):
         assert data[required], required
     assert data["content-type"] == "opt-report"
-    assert data["gated"] is True and data["featured"] is False
+    assert data["gated"] is True and data["featured"] is True
     assert data["body-content"] == "<p>The &lt;b&gt;eight-part&lt;/b&gt; playbook.</p>"
     assert data["seo-title"] == data["og-title"] == "Buyouts in the GCC"
     assert data["reading-time"] == "3 min read"
@@ -159,6 +161,7 @@ async def test_unknown_author_and_silo_are_left_out_not_guessed(monkeypatch) -> 
     data = (await cms.field_data(report)).model_dump(by_alias=True, exclude_none=True)
 
     assert "author" not in data and "primary-silo" not in data
+    assert "featured" not in data, "no pin change means the pin isn't written at all"
 
 
 async def test_featured_ids_reads_every_live_page(monkeypatch) -> None:
@@ -191,7 +194,7 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
     cms = WebflowInsightsCms(token="t", collection_id="insights")
     report = ReportDocument(slug="r", title="R", html="", excerpt="E")
 
-    await cms.create(report)
+    await cms.create(report, featured=None)
     await cms.unfeature("lbo")
     await cms.unpublish("item-1")
 
@@ -203,3 +206,29 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
         {"fieldData": {"featured": False}},
     ), "the unpin must not change a hand-written article's draft state"
     assert sent[2][:2] == ("DELETE", "/v2/collections/insights/items/item-1/live")
+
+
+async def test_find_ignores_a_card_whose_slug_does_not_match(monkeypatch) -> None:
+    """Never trust the list filter: a loose match must not become the card we overwrite."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        items = [{"id": "other", "fieldData": {"slug": "other-report", "gated": True}}]
+        return httpx.Response(200, json={"items": items, "pagination": {"total": 1}})
+
+    _use_transport(monkeypatch, handler)
+    cms = WebflowInsightsCms(token="t", collection_id="insights")
+
+    assert await cms.find("buyouts-in-the-gcc") is None
+
+
+async def test_the_report_cache_is_bounded(monkeypatch) -> None:
+    from app.modules.lead_magnets.providers.sanity import report_source
+
+    monkeypatch.setattr(report_source, "_CACHE_MAX", 3)
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": None}))
+    source = SanityReportSource(project_id="p", dataset="production")
+
+    for n in range(10):
+        await source.get(f"scan-{n}")
+
+    assert list(source._cache) == ["scan-7", "scan-8", "scan-9"]

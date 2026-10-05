@@ -19,6 +19,8 @@ from app.modules.lead_magnets.domain.insights_report.report import ReportDocumen
 
 _API_VERSION = "v2025-02-19"
 _CACHE_TTL_S = 300
+# Unknown slugs are cached too, so the cache must be bounded against slug-scanning.
+_CACHE_MAX = 512
 _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
     '"slug": slug.current, title, html, excerpt, publishedAt, "updatedAt": _updatedAt, '
@@ -65,6 +67,9 @@ class SanityReportSource:
         return self._store(slug, await self._fetch(self._api_url, slug))
 
     def _store(self, slug: str, report: ReportDocument | None) -> ReportDocument | None:
+        self._cache.pop(slug, None)
+        if len(self._cache) >= _CACHE_MAX:
+            del self._cache[next(iter(self._cache))]  # oldest write first
         self._cache[slug] = (time.monotonic() + _CACHE_TTL_S, report)
         return report
 

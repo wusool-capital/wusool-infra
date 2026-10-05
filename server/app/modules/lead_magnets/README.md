@@ -200,6 +200,9 @@ the first 25% open and the rest behind one short form. There are three parts:
 
 - **Content.** `providers/sanity/report_source.py` reads the published report
   over GROQ and caches it, misses included, for 5 minutes per process. The
+  cache holds at most 512 slugs, and page views have their own per-IP limit
+  (`LEAD_MAGNET_REPORT_READS_PER_HOUR`), so slug-scanning can't drain the
+  Free quota. The
   Free-plan dataset is public, which is an accepted risk described in
   `sanity/README.md`.
 - **Gate.** `domain/insights_report/split.py` cuts on a top-level block
@@ -219,6 +222,9 @@ the first 25% open and the rest behind one short form. There are three parts:
     article is ungated.
   - The one exception is turning `featured` off on the card that is
     currently pinned, when a new report is featured.
+  - The pin moves only when the edit ticked or unticked it (`featuredChanged`
+    in the webhook projection). Otherwise a typo fix on an older, still-ticked
+    report would take the pin back.
 
 CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
 writes an **organisation and a person only**, with no role and no deal.

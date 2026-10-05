@@ -54,6 +54,7 @@ class _ItemFields(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     name: str | None = None
+    slug: str | None = None
     gated: bool | None = None
     featured: bool | None = None
 
@@ -89,7 +90,7 @@ class InsightFieldData(BaseModel):
     slug: str
     content_type: str = Field(alias="content-type")
     gated: bool = True
-    featured: bool
+    featured: bool | None = None
     excerpt: str
     # Required by Webflow; the template hides it on gated items, where the report replaces it.
     body_content: str = Field(alias="body-content")
@@ -134,17 +135,18 @@ class WebflowInsightsCms:
     async def find(self, slug: str) -> CmsItem | None:
         # Staged items, so an unpublished card is reused rather than clashing on slug.
         page = await self._list(f"/collections/{self._collection_id}/items", slug=slug)
-        if not page.items:
+        # Checked here, not trusted: a loose filter must never hand back another card to overwrite.
+        item = next((i for i in page.items if i.field_data.slug == slug), None)
+        if item is None:
             return None
-        item = page.items[0]
         return CmsItem(id=item.id, gated=bool(item.field_data.gated))
 
-    async def create(self, report: ReportDocument) -> None:
-        body = _ItemWrite(is_draft=False, field_data=await self.field_data(report))
+    async def create(self, report: ReportDocument, *, featured: bool | None) -> None:
+        body = _ItemWrite(is_draft=False, field_data=await self.field_data(report, featured))
         await self._request("POST", f"/collections/{self._collection_id}/items/live", body=body)
 
-    async def update(self, item_id: str, report: ReportDocument) -> None:
-        body = _ItemWrite(is_draft=False, field_data=await self.field_data(report))
+    async def update(self, item_id: str, report: ReportDocument, *, featured: bool | None) -> None:
+        body = _ItemWrite(is_draft=False, field_data=await self.field_data(report, featured))
         await self._request(
             "PATCH", f"/collections/{self._collection_id}/items/{item_id}/live", body=body
         )
@@ -169,7 +171,10 @@ class WebflowInsightsCms:
             body=_ItemWrite(field_data=_FeaturedPatch(featured=False)),
         )
 
-    async def field_data(self, report: ReportDocument) -> InsightFieldData:
+    async def field_data(
+        self, report: ReportDocument, featured: bool | None = None
+    ) -> InsightFieldData:
+        """`featured` `None` leaves the card's pin untouched (omitted from the write)."""
         schema = await self._load_schema()
         cover = (
             _Image(url=report.cover_url + _COVER_PARAMS, alt=report.title)
@@ -186,7 +191,7 @@ class WebflowInsightsCms:
             name=report.title,
             slug=report.slug,
             content_type=schema.report_option_id,
-            featured=report.featured,
+            featured=featured,
             excerpt=report.excerpt,
             body_content=f"<p>{escape(report.excerpt)}</p>",
             seo_title=report.title,

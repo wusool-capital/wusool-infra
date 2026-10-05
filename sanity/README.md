@@ -41,7 +41,7 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
    | Filter | `_type == "report"` |
-   | Projection | `{"slug": after().slug.current, "previousSlug": before().slug.current}` |
+   | Projection | `{"slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
    | Drafts | off |
@@ -56,6 +56,11 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 Fill in the title, slug, excerpt and the pasted HTML. Cover image, author,
 primary silo and date are optional. Tick **Pin to top of /insights** to make
 it the featured card; that unpins the current one. Then publish.
+
+The pin only moves when you tick or untick it. When a newer report takes the
+pin, the older report still shows the box ticked here; editing it later
+won't take the pin back. To pin it again, untick, publish, then tick and
+publish.
 
 - **Renaming a slug** unpublishes the old card and creates a new one, so
   the old URL stops working.

@@ -2,9 +2,9 @@
 publish webhook that keeps the Webflow card in step.
 
 The report page calls the first two from its iframe on this host, so they
-are same-origin. Only the unlock spends anything (an Attio write), so only
-it carries the origin check and the per-IP limit: browsers omit `Origin` on
-a same-origin GET, and page views must not use up a reader's unlock budget.
+are same-origin. Only the unlock carries the origin check, because browsers
+omit `Origin` on a same-origin GET. Page views get their own, larger per-IP
+budget (`rate_limit_reads`), so reading never uses up a reader's unlock.
 """
 
 import logging
@@ -28,6 +28,7 @@ from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
     is_valid_sanity_signature,
     rate_limit,
+    rate_limit_reads,
     require_allowed_origin,
 )
 from app.modules.lead_magnets.api.schemas import (
@@ -75,7 +76,9 @@ async def _published(source: ReportSourcePort, slug: str) -> ReportDocument:
     return report
 
 
-@router.get("/reports/{slug}", response_model=ReportResponse)
+@router.get(
+    "/reports/{slug}", response_model=ReportResponse, dependencies=[Depends(rate_limit_reads)]
+)
 async def read_report(
     slug: Slug,
     source: SourceDep,
@@ -180,7 +183,11 @@ async def sanity_webhook(request: Request) -> None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid signature")
 
     event = SanityWebhookBody.model_validate_json(body)
-    await build_report_sync().sync(slug=event.slug, previous_slug=event.previous_slug)
+    await build_report_sync().sync(
+        slug=event.slug,
+        previous_slug=event.previous_slug,
+        featured_changed=event.featured_changed,
+    )
 
 
 async def _known_reader(

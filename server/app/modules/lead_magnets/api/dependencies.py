@@ -95,6 +95,23 @@ async def rate_limit(request: Request) -> None:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "rate limit exceeded")
 
 
+_read_limiter: FixedWindowRateLimiter | None = None
+
+
+async def rate_limit_reads(request: Request) -> None:
+    """Report page views: a separate, larger budget than `rate_limit`, so
+    reading never uses up a reader's unlock."""
+    global _read_limiter
+    if _read_limiter is None:
+        _read_limiter = FixedWindowRateLimiter(
+            limit=get_settings().lead_magnet_report_reads_per_hour
+        )
+    ip = client_ip(request)
+    if not _read_limiter.check(ip):
+        logger.warning("lead_magnet_report_reads_limited ip=%s", ip)
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "rate limit exceeded")
+
+
 SANITY_SIGNATURE_HEADER = "sanity-webhook-signature"
 _SANITY_SIGNATURE = re.compile(r"^t=(\d+)[, ]+v1=([^, ]+)$")
 

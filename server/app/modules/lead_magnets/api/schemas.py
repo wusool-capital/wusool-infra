@@ -542,9 +542,11 @@ class ReportResponse(BaseModel):
 
 class SanityWebhookBody(BaseModel):
     """The projection configured on the Sanity webhook (`sanity/README.md`):
-    `slug` is null on delete or unpublish; `previousSlug` differs on a rename."""
+    `slug` is null on delete or unpublish; `previousSlug` differs on a rename;
+    `featuredChanged` is true only when this edit ticked or unticked the pin."""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     slug: str | None = None
     previous_slug: str | None = Field(default=None, alias="previousSlug")
+    featured_changed: bool = Field(default=False, alias="featuredChanged")

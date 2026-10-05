@@ -9,11 +9,14 @@ from app.modules.lead_magnets.domain.insights_report.report import CmsItem, Repo
 class InsightsCmsPort(Protocol):
     async def find(self, slug: str) -> CmsItem | None: ...
 
-    async def create(self, report: ReportDocument) -> None:
-        """Creates the card already published to the live site."""
+    async def create(self, report: ReportDocument, *, featured: bool | None) -> None:
+        """Creates the card already published to the live site. `featured`
+        `None` leaves the card's pin as it is."""
         ...
 
-    async def update(self, item_id: str, report: ReportDocument) -> None: ...
+    async def update(
+        self, item_id: str, report: ReportDocument, *, featured: bool | None
+    ) -> None: ...
 
     async def unpublish(self, item_id: str) -> None: ...
 

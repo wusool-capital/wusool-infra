@@ -53,6 +53,9 @@ class Settings(BaseSettings):
 
     # Per-IP, per-hour cap on the endpoints that spend money.
     lead_magnet_rate_per_hour: int = 20
+    # Per-IP, per-hour cap on report page views: generous for a reader on an
+    # office NAT, low enough that slug-scanning can't drain the Sanity quota.
+    lead_magnet_report_reads_per_hour: int = 300
 
     # Attio `workspace_membership_id` of the advisor a new inbound deal is
     # assigned to. Every deal in the live workspace has an owner, so a
