@@ -234,17 +234,20 @@ async def test_the_report_cache_is_bounded(monkeypatch) -> None:
     assert list(source._cache) == ["scan-7", "scan-8", "scan-9"]
 
 
-async def test_readers_get_the_flattened_html_once_it_exists(monkeypatch) -> None:
+async def test_readers_only_ever_get_the_flattened_html(monkeypatch) -> None:
+    """An unrendered bundle is a loader page with the whole report in a
+    script tag; until it is rendered, the report is not served at all."""
     queries: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         queries.append(request.url.params["query"])
-        return httpx.Response(200, json={"result": _SANITY_REPORT})
+        return httpx.Response(200, json={"result": {**_SANITY_REPORT, "html": None}})
 
     _use_transport(monkeypatch, handler)
-    await SanityReportSource(project_id="p", dataset="production").get("buyouts-in-the-gcc")
+    report = await SanityReportSource(project_id="p", dataset="production").get("r")
 
-    assert '"html": coalesce(renderedHtml, html)' in queries[0]
+    assert report is None
+    assert '"html": renderedHtml' in queries[0]
 
 
 async def test_source_reads_the_pasted_html_and_its_rendered_version(monkeypatch) -> None:

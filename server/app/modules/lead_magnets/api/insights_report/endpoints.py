@@ -8,6 +8,7 @@ budget (`rate_limit_reads`), so reading never uses up a reader's unlock.
 """
 
 import logging
+from functools import lru_cache
 from typing import Annotated
 from uuid import UUID
 
@@ -69,6 +70,13 @@ def get_report_source() -> ReportSourcePort:
 SourceDep = Annotated[ReportSourcePort, Depends(get_report_source)]
 
 
+@lru_cache(maxsize=16)
+def _preview(html: str) -> str:
+    """The cut is the same for every reader until the next publish; a large
+    report takes ~55 ms to split, which would block the event loop per view."""
+    return split_report(html)[0]
+
+
 async def _published(source: ReportSourcePort, slug: str) -> ReportDocument:
     report = await source.get(slug)
     if report is None:
@@ -99,8 +107,7 @@ async def read_report(
 
     reader = await _known_reader(session, wusool_reader)
     if reader is None:
-        preview, _ = split_report(report.html)
-        return ReportResponse(title=report.title, html=preview, locked=True)
+        return ReportResponse(title=report.title, html=_preview(report.html), locked=True)
 
     identity, unlocked_slug = reader
     if unlocked_slug != slug:

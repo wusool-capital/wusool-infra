@@ -8,9 +8,11 @@ document just after a publish.
 Reads need no token: the dataset is public on the Free plan, and API
 version 2025-02-19 defaults to the `published` perspective, so drafts never
 leak. The one write, `save_rendered`, uses a write token. It stores the
-flattened page in a hidden `renderedHtml` field, which readers get instead
-of the pasted `html` once it exists. The webhook's filter ignores edits to
-that field, so the write doesn't trigger a sync of its own.
+flattened page in a hidden `renderedHtml` field. Readers only ever get that
+field, never the pasted `html`: an unrendered bundle is a loader page whose
+whole report sits in a script tag, so a report counts as published only once
+it has been rendered. The webhook's filter ignores edits to `renderedHtml`,
+so the write doesn't trigger a sync of its own.
 """
 
 import json
@@ -27,7 +29,7 @@ _CACHE_TTL_S = 300
 _CACHE_MAX = 512
 _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
-    '"slug": slug.current, title, "html": coalesce(renderedHtml, html), excerpt, publishedAt, '
+    '"slug": slug.current, title, "html": renderedHtml, excerpt, publishedAt, '
     '"updatedAt": _updatedAt, "coverUrl": cover.asset->url, featured, author, silo}'
 )
 _SOURCE_QUERY = '*[_type == "report" && slug.current == $slug][0]{_id, html, renderedFrom}'
@@ -38,7 +40,7 @@ class _SanityReport(BaseModel):
 
     slug: str
     title: str
-    html: str
+    html: str | None = None
     excerpt: str
     published_at: str | None = Field(default=None, alias="publishedAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
@@ -156,7 +158,7 @@ class SanityReportSource:
     async def _fetch(self, url: str, slug: str) -> ReportDocument | None:
         response = await self._get(url, _QUERY, slug)
         doc = _QueryResponse.model_validate_json(response.content).result
-        if doc is None:
+        if doc is None or doc.html is None:
             return None
         return ReportDocument(
             slug=doc.slug,
