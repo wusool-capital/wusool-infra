@@ -508,3 +508,23 @@ class BuyerApplyRequest(_Strict):
 class BuyerApplyResponse(BaseModel):
     ok: bool
     run_id: str
+
+
+class ReportUnlockRequest(_Strict):
+    """The gate on an insights report (PRD 3): name, email and organisation.
+
+    Any email is accepted, free-mail included, by decision. Field names
+    match `AttioIdentityPayload` (`name`, `email`, `company`), which is what
+    the background org and person write reads back from the stored payload.
+    """
+
+    submission_id: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=200)
+    company: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+class ReportResponse(BaseModel):
+    title: str
+    html: str
+    locked: bool

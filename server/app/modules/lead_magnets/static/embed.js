@@ -13,6 +13,7 @@
     valuation: "/valuation/",
     buyers: "/buyers/",
     "get-started": "/get-started/",
+    report: "/report/",
   };
 
   var script = document.currentScript;
@@ -46,6 +47,15 @@
     return;
   }
 
+  // A gated report is one page for every report; `data-report` picks which.
+  // The slug is checked against the same shape the server accepts, so the
+  // path still comes only from the map above.
+  if (tool === "report") {
+    var slug = script.getAttribute("data-report") || "";
+    if (!/^[a-z0-9-]{1,256}$/.test(slug)) return;
+    src = src + "?slug=" + encodeURIComponent(slug);
+  }
+
   var iframe = document.createElement("iframe");
   // Absolute, built from toolsOrigin — the map's paths are root-relative
   // ("/benchmark/"), which a bare assignment would resolve against the
@@ -61,7 +71,8 @@
   // Viewport-relative placeholder, not a per-tool pixel guess: it is only
   // what shows for the frame or two before shared/height.js reports the
   // real content height, and it is right at every screen size.
-  iframe.style.height = "100vh";
+  // A report starts collapsed: on a page without one it must take no space.
+  iframe.style.height = tool === "report" ? "0" : "100vh";
   // No `scrolling="no"`. It is what turned a wrong height into *unreachable*
   // content — a lead form that simply ended mid-field with no way to reach
   // the rest. Default scrolling degrades the same failure to an inner

@@ -9,11 +9,13 @@ one to `BackgroundTasks` would use it after close.
 import asyncio
 import dataclasses
 import logging
+from functools import lru_cache
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.attio import attio_is_test, get_attio_client
+from app.modules.lead_magnets.application.insights_report.sync import ReportSync
 from app.modules.lead_magnets.application.shared.service import LeadMagnetService
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
@@ -36,6 +38,8 @@ from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWr
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
+from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
+from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
 from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
 from app.modules.organizations import OrganizationRepository
 from app.modules.utilities.domain.json_types import JsonObject
@@ -148,6 +152,20 @@ class _RoleAttioWriter:
             )
             return await self._with_deal(subjects, deal_type="Buy-side")
 
+        if tool == "insights_report":
+            # PRD 3: a report reader is an organisation and a person only — no role, no deal.
+            reader = AttioIdentityPayload.model_validate(payload)
+            name = reader.company or "Unknown"
+            subjects = await self._writer.write_organization(
+                organization_name=name,
+                domain=reader.domain,
+                organization_attio_id=await self._find_existing_org(
+                    name=name, domain=reader.domain
+                ),
+                lead_source_detail=lead_source_detail,
+            )
+            return await self._with_person(subjects, name=reader.name, email=reader.email)
+
         seller = AttioIdentityPayload.model_validate(payload)
         # `company_name` is not a field any real request ever sends — kept as
         # a raw fallback rather than promoted onto `AttioIdentityPayload`,
@@ -231,6 +249,27 @@ class _RoleAttioWriter:
             return subjects
         deal_attio_id, deal_web_url = deal
         return dataclasses.replace(subjects, deal_attio_id=deal_attio_id, deal_web_url=deal_web_url)
+
+
+@lru_cache
+def build_report_source() -> SanityReportSource:
+    """One per process, so its cache outlives a single request."""
+    settings = get_settings()
+    return SanityReportSource(
+        project_id=settings.lead_magnet_sanity_project_id,
+        dataset=settings.lead_magnet_sanity_dataset,
+    )
+
+
+def build_report_sync() -> ReportSync:
+    settings = get_settings()
+    return ReportSync(
+        source=build_report_source(),
+        cms=WebflowInsightsCms(
+            token=settings.lead_magnet_webflow_api_token,
+            collection_id=settings.lead_magnet_webflow_insights_collection_id,
+        ),
+    )
 
 
 def build_valuation_ai() -> ValuationAi:

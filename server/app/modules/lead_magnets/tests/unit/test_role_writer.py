@@ -140,3 +140,30 @@ async def test_seller_resubmission_replaces_the_sector() -> None:
     )
 
     assert client.put_paths == ["/lists/seller_role/entries/seller_role-1"]
+
+
+async def test_write_organization_links_an_existing_match_without_patching_it() -> None:
+    """A reader's typed org name must not rename a company we already hold."""
+    client = _FakeAttioClient()
+
+    refs = await AttioRoleWriter(client, is_test=True).write_organization(
+        organization_name="acme", domain="acme.com", organization_attio_id="org-9"
+    )
+
+    assert refs.org_attio_id == "org-9"
+    assert client.patched == [] and client.org_values == []
+
+
+async def test_write_organization_creates_with_the_lead_source_and_no_role() -> None:
+    client = _FakeAttioClient()
+
+    refs = await AttioRoleWriter(client, is_test=True).write_organization(
+        organization_name="Acme",
+        domain="acme.com",
+        lead_source_detail="Insights & Reports",
+    )
+
+    assert refs.org_attio_id == "org-1"
+    assert client.org_values[0]["domains"] == ["acme.com"]
+    assert client.org_values[0]["lead_source_detail"] == "Insights & Reports"
+    assert client.entries == {"buyer_role": [], "seller_role": []}

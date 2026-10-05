@@ -81,6 +81,33 @@ class AttioRoleWriter:
                 self._client, list_slug, org_id, entry_values, is_test=self._is_test
             )
 
+    async def write_organization(
+        self,
+        *,
+        organization_name: str,
+        domain: str | None,
+        organization_attio_id: str | None = None,
+        lead_source_detail: str | None = None,
+    ) -> SubjectRefs:
+        """The organisation alone, no role entry. An existing match is linked
+        but never patched: a report reader's typed org name must not rename
+        a company, or replace the lead source it first came in through."""
+        if organization_attio_id is not None:
+            await entries.assert_organization_in_scope(
+                self._client, organization_attio_id, is_test=self._is_test
+            )
+            return SubjectRefs(org_attio_id=organization_attio_id, org_name=organization_name)
+
+        org_values: dict[str, object] = {"name": organization_name}
+        if domain:
+            org_values["domains"] = [domain]
+        if lead_source_detail:
+            org_values["lead_source_detail"] = lead_source_detail
+        org_id, org_web_url = await self._upsert_organization(
+            org_values=org_values, organization_attio_id=None
+        )
+        return SubjectRefs(org_attio_id=org_id, org_name=organization_name, org_web_url=org_web_url)
+
     async def write_seller_role(
         self,
         *,

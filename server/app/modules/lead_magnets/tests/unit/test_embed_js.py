@@ -156,3 +156,13 @@ def test_the_overlay_starts_hidden_and_stays_in_sync_with_display() -> None:
 
     close_fn = modal[modal.index("function closeModal(") : modal.index("close.addEventListener")]
     assert 'overlay.style.display = "none"' in close_fn
+
+
+def test_a_report_slug_is_validated_before_it_reaches_the_iframe_src() -> None:
+    """`data-report` is author input on the Webflow page; it is only ever
+    appended as an encoded query value after matching the server's shape."""
+    js = (static_dir() / "embed.js").read_text()
+    block = js[js.index('if (tool === "report")') :]
+    assert "/^[a-z0-9-]{1,256}$/.test(slug)" in block
+    assert "encodeURIComponent(slug)" in block
+    assert js.index('if (tool === "report")') < js.index("iframe.src = toolsOrigin + src;")

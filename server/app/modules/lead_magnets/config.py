@@ -86,6 +86,16 @@ class Settings(BaseSettings):
     lead_magnet_email_from: str = "contact@wusoolcapital.com"
     lead_magnet_email_to: str = "ramzy@wusoolcapital.com jules@wusoolcapital.com"
 
+    # Gated reports (PRD 3). Blank project id turns `/reports/*` off (404),
+    # so local dev and the Slack-bot path boot without a Sanity project.
+    lead_magnet_sanity_project_id: str = ""
+    lead_magnet_sanity_dataset: str = "production"
+    # Secrets Manager only. Blank rejects every Sanity webhook (503).
+    lead_magnet_sanity_webhook_secret: str = ""
+    lead_magnet_webflow_api_token: str = ""
+    # The live site's "Insights" collection; a fixed infra fact, like the model ids above.
+    lead_magnet_webflow_insights_collection_id: str = "69aaa645fa60624091050e8e"
+
     @field_validator("database_url")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:

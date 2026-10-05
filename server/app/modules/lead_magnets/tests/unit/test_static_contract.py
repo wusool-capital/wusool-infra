@@ -19,6 +19,7 @@ from app.modules.lead_magnets.api.schemas import (
     EnrichRequest,
     GetStartedRequest,
     ReadinessRequest,
+    ReportUnlockRequest,
     ValuationRequest,
 )
 from app.modules.lead_magnets.api.static import static_dir
@@ -284,3 +285,8 @@ def test_no_page_mints_its_own_submission_id(tool_dir: Path) -> None:
         assert "crypto.randomUUID" not in js.read_text(), (
             f"{js.name} mints its own submission id; use window.WUSOOL_SUBMISSION_ID"
         )
+
+
+def test_report_gate_payload_field_names_match_the_request_schema() -> None:
+    js = (static_dir() / "report" / "10-main.js").read_text()
+    assert _payload_keys(js, "const payload={") == set(ReportUnlockRequest.model_fields)
