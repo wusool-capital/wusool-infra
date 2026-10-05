@@ -8,7 +8,19 @@ const REPORT_URL="/reports/"+encodeURIComponent(SLUG);
 function render(data){
   document.getElementById("report").innerHTML=data.html;
   document.getElementById("gate").classList.toggle("hide",!data.locked);
+  fit();
 }
+
+// Fixed-width exports (an A4 page is 794px) shrink to the frame instead of
+// scrolling sideways. Reflowing HTML never exceeds the frame, so it is untouched.
+function fit(){
+  const report=document.getElementById("report");
+  report.style.zoom="";
+  const natural=report.scrollWidth;
+  const available=document.documentElement.clientWidth;
+  if(natural>available)report.style.zoom=String(available/natural);
+}
+window.addEventListener("resize",fit);
 
 async function loadReport(){
   // A missing report renders nothing, so the iframe stays at zero height.

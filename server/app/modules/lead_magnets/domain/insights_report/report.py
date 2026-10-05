@@ -5,6 +5,7 @@
 knows either vendor's field names.
 """
 
+import hashlib
 import math
 import re
 from dataclasses import dataclass
@@ -31,11 +32,25 @@ class ReportDocument:
 
 
 @dataclass(frozen=True)
+class ReportSource:
+    """The HTML as the editor pasted it, and which version was last flattened."""
+
+    document_id: str
+    html: str
+    rendered_from: str | None
+
+
+@dataclass(frozen=True)
 class CmsItem:
     """An existing Insights card, reduced to what the sync decides on."""
 
     id: str
     gated: bool
+
+
+def fingerprint(html: str) -> str:
+    """Identifies one version of a report's source HTML, so it is flattened once."""
+    return hashlib.sha256(html.encode()).hexdigest()
 
 
 def reading_time(html: str) -> str:

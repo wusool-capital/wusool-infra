@@ -305,6 +305,13 @@ the gate when `locked` is true. On unlock it re-renders with the whole
 report rather than appending the rest. That restores any wrapper element the
 preview cut left open, and the reader keeps their place.
 
+Reports reach this page already flattened (`providers/chromium/renderer.py`),
+so every report is static HTML here. Fixed-width exports, such as 794 px A4
+pages, are shrunk to the frame with CSS `zoom` (`fit()` in `10-main.js`)
+instead of scrolling sideways. On a phone that means pinch-to-zoom reading,
+which is a limit of fixed-page documents. A "flowing" export from the
+design tool would reflow instead.
+
 The report's own `<style>` applies to the whole iframe document. The gate's
 rules are therefore all scoped under `#gate`. `<script>` tags inside a report
 don't run, because `innerHTML` never executes them. Inline handlers such as

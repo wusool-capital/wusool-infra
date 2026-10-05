@@ -9,8 +9,12 @@ unlocks after a name, email and organisation form.
 
 1. An editor publishes a report here.
 2. Sanity's webhook calls `POST https://tools.wusoolcapital.com/reports/webhooks/sanity`.
-3. The toolkit server creates or updates the matching card in the Webflow
-   Insights collection with **Gated** on, through the live API. This is
+3. The toolkit server opens the pasted HTML once in headless Chromium and
+   saves what it draws back to the report as static HTML, in the hidden
+   `renderedHtml` field. This is how exports that build their pages with
+   JavaScript, like "Buyouts in the GCC", become splittable. It then creates
+   or updates the matching card in the Webflow Insights collection with
+   **Gated** on, through the live API. This is
    meant to need no Publish in Webflow, which is not yet verified against
    the live site.
 4. The Insights template's embed loads `/report/?slug=<slug>` from the
@@ -40,15 +44,22 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `_type == "report"` |
+   | Filter | `_type == "report" && (delta::changedAny((title, slug, html, excerpt, cover, author, silo, publishedAt, featured)) \|\| !defined(renderedHtml))` |
    | Projection | `{"slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
    | Drafts | off |
 
+   The filter skips edits that touch only `renderedHtml`, so the server's
+   own save never starts a second sync. `!defined(renderedHtml)` catches a
+   report whose rendered copy was dropped, for example when an older draft
+   is published over it.
+
 5. Set the server env in the Toolkit Secrets Manager `env` map:
    - `LEAD_MAGNET_SANITY_PROJECT_ID`
    - `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`
+   - `LEAD_MAGNET_SANITY_WRITE_TOKEN`, an **Editor** API token (API → Tokens).
+     It is used only to save the flattened report back.
    - `LEAD_MAGNET_WEBFLOW_API_TOKEN`, a Webflow site token with `CMS:read` and `CMS:write`
 
 ## Publishing a report

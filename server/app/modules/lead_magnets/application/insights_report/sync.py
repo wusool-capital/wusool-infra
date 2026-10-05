@@ -3,19 +3,30 @@
 Triggered by Sanity's publish webhook. Every call re-reads the report rather
 than trusting the webhook body, so a retried or out-of-order delivery still
 lands the current state.
+
+It also flattens the pasted HTML once per version: some exports draw their
+pages with JavaScript, and a gate can only split what is already on the page.
 """
 
 import logging
 
-from app.modules.lead_magnets.application.shared.ports import InsightsCmsPort, ReportSourcePort
+from app.modules.lead_magnets.application.shared.ports import (
+    InsightsCmsPort,
+    ReportRendererPort,
+    ReportSourcePort,
+)
+from app.modules.lead_magnets.domain.insights_report.report import fingerprint
 
 logger = logging.getLogger(__name__)
 
 
 class ReportSync:
-    def __init__(self, *, source: ReportSourcePort, cms: InsightsCmsPort) -> None:
+    def __init__(
+        self, *, source: ReportSourcePort, cms: InsightsCmsPort, renderer: ReportRendererPort
+    ) -> None:
         self._source = source
         self._cms = cms
+        self._renderer = renderer
 
     async def sync(
         self, *, slug: str | None, previous_slug: str | None, featured_changed: bool = False
@@ -32,6 +43,11 @@ class ReportSync:
             await self._unpublish(previous_slug)
         if slug is None:
             return
+
+        source = await self._source.source(slug)
+        if source is not None and source.rendered_from != (version := fingerprint(source.html)):
+            rendered = await self._renderer.render(source.html)
+            await self._source.save_rendered(source.document_id, rendered, version)
 
         report = await self._source.refresh(slug)
         if report is None:

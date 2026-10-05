@@ -69,5 +69,8 @@ export const report = defineType({
       initialValue: false,
       description: 'Unpins whichever card is pinned now.',
     }),
+    // Written by the toolkit server after each publish: the report as a browser draws it.
+    defineField({name: 'renderedHtml', type: 'text', hidden: true, readOnly: true}),
+    defineField({name: 'renderedFrom', type: 'string', hidden: true, readOnly: true}),
   ],
 })

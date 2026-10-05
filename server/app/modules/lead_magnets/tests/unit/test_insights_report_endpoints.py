@@ -37,6 +37,7 @@ _SECRET = "s3cret"
 class _Settings:
     lead_magnet_sanity_project_id: str = "proj"
     lead_magnet_sanity_webhook_secret: str = _SECRET
+    lead_magnet_sanity_write_token: str = "write-token"
     lead_magnet_webflow_api_token: str = "token"
     lead_magnet_allowed_origins: str = ""
     lead_magnet_rate_per_hour: int = 20

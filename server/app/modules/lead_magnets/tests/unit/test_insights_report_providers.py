@@ -232,3 +232,57 @@ async def test_the_report_cache_is_bounded(monkeypatch) -> None:
         await source.get(f"scan-{n}")
 
     assert list(source._cache) == ["scan-7", "scan-8", "scan-9"]
+
+
+async def test_readers_get_the_flattened_html_once_it_exists(monkeypatch) -> None:
+    queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        queries.append(request.url.params["query"])
+        return httpx.Response(200, json={"result": _SANITY_REPORT})
+
+    _use_transport(monkeypatch, handler)
+    await SanityReportSource(project_id="p", dataset="production").get("buyouts-in-the-gcc")
+
+    assert '"html": coalesce(renderedHtml, html)' in queries[0]
+
+
+async def test_source_reads_the_pasted_html_and_its_rendered_version(monkeypatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "p.api.sanity.io", "never the possibly-stale CDN"
+        result = {"_id": "doc-1", "html": "<p>raw</p>", "renderedFrom": "abc"}
+        return httpx.Response(200, json={"result": result})
+
+    _use_transport(monkeypatch, handler)
+    source = await SanityReportSource(project_id="p", dataset="production").source("r")
+
+    assert source is not None
+    assert (source.document_id, source.html, source.rendered_from) == ("doc-1", "<p>raw</p>", "abc")
+
+
+async def test_save_rendered_patches_the_hidden_fields_with_the_write_token(monkeypatch) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={"results": [{"id": "doc-1"}]})
+
+    _use_transport(monkeypatch, handler)
+    source = SanityReportSource(project_id="p", dataset="production", write_token="tok")
+
+    await source.save_rendered("doc-1", "<p>flat</p>", "abc")
+
+    (request,) = sent
+    assert request.method == "POST"
+    assert request.url.path == "/v2025-02-19/data/mutate/production"
+    assert request.headers["authorization"] == "Bearer tok"
+    assert json.loads(request.content) == {
+        "mutations": [
+            {
+                "patch": {
+                    "id": "doc-1",
+                    "set": {"renderedHtml": "<p>flat</p>", "renderedFrom": "abc"},
+                }
+            }
+        ]
+    }

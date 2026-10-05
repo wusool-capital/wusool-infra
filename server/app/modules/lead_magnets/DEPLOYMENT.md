@@ -177,7 +177,10 @@ the old embed. Nothing server-side needs to change.
 
 These are a one-time Designer change. Nothing is needed per report:
 
-1. On the **Insights Template** page, add an Embed element:
+1. On the **Insights Template** page, add an Embed element. Put it in the
+   full-width section (`.section-inner-insights`, 1200 px), not inside the
+   760 px article body: A4 report pages are 794 px wide and would otherwise
+   shrink on desktop too.
 
    ```html
    <script src="https://tools.wusoolcapital.com/embed.js"
@@ -188,10 +191,15 @@ These are a one-time Designer change. Nothing is needed per report:
    visibility of **Gated is on**, using the collection's existing switch.
 2. On the same template, hide Body Content, Key Takeaways and FAQ when
    **Gated** is on. The report replaces them.
-3. Set `LEAD_MAGNET_SANITY_PROJECT_ID`, `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`
-   and `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the
-   Secrets Manager `env` map, then add the Sanity webhook described in
-   `sanity/README.md`.
+3. Set `LEAD_MAGNET_SANITY_PROJECT_ID`, `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`,
+   `LEAD_MAGNET_SANITY_WRITE_TOKEN` (a Sanity Editor token) and
+   `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the
+   Secrets Manager `env` map. Then add the Sanity webhook described in
+   `sanity/README.md`, using its filter and projection exactly.
+
+The image now carries headless Chromium (see `server/Dockerfile`), about
+590 MB. It runs only during a Sanity publish, about 2.4 s and about 300 MB
+RAM for the first playbook, one render at a time on the `t3.small`.
 4. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
    Without it, the org write for every unlock fails.
 

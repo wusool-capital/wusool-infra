@@ -37,6 +37,7 @@ from app.modules.lead_magnets.providers.attio.deal_writer import AttioDealWriter
 from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWriter
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
+from app.modules.lead_magnets.providers.chromium.renderer import ChromiumReportRenderer
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
 from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
@@ -258,7 +259,14 @@ def build_report_source() -> SanityReportSource:
     return SanityReportSource(
         project_id=settings.lead_magnet_sanity_project_id,
         dataset=settings.lead_magnet_sanity_dataset,
+        write_token=settings.lead_magnet_sanity_write_token,
     )
+
+
+@lru_cache
+def build_report_renderer() -> ChromiumReportRenderer:
+    """One per process, so its lock really does serialise renders."""
+    return ChromiumReportRenderer()
 
 
 def build_report_sync() -> ReportSync:
@@ -269,6 +277,7 @@ def build_report_sync() -> ReportSync:
             token=settings.lead_magnet_webflow_api_token,
             collection_id=settings.lead_magnet_webflow_insights_collection_id,
         ),
+        renderer=build_report_renderer(),
     )
 
 

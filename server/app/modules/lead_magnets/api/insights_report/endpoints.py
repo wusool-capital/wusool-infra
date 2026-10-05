@@ -172,6 +172,7 @@ async def sanity_webhook(request: Request) -> None:
     if not (
         settings.lead_magnet_sanity_project_id
         and settings.lead_magnet_sanity_webhook_secret
+        and settings.lead_magnet_sanity_write_token
         and settings.lead_magnet_webflow_api_token
     ):
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "report sync is not configured")

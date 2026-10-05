@@ -23,6 +23,10 @@ for current production evidence and open handover items.
   - Ticking "Pin to top of /insights" makes a report the featured card and
     unpins the previous one.
   - Existing hand-written articles stay open.
+  - Reports exported as self-unpacking pages, which build themselves with
+    JavaScript, are drawn once in headless Chromium on publish and served
+    as static HTML. This makes them splittable, and on phones they shrink
+    to fit. The toolkit image grows by about 590 MB.
 
 ## 2026-10-04
 

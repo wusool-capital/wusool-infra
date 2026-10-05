@@ -89,7 +89,10 @@ Static pages are served under `/valuation/`, `/readiness/`, `/benchmark/`,
 `/buyers/`, `/get-started/` and `/report/`, with `/embed.js` for website
 integration.
 
-Gated reports are written in a Sanity Studio (`sanity/README.md`).
+Gated reports are written in a Sanity Studio (`sanity/README.md`). On
+publish, the server draws each new version once in headless Chromium and
+stores it as static HTML, so exports that build their pages with JavaScript
+can be gated too.
 Publishing one there creates the `/insights` card in Webflow automatically,
 with the collection's **Gated** switch on. Report unlocks send no emails. A
 returning reader skips the form, and each new report they open is logged as

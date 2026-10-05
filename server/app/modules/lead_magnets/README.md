@@ -205,6 +205,14 @@ the first 25% open and the rest behind one short form. There are three parts:
   Free quota. The
   Free-plan dataset is public, which is an accepted risk described in
   `sanity/README.md`.
+- **Flattening.** Some exports draw their pages with JavaScript. "Buyouts in
+  the GCC" is a self-unpacking design-tool bundle whose 40 A4 pages and
+  React tables exist only after its scripts run. On each publish,
+  `application/insights_report/sync.py` opens a new HTML version once in
+  headless Chromium (`providers/chromium/renderer.py`, network blocked, one
+  render at a time) and saves the drawn page back to Sanity's hidden
+  `renderedHtml`. Readers are served that copy. The playbook renders in
+  about 2.4 s and peaks at about 300 MB RAM.
 - **Gate.** `domain/insights_report/split.py` cuts on a top-level block
   boundary at about 25% of the text. `GET /reports/{slug}` never sends the
   rest to a new reader. `POST /reports/{slug}/unlock` records an
