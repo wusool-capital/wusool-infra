@@ -14,8 +14,7 @@ for current production evidence and open handover items.
 
 - Insights reports can be published behind a lead gate. The business writes
   a report in the new Wusool Reports Studio (Sanity) and publishes it. Its
-  `/insights` card is then created in Webflow automatically through
-  Webflow's live API.
+  `/insights` card is then created automatically in Webflow.
   - Readers see the first quarter of the report, then a short name, email
     and organisation form. The full report opens in place without a reload.
   - Each reader becomes an organisation and a person in Attio, with no role
