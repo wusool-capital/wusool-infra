@@ -25,15 +25,14 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
 ## One-time setup
 
-1. Create a project at <https://www.sanity.io/manage> (Free plan) with a
-   `production` dataset. Free datasets are public. The toolkit server reads
-   them without a token.
+1. The project is **Insights and Reports** (`itidwo8t`) on the Free plan, with
+   a public `production` dataset. The toolkit server reads it without a token.
 2. Run the Studio locally, then deploy it:
 
    ```bash
    npm install
-   SANITY_STUDIO_PROJECT_ID=<project id> npm run dev      # http://localhost:3333
-   SANITY_STUDIO_PROJECT_ID=<project id> npm run deploy   # <name>.sanity.studio
+   SANITY_STUDIO_PROJECT_ID=itidwo8t npm run dev      # http://localhost:3333
+   SANITY_STUDIO_PROJECT_ID=itidwo8t npm run deploy   # <name>.sanity.studio
    ```
 
 3. Invite the editors under **Members** in the Sanity project.
@@ -44,16 +43,17 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `_type == "report" && (delta::changedAny((title, slug, html, excerpt, cover, author, silo, publishedAt, featured)) \|\| !defined(renderedHtml))` |
+   | Filter | `_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, html, excerpt, cover, author, silo, publishedAt, featured)) \|\| !defined(renderedHtml))` |
    | Projection | `{"slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
    | Drafts | off |
 
-   The filter skips edits that touch only `renderedHtml`, so the server's
-   own save never starts a second sync. `!defined(renderedHtml)` catches a
-   report whose rendered copy was dropped, for example when an older draft
-   is published over it.
+   The filter skips updates that touch only `renderedHtml`, so the server's
+   own save never starts a second sync. Creates and deletes always pass,
+   since `delta::changedAny` doesn't match them reliably; an unpublish fires
+   as a delete. `!defined(renderedHtml)` catches a report whose rendered copy
+   was dropped, for example when an older draft is published over it.
 
 5. Set the server env in the Toolkit Secrets Manager `env` map:
    - `LEAD_MAGNET_SANITY_PROJECT_ID`
