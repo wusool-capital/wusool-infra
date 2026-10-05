@@ -31,16 +31,22 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
    ```bash
    npm install
-   SANITY_STUDIO_PROJECT_ID=itidwo8t npm run dev      # http://localhost:3333
-   SANITY_STUDIO_PROJECT_ID=itidwo8t npm run deploy   # <name>.sanity.studio
+   npx sanity login                          # once per machine
+   npm run dev                               # http://localhost:3333
+   npx sanity deploy --url wusool-reports -y # https://wusool-reports.sanity.studio
    ```
 
 3. Invite the editors under **Members** in the Sanity project.
-4. Add a webhook under **API → Webhooks**. The free plan allows 2:
+4. Two webhooks already exist, **disabled and without a secret**: "Report sync
+   (dev)" → `https://63-184-6-136.sslip.io/...` and "Report sync (prod)" →
+   `https://tools.wusoolcapital.com/...`. For each environment, once its
+   server is deployed: edit the webhook, set a secret (same value as that
+   environment's `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`), and enable it. For
+   reference, their settings are (the free plan allows 2):
 
    | Setting | Value |
    |---|---|
-   | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` |
+   | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
    | Filter | `_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, html, excerpt, cover, author, silo, publishedAt, featured)) \|\| !defined(renderedHtml))` |
@@ -48,6 +54,7 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
    | Drafts | off |
+   | API version | `v2025-02-19` |
 
    The filter skips updates that touch only `renderedHtml`, so the server's
    own save never starts a second sync. Creates and deletes always pass,
