@@ -33,7 +33,7 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    npm install
    npx sanity login                          # once per machine
    npm run dev                               # http://localhost:3333
-   npx sanity deploy --url wusool-reports -y # https://wusool-reports.sanity.studio
+   npx sanity deploy -y                      # https://wusool-reports.sanity.studio (live)
    ```
 
 3. Invite the editors under **Members** in the Sanity project.
