@@ -164,10 +164,11 @@ class Criterion(StrEnum):
     EBITDA = "ebitda"
 
 
-# Mirrors `/edit-buyer`'s field labels so the advisor knows exactly which fields to fill in.
-CRITERION_LABELS: dict[Criterion, str] = {
-    Criterion.VERTICAL: "Target vertical",
-    Criterion.GEOGRAPHY: "Target region / Target country",
-    Criterion.TICKET_BAND: "Check size - min / Check size - max",
-    Criterion.EBITDA: "EBITDA floor / EBITDA ceiling",
+# `/edit-buyer`'s field labels, so the advisor knows exactly which fields to fill in.
+# Drift-tested against `BUYER_ROLE_FIELDS` in `tests/test_discrepancies_field_labels.py`.
+CRITERION_FIELD_LABELS: dict[Criterion, tuple[str, ...]] = {
+    Criterion.VERTICAL: ("Target vertical",),
+    Criterion.GEOGRAPHY: ("Target region", "Target country"),
+    Criterion.TICKET_BAND: ("Check size - min (USD)", "Check size - max (USD)"),
+    Criterion.EBITDA: ("EBITDA floor (USD)", "EBITDA ceiling (USD)"),
 }

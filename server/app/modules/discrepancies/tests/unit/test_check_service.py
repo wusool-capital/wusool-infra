@@ -58,7 +58,8 @@ async def test_extracted_conflict_is_reported() -> None:
     assert result.context_checked
     assert [d.criterion.value for d in result.report.conflicts] == ["ticket_band"]
     assert result.message.startswith(
-        "*Doesn't match your note*\n• Check size - min / Check size - max: profile has"
+        "*Shahroukh Capital's profile doesn't match your note*\n"
+        "• Check size - min (USD) / Check size - max (USD): profile has"
     )
 
 

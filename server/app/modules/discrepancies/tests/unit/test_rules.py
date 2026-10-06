@@ -2,6 +2,8 @@
 no Bedrock call. Deterministic rules only.
 """
 
+from dataclasses import replace
+
 import pytest
 
 from app.modules.discrepancies.domain.criteria import (
@@ -298,12 +300,15 @@ _MISSING = (
     Discrepancy(Criterion.TICKET_BAND, "missing", stored="(not set)"),
     Discrepancy(Criterion.EBITDA, "missing", stored="(not set)"),
 )
-_CONFLICT_LINE = "*Doesn't match your note*\n• Target vertical: profile has Pharma, you said Garage"
+_CONFLICT_LINE = (
+    "*Cursor's profile doesn't match your note*\n"
+    "• Target vertical: profile has Pharma, you said Garage"
+)
 _MISSING_LINE = (
     "*Missing from Cursor's profile*\n"
     "• Target region / Target country\n"
-    "• Check size - min / Check size - max\n"
-    "• EBITDA floor / EBITDA ceiling"
+    "• Check size - min (USD) / Check size - max (USD)\n"
+    "• EBITDA floor (USD) / EBITDA ceiling (USD)"
 )
 
 
@@ -340,7 +345,18 @@ def test_template_message_uses_the_approved_wording(
 def test_template_message_single_missing_item() -> None:
     report = DiscrepancyReport(buyer_role_id="role-8", missing=_MISSING[2:])
     message = template_message(_CURSOR, report, context_checked=True)
-    assert message == "*Missing from Cursor's profile*\n• EBITDA floor / EBITDA ceiling"
+    assert message == "*Missing from Cursor's profile*\n• EBITDA floor (USD) / EBITDA ceiling (USD)"
+
+
+def test_template_message_escapes_slack_control_characters() -> None:
+    criteria = replace(_CURSOR, org_name="Smith & <Jones>")
+    conflict = Discrepancy(Criterion.VERTICAL, "conflict", stored="A & B", stated="<C>")
+    report = DiscrepancyReport(buyer_role_id="role-8", conflicts=(conflict,))
+    message = template_message(criteria, report, context_checked=True)
+    assert message == (
+        "*Smith &amp; &lt;Jones&gt;'s profile doesn't match your note*\n"
+        "• Target vertical: profile has A &amp; B, you said &lt;C&gt;"
+    )
 
 
 def _geo_buyer(regions: list[str], countries: list[str]) -> BuyerCriteria:

@@ -31,7 +31,7 @@ _MISSING = DiscrepancyCheckResult(
         buyer_role_id="buyer-1",
         missing=(Discrepancy(Criterion.EBITDA, "missing", stored="(not set)"),),
     ),
-    message="Heads up: Buyer's profile is missing EBITDA.",
+    message="*Missing from Buyer's profile*\n• EBITDA floor (USD) / EBITDA ceiling (USD)",
     context_checked=True,
 )
 _CLEAR = DiscrepancyCheckResult(
@@ -44,12 +44,17 @@ _CONFLICT = DiscrepancyCheckResult(
         buyer_role_id="buyer-1",
         conflicts=(Discrepancy(Criterion.VERTICAL, "conflict", stored="Garage", stated="Fintech"),),
     ),
-    message="Heads up: Buyer's profile says vertical is Garage, but you said Fintech.",
+    message=(
+        "*Buyer's profile doesn't match your note*\n"
+        "• Target vertical: profile has Garage, you said Fintech"
+    ),
     context_checked=True,
 )
 _UNCHECKED = DiscrepancyCheckResult(
     report=DiscrepancyReport(buyer_role_id="buyer-1"),
-    message="Nothing is missing from Buyer's profile, but your note couldn't be checked.",
+    message=(
+        "Nothing is missing from Buyer's profile, but your note couldn't be checked for conflicts."
+    ),
     context_checked=False,
 )
 
@@ -61,6 +66,15 @@ def test_gate_modal_runs_anyway_on_submit_and_round_trips_metadata() -> None:
     assert view["submit"]["text"] == "Run anyway"
     assert view["blocks"][0]["text"]["text"] == _MISSING.message
     assert DiscrepancyGateMetadata.model_validate_json(view["private_metadata"]) == _GATE
+
+
+def test_gate_modal_cuts_a_long_message_at_a_line_break() -> None:
+    message = "\n".join(f"• line {i:04d}" for i in range(400))
+    view = build_discrepancy_gate_modal(_GATE, message).to_dict()
+
+    text = view["blocks"][0]["text"]["text"]
+    assert len(text) <= 3000
+    assert message.startswith(text + "\n")
 
 
 @dataclass
@@ -92,7 +106,7 @@ def _check_returns(monkeypatch: pytest.MonkeyPatch, **kwargs: object) -> None:
     [
         ({"return_value": _MISSING}, f"{_MISSING.message}\n\n{actions._FIX_FIRST_TEXT}"),
         ({"return_value": _CLEAR}, _CLEAR.message),
-        # "Fill these in" only makes sense when a field is actually missing.
+        # "Fill in the missing fields" only makes sense when a field is actually missing.
         ({"return_value": _CONFLICT}, _CONFLICT.message),
         ({"return_value": _UNCHECKED}, _UNCHECKED.message),
         ({"return_value": None}, actions._BUYER_GONE_TEXT),
