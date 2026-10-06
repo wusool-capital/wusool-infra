@@ -248,6 +248,12 @@ pub fn open_changelog<R: Runtime>(app: AppHandle<R>) {
     open_changelog_in_browser(&app);
 }
 
+/// Lets the frontend bring Scribe forward once a stopped recording's meeting opens.
+#[tauri::command]
+pub fn focus_main_window_command<R: Runtime>(app: AppHandle<R>) {
+    focus_main_window(&app);
+}
+
 fn check_updates_handler<R: Runtime>(app: &AppHandle<R>) {
     focus_main_window(app);
     if let Some(window) = app.get_webview_window("main") {

@@ -601,6 +601,7 @@ pub fn run() {
             autostart::set_open_at_login,
             autostart::prepare_relaunch,
             tray::open_changelog,
+            tray::focus_main_window_command,
             start_recording,
             stop_recording,
             is_recording,
