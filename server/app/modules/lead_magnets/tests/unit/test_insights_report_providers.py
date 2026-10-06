@@ -29,6 +29,8 @@ _SANITY_REPORT = {
     "featured": None,
     "author": "Jules Chasles",
     "silo": "Buy a Business",
+    "ctaText": "Get your free valuation",
+    "ctaUrl": "/valuation-tool",
 }
 
 _COLLECTION = {
@@ -76,6 +78,7 @@ async def test_sanity_report_is_parsed_and_cached(monkeypatch) -> None:
 
     assert report is not None and report.author == "Jules Chasles"
     assert report.featured is False
+    assert (report.cta_text, report.cta_url) == ("Get your free valuation", "/valuation-tool")
     assert len(requests) == 1, "the second read comes from the cache"
     assert requests[0].url.host == "p.apicdn.sanity.io", "page views use the CDN quota"
     assert requests[0].url.params["$slug"] == '"buyouts-in-the-gcc"'
@@ -146,6 +149,8 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
         cover_url="https://cdn.sanity.io/cover.jpg",
         author="Jules Chasles",
         silo="Buy a Business",
+        cta_text="Get your free valuation",
+        cta_url="/valuation-tool",
     )
 
     data = (await cms.field_data(report, featured=True)).model_dump(
@@ -162,6 +167,8 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
     assert data["author"] == "team-jules"
     assert data["primary-silo"] == "opt-buy"
     assert data["featured-image"]["url"].endswith("cover.jpg?w=1600&fm=jpg")
+    assert data["cta-text"] == "Get your free valuation"
+    assert data["cta-url"] == "/valuation-tool"
 
 
 async def test_unknown_author_and_silo_are_left_out_not_guessed(monkeypatch) -> None:
@@ -174,6 +181,7 @@ async def test_unknown_author_and_silo_are_left_out_not_guessed(monkeypatch) -> 
     data = (await cms.field_data(report)).model_dump(by_alias=True, exclude_none=True)
 
     assert "author" not in data and "primary-silo" not in data
+    assert "cta-text" not in data and "cta-url" not in data, "no button means none is written"
     assert "featured" not in data, "no pin change means the pin isn't written at all"
 
 
