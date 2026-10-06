@@ -60,7 +60,18 @@ async def test_a_script_built_export_becomes_static_html() -> None:
     assert "width: 794px" in html, "the shadow-DOM page width is copied inline"
 
 
-async def test_the_gate_is_marked_at_a_quarter_of_the_drawn_height() -> None:
+async def test_the_preview_is_exactly_the_first_page() -> None:
+    await _require_chromium()
+
+    html = await ChromiumReportRenderer().render(_EXPORT)
+    preview, rest = split_report(html)
+
+    assert html.count("data-wusool-gate") == 1
+    assert "static page one" in preview and "page two" not in preview
+    assert "page two drawn by script" in rest
+
+
+async def test_without_pages_the_gate_falls_after_the_first_block() -> None:
     await _require_chromium()
     paragraphs = "".join(f'<p style="height:100px;margin:0">p{n}</p>' for n in range(20))
 
@@ -68,7 +79,7 @@ async def test_the_gate_is_marked_at_a_quarter_of_the_drawn_height() -> None:
     preview, _ = split_report(html)
 
     assert html.count("data-wusool-gate") == 1
-    assert preview.count("<p") == 5, "25% of 20 equal-height blocks"
+    assert preview.count("<p") == 1
 
 
 async def test_no_way_to_run_code_or_frame_third_parties_survives() -> None:

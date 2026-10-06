@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-07
+
+### Changed
+
+- Locked insights reports now show only the first page to a new reader,
+  down from the first quarter. Each live report must be republished in
+  Sanity once to pick this up.
+
 ## 2026-10-06
 
 ### Fixed
