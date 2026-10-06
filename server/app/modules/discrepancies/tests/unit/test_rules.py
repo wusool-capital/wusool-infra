@@ -298,8 +298,8 @@ _MISSING = (
     Discrepancy(Criterion.TICKET_BAND, "missing", stored="(not set)"),
     Discrepancy(Criterion.EBITDA, "missing", stored="(not set)"),
 )
-_CONFLICT_LINE = "Heads up: Cursor's profile says vertical is Pharma, but you said Garage."
-_MISSING_LINE = "Heads up: Cursor's profile is missing geography, ticket band and EBITDA."
+_CONFLICT_LINE = "*Doesn't match your note*\n• Vertical: profile has Pharma, you said Garage"
+_MISSING_LINE = "*Missing from Cursor's profile*\n• Geography\n• Ticket band\n• EBITDA"
 
 
 @pytest.mark.parametrize(
@@ -308,8 +308,8 @@ _MISSING_LINE = "Heads up: Cursor's profile is missing geography, ticket band an
         ((), (), True, "No missing or conflicting details found for Cursor."),
         ((_VERTICAL_CONFLICT,), (), True, _CONFLICT_LINE),
         ((), _MISSING, True, _MISSING_LINE),
-        ((_VERTICAL_CONFLICT,), _MISSING, True, f"{_CONFLICT_LINE}\n{_MISSING_LINE}"),
-        ((), _MISSING, False, f"{_MISSING_LINE}\nYour note couldn't be checked for conflicts."),
+        ((_VERTICAL_CONFLICT,), _MISSING, True, f"{_CONFLICT_LINE}\n\n{_MISSING_LINE}"),
+        ((), _MISSING, False, f"{_MISSING_LINE}\n\nYour note couldn't be checked for conflicts."),
         (
             (),
             (),
@@ -332,10 +332,10 @@ def test_template_message_uses_the_approved_wording(
         assert "no missing or conflicting" not in message.lower()
 
 
-def test_template_message_single_missing_item_has_no_join() -> None:
+def test_template_message_single_missing_item() -> None:
     report = DiscrepancyReport(buyer_role_id="role-8", missing=_MISSING[2:])
     message = template_message(_CURSOR, report, context_checked=True)
-    assert message == "Heads up: Cursor's profile is missing EBITDA."
+    assert message == "*Missing from Cursor's profile*\n• EBITDA"
 
 
 def _geo_buyer(regions: list[str], countries: list[str]) -> BuyerCriteria:

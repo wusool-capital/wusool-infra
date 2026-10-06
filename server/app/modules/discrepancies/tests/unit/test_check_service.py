@@ -57,7 +57,7 @@ async def test_extracted_conflict_is_reported() -> None:
     assert extractor.texts == ["ticket size $50M"]
     assert result.context_checked
     assert [d.criterion.value for d in result.report.conflicts] == ["ticket_band"]
-    assert result.message.startswith("Heads up: Shahroukh Capital's profile says ticket band")
+    assert result.message.startswith("*Doesn't match your note*\n• Ticket band: profile has")
 
 
 @pytest.mark.asyncio

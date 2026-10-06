@@ -201,8 +201,9 @@ def run_checks(criteria: BuyerCriteria, context: ParsedContext) -> DiscrepancyRe
     )
 
 
-def _join(items: list[str]) -> str:
-    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
+def _label(d: Discrepancy) -> str:
+    label = CRITERION_LABELS[d.criterion]
+    return label[0].upper() + label[1:]
 
 
 def _context_summary(context: ParsedContext) -> str:
@@ -225,14 +226,20 @@ def template_message(
     """Never says "no conflicting details" unless the note was actually checked.
     Echoes what was read from the note so a misread is visible."""
     org = criteria.org_name
-    lines = [
-        f"Heads up: {org}'s profile says {CRITERION_LABELS[d.criterion]} is {d.stored}, "
-        f"but you said {d.stated}."
-        for d in report.conflicts
-    ]
+    lines = []
+    if report.conflicts:
+        lines.append(
+            "*Doesn't match your note*\n"
+            + "\n".join(
+                f"• {_label(d)}: profile has {d.stored}, you said {d.stated}"
+                for d in report.conflicts
+            )
+        )
     if report.missing:
-        missing = _join([CRITERION_LABELS[d.criterion] for d in report.missing])
-        lines.append(f"Heads up: {org}'s profile is missing {missing}.")
+        lines.append(
+            f"*Missing from {org}'s profile*\n"
+            + "\n".join(f"• {_label(d)}" for d in report.missing)
+        )
     if not context_checked:
         lines.append(
             "Your note couldn't be checked for conflicts."
@@ -244,4 +251,4 @@ def template_message(
         lines.append(f"No missing or conflicting details found for {org}.")
     if context_checked and context is not None and not context.is_empty:
         lines.append(f"_Read your note as: {_context_summary(context)}_")
-    return "\n".join(lines)
+    return "\n\n".join(lines)
