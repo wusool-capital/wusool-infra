@@ -4,8 +4,9 @@ Field slugs are the live Insights collection's own (read through the
 Webflow API, 2026-10-05). Option and Team ids are resolved by name at sync
 time, never hardcoded, so renaming an author in Webflow doesn't break this.
 
-Every write uses the `/live` endpoints, so the card should reach the live site
-without a Designer publish. Not yet verified with a real token.
+Cards reach the live site without a Designer publish. A card update is written
+to the staged item and then published, because the `/live` update 409s
+("Item not published") on a card an earlier sync unpublished.
 """
 
 import logging
@@ -57,6 +58,7 @@ class _ItemFields(BaseModel):
     slug: str | None = None
     gated: bool | None = None
     featured: bool | None = None
+    published_date: str | None = Field(default=None, alias="published-date")
 
 
 class _Item(BaseModel):
@@ -111,10 +113,26 @@ class _FeaturedPatch(BaseModel):
     featured: bool
 
 
+class _Publish(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    item_ids: list[str] = Field(alias="itemIds")
+
+
+class _Published(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    published_item_ids: list[str] = Field(default=[], alias="publishedItemIds")
+
+
+class _Created(BaseModel):
+    id: str
+
+
 class _ItemWrite(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    # Omitted on the unpin write: it must not change a hand-written article's draft state.
+    # Omitted on pin writes: they must not change a hand-written article's draft state.
     is_draft: bool | None = Field(default=None, alias="isDraft")
     field_data: InsightFieldData | _FeaturedPatch = Field(alias="fieldData")
 
@@ -141,35 +159,72 @@ class WebflowInsightsCms:
             return None
         return CmsItem(id=item.id, gated=bool(item.field_data.gated))
 
-    async def create(self, report: ReportDocument, *, featured: bool | None) -> None:
+    async def create(self, report: ReportDocument, *, featured: bool | None) -> str:
         body = _ItemWrite(is_draft=False, field_data=await self.field_data(report, featured))
-        await self._request("POST", f"/collections/{self._collection_id}/items/live", body=body)
+        response = await self._request(
+            "POST", f"/collections/{self._collection_id}/items/live", body=body
+        )
+        return _Created.model_validate_json(response.content).id
 
     async def update(self, item_id: str, report: ReportDocument, *, featured: bool | None) -> None:
         body = _ItemWrite(is_draft=False, field_data=await self.field_data(report, featured))
         await self._request(
-            "PATCH", f"/collections/{self._collection_id}/items/{item_id}/live", body=body
+            "PATCH", f"/collections/{self._collection_id}/items/{item_id}", body=body
         )
+        response = await self._request(
+            "POST",
+            f"/collections/{self._collection_id}/items/publish",
+            body=_Publish(item_ids=[item_id]),
+        )
+        # Per-item failures come back in a 202, not as an HTTP error.
+        if item_id not in _Published.model_validate_json(response.content).published_item_ids:
+            raise RuntimeError(f"Webflow did not publish item {item_id}")
 
     async def unpublish(self, item_id: str) -> None:
-        await self._request("DELETE", f"/collections/{self._collection_id}/items/{item_id}/live")
+        try:
+            await self._request(
+                "DELETE", f"/collections/{self._collection_id}/items/{item_id}/live"
+            )
+        except httpx.HTTPStatusError as error:
+            # Already off the live site, e.g. an earlier sync unpublished it.
+            if error.response.status_code != 404:
+                raise
 
     async def featured_ids(self) -> list[str]:
-        ids: list[str] = []
-        offset = 0
-        while True:
-            page = await self._list(f"/collections/{self._collection_id}/items/live", offset=offset)
-            ids += [item.id for item in page.items if item.field_data.featured]
-            offset += _PAGE
-            if offset >= page.pagination.total:
-                return ids
+        return [item.id for item in await self._live_items() if item.field_data.featured]
+
+    async def newest_id(self, *, excluding: str | None = None) -> str | None:
+        dated = [
+            item
+            for item in await self._live_items()
+            if item.field_data.published_date and item.id != excluding
+        ]
+        if not dated:
+            return None
+        return max(dated, key=lambda item: item.field_data.published_date or "").id
+
+    async def feature(self, item_id: str) -> None:
+        await self._pin(item_id, featured=True)
 
     async def unfeature(self, item_id: str) -> None:
+        await self._pin(item_id, featured=False)
+
+    async def _pin(self, item_id: str, *, featured: bool) -> None:
         await self._request(
             "PATCH",
             f"/collections/{self._collection_id}/items/{item_id}/live",
-            body=_ItemWrite(field_data=_FeaturedPatch(featured=False)),
+            body=_ItemWrite(field_data=_FeaturedPatch(featured=featured)),
         )
+
+    async def _live_items(self) -> list[_Item]:
+        items: list[_Item] = []
+        offset = 0
+        while True:
+            page = await self._list(f"/collections/{self._collection_id}/items/live", offset=offset)
+            items += page.items
+            offset += _PAGE
+            if offset >= page.pagination.total:
+                return items
 
     async def field_data(
         self, report: ReportDocument, featured: bool | None = None
@@ -240,7 +295,7 @@ class WebflowInsightsCms:
         path: str,
         *,
         params: dict[str, str | int] | None = None,
-        body: _ItemWrite | None = None,
+        body: _ItemWrite | _Publish | None = None,
     ) -> httpx.Response:
         content = body.model_dump_json(by_alias=True, exclude_none=True) if body else None
         headers = {**self._headers, "content-type": "application/json"} if body else self._headers

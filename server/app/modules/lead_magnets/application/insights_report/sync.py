@@ -38,11 +38,13 @@ class ReportSync:
         The pin only moves when this edit ticked or unticked it. Pinning a
         newer report unpins the older card in Webflow only, so the older
         report still says "pinned" in Sanity; acting on that on every edit
-        would steal the pin back on a typo fix."""
+        would steal the pin back on a typo fix. When nothing is left pinned,
+        the newest live card takes the slot."""
         if previous_slug and previous_slug != slug:
             await self._source.refresh(previous_slug)
             await self._unpublish(previous_slug)
         if slug is None:
+            await self._keep_one_pinned()
             return
 
         source = await self._source.source(slug)
@@ -60,6 +62,7 @@ class ReportSync:
         report = await self._source.refresh(slug)
         if report is None:
             await self._unpublish(slug)
+            await self._keep_one_pinned()
             return
 
         item = await self._cms.find(slug)
@@ -69,18 +72,31 @@ class ReportSync:
             return
 
         featured = report.featured if featured_changed else None
-        if featured:
-            # One pinned card only; this is the sync's single write to articles it didn't create.
-            for item_id in await self._cms.featured_ids():
-                if item is None or item_id != item.id:
-                    await self._cms.unfeature(item_id)
-
         if item is None:
-            await self._cms.create(report, featured=featured)
+            card_id = await self._cms.create(report, featured=featured)
         else:
-            await self._cms.update(item.id, report, featured=featured)
+            card_id = item.id
+            await self._cms.update(card_id, report, featured=featured)
+
+        if featured:
+            # Unpinned only once this card is live, so a failed write never empties the slot.
+            for item_id in await self._cms.featured_ids():
+                if item_id != card_id:
+                    await self._cms.unfeature(item_id)
+        else:
+            # An unticked card must not win the fallback straight back.
+            await self._keep_one_pinned(excluding=card_id if featured is False else None)
 
     async def _unpublish(self, slug: str) -> None:
         item = await self._cms.find(slug)
         if item is not None and item.gated:
             await self._cms.unpublish(item.id)
+
+    async def _keep_one_pinned(self, *, excluding: str | None = None) -> None:
+        """The featured block lists every pinned card; with none it reads "No items found".
+        This and the unpins are the sync's only writes to articles it didn't create."""
+        # `excluding` may still read as pinned while its unpin publishes.
+        if any(item_id != excluding for item_id in await self._cms.featured_ids()):
+            return
+        if newest := await self._cms.newest_id(excluding=excluding):
+            await self._cms.feature(newest)

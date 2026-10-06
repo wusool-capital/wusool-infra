@@ -233,12 +233,15 @@ the first 25% open and the rest behind one short form. There are three parts:
   never times out and retries mid-sync. A failed sync is only logged
   (`insights_report_sync_failed`); republishing the report repairs it.
   Signatures older than 10 minutes are rejected as replays.
-  It uses the live endpoints, which should need no Publish in Webflow; that
-  is not yet verified.
+  Cards go live without a Publish in Webflow. A new card uses the live
+  create; an existing one is written to its staged item, then published, since
+  the live update 409s on a card an earlier sync unpublished.
   - It never touches an item with `gated = false`. Every hand-written
     article is ungated.
-  - The one exception is turning `featured` off on the card that is
-    currently pinned, when a new report is featured.
+  - The exceptions are the pin writes. Featuring a new report unpins the
+    current card only after the new one is live.
+  - When nothing is left pinned, the newest live card is pinned, so the
+    featured block never reads "No items found".
   - The pin moves only when the edit ticked or unticked it (`featuredChanged`
     in the webhook projection). Otherwise a typo fix on an older, still-ticked
     report would take the pin back.
