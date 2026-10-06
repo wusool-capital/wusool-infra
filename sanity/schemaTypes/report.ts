@@ -68,6 +68,35 @@ export const report = defineType({
       initialValue: false,
       description: 'Unpins whichever card is pinned now.',
     }),
+    defineField({
+      name: 'cta',
+      title: 'End-of-page button',
+      type: 'object',
+      description:
+        'Optional button below the report. Removing it here does not remove it from the site; clear it in Webflow too.',
+      fields: [
+        defineField({
+          name: 'text',
+          title: 'Button text',
+          type: 'string',
+          validation: (rule) => rule.max(80),
+        }),
+        defineField({
+          name: 'url',
+          title: 'Button link',
+          type: 'url',
+          description: 'A full URL, or a site path such as /sell.',
+          // Existing article buttons use site paths like /sell and /valuation-tool.
+          validation: (rule) => rule.uri({allowRelative: true, scheme: ['http', 'https']}),
+        }),
+      ],
+      validation: (rule) =>
+        rule.custom<{text?: string; url?: string}>((cta) =>
+          Boolean(cta?.text) === Boolean(cta?.url)
+            ? true
+            : 'Fill in both the text and the link, or neither',
+        ),
+    }),
     // Written by the toolkit server after each publish: the report as a browser draws it.
     defineField({name: 'renderedHtml', type: 'text', hidden: true, readOnly: true}),
     defineField({name: 'renderedPreviewEnd', type: 'number', hidden: true, readOnly: true}),

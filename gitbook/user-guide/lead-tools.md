@@ -17,7 +17,8 @@ Gated reports are written in the Wusool Reports Studio (Sanity), not in
 Webflow.
 
 1. Create a **Report** and fill in the title, slug, excerpt, and the pasted
-   report HTML. Cover image, author, primary silo, and date are optional.
+   report HTML. Cover image, author, primary silo, date, and the end-of-page
+   button (text and link) are optional.
 2. Tick **Pin to top of /insights** to make it the featured card. This
    unpins the card that is currently featured.
 3. Publish.

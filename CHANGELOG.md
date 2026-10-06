@@ -21,6 +21,8 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Insights reports can carry an end-of-page button. Editors set its text and
+  link in the Studio, and the sync copies them to the Webflow card.
 - Scribe desktop's menu-bar icon shows a red dot while recording and an
   amber dot while recording is paused.
 
