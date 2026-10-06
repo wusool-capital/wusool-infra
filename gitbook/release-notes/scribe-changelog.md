@@ -2,6 +2,19 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.7.6
+
+### What's new
+
+* The menu-bar icon shows a red dot while Scribe is recording and an amber dot while recording is paused. You can tell at a glance that a meeting is being captured.
+
+## 0.7.5
+
+### Changed
+
+* Stopping a recording opens its meeting as soon as it is saved, so you can review, edit or summarize the transcript right away. This applies to the Stop button, the menu-bar "Stop Recording" item, the countdown pill's "Stop now" and auto-stop when a meeting ends.
+* Scribe comes to the front when the meeting opens, even if you switched to another app while it finished transcribing.
+
 ## 0.7.4
 
 ### What's new

@@ -20,6 +20,7 @@ TARGETS = [
     "gitbook/technical",
     "gitbook/operations",
     "gitbook/deliverables",
+    "gitbook/release-notes",
 ]
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
