@@ -19,6 +19,9 @@ async () => {
 
   // Marks the block boundary nearest `share` of the drawn height; the server cuts the preview there.
   const markGate = (share) => {
+    // A viewer's children are its pages; a zero share shows page one only.
+    const viewer = share === 0 && [...document.querySelectorAll('*')].find((e) => e.shadowRoot && e.children.length > 1);
+    if (viewer) { viewer.children[1].setAttribute('data-wusool-gate', ''); return; }
     const skip = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'BR', 'WBR']);
     const inline = (el) => getComputedStyle(el).display.startsWith('inline');
     const blocks = (el) => [...el.children].filter(
@@ -79,7 +82,7 @@ async () => {
       }
     }
   }
-  markGate(0.25);
+  markGate(0);
   return '<!DOCTYPE html>' + document.documentElement.outerHTML;
 }
 

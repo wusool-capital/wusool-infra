@@ -31,7 +31,7 @@ _REPORT = ReportDocument(
     title="Buyouts in the GCC",
     html=_HTML,
     excerpt="E",
-    preview_end=len(split_report(_HTML)[0]),
+    preview_end=len(split_report(_HTML, share=0.25)[0]),
 )
 _OTHER = ReportDocument(
     slug="other-report", title="Other", html=_HTML, excerpt="E", preview_end=_REPORT.preview_end

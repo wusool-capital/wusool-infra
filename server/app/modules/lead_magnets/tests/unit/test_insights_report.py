@@ -1,9 +1,15 @@
-"""The gated report's pure pieces: the 25% cut, reading time, org domain."""
+"""The gated report's pure pieces: the text-share cut, reading time, org domain."""
 
 from app.modules.lead_magnets.domain.insights_report.report import org_domain, reading_time
-from app.modules.lead_magnets.domain.insights_report.split import split_report
+from app.modules.lead_magnets.domain.insights_report.split import split_report as _split
 
 _WORDS = "word " * 100
+_QUARTER = 0.25
+
+
+def split_report(html: str) -> tuple[str, str]:
+    """The share-based cut, which the default preview no longer uses."""
+    return _split(html, share=_QUARTER)
 
 
 def _doc(body: str) -> str:
@@ -107,3 +113,18 @@ def test_the_renderers_height_marker_wins_over_the_text_share() -> None:
 
     assert preview + rest == html
     assert rest.startswith("<section data-wusool-gate>")
+
+
+def test_default_preview_is_empty_when_nothing_marks_a_gate() -> None:
+    preview, rest = _split(_doc(f"<p>a{_WORDS}</p><p>b{_WORDS}</p>"))
+
+    assert "a" + _WORDS not in preview
+    assert "a" + _WORDS in rest
+
+
+def test_a_wrapper_holding_everything_is_never_the_free_preview() -> None:
+    html = _doc(f"<main><p>a{_WORDS}</p><p>b{_WORDS}</p></main><footer>end</footer>")
+
+    preview, _ = _split(html, share=0.0)
+
+    assert "b" + _WORDS not in preview
