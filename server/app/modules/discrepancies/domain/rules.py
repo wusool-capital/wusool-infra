@@ -15,7 +15,7 @@ from app.modules.discrepancies.domain.criteria import (
     ParsedContext,
 )
 from app.modules.discrepancies.domain.vocabulary import (
-    CRITERION_LABELS,
+    CRITERION_FIELD_LABELS,
     GENERALIST_VERTICAL,
     REGION_OPTIONS,
     Criterion,
@@ -23,6 +23,7 @@ from app.modules.discrepancies.domain.vocabulary import (
     regions_disjoint,
 )
 from app.modules.enrichment.domain.missingness import is_missing
+from app.modules.notifications.domain.text import sanitize_mrkdwn
 
 # Wider than `matching_engine`'s list; bare "check" (the verb) and "deal" are too loose.
 _TICKET_WORDS = re.compile(
@@ -201,8 +202,8 @@ def run_checks(criteria: BuyerCriteria, context: ParsedContext) -> DiscrepancyRe
     )
 
 
-def _join(items: list[str]) -> str:
-    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
+def _fields(d: Discrepancy) -> str:
+    return " / ".join(CRITERION_FIELD_LABELS[d.criterion])
 
 
 def _context_summary(context: ParsedContext) -> str:
@@ -224,15 +225,22 @@ def template_message(
 ) -> str:
     """Never says "no conflicting details" unless the note was actually checked.
     Echoes what was read from the note so a misread is visible."""
-    org = criteria.org_name
-    lines = [
-        f"Heads up: {org}'s profile says {CRITERION_LABELS[d.criterion]} is {d.stored}, "
-        f"but you said {d.stated}."
-        for d in report.conflicts
-    ]
+    org = sanitize_mrkdwn(criteria.org_name)
+    lines = []
+    if report.conflicts:
+        lines.append(
+            f"*{org}'s profile doesn't match your note*\n"
+            + "\n".join(
+                f"• {_fields(d)}: profile has {sanitize_mrkdwn(d.stored)}, "
+                f"you said {sanitize_mrkdwn(d.stated or '')}"
+                for d in report.conflicts
+            )
+        )
     if report.missing:
-        missing = _join([CRITERION_LABELS[d.criterion] for d in report.missing])
-        lines.append(f"Heads up: {org}'s profile is missing {missing}.")
+        lines.append(
+            f"*Missing from {org}'s profile*\n"
+            + "\n".join(f"• {_fields(d)}" for d in report.missing)
+        )
     if not context_checked:
         lines.append(
             "Your note couldn't be checked for conflicts."
@@ -243,5 +251,5 @@ def template_message(
     elif report.is_clear:
         lines.append(f"No missing or conflicting details found for {org}.")
     if context_checked and context is not None and not context.is_empty:
-        lines.append(f"_Read your note as: {_context_summary(context)}_")
-    return "\n".join(lines)
+        lines.append(f"_Read your note as: {sanitize_mrkdwn(_context_summary(context))}_")
+    return "\n\n".join(lines)

@@ -305,7 +305,7 @@ def register(app: AsyncApp) -> None:
 
 
 _CHECKING_TEXT = ":hourglass_flowing_sand: _Checking the buyer's profile…_"
-_FIX_FIRST_TEXT = "Fill these in first for a more accurate match, or click Run anyway."
+_FIX_FIRST_TEXT = "Fill in the missing fields first for a more accurate match, or click Run anyway."
 _BUYER_GONE_TEXT = "This buyer could not be found. It may have been removed."
 _CHECK_FAILED_TEXT = (
     ":warning: Couldn't check this buyer's profile, so missing or conflicting "

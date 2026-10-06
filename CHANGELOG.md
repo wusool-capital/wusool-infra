@@ -22,6 +22,9 @@ for current production evidence and open handover items.
   covers the Stop button, the menu-bar item, the pill's "Stop now" and
   auto-stop when a meeting ends. Auto-stop used to open the home page
   instead. Scribe also comes to the front when the meeting opens.
+- The "Before we match" popup and `/check-buyer` now list note conflicts
+  and missing profile fields under separate headings. Each item names the
+  `/edit-buyer` field to fill in.
 
 ## 2026-10-05
 

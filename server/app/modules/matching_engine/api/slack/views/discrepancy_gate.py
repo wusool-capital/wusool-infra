@@ -12,6 +12,14 @@ from app.modules.matching_engine.api.slack.schemas import DiscrepancyGateMetadat
 _MAX_SECTION_CHARS = 3000
 
 
+def _fit(message: str) -> str:
+    """Cuts at a line break so a long message never ends mid-bullet."""
+    if len(message) <= _MAX_SECTION_CHARS:
+        return message
+    cut = message.rfind("\n", 0, _MAX_SECTION_CHARS)
+    return message[: cut if cut > 0 else _MAX_SECTION_CHARS]
+
+
 def build_discrepancy_gate_modal(metadata: DiscrepancyGateMetadata, message: str) -> View:
     return View(
         type="modal",
@@ -20,5 +28,5 @@ def build_discrepancy_gate_modal(metadata: DiscrepancyGateMetadata, message: str
         title="Before we match",
         submit="Run anyway",
         close="Cancel",
-        blocks=[SectionBlock(text=message[:_MAX_SECTION_CHARS])],
+        blocks=[SectionBlock(text=_fit(message))],
     )
