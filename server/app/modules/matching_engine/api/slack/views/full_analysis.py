@@ -59,7 +59,9 @@ def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[Block]:
 
     blocks.append(HeaderBlock(text="Top Matches"))
     scores_by_id = {s.id: s for s in analysis.scores}
-    for candidate in sorted(analysis.candidates, key=lambda c: c.rank or 0):
+    # Discovered sellers are unscored, so they have no analysis to show.
+    crm_candidates = [c for c in analysis.candidates if c.origin == "crm"]
+    for candidate in sorted(crm_candidates, key=lambda c: c.rank or 0):
         blocks.extend(_candidate_blocks(candidate, scores_by_id))
 
     return blocks

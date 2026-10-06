@@ -157,7 +157,7 @@ def build_proposal_blocks(proposal: EnrichmentProposal) -> list[Block]:
     for value in proposal.values:
         # `current` is always empty here — `propose()` only ever proposes a
         # value for a field that was missing in the first place (see
-        # `EnrichMixin._is_missing`), so showing it adds nothing.
+        # `domain.missingness.is_missing`), so showing it adds nothing.
         blocks.append(
             SectionBlock(
                 text=(

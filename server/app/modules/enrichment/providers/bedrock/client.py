@@ -10,22 +10,22 @@ the entire retry-with-logging wrapper via
 `lead_magnets`' own client (`matching_engine`'s still hand-rolls its own
 loop, predating that helper's extraction; new callers should use the shared
 one, not mirror the older pattern). This file owns only what's genuinely
-its own: the repair-retry validation policy above the retry loop.
+its own: the schema and prompt it hands to `invoke_validated`.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pydantic import ValidationError
-
 from app.modules.enrichment.application.ports.llm import RepairPromptBuilder
 from app.modules.enrichment.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.enrichment.providers.bedrock.schemas import ExtractedFields
-from app.modules.utilities import BedrockInvocationError
 from app.modules.utilities.domain.bedrock import converse_kwargs
 from app.modules.utilities.domain.json_types import JsonObject
-from app.modules.utilities.providers.bedrock.retry import invoke_bedrock_with_retry
+from app.modules.utilities.providers.bedrock.retry import (
+    invoke_bedrock_with_retry,
+    invoke_validated,
+)
 
 if TYPE_CHECKING:
     from mypy_boto3_bedrock_runtime.type_defs import ConverseResponseTypeDef
@@ -47,31 +47,18 @@ class BedrockConverseClient:
         max_tokens: int,
     ) -> JsonObject:
         output_schema = ExtractedFields.model_json_schema()
-        raw = await self._invoke(model_id, prompt, temperature, max_tokens, output_schema)
-        validated, error = self._validate(raw)
 
-        if validated is None:
-            raw_retry = await self._invoke(
-                model_id,
-                repair_prompt_builder(raw, error or ""),
-                temperature,
-                max_tokens,
-                output_schema,
-            )
-            validated, error = self._validate(raw_retry)
+        async def invoke(text: str) -> JsonObject:
+            return await self._invoke(model_id, text, temperature, max_tokens, output_schema)
 
-        if validated is None:
-            raise BedrockInvocationError(
-                f"enrichment extraction failed validation after one repair attempt: {error}"
-            )
-        return validated
-
-    @staticmethod
-    def _validate(raw: JsonObject) -> tuple[JsonObject | None, str | None]:
-        try:
-            return ExtractedFields.model_validate(raw).model_dump(), None
-        except ValidationError as exc:
-            return None, str(exc)
+        validated = await invoke_validated(
+            schema=ExtractedFields,
+            invoke=invoke,
+            prompt=prompt,
+            operation=_OPERATION,
+            repair_prompt=repair_prompt_builder,
+        )
+        return validated.model_dump()
 
     async def _invoke(
         self,

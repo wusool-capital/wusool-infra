@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Wusool | Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="00-styles.css?v=3">
+</head>
+<body>
+
+<div id="stage">
+<div id="report"></div>
+
+<div id="gate" class="hide">
+  <div class="veil"></div>
+  <div class="card">
+    <div class="eyebrow">Free report</div>
+    <h2>Keep reading</h2>
+    <p class="lede">Tell us who you are and the full report opens right here.</p>
+    <form id="gate-form" novalidate>
+      <div class="grid">
+        <div class="fg"><label for="name">Full name *</label><input class="fi" type="text" id="name" name="name" autocomplete="name" placeholder="Jane Doe" maxlength="200" required></div>
+        <div class="fg"><label for="email">Work email *</label><input class="fi" type="email" id="email" name="email" autocomplete="email" placeholder="you@yourcompany.com" pattern="[^@\s]+@[^@\s]+\.[^@\s]+" maxlength="320" required aria-describedby="email-hint"><p class="hint" id="email-hint">Please use your work email address.</p></div>
+      </div>
+      <div class="fg"><label for="company">Organization *</label><input class="fi" type="text" id="company" name="company" autocomplete="organization" placeholder="Acme Trading LLC" maxlength="200" required></div>
+      <p class="note">By continuing you agree to Wusool Capital's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+      <div class="errtext" id="e-email">Please enter a valid work email, like you@yourcompany.com.</div>
+      <div class="errtext" id="e-form">Something went wrong. Please check your details and try again.</div>
+      <button class="btn btn-p" type="submit" id="submit-btn">Read the full report</button>
+    </form>
+  </div>
+</div>
+</div>
+
+<div id="lm-fallback" class="hide">
+  <p>This report did not load correctly. Please refresh the page.</p>
+</div>
+
+<script src="../shared/submission-id.js?v=1"></script>
+<script src="10-main.js?v=5" onerror="window.__lmFail=1"></script>
+<script src="../shared/height.js?v=3"></script>
+<script>
+  if(window.__lmFail || typeof submitGateForm!=="function"){
+    document.getElementById("lm-fallback").classList.remove("hide");
+  }
+</script>
+</body>
+</html>

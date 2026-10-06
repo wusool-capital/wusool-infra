@@ -113,3 +113,19 @@ async def test_failed_insert_leaves_the_outer_transaction_usable(db_session) -> 
         select(Organization).where(Organization.attio_id == org.attio_id)
     )
     assert result.scalar_one().attio_id == org.attio_id
+
+
+async def test_removed_meeting_ignores_late_publish_writes(db_session) -> None:
+    """A soft-deleted meeting must not be resurrected by a late summarize task."""
+    meeting = await _meeting_row(db_session)
+    meeting.status = "failed"
+    await db_session.flush()
+    repo = MeetingsRepository(db_session)
+    assert await repo.soft_delete(meeting.id) is True
+
+    await repo.mark_completed(meeting.id, summary_text="late", summary_json={}, title="t")
+    await db_session.refresh(meeting)
+
+    assert meeting.status == "failed"
+    assert meeting.summary is None
+    assert await repo.get_by_id(meeting.id) is None

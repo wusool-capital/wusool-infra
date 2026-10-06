@@ -13,12 +13,14 @@ can't drift apart because there's only one list.
 
 from dataclasses import dataclass
 
+from app.modules.discovery.domain.geography import country_spellings, resolve_known
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     CriterionScore,
     DataConfidence,
     FilterSkipped,
 )
+from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.requirements import (
     RequirementProfile,
     RequirementSource,
@@ -55,10 +57,6 @@ CRITERION_REGISTRY: dict[str, _CriterionSpec] = {
         "A sector the seller must NOT operate in, checked against the seller's "
         "sector_focus (inverse match).",
     ),
-    "client_type": _CriterionSpec(
-        frozenset({"client_type"}),
-        "Required seller client type, checked against the seller's client_type.",
-    ),
     "outreach_tier": _CriterionSpec(
         frozenset({"outreach_tier"}),
         "Required seller outreach tier, checked against the seller's outreach_tier.",
@@ -93,7 +91,6 @@ _EBITDA_KEYS = CRITERION_REGISTRY["ebitda"].synonyms
 _GEOGRAPHY_KEYS = CRITERION_REGISTRY["geography"].synonyms
 _SECTOR_KEYS = CRITERION_REGISTRY["sector"].synonyms
 _SECTOR_EXCLUSION_KEYS = CRITERION_REGISTRY["sector_exclusion"].synonyms
-_CLIENT_TYPE_KEYS = CRITERION_REGISTRY["client_type"].synonyms
 _OUTREACH_TIER_KEYS = CRITERION_REGISTRY["outreach_tier"].synonyms
 _RELATIONSHIP_STATUS_KEYS = CRITERION_REGISTRY["relationship_status"].synonyms
 _APPETITE_SIGNAL_KEYS = CRITERION_REGISTRY["appetite_signal"].synonyms
@@ -101,6 +98,11 @@ _APPETITE_SIGNAL_KEYS = CRITERION_REGISTRY["appetite_signal"].synonyms
 
 def normalize_criterion(name: str) -> str:
     return name.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def canonical_criterion(name: str) -> str | None:
+    key = normalize_criterion(name)
+    return next((c for c, spec in CRITERION_REGISTRY.items() if key in spec.synonyms), None)
 
 
 def is_monetary_criterion(name: str) -> bool:
@@ -149,13 +151,7 @@ def _evaluate_criterion(
     if key in _GEOGRAPHY_KEYS:
         if not candidate.geographic_focus and not candidate.hq_country:
             return "Unknown", "unavailable", 50.0
-        target = value.strip().lower()
-        in_focus = any(target == g.strip().lower() for g in candidate.geographic_focus)
-        # `hq_country` is a ", "-joined multi-value (an org can be headquartered
-        # across jurisdictions), so an equality check on the whole string would
-        # score every multi-country org as Fail.
-        in_hq = any(target == c.strip().lower() for c in (candidate.hq_country or "").split(","))
-        passes = in_focus or in_hq
+        passes = _geography_matches(value, candidate)
         return ("Pass" if passes else "Fail"), "crm_field", (100.0 if passes else 0.0)
 
     if key in _SECTOR_KEYS:
@@ -171,12 +167,6 @@ def _evaluate_criterion(
         target = value.strip().lower()
         excluded = any(target == s.strip().lower() for s in candidate.sector_focus)
         return ("Fail" if excluded else "Pass"), "crm_field", (0.0 if excluded else 100.0)
-
-    if key in _CLIENT_TYPE_KEYS:
-        if not candidate.client_type:
-            return "Unknown", "unavailable", 50.0
-        passes = candidate.client_type.strip().lower() == value.strip().lower()
-        return ("Pass" if passes else "Fail"), "crm_field", (100.0 if passes else 0.0)
 
     if key in _OUTREACH_TIER_KEYS:
         if not candidate.outreach_tier:
@@ -199,6 +189,40 @@ def _evaluate_criterion(
     return "Unknown", "unavailable", 50.0
 
 
+def _geography_matches(target: str, candidate: SellerCandidate) -> bool:
+    """A region matches any of its countries; a country matches any spelling
+    of itself, since org data mixes "UAE" and "United Arab Emirates"."""
+    scope = resolve_known(target)
+    if scope is not None and scope.unrestricted:
+        return True
+    wanted = country_spellings(target) | {target.strip().lower()}
+    if scope is not None:
+        wanted |= {s for c in scope.countries for s in country_spellings(c)}
+    # `hq_country` is a ", "-joined multi-value (an org can be headquartered
+    # across jurisdictions), so it's split before matching.
+    places = {g.strip().lower() for g in candidate.geographic_focus}
+    places |= {c.strip().lower() for c in (candidate.hq_country or "").split(",") if c.strip()}
+    return bool(places & wanted)
+
+
+def _geography_values(profile: RequirementProfile, *, confirmed_only: bool) -> list[str | None]:
+    return [
+        r.value
+        for r in profile.hard_requirements
+        if normalize_criterion(r.criterion) in _GEOGRAPHY_KEYS
+        and (r.human_confirmed or not confirmed_only)
+    ]
+
+
+def _evaluate_any(
+    criterion: str, values: list[str | None], candidate: SellerCandidate
+) -> tuple[str, RequirementSource, float]:
+    """A buyer's regions and countries are a union, so geography values pass
+    together: any one passing is a Pass."""
+    outcomes = [_evaluate_criterion(criterion, v, candidate) for v in values]
+    return next((o for o in outcomes if o[0] == "Pass"), outcomes[0])
+
+
 def apply_structured_filters(
     profile: RequirementProfile, candidates: list[SellerCandidate]
 ) -> tuple[list[SellerCandidate], list[FilterSkipped]]:
@@ -211,6 +235,8 @@ def apply_structured_filters(
     """
     passed = list(candidates)
     filters_skipped: list[FilterSkipped] = []
+    geography_values = _geography_values(profile, confirmed_only=True)
+    geography_applied = False
 
     for requirement in profile.hard_requirements:
         key = normalize_criterion(requirement.criterion)
@@ -235,12 +261,16 @@ def apply_structured_filters(
             )
             continue
 
+        is_geography = key in _GEOGRAPHY_KEYS
+        if is_geography and geography_applied:
+            continue
+        geography_applied = geography_applied or is_geography
+        values = geography_values if is_geography else [requirement.value]
+
         survivors = []
         exempted = 0
         for candidate in passed:
-            result, data_backing, _ = _evaluate_criterion(
-                requirement.criterion, requirement.value, candidate
-            )
+            result, data_backing, _ = _evaluate_any(requirement.criterion, values, candidate)
             if data_backing == "unavailable":
                 exempted += 1
                 survivors.append(candidate)
@@ -259,6 +289,11 @@ def apply_structured_filters(
         passed = survivors
 
     return passed, filters_skipped
+
+
+# Same weight as a hard requirement: a seller far outside the buyer's cheque
+# should visibly rank below one inside it, not just lose a rounding error.
+_TICKET_FIT_WEIGHT = 1.0
 
 
 class ScoringEngine:
@@ -285,11 +320,14 @@ class ScoringEngine:
         seller_role_id: str,
         profile: RequirementProfile,
         candidate: SellerCandidate,
+        ticket_band: TicketBand | None = None,
     ) -> CandidateScore:
         criteria: list[CriterionScore] = []
         weighted_sum = 0.0
         weighted_confidence_sum = 0.0
         total_weight = 0.0
+        geography_values = _geography_values(profile, confirmed_only=False)
+        geography_scored = False
 
         # Hard requirements carry full weight and are always evaluated here
         # regardless of human_confirmed — §13: unconfirmed ones must still
@@ -312,9 +350,16 @@ class ScoringEngine:
                 )
                 continue
 
+            # Geography values are scored once together, matching the Stage 1 union.
+            is_geography = normalize_criterion(requirement.criterion) in _GEOGRAPHY_KEYS
+            if is_geography and geography_scored:
+                continue
+            geography_scored = geography_scored or is_geography
+            values = geography_values if is_geography else [requirement.value]
+
             weight = 1.0
-            result, data_backing, sub_score = _evaluate_criterion(
-                requirement.criterion, requirement.value, candidate
+            result, data_backing, sub_score = _evaluate_any(
+                requirement.criterion, values, candidate
             )
             criteria.append(
                 CriterionScore(
@@ -357,6 +402,23 @@ class ScoringEngine:
             weighted_sum += preference.weight * sub_score
             weighted_confidence_sum += preference.weight * self._multiplier(data_backing)
             total_weight += preference.weight
+
+        if ticket_band is not None:
+            result, has_valuation = ticket_band.fit(candidate)
+            data_backing: RequirementSource = "crm_field" if has_valuation else "unavailable"
+            sub_score = {"Pass": 100.0, "Fail": 0.0}.get(result, 50.0)
+            criteria.append(
+                CriterionScore(
+                    criterion="ticket_fit",
+                    criterion_type="soft",
+                    weight=_TICKET_FIT_WEIGHT,
+                    result=result,
+                    data_backing=data_backing,
+                )
+            )
+            weighted_sum += _TICKET_FIT_WEIGHT * sub_score
+            weighted_confidence_sum += _TICKET_FIT_WEIGHT * self._multiplier(data_backing)
+            total_weight += _TICKET_FIT_WEIGHT
 
         overall_score = (weighted_sum / total_weight) if total_weight else 0.0
         confidence_value = (weighted_confidence_sum / total_weight) * 100.0 if total_weight else 0.0

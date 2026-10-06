@@ -15,10 +15,13 @@ from app.modules.enrichment.domain.field_plans import (
     enrichable_fields_by_name_for,
     enrichable_fields_for,
 )
+from app.modules.enrichment.domain.missingness import is_missing
 from app.modules.enrichment.domain.proposals import (
+    BasicEnrichment,
     EnrichmentProposal,
     FieldValue,
     ProposedFieldValue,
+    ProviderEvidence,
 )
 from app.modules.enrichment.domain.research_context import (
     CompanyContext,
@@ -34,25 +37,6 @@ _CONFIDENCE_SCORE = {"high": 0.9, "medium": 0.6, "low": 0.3}
 # trustworthy as the LLM's own "high" narrative-confidence tier — it's a
 # directly-typed field, not an inference over prose.
 _STRUCTURED_PROVIDER_CONFIDENCE = 0.9
-
-
-def _is_missing(value: FieldValue | None) -> bool:
-    """A field counts as missing only when it's genuinely empty — a
-    legitimately-zero number or an already-populated `False` must not be
-    re-researched just because they're falsy in Python.
-    """
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return value.strip() == ""
-    if isinstance(value, (list, tuple)):
-        return len(value) == 0
-    if isinstance(value, dict):
-        # Currency fields store `{"amount": ..., "currency": "USD"}` — a
-        # legitimate zero amount (e.g. a pre-revenue seller) must not be
-        # re-researched, same as the bare-number case below.
-        return value.get("amount") is None
-    return False
 
 
 def _coerce_proposed_value(kind: str, raw_value: str) -> FieldValue:
@@ -165,20 +149,30 @@ def _repair_prompt(raw: JsonObject, error: str) -> str:
 
 
 class EnrichMixin(ServiceBase):
-    async def propose(self, target: EnrichmentTarget) -> EnrichmentProposal:
+    async def propose(
+        self, target: EnrichmentTarget, *, research: bool = True
+    ) -> EnrichmentProposal:
+        """`research=False` is the basic tier: structured providers only, no
+        Firecrawl/LLM step."""
         current_values, context = await self._role_reader.load(target)
         missing = [
             field
             for field in enrichable_fields_for(target.kind.value)
-            if _is_missing(current_values.get(field.name))
+            if is_missing(current_values.get(field.name))
         ]
 
-        proposed: list[ProposedFieldValue] = []
-        proposed.extend(await self._structured_lookup(target, missing, current_values))
+        structured, _ = await self._structured_lookup(
+            kind=target.kind,
+            org_name=target.org_name,
+            domain=context.domains[0] if context.domains else None,
+            missing=missing,
+            current_values=current_values,
+        )
+        proposed: list[ProposedFieldValue] = list(structured)
         resolved_names = {v.field_name for v in proposed}
         still_missing = [f for f in missing if f.name not in resolved_names]
 
-        if not still_missing or self._research_client is None:
+        if not research or not still_missing or self._research_client is None:
             return EnrichmentProposal(
                 target=target, values=tuple(proposed), generated_by_model=self._model_id
             )
@@ -190,12 +184,36 @@ class EnrichMixin(ServiceBase):
             target=target, values=tuple(proposed), generated_by_model=self._model_id
         )
 
+    async def propose_basic(
+        self, *, org_name: str, domain: str | None, current_values: JsonObject
+    ) -> BasicEnrichment:
+        """Basic-tier seller enrichment for a lead that has no saved role yet,
+        so there is nothing for `RoleReaderPort` to load: the caller's own
+        draft values stand in for the current ones."""
+        kind = EnrichmentTargetKind.SELLER
+        missing = [
+            field
+            for field in enrichable_fields_for(kind.value)
+            if is_missing(current_values.get(field.name))
+        ]
+        proposed, evidence = await self._structured_lookup(
+            kind=kind,
+            org_name=org_name,
+            domain=domain,
+            missing=missing,
+            current_values=current_values,
+        )
+        return BasicEnrichment(values=tuple(proposed), evidence=tuple(evidence))
+
     async def _structured_lookup(
         self,
-        target: EnrichmentTarget,
+        *,
+        kind: EnrichmentTargetKind,
+        org_name: str,
+        domain: str | None,
         missing: list[EnrichableField],
         current_values: JsonObject,
-    ) -> list[ProposedFieldValue]:
+    ) -> tuple[list[ProposedFieldValue], list[ProviderEvidence]]:
         """A company-data provider's schema is firmographic — revenue,
         employee count, HQ country, socials, years active, location count
         — a seller target's `missing` fields already are entirely that
@@ -206,21 +224,24 @@ class EnrichMixin(ServiceBase):
         here first — leaving only the `ORGANIZATION` fields a buyer's
         organization shares the same row shape for as a seller's.
         """
-        if target.kind is EnrichmentTargetKind.BUYER:
+        if kind is EnrichmentTargetKind.BUYER:
             missing = [f for f in missing if f.write_target is WriteTarget.ORGANIZATION]
         if not missing:
-            return []
+            return [], []
 
         proposed: list[ProposedFieldValue] = []
+        evidence: list[ProviderEvidence] = []
         remaining = list(missing)
         for client in self._company_data_clients:
             if not remaining:
                 break
-            fields = await client.lookup(org_name=target.org_name, fields=tuple(remaining))
+            result = await client.lookup(org_name=org_name, fields=tuple(remaining), domain=domain)
+            fields = result.fields
+            used_before = len(proposed)
             for field in fields:
                 if field.field_name not in {f.name for f in remaining}:
                     continue
-                enrichable = enrichable_fields_by_name_for(target.kind.value)[field.field_name]
+                enrichable = enrichable_fields_by_name_for(kind.value)[field.field_name]
                 # Today's clients only ever emit `employee_range` among
                 # option-bearing fields (via `bucket_employee_count`, always
                 # a valid band) — but `sector_focus`/`estimated_arr` are
@@ -243,9 +264,17 @@ class EnrichMixin(ServiceBase):
                         rationale=f"Sourced from {field.provider}.",
                     )
                 )
+            if used := proposed[used_before:]:
+                evidence.append(
+                    ProviderEvidence(
+                        provider=fields[0].provider,
+                        website=result.website,
+                        field_names=tuple(v.field_name for v in used),
+                    )
+                )
             resolved_now = {f.field_name for f in fields}
             remaining = [f for f in remaining if f.name not in resolved_now]
-        return proposed
+        return proposed, evidence
 
     async def _research_and_extract(
         self,

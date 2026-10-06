@@ -3,6 +3,8 @@ hand-off actually opens a Slack modal. No real Attio/DB/Slack calls; every
 collaborator is faked.
 """
 
+import json
+
 import pytest
 
 from app.models import Organization
@@ -82,7 +84,10 @@ async def test_open_confirm_form_with_no_existing_org_opens_prefilled_add_form(
     monkeypatch.setattr(module, "search_organizations", _no_candidates)
 
     draft = SellerDraft(
-        org_name="Acme Co", values={"sector_focus": ["Retail / E-Commerce"]}, source_urls=()
+        org_name="Acme Co",
+        values={"sector_focus": ["Retail / E-Commerce"]},
+        source_urls=(),
+        source_place_id="p1",
     )
 
     await module.DdlCommandsSellerDraftAdapter().open_confirm_form(
@@ -92,6 +97,7 @@ async def test_open_confirm_form_with_no_existing_org_opens_prefilled_add_form(
     assert len(client.opened) == 1
     view = client.opened[0]["view"]
     assert view.callback_id == "seller_add_form_modal"
+    assert json.loads(view.private_metadata)["source_place_id"] == "p1"
 
 
 async def test_open_confirm_form_with_existing_candidates_opens_selection_modal(

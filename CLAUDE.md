@@ -139,6 +139,8 @@ stack. PowerShell changes: `Invoke-ScriptAnalyzer` (Warning + Error) clean.
   `server/.env.example` (`tests/test_env_example.py` fails otherwise).
 - Secrets live only in AWS Secrets Manager. Never in `*.tfvars`, a committed
   `.env`, or code.
+- There is one Attio workspace (prod) and no dev Attio; use the `attio-prod` MCP for any
+  Attio lookup. Test data is separated by the `is_test` flag, not a second workspace.
 - CRM writes go to Attio first, then Postgres (see
   `server/app/modules/ddl_commands/README.md` for why).
 

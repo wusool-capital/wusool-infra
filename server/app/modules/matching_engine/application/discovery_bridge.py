@@ -1,5 +1,5 @@
 """Extracts an (industry, geography, exclude_terms) query from a persisted
-`RequirementProfile`, for handing to `discovery.find_and_post_leads` —
+`RequirementProfile`, for handing to `discovery.discover_and_create_sellers` —
 moved out of the deleted `application/web_search.py`. `discovery` doesn't
 know about `RequirementProfile`/`CRITERION_REGISTRY`, so this stays
 matching_engine's own responsibility; searching is discovery's. `discovery`
@@ -7,7 +7,7 @@ only ever receives plain strings — it has no idea `exclude_terms` came from
 a `sector_exclusion` requirement, same as it has no idea `industry` came
 from a `sector` one.
 
-Only `sector`/`geography`/`client_type`/`sector_exclusion` feed the search:
+Only `sector`/`geography`/`sector_exclusion` feed the search:
 `revenue`/`ebitda` floors have no textual signal in a Google Maps listing
 (no financial data returned at all — see `DiscoveredLead`), and
 `outreach_tier`/`relationship_status`/`appetite_signal` describe a seller's
@@ -28,7 +28,7 @@ _MAX_QUERY_PHRASE_WORDS = 8
 def _clean_query_phrase(text: str) -> str:
     """Caps free-text-shaped input to a short phrase before it feeds a
     Google Maps search — Maps wants "type of business", not a full
-    sentence; an uncapped `client_type` or `ideal_target_description`/
+    sentence; an uncapped `ideal_target_description`/
     `strategic_thesis` value can turn an otherwise-resolvable query into one
     Maps can't find at all (confirmed live: a multi-clause description
     produced "Google Maps can't find [the whole sentence]").
@@ -41,12 +41,9 @@ def extract_query_terms(profile: RequirementProfile) -> tuple[str, str, tuple[st
     """Returns `(industry, geography, exclude_terms)`. `industry`/`geography`
     prefer a hard requirement or soft preference, falling back to the
     free-text `ideal_target_description`/`strategic_thesis` when neither is
-    present — never an empty query. Both free-text sources and `client_type`
-    are capped to a short phrase (`_clean_query_phrase`) before use, since
-    Google Maps' text search wants "type of business", not a full sentence.
-    `industry` also folds in `client_type` when both it and `sector` are
-    known (e.g. "healthcare SMB"), since it's a genuine search-refining
-    qualifier, not just a CRM label.
+    present — never an empty query. Both free-text sources are capped to a
+    short phrase (`_clean_query_phrase`) before use, since Google Maps' text
+    search wants "type of business", not a full sentence.
     `exclude_terms` collects every `sector_exclusion` value found (there can
     be more than one) — `discovery` filters any lead whose category/name
     matches one of them, since Google Maps' own search has no negation
@@ -71,13 +68,12 @@ def extract_query_terms(profile: RequirementProfile) -> tuple[str, str, tuple[st
         )
 
     sector = _value_for("sector")
-    geography = _value_for("geography")
+    # Comma-joined so discovery searches the union of every region and country.
+    geography = ", ".join(dict.fromkeys(_values_for("geography")))
     exclude_terms = _values_for("sector_exclusion")
 
     if sector and geography:
-        client_type = _value_for("client_type")
-        industry = f"{sector} {_clean_query_phrase(client_type)}" if client_type else sector
-        return industry, geography, exclude_terms
+        return sector, geography, exclude_terms
 
     fallback = profile.ideal_target_description or profile.strategic_thesis or ""
     return sector or _clean_query_phrase(fallback), geography or "", exclude_terms

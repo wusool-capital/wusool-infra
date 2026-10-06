@@ -8,6 +8,171 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-06
+
+### Added
+
+- Scribe desktop's menu-bar icon shows a red dot while recording and an
+  amber dot while recording is paused.
+
+### Changed
+
+- Scribe desktop opens the meeting as soon as a stopped recording is saved,
+  so you can review, edit or summarize the transcript right away. This
+  covers the Stop button, the menu-bar item, the pill's "Stop now" and
+  auto-stop when a meeting ends. Auto-stop used to open the home page
+  instead. Scribe also comes to the front when the meeting opens.
+
+## 2026-10-05
+
+### Added
+
+- Insights reports can be published behind a lead gate. The business writes
+  a report in the new Wusool Reports Studio (Sanity) and publishes it. Its
+  `/insights` card is then created automatically in Webflow.
+  - Readers see the first quarter of the report, then a short name, email
+    and organisation form. The full report opens in place without a reload.
+  - Each reader becomes an organisation and a person in Attio, with no role
+    and no deal, plus an interaction row. Returning readers skip the form.
+  - Ticking "Pin to top of /insights" makes a report the featured card and
+    unpins the previous one.
+  - Existing hand-written articles stay open.
+  - Reports exported as self-unpacking pages, which build themselves with
+    JavaScript, are drawn once in headless Chromium on publish and served
+    as static HTML. This makes them splittable, and on phones they shrink
+    to fit. The toolkit image grows by about 590 MB.
+
+## 2026-10-04
+
+### Added
+
+- Scribe has a changelog page in the GitBook docs listing what changed in
+  each version. The menu-bar "View Changelog" item and a "View full
+  changelog" link in the update dialog open it in your browser.
+- Scribe desktop has an "Open at Login" setting under Recording, on by
+  default. Scribe starts in the menu bar when you log in, without opening its
+  window, so it is already running for your meetings. Existing users get it
+  switched on the first time they run this version, and macOS shows a
+  "Background Items Added" notice. Turning the setting off sticks.
+- Scribe desktop meetings that belong to a folder have a back button at the
+  top that returns to that folder's meeting list. It always goes to the
+  meeting's own folder, never to another one you visited earlier.
+
+### Changed
+
+- Sellers found via Google Maps after `/find-match` are saved automatically
+  only when Diffbot or People Data Labs matched the same website as Google
+  Maps.
+- When the websites don't match, nothing is saved. A "Website check" message
+  shows both websites and the proposed values. Its **Review & Save** button
+  opens the prefilled add-seller form and keeps working after a restart.
+- For 30 days, later searches skip a lead that is already waiting for review.
+  Websites on Instagram, Facebook, Google Sites, Salla, Zid, Shopify and
+  similar platforms count as "no website". A reviewed seller keeps its Google
+  Maps place id, so the next search skips it.
+- Scribe desktop's "Processing recording" and "Finalizing transcription"
+  messages now look the same after you stop a meeting. They also sit in the
+  same spot instead of jumping between two styles.
+- `/find-match` now always opens a popup after you confirm the buyer, listing
+  any missing or conflicting buyer details. The match only starts when you
+  click **Run anyway**. Before, missing details were posted as a channel note
+  while the match ran, and conflicts paused it behind buttons in the channel.
+  If the check itself fails, the popup says so rather than showing an
+  all-clear.
+- `/find-match` and `/check-buyer` now understand everyday wording in your
+  note, such as "pharma tech only, UAE, $5-15M ticket". Each problem gets one
+  plain sentence, for example "Heads up: Cursor's profile says vertical is
+  Pharma, but you said Garage."
+- An amount in your note only counts as a ticket size when you label it as a
+  ticket, check size, investment or deal size.
+- Open-ended amounts such as "at least $2M ticket" or "EBITDA $1-3M" only
+  conflict when they can't overlap the buyer's range.
+- A sector that fits several profile options, such as "clinics", only
+  conflicts when none of them match. Anything you exclude, such as "no
+  pharma", is not checked.
+- A region you name is flagged only when it can't overlap the buyer's, for
+  example GCC against a Europe-only buyer. Before, region conflicts were never
+  raised.
+- If your note can't be read, the message lists what's missing and says the
+  note couldn't be checked. It never reports that nothing conflicts. An empty
+  note is checked instantly.
+- A buyer's target regions and target countries now count together. Geography
+  is reported missing only when both are empty. A country you name, such as
+  "UAE", is flagged only when the buyer's regions and countries don't cover
+  it. Before, a buyer with only target countries was never checked.
+- The `/find-match` and `/check-buyer` messages now end with how your note
+  was read, so a misread is easy to spot. For example: "Read your note as:
+  Pharmaceuticals / Biotech · United Arab Emirates".
+- EBITDA is reported missing only when both the floor and the ceiling are
+  empty.
+
+### Fixed
+
+- `/find-match` matches a buyer's regions and countries together. A GCC buyer
+  now matches a seller tagged "UAE" or "KSA". A buyer targeting GCC plus Egypt
+  keeps sellers from either. Before, each geography had to match on its own,
+  and region names never matched a seller's country.
+- A region you name in your `/find-match` note that can't be listed country by
+  country, such as Europe, no longer drops almost every seller.
+- Google Maps seller search after `/find-match` covers every target region and
+  country, not just the first.
+- Country names written differently across the CRM, such as Turkey and
+  Türkiye or Hong Kong and Hong Kong SAR, now match each other.
+- `/check-buyer` shows an error in its popup if the buyer search fails,
+  instead of staying on the loading screen.
+- Sellers found via Google Maps after `/find-match` are numbered from 1 in
+  their own message, instead of continuing on from the CRM shortlist.
+
+## 2026-10-03
+
+### Added
+
+- Scribe desktop has more transcript editing controls before you summarize.
+  Select lines with the checkboxes (Shift-click for a range), then delete or
+  merge them. Right-click a line to delete everything before it, which clears
+  small talk in one step, or to split it. Find & replace fixes a misheard
+  name across the whole transcript. Undo and redo (Cmd+Z, Cmd+Shift+Z) cover
+  every change. Deleted lines are removed from what Summarize sends. A
+  "Proofread" button for AI spelling suggestions shows as "Coming soon".
+- New `POST /desktop/transcripts/corrections` endpoint suggests fixes for
+  speech-to-text errors (misheard words, company names, punctuation and
+  casing) in Scribe desktop transcripts. It never rephrases or removes filler
+  words, and nothing is saved on the server.
+- Scribe desktop stops recording automatically when a meeting ends. Once the
+  meeting app or browser releases the microphone, a pill counts down 15
+  seconds, with "Keep" and "Stop now" buttons, then stops. It never
+  triggers for recordings where no meeting app was seen. Settings has a
+  toggle to turn auto-stop off, in which case nothing appears and recording
+  continues until it is stopped manually. Record and Stop now on the
+  popups open Scribe's home page, so no extra click is needed.
+
+### Changed
+
+- Scribe desktop now shows the hand cursor on every clickable control,
+  including menu and dropdown items. Disabled controls and the read-only
+  transcript timestamps keep the normal arrow.
+- Scribe desktop's notification popups no longer bring Scribe forward when you
+  press the X on "Start recording?" or "Keep" on the meeting-ended countdown.
+  They now only close the popup, and your meeting app keeps focus.
+- Scribe desktop's start-recording buttons now react the instant they are
+  clicked. A spinner shows while the transcription model is checked and
+  capture starts. A blocked or failed start puts the button back.
+- Scribe desktop's sidebar shows folder names on one line in a smaller size,
+  and scrolls long names sideways on hover instead of wrapping. The folder
+  page header keeps its meeting and selected counts on one line.
+
+### Fixed
+
+- Scribe desktop folder pages no longer carry selections over from another
+  folder, which could delete meetings from the folder you had just left. The
+  sidebar also stops highlighting the last opened meeting once you leave it.
+- Scribe's meeting popup close button now works on the first click and is
+  visible without hovering. The popups no longer show an oversized
+  background rectangle behind the card. Both popups now share a refreshed
+  card design with the WusoolScribe logo. On macOS they now behave like
+  system notifications. Hover and the pointer cursor work, and a click gives
+  immediate feedback without pulling focus from the meeting app.
+
 ## 2026-10-01
 
 ### Fixed
@@ -37,10 +202,57 @@ for current production evidence and open handover items.
   mean-revert. The DCF report has an editable illiquidity discount and
   warnings for a dominant terminal value and an implausibly high margin.
 
+## 2026-09-30
+
+### Changed
+
+- A Buyer Network submission now creates one buyer role for each sector the
+  buyer ticks, so matching can narrow on each one. Its sectors are no longer
+  written to the organisation. A repeat submission updates the roles for
+  sectors it already has and adds the new ones. An update replaces the
+  role's multi-select answers, such as geography, rather than adding to them.
+- Valuation, benchmark and readiness now record the seller's sector on its
+  seller role, so matching no longer relies only on the organisation's. A
+  resubmission with a new sector replaces the old one.
+- `tool_runs.buyer_role_entry_ids` lists every buyer role a submission made.
+
 ## 2026-09-29
 
 ### Added
 
+- Seller discovery now creates sellers instead of only suggesting them. Each
+  search looks at up to 20 Google Maps results. It skips any already in the
+  CRM by Google place id or website, and adds the first five new ones.
+- Each new seller is filled in with basic company data, then saved to Attio
+  and the database. It is posted under the match results with Approve and
+  Reject buttons. Approving opens a Qualified deal, as for any other match.
+  It also posts the full enrichment proposal, with web research, for review.
+- A result that only has a similar name to a company already in the CRM is not
+  created. It is posted separately with an "Add as seller" button, so a person
+  decides.
+- Discovery is capped at 10 searches per buyer per day, so a loop can't fill
+  the CRM. The count resets when the service restarts.
+- Company lookups now pass the website to Diffbot and People Data Labs, and
+  report a rate-limit response instead of treating it as "no data".
+
+- `/add-buyer` and `/edit-buyer` now ask for the vertical in a step of its
+  own, before the field form. Pick a vertical the organization already has a
+  role for to edit it, or an unused one to create a new role. An
+  organization can now hold one buyer role per vertical, so `/add-buyer` no
+  longer stops at an organization that already has a buyer role. `/edit-buyer`
+  lists each organization once and edits the role's own Attio entry.
+- Approving a match now creates a Qualified Buy-side deal in Attio and links
+  it to the match. If Attio already has a deal for that buyer and seller, the
+  approver is asked whether to promote it or create a new one. If the
+  database write fails after Attio succeeds, the approver is told what was
+  saved and the sync reconciles the rest.
+- A new `/check-buyer <name>` command checks a buyer's stored criteria
+  against the advisor's own typed context, on its own or before a match
+  run. It flags a stored-criteria conflict (vertical, region, ticket size,
+  or EBITDA) and notes anything required that's still missing.
+- `/find-match` now runs the same check first. A conflict pauses the match
+  behind "Run match anyway"/"Cancel" buttons; missing data alone doesn't —
+  it's noted and the match proceeds.
 - Organizations can now carry the Places id they were discovered from. A
   company already in the CRM must not be created a second time under a
   slightly different name. Names cannot decide that reliably. The id can.
@@ -49,6 +261,30 @@ for current production evidence and open handover items.
   just one of them.
 - Two indexes make the sector and geography narrowing run in the database.
   It previously filtered in Python after fetching every row.
+
+### Changed
+
+- Looking up an organization's active buyer or seller role no longer fails
+  when a duplicate is active. It returns the newest. The shared Attio
+  role-entry lookup can now be scoped to one buyer vertical.
+- `/find-match` now narrows sellers in the database before scoring. It
+  filters on the buyer role's vertical, target region and country, and EV
+  ceiling. A pharma buyer is no longer scored against industrials sellers.
+  Sellers with missing data still pass. The old 1,000-seller cap is gone.
+- Sellers valued outside a buyer's cheque size are no longer removed. They
+  stay in the pool with a low ticket-fit score. A cheque can buy a partial
+  stake in a larger company.
+- What the advisor types into the context box now outranks the CRM. Say
+  "Egypt" for a buyer stored as US, and the search runs on Egypt. It replaces
+  the stored geography or vertical, including in the database narrowing.
+  A stated ticket size or EV cap replaces the stored one too. A bare amount
+  with no label, such as "up to 10M", sets neither. The result message now
+  says so. Explicit limits
+  such as a 500K EBITDA floor can also remove sellers.
+- "Run match anyway" now keeps the advisor's context. Before, it ran on the
+  stored criteria alone. The context box is capped at 900 characters.
+- The `client_type` scoring criterion is retired. It never matched anything.
+  The CRM holds an engagement type where the scorer expected a customer type.
 
 ### Fixed
 
@@ -77,6 +313,16 @@ for current production evidence and open handover items.
 - The retired `target_geography` and `geographic_focus` attributes are
   archived on buyer roles. Every production buyer had already been converted
   to target region and target country.
+
+## 2026-09-28
+
+### Added
+
+- Scribe desktop can now delete a meeting or a whole tag folder, and always
+  removes its recording folder from disk. For a meeting already pushed to
+  the server, an opt-in checkbox also soft-deletes the server's `meetings`
+  row and deletes its Attio note.
+
 
 ## 2026-09-23
 

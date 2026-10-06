@@ -112,7 +112,9 @@ class MeetingsRepository:
         if title is not None:
             values["title"] = title
         await self._session.execute(
-            update(Meeting).where(Meeting.id == meeting_id).values(**values)
+            update(Meeting)
+            .where(Meeting.id == meeting_id, Meeting.removed_at.is_(None))
+            .values(**values)
         )
 
     async def mark_failed(self, meeting_id: UUID, *, reason: str) -> None:
@@ -124,7 +126,7 @@ class MeetingsRepository:
         """
         await self._session.execute(
             update(Meeting)
-            .where(Meeting.id == meeting_id)
+            .where(Meeting.id == meeting_id, Meeting.removed_at.is_(None))
             .values(
                 status="failed",
                 metadata_=Meeting.metadata_.op("||")(cast({"failure_reason": reason}, JSONB)),
@@ -133,7 +135,9 @@ class MeetingsRepository:
 
     async def set_note_id(self, meeting_id: UUID, *, note_id: UUID) -> None:
         await self._session.execute(
-            update(Meeting).where(Meeting.id == meeting_id).values(note_id=note_id)
+            update(Meeting)
+            .where(Meeting.id == meeting_id, Meeting.removed_at.is_(None))
+            .values(note_id=note_id)
         )
 
     async def recover_stalled(self, meeting_id: UUID, *, cutoff: datetime) -> bool:
@@ -148,6 +152,7 @@ class MeetingsRepository:
                 Meeting.id == meeting_id,
                 Meeting.status == "summarizing",
                 Meeting.summary_started_at < cutoff,
+                Meeting.removed_at.is_(None),
             )
             .values(summary_started_at=func.now())
             .returning(Meeting.id)
@@ -156,12 +161,41 @@ class MeetingsRepository:
         return result.scalar_one_or_none() is not None
 
     async def get_by_id(self, meeting_id: UUID) -> MeetingRecord | None:
-        meeting = await self._session.get(Meeting, meeting_id)
-        return to_meeting_record(meeting) if meeting is not None else None
+        """Excludes a soft-deleted meeting — callers (the status poll,
+        `PublishMixin`, which can only reach a row still `summarizing`, and
+        `recover_stalled`'s guard above) all treat a removed meeting as gone.
+        """
+        # populate_existing: the identity map may hold a copy loaded before a
+        # concurrent soft-delete committed, which would hide `removed_at`.
+        meeting = await self._session.get(Meeting, meeting_id, populate_existing=True)
+        if meeting is None or meeting.removed_at is not None:
+            return None
+        return to_meeting_record(meeting)
+
+    async def soft_delete(self, meeting_id: UUID) -> bool:
+        """Conditional UPDATE, matching `recover_stalled`'s shape: refuses to
+        soft-delete a meeting still actively `summarizing` (the publish flow
+        could otherwise write a note for a row the caller believes is gone),
+        and is a no-op (returns `False`) if it's already removed.
+        """
+        stmt = (
+            update(Meeting)
+            .where(
+                Meeting.id == meeting_id,
+                Meeting.status != "summarizing",
+                Meeting.removed_at.is_(None),
+            )
+            .values(removed_at=func.now())
+            .returning(Meeting.id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
     async def list_by_install_id(self, install_id: str, *, limit: int) -> list[MeetingSyncStatus]:
         """Column-scoped select — never loads full `Meeting` rows (with their
         transcript/summary columns) for what is just a sync-status listing.
+        Excludes soft-deleted meetings: a deleted-from-desktop meeting must
+        stop appearing in its own install's sync sweep.
         """
         stmt = (
             select(
@@ -170,7 +204,7 @@ class MeetingsRepository:
                 Meeting.status,
                 Meeting.summary_json.is_not(None).label("summary_available"),
             )
-            .where(Meeting.install_id == install_id)
+            .where(Meeting.install_id == install_id, Meeting.removed_at.is_(None))
             .order_by(Meeting.created_at.desc())
             .limit(limit)
         )

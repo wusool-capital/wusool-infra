@@ -2,6 +2,8 @@
 no database, no Bedrock, no Slack.
 """
 
+from dataclasses import replace
+
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     DataConfidence,
@@ -13,6 +15,7 @@ from app.modules.matching_engine.domain.matching.scoring import (
     needs_web_fallback,
     select_top_n,
 )
+from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.requirements import (
     HardRequirement,
     RequirementProfile,
@@ -314,3 +317,129 @@ def test_needs_web_fallback_when_all_below_threshold() -> None:
 
 def test_needs_web_fallback_false_when_one_clears_threshold() -> None:
     assert needs_web_fallback([91.4, 17.0, 17.0], min_score=50.0) is False
+
+
+def test_retired_client_type_criterion_is_unmapped_and_never_eliminates() -> None:
+    profile = _profile(hard=[HardRequirement("client_type", "SMB", "crm_field", "high", True)])
+    candidates = [_seller(), _seller()]
+
+    passed, skipped = apply_structured_filters(profile, candidates)
+
+    assert passed == candidates
+    assert [s.reason for s in skipped] == ["no_mapping"]
+
+
+def _priced_seller(low: float | None, high: float | None = None) -> SellerCandidate:
+    seller = _seller()
+    return replace(
+        seller,
+        valuation_low=Money(low, "USD") if low is not None else None,
+        valuation_high=Money(high, "USD") if high is not None else None,
+    )
+
+
+def _ticket_score(seller: SellerCandidate, band: TicketBand) -> float:
+    engine = ScoringEngine(CONFIDENCE_MULTIPLIERS)
+    return engine.score("b1", "s1", _profile(), seller, band).overall_score
+
+
+def test_ticket_fit_scores_sellers_outside_the_band_low_without_dropping_them() -> None:
+    band = TicketBand(minimum=5_000_000.0, maximum=15_000_000.0)
+
+    inside = _ticket_score(_priced_seller(8_000_000, 12_000_000), band)
+    unknown = _ticket_score(_priced_seller(None), band)
+    too_big = _ticket_score(_priced_seller(50_000_000, 80_000_000), band)
+    too_small = _ticket_score(_priced_seller(500_000, 2_000_000), band)
+
+    assert (inside, unknown, too_big, too_small) == (100.0, 50.0, 0.0, 0.0)
+
+
+def test_ticket_fit_is_absent_without_a_check_size() -> None:
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "s1", _profile(), _seller(), None)
+
+    assert all(c.criterion != "ticket_fit" for c in score.criteria)
+
+
+def _geography(value: str) -> HardRequirement:
+    return HardRequirement(
+        criterion="geography",
+        value=value,
+        source="crm_field",
+        confidence="high",
+        human_confirmed=True,
+    )
+
+
+def test_geography_region_matches_its_countries_in_any_spelling() -> None:
+    uae = _seller("uae", geographic_focus=["UAE"])
+    egypt = _seller("egypt", geographic_focus=["Egypt"])
+
+    survivors, _ = apply_structured_filters(_profile([_geography("GCC")]), [uae, egypt])
+
+    assert [s.seller_role_id for s in survivors] == ["uae"]
+
+
+def test_geography_country_matches_hq_country_alias() -> None:
+    seller = replace(_seller("ksa"), hq_country="KSA")
+
+    survivors, _ = apply_structured_filters(_profile([_geography("Saudi Arabia")]), [seller])
+
+    assert [s.seller_role_id for s in survivors] == ["ksa"]
+
+
+def test_geography_requirements_are_a_union_not_an_intersection() -> None:
+    uae = _seller("uae", geographic_focus=["United Arab Emirates"])
+    egypt = _seller("egypt", geographic_focus=["Egypt"])
+    germany = _seller("germany", geographic_focus=["Germany"])
+    profile = _profile([_geography("GCC"), _geography("Egypt")])
+
+    survivors, _ = apply_structured_filters(profile, [uae, egypt, germany])
+
+    assert [s.seller_role_id for s in survivors] == ["uae", "egypt"]
+
+
+def test_geography_requirements_are_scored_once_as_a_union() -> None:
+    profile = _profile([_geography("GCC"), _geography("United Kingdom"), _geography("Egypt")])
+    seller = _seller("uae", geographic_focus=["UAE"])
+
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "uae", profile, seller)
+
+    geography = [c for c in score.criteria if c.criterion == "geography"]
+    assert [c.result for c in geography] == ["Pass"]
+    assert score.overall_score == 100.0
+
+
+def test_global_geography_requirement_never_eliminates() -> None:
+    seller = _seller("anywhere", geographic_focus=["Brazil"])
+
+    survivors, _ = apply_structured_filters(_profile([_geography("Global")]), [seller])
+
+    assert [s.seller_role_id for s in survivors] == ["anywhere"]
+
+
+def test_seller_without_geography_data_is_exempted_once_for_the_union() -> None:
+    profile = _profile([_geography("GCC"), _geography("Egypt")])
+
+    survivors, skipped = apply_structured_filters(profile, [_seller("blank")])
+
+    assert [s.seller_role_id for s in survivors] == ["blank"]
+    assert [(f.reason, f.candidates_exempted) for f in skipped] == [("no_populated_field", 1)]
+
+
+def test_unconfirmed_geography_is_left_out_of_the_filter_union() -> None:
+    unconfirmed = replace(_geography("Germany"), human_confirmed=False)
+    germany = _seller("germany", geographic_focus=["Germany"])
+
+    survivors, _ = apply_structured_filters(_profile([_geography("GCC"), unconfirmed]), [germany])
+
+    assert survivors == []
+
+
+def test_unconfirmed_geography_still_counts_in_the_scored_union() -> None:
+    unconfirmed = replace(_geography("Germany"), human_confirmed=False)
+    germany = _seller("germany", geographic_focus=["Germany"])
+    profile = _profile([_geography("GCC"), unconfirmed])
+
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "germany", profile, germany)
+
+    assert [c.result for c in score.criteria if c.criterion == "geography"] == ["Pass"]

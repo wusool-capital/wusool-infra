@@ -1,48 +1,28 @@
-"""The one entry point `matching_engine`'s "Find more sellers" button calls
-into — search, render, post, all in one call so the caller only ever needs
-an industry/geography/channel/exclude_terms, never anything about how
-discovery works internally. `exclude_terms` is opaque here — just strings a
-found lead's category/name is filtered against, with no notion of where
-they came from (a buyer's `sector_exclusion` requirement, on the caller's
-side). Exported via this module's root `__all__`.
+"""The one entry point `matching_engine` calls into — search, pre-filter
+against the CRM, auto-create what's new, and report what happened as a typed
+`DiscoveryOutcome` the caller renders. `exclude_terms` is opaque here — just
+strings a found lead's category/name is filtered against, with no notion of
+where they came from (a buyer's `sector_exclusion` requirement, on the
+caller's side). `quota_key` is what the per-day search cap counts against.
+Exported via this module's root `__all__`.
 """
 
-import logging
-
 from app.modules.discovery.api.dependencies import discovery_service
-from app.modules.discovery.config import get_settings
-from app.modules.notifications import SlackWebClientNotifier, get_slack_client
-
-logger = logging.getLogger(__name__)
+from app.modules.discovery.domain.outcome import DiscoveryOutcome
 
 
-async def find_and_post_leads(
-    *, industry: str, geography: str, channel_id: str, exclude_terms: tuple[str, ...] = ()
-) -> None:
-    from app.modules.discovery.api.slack.views import build_lead_blocks
-
-    settings = get_settings()
-    notifier = SlackWebClientNotifier(get_slack_client(settings.slack_bot_token))
-    placeholder_ts = await notifier.post_message(
-        channel=channel_id, text="🔎 *_Searching for potential sellers…_*"
+async def discover_and_create_sellers(
+    *, industry: str, geography: str, quota_key: str, exclude_terms: tuple[str, ...] = ()
+) -> DiscoveryOutcome:
+    return await discovery_service().discover_and_create(
+        industry=industry,
+        geography=geography,
+        quota_key=quota_key,
+        exclude_terms=exclude_terms,
     )
-    try:
-        leads = await discovery_service().find_leads(
-            industry=industry,
-            geography=geography,
-            limit=settings.discovery_lead_search_limit,
-            exclude_terms=exclude_terms,
-        )
-    except Exception:
-        logger.exception("discovery_lead_search_failed", extra={"industry": industry})
-        await notifier.update_message(
-            channel=channel_id, ts=placeholder_ts, text="Seller search failed unexpectedly."
-        )
-        return
 
-    await notifier.update_message(
-        channel=channel_id,
-        ts=placeholder_ts,
-        text=f"Found {len(leads)} potential seller(s)",
-        blocks=build_lead_blocks(leads),
-    )
+
+async def mark_review_posted(review_id: str) -> None:
+    """`UnverifiedSeller.review_id`'s card is in Slack, so later runs may skip
+    its lead. Until called, the lead is treated as never flagged."""
+    await discovery_service().mark_review_posted(review_id)

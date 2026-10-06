@@ -9,10 +9,12 @@ import json
 
 from slack_sdk.models.blocks import ContextBlock, InputBlock
 from slack_sdk.models.blocks.basic_components import MarkdownTextObject, Option
-from slack_sdk.models.blocks.block_elements import StaticSelectElement
+from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
 from slack_sdk.models.views import View
 
 from app.modules.matching_engine.api.buyers import BuyerSummary
+
+_MAX_CONTEXT_CHARS = 900
 
 
 def build_buyer_selection_modal(
@@ -21,9 +23,14 @@ def build_buyer_selection_modal(
     options = []
     for candidate in candidates:
         org = candidate.organization
-        detail_bits = [b for b in (org.hq_country, ", ".join(org.sector_focus) or None) if b]
-        detail = f" ({', '.join(detail_bits)})" if detail_bits else ""
-        options.append(Option(value=str(candidate.id), text=f"{org.name}{detail}"[:75]))
+        # Once `buyer_role` is vertical-graded, picking a role from this
+        # list already is picking a vertical — the label says which. HQ
+        # country is appended only to disambiguate two orgs that would
+        # otherwise render identically (same name, same/no vertical) — the
+        # trigram search can return more than one match for a name.
+        name = f"{org.name} ({org.hq_country})" if org.hq_country else org.name
+        label = f"{name} — {candidate.target_vertical or 'Generalist'}"
+        options.append(Option(value=str(candidate.id), text=label[:75]))
 
     label = "Confirm this is the right buyer" if len(options) == 1 else "Choose the right buyer"
 
@@ -42,6 +49,18 @@ def build_buyer_selection_modal(
                     action_id="selected_buyer",
                     options=options,
                     initial_option=options[0],
+                ),
+            ),
+            InputBlock(
+                block_id="advisor_context",
+                label="Anything specific about this search? (optional)",
+                optional=True,
+                element=PlainTextInputElement(
+                    action_id="context_text",
+                    multiline=True,
+                    # Must fit, with the buyer id, in a 2,000-char Slack button value.
+                    max_length=_MAX_CONTEXT_CHARS,
+                    placeholder="e.g. pharma tech only, UAE, $5-15M ticket",
                 ),
             ),
             ContextBlock(

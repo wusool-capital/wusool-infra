@@ -33,3 +33,19 @@ class EnrichmentProposal:
     target: EnrichmentTarget
     values: tuple[ProposedFieldValue, ...]
     generated_by_model: str
+
+
+@dataclass(frozen=True)
+class ProviderEvidence:
+    """Which company a structured provider actually matched (its homepage),
+    for the fields it contributed."""
+
+    provider: str
+    website: str | None
+    field_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class BasicEnrichment:
+    values: tuple[ProposedFieldValue, ...]
+    evidence: tuple[ProviderEvidence, ...] = ()

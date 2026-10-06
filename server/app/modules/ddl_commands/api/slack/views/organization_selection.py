@@ -5,11 +5,13 @@ brand new organization instead. One shared modal for both kinds — `kind`
 travels in `private_metadata` rather than the callback_id, since the
 selection UI itself doesn't differ.
 
-Picking an org that already has the target role isn't blocked here (its
-`seller_roles`/`buyer_roles` isn't loaded far enough to filter cheaply against
-in a Slack option list) — the submission handler in `actions.py` re-checks
-the freshly-loaded org and stops with an "already exists" message rather
-than silently overwriting.
+Picking a seller org that already has the role isn't blocked here (its
+`seller_roles` isn't loaded far enough to filter cheaply against in a Slack
+option list) — the submission handler in `actions.py` re-checks the
+freshly-loaded org and stops with an "already exists" message rather than
+silently overwriting. Buyers aren't blocked at all: an org holds one buyer
+role per vertical, and `buyer_vertical_selection.py` is where a duplicate is
+ruled out.
 
 `candidate_names`/`prefill` grow with search-result count and with however
 many fields `discovery`'s hand-off populated — the same shape that overran
@@ -39,7 +41,9 @@ NEW_ORGANIZATION_VALUE = "__new__"
 
 def _encode_selection_payload(candidate_names: list[str], prefill: dict[str, PrefillValue]) -> str:
     return get_shared_ephemeral_store().put(
-        json.dumps({"candidate_names": candidate_names, "prefill": prefill})
+        # `default=str`: a discovery prefill can carry a `date`;
+        # `wrap_prefill_value` parses it back.
+        json.dumps({"candidate_names": candidate_names, "prefill": prefill}, default=str)
     )
 
 
@@ -73,12 +77,14 @@ def build_organization_selection_modal(
     requested_by: str,
     channel_id: str,
     prefill: dict[str, PrefillValue] | None = None,
+    source_place_id: str | None = None,
 ) -> View:
     options = []
     for org in candidates:
-        roles = org.seller_roles if kind == "seller" else org.buyer_roles
-        has_role = any(r.is_active for r in roles)
-        suffix = f" (already has a {kind} role)" if has_role else ""
+        # A buyer org can take another role for a different vertical, so only
+        # sellers get flagged.
+        has_role = kind == "seller" and any(r.is_active for r in org.seller_roles)
+        suffix = " (already has a seller role)" if has_role else ""
         options.append(Option(value=org.attio_id, text=f"{org.name}{suffix}"[:75]))
     options.append(
         Option(value=NEW_ORGANIZATION_VALUE, text="None of these — create new organization")
@@ -93,6 +99,7 @@ def build_organization_selection_modal(
                 "search_term": search_term,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
+                "source_place_id": source_place_id,
                 "payload_token": _encode_selection_payload(
                     [org.name for org in candidates], prefill or {}
                 ),

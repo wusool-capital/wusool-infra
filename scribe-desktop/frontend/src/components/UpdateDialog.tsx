@@ -13,6 +13,7 @@ import { Progress } from './ui/progress';
 import { updateService, UpdateInfo, UpdateProgress } from '@/services/updateService';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { ScrollArea } from './ui/scroll-area';
 
@@ -118,7 +119,8 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
       // Close dialog before relaunch
       handleOpenChange(false);
 
-      // Relaunch the app
+      // Relaunch the app; Rust must know first so the window is shown after restart
+      await invoke('prepare_relaunch');
       await relaunch();
     } catch (err: any) {
       console.error('Update failed:', err);
@@ -229,6 +231,14 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
                   </div>
                 </ScrollArea>
               )}
+
+              <button
+                type="button"
+                onClick={() => invoke('open_changelog')}
+                className="text-sm text-primary hover:underline"
+              >
+                View full changelog
+              </button>
             </>
           )}
 

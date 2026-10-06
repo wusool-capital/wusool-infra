@@ -1,10 +1,13 @@
 # Matching Engine
 
 Backend for `/find-match` — Slack is the only product interface, no
-frontend. Given a buyer, extracts its structured requirements via Bedrock,
-filters and scores eligible sellers deterministically, asks Bedrock for
-narrative reasoning on the top-N shortlist, persists the run, and posts the
-result to Slack with Approve/Reject/View Full Analysis actions.
+frontend. Given a buyer, checks its stored criteria against the advisor's
+own typed context via the `discrepancies` module (a peer module, called
+through `api/dependencies.py`, never owned here — see its own README),
+extracts structured requirements via Bedrock, filters and scores
+eligible sellers deterministically, asks Bedrock for narrative reasoning on
+the top-N shortlist, persists the run, and posts the result to Slack with
+Approve/Reject/View Full Analysis actions.
 
 Not independently deployed — `server/main.py` merges this module's Slack
 handlers with `ddl_commands`' onto one `AsyncApp` (one bot, one Slack app,
@@ -40,7 +43,9 @@ Connects to the shared `wusool_crm` PostgreSQL database (models in
 `app/models/`, migrations in `alembic/`). This module never creates tables
 or runs migrations itself — schema changes are the data engineer's call.
 Reads/writes `buyer_roles`, `seller_roles`, `organizations`, `meetings`,
-`match_scores`, `match_results` through its own repositories only.
+`match_scores`, `match_results` through its own repositories only. Approving
+a match also upserts the `deals` row for the Qualified deal it creates in
+Attio, and stamps `match_results.deal_attio_id`.
 
 ## Setup
 
@@ -91,12 +96,24 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    "not found" / run / disambiguation modal.
 2. **Requirement extraction** (Bedrock, one call) — buyer's structured
    fields + free text + recent meeting notes → hard requirements (can
-   eliminate a candidate at Stage 1, but only if `source="crm_field"`/
-   `human_confirmed=True`) and soft preferences (never eliminate, always
+   eliminate a candidate at Stage 1, but only if `source` is `crm_field`
+   or `advisor_context` (an explicit constraint in the advisor's typed
+   context) and `human_confirmed=True`). Typed context overrides the CRM:
+   a criterion the advisor restates replaces the stored one
+   (`domain/matching/overrides.py`), in the SQL narrowing too. A stated
+   ticket range or EV cap (`advisor_limits`) replaces the stored check size
+   or EV ceiling for that run. It counts only if the advisor's own words name
+   what it measures (ticket/cheque, or EV/valuation); a bare "up to 10M" sets
+   no limit, and the result message says so. and soft preferences (never eliminate, always
    just weighted). See `CRITERION_REGISTRY`
    (`domain/matching/scoring.py`) for the fixed set of checkable criteria.
-3. **Stage 1 filtering** — drop a candidate only on a confirmed hard
-   requirement's `Fail`; missing/unconfirmed data never eliminates anyone.
+3. **Candidate load + Stage 1 filtering** (one call) — SQL first narrows
+   sellers on the buyer role's vertical, target region/country and EV ceiling
+   (`domain/matching/narrowing.py`; a seller with no data for a dimension
+   always passes). Cheque size never eliminates: `ticket_fit`
+   (`domain/matching/ticket.py`) scores it in Stage 2 instead. Then a candidate is dropped only on a confirmed
+   hard requirement's `Fail`; missing/unconfirmed data never eliminates
+   anyone.
 4. **Stage 2 scoring** — weighted average of per-criterion sub-scores
    (Pass=100/Fail=0/Unknown=50 neutral), same evaluator used for filtering
    so they never disagree. `data_confidence` is a separate signal (how much
@@ -113,7 +130,17 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    way) — see `discovery/README.md`.
 8. **Approve/Reject** — re-validates against the database (never trusts the
    Slack payload), atomic compare-and-set against `PENDING_REVIEW` so
-   concurrent decisions can't race.
+   concurrent decisions can't race. Approve locks the candidate row (`SELECT … FOR UPDATE`) so a double
+   click can't create two deals, then writes the Qualified Buy-side
+   deal to Attio *first* (`deals.attio_id` is the Postgres primary key),
+   then one Postgres transaction does the compare-and-set, the `deals`
+   upsert and the `deal_attio_id` stamp. If Attio already has a deal for
+   the buyer+seller pair, the approver chooses to promote it (only an
+   `Inbound` deal moves; later stages are left alone) or create a new one.
+   Attio-succeeds/Postgres-fails raises `PartialWriteError`; the inbound
+   webhook / nightly resync reconciles the orphan. This path is its own
+   (`providers/attio/deal_gateway.py`), not `lead_magnets`' deal writer,
+   which never promotes a deal. Deal owner: `MATCHING_DEAL_OWNER_ID`.
 
 Meeting notes (`meetings` table) are folded into both Bedrock prompts as
 labeled, unverified context — always on for the buyer side, on by default

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
 
 // Recovers Scribe summaries the "Check" button in a meeting's push
 // dialog never reached -- that dialog only mounts pre-push, so a
@@ -36,6 +36,7 @@ interface SidebarItem {
   children?: SidebarItem[];
   durationSeconds?: number | null;
   createdAt?: string | null;
+  pushedAt?: string | null;
 }
 
 export interface CurrentMeeting {
@@ -44,6 +45,7 @@ export interface CurrentMeeting {
   pushTag?: string | null;
   durationSeconds?: number | null;
   createdAt?: string | null;
+  pushedAt?: string | null;
 }
 
 // Folders are derived from each meeting's push_tag (set via the Push
@@ -78,7 +80,7 @@ interface SidebarContextType {
   isCollapsed: boolean;
   toggleCollapse: () => void;
   meetings: CurrentMeeting[];
-  setMeetings: (meetings: CurrentMeeting[]) => void;
+  setMeetings: React.Dispatch<React.SetStateAction<CurrentMeeting[]>>;
   isMeetingActive: boolean;
   setIsMeetingActive: (active: boolean) => void;
   handleRecordingToggle: () => void;
@@ -121,7 +123,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [activeSummaryPolls, setActiveSummaryPolls] = useState<Map<string, NodeJS.Timeout>>(new Map());
 
   // Use recording state from RecordingStateContext (single source of truth)
-  const { isRecording } = useRecordingState();
+  const { isRecording, isStarting, setStatus } = useRecordingState();
 
   const pathname = usePathname();
   const router = useRouter();
@@ -130,11 +132,12 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const fetchMeetings = React.useCallback(async () => {
     if (serverAddress) {
       try {
-        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, created_at?: string, push_tag?: string | null, duration_seconds?: number | null }>;
+        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, created_at?: string, push_tag?: string | null, pushed_at?: string | null, duration_seconds?: number | null }>;
         const transformedMeetings = meetings.map((meeting: any) => ({
           id: meeting.id,
           title: meeting.title,
           pushTag: meeting.push_tag ?? null,
+          pushedAt: meeting.pushed_at ?? null,
           durationSeconds: meeting.duration_seconds ?? null,
           createdAt: meeting.created_at ?? null,
         }));
@@ -202,6 +205,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
         type: 'file' as const,
         durationSeconds: meeting.durationSeconds,
         createdAt: meeting.createdAt,
+        pushedAt: meeting.pushedAt,
       };
       const tag = meeting.pushTag?.trim();
       if (!tag) {
@@ -217,8 +221,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       folder.children!.push(fileItem);
     }
 
-    const sortedTagFolders = Array.from(tagFolders.values()).sort((a, b) =>
-      a.title.localeCompare(b.title)
+    const newestMeetingAt = (folder: SidebarItem) =>
+      Math.max(...(folder.children ?? []).map((c) => new Date(c.createdAt ?? 0).getTime() || 0));
+    const sortedTagFolders = Array.from(tagFolders.values()).sort(
+      (a, b) => newestMeetingAt(b) - newestMeetingAt(a)
     );
 
     return [
@@ -251,7 +257,9 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   // Function to handle recording toggle from sidebar
   const handleRecordingToggle = () => {
-    if (!isRecording) {
+    if (!isRecording && !isStarting) {
+      // Optimistic: show "starting" right away, even while navigating home first.
+      setStatus(RecordingStatus.STARTING, 'Initializing recording...');
       // Check if already on home page
       if (pathname === '/') {
         // Already on home - trigger recording directly via custom event

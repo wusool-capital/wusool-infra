@@ -1,25 +1,59 @@
-"""Finds new sellers outside the CRM (via public search) and, on request,
-turns one into a real `seller_roles` row — CREATE, as opposed to
-`enrichment`'s UPDATE of an existing row. This module runs no dedupe check
-of its own: it hands every discovered lead straight to `SellerDraftPort`,
-and `ddl_commands`' own `/add-seller` search
-(`organization_selection_modal`) is the only dedupe in the pipeline — an
-existing org with no active seller role still gets the prefill, an
-existing org that already has one is routed to `/edit-seller` instead.
+"""Finds new sellers outside the CRM (via public search), checks each against
+the CRM, and auto-creates the ones that are genuinely new as `seller_roles`
+rows — CREATE, as opposed to `enrichment`'s UPDATE of an existing row.
 
-Writes are delegated through `SellerDraftPort` — this module never talks to
-Attio or Postgres directly; `ddl_commands` implements the adapter and
-`server/main.py` wires it (see
-`ddl_commands/providers/discovery/seller_draft_adapter.py`).
+The pre-filter replaces the human `/add-seller` step as the dedupe gate: an
+exact `place_id` or domain match skips a lead; a name-only match is *not*
+created and comes back as a `PossibleDuplicate` for a human to add via
+`SellerDraftPort` (whose `/add-seller` org search is the final check).
+
+CRM reads and writes are delegated through `SellerWriterPort`/`SellerDraftPort`
+— this module never touches Attio or the CRM tables; it owns only
+`discovery_reviews` (leads awaiting a website review). `ddl_commands`
+implements the adapters and `server/main.py` wires them (see
+`ddl_commands/providers/discovery/`).
 
 Public cross-module facade — see the module-boundary rule in
 `server/tests/test_architecture.py`: other modules may only import names
 listed in `__all__` here.
 """
 
-from app.modules.discovery.api.lead_flow import find_and_post_leads
+from app.modules.discovery.api.lead_flow import discover_and_create_sellers, mark_review_posted
+from app.modules.discovery.api.slack.views import (
+    build_needs_review_blocks,
+    build_possible_duplicate_blocks,
+)
 from app.modules.discovery.application.ports.seller_draft import SellerDraftPort
+from app.modules.discovery.application.ports.seller_writer import SellerWriterPort
+from app.modules.discovery.domain.crm import CrmMatch, CrmMatchKind
 from app.modules.discovery.domain.drafts import SellerDraft
 from app.modules.discovery.domain.leads import DiscoveredLead
+from app.modules.discovery.domain.outcome import (
+    CreatedSeller,
+    DiscoveryOutcome,
+    FailedLead,
+    PossibleDuplicate,
+    ReviewValue,
+    SellerWriteError,
+    UnverifiedSeller,
+)
 
-__all__ = ["DiscoveredLead", "SellerDraft", "SellerDraftPort", "find_and_post_leads"]
+__all__ = [
+    "CreatedSeller",
+    "CrmMatch",
+    "CrmMatchKind",
+    "DiscoveredLead",
+    "DiscoveryOutcome",
+    "FailedLead",
+    "PossibleDuplicate",
+    "ReviewValue",
+    "SellerDraft",
+    "SellerDraftPort",
+    "SellerWriteError",
+    "SellerWriterPort",
+    "UnverifiedSeller",
+    "build_needs_review_blocks",
+    "build_possible_duplicate_blocks",
+    "discover_and_create_sellers",
+    "mark_review_posted",
+]

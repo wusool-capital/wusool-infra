@@ -13,6 +13,7 @@ There is no separate website or login.
 | Command | Result |
 | --- | --- |
 | `/find-match <buyer name>` | Ranked seller shortlist |
+| `/check-buyer <buyer name>` | Checks the buyer's criteria for conflicts or missing data |
 | `/edit-seller <name>` / `/edit-buyer <name>` | Edit an existing profile |
 | `/add-seller <organization>` / `/add-buyer <organization>` | Add a role |
 | `/enrich-seller <name>` / `/enrich-buyer <name>` | Propose missing values |
@@ -37,18 +38,24 @@ flowchart TD
 1. Run `/find-match <buyer name>`, for example `/find-match Raoof Capital`.
 2. If several buyers have similar names, select the intended record. If none
    appears, check the spelling or add the buyer first.
-3. Wait while the Toolkit compares eligible sellers. It returns a ranked
+3. A popup lists any details missing from the buyer's profile or conflicting
+   with what you typed. Choose **Run anyway** to start the match, or
+   **Cancel** to fix the profile first (for example with `/enrich-buyer`).
+4. Wait while the Toolkit compares eligible sellers. It returns a ranked
    shortlist with a fit score, data-confidence score, and explanation.
-4. Use **View Full Analysis** to inspect the reasoning.
-5. Choose **Approve Match** or **Reject Match** when you have decided.
+5. Use **View Full Analysis** to inspect the reasoning.
+6. Choose **Approve Match** or **Reject Match** when you have decided.
 
 **Expected result:** Slack shows scored sellers with fit and data-confidence
 scores. Verify high scores when confidence is low.
 
-If no CRM seller clears the internal threshold, the bot can show up to three
-unverified leads from a public web search. **Add as seller** opens the normal
-add-seller flow; the lead is not saved until you complete that flow. **Find
-more sellers** repeats the public search.
+If no CRM seller clears the internal threshold, the bot searches Google Maps
+for new sellers. A lead is saved automatically only when the website Diffbot
+or People Data Labs found matches the Google Maps website. Otherwise a
+**Website check** message shows both websites and the proposed values.
+**Review & Save** opens the normal add-seller form. Nothing is saved until you
+complete it. Leads that look like an existing organization get **Add as
+seller** instead. **Find more sellers** repeats the public search.
 
 Match results never contact an organization or change its profile or deal.
 Approval and rejection record only the decision, after a current-data check.
@@ -80,8 +87,9 @@ flowchart TD
 
 1. Run `/edit-seller <name>` or `/edit-buyer <name>` and select the intended
    record if asked.
-2. Tick only the organization or profile fields you need to change.
-3. Continue to the pre-filled form, update the values, and press **Save**.
+2. For a buyer, pick a vertical. An existing one edits that role.
+3. Tick only the organization or profile fields you need to change.
+4. Continue to the pre-filled form, update the values, and press **Save**.
 
 **Expected result:** the bot confirms the update after writing to Attio and
 then the database. Partial failures identify what saved.
@@ -98,15 +106,17 @@ flowchart TD
   org -- "No" --> create["Create organization"]
   create --> role
   role --> save["Complete form and save"] --> attio["Attio"] --> database["Database"]
-  org -- "Role already exists" --> edit["Use /edit-* instead"]
+  org -- "Role already exists for that vertical" --> edit["Use /edit-* instead"]
 ```
 
 1. Run `/add-seller <organization name>` or `/add-buyer <organization name>`.
 2. Select an existing organization if it is the same business. Otherwise
    choose **None of these — create new organization**.
-3. Complete the form. A new organization requires a name; other fields can be
+3. For a buyer, pick a vertical. An existing one edits that role; an unused
+   one creates a new role.
+4. Complete the form. A new organization requires a name; other fields can be
    filled later.
-4. Review duplicate warnings and press **Save**.
+5. Review duplicate warnings and press **Save**.
 
 **Expected result:** the organization and role are created in Attio, then the
 database. If the role exists, edit it instead. Coordinate simultaneous adds.

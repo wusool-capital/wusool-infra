@@ -13,6 +13,7 @@ export interface RecordingPreferences {
   file_format: string;
   preferred_mic_device: string | null;
   preferred_system_device: string | null;
+  auto_stop_on_meeting_end: boolean;
 }
 
 interface RecordingSettingsProps {
@@ -25,11 +26,14 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     auto_save: true,
     file_format: 'mp4',
     preferred_mic_device: null,
-    preferred_system_device: null
+    preferred_system_device: null,
+    auto_stop_on_meeting_end: true
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showRecordingNotification, setShowRecordingNotification] = useState(true);
+  // null until the OS login-item state is read, since it's the source of truth.
+  const [openAtLogin, setOpenAtLogin] = useState<boolean | null>(null);
 
   // Load recording preferences on component mount
   useEffect(() => {
@@ -52,6 +56,16 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     };
 
     loadPreferences();
+  }, []);
+
+  useEffect(() => {
+    invoke<boolean>('get_open_at_login')
+      .then(setOpenAtLogin)
+      .catch((error) => {
+        console.error('Failed to read open-at-login state:', error);
+        // Leave the toggle usable so it can still be turned on or off.
+        setOpenAtLogin(false);
+      });
   }, []);
 
   // Load recording notification preference
@@ -118,6 +132,38 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       });
     } catch (error) {
       console.error('Failed to save notification preference:', error);
+      toast.error('Failed to save preference');
+    }
+  };
+
+  const handleOpenAtLoginToggle = async (enabled: boolean) => {
+    const previous = openAtLogin;
+    setOpenAtLogin(enabled);
+    try {
+      await invoke('set_open_at_login', { enabled });
+      toast.success('Preference saved');
+      await Analytics.track('open_at_login_changed', {
+        enabled: enabled.toString()
+      });
+    } catch (error) {
+      console.error('Failed to save open-at-login preference:', error);
+      setOpenAtLogin(previous);
+      toast.error('Failed to save preference');
+    }
+  };
+
+  const handleAutoStopToggle = async (enabled: boolean) => {
+    const updated = { ...preferences, auto_stop_on_meeting_end: enabled };
+    setPreferences(updated);
+    try {
+      await invoke('set_recording_preferences', { preferences: updated });
+      toast.success('Preference saved');
+      await Analytics.track('auto_stop_on_meeting_end_changed', {
+        enabled: enabled.toString()
+      });
+    } catch (error) {
+      console.error('Failed to save auto-stop preference:', error);
+      setPreferences(preferences);
       toast.error('Failed to save preference');
     }
   };
@@ -225,6 +271,35 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
         <Switch
           checked={showRecordingNotification}
           onCheckedChange={handleNotificationToggle}
+        />
+      </div>
+
+      {/* Auto-stop Toggle */}
+      <div className="flex items-center justify-between p-4 border rounded-lg">
+        <div className="flex-1">
+          <div className="font-medium">Auto-stop When Meeting Ends</div>
+          <div className="text-sm text-muted-foreground">
+            Stop recording after a short countdown when your meeting app releases the microphone. When off, recording continues until you stop it from the tray menu or the app.
+          </div>
+        </div>
+        <Switch
+          checked={preferences.auto_stop_on_meeting_end}
+          onCheckedChange={handleAutoStopToggle}
+        />
+      </div>
+
+      {/* Open at login Toggle */}
+      <div className="flex items-center justify-between p-4 border rounded-lg">
+        <div className="flex-1">
+          <div className="font-medium">Open at Login</div>
+          <div className="text-sm text-muted-foreground">
+            Start Scribe in the background when you log in, so it is already running for your meetings. Find it in the menu bar.
+          </div>
+        </div>
+        <Switch
+          checked={openAtLogin ?? false}
+          disabled={openAtLogin === null}
+          onCheckedChange={handleOpenAtLoginToggle}
         />
       </div>
 

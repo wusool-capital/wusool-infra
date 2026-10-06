@@ -16,10 +16,10 @@ it already broke a production summarization call once.
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-import boto3
 from botocore.config import Config
 
 from app.modules.lead_magnets.config import get_settings
+from app.modules.utilities.providers.bedrock.client_factory import build_bedrock_runtime_client
 
 if TYPE_CHECKING:
     # boto3-stubs is dev-only (see pyproject.toml) and never installed in
@@ -31,8 +31,6 @@ _CONVERSE_TIMEOUT_CONFIG = Config(connect_timeout=10, read_timeout=120)
 
 @lru_cache
 def get_bedrock_runtime_client() -> "BedrockRuntimeClient":
-    return boto3.client(
-        "bedrock-runtime",
-        region_name=get_settings().aws_region,
-        config=_CONVERSE_TIMEOUT_CONFIG,
+    return build_bedrock_runtime_client(
+        region_name=get_settings().aws_region, config=_CONVERSE_TIMEOUT_CONFIG
     )

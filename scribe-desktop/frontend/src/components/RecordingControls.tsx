@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
+import { StatusMessage } from '@/components/StatusMessage';
 import Analytics from '@/lib/analytics';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 
@@ -46,12 +47,12 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   // Use global recording state context for pause state (syncs with tray operations)
   const recordingState = useRecordingState();
   const isPaused = recordingState.isPaused;
+  const isStarting = recordingState.isStarting;
 
   const [showPlayback, setShowPlayback] = useState(false);
   const [recordingPath, setRecordingPath] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
@@ -346,10 +347,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       <div className="flex flex-col space-y-2">
         <div className="flex items-center space-x-2 bg-card rounded-full shadow-lg px-4 py-2">
           {isProcessing && !isParentProcessing ? (
-            <div className="flex items-center space-x-2">
-              <Spinner className="h-5 w-5" />
-              <span className="text-sm text-muted-foreground">Processing recording...</span>
-            </div>
+            <StatusMessage message="Processing recording..." />
           ) : (
             <>
               {showPlayback ? (
@@ -395,7 +393,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                           className={`w-12 h-12 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel ? 'bg-muted-foreground/40' : 'bg-destructive hover:bg-destructive/90'
                             } rounded-full text-destructive-foreground transition-colors relative`}
                         >
-                          {isValidatingModel ? (
+                          {isValidatingModel || isStarting ? (
                             <Spinner className="h-5 w-5 text-destructive-foreground" />
                           ) : (
                             <Mic size={20} />

@@ -71,6 +71,7 @@ class SellerService(ServiceBase):
         org_name: str | None = None,
         org_fields: JsonObject | None = None,
         role_fields: JsonObject,
+        source_place_id: str | None = None,
     ) -> SellerRole:
         """Called only after the corresponding Attio write(s) already
         succeeded (see `api/slack/handlers/actions.py`) — this never talks
@@ -97,6 +98,18 @@ class SellerService(ServiceBase):
                 )
             elif org_fields:
                 await uow.organizations.update(org_attio_id, **org_fields)
+            if source_place_id is not None:
+                # `create` is DO NOTHING on an Attio-webhook race, which would
+                # silently drop the place id; Attio has no such attribute.
+                org = await uow.organizations.get_by_id(org_attio_id)
+                # Fill only an empty slot, and never trip the unique index after
+                # the Attio writes already landed.
+                if (
+                    org is not None
+                    and org.source_place_id is None
+                    and await uow.organizations.find_by_place_id(source_place_id) is None
+                ):
+                    await uow.organizations.update(org_attio_id, source_place_id=source_place_id)
 
             # Serializes concurrent /add-seller for this org: the check below
             # is application-level, so without this both could pass it.

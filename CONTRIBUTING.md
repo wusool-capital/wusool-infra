@@ -84,12 +84,16 @@ For PowerShell or shell-script changes, run the applicable PowerShell quality
 and shell-test workflows. Their repository entry points are
 `Invoke-ScriptAnalyzer` and `./checks.sh shell` from `server/` respectively.
 
-For changes to the published GitBook documentation, install Vale and run:
+For changes to the published GitBook documentation, install Vale and run
+the same check CI runs from `server/`:
 
 ```bash
 brew install vale
-vale CHANGELOG.md gitbook/README.md gitbook/SUMMARY.md gitbook/user-guide gitbook/technical gitbook/operations gitbook/deliverables
+./checks.sh docs
 ```
+
+It fails on any Vale warning in lines your branch added. Running bare `vale`
+lists warnings but still exits 0, so it won't catch what CI blocks.
 
 Follow the page templates and content budgets in
 [`docs/internal/dev/DOCUMENTATION_STYLE_GUIDE.md`](docs/internal/dev/DOCUMENTATION_STYLE_GUIDE.md).

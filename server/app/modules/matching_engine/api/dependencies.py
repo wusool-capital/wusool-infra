@@ -9,6 +9,7 @@ from functools import lru_cache
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.discrepancies import DiscrepancyCheckResult
 from app.modules.matching_engine.api.buyers import BuyerResolutionRead, BuyerSummary
 from app.modules.matching_engine.api.matching import MatchAnalysis, MatchResultRead, MatchScoreRead
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
@@ -21,7 +22,10 @@ from app.modules.matching_engine.bootstrap import (
 )
 from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.domain.buyers import BuyerContext
-from app.modules.matching_engine.domain.matching.entities import MatchAnalysisData
+from app.modules.matching_engine.domain.matching.entities import (
+    DiscoveredCandidate,
+    MatchAnalysisData,
+)
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.matching_engine.providers.bedrock.client import BedrockConverseClient
@@ -92,10 +96,43 @@ def _build_slack_notifier() -> SlackWebClientNotifier:
     return build_slack_notifier()
 
 
-async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: str) -> None:
+async def find_buyer_discrepancies(
+    buyer_role_id: str, advisor_context: str | None
+) -> DiscrepancyCheckResult | None:
+    """Checks the buyer's profile for missing details and for conflicts with
+    the advisor's typed context. Returns None if the buyer no longer exists.
+
+    Errors are left to propagate on purpose: the popup then says "couldn't
+    check" instead of wrongly showing that nothing is missing.
+    """
+    from app.modules.discrepancies import check_buyer_discrepancies
+    from app.modules.matching_engine.providers.discrepancies.criteria_reader_adapter import (
+        to_buyer_criteria,
+    )
+
+    buyer = await resolve_buyer_by_id(buyer_role_id)
+    if buyer is None:
+        return None
+    return await check_buyer_discrepancies(to_buyer_criteria(buyer), advisor_context)
+
+
+async def run_match_and_post(
+    buyer_role_id: str,
+    requested_by: str,
+    channel_id: str,
+    *,
+    advisor_context: str | None = None,
+    placeholder_ts: str | None = None,
+) -> None:
     """Shared background-task body for running the match pipeline and
-    posting its result to Slack — used by both the `/find-match` command
-    handler and the buyer-selection modal submission handler.
+    posting its result to Slack — used by the discrepancy popup's "Run
+    anyway" submit and by "Run match anyway" buttons on in-channel gate
+    messages posted before the popup existed. Discrepancies are checked by
+    the popup beforehand, never here.
+
+    `placeholder_ts` lets a legacy "Run match anyway" button reuse its
+    discrepancy-report message as the placeholder instead of posting a
+    second one.
 
     Uses the shared out-of-band Slack notifier (no live Slack request in
     flight by the time this runs), not `get_bolt_app().client` — that used
@@ -108,12 +145,12 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
     from app.modules.matching_engine.api.slack.views.match_result import build_match_result_blocks
 
     notifier = _build_slack_notifier()
-    placeholder_ts: str | None = None
     discovery_run_id: uuid.UUID | None = None
     try:
-        placeholder_ts = await notifier.post_message(
-            channel=channel_id, text="✨ *_Finding matches, please wait…_*"
-        )
+        if placeholder_ts is None:
+            placeholder_ts = await notifier.post_message(
+                channel=channel_id, text="✨ *_Finding matches, please wait…_*"
+            )
 
         buyer = await resolve_buyer_by_id(buyer_role_id)
         if buyer is None:
@@ -133,7 +170,9 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
         async with get_sessionmaker()() as session:
             service = matching_engine_service(session)
 
-        result = await service.run_match(buyer, requested_by=requested_by)
+        result = await service.run_match(
+            buyer, requested_by=requested_by, advisor_context=advisor_context
+        )
 
         blocks = build_match_result_blocks(result)
         scores = [c.match_score for c in result.results]
@@ -187,9 +226,13 @@ async def run_match_and_post(buyer_role_id: str, requested_by: str, channel_id: 
 
 async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> None:
     """Below-threshold match quality: hand the run's own (industry,
-    geography) off to `discovery`'s search, as a second message rather than
-    replacing the match-results one — `discovery.find_and_post_leads` posts
-    and owns its own placeholder/update pair.
+    geography) off to `discovery`, which pre-filters against the CRM and
+    auto-creates the genuinely new sellers. Those are appended to this run
+    as `PENDING_REVIEW` rows and posted as a second message with
+    Approve/Reject; name-only look-alikes are posted separately with an
+    "Add as seller" button, and leads whose website Diffbot/PDL didn't
+    confirm get one "Review & Save" message each, so a human decides before
+    anything is written.
     """
     idempotency_key = f"discovery:{run_id}"
     if _discovery_idempotency_store.seen(idempotency_key):
@@ -197,7 +240,15 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
     _discovery_idempotency_store.mark(idempotency_key)
 
-    from app.modules.discovery import find_and_post_leads
+    from app.modules.discovery import (
+        build_needs_review_blocks,
+        build_possible_duplicate_blocks,
+        discover_and_create_sellers,
+        mark_review_posted,
+    )
+    from app.modules.matching_engine.api.slack.views.discovered_candidates import (
+        build_discovered_candidates_blocks,
+    )
     from app.modules.matching_engine.application.discovery_bridge import extract_query_terms
 
     async with get_sessionmaker()() as session:
@@ -211,6 +262,124 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
     if not industry and not geography:
         return
 
-    await find_and_post_leads(
-        industry=industry, geography=geography, channel_id=channel_id, exclude_terms=exclude_terms
+    notifier = _build_slack_notifier()
+    placeholder_ts = await notifier.post_message(
+        channel=channel_id, text="🔎 *_Searching for potential sellers…_*"
     )
+    try:
+        outcome = await discover_and_create_sellers(
+            industry=industry,
+            geography=geography,
+            quota_key=analysis.run.buyer_role_id,
+            exclude_terms=exclude_terms,
+        )
+    except Exception:
+        logger.exception("seller_discovery_failed", extra={"run_id": str(run_id)})
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text="Seller search failed unexpectedly."
+        )
+        return
+    if outcome.status != "ok":
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text=_DISCOVERY_STATUS_TEXT[outcome.status]
+        )
+        return
+
+    try:
+        async with get_sessionmaker()() as session:
+            service = matching_engine_service(session)
+        await service.append_discovered_candidates(
+            run_id,
+            [
+                DiscoveredCandidate(
+                    seller_role_id=str(created.seller_role_id),
+                    seller_attio_id=created.org_attio_id,
+                    source_url=created.source_url,
+                )
+                for created in outcome.created
+            ],
+        )
+        view = await service.get_match_run_view(run_id)
+    except Exception:
+        # The sellers already exist in the CRM at this point, so this must not
+        # read like the search failed, and it can't be retried.
+        logger.exception("discovered_candidates_review_setup_failed", extra={"run_id": str(run_id)})
+        names = ", ".join(c.org_name for c in outcome.created)
+        await notifier.update_message(
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=(
+                f"Created {len(outcome.created)} seller(s) in the CRM ({names}) but couldn't "
+                "set them up for review. Find them in the CRM."
+            ),
+        )
+        return
+
+    notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
+    if outcome.needs_review:
+        count = len(outcome.needs_review)
+        verb = "needs" if count == 1 else "need"
+        notes.append(f"{count} {verb} a website review before saving (below).")
+    if outcome.awaiting_review:
+        notes.append(f"{outcome.awaiting_review} still awaiting an earlier website review.")
+    if outcome.failed:
+        notes.append(
+            "Couldn't save: "
+            + ", ".join(
+                f"{f.lead.name} (partly saved: {'; '.join(f.landed)})" if f.landed else f.lead.name
+                for f in outcome.failed
+            )
+            + "."
+        )
+    created_ids = {str(c.seller_role_id) for c in outcome.created}
+    discovered = (
+        [r for r in view.results if r.origin == "discovery" and r.seller_role_id in created_ids]
+        if view is not None
+        else []
+    )
+    if discovered:
+        await notifier.update_message(
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=f"Found {len(discovered)} new seller(s)",
+            blocks=build_discovered_candidates_blocks(discovered, notes=notes),
+        )
+    else:
+        detail = " ".join(notes) or "No new potential sellers found."
+        await notifier.update_message(
+            channel=channel_id, ts=placeholder_ts, text=f"No new sellers created. {detail}"
+        )
+
+    # One message per lead: each can carry a dozen field sections, and
+    # Slack caps a message at 50 blocks.
+    for unverified in outcome.needs_review:
+        # One bad card must not cost the operator every card after it.
+        try:
+            await notifier.post_message(
+                channel=channel_id,
+                text=f"Website check for {unverified.draft.org_name}",
+                blocks=build_needs_review_blocks(unverified),
+            )
+            # Unmarked, the next run re-flags the lead instead of hiding it.
+            if unverified.review_id:
+                await mark_review_posted(unverified.review_id)
+        except Exception:
+            logger.exception(
+                "discovery_review_post_failed", extra={"lead": unverified.draft.org_name}
+            )
+
+    if outcome.possible_duplicates:
+        try:
+            await notifier.post_message(
+                channel=channel_id,
+                text=f"{len(outcome.possible_duplicates)} possible duplicate(s) found",
+                blocks=build_possible_duplicate_blocks(outcome.possible_duplicates),
+            )
+        except Exception:
+            logger.exception("discovery_duplicates_post_failed", extra={"run_id": str(run_id)})
+
+
+_DISCOVERY_STATUS_TEXT = {
+    "disabled": "Seller discovery isn't configured.",
+    "daily_cap_reached": "Daily discovery limit reached for this buyer. Try again tomorrow.",
+}

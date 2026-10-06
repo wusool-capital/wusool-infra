@@ -47,7 +47,12 @@ beyond the `AttioClientProtocol` Port.
 ## The edit flow
 
 1. `/edit-seller <name>` / `/edit-buyer <name>` — fuzzy search, disambiguation
-   modal.
+   modal (one option per organization for buyers).
+   1a. **Buyers only — vertical step** (`buyer_vertical_selection.py`): a buyer
+   holds one role per vertical, so the operator picks an existing role to edit
+   or an unused vertical to create. An organization with no buyer role at all
+   gets a pointer to `/add-buyer` instead. Picking an unused vertical here
+   goes to the add form, exactly as in the add flow below.
 2. **Field picker** — a modal listing every editable field, grouped
    "Organization" and "Seller/Buyer profile" (see `api/schemas.py`'s
    `FieldSpec`/`FieldKind` and `api/organizations.py`'s `ORGANIZATION_FIELDS`
@@ -67,16 +72,41 @@ beyond the `AttioClientProtocol` Port.
 1. `/add-seller <org name>` / `/add-buyer <org name>` — fuzzy search against
    `organizations` directly. No match → straight to step 3 with a blank org.
 2. **Organization selection** — shown only if the search found candidates:
-   attach the new role to one, or create a new organization. Picking an org
-   that already has the target role (re-checked fresh) stops here with a
-   pointer to `/edit-*` instead.
+   attach the new role to one, or create a new organization. For sellers,
+   picking an org that already has the role (re-checked fresh) stops here
+   with a pointer to `/edit-seller` instead.
+   2a. **Buyers only — vertical step** (`buyer_vertical_selection.py`): shown
+   for every buyer add, including a brand-new organization. An organization
+   holds one active buyer role per vertical, so picking an existing role
+   routes into the edit flow's field picker, and picking an unused vertical
+   opens the add form with the vertical fixed. `target_vertical` is chosen
+   here only — the add form and field picker leave it out, so a role can't be
+   moved onto a vertical another role already holds.
 3. **Add form** — every eligible field at once, all optional except a new
    organization's `name`. If similar orgs were found and the user still
    picks "create new", the form warns about the duplicate but doesn't block.
-4. **Submit** — writes to **SOURCE Attio first** (organization, if new, then
-   the role entry), then Postgres in one transaction. If the role-entry
+4. **Submit** — for a buyer on an existing organization, Postgres is first
+   checked for an active role in the same vertical, before anything reaches
+   Attio: Attio's newest-wins reconcile would demote the existing role if a
+   duplicate entry landed there. Then writes to **SOURCE Attio first**
+   (organization, if new, then the role entry), then Postgres in one
+   transaction. If the role-entry
    write fails after the org-create succeeded, the org is *not* rolled
    back — the next `/add-*` attempt finds it via search.
+
+### Headless seller add (discovery)
+
+`api/seller_write.py::write_seller_add` is the Attio-first seller write the
+`/add-seller` submission calls, kept out of the Slack handler so
+`providers/discovery/seller_writer_adapter.py` can call it too. It returns the
+created `SellerRole` and raises `PartialWriteError` (`api/write_errors.py`) with
+what already landed. The adapter also runs the CRM pre-filter lookup and basic
+enrichment, returns the lead unwritten as `UnverifiedSeller` when a provider's
+website doesn't match the Maps website (see `discovery/README.md`), then
+writes once. A reviewed lead's `source_place_id` travels through the
+organization-selection and add-form `private_metadata` to the same write
+(set only when the organization has none and no other organization holds it). `source_place_id` goes to Postgres only: Attio has
+no such attribute, and the sync's `COALESCE` keeps it.
 
 ## Why Attio-first, not a Postgres-only write
 

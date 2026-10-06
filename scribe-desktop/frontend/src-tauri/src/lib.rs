@@ -38,6 +38,7 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod api;
 pub mod audio;
+pub mod autostart;
 pub mod config;
 pub mod console_utils;
 pub mod database;
@@ -394,6 +395,12 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
+    // Non-activating panels for the meeting popups (hover/cursor without stealing focus).
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
@@ -408,6 +415,10 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![autostart::LOGIN_LAUNCH_ARG]),
+        ))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -430,12 +441,20 @@ pub fn run() {
             // with no visible way to bring it forward. Force focus explicitly
             // on every startup - harmless on a normal launch, load-bearing
             // after an update relaunch.
-            tray::focus_main_window(_app.handle());
-
-            // Initialize system tray
-            if let Err(e) = tray::create_tray(_app.handle()) {
-                log::error!("Failed to create system tray: {}", e);
+            // The main window is created hidden (tauri.conf.json), so a login
+            // launch stays in the tray, but only if the tray exists to reopen it.
+            let tray_ready = match tray::create_tray(_app.handle()) {
+                Ok(()) => true,
+                Err(e) => {
+                    log::error!("Failed to create system tray: {}", e);
+                    false
+                }
+            };
+            if !(autostart::launched_at_login() && tray_ready) {
+                tray::focus_main_window(_app.handle());
             }
+
+            autostart::apply_default(_app.handle());
 
             // Initialize notification system with proper defaults
             log::info!("Initializing notification system...");
@@ -578,6 +597,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            autostart::get_open_at_login,
+            autostart::set_open_at_login,
+            autostart::prepare_relaunch,
+            tray::open_changelog,
+            tray::focus_main_window_command,
             start_recording,
             stop_recording,
             is_recording,
@@ -585,6 +609,9 @@ pub fn run() {
             read_audio_file,
             audio::meeting_detection::meeting_popup_start_recording,
             audio::meeting_detection::meeting_popup_dismiss,
+            audio::recording_pill::recording_pill_state,
+            audio::recording_pill::recording_pill_stop,
+            audio::recording_pill::recording_pill_keep_recording,
             save_transcript,
             analytics::commands::init_analytics,
             analytics::commands::disable_analytics,
@@ -705,6 +732,13 @@ pub fn run() {
             api::api_get_meeting_transcripts,
             api::api_save_meeting_title,
             api::update_transcript_text,
+            api::edit_transcript_segment,
+            api::delete_transcript_segments,
+            api::split_transcript_segment,
+            api::merge_transcript_segments,
+            api::find_in_transcripts,
+            api::replace_in_transcripts,
+            api::apply_transcript_edit,
             api::api_save_transcript,
             api::open_meeting_folder,
             api::test_backend_connection,
@@ -746,8 +780,10 @@ pub fn run() {
             push::get_push_status,
             push::update_meeting_tag,
             push::search_companies,
+            push::suggest_transcript_corrections,
             push::get_saved_summary,
             push::sync_pushed_meetings,
+            push::delete_remote_meeting,
             feedback::submit_feedback,
             audio::recording_preferences::get_recording_preferences,
             audio::recording_preferences::set_recording_preferences,

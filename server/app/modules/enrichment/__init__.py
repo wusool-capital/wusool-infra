@@ -11,20 +11,28 @@ Public cross-module facade — see the module-boundary rule in
 listed in `__all__` here.
 """
 
-from app.modules.enrichment.api.enrich_flow import enrich_and_post
+from app.modules.enrichment.api.enrich_flow import enrich_and_post, propose_basic_seller_fields
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
 from app.modules.enrichment.application.ports.role_reader import RoleReaderPort
 from app.modules.enrichment.domain.field_plans import WriteTarget
-from app.modules.enrichment.domain.proposals import EnrichmentProposal, ProposedFieldValue
+from app.modules.enrichment.domain.proposals import (
+    BasicEnrichment,
+    EnrichmentProposal,
+    ProposedFieldValue,
+    ProviderEvidence,
+)
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 
 __all__ = [
+    "BasicEnrichment",
     "EnrichmentProposal",
     "EnrichmentReviewPort",
     "EnrichmentTarget",
     "EnrichmentTargetKind",
     "ProposedFieldValue",
+    "ProviderEvidence",
     "RoleReaderPort",
     "WriteTarget",
     "enrich_and_post",
+    "propose_basic_seller_fields",
 ]

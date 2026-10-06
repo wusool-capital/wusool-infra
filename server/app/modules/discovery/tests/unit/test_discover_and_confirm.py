@@ -1,12 +1,30 @@
+import pytest
+
+from app.modules.discovery.application.base import CreationPolicy
 from app.modules.discovery.application.service import DiscoveryService
 from app.modules.discovery.domain.drafts import SellerDraft
 from app.modules.discovery.domain.leads import DiscoveredLead
-from app.modules.discovery.tests.fakes.ports import FakeLeadSearchClient, FakeSellerDraftPort
+from app.modules.discovery.tests.fakes.ports import (
+    FakeLeadSearchClient,
+    FakeReviewStore,
+    FakeSellerDraftPort,
+    FakeSellerWriterPort,
+)
+from app.modules.utilities import FixedWindowRateLimiter, NotFoundError
 
 
-def _service(*, lead_search_client=None) -> tuple[DiscoveryService, FakeSellerDraftPort]:
+def _service(
+    *, lead_search_client=None, store: FakeReviewStore | None = None
+) -> tuple[DiscoveryService, FakeSellerDraftPort]:
     draft_port = FakeSellerDraftPort()
-    service = DiscoveryService(lead_search_client=lead_search_client, seller_draft_port=draft_port)
+    service = DiscoveryService(
+        lead_search_client=lead_search_client,
+        seller_draft_port=draft_port,
+        seller_writer_port=FakeSellerWriterPort(),
+        review_store=store or FakeReviewStore(),
+        search_limiter=FixedWindowRateLimiter(limit=10),
+        policy=CreationPolicy(lead_limit=5, enrichment_concurrency=2, enrichment_budget_s=30.0),
+    )
     return service, draft_port
 
 
@@ -48,3 +66,26 @@ async def test_open_confirm_form_delegates_to_the_seller_draft_port() -> None:
     )
 
     assert draft_port.calls == [draft]
+
+
+async def test_open_review_form_loads_the_stored_draft() -> None:
+    store = FakeReviewStore()
+    draft = SellerDraft(org_name="Acme Co", source_place_id="p1")
+    store.drafts["p1"] = draft
+    service, draft_port = _service(store=store)
+
+    await service.open_review_form(
+        trigger_id="trigger.1", review_id="p1", channel_id="C1", requested_by="U1"
+    )
+
+    assert draft_port.calls == [draft]
+
+
+async def test_open_review_form_raises_for_an_unknown_review() -> None:
+    service, draft_port = _service()
+
+    with pytest.raises(NotFoundError):
+        await service.open_review_form(
+            trigger_id="trigger.1", review_id="nope", channel_id="C1", requested_by="U1"
+        )
+    assert draft_port.calls == []

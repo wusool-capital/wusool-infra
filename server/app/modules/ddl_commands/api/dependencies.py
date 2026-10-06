@@ -57,6 +57,16 @@ async def search_organizations(term: str) -> list[Organization]:
         return await build_organization_repository(session).search_by_name(term)
 
 
+async def find_organization_by_place_id(place_id: str) -> Organization | None:
+    async with get_sessionmaker()() as session:
+        return await build_organization_repository(session).find_by_place_id(place_id)
+
+
+async def find_organization_by_domains(hosts: list[str]) -> Organization | None:
+    async with get_sessionmaker()() as session:
+        return await build_organization_repository(session).find_by_domains(hosts)
+
+
 async def resolve_organization(attio_id: str) -> Organization | None:
     async with get_sessionmaker()() as session:
         return await build_organization_repository(session).get_by_id_with_roles(attio_id)

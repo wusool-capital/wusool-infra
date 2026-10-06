@@ -16,7 +16,7 @@ async def test_unexpected_background_failure_replaces_placeholder(monkeypatch) -
             updates.append(kwargs)
 
     class FakeService:
-        async def run_match(self, buyer, *, requested_by):  # noqa: ANN001
+        async def run_match(self, buyer, *, requested_by, advisor_context=None):  # noqa: ANN001
             return MatchRunResult(run_id="run-1", status="GENERATED", buyer_org_name=buyer.org_name)
 
     class Buyer:

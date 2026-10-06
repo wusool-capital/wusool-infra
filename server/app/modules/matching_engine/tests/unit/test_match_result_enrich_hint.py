@@ -3,6 +3,8 @@ now lives only on the seller-add flow (`ddl_commands`). Here, a pending
 candidate instead gets a plain-text hint pointing at `/enrich-seller`.
 """
 
+from dataclasses import replace
+
 from app.modules.matching_engine.api.slack.views.match_result import build_match_result_blocks
 from app.modules.matching_engine.application.matching.use_cases import (
     MatchRunResult,
@@ -63,3 +65,22 @@ def test_pending_candidate_without_seller_role_shows_no_hint() -> None:
     ]
 
     assert not any("/enrich-seller" in text for text in context_texts)
+
+
+def test_notes_are_shown_once_in_the_result_message() -> None:
+    result = replace(_result("seller-1"), notes=["No ticket-size or EV limit applied."])
+
+    texts = [
+        el["text"]
+        for b in (b.to_dict() for b in build_match_result_blocks(result))
+        if b.get("type") == "context"
+        for el in b["elements"]
+    ]
+
+    assert texts.count("_No ticket-size or EV limit applied._") == 1
+
+
+def test_a_result_without_notes_has_no_note_block() -> None:
+    blocks = [b.to_dict() for b in build_match_result_blocks(_result("seller-1"))]
+
+    assert not any("limit applied" in str(b) for b in blocks)

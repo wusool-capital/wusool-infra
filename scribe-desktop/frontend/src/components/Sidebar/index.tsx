@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Bug, ChevronDown, ChevronRight, File, Settings, PanelLeft, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Folder } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar, TAG_FOLDER_PREFIX } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -17,7 +18,9 @@ import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
+import { useDeleteMeetings } from '@/hooks/useDeleteMeetings';
 import { cn } from '@/lib/utils';
+import { RollingLabel } from './RollingLabel';
 
 import {
   Dialog,
@@ -27,6 +30,7 @@ import {
 } from "@/components/ui/dialog"
 import { VisuallyHidden } from "@/components/ui/visually-hidden"
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 import Logo from '../Logo';
 import { ComplianceNotification } from '../ComplianceNotification';
@@ -42,6 +46,7 @@ interface SidebarItem {
   children?: SidebarItem[];
   durationSeconds?: number | null;
   createdAt?: string | null;
+  pushedAt?: string | null;
 }
 
 // e.g. 1845 -> "31m", 5400 -> "1h 30m", 12 -> "1m" (rounded up to the
@@ -95,7 +100,8 @@ const Sidebar: React.FC = () => {
   } = useSidebar();
 
   // Get recording state from RecordingStateContext (single source of truth)
-  const { isRecording } = useRecordingState();
+  const { isRecording, isStarting } = useRecordingState();
+  const { deleteMeetings } = useDeleteMeetings();
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
@@ -141,7 +147,12 @@ const Sidebar: React.FC = () => {
   // }, [settingsSaveSuccess]);
 
 
-  const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; itemId: string | null }>({ isOpen: false, itemId: null });
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    itemId: string | null;
+    anyPushed: boolean;
+  }>({ isOpen: false, itemId: null, anyPushed: false });
+  const [deleteRemoteChecked, setDeleteRemoteChecked] = useState(false);
 
   useEffect(() => {
     // Note: Don't set hardcoded defaults - let DB be the source of truth
@@ -345,47 +356,12 @@ const Sidebar: React.FC = () => {
   }, [filteredSidebarItems, searchQuery]);
 
 
-  const handleDelete = async (itemId: string) => {
-    console.log('Deleting item:', itemId);
-    const payload = {
-      meetingId: itemId
-    };
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('api_delete_meeting', {
-        meetingId: itemId,
-      });
-      console.log('Meeting deleted successfully');
-      const updatedMeetings = meetings.filter((m: CurrentMeeting) => m.id !== itemId);
-      setMeetings(updatedMeetings);
-
-      // Track meeting deletion
-      Analytics.trackMeetingDeleted(itemId);
-
-      // Show success toast
-      toast.success("Meeting deleted successfully", {
-        description: "All associated data has been removed"
-      });
-
-      // If deleting the active meeting, navigate to home
-      if (currentMeeting?.id === itemId) {
-        setCurrentMeeting({ id: 'intro-call', title: '+ New Call' });
-        router.push('/');
-      }
-    } catch (error) {
-      console.error('Failed to delete meeting:', error);
-      toast.error("Failed to delete meeting", {
-        description: error instanceof Error ? error.message : String(error)
-      });
-    }
-  };
-
   const handleDeleteConfirm = () => {
     if (deleteModalState.itemId) {
-      handleDelete(deleteModalState.itemId);
+      deleteMeetings([deleteModalState.itemId], deleteModalState.anyPushed && deleteRemoteChecked);
     }
-    setDeleteModalState({ isOpen: false, itemId: null });
+    setDeleteModalState({ isOpen: false, itemId: null, anyPushed: false });
+    setDeleteRemoteChecked(false);
   };
 
   // Handle modal editing of meeting names
@@ -521,10 +497,12 @@ const Sidebar: React.FC = () => {
                 variant="destructive"
                 size="icon"
                 onClick={handleRecordingToggle}
-                disabled={isRecording}
+                disabled={isRecording || isStarting}
                 className="rounded-full shadow-sm"
               >
-                {isRecording ? (
+                {isStarting ? (
+                  <Spinner className="w-5 h-5" />
+                ) : isRecording ? (
                   <Square className="w-5 h-5" />
                 ) : (
                   <Mic className="w-5 h-5" />
@@ -532,7 +510,7 @@ const Sidebar: React.FC = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              <p>{isRecording ? "Recording in progress..." : "Start Recording"}</p>
+              <p>{isStarting ? "Starting..." : isRecording ? "Recording in progress..." : "Start Recording"}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -603,7 +581,9 @@ const Sidebar: React.FC = () => {
   const renderItem = (item: SidebarItem, depth = 0) => {
     const isExpanded = expandedFolders.has(item.id) || searchExpandedFolderIds.has(item.id);
     const paddingLeft = `${depth * 12 + 12}px`;
-    const isActive = item.type === 'file' && currentMeeting?.id === item.id;
+    // currentMeeting outlives the meeting page, so it only counts while one is open.
+    const onMeetingRoute = !!pathname && (pathname.startsWith('/meeting-details') || pathname.startsWith('/notes'));
+    const isActive = onMeetingRoute && item.type === 'file' && currentMeeting?.id === item.id;
     const isMeetingItem = item.id.includes('-') && !item.id.startsWith('intro-call');
 
     // Check if this item has a matching transcript snippet
@@ -651,7 +631,7 @@ const Sidebar: React.FC = () => {
               ) : (
                 <Folder className="w-4 h-4 mr-2 text-muted-foreground" />
               )}
-              <span className={depth === 0 ? "" : "font-medium"}>{item.title}</span>
+              <RollingLabel text={item.title} className={cn('mr-2', depth !== 0 && 'font-medium')} />
               <div className="ml-auto">
                 {item.id.startsWith(TAG_FOLDER_PREFIX) ? (
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -679,7 +659,7 @@ const Sidebar: React.FC = () => {
                 )}
                 <span className="flex-1 truncate min-w-0" title={item.title}>{item.title}</span>
                 {isMeetingItem && (formatMeetingDate(item.createdAt) || formatDuration(item.durationSeconds)) && (
-                  <span className="flex-shrink-0 ml-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                  <span className="flex-shrink-0 ml-2 text-xs text-muted-foreground whitespace-nowrap">
                     {[formatMeetingDate(item.createdAt), formatDuration(item.durationSeconds)]
                       .filter(Boolean)
                       .join(' · ')}
@@ -705,7 +685,11 @@ const Sidebar: React.FC = () => {
                       className="h-6 w-6 flex-shrink-0 hover:text-destructive hover:bg-destructive/10"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setDeleteModalState({ isOpen: true, itemId: item.id });
+                        setDeleteModalState({
+                          isOpen: true,
+                          itemId: item.id,
+                          anyPushed: !!item.pushedAt,
+                        });
                       }}
                       aria-label="Delete meeting"
                     >
@@ -877,10 +861,15 @@ const Sidebar: React.FC = () => {
             <Button
               variant="destructive"
               onClick={handleRecordingToggle}
-              disabled={isRecording}
+              disabled={isRecording || isStarting}
               className="w-full shadow-sm"
             >
-              {isRecording ? (
+              {isStarting ? (
+                <>
+                  <Spinner className="w-4 h-4 mr-2" />
+                  <span>Starting...</span>
+                </>
+              ) : isRecording ? (
                 <>
                   <Square className="w-4 h-4 mr-2" />
                   <span>Recording in progress...</span>
@@ -924,8 +913,21 @@ const Sidebar: React.FC = () => {
         isOpen={deleteModalState.isOpen}
         text="Are you sure you want to delete this meeting? This action cannot be undone."
         onConfirm={handleDeleteConfirm}
-        onCancel={() => setDeleteModalState({ isOpen: false, itemId: null })}
-      />
+        onCancel={() => {
+          setDeleteModalState({ isOpen: false, itemId: null, anyPushed: false });
+          setDeleteRemoteChecked(false);
+        }}
+      >
+        {deleteModalState.anyPushed && (
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={deleteRemoteChecked}
+              onCheckedChange={(checked) => setDeleteRemoteChecked(checked === true)}
+            />
+            Also delete from Wusool server &amp; Attio
+          </label>
+        )}
+      </ConfirmationModal>
 
       {/* Edit Meeting Title Modal */}
       <Dialog open={editModalState.isOpen} onOpenChange={(open) => {

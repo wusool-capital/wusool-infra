@@ -15,7 +15,13 @@ from app.modules.utilities.domain.json_types import JsonObject
 
 ToolRunStatus = Literal["running", "succeeded", "failed", "abandoned"]
 Tool = Literal[
-    "valuation", "readiness", "benchmark", "buyer_network", "get_started", "attio_webhook"
+    "valuation",
+    "readiness",
+    "benchmark",
+    "buyer_network",
+    "get_started",
+    "insights_report",
+    "attio_webhook",
 ]
 
 # Which step of the write contract last completed. Persisted inside
@@ -68,7 +74,9 @@ class SubjectRefs:
     person_name: str | None = None
     seller_role_entry_id: str | None = None
     buyer_role_entry_id: str | None = None
-    # Not a `tool_runs` column, unlike the four above: this one is only ever
+    # A buyer holds one role per vertical; `buyer_role_entry_id` is the first of these.
+    buyer_role_entry_ids: tuple[str, ...] = ()
+    # Not a `tool_runs` column, unlike the id fields above: this one is only ever
     # read back out of `payload.attio`, which is what makes a sweeper resume
     # skip the deal write. A row stored before this field existed simply
     # defaults it.

@@ -20,6 +20,11 @@ _BUILDERS = {
 }
 
 
+def sends_emails(tool: str) -> bool:
+    """Report unlocks send none: PRD 3 asks for the CRM records only."""
+    return tool in _BUILDERS
+
+
 def build_confirmation_email(tool: str, payload: JsonObject) -> EmailContent:
     return _BUILDERS[tool].build_confirmation(payload)
 

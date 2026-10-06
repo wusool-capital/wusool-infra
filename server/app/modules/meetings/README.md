@@ -40,6 +40,23 @@ Caddy's request timeout is a non-issue here: the HTTP response to the
 desktop app's push returns before the Bedrock summarization call starts, so
 there's no long-request-behind-a-proxy timeout to work around.
 
+`DELETE /desktop/meetings/{install_id}/{local_recording_id}` backs the
+desktop app's "also delete from Wusool server & Attio" checkbox. Soft-delete
+only (`meetings.removed_at`/`notes.removed_at`) — a removed meeting is
+excluded from the status/sync reads and from `matching_engine`'s prompt
+context, and its Attio note is deleted first (never the reverse). Idempotent
+(204 for a meeting that's missing or already removed) and 409 while the
+meeting is actively `summarizing` — a *stalled* `summarizing` row is deleted
+anyway, matching `application/status.py`'s own stall cutoff. See
+`application/delete.py`.
+
+`POST /desktop/transcripts/corrections` returns speech-to-text fix
+suggestions for the desktop transcript editor. Stateless (no DB writes):
+`CorrectionService` batches segments, asks Bedrock (forced tool call, via
+the `CorrectorLLM` port) per batch, and drops any suggestion with an unknown
+`segment_id`, an `original` that doesn't match the segment, or a no-op
+`suggested`.
+
 ## Structure
 
 _New to this codebase's layering? See [the modular monolith guide](../../../../docs/internal/dev/MODULAR_MONOLITH_GUIDE.md)._
@@ -87,7 +104,9 @@ most-recently-created active `buyer_roles`/`seller_roles` row via
 `buyer_role_id`/`seller_role_id` — never both, and never guessed when no
 active row exists. `meetings.note_id` is written back once the note exists,
 so a meeting can be traced to the CRM note it produced (Postgres-only —
-Attio has no meeting object).
+Attio has no meeting object). `meetings.removed_at` (migration
+`0d2458f0af59`) is the desktop delete flow's soft-delete marker, mirroring
+`notes.removed_at`.
 
 ## Setup
 

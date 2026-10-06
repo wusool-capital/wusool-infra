@@ -23,13 +23,16 @@ dependencies = [
     # network path to it - see .github/workflows/_deploy.yml's "Run pending
     # database migrations" step).
     "alembic>=1.13",
+    # Runtime, not dev: lead_magnets' Sanity and Webflow clients call it.
+    "httpx>=0.27.0",
+    # Flattens script-built report exports on publish; the browser is installed in the Dockerfile.
+    "playwright>=1.49",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
-    "httpx>=0.27.0",
     "ruff>=0.7.0",
     "ty>=0.0.1a1",
     "boto3-stubs[bedrock-runtime,ses]>=1.43.87",

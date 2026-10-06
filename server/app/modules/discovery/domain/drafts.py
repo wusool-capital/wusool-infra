@@ -4,17 +4,14 @@ form — in Postgres's own value shape (matching what
 """
 
 from dataclasses import dataclass, field
+from datetime import date
 from urllib.parse import urlsplit
 
 from app.modules.discovery.domain.leads import DiscoveredLead
 
-# Every value this module actually writes is either `hq_country`'s bare
-# string or `sector_focus`/`domains`' single-item list — narrower than
-# `ddl_commands.api.schemas.PrefillValue` (which this module can't import;
-# it lives in `ddl_commands.api`, and `discovery -> ddl_commands` isn't a
-# real dependency edge — see this module's own `__init__.py`), so this
-# bounds `SellerDraft.values` without reaching across the boundary.
-DraftValue = str | list[str]
+# Mirrors `ddl_commands`' `PrefillValue` minus JSON objects; that module is
+# off-limits to `discovery`.
+DraftValue = str | float | bool | int | date | list[str]
 
 
 @dataclass(frozen=True)
@@ -22,9 +19,10 @@ class SellerDraft:
     org_name: str
     values: dict[str, DraftValue] = field(default_factory=dict)
     source_urls: tuple[str, ...] = ()
+    source_place_id: str | None = None
 
 
-def _hostname(url: str) -> str | None:
+def hostname(url: str) -> str | None:
     """Places' `websiteUri` is a full URL (scheme, and often a path) —
     Attio's `domains` attribute is domain-typed, so it wants a bare host,
     not `https://acme.example.com/contact`. Mirrors the `www.`/trailing-dot
@@ -40,13 +38,63 @@ def _hostname(url: str) -> str | None:
     depending on the Slack handler's own blanket `except Exception` to
     catch it.
     """
+    # Diffbot/PDL homepages often arrive schemeless (`acme.com`), which
+    # `urlsplit` would read as a path.
+    if "://" not in url:
+        url = f"//{url}"
     try:
         host = urlsplit(url).hostname
     except ValueError:
         return None
-    if not host:
+    host = (host or "").lower().removeprefix("www.").rstrip(".")
+    # A dotless host (`not-a-url`) is free text, not a company domain.
+    return host if "." in host else None
+
+
+# ponytail: fixed list of social/site-builder hosts; extend as new platforms show up.
+_PLATFORM_HOSTS = (
+    "facebook.com",
+    "instagram.com",
+    "linkedin.com",
+    "x.com",
+    "twitter.com",
+    "tiktok.com",
+    "youtube.com",
+    "linktr.ee",
+    "wa.me",
+    "wa.link",
+    "fb.com",
+    "t.me",
+    "snapchat.com",
+    "bit.ly",
+    "goo.gl",
+    "google.com",
+    "wordpress.com",
+    "squarespace.com",
+    "wixsite.com",
+    "business.site",
+    "myshopify.com",
+    "salla.sa",
+    "zid.store",
+)
+
+
+def company_hostname(url: str) -> str | None:
+    """`hostname`, but `None` for a shared platform (an Instagram page, a
+    `sites.google.com` site): that host names the platform, not the company."""
+    host = hostname(url)
+    if host is None or any(host == p or host.endswith(f".{p}") for p in _PLATFORM_HOSTS):
         return None
-    return host.removeprefix("www.").rstrip(".") or None
+    return host
+
+
+def websites_match(a: str, b: str) -> bool:
+    """Same host, or one a subdomain of the other (`shop.acme.com` vs
+    `acme.com`) — a near miss only costs an extra human review."""
+    host_a, host_b = hostname(a), hostname(b)
+    if not host_a or not host_b:
+        return False
+    return host_a == host_b or host_a.endswith(f".{host_b}") or host_b.endswith(f".{host_a}")
 
 
 def draft_from_lead(lead: DiscoveredLead) -> SellerDraft:
@@ -60,13 +108,18 @@ def draft_from_lead(lead: DiscoveredLead) -> SellerDraft:
     prefill normalization silently drops it if it isn't one of the fixed
     sector options. `lead.website` maps onto `domains` (`text_list` — a
     list, like `sector_focus`, not a bare string like `hq_country`) as a
-    bare hostname, via `_hostname`.
+    bare hostname, via `hostname`.
     """
     values: dict[str, DraftValue] = {}
     if lead.category:
         values["sector_focus"] = [lead.category]
     if lead.country:
         values["hq_country"] = lead.country
-    if lead.website and (domain := _hostname(lead.website)):
+    if lead.website and (domain := company_hostname(lead.website)):
         values["domains"] = [domain]
-    return SellerDraft(org_name=lead.name, values=values, source_urls=(lead.source_url,))
+    return SellerDraft(
+        org_name=lead.name,
+        values=values,
+        source_urls=(lead.source_url,),
+        source_place_id=lead.place_id,
+    )

@@ -39,6 +39,7 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
                     "No qualifying seller candidates were available for this buyer."
                 )
             ),
+            *_notes_context(result.notes),
             _discover_more_sellers_actions(result.run_id),
         ]
 
@@ -46,6 +47,8 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
         SectionBlock(text=f"*Buyer:*\n{result.buyer_org_name}"),
         DividerBlock(),
     ]
+
+    blocks.extend(_notes_context(result.notes))
 
     if len(result.results) < 3:
         blocks.append(_fewer_than_three_context(len(result.results)))
@@ -69,6 +72,10 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
 
     blocks.append(_discover_more_sellers_actions(result.run_id))
     return blocks
+
+
+def _notes_context(notes: list[str]) -> list[Block]:
+    return [ContextBlock(elements=[MarkdownTextObject(text=f"_{note}_")]) for note in notes]
 
 
 def build_match_result_blocks_from_view(view: MatchRunView) -> list[Block]:

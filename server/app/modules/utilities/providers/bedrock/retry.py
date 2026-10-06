@@ -26,12 +26,14 @@ even a `domain/` file that only wants `Money`.
 """
 
 import asyncio
+import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from botocore.exceptions import ClientError, EndpointConnectionError
+from pydantic import BaseModel, ValidationError
 
 from app.modules.utilities.domain.bedrock import TRANSIENT_ERROR_CODES, extract_json
 from app.modules.utilities.domain.json_types import JsonObject
@@ -126,3 +128,36 @@ async def invoke_bedrock_with_retry(
         raise BedrockInvocationError(f"{operation} failed: {exc}") from exc
 
     return extract_json(response)
+
+
+def schema_repair_prompt(raw: JsonObject, error: str) -> str:
+    return (
+        "Your previous response did not match the required schema.\n"
+        f"Error: {error}\n"
+        f"Previous response: {json.dumps(raw)}\n"
+        "Return corrected, schema-valid JSON only."
+    )
+
+
+async def invoke_validated[T: BaseModel](
+    *,
+    schema: type[T],
+    invoke: Callable[[str], Awaitable[JsonObject]],
+    prompt: str,
+    operation: str,
+    repair_prompt: Callable[[JsonObject, str], str] = schema_repair_prompt,
+) -> T:
+    """Validate -> one repair-prompt retry -> fail closed. A schema failure is
+    retried with a different prompt, unlike the transient-error retry above."""
+    raw = await invoke(prompt)
+    try:
+        return schema.model_validate(raw)
+    except ValidationError as exc:
+        error = str(exc)
+    raw_retry = await invoke(repair_prompt(raw, error))
+    try:
+        return schema.model_validate(raw_retry)
+    except ValidationError as exc:
+        raise BedrockInvocationError(
+            f"{operation} failed validation after one repair attempt: {exc}"
+        ) from exc

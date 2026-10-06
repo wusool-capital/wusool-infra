@@ -46,6 +46,9 @@ pnpm run tauri:dev:vulkan   # AMD/Intel Vulkan
 pnpm run tauri:dev:cpu      # CPU-only (no GPU)
 ```
 
+**Builds**: when the user asks to build the app, always do a production build
+(`pnpm run tauri:build`), never `tauri:dev`/`clean_run.sh`.
+
 **Updater signing**: `bundle.createUpdaterArtifacts` is `true`, so any production
 build (`pnpm run tauri:build`, `clean_build.sh`) needs `TAURI_SIGNING_PRIVATE_KEY`
 (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key has a passphrase) exported, or
@@ -402,6 +405,7 @@ $env:RUST_LOG="debug"; ./clean_run_windows.bat
   - `fix/*`: Bug fixes
   - `enhance/*`: Feature enhancements
   - Current: `fix/audio-mixing` (working on audio pipeline improvements)
+- **Changelog**: On every Scribe version bump, add an entry to `gitbook/release-notes/scribe-changelog.md` (newest first, user-facing). The tray and update dialog link to it.
 
 ## Key Files Reference
 

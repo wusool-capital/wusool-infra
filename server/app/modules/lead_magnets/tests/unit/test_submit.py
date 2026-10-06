@@ -269,6 +269,16 @@ async def test_resume_after_a_landed_attio_write_does_not_write_twice() -> None:
     ]
 
 
+async def test_resume_of_a_run_stored_before_the_id_list_keeps_its_one_buyer_role() -> None:
+    tool_runs, attio = _FakeToolRuns(), _FakeAttio()
+    service, _ = _service(tool_runs, attio)
+    stored = {"org_attio_id": "org-1", "buyer_role_entry_id": "entry-1"}
+
+    await service.complete(_run(payload={"stage": "attio", "ai": {}, "attio": stored}))
+
+    assert tool_runs.finished_subjects[-1].buyer_role_entry_ids == ("entry-1",)
+
+
 async def test_attio_failure_marks_the_run_failed_without_raising() -> None:
     """`complete` never raises: the lead is already recorded, so a failure is
     the sweeper's problem, not the caller's."""
@@ -282,7 +292,8 @@ async def test_attio_failure_marks_the_run_failed_without_raising() -> None:
 
 
 @pytest.mark.parametrize(
-    "tool", ["valuation", "readiness", "benchmark", "buyer_network", "get_started"]
+    "tool",
+    ["valuation", "readiness", "benchmark", "buyer_network", "get_started", "insights_report"],
 )
 async def test_complete_never_raises_for_any_tool(tool: Tool) -> None:
     tool_runs, attio = _FakeToolRuns(), _FakeAttio(fail=True)
@@ -447,3 +458,17 @@ async def test_complete_never_raises_on_a_real_domain_vocabulary_error(
 
     assert tool_runs.calls == ["finish:failed"]
     assert attio.writes == 0
+
+
+async def test_a_report_unlock_sends_no_email_and_still_succeeds() -> None:
+    tool_runs, attio = _FakeToolRuns(), _FakeAttio()
+    mailer = _FakeMailer()
+    service, _ = _service(tool_runs, attio, mailer=mailer)
+
+    await service.complete(_run("insights_report", payload={"email": "dana@acme.com"}))
+
+    assert mailer.sent == []
+    assert dict(tool_runs.stages)["email_confirmation"] == {"sent": False}
+    assert dict(tool_runs.stages)["email_internal"] == {"sent": False}
+    assert attio.writes == 1
+    assert tool_runs.calls[-1] == "finish:succeeded"

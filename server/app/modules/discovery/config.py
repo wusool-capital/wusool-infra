@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
 
+    database_url: str
     slack_bot_token: str
     slack_signing_secret: str
 
@@ -20,7 +22,20 @@ class Settings(BaseSettings):
     # (returns no leads) rather than requiring a key to boot — same
     # convention as matching_engine's own web fallback.
     google_places_api_key: str | None = None
-    discovery_lead_search_limit: int = 3
+    discovery_lead_search_limit: int = 5
+    discovery_daily_search_cap: int = 10
+    discovery_enrichment_concurrency: int = 2
+    discovery_enrichment_budget_s: float = 45.0
+
+    @field_validator("database_url")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        """Ensure the URL uses the asyncpg driver scheme regardless of input form."""
+        if value.startswith("postgresql+asyncpg://"):
+            return value
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
 
 
 @lru_cache

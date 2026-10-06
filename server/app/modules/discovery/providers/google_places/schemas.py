@@ -30,6 +30,7 @@ class PlaceAddressComponent(BaseModel):
 
 
 class Place(BaseModel):
+    id: str | None = None
     displayName: LocalizedText | None = None
     formattedAddress: str | None = None
     googleMapsUri: str | None = None

@@ -18,6 +18,7 @@ from app.modules.matching_engine.domain.matching.entities import (
     ScoreDims,
 )
 from app.modules.matching_engine.domain.requirements import (
+    AdvisorLimits,
     HardRequirement,
     RequirementProfile,
     SoftPreference,
@@ -58,6 +59,7 @@ def to_buyer_context(role: BuyerRole) -> BuyerContext:
         contact_person_id=role.key_contact_attio_id,
         target_region=list(role.target_region or []),
         target_country=list(role.target_country or []),
+        target_vertical=role.target_vertical,
         ebitda_ceiling=_money(role.ebitda_ceiling),
         notable_investments=role.notable_investments,
         key_personnel=role.key_personnel,
@@ -89,7 +91,6 @@ def to_seller_candidate(role: SellerRole) -> SellerCandidate:
         geographic_focus=list(role.organization.geographic_focus),
         sector_focus=list(role.organization.sector_focus),
         hq_country=role.organization.hq_country,
-        client_type=role.organization.client_type,
     )
 
 
@@ -157,6 +158,11 @@ def profile_to_dict(profile: RequirementProfile) -> JsonObject:
         "ideal_target_description": profile.ideal_target_description,
         "scoring_rubric": profile.scoring_rubric,
         "data_confidence": profile.data_confidence,
+        "advisor_limits": {
+            "ticket_min": profile.advisor_limits.ticket_min,
+            "ticket_max": profile.advisor_limits.ticket_max,
+            "ev_ceiling": profile.advisor_limits.ev_ceiling,
+        },
     }
 
 
@@ -177,6 +183,8 @@ def _profile_from_dict(
         data_confidence=data["data_confidence"],
         generated_by_model="",
         version=version or 0,
+        # Absent on profiles persisted before advisor limits existed.
+        advisor_limits=AdvisorLimits(**(data.get("advisor_limits") or {})),
     )
 
 
@@ -197,6 +205,11 @@ def _filters_skipped_from_list(data: JsonArray | None) -> list[FilterSkipped] | 
     if not data:
         return None
     return [FilterSkipped(**item) for item in data]
+
+
+def _source_url(metadata: JsonObject | None) -> str | None:
+    value = (metadata or {}).get("source_url")
+    return value if isinstance(value, str) else None
 
 
 def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
@@ -221,6 +234,7 @@ def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
         decision=row.decision,
         decision_notes=row.decision_notes,
         decided_at=row.decided_at,
+        deal_attio_id=row.deal_attio_id,
         requested_by=row.requested_by,
         model_version=row.model_version,
         requirement_profile_version=row.requirement_profile_version,
@@ -235,4 +249,6 @@ def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
         errors=row.errors,
         started_at=row.started_at,
         completed_at=row.completed_at,
+        origin="discovery" if (row.metadata_ or {}).get("origin") == "discovery" else "crm",
+        source_url=_source_url(row.metadata_),
     )

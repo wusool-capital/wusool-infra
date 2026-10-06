@@ -1,4 +1,11 @@
-from app.modules.discovery.domain.drafts import draft_from_lead
+import pytest
+
+from app.modules.discovery.domain.drafts import (
+    company_hostname,
+    draft_from_lead,
+    hostname,
+    websites_match,
+)
 from app.modules.discovery.domain.leads import DiscoveredLead
 
 
@@ -96,3 +103,57 @@ def test_draft_from_lead_does_not_raise_on_a_website_urlsplit_cannot_parse() -> 
     draft = draft_from_lead(lead)
 
     assert "domains" not in draft.values
+
+
+def test_hostname_accepts_schemeless_provider_websites() -> None:
+    assert hostname("acme.com") == "acme.com"
+    assert hostname("www.Acme.com/about") == "acme.com"
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [
+        ("https://www.acme.com/contact", "acme.com", True),
+        ("https://shop.acme.com", "http://acme.com", True),
+        ("https://acme.com", "acme.de", False),
+        ("https://acme.com", "notacme.com", False),
+        ("https://acme.com", "", False),
+        ("http://[::1", "acme.com", False),
+    ],
+)
+def test_websites_match(a: str, b: str, expected: bool) -> None:
+    assert websites_match(a, b) is expected
+
+
+@pytest.mark.parametrize(
+    "website",
+    [
+        "https://sites.google.com/view/acme",
+        "https://www.instagram.com/acme",
+        "https://acme.wordpress.com",
+        "https://m.facebook.com/acme",
+    ],
+)
+def test_a_shared_platform_website_is_not_a_company_domain(website: str) -> None:
+    """A platform host would otherwise "match" the platform company itself."""
+    lead = DiscoveredLead(name="Acme Co", source_url="https://maps.example", website=website)
+
+    assert company_hostname(website) is None
+    assert "domains" not in draft_from_lead(lead).values
+
+
+def test_company_hostname_keeps_ordinary_company_sites() -> None:
+    assert company_hostname("https://www.acme-google.com") == "acme-google.com"
+
+
+@pytest.mark.parametrize(
+    "website",
+    [
+        "https://salla.sa/acme",
+        "https://acme.zid.store",
+        "https://acme.myshopify.com",
+        "https://t.me/acme",
+    ],
+)
+def test_regional_store_builders_and_messengers_are_platforms(website: str) -> None:
+    assert company_hostname(website) is None

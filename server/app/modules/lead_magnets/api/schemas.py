@@ -508,3 +508,44 @@ class BuyerApplyRequest(_Strict):
 class BuyerApplyResponse(BaseModel):
     ok: bool
     run_id: str
+
+
+# The browser's own email grammar, plus a dot in the domain, so "dana@acme" fails.
+_EMAIL_PATTERN = (
+    r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+"
+    r"@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+)
+
+
+class ReportUnlockRequest(_Strict):
+    """The gate on an insights report (PRD 3): name, email and organisation.
+
+    The page asks for a work email, but free-mail is still accepted, by
+    decision; only malformed addresses are rejected. Field names
+    match `AttioIdentityPayload` (`name`, `email`, `company`), which is what
+    the background org and person write reads back from the stored payload.
+    """
+
+    submission_id: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=200)
+    company: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=320, pattern=_EMAIL_PATTERN)
+
+
+class ReportResponse(BaseModel):
+    title: str
+    html: str
+    locked: bool
+
+
+class SanityWebhookBody(BaseModel):
+    """The projection configured on the Sanity webhook (`sanity/README.md`):
+    `slug` is null on delete or unpublish; `previousSlug` differs on a rename;
+    `featuredChanged` is true only when this edit ticked or unticked the pin."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    slug: str | None = None
+    previous_slug: str | None = Field(default=None, alias="previousSlug")
+    featured_changed: bool = Field(default=False, alias="featuredChanged")

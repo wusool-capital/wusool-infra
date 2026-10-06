@@ -151,6 +151,8 @@ async def resolve_role_entry_id(
     *,
     is_test: bool,
     unset_vertical_only: bool = False,
+    only_entry_id: str | None = None,
+    target_vertical: str | None = None,
 ) -> str:
     """`is_test` is this process's half of the shared SOURCE workspace.
     Entries belonging to the other half are skipped, so a dev instance can
@@ -162,7 +164,19 @@ async def resolve_role_entry_id(
     `target_vertical`, so a caller with no vertical of its own never
     overwrites one an advisor curated. Nothing matching then raises
     `RoleEntryNotFoundError` and the caller creates an unclassified entry.
+
+    `only_entry_id` narrows the match to one entry: an org holds a role per
+    vertical, so the org alone no longer identifies which entry to edit. It
+    still goes through the scope check above rather than trusting the id.
+
+    `target_vertical` narrows to the entry for a vertical the caller already
+    knows but has no entry id for. Exclusive with the two kwargs above, which
+    each name a different way to pick the entry.
     """
+    if target_vertical is not None and (unset_vertical_only or only_entry_id is not None):
+        raise ValueError(
+            "target_vertical cannot be combined with unset_vertical_only or only_entry_id"
+        )
     offset = 0
     matches: list[dict] = []
     while True:
@@ -178,6 +192,10 @@ async def resolve_role_entry_id(
                 continue
             if unset_vertical_only and _entry_target_vertical(entry) is not None:
                 continue
+            if only_entry_id is not None and _entry_id(entry) != only_entry_id:
+                continue
+            if target_vertical is not None and _entry_target_vertical(entry) != target_vertical:
+                continue
             if _entry_is_active(entry) is True:
                 return _entry_id(entry)
             matches.append(entry)
@@ -190,6 +208,39 @@ async def resolve_role_entry_id(
             f"No {list_slug} entry found in Attio for organization {org_attio_id}"
         )
     return _entry_id(max(matches, key=lambda entry: entry.get("created_at") or ""))
+
+
+async def resolve_role_entry_ids_by_vertical(
+    client: AttioClientProtocol, list_slug: str, org_attio_id: str, *, is_test: bool
+) -> dict[str | None, str]:
+    """One page-through of the list for a caller writing several verticals at
+    once, rather than one `resolve_role_entry_id` scan per vertical. Same
+    scope filter and same pick per vertical: the active entry, else the newest.
+    """
+    offset = 0
+    by_vertical: dict[str | None, list[dict]] = {}
+    while True:
+        response = await client.post(
+            f"/lists/{list_slug}/entries/query",
+            _RecordsQueryBody(limit=_PAGE_SIZE, offset=offset).to_json_body(),
+        )
+        page = response.get("data", [])
+        for entry in page:
+            if _entry_parent_record_id(entry) != org_attio_id:
+                continue
+            if _record_is_test(entry) is not is_test:
+                continue
+            by_vertical.setdefault(_entry_target_vertical(entry), []).append(entry)
+        if len(page) < _PAGE_SIZE:
+            break
+        offset += _PAGE_SIZE
+
+    return {
+        vertical: _entry_id(
+            max(entries, key=lambda e: (_entry_is_active(e) is True, e.get("created_at") or ""))
+        )
+        for vertical, entries in by_vertical.items()
+    }
 
 
 async def assert_organization_in_scope(
@@ -229,6 +280,16 @@ async def patch_role_entry(
     client: AttioClientProtocol, list_slug: str, entry_id: str, entry_values: dict
 ) -> None:
     await client.patch(
+        f"/lists/{list_slug}/entries/{entry_id}", {"data": {"entry_values": entry_values}}
+    )
+
+
+async def put_role_entry(
+    client: AttioClientProtocol, list_slug: str, entry_id: str, entry_values: dict
+) -> None:
+    """PUT, not PATCH: Attio's PATCH appends to a multiselect, PUT replaces it.
+    For a re-write that restates the whole answer (a form resubmission)."""
+    await client.put(
         f"/lists/{list_slug}/entries/{entry_id}", {"data": {"entry_values": entry_values}}
     )
 
@@ -386,6 +447,10 @@ async def find_deals_by_party(
             break
         offset += _PAGE_SIZE
     return matches
+
+
+async def patch_deal(client: AttioClientProtocol, attio_id: str, values: dict) -> None:
+    await client.patch(f"/objects/{_DEAL_OBJECT}/records/{attio_id}", {"data": {"values": values}})
 
 
 async def create_deal(

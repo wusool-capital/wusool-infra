@@ -2,13 +2,16 @@
 sellers and buyers. Every write goes to SOURCE Attio *first*, then Postgres, in
 the same submission — if the Attio write fails, nothing is written to
 Postgres at all (see `_write_seller_edit`/`_write_buyer_edit` and
-`_write_seller_add`/`_write_buyer_add`). Slack payload state is never
+`write_seller_add`/`_write_buyer_add`). Slack payload state is never
 trusted on its own; the write targets (org record ID, role entry ID) are
 always re-resolved from the currently-loaded row, not from the payload.
 """
 
+import asyncio
 import json
+from contextlib import nullcontext
 from typing import Any
+from weakref import WeakValueDictionary
 
 from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
@@ -28,7 +31,7 @@ from app.modules.attio.providers.attio.entries import (
 )
 from app.modules.attio.providers.attio.options import OptionNotFoundError
 from app.modules.ddl_commands.api.buyers import (
-    BUYER_ROLE_FIELDS,
+    BUYER_FORM_FIELDS,
     BUYER_ROLE_FIELDS_BY_NAME,
     GATED_BUYER_ROLE_FIELDS,
     BuyerUpdate,
@@ -44,6 +47,7 @@ from app.modules.ddl_commands.api.organizations import (
     ORGANIZATION_FIELDS_BY_NAME,
     OrganizationUpdate,
 )
+from app.modules.ddl_commands.api.seller_write import write_seller_add
 from app.modules.ddl_commands.api.sellers import (
     GATED_SELLER_ROLE_FIELDS,
     SELLER_ROLE_FIELDS,
@@ -52,6 +56,14 @@ from app.modules.ddl_commands.api.sellers import (
 )
 from app.modules.ddl_commands.api.slack.views.buyer_add_form import build_buyer_add_form_modal
 from app.modules.ddl_commands.api.slack.views.buyer_form import build_buyer_edit_form_modal
+from app.modules.ddl_commands.api.slack.views.buyer_role_selection import decode_org_roles
+from app.modules.ddl_commands.api.slack.views.buyer_vertical_selection import (
+    RoleRef,
+    VerticalSelectionMetadata,
+    build_buyer_vertical_selection_modal,
+    decode_duplicates,
+    parse_vertical_choice,
+)
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import extract_field_value
 from app.modules.ddl_commands.api.slack.views.field_picker import (
     build_field_picker_modal,
@@ -68,6 +80,7 @@ from app.modules.ddl_commands.api.slack.views.organization_selection import (
 )
 from app.modules.ddl_commands.api.slack.views.seller_add_form import build_seller_add_form_modal
 from app.modules.ddl_commands.api.slack.views.seller_form import build_seller_edit_form_modal
+from app.modules.ddl_commands.api.write_errors import PartialWriteError, partial_write_message
 from app.modules.ddl_commands.application.buyers import (
     BuyerAlreadyExistsError,
     BuyerNotFoundError,
@@ -141,25 +154,84 @@ def register(app: AsyncApp) -> None:
             return
 
         selected = view["state"]["values"]["buyer_role_id"]["selected_buyer"]["selected_option"]
-        buyer_role_id = selected["value"]
+        org_attio_id = selected["value"]
 
-        # See the seller handler above — no database call before `ack()`.
-        org_name = (metadata.get("org_names") or {}).get(buyer_role_id)
+        # See the seller handler above — no database call before `ack()`. The
+        # org's roles were loaded when this modal was built.
+        org_name = (metadata.get("org_names") or {}).get(org_attio_id)
         if org_name is None:
             await ack()
             await client.chat_postEphemeral(
                 channel=channel_id, user=requested_by, text="This *buyer* could not be found."
             )
             return
+        roles = decode_org_roles(metadata.get("payload_token")).get(org_attio_id)
+        if not roles:
+            # The roles are held server-side for a limited time, so an idle
+            # modal (or a restart in between) loses them.
+            await ack()
+            await client.chat_postEphemeral(
+                channel=channel_id,
+                user=requested_by,
+                text=f"This selection expired — run `/edit-buyer {org_name}` again.",
+            )
+            return
         await ack(
             response_action="update",
-            view=build_field_picker_modal(
-                kind="buyer",
-                role_id=buyer_role_id,
+            view=build_buyer_vertical_selection_modal(
+                org_attio_id=org_attio_id,
                 org_name=org_name,
+                roles=roles,
                 requested_by=requested_by,
                 channel_id=channel_id,
-                role_fields=BUYER_ROLE_FIELDS,
+            ),
+        )
+
+    @app.view("buyer_vertical_selection_modal")
+    async def handle_buyer_vertical_selection_submission(
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
+    ) -> None:
+        metadata = VerticalSelectionMetadata.model_validate_json(view["private_metadata"])
+        selected = view["state"]["values"]["buyer_vertical"]["selected_vertical"]["selected_option"]
+        choice = parse_vertical_choice(selected["value"])
+
+        if choice.action == "edit":
+            await ack(
+                response_action="update",
+                view=build_field_picker_modal(
+                    kind="buyer",
+                    role_id=choice.value,
+                    org_name=metadata.org_name,
+                    requested_by=metadata.requested_by,
+                    channel_id=metadata.channel_id,
+                    role_fields=BUYER_FORM_FIELDS,
+                ),
+            )
+            return
+
+        org = None
+        if metadata.org_attio_id is not None:
+            org = await resolve_organization(metadata.org_attio_id)
+            if org is None:
+                await ack()
+                await client.chat_postEphemeral(
+                    channel=metadata.channel_id,
+                    user=metadata.requested_by,
+                    text="This *organization* could not be found.",
+                )
+                return
+        await ack(
+            response_action="update",
+            view=build_buyer_add_form_modal(
+                org=org,
+                requested_by=metadata.requested_by,
+                channel_id=metadata.channel_id,
+                prefill_name=metadata.org_name,
+                duplicate_candidates=decode_duplicates(metadata.duplicates_token),
+                target_vertical=choice.value,
             ),
         )
 
@@ -321,7 +393,7 @@ def register(app: AsyncApp) -> None:
             return
         except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                channel=channel_id, user=requested_by, text=partial_write_message(exc)
             )
             return
 
@@ -411,7 +483,7 @@ def register(app: AsyncApp) -> None:
             return
         except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                channel=channel_id, user=requested_by, text=partial_write_message(exc)
             )
             return
 
@@ -445,7 +517,11 @@ def register(app: AsyncApp) -> None:
         # `prefill` only exists for sellers (`discovery`'s hand-off) —
         # `build_buyer_add_form_modal` has no such parameter, so it's never
         # passed for a buyer.
-        prefill_kwargs = {"prefill": prefill} if kind == "seller" else {}
+        prefill_kwargs = (
+            {"prefill": prefill, "source_place_id": metadata.get("source_place_id")}
+            if kind == "seller"
+            else {}
+        )
 
         selected = view["state"]["values"]["organization_id"]["selected_organization"][
             "selected_option"
@@ -453,6 +529,19 @@ def register(app: AsyncApp) -> None:
         selected_value = selected["value"]
 
         if selected_value == NEW_ORGANIZATION_VALUE:
+            if kind == "buyer":
+                await ack(
+                    response_action="update",
+                    view=build_buyer_vertical_selection_modal(
+                        org_attio_id=None,
+                        org_name=search_term,
+                        roles=[],
+                        requested_by=requested_by,
+                        channel_id=channel_id,
+                        duplicate_candidates=candidate_names,
+                    ),
+                )
+                return
             await ack(
                 response_action="update",
                 view=build_form(
@@ -476,16 +565,31 @@ def register(app: AsyncApp) -> None:
             )
             return
 
-        roles = org.seller_roles if kind == "seller" else org.buyer_roles
-        has_role = any(r.is_active for r in roles)
-        if has_role:
+        if kind == "buyer":
+            await ack(
+                response_action="update",
+                view=build_buyer_vertical_selection_modal(
+                    org_attio_id=org.attio_id,
+                    org_name=org.name,
+                    roles=[
+                        RoleRef(role_id=str(r.id), target_vertical=r.target_vertical)
+                        for r in org.buyer_roles
+                        if r.is_active
+                    ],
+                    requested_by=requested_by,
+                    channel_id=channel_id,
+                ),
+            )
+            return
+
+        if any(r.is_active for r in org.seller_roles):
             await ack()
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
                 text=(
-                    f"*{org.name}* already has a {kind} role — "
-                    f"_use `/edit-{kind} {org.name}` instead_."
+                    f"*{org.name}* already has a seller role — "
+                    f"_use `/edit-seller {org.name}` instead_."
                 ),
             )
             return
@@ -547,12 +651,13 @@ def register(app: AsyncApp) -> None:
 
         await ack()
         try:
-            await _write_seller_add(
+            await write_seller_add(
                 is_new_org=is_new_org,
                 org_attio_id=org_attio_id,
                 org_name=org_name,
                 org_extracted=org_extracted,
                 role_extracted=role_extracted,
+                source_place_id=metadata.get("source_place_id"),
             )
         except SellerAlreadyExistsError:
             await client.chat_postEphemeral(
@@ -564,7 +669,7 @@ def register(app: AsyncApp) -> None:
             return
         except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                channel=channel_id, user=requested_by, text=partial_write_message(exc)
             )
             return
 
@@ -597,8 +702,11 @@ def register(app: AsyncApp) -> None:
             for spec in ORGANIZATION_FIELDS
         }
         role_extracted = {
-            spec.name: extract_field_value(spec, values) for spec in BUYER_ROLE_FIELDS
+            spec.name: extract_field_value(spec, values) for spec in BUYER_FORM_FIELDS
         }
+        # Not on the form (the vertical step owns it), so it comes from the
+        # modal's metadata — set before validation so `exclude_unset` keeps it.
+        role_extracted["target_vertical"] = metadata.get("target_vertical")
 
         errors: dict[str, str] = {}
         org_name = get_text(values, "name", "name") if is_new_org else existing_org_name
@@ -638,13 +746,13 @@ def register(app: AsyncApp) -> None:
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text="A buyer role already exists for this organization — "
+                text="A buyer role already exists for this organization and vertical — "
                 "_use `/edit-buyer` instead_.",
             )
             return
         except PartialWriteError as exc:
             await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=_partial_write_message(exc)
+                channel=channel_id, user=requested_by, text=partial_write_message(exc)
             )
             return
 
@@ -655,29 +763,6 @@ def register(app: AsyncApp) -> None:
 
 class _OrgRemovedError(Exception):
     pass
-
-
-class PartialWriteError(Exception):
-    """Raised when a write fails after one or more earlier steps already
-    landed — an org PATCH that succeeded before a role PATCH then failed, an
-    org create that succeeded before the role-entry create failed, or an
-    Attio write that succeeded before the Postgres write then failed (a
-    plain DB error, not the expected `*AlreadyExistsError`). Carries exactly
-    what already landed so the Slack message can tell the truth instead of
-    assuming nothing was saved.
-    """
-
-    def __init__(self, landed: list[str], cause: Exception) -> None:
-        self.landed = landed
-        self.cause = cause
-        super().__init__(str(cause))
-
-
-def _partial_write_message(exc: PartialWriteError) -> str:
-    if not exc.landed:
-        return f"*Couldn't write to Attio* — nothing was saved. _{exc.cause}_"
-    landed_text = "; ".join(exc.landed)
-    return f"*Write failed partway through.* Already saved: {landed_text}. _{exc.cause}_"
 
 
 async def _write_seller_edit(
@@ -797,8 +882,14 @@ async def _write_buyer_edit(
                 extracted=role_extracted,
             )
             if role_attio_values:
+                # An org holds several buyer roles now, so the org alone no
+                # longer identifies the entry to patch.
                 entry_id = await resolve_role_entry_id(
-                    attio_client, "buyer_role", org_attio_id, is_test=is_test
+                    attio_client,
+                    "buyer_role",
+                    org_attio_id,
+                    is_test=is_test,
+                    only_entry_id=role.legacy_entry_id,
                 )
                 await patch_role_entry(attio_client, "buyer_role", entry_id, role_attio_values)
                 landed.append("buyer profile fields (Attio)")
@@ -830,96 +921,10 @@ async def _write_buyer_edit(
         raise PartialWriteError(landed, exc) from exc
 
 
-async def _write_seller_add(
-    *,
-    is_new_org: bool,
-    org_attio_id: str | None,
-    org_name: str | None,
-    org_extracted: dict[str, Any],
-    role_extracted: dict[str, Any],
-) -> None:
-    """Attio first, then Postgres — same principle as `_write_seller_edit`,
-    extended to creates: when `is_new_org`, the organization itself is
-    created in Attio before anything else, and its server-generated
-    `record_id` becomes `org_attio_id` for the rest of the write (see
-    `ddl-commands/README.md`, "Why Attio-first").
-    """
-    landed: list[str] = []
-    attio_client = get_attio_client()
-    is_test = attio_is_test()
-
-    try:
-        if not is_new_org:
-            assert org_attio_id is not None  # caller supplies it when not creating one
-            await assert_organization_in_scope(attio_client, org_attio_id, is_test=is_test)
-        if is_new_org:
-            org_attio_values = await build_attio_values(
-                attio_client,
-                target_kind="objects",
-                target_slug="organizations",
-                table="organizations",
-                fields=ORGANIZATION_FIELDS_BY_NAME,
-                extracted=org_extracted,
-            )
-            org_attio_values["name"] = org_name
-            org_attio_values["is_active"] = True
-            org_attio_id, _ = await create_organization(
-                attio_client, org_attio_values, is_test=is_test
-            )
-            landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
-        elif org_extracted:
-            org_attio_values = await build_attio_values(
-                attio_client,
-                target_kind="objects",
-                target_slug="organizations",
-                table="organizations",
-                fields=ORGANIZATION_FIELDS_BY_NAME,
-                extracted=org_extracted,
-            )
-            if org_attio_values:
-                assert org_attio_id is not None  # not is_new_org: caller already supplied it
-                await patch_organization(attio_client, org_attio_id, org_attio_values)
-                landed.append("organization fields (Attio)")
-
-        assert org_attio_id is not None
-        role_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="lists",
-            target_slug="seller_role",
-            table="seller_role",
-            fields=SELLER_ROLE_FIELDS_BY_NAME,
-            extracted=role_extracted,
-        )
-        entry_id = await create_role_entry(
-            attio_client, "seller_role", org_attio_id, role_attio_values, is_test=is_test
-        )
-        landed.append("seller role entry (Attio)")
-    except (AttioError, OptionNotFoundError, ScopeMismatchError) as exc:
-        raise PartialWriteError(landed, exc) from exc
-
-    org_postgres_fields = (
-        build_postgres_values(
-            table="organizations", fields=ORGANIZATION_FIELDS_BY_NAME, extracted=org_extracted
-        )
-        if org_extracted
-        else None
-    )
-    role_postgres_fields = build_postgres_values(
-        table="seller_role", fields=SELLER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
-    )
-    try:
-        await ddl_commands_service().create_seller(
-            org_attio_id=org_attio_id,
-            entry_id=entry_id,
-            is_new_org=is_new_org,
-            org_name=org_name if is_new_org else None,
-            org_fields=org_postgres_fields,
-            role_fields=role_postgres_fields,
-        )
-    except SellerAlreadyExistsError:
-        raise
-    except Exception as exc:
-        raise PartialWriteError(landed, exc) from exc
+# One lock per (org, vertical) being added. Process-local, which is enough
+# while the toolkit runs as a single instance (ASG min=max=1); weakly held so
+# a lock disappears once no add is waiting on it.
+_buyer_add_locks: WeakValueDictionary[tuple[str, str | None], asyncio.Lock] = WeakValueDictionary()
 
 
 async def _write_buyer_add(
@@ -930,7 +935,46 @@ async def _write_buyer_add(
     org_extracted: dict[str, Any],
     role_extracted: dict[str, Any],
 ) -> None:
+    """Serializes the duplicate check with the Attio create, so a second
+    add for the same (org, vertical) sees the first one's role instead of
+    creating a second Attio entry that the reconcile would demote. A new
+    organization can't have a role yet, so it needs no lock.
+    """
+    guard = (
+        nullcontext()
+        if is_new_org
+        else _buyer_add_locks.setdefault(
+            (org_attio_id or "", role_extracted.get("target_vertical")), asyncio.Lock()
+        )
+    )
+    async with guard:
+        await _write_buyer_add_locked(
+            is_new_org=is_new_org,
+            org_attio_id=org_attio_id,
+            org_name=org_name,
+            org_extracted=org_extracted,
+            role_extracted=role_extracted,
+        )
+
+
+async def _write_buyer_add_locked(
+    *,
+    is_new_org: bool,
+    org_attio_id: str | None,
+    org_name: str | None,
+    org_extracted: dict[str, Any],
+    role_extracted: dict[str, Any],
+) -> None:
     """Mirrors `_write_seller_add`, buyer-typed."""
+    if not is_new_org:
+        assert org_attio_id is not None  # caller supplies it when not creating one
+        # Before any Attio write: a duplicate entry would make Attio's
+        # newest-wins reconcile demote the existing role for this vertical.
+        if await ddl_commands_service().buyer_exists(
+            org_attio_id, role_extracted.get("target_vertical")
+        ):
+            raise BuyerAlreadyExistsError(org_attio_id)
+
     landed: list[str] = []
     attio_client = get_attio_client()
     is_test = attio_is_test()

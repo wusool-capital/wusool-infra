@@ -10,12 +10,18 @@ from functools import lru_cache
 
 from fastapi import FastAPI, Request, Response
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.modules.discovery.application.base import CreationPolicy
+from app.modules.discovery.application.ports.review_store import ReviewStore
 from app.modules.discovery.application.ports.seller_draft import SellerDraftPort
+from app.modules.discovery.application.ports.seller_writer import SellerWriterPort
 from app.modules.discovery.application.service import DiscoveryService
 from app.modules.discovery.config import get_settings
+from app.modules.discovery.persistence.review_store import SqlAlchemyReviewStore
 from app.modules.discovery.providers.google_places.client import GooglePlacesClient
 from app.modules.notifications import build_bolt_app
+from app.modules.utilities import FixedWindowRateLimiter
 from app.modules.utilities.api.handlers import register_exception_handlers
 from app.modules.utilities.domain.logging import configure_logging
 
@@ -24,13 +30,26 @@ def build_lead_search_client(api_key: str) -> GooglePlacesClient:
     return GooglePlacesClient(api_key)
 
 
+def build_review_store(sessionmaker: async_sessionmaker[AsyncSession]) -> SqlAlchemyReviewStore:
+    return SqlAlchemyReviewStore(sessionmaker)
+
+
 def build_discovery_service(
     *,
     lead_search_client: GooglePlacesClient | None,
     seller_draft_port: SellerDraftPort,
+    seller_writer_port: SellerWriterPort,
+    review_store: ReviewStore,
+    search_limiter: FixedWindowRateLimiter,
+    policy: CreationPolicy,
 ) -> DiscoveryService:
     return DiscoveryService(
-        lead_search_client=lead_search_client, seller_draft_port=seller_draft_port
+        lead_search_client=lead_search_client,
+        seller_draft_port=seller_draft_port,
+        seller_writer_port=seller_writer_port,
+        review_store=review_store,
+        search_limiter=search_limiter,
+        policy=policy,
     )
 
 

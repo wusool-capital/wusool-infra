@@ -1,13 +1,13 @@
 # Slack App Setup: Wusool Toolkit Bot
 
 Manual, one-time setup at [api.slack.com/apps](https://api.slack.com/apps) for
-**one** Slack bot serving all 9 commands — `/find-match` (matching-engine),
-`/enrich-seller`, `/enrich-buyer` (enrichment), `/edit-seller`,
-`/edit-buyer`, `/add-seller`, `/add-buyer` (ddl-commands), and `/toolkit-help`/
-`/toolkit-status` (answered directly in `server/main.py` — neither is owned
-by any one module). There is no bare `/enrich` — every enrichment command
-is kind-scoped on purpose, see below.
-`matching_engine`, `enrichment`, `discovery`, and
+**one** Slack bot serving all 10 commands — `/find-match` (matching-engine),
+`/check-buyer` (discrepancies), `/enrich-seller`, `/enrich-buyer`
+(enrichment), `/edit-seller`, `/edit-buyer`, `/add-seller`, `/add-buyer`
+(ddl-commands), and `/toolkit-help`/`/toolkit-status` (answered directly in
+`server/main.py` — neither is owned by any one module). There is no bare
+`/enrich` — every enrichment command is kind-scoped on purpose, see below.
+`matching_engine`, `discrepancies`, `enrichment`, `discovery`, and
 `ddl_commands` are separate modules under `server/app/modules/` for
 functional modularity, but they are **one process, one Slack app, one
 token** — see `server/README.md` for why (Slack ties one Interactivity
@@ -29,12 +29,13 @@ New app at api.slack.com/apps → **From scratch** → name it (e.g.
 
 ## 2. Slash Commands
 
-**Features → Slash Commands → Create New Command**, one per row (all 9
+**Features → Slash Commands → Create New Command**, one per row (all 10
 point at the same URL — Bolt routes internally by command name):
 
 | Command | Request URL | Short Description | Usage Hint |
 |---|---|---|---|
 | `/find-match` | `https://<bot-host>/slack/events` | Find and score buyer-seller matches | `<buyer org name>` |
+| `/check-buyer` | `https://<bot-host>/slack/events` | Check a buyer's criteria for conflicts or missing data | `<buyer org name>` |
 | `/enrich-seller` | `https://<bot-host>/slack/events` | Research and fill missing seller fields | `<seller org name>` |
 | `/enrich-buyer` | `https://<bot-host>/slack/events` | Research and fill missing buyer fields | `<buyer org name>` |
 | `/edit-seller` | `https://<bot-host>/slack/events` | Edit a seller profile | `<seller org name>` |
@@ -74,8 +75,10 @@ among those.
 This is the one URL for the whole app — every modal submission and button
 click from the 7 interactive commands routes through it (`/edit-seller`/
 `/edit-buyer` are a 3-step modal flow: disambiguation → field picker →
-edit form; `/add-seller`/`/add-buyer` are a 2- or 3-step flow:
-organization selection (skipped if the search found nothing) → add form;
+edit form, with `/edit-buyer` gaining a vertical step after disambiguation;
+`/add-seller`/`/add-buyer` are a 2- or 3-step flow: organization selection
+(skipped if the search found nothing) → add form, with `/add-buyer` gaining
+a vertical step before the form;
 `/enrich-seller`/`/enrich-buyer` post a research proposal as a message
 with a single "Review & Save" button, not a modal, since research + LLM
 extraction routinely runs past Slack's 3-second modal-open budget).
@@ -89,7 +92,7 @@ interactivity URL.
 
 **Features → OAuth & Permissions → Bot Token Scopes**, add:
 
-- `commands` — receive all 9 slash commands.
+- `commands` — receive all 10 slash commands.
 - `chat:write` — `chat.postEphemeral` (usage messages, confirmation
   prompts, error messages) and the `response_url` webhook used to replace
   messages after button clicks.

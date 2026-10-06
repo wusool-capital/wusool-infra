@@ -1,9 +1,24 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     Emitter,
+    image::Image,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::TrayIconBuilder,
     AppHandle, Manager, Runtime,
 };
+use tauri_plugin_shell::ShellExt;
+
+const CHANGELOG_URL: &str =
+    "https://wusool-capital.gitbook.io/docs/vttVgqrltuEtLAJkX7dL/release-notes/scribe-changelog";
+
+// Embedded at compile time so the tray icon doesn't depend on the
+// Next.js `public/` dir being present at runtime (it's dev-server/build
+// output, not a bundled resource).
+const TRAY_ICON_PNG: &[u8] = include_bytes!("../../public/tray-icon.png");
+const RECORDING_DOT_RGB: [u8; 3] = [0xEF, 0x44, 0x44];
+const PAUSED_DOT_RGB: [u8; 3] = [0xF5, 0x9E, 0x0B];
+
+static STOP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub enum RecordingState {
@@ -21,10 +36,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     // Pass can_record=true initially, will be updated by update_tray_menu immediately
     let menu = build_menu(app, RecordingState::Stopped, true)?;
 
-    // Embedded at compile time so the tray icon doesn't depend on the
-    // Next.js `public/` dir being present at runtime (it's dev-server/build
-    // output, not a bundled resource).
-    let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../../public/tray-icon.png"))?;
+    let tray_icon = Image::from_bytes(TRAY_ICON_PNG)?;
 
     TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
@@ -53,6 +65,7 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, item_id: &str) {
             }
         }
         "check_updates" => check_updates_handler(app),
+        "view_changelog" => open_changelog_in_browser(app),
         "quit" => app.exit(0),
         _ => {}
     }
@@ -107,16 +120,22 @@ fn toggle_recording_handler<R: Runtime>(app: &AppHandle<R>) {
                 }
             }
         } else {
-            // Immediately show starting state
-            set_tray_state(&app_clone, RecordingState::Starting);
-
-            log::info!("Emitting start recording event from tray");
-            if let Some(window) = app_clone.get_webview_window("main") {
-                let _ = window.eval("sessionStorage.setItem('autoStartRecording', 'true')"); // Set the flag to start recording automatically
-                let _ = window.eval("window.location.assign('/')");
-            }
+            start_recording_from_home(&app_clone);
         }
     });
+}
+
+/// Sends the main window home with an auto-start flag. Unlike an in-page event
+/// this works from any route and even if the home page isn't mounted yet.
+pub(crate) fn start_recording_from_home<R: Runtime>(app: &AppHandle<R>) {
+    // Immediately show starting state
+    set_tray_state(app, RecordingState::Starting);
+
+    log::info!("Starting recording via home page auto-start");
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.eval("sessionStorage.setItem('autoStartRecording', 'true')"); // Set the flag to start recording automatically
+        let _ = window.eval("window.location.assign('/')");
+    }
 }
 
 fn pause_recording_handler<R: Runtime>(app: &AppHandle<R>) {
@@ -155,54 +174,89 @@ fn resume_recording_handler<R: Runtime>(app: &AppHandle<R>) {
 }
 
 fn stop_recording_handler<R: Runtime>(app: &AppHandle<R>) {
+    focus_main_window(app);
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move { stop_and_finalize(&app_clone).await });
+}
+
+/// Stops the recording and hands off to the frontend for saving. Shared by the
+/// tray, the recording pill and meeting-end auto-stop.
+pub(crate) async fn stop_and_finalize<R: Runtime>(app: &AppHandle<R>) {
+    // A double-click or a click racing auto-stop must not stop twice: the
+    // second call would re-emit recording-stop-complete and re-run saving.
+    if STOP_IN_PROGRESS.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    if crate::audio::recording_commands::is_recording().await {
+        finalize_stop(app).await;
+    }
+    STOP_IN_PROGRESS.store(false, Ordering::SeqCst);
+}
+
+async fn finalize_stop<R: Runtime>(app: &AppHandle<R>) {
     // Immediately show stopping state
     set_tray_state(app, RecordingState::Stopping);
 
-    focus_main_window(app);
-    let app_clone = app.clone();
-    tauri::async_runtime::spawn(async move {
-        log::info!("Tray: Stopping recording...");
+    log::info!("Stopping recording...");
 
-        // Generate save path (same as RecordingControls.tsx)
-        let data_dir = match app_clone.path().app_data_dir() {
-            Ok(dir) => dir,
-            Err(e) => {
-                log::error!("Failed to get app data dir: {}", e);
-                update_tray_menu_async(&app_clone).await;
-                return;
-            }
-        };
+    // Generate save path (same as RecordingControls.tsx)
+    let data_dir = match app.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            log::error!("Failed to get app data dir: {}", e);
+            update_tray_menu_async(app).await;
+            return;
+        }
+    };
 
-        let timestamp = chrono::Local::now().format("%Y-%m-%dT%H-%M-%S").to_string();
-        let save_path = data_dir.join(format!("recording-{}.wav", timestamp));
+    let timestamp = chrono::Local::now().format("%Y-%m-%dT%H-%M-%S").to_string();
+    let save_path = data_dir.join(format!("recording-{}.wav", timestamp));
 
-        // Call Rust stop_recording command (like pause/resume pattern)
-        let stop_result = crate::audio::recording_commands::stop_recording(
-            app_clone.clone(),
-            crate::audio::recording_commands::RecordingArgs {
-                save_path: save_path.to_string_lossy().to_string(),
-            },
-        )
-        .await;
+    // Call Rust stop_recording command (like pause/resume pattern)
+    let stop_result = crate::audio::recording_commands::stop_recording(
+        app.clone(),
+        crate::audio::recording_commands::RecordingArgs {
+            save_path: save_path.to_string_lossy().to_string(),
+        },
+    )
+    .await;
 
-        // Handle result
-        match stop_result {
-            Ok(_) => {
-                log::info!("Tray: Recording stopped successfully");
+    // Handle result
+    match stop_result {
+        Ok(_) => {
+            log::info!("Recording stopped successfully");
 
-                // Trigger frontend post-processing via event (works from any page)
-                // (SQLite save, navigation, analytics)
-                if let Err(e) = app_clone.emit("recording-stop-complete", true) {
-                    log::error!("Tray: Failed to emit recording-stop-complete event: {}", e);
-                }
-            }
-            Err(e) => {
-                log::error!("Tray: Failed to stop recording: {}", e);
-                // Revert tray state on error
-                update_tray_menu_async(&app_clone).await;
+            // Trigger frontend post-processing via event (works from any page)
+            // (SQLite save, navigation, analytics)
+            if let Err(e) = app.emit("recording-stop-complete", true) {
+                log::error!("Failed to emit recording-stop-complete event: {}", e);
             }
         }
-    });
+        Err(e) => {
+            log::error!("Failed to stop recording: {}", e);
+            // Revert tray state on error
+            update_tray_menu_async(app).await;
+        }
+    }
+}
+
+fn open_changelog_in_browser<R: Runtime>(app: &AppHandle<R>) {
+    #[allow(deprecated)]
+    if let Err(e) = app.shell().open(CHANGELOG_URL, None) {
+        log::error!("Failed to open changelog: {}", e);
+    }
+}
+
+/// Lets the frontend open the changelog without duplicating the URL.
+#[tauri::command]
+pub fn open_changelog<R: Runtime>(app: AppHandle<R>) {
+    open_changelog_in_browser(&app);
+}
+
+/// Lets the frontend bring Scribe forward once a stopped recording's meeting opens.
+#[tauri::command]
+pub fn focus_main_window_command<R: Runtime>(app: AppHandle<R>) {
+    focus_main_window(&app);
 }
 
 fn check_updates_handler<R: Runtime>(app: &AppHandle<R>) {
@@ -226,6 +280,7 @@ pub fn update_tray_menu<R: Runtime>(app: &AppHandle<R>) {
 
 pub fn set_tray_state<R: Runtime>(app: &AppHandle<R>, state: RecordingState) {
     log::info!("Tray: Setting intermediate state: {:?}", state);
+    set_tray_icon(app, &state);
     // During recording state transitions, we assume recording is allowed (we're already recording)
     if let Ok(menu) = build_menu(app, state, true) {
         if let Some(tray) = app.tray_by_id("main-tray") {
@@ -306,6 +361,7 @@ pub async fn update_tray_menu_async<R: Runtime>(app: &AppHandle<R>) {
     let can_record = check_can_record(app).await;
     log::info!("Tray: can_record: {}", can_record);
 
+    set_tray_icon(app, &recording_state);
     if let Ok(menu) = build_menu(app, recording_state, can_record) {
         if let Some(tray) = app.tray_by_id("main-tray") {
             let result = tray.set_menu(Some(menu));
@@ -316,6 +372,59 @@ pub async fn update_tray_menu_async<R: Runtime>(app: &AppHandle<R>) {
     } else {
         log::error!("Tray: Failed to build menu");
     }
+}
+
+fn set_tray_icon<R: Runtime>(app: &AppHandle<R>, state: &RecordingState) {
+    let Some(tray) = app.tray_by_id("main-tray") else {
+        return;
+    };
+    let icon = match Image::from_bytes(TRAY_ICON_PNG) {
+        Ok(icon) => icon,
+        Err(e) => {
+            log::error!("Tray: Failed to decode tray icon: {}", e);
+            return;
+        }
+    };
+    let icon = match state {
+        RecordingState::Stopped => icon,
+        RecordingState::Paused => with_status_dot(&icon, PAUSED_DOT_RGB),
+        _ => with_status_dot(&icon, RECORDING_DOT_RGB),
+    };
+    if let Err(e) = tray.set_icon(Some(icon)) {
+        log::error!("Tray: Failed to set tray icon: {}", e);
+    }
+}
+
+/// Draws a status dot in the icon's bottom-right corner, with a transparent
+/// ring that separates it from the logo.
+fn with_status_dot(icon: &Image<'_>, [r, g, b]: [u8; 3]) -> Image<'static> {
+    let (width, height) = (icon.width(), icon.height());
+    let mut rgba = icon.rgba().to_vec();
+
+    // About 30% of the icon's height, so it stays visible once macOS shrinks it to menu-bar size.
+    let radius = height as f32 * 0.15;
+    let ring = radius * 0.3;
+    let cx = width as f32 - radius - ring;
+    let cy = height as f32 - radius - ring;
+    let outer = radius + ring;
+
+    let x0 = (cx - outer).max(0.0) as u32;
+    let y0 = (cy - outer).max(0.0) as u32;
+    for y in y0..height {
+        for x in x0..width {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let distance = (dx * dx + dy * dy).sqrt();
+            if distance > outer {
+                continue;
+            }
+            let coverage = (radius + 0.5 - distance).clamp(0.0, 1.0);
+            let i = ((y * width + x) * 4) as usize;
+            rgba[i..i + 4].copy_from_slice(&[r, g, b, (coverage * 255.0) as u8]);
+        }
+    }
+
+    Image::new_owned(rgba, width, height)
 }
 
 fn build_menu<R: Runtime>(
@@ -391,6 +500,7 @@ fn build_menu<R: Runtime>(
         .item(&MenuItemBuilder::with_id("open_window", "Open Main Window").build(app)?)
         .item(&MenuItemBuilder::with_id("settings", "Settings").build(app)?)
         .item(&MenuItemBuilder::with_id("check_updates", "Check for Updates").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_changelog", "View Changelog").build(app)?)
         .item(&PredefinedMenuItem::separator(app)?)
         .item(&MenuItemBuilder::with_id("quit", "Quit").build(app)?)
         .build()
@@ -415,5 +525,41 @@ pub(crate) fn focus_main_window<R: Runtime>(app: &AppHandle<R>) {
         }
     } else {
         log::warn!("Could not find main window");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pixel(icon: &Image<'_>, x: u32, y: u32) -> [u8; 4] {
+        let i = ((y * icon.width() + x) * 4) as usize;
+        icon.rgba()[i..i + 4].try_into().unwrap()
+    }
+
+    #[test]
+    fn status_dot_fills_bottom_right_and_leaves_logo_untouched() {
+        let base = Image::from_bytes(TRAY_ICON_PNG).unwrap();
+        let dotted = with_status_dot(&base, RECORDING_DOT_RGB);
+        let (w, h) = (base.width(), base.height());
+        let radius = h as f32 * 0.15;
+        let center = (w as f32 - radius * 1.3) as u32;
+        let center_y = (h as f32 - radius * 1.3) as u32;
+
+        assert_eq!(pixel(&dotted, center, center_y), [0xEF, 0x44, 0x44, 255]);
+        assert_eq!(pixel(&dotted, w / 2, h / 2), pixel(&base, w / 2, h / 2));
+        assert_eq!(pixel(&dotted, 0, 0), pixel(&base, 0, 0));
+    }
+
+    #[test]
+    fn status_dot_clears_a_ring_around_the_dot() {
+        let base = Image::from_bytes(TRAY_ICON_PNG).unwrap();
+        let dotted = with_status_dot(&base, PAUSED_DOT_RGB);
+        let (w, h) = (base.width(), base.height());
+        let radius = h as f32 * 0.15;
+        let ring_x = (w as f32 - radius * 1.3 - radius * 1.15) as u32;
+        let center_y = (h as f32 - radius * 1.3) as u32;
+
+        assert_eq!(pixel(&dotted, ring_x, center_y)[3], 0);
     }
 }

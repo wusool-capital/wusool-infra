@@ -1,16 +1,16 @@
-"""Registers `discover_add_seller` on the shared Bolt app — this button's
-`action_id` is emitted by `matching_engine`'s "Find more sellers" flow, not
-by this module's own Slack surface, so the coupling to that caller is a
-shared action_id/value contract, not a Python import (the dependency edge
-stays discovery -> {nothing in matching_engine}; matching_engine calls
-into this module's own search step directly — see `find_and_post_leads`).
+"""Registers `discover_add_seller` on the shared Bolt app — the button is
+emitted for leads that were not auto-created: a fuzzy name match against an
+existing CRM organization (`build_possible_duplicate_blocks`), or a website
+the enrichment provider didn't confirm (`build_needs_review_blocks`). The
+coupling to `matching_engine`, which posts that message, is a shared action_id/value
+contract, not a Python import.
 
-Dedupe is deliberately not this module's concern: `ddl_commands`'
-`/add-seller` flow already searches for an existing organization and, when
-one already has an active seller role, tells the operator to use
-`/edit-seller` instead (`handle_organization_selection_submission`) — that
-existing check is the only dedupe in this pipeline, reached through
-`SellerDraftPort.open_confirm_form` below.
+`discover_review_seller` is the website-review card's button when its lead
+was stored: it loads the draft back by place id first.
+
+Clicking either hands the lead to `ddl_commands`' `/add-seller` flow through
+`SellerDraftPort.open_confirm_form`: its organization search is the human's
+final duplicate check before anything is written.
 """
 
 import logging
@@ -19,8 +19,7 @@ from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_sdk.web.async_client import AsyncWebClient
 
-from app.modules.discovery.api.dependencies import decode_lead, discovery_service
-from app.modules.discovery.domain.drafts import draft_from_lead
+from app.modules.discovery.api.dependencies import decode_draft, discovery_service
 from app.modules.notifications import SlackInteractionBody
 
 logger = logging.getLogger(__name__)
@@ -38,10 +37,10 @@ def register_handlers(app: AsyncApp) -> None:
         trigger_id = body["trigger_id"]
 
         try:
-            lead = decode_lead(action["value"])
+            draft = decode_draft(action["value"])
         except Exception:
             # A stale/legacy button value (e.g. after a deploy changes
-            # `DiscoveredLead`'s shape) must not fail silently after `ack()`
+            # `SellerDraft`'s shape) must not fail silently after `ack()`
             # has already fired — the operator needs to see *something*.
             logger.exception("discover_lead_decode_failed")
             await client.chat_postEphemeral(
@@ -52,12 +51,32 @@ def register_handlers(app: AsyncApp) -> None:
         try:
             await discovery_service().open_confirm_form(
                 trigger_id=trigger_id,
-                draft=draft_from_lead(lead),
+                draft=draft,
                 channel_id=channel_id,
                 requested_by=user_id,
             )
         except Exception:
-            logger.exception("discover_confirm_form_failed", extra={"lead_name": lead.name})
+            logger.exception("discover_confirm_form_failed", extra={"lead_name": draft.org_name})
             await client.chat_postEphemeral(
-                channel=channel_id, user=user_id, text=f"Couldn't process *{lead.name}*."
+                channel=channel_id, user=user_id, text=f"Couldn't process *{draft.org_name}*."
+            )
+
+    @app.action("discover_review_seller")
+    async def handle_discover_review_seller(
+        ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        channel_id = body["channel"]["id"]
+        user_id = body["user"]["id"]
+        try:
+            await discovery_service().open_review_form(
+                trigger_id=body["trigger_id"],
+                review_id=body["actions"][0]["value"],
+                channel_id=channel_id,
+                requested_by=user_id,
+            )
+        except Exception:
+            logger.exception("discover_review_form_failed")
+            await client.chat_postEphemeral(
+                channel=channel_id, user=user_id, text="Couldn't process that lead."
             )

@@ -113,3 +113,33 @@ async def test_create_does_not_raise_when_the_row_already_exists(
     assert created.attio_id == attio_id
     assert created.name == "Webhook-Written Name"
     assert created.hq_country == "AE"
+
+
+async def test_find_by_place_id_includes_removed_orgs(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    place_id = f"place-{uuid.uuid4()}"
+    repo = OrganizationRepository(db_session)
+    await repo.update(throwaway_org.attio_id, source_place_id=place_id, is_active=False)
+
+    found = await repo.find_by_place_id(place_id)
+
+    assert found is not None
+    assert found.attio_id == throwaway_org.attio_id
+    assert await repo.find_by_place_id(f"other-{uuid.uuid4()}") is None
+
+
+async def test_find_by_domains_matches_exact_overlap_on_active_orgs(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    host = f"{uuid.uuid4().hex}.example"
+    repo = OrganizationRepository(db_session)
+    await repo.update(throwaway_org.attio_id, domains=[host.title()])  # stored mixed-case
+
+    found = await repo.find_by_domains([host, f"www.{host}"])
+
+    assert found is not None
+    assert found.attio_id == throwaway_org.attio_id
+    assert await repo.find_by_domains([host.upper()]) is not None  # case-insensitive
+    assert await repo.find_by_domains([f"nope-{host}"]) is None
+    assert await repo.find_by_domains([]) is None
