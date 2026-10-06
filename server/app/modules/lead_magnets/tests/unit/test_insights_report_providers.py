@@ -201,13 +201,13 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
         if request.method == "GET":
             return _webflow_handler(request)
         sent.append((request.method, request.url.path, json.loads(request.content or b"{}")))
-        return httpx.Response(202, json={})
+        return httpx.Response(202, json={"id": "new-item"})
 
     _use_transport(monkeypatch, handler)
     cms = WebflowInsightsCms(token="t", collection_id="insights")
     report = ReportDocument(slug="r", title="R", html="", excerpt="E")
 
-    await cms.create(report, featured=None)
+    assert await cms.create(report, featured=None) == "new-item"
     await cms.unfeature("lbo")
     await cms.unpublish("item-1")
 
@@ -219,6 +219,66 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
         {"fieldData": {"featured": False}},
     ), "the unpin must not change a hand-written article's draft state"
     assert sent[2][:2] == ("DELETE", "/v2/collections/insights/items/item-1/live")
+
+
+async def test_an_update_writes_the_staged_card_then_publishes_it(monkeypatch) -> None:
+    """Found in prod: the `/live` update 409s on a card an earlier sync unpublished."""
+    sent: list[tuple[str, str, dict]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return _webflow_handler(request)
+        sent.append((request.method, request.url.path, json.loads(request.content)))
+        return httpx.Response(202, json={"publishedItemIds": ["item-1"], "errors": []})
+
+    _use_transport(monkeypatch, handler)
+    cms = WebflowInsightsCms(token="t", collection_id="insights")
+
+    await cms.update(
+        "item-1", ReportDocument(slug="r", title="R", html="", excerpt="E"), featured=None
+    )
+
+    assert sent[0][:2] == ("PATCH", "/v2/collections/insights/items/item-1")
+    assert sent[0][2]["isDraft"] is False
+    assert sent[1] == ("POST", "/v2/collections/insights/items/publish", {"itemIds": ["item-1"]})
+
+
+async def test_an_update_webflow_did_not_publish_is_an_error(monkeypatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return _webflow_handler(request)
+        return httpx.Response(202, json={"publishedItemIds": [], "errors": ["nope"]})
+
+    _use_transport(monkeypatch, handler)
+    cms = WebflowInsightsCms(token="t", collection_id="insights")
+
+    with pytest.raises(RuntimeError):
+        await cms.update(
+            "item-1", ReportDocument(slug="r", title="R", html="", excerpt="E"), featured=None
+        )
+
+
+async def test_unpublishing_a_card_that_is_not_live_is_not_an_error(monkeypatch) -> None:
+    _use_transport(monkeypatch, lambda request: httpx.Response(404, json={}))
+
+    await WebflowInsightsCms(token="t", collection_id="insights").unpublish("item-1")
+
+
+async def test_newest_id_skips_undated_and_excluded_cards(monkeypatch) -> None:
+    items = [
+        {"id": "old", "fieldData": {"published-date": "2026-09-01T08:00:00.000Z"}},
+        {"id": "undated", "fieldData": {}},
+        {"id": "newest", "fieldData": {"published-date": "2026-10-06T08:00:00.000Z"}},
+        {"id": "mid", "fieldData": {"published-date": "2026-10-05T08:00:00.000Z"}},
+    ]
+    _use_transport(
+        monkeypatch,
+        lambda request: httpx.Response(200, json={"items": items, "pagination": {"total": 4}}),
+    )
+    cms = WebflowInsightsCms(token="t", collection_id="insights")
+
+    assert await cms.newest_id() == "newest"
+    assert await cms.newest_id(excluding="newest") == "mid"
 
 
 async def test_find_ignores_a_card_whose_slug_does_not_match(monkeypatch) -> None:
