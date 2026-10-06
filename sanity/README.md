@@ -80,6 +80,9 @@ pin, the older report still shows the box ticked here; editing it later
 won't take the pin back. To pin it again, untick, publish, then tick and
 publish.
 
+The featured slot is never left empty. When you untick, unpublish or delete
+the pinned report, the newest live card on `/insights` takes the pin.
+
 - **Renaming a slug** unpublishes the old card and creates a new one, so
   the old URL stops working.
 - **Unpublishing or deleting** a report unpublishes its card.

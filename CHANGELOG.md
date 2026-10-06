@@ -10,6 +10,15 @@ for current production evidence and open handover items.
 
 ## 2026-10-06
 
+### Fixed
+
+- Republishing an insights report whose card had been unpublished now puts
+  the card back on `/insights`. Before, Webflow rejected the update and the
+  card stayed hidden.
+- The featured slot on `/insights` is never left empty. Unticking,
+  unpublishing or deleting the pinned report pins the newest live card.
+  A failed card update no longer unpins the current featured article.
+
 ### Added
 
 - Scribe desktop's menu-bar icon shows a red dot while recording and an

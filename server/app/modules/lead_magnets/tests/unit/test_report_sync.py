@@ -1,6 +1,8 @@
 """`ReportSync`: what a Sanity publish does to the flattened report and the
 Webflow Insights card."""
 
+import pytest
+
 from app.modules.lead_magnets.application.insights_report.sync import ReportSync
 from app.modules.lead_magnets.domain.insights_report.report import (
     CmsItem,
@@ -67,20 +69,31 @@ def _sync(*, source: _FakeSource, cms: "_FakeCms", renderer: _FakeRenderer | Non
 
 
 class _FakeCms:
-    def __init__(self, items: dict[str, CmsItem] | None = None, featured: list[str] | None = None):
+    def __init__(
+        self,
+        items: dict[str, CmsItem] | None = None,
+        featured: list[str] | None = None,
+        newest_first: list[str] | None = None,
+        fail_update: bool = False,
+    ):
         self.items = items or {}
         self.featured = featured or []
+        self.newest_first = newest_first or []
+        self.fail_update = fail_update
         self.calls: list[tuple[str, str]] = []
         self.pins: list[bool | None] = []
 
     async def find(self, slug: str) -> CmsItem | None:
         return self.items.get(slug)
 
-    async def create(self, report: ReportDocument, *, featured: bool | None) -> None:
+    async def create(self, report: ReportDocument, *, featured: bool | None) -> str:
         self.calls.append(("create", report.slug))
         self.pins.append(featured)
+        return f"new-{report.slug}"
 
     async def update(self, item_id: str, report: ReportDocument, *, featured: bool | None) -> None:
+        if self.fail_update:
+            raise RuntimeError("Webflow did not publish")
         self.calls.append(("update", item_id))
         self.pins.append(featured)
 
@@ -89,6 +102,12 @@ class _FakeCms:
 
     async def featured_ids(self) -> list[str]:
         return self.featured
+
+    async def newest_id(self, *, excluding: str | None = None) -> str | None:
+        return next((i for i in self.newest_first if i != excluding), None)
+
+    async def feature(self, item_id: str) -> None:
+        self.calls.append(("feature", item_id))
 
     async def unfeature(self, item_id: str) -> None:
         self.calls.append(("unfeature", item_id))
@@ -125,8 +144,53 @@ async def test_ticking_the_pin_unpins_every_other_card() -> None:
     await _sync(source=_FakeSource(_report(featured=True)), cms=cms).sync(
         slug="buyouts-in-the-gcc", previous_slug=None, featured_changed=True
     )
-    assert cms.calls == [("unfeature", "lbo"), ("update", "item-1")]
+    assert cms.calls == [("update", "item-1"), ("unfeature", "lbo")]
     assert cms.pins == [True]
+
+
+async def test_pinning_a_new_report_never_unpins_the_card_it_just_created() -> None:
+    cms = _FakeCms(featured=["lbo", "new-buyouts-in-the-gcc"])
+    await _sync(source=_FakeSource(_report(featured=True)), cms=cms).sync(
+        slug="buyouts-in-the-gcc", previous_slug=None, featured_changed=True
+    )
+    assert cms.calls == [("create", "buyouts-in-the-gcc"), ("unfeature", "lbo")]
+
+
+async def test_a_failed_card_write_leaves_the_current_pin_alone() -> None:
+    """Found in prod: the old order unpinned LBO, then the card write failed,
+    and /insights showed "No items found"."""
+    cms = _FakeCms(
+        {"buyouts-in-the-gcc": CmsItem(id="item-1", gated=True)}, featured=["lbo"], fail_update=True
+    )
+    with pytest.raises(RuntimeError):
+        await _sync(source=_FakeSource(_report(featured=True)), cms=cms).sync(
+            slug="buyouts-in-the-gcc", previous_slug=None, featured_changed=True
+        )
+    assert cms.calls == []
+
+
+async def test_unpublishing_the_pinned_report_pins_the_newest_live_card() -> None:
+    cms = _FakeCms({"x": CmsItem(id="item-x", gated=True)}, newest_first=["lbo", "exit"])
+    await _sync(source=_FakeSource(), cms=cms).sync(slug=None, previous_slug="x")
+    assert cms.calls == [("unpublish", "item-x"), ("feature", "lbo")]
+
+
+async def test_unticking_the_newest_report_pins_the_next_newest_not_itself() -> None:
+    cms = _FakeCms(
+        {"x": CmsItem(id="item-x", gated=True)},
+        featured=["item-x"],
+        newest_first=["item-x", "lbo"],
+    )
+    await _sync(source=_FakeSource(_report("x", featured=False)), cms=cms).sync(
+        slug="x", previous_slug="x", featured_changed=True
+    )
+    assert cms.calls == [("update", "item-x"), ("feature", "lbo")]
+
+
+async def test_nothing_is_repinned_while_another_card_holds_the_pin() -> None:
+    cms = _FakeCms({"x": CmsItem(id="item-x", gated=True)}, featured=["lbo"], newest_first=["x"])
+    await _sync(source=_FakeSource(_report("x")), cms=cms).sync(slug="x", previous_slug="x")
+    assert cms.calls == [("update", "item-x")]
 
 
 async def test_editing_an_already_pinned_report_does_not_steal_the_pin_back() -> None:
