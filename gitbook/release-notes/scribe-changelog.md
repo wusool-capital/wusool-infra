@@ -2,6 +2,12 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.7.6
+
+### What's new
+
+* The menu-bar icon shows a red dot while Scribe is recording and an amber dot while recording is paused, so you can tell at a glance that a meeting is being captured.
+
 ## 0.7.5
 
 ### Changed

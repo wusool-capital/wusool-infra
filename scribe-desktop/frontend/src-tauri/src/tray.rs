@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     Emitter,
+    image::Image,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::TrayIconBuilder,
     AppHandle, Manager, Runtime,
@@ -9,6 +10,13 @@ use tauri_plugin_shell::ShellExt;
 
 const CHANGELOG_URL: &str =
     "https://wusool-capital.gitbook.io/docs/vttVgqrltuEtLAJkX7dL/release-notes/scribe-changelog";
+
+// Embedded at compile time so the tray icon doesn't depend on the
+// Next.js `public/` dir being present at runtime (it's dev-server/build
+// output, not a bundled resource).
+const TRAY_ICON_PNG: &[u8] = include_bytes!("../../public/tray-icon.png");
+const RECORDING_DOT_RGB: [u8; 3] = [0xEF, 0x44, 0x44];
+const PAUSED_DOT_RGB: [u8; 3] = [0xF5, 0x9E, 0x0B];
 
 static STOP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
@@ -28,10 +36,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     // Pass can_record=true initially, will be updated by update_tray_menu immediately
     let menu = build_menu(app, RecordingState::Stopped, true)?;
 
-    // Embedded at compile time so the tray icon doesn't depend on the
-    // Next.js `public/` dir being present at runtime (it's dev-server/build
-    // output, not a bundled resource).
-    let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../../public/tray-icon.png"))?;
+    let tray_icon = Image::from_bytes(TRAY_ICON_PNG)?;
 
     TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
@@ -275,6 +280,7 @@ pub fn update_tray_menu<R: Runtime>(app: &AppHandle<R>) {
 
 pub fn set_tray_state<R: Runtime>(app: &AppHandle<R>, state: RecordingState) {
     log::info!("Tray: Setting intermediate state: {:?}", state);
+    set_tray_icon(app, &state);
     // During recording state transitions, we assume recording is allowed (we're already recording)
     if let Ok(menu) = build_menu(app, state, true) {
         if let Some(tray) = app.tray_by_id("main-tray") {
@@ -355,6 +361,7 @@ pub async fn update_tray_menu_async<R: Runtime>(app: &AppHandle<R>) {
     let can_record = check_can_record(app).await;
     log::info!("Tray: can_record: {}", can_record);
 
+    set_tray_icon(app, &recording_state);
     if let Ok(menu) = build_menu(app, recording_state, can_record) {
         if let Some(tray) = app.tray_by_id("main-tray") {
             let result = tray.set_menu(Some(menu));
@@ -365,6 +372,59 @@ pub async fn update_tray_menu_async<R: Runtime>(app: &AppHandle<R>) {
     } else {
         log::error!("Tray: Failed to build menu");
     }
+}
+
+fn set_tray_icon<R: Runtime>(app: &AppHandle<R>, state: &RecordingState) {
+    let Some(tray) = app.tray_by_id("main-tray") else {
+        return;
+    };
+    let icon = match Image::from_bytes(TRAY_ICON_PNG) {
+        Ok(icon) => icon,
+        Err(e) => {
+            log::error!("Tray: Failed to decode tray icon: {}", e);
+            return;
+        }
+    };
+    let icon = match state {
+        RecordingState::Stopped => icon,
+        RecordingState::Paused => with_status_dot(&icon, PAUSED_DOT_RGB),
+        _ => with_status_dot(&icon, RECORDING_DOT_RGB),
+    };
+    if let Err(e) = tray.set_icon(Some(icon)) {
+        log::error!("Tray: Failed to set tray icon: {}", e);
+    }
+}
+
+/// Draws a status dot in the icon's bottom-right corner, with a transparent
+/// ring that separates it from the logo.
+fn with_status_dot(icon: &Image<'_>, [r, g, b]: [u8; 3]) -> Image<'static> {
+    let (width, height) = (icon.width(), icon.height());
+    let mut rgba = icon.rgba().to_vec();
+
+    // About 30% of the icon's height, so it stays visible once macOS shrinks it to menu-bar size.
+    let radius = height as f32 * 0.15;
+    let ring = radius * 0.3;
+    let cx = width as f32 - radius - ring;
+    let cy = height as f32 - radius - ring;
+    let outer = radius + ring;
+
+    let x0 = (cx - outer).max(0.0) as u32;
+    let y0 = (cy - outer).max(0.0) as u32;
+    for y in y0..height {
+        for x in x0..width {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let distance = (dx * dx + dy * dy).sqrt();
+            if distance > outer {
+                continue;
+            }
+            let coverage = (radius + 0.5 - distance).clamp(0.0, 1.0);
+            let i = ((y * width + x) * 4) as usize;
+            rgba[i..i + 4].copy_from_slice(&[r, g, b, (coverage * 255.0) as u8]);
+        }
+    }
+
+    Image::new_owned(rgba, width, height)
 }
 
 fn build_menu<R: Runtime>(
@@ -465,5 +525,41 @@ pub(crate) fn focus_main_window<R: Runtime>(app: &AppHandle<R>) {
         }
     } else {
         log::warn!("Could not find main window");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pixel(icon: &Image<'_>, x: u32, y: u32) -> [u8; 4] {
+        let i = ((y * icon.width() + x) * 4) as usize;
+        icon.rgba()[i..i + 4].try_into().unwrap()
+    }
+
+    #[test]
+    fn status_dot_fills_bottom_right_and_leaves_logo_untouched() {
+        let base = Image::from_bytes(TRAY_ICON_PNG).unwrap();
+        let dotted = with_status_dot(&base, RECORDING_DOT_RGB);
+        let (w, h) = (base.width(), base.height());
+        let radius = h as f32 * 0.15;
+        let center = (w as f32 - radius * 1.3) as u32;
+        let center_y = (h as f32 - radius * 1.3) as u32;
+
+        assert_eq!(pixel(&dotted, center, center_y), [0xEF, 0x44, 0x44, 255]);
+        assert_eq!(pixel(&dotted, w / 2, h / 2), pixel(&base, w / 2, h / 2));
+        assert_eq!(pixel(&dotted, 0, 0), pixel(&base, 0, 0));
+    }
+
+    #[test]
+    fn status_dot_clears_a_ring_around_the_dot() {
+        let base = Image::from_bytes(TRAY_ICON_PNG).unwrap();
+        let dotted = with_status_dot(&base, PAUSED_DOT_RGB);
+        let (w, h) = (base.width(), base.height());
+        let radius = h as f32 * 0.15;
+        let ring_x = (w as f32 - radius * 1.3 - radius * 1.15) as u32;
+        let center_y = (h as f32 - radius * 1.3) as u32;
+
+        assert_eq!(pixel(&dotted, ring_x, center_y)[3], 0);
     }
 }

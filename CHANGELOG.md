@@ -10,6 +10,11 @@ for current production evidence and open handover items.
 
 ## 2026-10-06
 
+### Added
+
+- Scribe desktop's menu-bar icon shows a red dot while recording and an
+  amber dot while recording is paused.
+
 ### Changed
 
 - Scribe desktop opens the meeting as soon as a stopped recording is saved,
