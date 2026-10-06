@@ -24,7 +24,7 @@ for current production evidence and open handover items.
   instead. Scribe also comes to the front when the meeting opens.
 - The "Before we match" popup and `/check-buyer` now list conflicts with
   the advisor's note and missing profile fields under separate headings,
-  one item per line.
+  one item per line, named as the `/edit-buyer` fields to fill in.
 
 ## 2026-10-05
 

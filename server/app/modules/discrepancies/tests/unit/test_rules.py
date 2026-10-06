@@ -298,8 +298,13 @@ _MISSING = (
     Discrepancy(Criterion.TICKET_BAND, "missing", stored="(not set)"),
     Discrepancy(Criterion.EBITDA, "missing", stored="(not set)"),
 )
-_CONFLICT_LINE = "*Doesn't match your note*\n• Vertical: profile has Pharma, you said Garage"
-_MISSING_LINE = "*Missing from Cursor's profile*\n• Geography\n• Ticket band\n• EBITDA"
+_CONFLICT_LINE = "*Doesn't match your note*\n• Target vertical: profile has Pharma, you said Garage"
+_MISSING_LINE = (
+    "*Missing from Cursor's profile*\n"
+    "• Target region / Target country\n"
+    "• Check size - min / Check size - max\n"
+    "• EBITDA floor / EBITDA ceiling"
+)
 
 
 @pytest.mark.parametrize(
@@ -335,7 +340,7 @@ def test_template_message_uses_the_approved_wording(
 def test_template_message_single_missing_item() -> None:
     report = DiscrepancyReport(buyer_role_id="role-8", missing=_MISSING[2:])
     message = template_message(_CURSOR, report, context_checked=True)
-    assert message == "*Missing from Cursor's profile*\n• EBITDA"
+    assert message == "*Missing from Cursor's profile*\n• EBITDA floor / EBITDA ceiling"
 
 
 def _geo_buyer(regions: list[str], countries: list[str]) -> BuyerCriteria:

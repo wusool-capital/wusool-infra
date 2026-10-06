@@ -164,10 +164,10 @@ class Criterion(StrEnum):
     EBITDA = "ebitda"
 
 
-# Display wording for the advisor-facing message; enum values stay snake_case.
+# Mirrors `/edit-buyer`'s field labels so the advisor knows exactly which fields to fill in.
 CRITERION_LABELS: dict[Criterion, str] = {
-    Criterion.VERTICAL: "vertical",
-    Criterion.GEOGRAPHY: "geography",
-    Criterion.TICKET_BAND: "ticket band",
-    Criterion.EBITDA: "EBITDA",
+    Criterion.VERTICAL: "Target vertical",
+    Criterion.GEOGRAPHY: "Target region / Target country",
+    Criterion.TICKET_BAND: "Check size - min / Check size - max",
+    Criterion.EBITDA: "EBITDA floor / EBITDA ceiling",
 }

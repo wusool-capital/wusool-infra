@@ -201,11 +201,6 @@ def run_checks(criteria: BuyerCriteria, context: ParsedContext) -> DiscrepancyRe
     )
 
 
-def _label(d: Discrepancy) -> str:
-    label = CRITERION_LABELS[d.criterion]
-    return label[0].upper() + label[1:]
-
-
 def _context_summary(context: ParsedContext) -> str:
     parts = [" or ".join(context.verticals)] if context.verticals else []
     parts += [p for p in (context.region, *context.countries) if p]
@@ -231,14 +226,14 @@ def template_message(
         lines.append(
             "*Doesn't match your note*\n"
             + "\n".join(
-                f"• {_label(d)}: profile has {d.stored}, you said {d.stated}"
+                f"• {CRITERION_LABELS[d.criterion]}: profile has {d.stored}, you said {d.stated}"
                 for d in report.conflicts
             )
         )
     if report.missing:
         lines.append(
             f"*Missing from {org}'s profile*\n"
-            + "\n".join(f"• {_label(d)}" for d in report.missing)
+            + "\n".join(f"• {CRITERION_LABELS[d.criterion]}" for d in report.missing)
         )
     if not context_checked:
         lines.append(
