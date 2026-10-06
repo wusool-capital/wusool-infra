@@ -192,7 +192,9 @@ These are a one-time Designer change. Nothing is needed per report:
 2. On the same template, give the article column (`.div-block-27`) and the
    `.breakline-thoughts` dividers the visibility condition **Gated is not
    set**. The report replaces the article, and the dividers would otherwise
-   remain as stray lines.
+   remain as stray lines. Move the end-of-page button (`.btn-primary-valuation`)
+   out of `.div-block-27`, directly below it, and give it the condition
+   **CTA URL is set**. Reports then show it too.
 3. Set `LEAD_MAGNET_SANITY_PROJECT_ID`, `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`,
    `LEAD_MAGNET_SANITY_WRITE_TOKEN` (a Sanity Editor token) and
    `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the

@@ -107,6 +107,9 @@ class InsightFieldData(BaseModel):
     og_image: _Image | None = Field(default=None, alias="og-image")
     author: str | None = None
     primary_silo: str | None = Field(default=None, alias="primary-silo")
+    # Omitted when unset, like every optional field: the API documents no way to clear one.
+    cta_text: str | None = Field(default=None, alias="cta-text")
+    cta_url: str | None = Field(default=None, alias="cta-url")
 
 
 class _FeaturedPatch(BaseModel):
@@ -259,6 +262,8 @@ class WebflowInsightsCms:
             og_image=cover,
             author=author,
             primary_silo=silo,
+            cta_text=report.cta_text,
+            cta_url=report.cta_url,
         )
 
     async def _load_schema(self) -> _Schema:

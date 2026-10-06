@@ -31,6 +31,9 @@ class ReportDocument:
     featured: bool = False
     author: str | None = None
     silo: str | None = None
+    # The button at the end of the Insights page.
+    cta_text: str | None = None
+    cta_url: str | None = None
 
 
 @dataclass(frozen=True)
