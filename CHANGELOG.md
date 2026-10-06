@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-06
+
+### Changed
+
+- Scribe desktop opens the meeting as soon as a stopped recording is saved,
+  so you can review, edit or summarize the transcript right away. This
+  covers the Stop button, the menu-bar item, the pill's "Stop now" and
+  auto-stop when a meeting ends. Auto-stop used to open the home page
+  instead. Scribe also comes to the front when the meeting opens.
+
 ## 2026-10-05
 
 ### Added
