@@ -11,8 +11,8 @@ cut left open in the preview.
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
-PREVIEW_SHARE = 0.25
-# Set by the renderer on the block nearest 25% of the drawn height, a truer cut than text.
+PREVIEW_SHARE = 0.0
+# Set by the renderer before the second page, a truer cut than text.
 GATE_MARKER = "data-wusool-gate"
 # How far past the share a cut may land before the crossing block is split instead.
 _OVERSHOOT = 0.10

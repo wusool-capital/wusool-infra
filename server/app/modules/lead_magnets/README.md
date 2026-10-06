@@ -177,7 +177,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /buyer/apply` | serves | No blocking model call; a best-effort Haiku qualification note, never shown to the applicant |
 | `POST /get-started` | serves | No model at all — pure seller lead capture; the form's own figures go straight to `seller_role` |
 | `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline from the visitor's `/compare` comps and `/analyze` discounts, DCF overrides and search terms |
-| `GET /reports/{slug}` | serves | Gated insights report: the first 25% for a new reader, the whole report for a returning one |
+| `GET /reports/{slug}` | serves | Gated insights report: the first page for a new reader, the whole report for a returning one |
 | `POST /reports/{slug}/unlock` | serves | The report gate (name, email, organisation); returns the whole report and records the reader |
 | `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook; syncs the Webflow Insights card |
 
@@ -196,7 +196,7 @@ completion opens its own session, so an uncommitted row is invisible to it.
 
 The business publishes a report in the Sanity Studio (`sanity/` at the repo
 root). The report then appears at `wusoolcapital.com/insights/<slug>` with
-the first 25% open and the rest behind one short form. There are three parts:
+the first page open and the rest behind one short form. There are three parts:
 
 - **Content.** `providers/sanity/report_source.py` reads the published report
   over GROQ and caches it, misses included, for 5 minutes per process. The
@@ -219,7 +219,7 @@ the first 25% open and the rest behind one short form. There are three parts:
   Hidden copies (`<template>`, `<noscript>`, `[hidden]`) are removed so
   they can't leak into the preview.
 - **Gate.** `domain/insights_report/split.py` cuts between block elements,
-  never at an inline tag, at about 25% of the text. `GET /reports/{slug}` never sends the
+  never at an inline tag, before page two, or at a text share when the renderer set no mark. `GET /reports/{slug}` never sends the
   rest to a new reader. `POST /reports/{slug}/unlock` records an
   `insights_report` run through the write contract, returns the whole
   report, and sets the `wusool_reader` cookie, which holds the run id.
@@ -619,7 +619,7 @@ WHERE status = 'succeeded' AND person_attio_id IS NULL
   - that a live-API Webflow item shows on `/insights` without a site
     publish;
   - that the Insights template hides the body when Gated is on;
-  - the 25% cut against the real "Buyouts in the GCC" playbook.
+  - the first-page cut against the real "Buyouts in the GCC" playbook.
 
 - `POST /buyer/apply` and `POST /submit-lead` verified against a real
   Attio/Postgres pair — both built and unit-tested, but never exercised
