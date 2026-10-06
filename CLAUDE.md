@@ -104,14 +104,18 @@ comments clean, clear, and concise, and only add ones that add value. (Max 20 wo
 
 ### Run the checks before every commit and PR
 
-From `server/` (any change under `server/**`):
+Before every PR, run the full CI suite from `server/` — the same gates GitHub
+runs (ruff/ty, Vale on added doc lines, unit, Alembic schema, integration,
+shell):
 
 ```bash
-uv run ruff check .
-uv run ty check .
-uv run pytest
-uv run alembic check   # if models or migrations changed
+CHECKS_DATABASE_URL=postgresql://user:pass@localhost:15432/<disposable_db> ./checks.sh
 ```
+
+`schema` and `integration` need a disposable Postgres in `CHECKS_DATABASE_URL`.
+Without one, run `./checks.sh quality`, `docs`, `unit` and `shell`, and say
+in the PR that `schema`/`integration` were not run locally. Never open a PR
+with a failing `checks.sh` target.
 
 From `infrastructure/terraform/` (any Terraform change): `tofu fmt -check
 -recursive`, then `tofu init -backend=false && tofu validate` in each changed

@@ -2,6 +2,8 @@
 no Bedrock call. Deterministic rules only.
 """
 
+from dataclasses import replace
+
 import pytest
 
 from app.modules.discrepancies.domain.criteria import (
@@ -298,8 +300,16 @@ _MISSING = (
     Discrepancy(Criterion.TICKET_BAND, "missing", stored="(not set)"),
     Discrepancy(Criterion.EBITDA, "missing", stored="(not set)"),
 )
-_CONFLICT_LINE = "Heads up: Cursor's profile says vertical is Pharma, but you said Garage."
-_MISSING_LINE = "Heads up: Cursor's profile is missing geography, ticket band and EBITDA."
+_CONFLICT_LINE = (
+    "*Cursor's profile doesn't match your note*\n"
+    "• Target vertical: profile has Pharma, you said Garage"
+)
+_MISSING_LINE = (
+    "*Missing from Cursor's profile*\n"
+    "• Target region / Target country\n"
+    "• Check size - min (USD) / Check size - max (USD)\n"
+    "• EBITDA floor (USD) / EBITDA ceiling (USD)"
+)
 
 
 @pytest.mark.parametrize(
@@ -308,8 +318,8 @@ _MISSING_LINE = "Heads up: Cursor's profile is missing geography, ticket band an
         ((), (), True, "No missing or conflicting details found for Cursor."),
         ((_VERTICAL_CONFLICT,), (), True, _CONFLICT_LINE),
         ((), _MISSING, True, _MISSING_LINE),
-        ((_VERTICAL_CONFLICT,), _MISSING, True, f"{_CONFLICT_LINE}\n{_MISSING_LINE}"),
-        ((), _MISSING, False, f"{_MISSING_LINE}\nYour note couldn't be checked for conflicts."),
+        ((_VERTICAL_CONFLICT,), _MISSING, True, f"{_CONFLICT_LINE}\n\n{_MISSING_LINE}"),
+        ((), _MISSING, False, f"{_MISSING_LINE}\n\nYour note couldn't be checked for conflicts."),
         (
             (),
             (),
@@ -332,10 +342,21 @@ def test_template_message_uses_the_approved_wording(
         assert "no missing or conflicting" not in message.lower()
 
 
-def test_template_message_single_missing_item_has_no_join() -> None:
+def test_template_message_single_missing_item() -> None:
     report = DiscrepancyReport(buyer_role_id="role-8", missing=_MISSING[2:])
     message = template_message(_CURSOR, report, context_checked=True)
-    assert message == "Heads up: Cursor's profile is missing EBITDA."
+    assert message == "*Missing from Cursor's profile*\n• EBITDA floor (USD) / EBITDA ceiling (USD)"
+
+
+def test_template_message_escapes_slack_control_characters() -> None:
+    criteria = replace(_CURSOR, org_name="Smith & <Jones>")
+    conflict = Discrepancy(Criterion.VERTICAL, "conflict", stored="A & B", stated="<C>")
+    report = DiscrepancyReport(buyer_role_id="role-8", conflicts=(conflict,))
+    message = template_message(criteria, report, context_checked=True)
+    assert message == (
+        "*Smith &amp; &lt;Jones&gt;'s profile doesn't match your note*\n"
+        "• Target vertical: profile has A &amp; B, you said &lt;C&gt;"
+    )
 
 
 def _geo_buyer(regions: list[str], countries: list[str]) -> BuyerCriteria:
