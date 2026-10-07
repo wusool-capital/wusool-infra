@@ -48,8 +48,13 @@
   }
 
   // Validated like the server's slug, so the iframe path still comes only from TOOLS.
+  // Without data-report it is the page's own last path segment (/reports/<slug>), so
+  // the Reports template needs no CMS binding inside its embed.
   if (tool === "report") {
-    var slug = script.getAttribute("data-report") || "";
+    var slug =
+      script.getAttribute("data-report") ||
+      location.pathname.replace(/\/+$/, "").split("/").pop() ||
+      "";
     if (!/^[a-z0-9-]{1,256}$/.test(slug)) return;
     src = src + "?slug=" + encodeURIComponent(slug);
   }
