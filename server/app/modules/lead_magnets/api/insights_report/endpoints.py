@@ -120,7 +120,11 @@ async def download_report_pdf(
     report = await _published(source, slug)
     if not await _record_read(session, background, report, wusool_reader):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "unlock the report first")
-    pdf = await build_report_renderer().pdf(report.html)
+    try:
+        pdf = await build_report_renderer().pdf(report.html)
+    except TimeoutError:
+        logger.warning("insights_report_pdf_timeout slug=%s", slug)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "busy, try again") from None
     return Response(
         pdf,
         media_type="application/pdf",

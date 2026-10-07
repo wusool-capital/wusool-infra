@@ -97,6 +97,7 @@ class WebflowCollection:
         self._headers = {"Authorization": f"Bearer {token}", "accept": "application/json"}
         self._id = collection_id
         self._timeout_s = timeout_s
+        self._fields: list[_CollectionField] | None = None
 
     async def find(self, slug: str) -> Item | None:
         # Staged items, so an unpublished one is reused rather than clashing on slug.
@@ -158,9 +159,10 @@ class WebflowCollection:
         return {i.field_data.name: i.id for i in items if i.field_data.name}
 
     async def _validations(self, field_slug: str) -> _Validations:
-        response = await self._request("GET", f"/collections/{self._id}")
-        fields = _Collection.model_validate_json(response.content).fields
-        field = next((f for f in fields if f.slug == field_slug), None)
+        if self._fields is None:
+            response = await self._request("GET", f"/collections/{self._id}")
+            self._fields = _Collection.model_validate_json(response.content).fields
+        field = next((f for f in self._fields if f.slug == field_slug), None)
         if field is None:
             raise ValueError(f"Webflow collection {self._id} has no field {field_slug!r}")
         return field.validations or _Validations()

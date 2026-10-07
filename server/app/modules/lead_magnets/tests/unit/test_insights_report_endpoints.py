@@ -251,6 +251,17 @@ def test_the_pdf_is_locked_until_the_reader_unlocks(client, world) -> None:
     assert world.recorded == [], "the report this reader unlocked is already one run"
 
 
+def test_a_pdf_that_times_out_in_the_queue_is_a_503_not_a_crash(client, world, monkeypatch) -> None:
+    class _Busy:
+        async def pdf(self, html: str) -> bytes:
+            raise TimeoutError
+
+    monkeypatch.setattr(endpoints, "build_report_renderer", lambda: _Busy())
+    client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
+
+    assert client.get("/reports/buyouts-in-the-gcc/pdf").status_code == 503
+
+
 def test_a_pdf_of_another_report_records_its_own_read(client, world) -> None:
     reader = _reader_run(world, slug="buyouts-in-the-gcc")
     client.cookies.set("wusool_reader", str(reader))

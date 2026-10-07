@@ -8,6 +8,7 @@ Option, author and silo ids are resolved by name at sync time.
 """
 
 import logging
+from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -54,12 +55,21 @@ class ArticleFieldData(BaseModel):
     sanity_managed: bool = Field(default=True, alias="sanity-managed")
 
 
+@dataclass(frozen=True)
+class _Ids:
+    """Webflow ids by name, resolved once per sync."""
+
+    content_types: dict[str, str]
+    silos: dict[str, str]
+    authors: dict[str, str]
+
+
 class WebflowInsightsCms:
     def __init__(self, *, token: str, collection_id: str, timeout_s: float = 15.0) -> None:
         self._collection = WebflowCollection(
             token=token, collection_id=collection_id, timeout_s=timeout_s
         )
-        self._ids: tuple[dict[str, str], dict[str, str], dict[str, str]] | None = None
+        self._ids: _Ids | None = None
 
     async def find(self, slug: str) -> CmsItem | None:
         item = await self._collection.find(slug)
@@ -77,13 +87,13 @@ class WebflowInsightsCms:
         await self._collection.unpublish(item_id)
 
     async def field_data(self, article: ArticleDocument) -> ArticleFieldData:
-        content_types, silo_ids, author_ids = await self._load_ids()
-        content_type = content_types.get(article.content_type)
+        ids = await self._load_ids()
+        content_type = ids.content_types.get(article.content_type)
         if content_type is None:
             # Required by Webflow; failing here names the cause instead of a bare 400.
             raise ValueError(f"unknown Insights content type {article.content_type!r}")
-        silo = silo_ids.get(article.silo or "")
-        author = author_ids.get(article.author or "")
+        silo = ids.silos.get(article.silo or "")
+        author = ids.authors.get(article.author or "")
         if article.silo and silo is None:
             logger.warning("insights_article_unknown_silo silo=%s", article.silo)
         if article.author and author is None:
@@ -118,12 +128,12 @@ class WebflowInsightsCms:
             cta_url=article.cta_url,
         )
 
-    async def _load_ids(self) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    async def _load_ids(self) -> _Ids:
         if self._ids is None:
-            self._ids = (
-                await self._collection.options("content-type"),
-                await self._collection.options("primary-silo"),
-                await self._collection.referenced_ids("author"),
+            self._ids = _Ids(
+                content_types=await self._collection.options("content-type"),
+                silos=await self._collection.options("primary-silo"),
+                authors=await self._collection.referenced_ids("author"),
             )
         return self._ids
 

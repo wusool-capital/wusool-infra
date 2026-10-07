@@ -60,8 +60,11 @@ class _SanityArticle(BaseModel):
     def html(self, blocks: list[Block] | None, pasted: str | None) -> str | None:
         """The field in the editor's chosen format; the other one is ignored even if filled."""
         if self.body_format == "html":
-            return sanitize(pasted) if pasted else None
-        return to_html(blocks) if blocks else None
+            html = sanitize(pasted) if pasted else ""
+        else:
+            html = to_html(blocks) if blocks else ""
+        # Judged after cleaning: a paste that was only a script or a table is empty.
+        return html if html.strip() else None
 
 
 class _QueryResponse(BaseModel):

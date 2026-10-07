@@ -105,10 +105,13 @@ async def test_the_source_reads_the_chosen_format_fresh_and_sanitized(monkeypatc
     assert hosts == ["p.api.sanity.io"], "the webhook must never read a stale CDN copy"
 
 
-async def test_an_article_published_without_a_body_is_not_written(monkeypatch) -> None:
+@pytest.mark.parametrize("pasted", ["", "<script>x()</script>", "<style>p { color: red }</style>"])
+async def test_a_body_that_cleans_down_to_nothing_is_not_written(monkeypatch, pasted: str) -> None:
     _use_transport(
         monkeypatch,
-        lambda request: httpx.Response(200, json={"result": {**_SANITY_ARTICLE, "bodyHtml": ""}}),
+        lambda request: httpx.Response(
+            200, json={"result": {**_SANITY_ARTICLE, "bodyHtml": pasted}}
+        ),
     )
 
     assert await SanityArticleSource(project_id="p", dataset="production").get("x") is None
@@ -155,8 +158,11 @@ async def test_an_article_is_written_as_a_managed_item_that_never_touches_the_pi
     monkeypatch,
 ) -> None:
     sent: list[dict] = []
+    schema_reads: list[int] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v2/collections/insights":
+            schema_reads.append(1)
         if request.method == "GET":
             return _webflow(request)
         sent.append(json.loads(request.content))
@@ -180,6 +186,7 @@ async def test_an_article_is_written_as_a_managed_item_that_never_touches_the_pi
     assert (data["reading-time"], data["word-count"]) == ("3 min read", 450)
     for hand_set in ("featured", "hide-from-listings", "gated"):
         assert hand_set not in data, f"{hand_set} is set in Webflow, never by the sync"
+    assert len(schema_reads) == 1, "one schema read serves every id lookup"
 
 
 async def test_takeaways_and_faq_get_the_heading_hand_written_articles_carry(monkeypatch) -> None:
