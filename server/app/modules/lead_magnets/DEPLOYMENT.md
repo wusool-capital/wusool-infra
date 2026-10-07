@@ -193,12 +193,12 @@ needed per report:
 2. On the **Reports Template** page, keep the site navbar and footer, and
    remove the article header and author. In its page settings, bind the SEO
    title, meta description, OG title and OG image to **SEO Title**, **SEO
-   Description**, **OG Title** and **OG Image**, as on the Insights Template. Add an Embed set to 100% width,
-   with `data-report` bound to the item's Slug:
+   Description**, **OG Title** and **OG Image**, as on the Insights Template. Add an Embed set to 100% width.
+   It needs no CMS binding: without `data-report`, `embed.js` reads the slug
+   from the page URL (`/reports/<slug>`).
 
    ```html
-   <script src="https://tools.wusoolcapital.com/embed.js"
-           data-tool="report" data-report="{{slug}}"></script>
+   <script src="https://tools.wusoolcapital.com/embed.js" data-tool="report"></script>
    ```
 
    Below it, add the end-of-page button bound to **CTA Text** and **CTA
