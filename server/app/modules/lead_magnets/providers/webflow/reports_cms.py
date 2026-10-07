@@ -9,6 +9,7 @@ import logging
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report import (
+    Pin,
     ReportDocument,
     reading_time,
 )
@@ -27,8 +28,8 @@ class ReportFieldData(BaseModel):
 
     name: str
     slug: str
-    featured: bool | None = None
-    pin_to_banner: bool | None = Field(default=None, alias="pin-to-banner")
+    featured: bool
+    pin_to_banner: bool = Field(alias="pin-to-banner")
     excerpt: str | None = None
     # The template's <title> and meta tags bind these, so they must never be blank.
     seo_title: str = Field(alias="seo-title")
@@ -45,14 +46,19 @@ class ReportFieldData(BaseModel):
     cta_url: str | None = Field(default=None, alias="cta-url")
 
 
-class _FeaturedPatch(BaseModel):
-    featured: bool
+class _PinPatch(BaseModel):
+    """Clears one pin; the other is omitted (`exclude_none`) so it is left alone."""
 
-
-class _BannerPatch(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    pin_to_banner: bool = Field(alias="pin-to-banner")
+    featured: bool | None = None
+    pin_to_banner: bool | None = Field(default=None, alias="pin-to-banner")
+
+
+_UNPIN: dict[Pin, _PinPatch] = {
+    "featured": _PinPatch(featured=False),
+    "banner": _PinPatch(pin_to_banner=False),
+}
 
 
 class WebflowReportsCms:
@@ -66,57 +72,19 @@ class WebflowReportsCms:
         item = await self._collection.find(slug)
         return item.id if item else None
 
-    async def create(
-        self, report: ReportDocument, *, featured: bool | None, banner_pinned: bool | None
-    ) -> str:
-        return await self._collection.create_live(
-            await self.field_data(report, featured, banner_pinned)
-        )
+    async def create(self, report: ReportDocument) -> str:
+        return await self._collection.create_live(await self.field_data(report))
 
-    async def update(
-        self,
-        item_id: str,
-        report: ReportDocument,
-        *,
-        featured: bool | None,
-        banner_pinned: bool | None,
-    ) -> None:
-        await self._collection.update_and_publish(
-            item_id, await self.field_data(report, featured, banner_pinned)
-        )
+    async def update(self, item_id: str, report: ReportDocument) -> None:
+        await self._collection.update_and_publish(item_id, await self.field_data(report))
 
     async def unpublish(self, item_id: str) -> None:
         await self._collection.unpublish(item_id)
 
-    async def featured_ids(self) -> list[str]:
-        return [i.id for i in await self._collection.live_items() if i.field_data.featured]
+    async def unpin(self, item_id: str, pin: Pin) -> None:
+        await self._collection.patch_live(item_id, _UNPIN[pin])
 
-    async def newest_id(self, *, excluding: str | None = None) -> str | None:
-        dated = [
-            item
-            for item in await self._collection.live_items()
-            if item.field_data.published_date and item.id != excluding
-        ]
-        if not dated:
-            return None
-        return max(dated, key=lambda item: item.field_data.published_date or "").id
-
-    async def feature(self, item_id: str) -> None:
-        await self._collection.patch_live(item_id, _FeaturedPatch(featured=True))
-
-    async def unfeature(self, item_id: str) -> None:
-        await self._collection.patch_live(item_id, _FeaturedPatch(featured=False))
-
-    async def unpin_banner(self, item_id: str) -> None:
-        await self._collection.patch_live(item_id, _BannerPatch(pin_to_banner=False))
-
-    async def field_data(
-        self,
-        report: ReportDocument,
-        featured: bool | None = None,
-        banner_pinned: bool | None = None,
-    ) -> ReportFieldData:
-        """A pin passed as `None` is left untouched (omitted from the write)."""
+    async def field_data(self, report: ReportDocument) -> ReportFieldData:
         if self._silo_ids is None:
             self._silo_ids = await self._collection.options("primary-silo")
         cover = Image(url=report.cover_url, alt=report.title) if report.cover_url else None
@@ -126,8 +94,8 @@ class WebflowReportsCms:
         return ReportFieldData(
             name=report.title,
             slug=report.slug,
-            featured=featured,
-            pin_to_banner=banner_pinned,
+            featured=report.featured,
+            pin_to_banner=report.banner_pinned,
             excerpt=report.excerpt,
             seo_title=report.title,
             seo_description=report.excerpt or report.title,

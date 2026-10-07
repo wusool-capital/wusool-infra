@@ -22,7 +22,11 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, ReportSource
+from app.modules.lead_magnets.domain.insights_report.report import (
+    Pin,
+    ReportDocument,
+    ReportSource,
+)
 from app.modules.lead_magnets.providers.sanity.images import resized
 from app.modules.lead_magnets.providers.sanity.portable_text import Block, rich_report
 
@@ -38,11 +42,13 @@ _QUERY = (
     'featured, bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url}'
 )
 # Raw perspective so open drafts are unticked too; publishing one must not re-pin it.
-_BANNER_QUERY = (
-    '*[_type == "report" && bannerPinned == true && slug.current != $slug'
+_PINNED_QUERY = (
+    '*[_type == "report" && {field} == true && slug.current != $slug'
     " && ($pinnedAt == null || dateTime(_updatedAt) <= dateTime($pinnedAt))]"
-    '{_id, "slug": slug.current}'
+    '{{_id, "slug": slug.current}}'
 )
+# The Sanity field behind each pin; GROQ can't take a field name as a parameter.
+_PIN_FIELD: dict[Pin, str] = {"featured": "featured", "banner": "bannerPinned"}
 _SOURCE_QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
     '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom}'
@@ -89,21 +95,30 @@ class _SourceResponse(BaseModel):
     result: _SanitySource | None = None
 
 
-class _BannerPinned(BaseModel):
+class _Pinned(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     id: str = Field(alias="_id")
     slug: str | None = None
 
 
-class _BannerResponse(BaseModel):
-    result: list[_BannerPinned]
+class _PinnedResponse(BaseModel):
+    result: list[_Pinned]
 
 
 class _Unpinned(BaseModel):
+    """Clears one pin; the other is omitted (`exclude_none`) so it is left alone."""
+
     model_config = ConfigDict(populate_by_name=True)
 
-    banner_pinned: bool = Field(default=False, alias="bannerPinned")
+    featured: bool | None = None
+    banner_pinned: bool | None = Field(default=None, alias="bannerPinned")
+
+
+_UNPIN: dict[Pin, _Unpinned] = {
+    "featured": _Unpinned(featured=False),
+    "banner": _Unpinned(banner_pinned=False),
+}
 
 
 class _RenderedFields(BaseModel):
@@ -179,12 +194,12 @@ class SanityReportSource:
         response.raise_for_status()
         return True
 
-    async def unpin_banner_except(self, slug: str, *, pinned_at: str | None) -> list[str]:
+    async def unpin_others(self, pin: Pin, slug: str, *, pinned_at: str | None) -> list[str]:
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
             found = await client.get(
                 self._api_url,
                 params={
-                    "query": _BANNER_QUERY,
+                    "query": _PINNED_QUERY.format(field=_PIN_FIELD[pin]),
                     "$slug": json.dumps(slug),
                     "$pinnedAt": json.dumps(pinned_at),
                     "perspective": "raw",
@@ -192,10 +207,10 @@ class SanityReportSource:
                 headers={"Authorization": f"Bearer {self._write_token}"},
             )
         found.raise_for_status()
-        pinned = _BannerResponse.model_validate_json(found.content).result
+        pinned = _PinnedResponse.model_validate_json(found.content).result
         if not pinned:
             return []
-        patches = [_PatchMutation(patch=_Patch(id=p.id, set_=_Unpinned())) for p in pinned]
+        patches = [_PatchMutation(patch=_Patch(id=p.id, set_=_UNPIN[pin])) for p in pinned]
         (await self._mutate(_Mutations(mutations=patches))).raise_for_status()
         return sorted({p.slug for p in pinned if p.slug})
 

@@ -308,11 +308,7 @@ async def _sync(event: SanityWebhookBody) -> None:
         if event.type == "insights":
             await build_article_sync().sync(slug=event.slug, previous_slug=event.previous_slug)
         else:
-            await build_report_sync().sync(
-                slug=event.slug,
-                previous_slug=event.previous_slug,
-                featured_changed=event.featured_changed,
-            )
+            await build_report_sync().sync(slug=event.slug, previous_slug=event.previous_slug)
     except Exception:
         logger.exception("%s_sync_failed slug=%s", _SYNC_LOG[event.type], event.slug)
 

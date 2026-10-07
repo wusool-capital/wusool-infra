@@ -29,30 +29,18 @@ class ReportSync:
         self._cms = cms
         self._renderer = renderer
 
-    async def sync(
-        self,
-        *,
-        slug: str | None,
-        previous_slug: str | None,
-        featured_changed: bool = False,
-    ) -> None:
+    async def sync(self, *, slug: str | None, previous_slug: str | None) -> None:
         """`slug` is `None` when the report was deleted or unpublished;
         `previous_slug` differs from it when an editor renamed the slug.
 
-        The pin only moves when this edit ticked or unticked it. Pinning a
-        newer report unpins the older card in Webflow only, so the older
-        report still says "pinned" in Sanity; acting on that on every edit
-        would steal the pin back on a typo fix. When nothing is left pinned,
-        the newest live card takes the slot.
-
-        The home banner pin is level-triggered instead: every sync writes the
-        report's own tick, and taking the banner unticks the others in Sanity
-        too, so Sanity always matches Webflow. No fallback: no pin, no bar."""
+        Pins are level-triggered: every sync writes the report's own ticks, and
+        taking a pin unticks it on the other reports in Sanity and Webflow, so
+        the two always agree. With no pin, the /reports featured block falls
+        back to the newest card by its own sort, and the home banner hides."""
         if previous_slug and previous_slug != slug:
             await self._source.refresh(previous_slug)
             await self._unpublish(previous_slug)
         if slug is None:
-            await self._keep_one_pinned()
             return
 
         source = await self._source.source(slug)
@@ -70,41 +58,20 @@ class ReportSync:
         report = await self._source.refresh(slug)
         if report is None:
             await self._unpublish(slug)
-            await self._keep_one_pinned()
             return
 
-        featured = report.featured if featured_changed else None
-        banner = report.banner_pinned
         card_id = await self._cms.find(slug)
         if card_id is None:
-            card_id = await self._cms.create(report, featured=featured, banner_pinned=banner)
+            await self._cms.create(report)
         else:
-            await self._cms.update(card_id, report, featured=featured, banner_pinned=banner)
+            await self._cms.update(card_id, report)
 
-        if banner:
-            # After this card is live, so a failed write never empties the banner.
-            for other in await self._source.unpin_banner_except(slug, pinned_at=report.updated_at):
+        # After this card is live, so a failed write never empties a pin.
+        for pin in report.pins:
+            for other in await self._source.unpin_others(pin, slug, pinned_at=report.updated_at):
                 if other_id := await self._cms.find(other):
-                    await self._cms.unpin_banner(other_id)
-
-        if featured:
-            # Unpinned only once this card is live, so a failed write never empties the slot.
-            for item_id in await self._cms.featured_ids():
-                if item_id != card_id:
-                    await self._cms.unfeature(item_id)
-        else:
-            # An unticked card must not win the fallback straight back.
-            await self._keep_one_pinned(excluding=card_id if featured is False else None)
+                    await self._cms.unpin(other_id, pin)
 
     async def _unpublish(self, slug: str) -> None:
         if card_id := await self._cms.find(slug):
             await self._cms.unpublish(card_id)
-
-    async def _keep_one_pinned(self, *, excluding: str | None = None) -> None:
-        """The featured block lists every pinned card; with none it reads "No items found".
-        This and the unpins are the sync's only writes to cards other than this report's."""
-        # `excluding` may still read as pinned while its unpin publishes.
-        if any(item_id != excluding for item_id in await self._cms.featured_ids()):
-            return
-        if newest := await self._cms.newest_id(excluding=excluding):
-            await self._cms.feature(newest)

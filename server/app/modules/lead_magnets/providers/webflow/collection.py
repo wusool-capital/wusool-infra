@@ -39,8 +39,6 @@ class ItemFields(BaseModel):
 
     name: str | None = None
     slug: str | None = None
-    featured: bool | None = None
-    published_date: str | None = Field(default=None, alias="published-date")
     sanity_managed: bool | None = Field(default=None, alias="sanity-managed")
 
 
@@ -132,16 +130,6 @@ class WebflowCollection:
             # Already off the live site, e.g. an earlier sync unpublished it.
             if error.response.status_code != 404:
                 raise
-
-    async def live_items(self) -> list[Item]:
-        items: list[Item] = []
-        offset = 0
-        while True:
-            page = await self._list(f"/collections/{self._id}/items/live", offset=offset)
-            items += page.items
-            offset += _PAGE
-            if offset >= page.pagination.total:
-                return items
 
     async def options(self, field_slug: str) -> dict[str, str]:
         """An Option field's ids by name, so renaming in Webflow never needs a code change."""

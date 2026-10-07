@@ -97,8 +97,8 @@ def world(monkeypatch) -> _World:
             return world.runs.get(run_id)
 
     class _Sync:
-        async def sync(self, *, slug, previous_slug, featured_changed):
-            world.synced.append((slug, previous_slug, featured_changed))
+        async def sync(self, *, slug, previous_slug):
+            world.synced.append((slug, previous_slug))
 
     class _ArticleSync:
         async def sync(self, *, slug, previous_slug):
@@ -422,23 +422,22 @@ def _signed(body: bytes) -> dict[str, str]:
 
 
 def test_the_sanity_webhook_syncs_only_when_signed(client, world) -> None:
-    body = json.dumps(
-        {"slug": "new-slug", "previousSlug": "old-slug", "featuredChanged": True}
-    ).encode()
+    body = json.dumps({"slug": "new-slug", "previousSlug": "old-slug"}).encode()
 
     unsigned = client.post("/reports/webhooks/sanity", content=body)
     signed = client.post("/reports/webhooks/sanity", content=body, headers=_signed(body))
 
     assert unsigned.status_code == 401
     assert signed.status_code == 202
-    assert world.synced == [("new-slug", "old-slug", True)]
+    assert world.synced == [("new-slug", "old-slug")]
 
 
 def test_one_webhook_routes_reports_and_insights_articles_by_type(client, world) -> None:
     """The Free plan allows two webhooks (dev and prod), so both types share one."""
     for payload in (
-        {"type": "insights", "slug": "exit-guide", "previousSlug": None, "featuredChanged": False},
-        {"type": "report", "slug": "buyouts", "previousSlug": None, "featuredChanged": False},
+        {"type": "insights", "slug": "exit-guide", "previousSlug": None},
+        # An old projection still sending `featuredChanged` is ignored.
+        {"type": "report", "slug": "buyouts", "previousSlug": None, "featuredChanged": True},
     ):
         body = json.dumps(payload).encode()
         assert (
@@ -447,7 +446,7 @@ def test_one_webhook_routes_reports_and_insights_articles_by_type(client, world)
         )
 
     assert world.articles == [("exit-guide", None)]
-    assert world.synced == [("buyouts", None, False)]
+    assert world.synced == [("buyouts", None)]
 
 
 def test_the_sanity_webhook_is_off_until_configured(client, world) -> None:

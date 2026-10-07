@@ -261,19 +261,18 @@ the first page open and the rest behind one short form. There are three parts:
   Cards go live without a Publish in Webflow. A new card uses the live
   create; an existing one is written to its staged item, then published, since
   the live update 409s on a card an earlier sync unpublished.
-  - Featuring a new report unpins the current card only after the new one
-    is live.
-  - When nothing is left pinned, the newest live card is pinned, so the
-    featured block never reads "No items found".
-  - The pin moves only when the edit ticked or unticked it (`featuredChanged`
-    in the webhook projection). Otherwise a typo fix on an older, still-ticked
-    report would take the pin back.
-  - The home banner pin (`bannerPinned` -> Webflow `pin-to-banner`) is
-    level-triggered: every sync writes the report's own tick. Taking the
-    banner unticks the other reports in Sanity (drafts included) and Webflow,
-    so a stale tick never exists. Only reports last edited no later than this
-    one are unticked, so the later of two simultaneous pins wins. The
-    untick's own webhook re-syncs each loser. No fallback: no pin, no bar.
+  - Two pins, `featured` (top of `/reports`) and `bannerPinned` -> Webflow
+    `pin-to-banner` (home page bar), are level-triggered. Every sync writes
+    the report's own ticks.
+  - Taking a pin unticks it on the other reports in Sanity (drafts included)
+    and Webflow, only after this card is live. A stale tick never exists, and
+    a failed sync is repaired by the next one.
+  - Only reports last edited no later than this one are unticked, so the
+    later of two simultaneous pins wins. Each untick's own webhook re-syncs
+    that report.
+  - The server never refills an empty pin. The `/reports` featured block
+    sorts **Featured** on first, then newest, with a limit of 1. The banner
+    list shows nothing.
 
 CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
 writes an **organisation and a person only**, with no role and no deal.

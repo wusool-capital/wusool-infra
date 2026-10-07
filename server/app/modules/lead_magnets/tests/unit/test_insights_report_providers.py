@@ -134,11 +134,11 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
         silo="Buy a Business",
         cta_text="Get your free valuation",
         cta_url="/valuation-tool",
+        featured=True,
+        banner_pinned=True,
     )
 
-    data = (await cms.field_data(report, featured=True, banner_pinned=True)).model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
+    data = (await cms.field_data(report)).model_dump(mode="json", by_alias=True, exclude_none=True)
 
     for required in ("name", "slug", "excerpt"):
         assert data[required], required
@@ -175,24 +175,9 @@ async def test_an_unknown_silo_is_left_out_not_guessed(monkeypatch) -> None:
 
     assert "primary-silo" not in data
     assert "cta-text" not in data and "cta-url" not in data, "no button means none is written"
-    assert "featured" not in data, "no pin change means the pin isn't written at all"
-
-
-async def test_featured_ids_reads_every_live_page(monkeypatch) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v2/collections/reports/items/live"
-        offset = int(request.url.params["offset"])
-        items = [
-            {"id": f"item-{offset + i}", "fieldData": {"featured": offset + i == 150}}
-            for i in range(100 if offset == 0 else 60)
-        ]
-        return httpx.Response(200, json={"items": items, "pagination": {"total": 160}})
-
-    _use_transport(monkeypatch, handler)
-
-    assert await WebflowReportsCms(token="t", collection_id="reports").featured_ids() == [
-        "item-150"
-    ]
+    assert data["featured"] is False and data["pin-to-banner"] is False, (
+        "pins are always written, so Webflow matches Sanity"
+    )
 
 
 async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) -> None:
@@ -208,10 +193,10 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
     cms = WebflowReportsCms(token="t", collection_id="reports")
     report = ReportDocument(slug="r", title="R", html="", excerpt="E")
 
-    assert await cms.create(report, featured=None, banner_pinned=None) == "new-item"
-    await cms.unfeature("lbo")
+    assert await cms.create(report) == "new-item"
+    await cms.unpin("lbo", "featured")
     await cms.unpublish("item-1")
-    await cms.unpin_banner("lbo")
+    await cms.unpin("lbo", "banner")
 
     assert sent[0][:2] == ("POST", "/v2/collections/reports/items/live")
     assert sent[0][2]["isDraft"] is False and sent[0][2]["fieldData"]["slug"] == "r"
@@ -244,8 +229,6 @@ async def test_an_update_writes_the_staged_card_then_publishes_it(monkeypatch) -
     await cms.update(
         "item-1",
         ReportDocument(slug="r", title="R", html="", excerpt="E"),
-        featured=None,
-        banner_pinned=None,
     )
 
     assert sent[0][:2] == ("PATCH", "/v2/collections/reports/items/item-1")
@@ -266,8 +249,6 @@ async def test_an_update_webflow_did_not_publish_is_an_error(monkeypatch) -> Non
         await cms.update(
             "item-1",
             ReportDocument(slug="r", title="R", html="", excerpt="E"),
-            featured=None,
-            banner_pinned=None,
         )
 
 
@@ -275,23 +256,6 @@ async def test_unpublishing_a_card_that_is_not_live_is_not_an_error(monkeypatch)
     _use_transport(monkeypatch, lambda request: httpx.Response(404, json={}))
 
     await WebflowReportsCms(token="t", collection_id="reports").unpublish("item-1")
-
-
-async def test_newest_id_skips_undated_and_excluded_cards(monkeypatch) -> None:
-    items = [
-        {"id": "old", "fieldData": {"published-date": "2026-09-01T08:00:00.000Z"}},
-        {"id": "undated", "fieldData": {}},
-        {"id": "newest", "fieldData": {"published-date": "2026-10-06T08:00:00.000Z"}},
-        {"id": "mid", "fieldData": {"published-date": "2026-10-05T08:00:00.000Z"}},
-    ]
-    _use_transport(
-        monkeypatch,
-        lambda request: httpx.Response(200, json={"items": items, "pagination": {"total": 4}}),
-    )
-    cms = WebflowReportsCms(token="t", collection_id="reports")
-
-    assert await cms.newest_id() == "newest"
-    assert await cms.newest_id(excluding="newest") == "mid"
 
 
 async def test_find_ignores_a_card_whose_slug_does_not_match(monkeypatch) -> None:
@@ -349,7 +313,7 @@ async def test_source_reads_the_pasted_html_and_its_rendered_version(monkeypatch
     assert (source.document_id, source.revision, source.rendered_from) == ("doc-1", "r1", "abc")
 
 
-async def test_unpin_banner_unticks_older_pins_and_drafts_in_one_transaction(
+async def test_unpin_others_unticks_older_pins_and_drafts_in_one_transaction(
     monkeypatch,
 ) -> None:
     sent: list[httpx.Request] = []
@@ -367,11 +331,12 @@ async def test_unpin_banner_unticks_older_pins_and_drafts_in_one_transaction(
     _use_transport(monkeypatch, handler)
     store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
 
-    slugs = await store.unpin_banner_except("buyouts", pinned_at="2026-10-07T10:00:00Z")
+    slugs = await store.unpin_others("banner", "buyouts", pinned_at="2026-10-07T10:00:00Z")
 
     assert slugs == ["lbo"]
     query = sent[0].url.params
     assert query["perspective"] == "raw", "drafts must be unticked too"
+    assert "bannerPinned == true" in query["query"]
     assert json.loads(query["$slug"]) == "buyouts"
     assert json.loads(query["$pinnedAt"]) == "2026-10-07T10:00:00Z"
     assert json.loads(sent[1].content) == {
@@ -382,7 +347,7 @@ async def test_unpin_banner_unticks_older_pins_and_drafts_in_one_transaction(
     }
 
 
-async def test_unpin_banner_writes_nothing_when_no_other_report_is_pinned(monkeypatch) -> None:
+async def test_unpin_others_writes_nothing_when_no_other_report_is_pinned(monkeypatch) -> None:
     sent: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -392,7 +357,8 @@ async def test_unpin_banner_writes_nothing_when_no_other_report_is_pinned(monkey
     _use_transport(monkeypatch, handler)
     store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
 
-    assert await store.unpin_banner_except("buyouts", pinned_at=None) == []
+    assert await store.unpin_others("featured", "buyouts", pinned_at=None) == []
+    assert "featured == true" in sent[0].url.params["query"]
     assert [r.method for r in sent] == ["GET"]
 
 

@@ -3,7 +3,7 @@
 
 from typing import Protocol
 
-from app.modules.lead_magnets.domain.insights_report.report import ReportDocument
+from app.modules.lead_magnets.domain.insights_report.report import Pin, ReportDocument
 
 
 class ReportsCmsPort(Protocol):
@@ -11,32 +11,14 @@ class ReportsCmsPort(Protocol):
         """The id of the card with this slug, published or not."""
         ...
 
-    async def create(
-        self, report: ReportDocument, *, featured: bool | None, banner_pinned: bool | None
-    ) -> str:
-        """Creates the card already published to the live site and returns its
-        id. A pin passed as `None` is left as it is."""
+    async def create(self, report: ReportDocument) -> str:
+        """Creates the card already published to the live site and returns its id."""
         ...
 
-    async def update(
-        self,
-        item_id: str,
-        report: ReportDocument,
-        *,
-        featured: bool | None,
-        banner_pinned: bool | None,
-    ) -> None: ...
+    async def update(self, item_id: str, report: ReportDocument) -> None: ...
 
     async def unpublish(self, item_id: str) -> None: ...
 
-    async def featured_ids(self) -> list[str]: ...
-
-    async def newest_id(self, *, excluding: str | None = None) -> str | None:
-        """The live card with the latest published date, skipping `excluding`."""
+    async def unpin(self, item_id: str, pin: Pin) -> None:
+        """Clears `pin` on the live card only; the card is otherwise left as it is."""
         ...
-
-    async def feature(self, item_id: str) -> None: ...
-
-    async def unfeature(self, item_id: str) -> None: ...
-
-    async def unpin_banner(self, item_id: str) -> None: ...

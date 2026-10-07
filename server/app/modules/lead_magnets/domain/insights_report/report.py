@@ -9,12 +9,16 @@ import hashlib
 import math
 import re
 from dataclasses import dataclass
+from typing import Literal
 
 from app.modules.lead_magnets.domain.benchmark.benchmark_routing import FREE_MAIL
 
 _TAG = re.compile(r"<[^>]+>")
 _STYLE_OR_SCRIPT = re.compile(r"<(style|script)\b.*?</\1>", re.DOTALL | re.IGNORECASE)
 _WORDS_PER_MINUTE = 200
+
+# "featured" pins the top of /reports; "banner" pins the home page bar.
+Pin = Literal["featured", "banner"]
 
 
 @dataclass(frozen=True)
@@ -34,6 +38,11 @@ class ReportDocument:
     # The button at the end of the report page.
     cta_text: str | None = None
     cta_url: str | None = None
+
+    @property
+    def pins(self) -> list[Pin]:
+        held: list[tuple[Pin, bool]] = [("featured", self.featured), ("banner", self.banner_pinned)]
+        return [pin for pin, on in held if on]
 
 
 @dataclass(frozen=True)

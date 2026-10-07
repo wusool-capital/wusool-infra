@@ -3,7 +3,11 @@
 
 from typing import Protocol
 
-from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, ReportSource
+from app.modules.lead_magnets.domain.insights_report.report import (
+    Pin,
+    ReportDocument,
+    ReportSource,
+)
 
 
 class ReportSourcePort(Protocol):
@@ -27,8 +31,8 @@ class ReportSourcePort(Protocol):
         when the document changed since `source` was read; nothing is saved."""
         ...
 
-    async def unpin_banner_except(self, slug: str, *, pinned_at: str | None) -> list[str]:
-        """Unticks the home banner pin on every other report, drafts included,
-        last edited no later than `pinned_at`, and returns their slugs. The
-        time check lets the later of two near-simultaneous pins win."""
+    async def unpin_others(self, pin: Pin, slug: str, *, pinned_at: str | None) -> list[str]:
+        """Unticks `pin` on every other report, drafts included, last edited no
+        later than `pinned_at`, and returns their slugs. The time check lets
+        the later of two near-simultaneous pins win."""
         ...

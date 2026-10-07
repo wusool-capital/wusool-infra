@@ -190,6 +190,9 @@ needed per report:
    - any **Hide from listings** filter on the lists, which Reports doesn't have.
 
    Keep the silo badge (`.badge-silo`), bound to Reports' **Primary Silo**.
+   The featured block has no filter; it sorts **Featured** (on first), then
+   **Published Date** (newest), with a limit of 1. That way the newest report
+   fills the slot when nothing is pinned (2026-10-07).
 2. On the **Reports Template** page, keep the site navbar and footer, and
    remove the article header and author. In its page settings, bind the SEO
    title, meta description, OG title and OG image to **SEO Title**, **SEO

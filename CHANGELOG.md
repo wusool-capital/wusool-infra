@@ -28,6 +28,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The **Pin to top of /reports** box now always matches the site. Pinning a
+  report unticks the one that had the pin, in the Studio too. A failed or
+  repeated publish no longer loses or steals the pin.
 - Readers now confirm their email before a report opens. The form emails a
   6-digit code, and the report and PDF unlock once the reader enters it.
   Only confirmed readers are added to Attio. Readers who already unlocked a
