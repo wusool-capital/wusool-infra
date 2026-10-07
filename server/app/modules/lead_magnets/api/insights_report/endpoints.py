@@ -1,13 +1,14 @@
-"""Gated insights reports (PRD 3): the preview, the unlock, the PDF download,
-and the Sanity publish webhook that keeps the Webflow card in step.
+"""Gated insights reports (PRD 3): the preview, the emailed-code unlock, the
+PDF download, and the Sanity publish webhook that keeps the Webflow card in step.
 
-The report page calls the first two from its iframe on this host, so they
-are same-origin. Only the unlock carries the origin check, because browsers
+The report page calls these from its iframe on this host, so they are
+same-origin. Only the unlock POSTs carry the origin check, because browsers
 omit `Origin` on a same-origin GET. Page views get their own, larger per-IP
 budget (`rate_limit_reads`), so reading never uses up a reader's unlock.
 """
 
 import logging
+from dataclasses import asdict
 from typing import Annotated
 from uuid import UUID
 
@@ -33,9 +34,17 @@ from app.modules.lead_magnets.api.dependencies import (
     require_allowed_origin,
 )
 from app.modules.lead_magnets.api.schemas import (
+    ReportCodeSent,
     ReportResponse,
     ReportUnlockRequest,
+    ReportVerifyRequest,
     SanityWebhookBody,
+)
+from app.modules.lead_magnets.application.insights_report.unlock import (
+    ChallengeGone,
+    CodeNotSent,
+    TooManyCodes,
+    WrongCode,
 )
 from app.modules.lead_magnets.application.shared.ports import ReportSourcePort
 from app.modules.lead_magnets.bootstrap import (
@@ -43,12 +52,14 @@ from app.modules.lead_magnets.bootstrap import (
     build_report_renderer,
     build_report_source,
     build_report_sync,
+    build_report_unlock,
     build_submission_service,
     build_tool_runs,
     run_completion,
 )
 from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, org_domain
+from app.modules.lead_magnets.domain.insights_report.unlock import ReaderForm
 from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload
 
 logger = logging.getLogger(__name__)
@@ -171,7 +182,7 @@ async def _record_read(
 
 @router.post(
     "/reports/{slug}/unlock",
-    response_model=ReportResponse,
+    response_model=ReportCodeSent | ReportResponse,
     dependencies=[Depends(require_allowed_origin), Depends(rate_limit)],
 )
 async def unlock_report(
@@ -181,20 +192,73 @@ async def unlock_report(
     session: SessionDep,
     background: BackgroundTasks,
     response: Response,
-) -> ReportResponse:
-    """Same write contract as `/get-started`: record, respond, then write
-    Attio in the background. The reader gets the full report either way."""
+) -> ReportCodeSent | ReportResponse:
+    """Step one of the gate: email the reader a code. Nothing is recorded yet.
+    With email verification off, the report opens straight away instead."""
     report = await _published(source, slug)
-    domain = org_domain(request.email)
+    form = ReaderForm(**request.model_dump())
+    if not get_settings().lead_magnet_report_email_otp:
+        return await _open_report(session, background, response, report, form)
+    try:
+        challenge_id = await build_report_unlock().send_code(
+            slug=slug, report_title=report.title, form=form
+        )
+    except TooManyCodes:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many codes") from None
+    except CodeNotSent:
+        logger.exception("insights_report_code_email_failed slug=%s", slug)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "could not send code") from None
+    return ReportCodeSent(challenge_id=challenge_id)
+
+
+@router.post(
+    "/reports/{slug}/unlock/verify",
+    response_model=ReportResponse,
+    # Cheap and capped at five guesses per code, so it takes the larger read budget.
+    dependencies=[Depends(require_allowed_origin), Depends(rate_limit_reads)],
+)
+async def verify_report_unlock(
+    slug: Slug,
+    request: ReportVerifyRequest,
+    source: SourceDep,
+    session: SessionDep,
+    background: BackgroundTasks,
+    response: Response,
+) -> ReportResponse:
+    """Step two: a matching code opens the report."""
+    report = await _published(source, slug)
+    unlock = build_report_unlock()
+    try:
+        form = unlock.verify(slug=slug, challenge_id=request.challenge_id, code=request.code)
+    except WrongCode:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "wrong code") from None
+    except ChallengeGone:
+        raise HTTPException(status.HTTP_410_GONE, "code expired") from None
+
+    opened = await _open_report(session, background, response, report, form)
+    unlock.spend(request.challenge_id)
+    return opened
+
+
+async def _open_report(
+    session: SessionDep,
+    background: BackgroundTasks,
+    response: Response,
+    report: ReportDocument,
+    form: ReaderForm,
+) -> ReportResponse:
+    """Records the lead, as `/get-started` does, and sets the reader cookie.
+    Attio is written in the background."""
+    domain = org_domain(form.email)
     run_id = await build_submission_service(session).record(
         tool=_TOOL,
         payload={
-            **request.model_dump(),
+            **asdict(form),
             "domain": domain,
-            "slug": slug,
+            "slug": report.slug,
             "report_title": report.title,
         },
-        email=request.email,
+        email=form.email,
         domain=domain,
     )
     await session.commit()

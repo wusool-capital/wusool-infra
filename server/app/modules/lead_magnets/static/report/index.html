@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="00-styles.css?v=4">
+<link rel="stylesheet" href="00-styles.css?v=5">
 </head>
 <body>
 
@@ -20,7 +20,7 @@
   <div class="card">
     <div class="eyebrow">Free report</div>
     <h2>Keep reading</h2>
-    <p class="lede">Tell us who you are and the full report opens right here.</p>
+    <p class="lede" id="gate-lede">Tell us who you are and the full report opens right here.</p>
     <form id="gate-form" novalidate>
       <div class="grid">
         <div class="fg"><label for="name">Full name *</label><input class="fi" type="text" id="name" name="name" autocomplete="name" placeholder="Jane Doe" maxlength="200" required></div>
@@ -30,7 +30,20 @@
       <p class="note">By continuing you agree to Wusool Capital's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
       <div class="errtext" id="e-email">Please enter a valid work email, like you@yourcompany.com.</div>
       <div class="errtext" id="e-form">Something went wrong. Please check your details and try again.</div>
+      <div class="errtext" id="e-wait">You've asked for several codes. Please wait a few minutes, then try again.</div>
+      <div class="errtext" id="e-send">We couldn't send your code. Please try again shortly.</div>
       <button class="btn btn-p" type="submit" id="submit-btn">Read the full report</button>
+    </form>
+    <form id="code-form" class="hide" novalidate>
+      <p class="lede">We sent a 6-digit code to <strong id="code-email"></strong>. Enter it below to open the report.</p>
+      <div class="fg"><label for="code">Verification code *</label><input class="fi code" type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="123456" required></div>
+      <div class="errtext" id="e-code">That code is not right. Please check the email and try again.</div>
+      <div class="errtext" id="e-expired">That code has expired. Request a new one below.</div>
+      <div class="errtext" id="e-sent">A new code is on its way.</div>
+      <div class="errtext" id="e-code-wait">You've asked for several codes. Please wait a few minutes, then try again.</div>
+      <div class="errtext" id="e-retry">Something went wrong. Please try again.</div>
+      <button class="btn btn-p" type="submit" id="verify-btn">Verify and read</button>
+      <p class="note links"><button type="button" class="link" id="resend-btn">Resend code</button> · <button type="button" class="link" id="change-email-btn">Use a different email</button></p>
     </form>
   </div>
 </div>
@@ -48,7 +61,7 @@
 </div>
 
 <script src="../shared/submission-id.js?v=1"></script>
-<script src="10-main.js?v=6" onerror="window.__lmFail=1"></script>
+<script src="10-main.js?v=10" onerror="window.__lmFail=1"></script>
 <script src="../shared/height.js?v=3"></script>
 <script>
   if(window.__lmFail || typeof submitGateForm!=="function"){

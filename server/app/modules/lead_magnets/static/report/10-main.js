@@ -44,8 +44,7 @@ async function submitGateForm(e){
   const form=document.getElementById("gate-form");
   const err=document.getElementById("e-form");
   const emailErr=document.getElementById("e-email");
-  err.classList.remove("show");
-  emailErr.classList.remove("show");
+  for(const id of ["e-form","e-email","e-wait","e-send"])document.getElementById(id).classList.remove("show");
   if(!document.getElementById("email").checkValidity()){
     emailErr.classList.add("show");
     return;
@@ -57,7 +56,7 @@ async function submitGateForm(e){
 
   const btn=document.getElementById("submit-btn");
   btn.disabled=true;
-  btn.textContent="Opening...";
+  btn.textContent="Sending code...";
 
   // Keep this object literal comment-free: `test_static_contract.py`'s
   // `_payload_keys` scans its top-level keys.
@@ -69,21 +68,92 @@ async function submitGateForm(e){
   };
 
   try{
-    const r=await fetch(REPORT_URL+"/unlock",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-    if(r.status===422){
-      emailErr.classList.add("show");
-      btn.disabled=false;
-      btn.textContent="Read the full report";
+    const data=await sendCode(payload);
+    if(data.html!==undefined){
+      render(data);
       return;
     }
-    if(!r.ok)throw new Error("unlock failed: "+r.status);
-    render(await r.json());
+    pendingPayload=payload;
+    form.classList.add("hide");
+    document.getElementById("gate-lede").classList.add("hide");
+    document.getElementById("code-email").textContent=payload.email;
+    document.getElementById("code-form").classList.remove("hide");
+    document.getElementById("code").focus({preventScroll:true});
   }catch(error){
     console.warn("unlock",error);
-    err.classList.add("show");
+    const id={422:"e-email",429:"e-wait",503:"e-send"}[error.status]||"e-form";
+    document.getElementById(id).classList.add("show");
+  }finally{
     btn.disabled=false;
     btn.textContent="Read the full report";
   }
+}
+
+// The gate form, kept for "Resend code" until the reader verifies.
+let pendingPayload=null;
+let challengeId=null;
+
+async function sendCode(payload){
+  const r=await fetch(REPORT_URL+"/unlock",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  if(!r.ok)throw Object.assign(new Error("unlock failed: "+r.status),{status:r.status});
+  const data=await r.json();
+  challengeId=data.challenge_id;
+  return data;
+}
+
+function hideCodeErrors(){
+  for(const id of ["e-code","e-expired","e-sent","e-code-wait","e-retry"])document.getElementById(id).classList.remove("show");
+}
+
+async function submitCodeForm(e){
+  e.preventDefault();
+  hideCodeErrors();
+  const input=document.getElementById("code");
+  const code=input.value.replace(/\s/g,"");
+  if(!/^[0-9]{6}$/.test(code)){
+    document.getElementById("e-code").classList.add("show");
+    return;
+  }
+  const btn=document.getElementById("verify-btn");
+  btn.disabled=true;
+  btn.textContent="Verifying...";
+  try{
+    const r=await fetch(REPORT_URL+"/unlock/verify",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({challenge_id:challengeId,code:code})});
+    if(r.ok){
+      render(await r.json());
+      return;
+    }
+    const id={400:"e-code",410:"e-expired"}[r.status]||"e-retry";
+    document.getElementById(id).classList.add("show");
+  }catch(error){
+    console.warn("verify",error);
+    document.getElementById("e-retry").classList.add("show");
+  }
+  btn.disabled=false;
+  btn.textContent="Verify and read";
+}
+
+async function resendCode(){
+  hideCodeErrors();
+  const btn=document.getElementById("resend-btn");
+  btn.disabled=true;
+  try{
+    await sendCode(pendingPayload);
+    document.getElementById("code").value="";
+    document.getElementById("e-sent").classList.add("show");
+  }catch(error){
+    console.warn("resend",error);
+    document.getElementById(error.status===429?"e-code-wait":"e-retry").classList.add("show");
+  }
+  btn.disabled=false;
+}
+
+function changeEmail(){
+  hideCodeErrors();
+  document.getElementById("code-form").classList.add("hide");
+  document.getElementById("gate-form").classList.remove("hide");
+  document.getElementById("gate-lede").classList.remove("hide");
+  document.getElementById("email").focus({preventScroll:true});
 }
 
 function downloadPdf(e){
@@ -97,4 +167,7 @@ document.getElementById("download-pdf").href=REPORT_URL+"/pdf";
 document.getElementById("download-pdf").download=SLUG+".pdf";
 document.getElementById("download-pdf").addEventListener("click",downloadPdf);
 document.getElementById("gate-form").addEventListener("submit",submitGateForm);
+document.getElementById("code-form").addEventListener("submit",submitCodeForm);
+document.getElementById("resend-btn").addEventListener("click",resendCode);
+document.getElementById("change-email-btn").addEventListener("click",changeEmail);
 loadReport().catch(error=>console.warn("report",error));

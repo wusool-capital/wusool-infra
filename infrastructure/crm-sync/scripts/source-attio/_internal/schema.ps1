@@ -180,14 +180,14 @@ $fields = @(
   # distinguishes Inbound from Outbound. SourceOption copies SOURCE's own
   # option titles verbatim so the migration cannot mistranslate them, and keeps
   # following any option SOURCE adds later; FixedOptions adds the GCC SME
-  # Benchmark and Get Started tools, which postdate SOURCE and so have no
-  # historical data but need somewhere for new leads to land (Get Started
-  # added 2026-09-18). The two option loops below are additive and
+  # Benchmark, Get Started and Insights & Reports tools, which postdate SOURCE
+  # and so have no historical data but need somewhere for new leads to land
+  # (Get Started added 2026-09-18, Insights & Reports 2026-10-07). The two option loops below are additive and
   # independent -- `type` above already relies on that pairing.
   # Single-value on purpose: SOURCE's attribute is a multiselect and one
   # company (Arto) genuinely holds two tools, so objects.ps1 collapses them to
   # the most recent by `active_from`.
-  [pscustomobject]@{ Title = "Lead Source Detail"; Slug = "lead_source_detail"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "lead_source"; FixedOptions = @("GCC SME Benchmark", "Get Started") },
+  [pscustomobject]@{ Title = "Lead Source Detail"; Slug = "lead_source_detail"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "lead_source"; FixedOptions = @("GCC SME Benchmark", "Get Started", "Insights & Reports") },
   # Environment discriminator, added 2026-09-06: one SOURCE workspace now
   # serves both dev and prod, true = dev/test, false = prod. Attio cannot
   # enforce NOT NULL on a checkbox and its filter offers only "is true"/"is
