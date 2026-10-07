@@ -11,13 +11,20 @@ class ReportsCmsPort(Protocol):
         """The id of the card with this slug, published or not."""
         ...
 
-    async def create(self, report: ReportDocument, *, featured: bool | None) -> str:
+    async def create(
+        self, report: ReportDocument, *, featured: bool | None, banner_pinned: bool | None
+    ) -> str:
         """Creates the card already published to the live site and returns its
-        id. `featured` `None` leaves the card's pin as it is."""
+        id. A pin passed as `None` is left as it is."""
         ...
 
     async def update(
-        self, item_id: str, report: ReportDocument, *, featured: bool | None
+        self,
+        item_id: str,
+        report: ReportDocument,
+        *,
+        featured: bool | None,
+        banner_pinned: bool | None,
     ) -> None: ...
 
     async def unpublish(self, item_id: str) -> None: ...
@@ -31,3 +38,7 @@ class ReportsCmsPort(Protocol):
     async def feature(self, item_id: str) -> None: ...
 
     async def unfeature(self, item_id: str) -> None: ...
+
+    async def banner_ids(self) -> list[str]: ...
+
+    async def unpin_banner(self, item_id: str) -> None: ...

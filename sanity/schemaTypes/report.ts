@@ -88,6 +88,13 @@ export const report = defineType({
       description: 'Unpins whichever card is pinned now.',
     }),
     defineField({
+      name: 'bannerPinned',
+      title: 'Pin to home page banner',
+      type: 'boolean',
+      initialValue: false,
+      description: 'Unpins whichever report is in the banner now.',
+    }),
+    defineField({
       name: 'cta',
       title: 'End-of-page button',
       type: 'object',

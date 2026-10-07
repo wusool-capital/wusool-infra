@@ -30,7 +30,12 @@ class ReportSync:
         self._renderer = renderer
 
     async def sync(
-        self, *, slug: str | None, previous_slug: str | None, featured_changed: bool = False
+        self,
+        *,
+        slug: str | None,
+        previous_slug: str | None,
+        featured_changed: bool = False,
+        banner_changed: bool = False,
     ) -> None:
         """`slug` is `None` when the report was deleted or unpublished;
         `previous_slug` differs from it when an editor renamed the slug.
@@ -39,7 +44,9 @@ class ReportSync:
         newer report unpins the older card in Webflow only, so the older
         report still says "pinned" in Sanity; acting on that on every edit
         would steal the pin back on a typo fix. When nothing is left pinned,
-        the newest live card takes the slot."""
+        the newest live card takes the slot.
+
+        The home banner pin moves the same way, but with no fallback: no pin, no bar."""
         if previous_slug and previous_slug != slug:
             await self._source.refresh(previous_slug)
             await self._unpublish(previous_slug)
@@ -66,11 +73,17 @@ class ReportSync:
             return
 
         featured = report.featured if featured_changed else None
+        banner = report.banner_pinned if banner_changed else None
         card_id = await self._cms.find(slug)
         if card_id is None:
-            card_id = await self._cms.create(report, featured=featured)
+            card_id = await self._cms.create(report, featured=featured, banner_pinned=banner)
         else:
-            await self._cms.update(card_id, report, featured=featured)
+            await self._cms.update(card_id, report, featured=featured, banner_pinned=banner)
+
+        if banner:
+            for item_id in await self._cms.banner_ids():
+                if item_id != card_id:
+                    await self._cms.unpin_banner(item_id)
 
         if featured:
             # Unpinned only once this card is live, so a failed write never empties the slot.

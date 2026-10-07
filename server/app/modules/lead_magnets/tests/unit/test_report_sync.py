@@ -12,9 +12,16 @@ from app.modules.lead_magnets.domain.insights_report.report import (
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 
 
-def _report(slug: str = "buyouts-in-the-gcc", *, featured: bool = False) -> ReportDocument:
+def _report(
+    slug: str = "buyouts-in-the-gcc", *, featured: bool = False, banner_pinned: bool = False
+) -> ReportDocument:
     return ReportDocument(
-        slug=slug, title="Buyouts", html="<p>x</p>", excerpt="E", featured=featured
+        slug=slug,
+        title="Buyouts",
+        html="<p>x</p>",
+        excerpt="E",
+        featured=featured,
+        banner_pinned=banner_pinned,
     )
 
 
@@ -77,27 +84,41 @@ class _FakeCms:
         featured: list[str] | None = None,
         newest_first: list[str] | None = None,
         fail_update: bool = False,
+        banner: list[str] | None = None,
     ):
         self.items = items or {}
         self.featured = featured or []
+        self.banner = banner or []
         self.newest_first = newest_first or []
         self.fail_update = fail_update
         self.calls: list[tuple[str, str]] = []
         self.pins: list[bool | None] = []
+        self.banner_pins: list[bool | None] = []
 
     async def find(self, slug: str) -> str | None:
         return self.items.get(slug)
 
-    async def create(self, report: ReportDocument, *, featured: bool | None) -> str:
+    async def create(
+        self, report: ReportDocument, *, featured: bool | None, banner_pinned: bool | None
+    ) -> str:
         self.calls.append(("create", report.slug))
         self.pins.append(featured)
+        self.banner_pins.append(banner_pinned)
         return f"new-{report.slug}"
 
-    async def update(self, item_id: str, report: ReportDocument, *, featured: bool | None) -> None:
+    async def update(
+        self,
+        item_id: str,
+        report: ReportDocument,
+        *,
+        featured: bool | None,
+        banner_pinned: bool | None,
+    ) -> None:
         if self.fail_update:
             raise RuntimeError("Webflow did not publish")
         self.calls.append(("update", item_id))
         self.pins.append(featured)
+        self.banner_pins.append(banner_pinned)
 
     async def unpublish(self, item_id: str) -> None:
         self.calls.append(("unpublish", item_id))
@@ -113,6 +134,12 @@ class _FakeCms:
 
     async def unfeature(self, item_id: str) -> None:
         self.calls.append(("unfeature", item_id))
+
+    async def banner_ids(self) -> list[str]:
+        return self.banner
+
+    async def unpin_banner(self, item_id: str) -> None:
+        self.calls.append(("unpin_banner", item_id))
 
 
 async def test_a_new_report_creates_its_card() -> None:
@@ -201,6 +228,36 @@ async def test_unticking_the_pin_unpins_only_that_card() -> None:
     )
     assert cms.calls == [("update", "item-x")]
     assert cms.pins == [False]
+
+
+async def test_ticking_the_banner_pin_unpins_every_other_banner_card() -> None:
+    cms = _FakeCms({"x": "item-x"}, featured=["lbo"], banner=["item-y", "item-x"])
+    await _sync(source=_FakeSource(_report("x", banner_pinned=True)), cms=cms).sync(
+        slug="x", previous_slug="x", banner_changed=True
+    )
+    assert cms.calls == [("update", "item-x"), ("unpin_banner", "item-y")]
+    assert cms.banner_pins == [True]
+    assert cms.pins == [None], "the /reports pin is untouched"
+
+
+async def test_an_edit_that_leaves_the_banner_pin_alone_does_not_write_it() -> None:
+    """Like the /reports pin: a stale Sanity tick must not steal the banner back."""
+    cms = _FakeCms({"x": "item-x"}, featured=["lbo"], banner=["item-y"])
+    await _sync(source=_FakeSource(_report("x", banner_pinned=True)), cms=cms).sync(
+        slug="x", previous_slug="x"
+    )
+    assert cms.calls == [("update", "item-x")]
+    assert cms.banner_pins == [None]
+
+
+async def test_unticking_the_banner_pin_leaves_the_banner_empty() -> None:
+    """No fallback: with nothing pinned the home page shows no bar."""
+    cms = _FakeCms({"x": "item-x"}, featured=["lbo"], banner=["item-x"], newest_first=["lbo"])
+    await _sync(source=_FakeSource(_report("x")), cms=cms).sync(
+        slug="x", previous_slug="x", banner_changed=True
+    )
+    assert cms.calls == [("update", "item-x")]
+    assert cms.banner_pins == [False]
 
 
 async def test_a_deleted_or_unpublished_report_unpublishes_its_card() -> None:

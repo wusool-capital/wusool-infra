@@ -12,6 +12,10 @@ for current production evidence and open handover items.
 
 ### Added
 
+- The home page has an announcement bar for one report: "Just released:
+  {title}. Get the playbook →". Editors choose the report with the new
+  **Pin to home page banner** box in the Sanity Studio. Visitors can close
+  the bar, and it returns when a different report is pinned.
 - Insights reports have moved to their own Reports collection on Webflow,
   with a `/reports` listing and `/reports/<slug>` pages. Unlocked readers
   can download the full report as a PDF. The moved report's old

@@ -209,7 +209,16 @@ needed per report:
    `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the
    Secrets Manager `env` map. Then add the Sanity webhook described in
    `sanity/README.md`, using its filter and projection exactly.
-4. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
+4. **Home page banner.** The Reports collection (and `Reports (test)`) has a
+   **Pin to banner** switch (`pin-to-banner`, added 2026-10-07), set only by
+   the sync. On the home page, a sticky `div.latest-read` (no height or
+   background, so it collapses when empty) holds a Collection List bound to
+   Reports. The list is filtered to **Pin to banner** on, with a limit of 1
+   and the empty state hidden. The Collection Item is the visible bar,
+   reading "Just released: {Name}. Get the playbook →" and linked to the
+   report. Its Embed draws the blue flow and the close button, which
+   remembers the dismissed slug in `localStorage`.
+5. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
    Without it, the org write for every unlock that names an organisation
    fails. A blank organisation writes the person only.
 5. Unlock codes go out through SES from `LEAD_MAGNET_EMAIL_FROM`. The

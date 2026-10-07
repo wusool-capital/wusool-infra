@@ -35,7 +35,7 @@ _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
     '"slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
-    'featured, silo, "ctaText": cta.text, "ctaUrl": cta.url}'
+    'featured, bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url}'
 )
 _SOURCE_QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
@@ -55,6 +55,7 @@ class _SanityReport(BaseModel):
     updated_at: str | None = Field(default=None, alias="updatedAt")
     cover_url: str | None = Field(default=None, alias="coverUrl")
     featured: bool | None = None
+    banner_pinned: bool | None = Field(default=None, alias="bannerPinned")
     silo: str | None = None
     cta_text: str | None = Field(default=None, alias="ctaText")
     cta_url: str | None = Field(default=None, alias="ctaUrl")
@@ -192,6 +193,7 @@ class SanityReportSource:
             updated_at=doc.updated_at,
             cover_url=resized(doc.cover_url) if doc.cover_url else None,
             featured=bool(doc.featured),
+            banner_pinned=bool(doc.banner_pinned),
             silo=doc.silo,
             cta_text=doc.cta_text,
             cta_url=doc.cta_url,

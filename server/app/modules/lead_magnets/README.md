@@ -268,6 +268,8 @@ the first page open and the rest behind one short form. There are three parts:
   - The pin moves only when the edit ticked or unticked it (`featuredChanged`
     in the webhook projection). Otherwise a typo fix on an older, still-ticked
     report would take the pin back.
+  - The home banner pin (`bannerPinned` -> Webflow `pin-to-banner`) moves the
+    same way (`bannerChanged`), but with no fallback: no pin, no bar.
 
 CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
 writes an **organisation and a person only**, with no role and no deal.

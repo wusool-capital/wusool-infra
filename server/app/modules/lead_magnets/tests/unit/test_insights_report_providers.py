@@ -136,7 +136,7 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
         cta_url="/valuation-tool",
     )
 
-    data = (await cms.field_data(report, featured=True)).model_dump(
+    data = (await cms.field_data(report, featured=True, banner_pinned=True)).model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
 
@@ -145,6 +145,7 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
     for insights_only in ("content-type", "gated", "author", "body-content"):
         assert insights_only not in data, insights_only
     assert data["featured"] is True
+    assert data["pin-to-banner"] is True
     assert data["seo-title"] == data["og-title"] == "Buyouts in the GCC"
     assert data["reading-time"] == "3 min read"
     assert data["primary-silo"] == "opt-buy"
@@ -207,9 +208,10 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
     cms = WebflowReportsCms(token="t", collection_id="reports")
     report = ReportDocument(slug="r", title="R", html="", excerpt="E")
 
-    assert await cms.create(report, featured=None) == "new-item"
+    assert await cms.create(report, featured=None, banner_pinned=None) == "new-item"
     await cms.unfeature("lbo")
     await cms.unpublish("item-1")
+    await cms.unpin_banner("lbo")
 
     assert sent[0][:2] == ("POST", "/v2/collections/reports/items/live")
     assert sent[0][2]["isDraft"] is False and sent[0][2]["fieldData"]["slug"] == "r"
@@ -219,6 +221,11 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
         {"fieldData": {"featured": False}},
     ), "the unpin must not change a hand-written article's draft state"
     assert sent[2][:2] == ("DELETE", "/v2/collections/reports/items/item-1/live")
+    assert sent[3] == (
+        "PATCH",
+        "/v2/collections/reports/items/lbo/live",
+        {"fieldData": {"pin-to-banner": False}},
+    )
 
 
 async def test_an_update_writes_the_staged_card_then_publishes_it(monkeypatch) -> None:
@@ -235,7 +242,10 @@ async def test_an_update_writes_the_staged_card_then_publishes_it(monkeypatch) -
     cms = WebflowReportsCms(token="t", collection_id="reports")
 
     await cms.update(
-        "item-1", ReportDocument(slug="r", title="R", html="", excerpt="E"), featured=None
+        "item-1",
+        ReportDocument(slug="r", title="R", html="", excerpt="E"),
+        featured=None,
+        banner_pinned=None,
     )
 
     assert sent[0][:2] == ("PATCH", "/v2/collections/reports/items/item-1")
@@ -254,7 +264,10 @@ async def test_an_update_webflow_did_not_publish_is_an_error(monkeypatch) -> Non
 
     with pytest.raises(RuntimeError):
         await cms.update(
-            "item-1", ReportDocument(slug="r", title="R", html="", excerpt="E"), featured=None
+            "item-1",
+            ReportDocument(slug="r", title="R", html="", excerpt="E"),
+            featured=None,
+            banner_pinned=None,
         )
 
 

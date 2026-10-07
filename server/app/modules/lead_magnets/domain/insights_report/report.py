@@ -29,6 +29,7 @@ class ReportDocument:
     updated_at: str | None = None
     cover_url: str | None = None
     featured: bool = False
+    banner_pinned: bool = False
     silo: str | None = None
     # The button at the end of the report page.
     cta_text: str | None = None

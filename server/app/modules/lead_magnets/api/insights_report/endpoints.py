@@ -312,6 +312,7 @@ async def _sync(event: SanityWebhookBody) -> None:
                 slug=event.slug,
                 previous_slug=event.previous_slug,
                 featured_changed=event.featured_changed,
+                banner_changed=event.banner_changed,
             )
     except Exception:
         logger.exception("%s_sync_failed slug=%s", _SYNC_LOG[event.type], event.slug)
