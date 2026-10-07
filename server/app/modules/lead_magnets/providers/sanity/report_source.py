@@ -71,8 +71,8 @@ class _SanitySource(BaseModel):
     rev: str = Field(alias="_rev")
     # Only a rich text report prints it; pasted HTML carries its own.
     title: str = ""
-    # Unset on reports made before the rich text option; they are all pasted HTML.
-    body_format: Literal["rich", "html"] = Field(default="html", alias="bodyFormat")
+    # GROQ projects an unset field as null; reports made before the toggle are all pasted HTML.
+    body_format: Literal["rich", "html"] | None = Field(default=None, alias="bodyFormat")
     body: list[Block] | None = None
     html: str | None = None
     rendered_from: str | None = Field(default=None, alias="renderedFrom")

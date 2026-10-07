@@ -322,7 +322,16 @@ def test_a_rich_report_with_no_text_is_not_published() -> None:
 
 
 async def test_reports_from_before_the_toggle_are_still_pasted_html(monkeypatch) -> None:
-    doc = {"_id": "d", "_rev": "r", "title": "T", "html": "<p>pasted</p>", "renderedFrom": None}
+    # The real GROQ shape: a field the document never had comes back as null, not missing.
+    doc = {
+        "_id": "d",
+        "_rev": "r",
+        "title": "T",
+        "bodyFormat": None,
+        "body": None,
+        "html": "<p>pasted</p>",
+        "renderedFrom": None,
+    }
     rich = {**doc, "bodyFormat": "rich", "body": [_text("written in Studio")]}
     responses = iter([doc, rich])
     _use_transport(
@@ -336,3 +345,12 @@ async def test_reports_from_before_the_toggle_are_still_pasted_html(monkeypatch)
     assert legacy is not None and legacy.html == "<p>pasted</p>"
     assert written is not None and "<p>written in Studio</p>" in written.html
     assert 'class="wusool-rich"' in written.html
+
+
+async def test_an_article_with_a_null_body_format_reads_as_pasted_html(monkeypatch) -> None:
+    doc = {**_SANITY_ARTICLE, "bodyFormat": None, "body": None, "bodyHtml": "<p>Pasted</p>"}
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    article = await SanityArticleSource(project_id="p", dataset="production").get("x")
+
+    assert article is not None and article.body_html == "<p>Pasted</p>"
