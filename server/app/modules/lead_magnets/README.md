@@ -261,6 +261,16 @@ is written, and a failure raises so the sweeper retries it. No emails are sent (
 "Insights & Reports" option must exist on `lead_source_detail` in Attio
 before this ships.
 
+Who read which report, and when: every reader's first access to each report
+is one `tool_runs` row, with the report in its payload and the time in
+`started_at`. Repeat visits to the same report aren't recorded again.
+
+```sql
+SELECT started_at, payload->>'report_title' AS report, payload->>'slug' AS slug,
+       payload->>'name' AS name, payload->>'email' AS email, payload->>'company' AS company
+FROM tool_runs WHERE tool = 'insights_report' ORDER BY started_at DESC;
+```
+
 ## Insights articles from Sanity
 
 The Studio's second type, `insights`, publishes ordinary (ungated) articles to

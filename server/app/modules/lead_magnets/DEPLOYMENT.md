@@ -252,10 +252,14 @@ creates and updates or unpublishes only those, so hand-written articles are
 never overwritten. Don't toggle it by hand. The sync never writes
 **Featured** or **Hide from listings**; pins stay manual.
 
-Don't enable the dev webhook while it syncs into the live Insights
-collection: dev and prod would both write the same items. To test on dev,
-set its `LEAD_MAGNET_WEBFLOW_INSIGHTS_COLLECTION_ID` to the `Insights (test)s`
-collection (`6ac4d9fd87ac542edd2f4477`) after adding the same switch there.
+Dev writes to test collections only, set in the `/wusool/dev/toolkit`
+secret (2026-10-07): `LEAD_MAGNET_WEBFLOW_REPORTS_COLLECTION_ID` is
+`Reports (test)` (`6ac65e8154b939a67fa81fbe`) and
+`LEAD_MAGNET_WEBFLOW_INSIGHTS_COLLECTION_ID` is `Insights (test)s`
+(`6ac4d9fd87ac542edd2f4477`, which has the same switch). Without both
+overrides, enabling the dev webhook would write to the live site. Both
+environments read the same Sanity dataset, so keep the dev webhook disabled
+except while testing.
 
 ## 8. The sweeper
 
