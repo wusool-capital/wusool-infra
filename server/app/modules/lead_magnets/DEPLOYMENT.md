@@ -191,7 +191,9 @@ needed per report:
 
    Keep the silo badge (`.badge-silo`), bound to Reports' **Primary Silo**.
 2. On the **Reports Template** page, keep the site navbar and footer, and
-   remove the article header and author. Add an Embed set to 100% width,
+   remove the article header and author. In its page settings, bind the SEO
+   title, meta description, OG title and OG image to **SEO Title**, **SEO
+   Description**, **OG Title** and **OG Image**, as on the Insights Template. Add an Embed set to 100% width,
    with `data-report` bound to the item's Slug:
 
    ```html
