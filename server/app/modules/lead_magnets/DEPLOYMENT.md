@@ -214,14 +214,21 @@ needed per report:
    `sanity/README.md`, using its filter and projection exactly.
 4. **Home page banner.** The Reports collection (and `Reports (test)`) has a
    **Pin to banner** switch (`pin-to-banner`, added 2026-10-07), set only by
-   the sync. On the home page, a sticky `div.latest-read` (no height or
-   background, so it collapses when empty) holds a Collection List bound to
-   Reports. The list is filtered to **Pin to banner** on and sorted by
-   **Published Date** (newest), with a limit of 1 and the empty state hidden.
-   The sort means a pin briefly held twice still shows the newer report. The Collection Item is the visible bar,
-   reading "Just released: {Name}. Get the playbook →" and linked to the
-   report. Its Embed draws the blue flow and the close button, which
-   remembers the dismissed slug in `localStorage`.
+   the sync. On the home page, `div.latest-read` is fixed 68px from the top,
+   under the fixed navbar. It has no height or background, so it collapses
+   when empty. It holds a Collection List bound to Reports, filtered to
+   **Pin to banner** on and sorted by **Published Date** (newest), with a
+   limit of 1 and the empty state hidden. The sort means a pin briefly held
+   twice still shows the newer report.
+
+   The Collection Item is the visible bar, reading "Just released: {Name}.
+   Get the playbook →", and it carries `data-slug` bound to **Slug**. Its
+   Embed draws the blue flow and the close button, and remembers the
+   dismissed slug in `localStorage`. The Embed script also does two jobs:
+   - It points the link at `/reports/<slug>`. The Designer API can't set a
+     "current item" link, so the static link stays `/reports`.
+   - It adds `has-latest-read` to `<html>`, which pushes the hero down 48px
+     on mobile so the bar never covers it.
 5. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
    Without it, the org write for every unlock that names an organisation
    fails. A blank organisation writes the person only.
