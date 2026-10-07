@@ -23,7 +23,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, ReportSource
 
-_API_VERSION = "v2025-02-19"
+# Shared with `article_source.py`; the webhook is pinned to the same version.
+API_VERSION = "v2025-02-19"
 _CACHE_TTL_S = 300
 # Unknown slugs are cached too, so the cache must be bounded against slug-scanning.
 _CACHE_MAX = 512
@@ -99,12 +100,10 @@ class SanityReportSource:
     def __init__(
         self, *, project_id: str, dataset: str, write_token: str = "", timeout_s: float = 30.0
     ) -> None:
-        path = f"/{_API_VERSION}/data/query/{dataset}"
+        path = f"/{API_VERSION}/data/query/{dataset}"
         self._cdn_url = f"https://{project_id}.apicdn.sanity.io{path}"
         self._api_url = f"https://{project_id}.api.sanity.io{path}"
-        self._mutate_url = (
-            f"https://{project_id}.api.sanity.io/{_API_VERSION}/data/mutate/{dataset}"
-        )
+        self._mutate_url = f"https://{project_id}.api.sanity.io/{API_VERSION}/data/mutate/{dataset}"
         self._write_token = write_token
         self._timeout_s = timeout_s
         # ponytail: per-process cache; a webhook refreshes one worker, the TTL bounds the rest.

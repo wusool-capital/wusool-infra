@@ -96,8 +96,9 @@ class Settings(BaseSettings):
     # Secrets Manager only: an Editor token, used solely to save flattened reports back.
     lead_magnet_sanity_write_token: str = ""
     lead_magnet_webflow_api_token: str = ""
-    # The live site's "Reports" collection; a fixed infra fact, like the model ids above.
+    # The live site's "Reports" and "Insights" collections; fixed infra facts, like the model ids.
     lead_magnet_webflow_reports_collection_id: str = "6ac64c92647fc1acb46497de"
+    lead_magnet_webflow_insights_collection_id: str = "69aaa645fa60624091050e8e"
 
     @field_validator("database_url")
     @classmethod

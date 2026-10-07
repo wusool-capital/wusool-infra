@@ -54,9 +54,12 @@ def fingerprint(html: str) -> str:
     return hashlib.sha256(f"{RENDER_VERSION}\n{html}".encode()).hexdigest()
 
 
+def word_count(html: str) -> int:
+    return len(_TAG.sub(" ", _STYLE_OR_SCRIPT.sub(" ", html)).split())
+
+
 def reading_time(html: str) -> str:
-    words = len(_TAG.sub(" ", _STYLE_OR_SCRIPT.sub(" ", html)).split())
-    return f"{max(1, math.ceil(words / _WORDS_PER_MINUTE))} min read"
+    return f"{max(1, math.ceil(word_count(html) / _WORDS_PER_MINUTE))} min read"
 
 
 def org_domain(email: str) -> str | None:

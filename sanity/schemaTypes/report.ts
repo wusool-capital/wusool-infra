@@ -1,7 +1,7 @@
 import {defineField, defineType} from 'sanity'
 
 // Exact Webflow option names; the sync resolves them to Webflow ids.
-const SILOS = [
+export const SILOS = [
   'Sell Your Business',
   'Business Valuation',
   'Exit Strategy',

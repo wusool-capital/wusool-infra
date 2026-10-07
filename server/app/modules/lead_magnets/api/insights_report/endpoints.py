@@ -38,6 +38,7 @@ from app.modules.lead_magnets.api.schemas import (
 )
 from app.modules.lead_magnets.application.shared.ports import ReportSourcePort
 from app.modules.lead_magnets.bootstrap import (
+    build_article_sync,
     build_report_renderer,
     build_report_source,
     build_report_sync,
@@ -54,6 +55,8 @@ logger = logging.getLogger(__name__)
 READER_COOKIE = "wusool_reader"
 _READER_COOKIE_MAX_AGE_S = 365 * 24 * 3600
 _TOOL = "insights_report"
+# Kept as `insights_report_sync_failed` for reports, which existing log searches use.
+_SYNC_LOG = {"report": "insights_report", "insights": "insights_article"}
 
 router = APIRouter(tags=["lead-magnets"])
 
@@ -207,10 +210,11 @@ async def unlock_report(
 
 @router.post("/reports/webhooks/sanity", status_code=status.HTTP_202_ACCEPTED)
 async def sanity_webhook(request: Request, background: BackgroundTasks) -> None:
-    """Sanity's publish webhook. Accepted at once and synced in the background:
-    a render plus Webflow calls can approach Sanity's 30 s timeout, and its
-    retry would race the first sync to create the same card. A failed sync is
-    logged, and the next publish of that report repairs it."""
+    """Sanity's publish webhook, for reports and Insights articles alike (the Free
+    plan allows only two webhooks: dev and prod). Accepted at once and synced in
+    the background: a render plus Webflow calls can approach Sanity's 30 s
+    timeout, and its retry would race the first sync to create the same item.
+    A failed sync is logged, and the next publish of that document repairs it."""
     settings = get_settings()
     if not (
         settings.lead_magnet_sanity_project_id
@@ -227,18 +231,21 @@ async def sanity_webhook(request: Request, background: BackgroundTasks) -> None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid signature")
 
     event = SanityWebhookBody.model_validate_json(body)
-    background.add_task(_sync_report, event)
+    background.add_task(_sync, event)
 
 
-async def _sync_report(event: SanityWebhookBody) -> None:
+async def _sync(event: SanityWebhookBody) -> None:
     try:
-        await build_report_sync().sync(
-            slug=event.slug,
-            previous_slug=event.previous_slug,
-            featured_changed=event.featured_changed,
-        )
+        if event.type == "insights":
+            await build_article_sync().sync(slug=event.slug, previous_slug=event.previous_slug)
+        else:
+            await build_report_sync().sync(
+                slug=event.slug,
+                previous_slug=event.previous_slug,
+                featured_changed=event.featured_changed,
+            )
     except Exception:
-        logger.exception("insights_report_sync_failed slug=%s", event.slug)
+        logger.exception("%s_sync_failed slug=%s", _SYNC_LOG[event.type], event.slug)
 
 
 async def _known_reader(

@@ -58,6 +58,7 @@ class _World:
     completed: list[UUID] = field(default_factory=list)
     runs: dict[UUID, ToolRunRecord] = field(default_factory=dict)
     synced: list[tuple[str | None, str | None]] = field(default_factory=list)
+    articles: list[tuple[str | None, str | None]] = field(default_factory=list)
     printed: list[str] = field(default_factory=list)
 
 
@@ -94,6 +95,10 @@ def world(monkeypatch) -> _World:
         async def sync(self, *, slug, previous_slug, featured_changed):
             world.synced.append((slug, previous_slug, featured_changed))
 
+    class _ArticleSync:
+        async def sync(self, *, slug, previous_slug):
+            world.articles.append((slug, previous_slug))
+
     class _Renderer:
         async def pdf(self, html: str) -> bytes:
             world.printed.append(html)
@@ -107,6 +112,7 @@ def world(monkeypatch) -> _World:
     monkeypatch.setattr(deps, "get_settings", lambda: world.settings)
     monkeypatch.setattr(endpoints, "build_report_source", lambda: source)
     monkeypatch.setattr(endpoints, "build_report_sync", lambda: _Sync())
+    monkeypatch.setattr(endpoints, "build_article_sync", lambda: _ArticleSync())
     monkeypatch.setattr(endpoints, "build_report_renderer", lambda: _Renderer())
     monkeypatch.setattr(endpoints, "build_submission_service", lambda session: _Service())
     monkeypatch.setattr(endpoints, "build_tool_runs", lambda session: _ToolRuns())
@@ -295,6 +301,22 @@ def test_the_sanity_webhook_syncs_only_when_signed(client, world) -> None:
     assert unsigned.status_code == 401
     assert signed.status_code == 202
     assert world.synced == [("new-slug", "old-slug", True)]
+
+
+def test_one_webhook_routes_reports_and_insights_articles_by_type(client, world) -> None:
+    """The Free plan allows two webhooks (dev and prod), so both types share one."""
+    for payload in (
+        {"type": "insights", "slug": "exit-guide", "previousSlug": None, "featuredChanged": False},
+        {"type": "report", "slug": "buyouts", "previousSlug": None, "featuredChanged": False},
+    ):
+        body = json.dumps(payload).encode()
+        assert (
+            client.post("/reports/webhooks/sanity", content=body, headers=_signed(body)).status_code
+            == 202
+        )
+
+    assert world.articles == [("exit-guide", None)]
+    assert world.synced == [("buyouts", None, False)]
 
 
 def test_the_sanity_webhook_is_off_until_configured(client, world) -> None:

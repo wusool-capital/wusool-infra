@@ -15,6 +15,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.attio import attio_is_test, get_attio_client
+from app.modules.lead_magnets.application.insights_article.sync import ArticleSync
 from app.modules.lead_magnets.application.insights_report.sync import ReportSync
 from app.modules.lead_magnets.application.shared.service import LeadMagnetService
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
@@ -39,7 +40,9 @@ from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
 from app.modules.lead_magnets.providers.chromium.renderer import ChromiumReportRenderer
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
+from app.modules.lead_magnets.providers.sanity.article_source import SanityArticleSource
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
+from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
 from app.modules.lead_magnets.providers.webflow.reports_cms import WebflowReportsCms
 from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
 from app.modules.organizations import OrganizationRepository
@@ -288,6 +291,20 @@ def build_report_sync() -> ReportSync:
             collection_id=settings.lead_magnet_webflow_reports_collection_id,
         ),
         renderer=build_report_renderer(),
+    )
+
+
+def build_article_sync() -> ArticleSync:
+    settings = get_settings()
+    return ArticleSync(
+        source=SanityArticleSource(
+            project_id=settings.lead_magnet_sanity_project_id,
+            dataset=settings.lead_magnet_sanity_dataset,
+        ),
+        cms=WebflowInsightsCms(
+            token=settings.lead_magnet_webflow_api_token,
+            collection_id=settings.lead_magnet_webflow_insights_collection_id,
+        ),
     )
 
 
