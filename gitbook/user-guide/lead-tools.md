@@ -33,6 +33,22 @@ readers skip the form.
 Changing a published report's slug moves it to the new URL, and the old URL
 stops working. Unpublishing it in the Studio removes the card.
 
+## Publish an Insights article
+
+Insights articles can also be written in the Wusool Reports Studio.
+
+1. Create an **Insights article** and fill in the title, slug, content type
+   and excerpt.
+2. Pick **Write with**: the rich text editor, or pasted HTML. Then write the
+   body, and optionally the key takeaways and FAQ.
+3. Optionally fill in the cover image, author, silo, SEO fields and the
+   end-of-page button. Blank SEO fields use the title and excerpt.
+4. Publish.
+
+**Expected result:** the article appears on `wusoolcapital.com/insights`
+shortly after publishing. It isn't pinned; pin articles in Webflow. An
+existing hand-written article with the same slug is left untouched.
+
 ## Use a tool
 
 1. Open the relevant tool page on the Wusool Capital website.

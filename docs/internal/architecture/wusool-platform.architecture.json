@@ -119,7 +119,7 @@
       "id": "sanity",
       "type": "external",
       "label": "Sanity",
-      "sublabel": "gated report HTML",
+      "sublabel": "reports and articles",
       "pos": [330, 600],
       "size": [170, 64],
       "sources": [{ "path": "sanity/README.md", "label": "Reports Studio" }]
@@ -128,7 +128,7 @@
       "id": "webflow",
       "type": "external",
       "label": "Webflow CMS",
-      "sublabel": "Reports cards",
+      "sublabel": "Reports + Insights",
       "pos": [40, 600],
       "size": [150, 64],
       "sources": [{ "path": "server/app/modules/lead_magnets/providers/webflow/reports_cms.py", "label": "Reports card sync" }]
@@ -171,7 +171,7 @@
       "items": [
         "Slack, website lead magnets, Attio webhooks, and Scribe use one Toolkit FastAPI process",
         "Toolkit liveness is /health; database readiness is /readiness and /ready",
-        "Gated insights reports: Sanity holds the HTML; the Toolkit gates it and syncs the Webflow Reports card"
+        "Gated insights reports: Sanity holds the HTML; the Toolkit gates it and syncs the Webflow Reports card; Insights articles publish from the same Studio"
       ]
     },
     {

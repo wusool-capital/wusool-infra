@@ -180,7 +180,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `GET /reports/{slug}` | serves | Gated insights report: the first page for a new reader, the whole report for a returning one |
 | `POST /reports/{slug}/unlock` | serves | The report gate (name, email, optional organisation); returns the whole report and records the reader |
 | `GET /reports/{slug}/pdf` | serves | The whole report as an A4 PDF, printed per download; 403 until the reader unlocks |
-| `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook; syncs the Webflow Reports card |
+| `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook for both document types; syncs the Webflow Reports card or Insights article |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
 visitor reads while still in the tool, long before there is a submission to
@@ -258,6 +258,29 @@ free-mail. The organisation is optional: when it is blank, only the person
 is written, and a failure raises so the sweeper retries it. No emails are sent (`email_dispatch.sends_emails`). The
 "Insights & Reports" option must exist on `lead_source_detail` in Attio
 before this ships.
+
+## Insights articles from Sanity
+
+The Studio's second type, `insights`, publishes ordinary (ungated) articles to
+the Webflow Insights collection. The same Sanity webhook carries it; the
+endpoint routes on the projected `type`.
+
+- **Content.** `providers/sanity/article_source.py` reads the article fresh
+  from the API host. Editors pick rich text or pasted HTML per article.
+  `providers/sanity/portable_text.py` turns Portable Text into the HTML
+  hand-written articles use, and passes every body through `nh3` with a tag
+  allow-list. This matters: Webflow's API stores script tags and
+  `javascript:` links verbatim (checked 2026-10-07).
+- **Item.** `application/insights_article/sync.py` creates, updates or
+  unpublishes the item via `providers/webflow/insights_cms.py`. Items it
+  creates carry `sanity-managed`; it never updates or unpublishes one
+  without it, so a slug clash with a hand-written article is skipped and
+  logged (`insights_article_sync_skipped_unmanaged`). It never writes
+  `featured` or `hide-from-listings`. Content type, silo and author are
+  resolved to Webflow ids by name; an unknown content type fails the sync.
+- **Plumbing.** `providers/webflow/collection.py` holds the Webflow API code
+  both providers share: live create, staged update then publish, unpublish,
+  and option lookups.
 
 ## The write contract
 

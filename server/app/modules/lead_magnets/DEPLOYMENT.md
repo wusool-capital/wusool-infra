@@ -226,15 +226,34 @@ back into Insights.
 
 1. Build the Reports page and template (steps 1–2 above), then publish the
    site so the Reports collection exists on the live site.
-2. Deploy the code that points the sync at Reports.
+2. Deploy the code that points the sync at Reports. Then, on both Sanity
+   webhooks (dev and prod), replace the filter and projection with the ones
+   in `sanity/README.md`, so they also carry Insights articles. Redeploy the
+   Studio (`npx sanity deploy -y`) so editors see the Insights type.
 3. If the Insights featured block pins the report's old card, pin a
    hand-written article there first, or remove the featured list.
 4. Republish the report in Sanity. An unchanged document can't be
    republished, so make a trivial edit (for example, to the excerpt) first.
    The sync creates its card in Reports.
 5. Unpublish the old card in the Insights collection.
-6. In Webflow **Site settings → Publishing → 301 redirects**, add
-   `/insights/<slug>` → `/reports/<slug>`, then publish the site.
+6. In Webflow **Site settings → Publishing → 301 redirects**, add the exact
+   path `/insights/how-to-fund-a-buyout-in-the-uae-and-gcc-2026-playbook` →
+   `/reports/how-to-fund-a-buyout-in-the-uae-and-gcc-2026-playbook`, then
+   publish the site. Never a wildcard such as `/insights/(.*)`: Insights
+   articles still live under `/insights`.
+
+#### Insights articles from Sanity
+
+The Insights collection has a hidden **Sanity managed** switch (added
+2026-10-07, off on every existing article). The sync sets it on items it
+creates and updates or unpublishes only those, so hand-written articles are
+never overwritten. Don't toggle it by hand. The sync never writes
+**Featured** or **Hide from listings**; pins stay manual.
+
+Don't enable the dev webhook while it syncs into the live Insights
+collection: dev and prod would both write the same items. To test on dev,
+set its `LEAD_MAGNET_WEBFLOW_INSIGHTS_COLLECTION_ID` to the `Insights (test)s`
+collection (`6ac4d9fd87ac542edd2f4477`) after adding the same switch there.
 
 ## 8. The sweeper
 

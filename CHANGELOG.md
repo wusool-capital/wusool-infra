@@ -14,8 +14,11 @@ for current production evidence and open handover items.
 
 - Insights reports have moved to their own Reports collection on Webflow,
   with a `/reports` listing and `/reports/<slug>` pages. Unlocked readers
-  can download the full report as a PDF. Old `/insights/<slug>` links
-  redirect to the new pages.
+  can download the full report as a PDF. The moved report's old
+  `/insights` link redirects to its new page.
+- Insights articles can now be written in the Sanity Studio, with a rich
+  text editor or pasted HTML, and publish straight to `/insights`.
+  Hand-written Webflow articles are never overwritten.
 
 ### Changed
 

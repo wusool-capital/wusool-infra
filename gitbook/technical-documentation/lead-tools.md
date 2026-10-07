@@ -84,7 +84,7 @@ does not delay `embed.js` deployments and rollbacks.
 | `GET /reports/{slug}` | Returns a report's first page, or the whole report to a returning reader. |
 | `POST /reports/{slug}/unlock` | Records the reader (Attio person, plus an organization when given; no role or deal) and returns the whole report. |
 | `GET /reports/{slug}/pdf` | The whole report as an A4 PDF for an unlocked reader; 403 otherwise. |
-| `POST /reports/webhooks/sanity` | Signed Sanity publish webhook; creates or updates the Webflow Reports card. |
+| `POST /reports/webhooks/sanity` | Signed Sanity publish webhook for reports and Insights articles; creates or updates the Webflow Reports card or Insights article. |
 
 Static pages are served under `/valuation/`, `/readiness/`, `/benchmark/`,
 `/buyers/`, `/get-started/` and `/report/`, with `/embed.js` for website
@@ -94,7 +94,9 @@ Gated reports are written in a Sanity Studio (`sanity/README.md`). On
 publish, the server draws each new version once in headless Chromium and
 stores it as static HTML. That lets exports built with JavaScript be gated too.
 Publishing one there creates its card in the Webflow Reports collection
-(`/reports`) automatically. Report unlocks send no emails. A
+(`/reports`) automatically. The same Studio publishes ordinary Insights
+articles to the Webflow Insights collection, sanitized, without touching
+hand-written ones. Report unlocks send no emails. A
 returning reader skips the form, and each new report they open is logged as
 one more interaction.
 

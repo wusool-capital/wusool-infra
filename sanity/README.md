@@ -1,10 +1,15 @@
 # Wusool Reports Studio
 
-The dashboard where the business publishes gated insights reports (PRD 3).
-One document type, `report`. Publishing one makes it live on
-`wusoolcapital.com/reports/<slug>`: the first page is open, and the rest
-and the PDF download unlock after a name and email form (organisation is
-optional).
+The dashboard where the business publishes gated reports (PRD 3) and
+Insights articles. Two document types:
+
+- **Report** (`report`). Publishing one makes it live on
+  `wusoolcapital.com/reports/<slug>`: the first page is open, and the rest
+  and the PDF download unlock after a name and email form (organisation is
+  optional).
+- **Insights article** (`insights`). Publishing one creates or updates the
+  article at `wusoolcapital.com/insights/<slug>`, written with the rich text
+  editor or as pasted HTML.
 
 ## How it fits together
 
@@ -50,14 +55,17 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, html, excerpt, cover, author, silo, publishedAt, featured, cta)) \|\| !defined(renderedHtml))` |
-   | Projection | `{"slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
+   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, html, excerpt, cover, silo, publishedAt, featured, cta)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
+   | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
    | Drafts | off |
    | API version | `v2025-02-19` |
 
-   The filter skips updates that touch only `renderedHtml`, so the server's
+   One webhook per environment serves both types; the server routes each
+   event by `type`, and treats a missing `type` as a report. Articles need no
+   update guard, because the server never writes back to them. The filter
+   skips report updates that touch only `renderedHtml`, so the server's
    own save never starts a second sync. Creates and deletes always pass,
    since `delta::changedAny` doesn't match them reliably; an unpublish fires
    as a delete. `!defined(renderedHtml)` catches a report whose rendered copy
@@ -89,6 +97,23 @@ the pinned report, the newest live card on `/reports` takes the pin.
 - **Renaming a slug** unpublishes the old card and creates a new one, so
   the old URL stops working.
 - **Unpublishing or deleting** a report unpublishes its card.
+
+## Publishing an Insights article
+
+Fill in the title, slug, content type, excerpt and body. Pick **Write with**
+first: the rich text editor, or pasted HTML. The choice applies to the body,
+key takeaways and FAQ. Pasted HTML is cleaned on publish: scripts, styles,
+tables and anything else Webflow's rich text can't show are removed.
+
+The SEO title, SEO description, share title and H1 default to the title and
+excerpt when left blank. Cover image, author, silo, date, target keyword and
+the end-of-page button are optional. Then publish.
+
+- The article goes live on `/insights` without a Webflow publish. Its card
+  is not pinned; pin articles in Webflow as before.
+- A hand-written Webflow article with the same slug is never overwritten.
+  The publish is skipped and logged as `insights_article_sync_skipped_unmanaged`.
+- **Renaming a slug** or **unpublishing** works as it does for reports.
 
 ## Accepted risk
 
