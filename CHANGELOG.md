@@ -17,7 +17,9 @@ for current production evidence and open handover items.
   can download the full report as a PDF. The moved report's old
   `/insights` link redirects to its new page.
 - Insights articles can now be written in the Sanity Studio, with a rich
-  text editor or pasted HTML, and publish straight to `/insights`.
+  text editor or pasted HTML, and publish straight to `/insights`. Reports
+  can also be written in the rich text editor; readers see about the first
+  quarter before the form.
   Hand-written Webflow articles are never overwritten.
 
 ### Changed

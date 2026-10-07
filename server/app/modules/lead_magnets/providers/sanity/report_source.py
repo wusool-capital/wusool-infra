@@ -17,12 +17,14 @@ so the write doesn't trigger a sync of its own.
 
 import json
 import time
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, ReportSource
 from app.modules.lead_magnets.providers.sanity.images import resized
+from app.modules.lead_magnets.providers.sanity.portable_text import Block, rich_report
 
 # Shared with `article_source.py`; the webhook is pinned to the same version.
 API_VERSION = "v2025-02-19"
@@ -35,7 +37,10 @@ _QUERY = (
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
     'featured, silo, "ctaText": cta.text, "ctaUrl": cta.url}'
 )
-_SOURCE_QUERY = '*[_type == "report" && slug.current == $slug][0]{_id, _rev, html, renderedFrom}'
+_SOURCE_QUERY = (
+    '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
+    '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom}'
+)
 
 
 class _SanityReport(BaseModel):
@@ -64,7 +69,12 @@ class _SanitySource(BaseModel):
 
     id: str = Field(alias="_id")
     rev: str = Field(alias="_rev")
-    html: str
+    # Only a rich text report prints it; pasted HTML carries its own.
+    title: str = ""
+    # Unset on reports made before the rich text option; they are all pasted HTML.
+    body_format: Literal["rich", "html"] = Field(default="html", alias="bodyFormat")
+    body: list[Block] | None = None
+    html: str | None = None
     rendered_from: str | None = Field(default=None, alias="renderedFrom")
 
 
@@ -125,8 +135,11 @@ class SanityReportSource:
         doc = _SourceResponse.model_validate_json(response.content).result
         if doc is None:
             return None
+        html = rich_report(doc.title, doc.body or []) if doc.body_format == "rich" else doc.html
+        if not html:
+            return None
         return ReportSource(
-            document_id=doc.id, revision=doc.rev, html=doc.html, rendered_from=doc.rendered_from
+            document_id=doc.id, revision=doc.rev, html=html, rendered_from=doc.rendered_from
         )
 
     async def save_rendered(

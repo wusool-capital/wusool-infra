@@ -13,8 +13,9 @@ Nothing in it may reach the network from inside our VPC: HTTP is aborted by
 connection goes to a dead proxy and WebRTC may not send unproxied UDP.
 Bundles carry their assets inline; external stylesheets stay as `<link>`
 tags for the reader's browser to load. A PDF has no reader's browser, so
-`pdf` lets through Google Fonts only, fetched by this process from a fixed
-host allow-list and handed to Chromium; Chromium itself still reaches nothing.
+`pdf` lets through Google Fonts and Sanity CDN images only, fetched by this
+process from a fixed host allow-list and handed to Chromium; Chromium itself
+still reaches nothing.
 
 A render is capped at `_RENDER_TIMEOUT_S` overall, and the "wait until the
 page stops changing" step at `_SETTLE_MAX_MS`, so an animated page is saved
@@ -43,8 +44,13 @@ _ISOLATED = [
 # A refresh navigates mid-render and destroys the page being saved; it never belongs in a report.
 _META_REFRESH = re.compile(r"<meta\b[^>]*http-equiv\s*=\s*[\"']?refresh[^>]*>", re.IGNORECASE)
 
-# ponytail: Google Fonts only; any other linked stylesheet prints unstyled. Inline it at flatten.
-_PRINT_ASSET_HOSTS = ("https://fonts.googleapis.com/", "https://fonts.gstatic.com/")
+# ponytail: Google Fonts and Sanity images only; other linked assets print missing.
+# Inline them at flatten if a report ever needs more.
+_PRINT_ASSET_HOSTS = (
+    "https://fonts.googleapis.com/",
+    "https://fonts.gstatic.com/",
+    "https://cdn.sanity.io/",
+)
 _PRINT_ASSET_MAX_BYTES = 5_000_000
 
 _HERE = Path(__file__).parent

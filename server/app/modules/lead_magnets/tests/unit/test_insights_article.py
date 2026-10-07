@@ -10,8 +10,15 @@ from pydantic import TypeAdapter
 
 from app.modules.lead_magnets.application.insights_article.sync import ArticleSync
 from app.modules.lead_magnets.domain.insights_article.article import ArticleDocument, CmsItem
+from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.providers.sanity.article_source import SanityArticleSource
-from app.modules.lead_magnets.providers.sanity.portable_text import Block, sanitize, to_html
+from app.modules.lead_magnets.providers.sanity.portable_text import (
+    Block,
+    rich_report,
+    sanitize,
+    to_html,
+)
+from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
 from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
 
 _BLOCKS = TypeAdapter(list[Block])
@@ -289,3 +296,43 @@ async def test_unpublishing_or_renaming_takes_down_only_the_managed_item() -> No
     await _sync(cms, slug=None, previous="new")
 
     assert cms.calls == [("unpublish", "item-1"), ("create", "new")]
+
+
+def _paragraphs(first: int, last: int) -> list[dict]:
+    return [_text(f"Paragraph {i} " + "word " * 20) for i in range(first, last + 1)]
+
+
+def test_a_rich_report_opens_its_first_quarter_and_never_cuts_a_list() -> None:
+    blocks = _BLOCKS.validate_python(
+        [*_paragraphs(1, 2), _item("a"), _item("b"), _item("c"), *_paragraphs(3, 12)]
+    )
+
+    page = rich_report('Buyouts <in> "GCC"', blocks)
+
+    assert page is not None
+    preview, rest = split_report(page)
+    assert "<h1>Buyouts &lt;in&gt; &quot;GCC&quot;</h1>" in preview
+    assert "Paragraph 2 " in preview and "Paragraph 5 " not in preview
+    assert "<li>c</li></ul>" in preview, "the cut falls after the list, never inside it"
+    assert "Paragraph 12 " in rest
+
+
+def test_a_rich_report_with_no_text_is_not_published() -> None:
+    assert rich_report("T", []) is None
+
+
+async def test_reports_from_before_the_toggle_are_still_pasted_html(monkeypatch) -> None:
+    doc = {"_id": "d", "_rev": "r", "title": "T", "html": "<p>pasted</p>", "renderedFrom": None}
+    rich = {**doc, "bodyFormat": "rich", "body": [_text("written in Studio")]}
+    responses = iter([doc, rich])
+    _use_transport(
+        monkeypatch, lambda request: httpx.Response(200, json={"result": next(responses)})
+    )
+    source = SanityReportSource(project_id="p", dataset="production")
+
+    legacy = await source.source("t")
+    written = await source.source("t")
+
+    assert legacy is not None and legacy.html == "<p>pasted</p>"
+    assert written is not None and "<p>written in Studio</p>" in written.html
+    assert 'class="wusool-rich"' in written.html

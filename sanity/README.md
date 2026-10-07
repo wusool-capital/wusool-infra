@@ -55,7 +55,7 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, html, excerpt, cover, silo, publishedAt, featured, cta)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
+   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, excerpt, cover, silo, publishedAt, featured, cta)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
    | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
@@ -80,7 +80,13 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
 ## Publishing a report
 
-Only the title and the pasted HTML are needed. For the slug, click
+Pick **Write with** first. **Pasted HTML** (the default) keeps an exported
+design and its pages: readers see page one, then the form. **Rich text
+editor** writes the report in the Studio: it gets a clean page with the title
+on top, readers see about the first quarter, and the PDF is printed with page
+margins.
+
+Only the title and the report (pasted HTML or rich text) are needed. For the slug, click
 **Generate** to build it from the title, or type your own (lowercase letters,
 numbers and hyphens). Excerpt, cover image, primary silo, date and the end-of-page
 button are optional. The button

@@ -187,3 +187,13 @@ async def test_the_pdf_loads_google_fonts_but_no_other_linked_asset(monkeypatch)
 
     assert pdf.startswith(b"%PDF-")
     assert fetched == ["https://fonts.googleapis.com/css2?family=Inter"]
+
+
+async def test_a_rich_reports_own_gate_survives_rendering() -> None:
+    """The serializer places a gate only when the page arrives without one."""
+    await _require_chromium()
+    page = "<body><p>one</p><p>two</p><div data-wusool-gate></div><p>three</p></body>"
+
+    preview, _ = split_report(await ChromiumReportRenderer().render(page))
+
+    assert "two" in preview and "three" not in preview

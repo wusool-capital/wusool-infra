@@ -38,7 +38,8 @@ class _SanityArticle(BaseModel):
     title: str
     content_type: str = Field(alias="contentType")
     excerpt: str
-    body_format: Literal["rich", "html"] = Field(default="rich", alias="bodyFormat")
+    # Unset reads as pasted HTML, as in the Studio; new documents always set it.
+    body_format: Literal["rich", "html"] = Field(default="html", alias="bodyFormat")
     body: list[Block] | None = None
     body_html: str | None = Field(default=None, alias="bodyHtml")
     key_takeaways: list[Block] | None = Field(default=None, alias="keyTakeaways")

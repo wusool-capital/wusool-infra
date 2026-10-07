@@ -16,16 +16,20 @@ are recorded for follow-up in Attio.
 Gated reports are written in the Wusool Reports Studio (Sanity), not in
 Webflow.
 
-1. Create a **Report** and fill in the title and the pasted report HTML,
-   then click **Generate** for the slug or type your own. Excerpt, cover image, primary silo,
-   date, and the end-of-page button (text and link) are optional.
-2. Tick **Pin to top of /reports** to make it the featured card. This
+1. Create a **Report**, fill in the title, then click **Generate** for the
+   slug or type your own.
+2. Pick **Write with**. Paste the exported report HTML, and readers see page
+   one. Or write it in the rich text editor, and readers see about the first
+   quarter.
+3. Optionally fill in the excerpt, cover image, primary silo, date, and the
+   end-of-page button (text and link).
+4. Tick **Pin to top of /reports** to make it the featured card. This
    unpins the card that is currently featured.
-3. Publish.
+5. Publish.
 
 **Expected result:** shortly after publishing, the report has a card on
 `wusoolcapital.com/reports` and its own page there. Readers see the first
-page, then a short form; the organization field is optional. Completing it
+page (or first quarter of a rich text report), then a short form; the organization field is optional. Completing it
 opens the full report and its **Download PDF** button. The reader appears in
 Attio as a person, plus an organization when they gave one. Returning
 readers skip the form.

@@ -1,58 +1,11 @@
-import {defineArrayMember, defineField, defineType, type SanityDocument} from 'sanity'
+import {defineField, defineType} from 'sanity'
 
 import {SILOS} from './report'
+import {bodyFormat, isHtml, isRich, richText} from './richText'
 
 // Exact Webflow names; the sync resolves them to Webflow ids. "Report" belongs to /reports.
 const CONTENT_TYPES = ['Article', 'Playbook', 'Case Study', 'Press']
 const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar']
-
-type Context = {document?: SanityDocument}
-const isHtml = ({document}: Context) => document?.bodyFormat === 'html'
-const isRich = ({document}: Context) => !isHtml({document})
-
-// Only what the server's sanitizer keeps and Webflow's rich text renders.
-const richText = [
-  defineArrayMember({
-    type: 'block',
-    styles: [
-      {title: 'Normal', value: 'normal'},
-      {title: 'Heading 2', value: 'h2'},
-      {title: 'Heading 3', value: 'h3'},
-      {title: 'Heading 4', value: 'h4'},
-      {title: 'Quote', value: 'blockquote'},
-    ],
-    lists: [
-      {title: 'Bullet', value: 'bullet'},
-      {title: 'Numbered', value: 'number'},
-    ],
-    marks: {
-      decorators: [
-        {title: 'Bold', value: 'strong'},
-        {title: 'Italic', value: 'em'},
-      ],
-      annotations: [
-        defineArrayMember({
-          name: 'link',
-          type: 'object',
-          title: 'Link',
-          fields: [
-            defineField({
-              name: 'href',
-              type: 'url',
-              description: 'A full URL, or a site path such as /sell.',
-              validation: (rule) =>
-                rule.required().uri({allowRelative: true, scheme: ['http', 'https', 'mailto']}),
-            }),
-          ],
-        }),
-      ],
-    },
-  }),
-  defineArrayMember({
-    type: 'image',
-    fields: [defineField({name: 'alt', title: 'Alt text', type: 'string'})],
-  }),
-]
 
 // One rich-text field and its pasted-HTML twin; `bodyFormat` shows one of the pair.
 const richOrHtml = (name: string, title: string, required: boolean) => [
@@ -125,21 +78,7 @@ export const insights = defineType({
       description: '2-3 sentences for the /insights card and search results.',
       validation: (rule) => rule.required(),
     }),
-    defineField({
-      name: 'bodyFormat',
-      title: 'Write with',
-      type: 'string',
-      options: {
-        list: [
-          {title: 'Rich text editor', value: 'rich'},
-          {title: 'Pasted HTML', value: 'html'},
-        ],
-        layout: 'radio',
-        direction: 'horizontal',
-      },
-      initialValue: 'rich',
-      description: 'Applies to the body, key takeaways and FAQ.',
-    }),
+    bodyFormat('rich', 'Applies to the body, key takeaways and FAQ.'),
     ...richOrHtml('body', 'Body', true),
     ...richOrHtml('keyTakeaways', 'Key takeaways', false),
     ...richOrHtml('faq', 'FAQ', false),

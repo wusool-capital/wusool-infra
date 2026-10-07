@@ -1,10 +1,12 @@
-"""Sanity Portable Text, and pasted HTML, to the HTML Webflow's RichText stores.
+"""Sanity Portable Text, and pasted HTML, to the HTML Webflow's RichText stores,
+and a rich text report to a page the report pipeline can render, gate and print.
 
 Webflow stores whatever HTML the API sends, script tags included (checked
 2026-10-07), so every body goes through `sanitize` before it leaves here. The
 Studio's editor offers only what `_ALLOWED_TAGS` keeps.
 """
 
+import re
 from html import escape
 from typing import Annotated, Literal
 
@@ -129,3 +131,56 @@ def _inline(block: TextBlock) -> str:
                 text = f'<a href="{escape(href)}">{text}</a>'
         html += text
     return html
+
+
+# A rich text report has no pages to gate at, so it opens its first quarter.
+RICH_PREVIEW_SHARE = 0.25
+_GATE = "<div data-wusool-gate></div>"
+_TAG = re.compile(r"<[^>]+>")
+# Fonts load in the reader's iframe and, through the renderer's allow-list, in the PDF.
+_RICH_HEAD = (
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..700&display=swap">'
+    "<style>@page{size:A4;margin:20mm 18mm}"
+    ".wusool-rich{padding:32px 24px;font:17px/1.7 'DM Sans',sans-serif;color:#000523}"
+    ".wusool-rich h1{font-size:36px;line-height:1.2;margin:0 0 24px}"
+    ".wusool-rich h2{font-size:26px;line-height:1.3;margin:36px 0 12px}"
+    ".wusool-rich h3{font-size:21px;margin:28px 0 10px}"
+    ".wusool-rich h4{font-size:18px;margin:24px 0 8px}"
+    ".wusool-rich p,.wusool-rich ul,.wusool-rich ol{margin:0 0 16px}"
+    ".wusool-rich blockquote{margin:24px 0;padding-left:16px;border-left:3px solid rgba(0,5,35,.2)}"
+    ".wusool-rich figure{margin:24px 0}.wusool-rich img{max-width:100%;height:auto}"
+    ".wusool-rich a{color:inherit}"
+    "@media print{.wusool-rich{padding:0}}</style></head><body>"
+)
+
+
+def rich_report(title: str, blocks: list[Block]) -> str | None:
+    """A whole page for a report written in the rich text editor, its gate
+    marked at about `RICH_PREVIEW_SHARE` of the text. Never cuts inside a list."""
+    units: list[list[Block]] = []
+    for block in blocks:
+        if _listed(block) and units and _listed(units[-1][-1]):
+            units[-1].append(block)
+        else:
+            units.append([block])
+    parts = [to_html(unit) for unit in units]
+    sizes = [len(_TAG.sub("", part)) for part in parts]
+    if not sum(sizes):
+        return None
+    body: list[str] = []
+    read = 0
+    for part, size in zip(parts, sizes, strict=True):
+        # Never before the first block, so the preview is never empty.
+        if body and _GATE not in body and read >= sum(sizes) * RICH_PREVIEW_SHARE:
+            body.append(_GATE)
+        body.append(part)
+        read += size
+    return (
+        f'{_RICH_HEAD}<article class="wusool-rich"><h1>{escape(title)}</h1>'
+        f"{''.join(body)}</article></body></html>"
+    )
+
+
+def _listed(block: Block) -> bool:
+    return isinstance(block, TextBlock) and block.list_item is not None

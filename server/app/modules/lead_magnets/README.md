@@ -219,6 +219,11 @@ the first page open and the rest behind one short form. There are three parts:
   dropped. The playbook renders in about 2.4 s and peaks at about 300 MB RAM.
   Hidden copies (`<template>`, `<noscript>`, `[hidden]`) are removed so
   they can't leak into the preview.
+- **Rich text reports.** Editors can write a report in the Studio instead of
+  pasting HTML. `providers/sanity/portable_text.py::rich_report` turns it into
+  a styled page (title, DM Sans, A4 print margins) and marks the gate at about
+  the first quarter, since it has no pages; the serializer keeps a mark it
+  finds. From there it follows the pasted path: render, gate, save, PDF.
 - **Gate.** `domain/insights_report/split.py` cuts between block elements,
   never at an inline tag, before page two, or at a text share when the renderer set no mark. `GET /reports/{slug}` never sends the
   rest to a new reader. `POST /reports/{slug}/unlock` records an

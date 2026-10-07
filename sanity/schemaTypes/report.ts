@@ -1,5 +1,7 @@
 import {defineField, defineType} from 'sanity'
 
+import {bodyFormat, isHtml, isRich, richText} from './richText'
+
 // Exact Webflow option names; the sync resolves them to Webflow ids.
 export const SILOS = [
   'Sell Your Business',
@@ -42,13 +44,33 @@ export const report = defineType({
       rows: 3,
       description: 'Optional. 2-3 sentences for the /reports card and search results.',
     }),
+    // Missing on reports made before the toggle, which are all pasted HTML.
+    bodyFormat(
+      'html',
+      'Pasted HTML keeps an exported design and its pages; readers see page one, then the form. A rich text report shows its first quarter.',
+    ),
+    defineField({
+      name: 'body',
+      title: 'Report',
+      type: 'array',
+      of: richText,
+      hidden: isHtml,
+      validation: (rule) =>
+        rule.custom((value, context) =>
+          isRich({document: context.document}) && !value?.length ? 'Required' : true,
+        ),
+    }),
     defineField({
       name: 'html',
       title: 'Report HTML',
       type: 'text',
       rows: 20,
-      description: 'Paste the full report HTML. Readers see the first 25%, then the form.',
-      validation: (rule) => rule.required(),
+      description: 'Paste the full report HTML. Readers see the first page, then the form.',
+      hidden: isRich,
+      validation: (rule) =>
+        rule.custom((value, context) =>
+          !isRich({document: context.document}) && !value?.trim() ? 'Required' : true,
+        ),
     }),
     defineField({name: 'cover', title: 'Cover image', type: 'image'}),
     defineField({name: 'silo', title: 'Primary silo', type: 'string', options: {list: SILOS}}),
