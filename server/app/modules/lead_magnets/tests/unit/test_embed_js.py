@@ -173,3 +173,11 @@ def test_a_report_may_grow_far_past_the_tool_height_cap() -> None:
     and the shared 20,000px cap left a second scrollbar inside the report."""
     js = (static_dir() / "embed.js").read_text()
     assert 'var maxHeight = tool === "report" ? 200000 : 20000;' in js
+
+
+def test_a_report_slug_falls_back_to_the_page_path_and_is_still_validated() -> None:
+    """The Reports template embed carries no binding; the slug comes from /reports/<slug>."""
+    js = (static_dir() / "embed.js").read_text()
+    block = js[js.index('if (tool === "report")') :]
+    fallback = block.index("location.pathname")
+    assert fallback < block.index("/^[a-z0-9-]{1,256}$/.test(slug)"), "validated after the fallback"
