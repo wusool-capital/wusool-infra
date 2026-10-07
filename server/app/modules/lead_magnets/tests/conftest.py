@@ -30,9 +30,11 @@ def _reset_rate_limiter():
     """
     deps._limiter = None
     deps._read_limiter = None
+    deps._download_limiter = None
     yield
     deps._limiter = None
     deps._read_limiter = None
+    deps._download_limiter = None
 
 
 @pytest.fixture

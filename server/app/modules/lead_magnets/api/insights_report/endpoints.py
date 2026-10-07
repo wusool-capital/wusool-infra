@@ -1,5 +1,5 @@
-"""Gated insights reports (PRD 3): the preview, the unlock, and the Sanity
-publish webhook that keeps the Webflow card in step.
+"""Gated insights reports (PRD 3): the preview, the unlock, the PDF download,
+and the Sanity publish webhook that keeps the Webflow card in step.
 
 The report page calls the first two from its iframe on this host, so they
 are same-origin. Only the unlock carries the origin check, because browsers
@@ -28,6 +28,7 @@ from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
     is_valid_sanity_signature,
     rate_limit,
+    rate_limit_downloads,
     rate_limit_reads,
     require_allowed_origin,
 )
@@ -38,6 +39,8 @@ from app.modules.lead_magnets.api.schemas import (
 )
 from app.modules.lead_magnets.application.shared.ports import ReportSourcePort
 from app.modules.lead_magnets.bootstrap import (
+    build_article_sync,
+    build_report_renderer,
     build_report_source,
     build_report_sync,
     build_submission_service,
@@ -53,6 +56,8 @@ logger = logging.getLogger(__name__)
 READER_COOKIE = "wusool_reader"
 _READER_COOKIE_MAX_AGE_S = 365 * 24 * 3600
 _TOOL = "insights_report"
+# Kept as `insights_report_sync_failed` for reports, which existing log searches use.
+_SYNC_LOG = {"report": "insights_report", "insights": "insights_article"}
 
 router = APIRouter(tags=["lead-magnets"])
 
@@ -86,30 +91,74 @@ async def read_report(
     response: Response,
     wusool_reader: Annotated[str | None, Cookie()] = None,
 ) -> ReportResponse:
-    """The preview, or the whole report for a returning reader.
+    """The preview, or the whole report for a returning reader."""
+    report = await _published(source, slug)
+    # The body depends on the cookie, so no shared cache may store it.
+    response.headers["Cache-Control"] = "no-store"
+
+    if not await _record_read(session, background, report, wusool_reader):
+        return ReportResponse(
+            title=report.title, html=report.html[: report.preview_end], locked=True
+        )
+    return ReportResponse(title=report.title, html=report.html, locked=False)
+
+
+@router.get(
+    "/reports/{slug}/pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+    dependencies=[Depends(rate_limit_downloads)],
+)
+async def download_report_pdf(
+    slug: Slug,
+    source: SourceDep,
+    session: SessionDep,
+    background: BackgroundTasks,
+    wusool_reader: Annotated[str | None, Cookie()] = None,
+) -> Response:
+    """The whole report as a PDF, for unlocked readers only. Printed on each
+    download, on its own per-IP budget, because each one launches Chromium."""
+    report = await _published(source, slug)
+    if not await _record_read(session, background, report, wusool_reader):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "unlock the report first")
+    try:
+        pdf = await build_report_renderer().pdf(report.html)
+    except TimeoutError:
+        logger.warning("insights_report_pdf_timeout slug=%s", slug)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "busy, try again") from None
+    return Response(
+        pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{slug}.pdf"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+async def _record_read(
+    session: SessionDep,
+    background: BackgroundTasks,
+    report: ReportDocument,
+    cookie: str | None,
+) -> bool:
+    """Whether the cookie belongs to a reader who unlocked a report.
 
     A returning reader's first visit to a *different* report records its own
     run, so each report read is one interaction for PRD 2. The
     `<reader>:<slug>` submission id makes repeat visits reuse that row.
     """
-    report = await _published(source, slug)
-    # The body depends on the cookie, so no shared cache may store it.
-    response.headers["Cache-Control"] = "no-store"
-
-    reader = await _known_reader(session, wusool_reader)
+    reader = await _known_reader(session, cookie)
     if reader is None:
-        return ReportResponse(
-            title=report.title, html=report.html[: report.preview_end], locked=True
-        )
-
+        return False
     identity, unlocked_slug = reader
-    if unlocked_slug != slug:
+    if unlocked_slug != report.slug:
         run_id = await build_submission_service(session).record(
             tool=_TOOL,
             payload={
-                "submission_id": f"{wusool_reader}:{slug}",
+                "submission_id": f"{cookie}:{report.slug}",
                 **identity.model_dump(include={"name", "email", "company", "domain"}),
-                "slug": slug,
+                "slug": report.slug,
                 "report_title": report.title,
             },
             email=identity.email,
@@ -117,7 +166,7 @@ async def read_report(
         )
         await session.commit()
         background.add_task(run_completion, run_id)
-    return ReportResponse(title=report.title, html=report.html, locked=False)
+    return True
 
 
 @router.post(
@@ -166,10 +215,11 @@ async def unlock_report(
 
 @router.post("/reports/webhooks/sanity", status_code=status.HTTP_202_ACCEPTED)
 async def sanity_webhook(request: Request, background: BackgroundTasks) -> None:
-    """Sanity's publish webhook. Accepted at once and synced in the background:
-    a render plus Webflow calls can approach Sanity's 30 s timeout, and its
-    retry would race the first sync to create the same card. A failed sync is
-    logged, and the next publish of that report repairs it."""
+    """Sanity's publish webhook, for reports and Insights articles alike (the Free
+    plan allows only two webhooks: dev and prod). Accepted at once and synced in
+    the background: a render plus Webflow calls can approach Sanity's 30 s
+    timeout, and its retry would race the first sync to create the same item.
+    A failed sync is logged, and the next publish of that document repairs it."""
     settings = get_settings()
     if not (
         settings.lead_magnet_sanity_project_id
@@ -186,18 +236,21 @@ async def sanity_webhook(request: Request, background: BackgroundTasks) -> None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid signature")
 
     event = SanityWebhookBody.model_validate_json(body)
-    background.add_task(_sync_report, event)
+    background.add_task(_sync, event)
 
 
-async def _sync_report(event: SanityWebhookBody) -> None:
+async def _sync(event: SanityWebhookBody) -> None:
     try:
-        await build_report_sync().sync(
-            slug=event.slug,
-            previous_slug=event.previous_slug,
-            featured_changed=event.featured_changed,
-        )
+        if event.type == "insights":
+            await build_article_sync().sync(slug=event.slug, previous_slug=event.previous_slug)
+        else:
+            await build_report_sync().sync(
+                slug=event.slug,
+                previous_slug=event.previous_slug,
+                featured_changed=event.featured_changed,
+            )
     except Exception:
-        logger.exception("insights_report_sync_failed slug=%s", event.slug)
+        logger.exception("%s_sync_failed slug=%s", _SYNC_LOG[event.type], event.slug)
 
 
 async def _known_reader(

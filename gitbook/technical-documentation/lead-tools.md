@@ -12,7 +12,7 @@ outcome; Get Started is pure lead capture:
 | GCC SME Benchmark | Peer percentiles, score, and implied enterprise value | Deterministic dataset calculation. |
 | Buyer Network | Registers acquisition interest | Optional AI qualification never blocks the application. |
 | Get Started | Records a seller enquiry and confirms receipt | None. The form's own figures are recorded as given. |
-| Gated insights reports | The full report, after a name, email and organisation form | None. The first 25% is open; the rest unlocks in place. |
+| Gated insights reports | The full report and its PDF, after a name and email form (organisation optional) | None. The first page is open; the rest unlocks in place. |
 
 All tool pages and eight endpoints are implemented in the Toolkit runtime.
 Benchmark and Readiness have been verified over HTTP with live dependencies.
@@ -81,9 +81,10 @@ does not delay `embed.js` deployments and rollbacks.
 | `POST /readiness/score` | Records the lead and requests the required Bedrock assessment. |
 | `POST /buyer/apply` | Records a Buyer Network application and starts non-blocking qualification. |
 | `POST /get-started` | Records a seller enquiry from the site's main call to action. |
-| `GET /reports/{slug}` | Returns a report's first 25%, or the whole report to a returning reader. |
-| `POST /reports/{slug}/unlock` | Records the reader (Attio organization + person, no role or deal) and returns the whole report. |
-| `POST /reports/webhooks/sanity` | Signed Sanity publish webhook; creates or updates the Webflow Insights card. |
+| `GET /reports/{slug}` | Returns a report's first page, or the whole report to a returning reader. |
+| `POST /reports/{slug}/unlock` | Records the reader (Attio person, plus an organization when given; no role or deal) and returns the whole report. |
+| `GET /reports/{slug}/pdf` | The whole report as an A4 PDF for an unlocked reader; 403 otherwise. |
+| `POST /reports/webhooks/sanity` | Signed Sanity publish webhook for reports and Insights articles; creates or updates the Webflow Reports card or Insights article. |
 
 Static pages are served under `/valuation/`, `/readiness/`, `/benchmark/`,
 `/buyers/`, `/get-started/` and `/report/`, with `/embed.js` for website
@@ -92,8 +93,10 @@ integration.
 Gated reports are written in a Sanity Studio (`sanity/README.md`). On
 publish, the server draws each new version once in headless Chromium and
 stores it as static HTML. That lets exports built with JavaScript be gated too.
-Publishing one there creates the `/insights` card in Webflow automatically,
-with the collection's **Gated** switch on. Report unlocks send no emails. A
+Publishing one there creates its card in the Webflow Reports collection
+(`/reports`) automatically. The same Studio publishes ordinary Insights
+articles to the Webflow Insights collection, sanitized, without touching
+hand-written ones. Report unlocks send no emails. A
 returning reader skips the form, and each new report they open is logged as
 one more interaction.
 

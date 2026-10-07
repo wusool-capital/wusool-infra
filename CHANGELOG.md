@@ -10,7 +10,22 @@ for current production evidence and open handover items.
 
 ## 2026-10-07
 
+### Added
+
+- Insights reports have moved to their own Reports collection on Webflow,
+  with a `/reports` listing and `/reports/<slug>` pages. Unlocked readers
+  can download the full report as a PDF. The moved report's old
+  `/insights` link redirects to its new page.
+- Insights articles can now be written in the Sanity Studio, with a rich
+  text editor or pasted HTML, and publish straight to `/insights`. Reports
+  can also be written in the rich text editor; readers see about the first
+  quarter before the form.
+  Hand-written Webflow articles are never overwritten.
+
 ### Changed
+
+- The organization field on the report form is now optional. A reader who
+  leaves it blank is added to Attio as a person only.
 
 - Locked insights reports now show only the first page to a new reader,
   down from the first quarter. Each live report must be republished in

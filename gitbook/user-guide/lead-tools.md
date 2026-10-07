@@ -16,20 +16,42 @@ are recorded for follow-up in Attio.
 Gated reports are written in the Wusool Reports Studio (Sanity), not in
 Webflow.
 
-1. Create a **Report** and fill in the title, slug, excerpt, and the pasted
-   report HTML. Cover image, author, primary silo, date, and the end-of-page
-   button (text and link) are optional.
-2. Tick **Pin to top of /insights** to make it the featured card. This
+1. Create a **Report**, fill in the title, then click **Generate** for the
+   slug or type your own.
+2. Pick **Write with**. Paste the exported report HTML, and readers see page
+   one. Or write it in the rich text editor, and readers see about the first
+   quarter.
+3. Optionally fill in the excerpt, cover image, primary silo, date, and the
+   end-of-page button (text and link).
+4. Tick **Pin to top of /reports** to make it the featured card. This
    unpins the card that is currently featured.
-3. Publish.
+5. Publish.
 
 **Expected result:** shortly after publishing, the report has a card on
-`wusoolcapital.com/insights` and its own page there. Readers see the first
-quarter, then a short form. A reader who completes it appears in Attio as a
-person and an organization. Returning readers skip the form.
+`wusoolcapital.com/reports` and its own page there. Readers see the first
+page (or first quarter of a rich text report), then a short form; the organization field is optional. Completing it
+opens the full report and its **Download PDF** button. The reader appears in
+Attio as a person, plus an organization when they gave one. Returning
+readers skip the form.
 
 Changing a published report's slug moves it to the new URL, and the old URL
 stops working. Unpublishing it in the Studio removes the card.
+
+## Publish an Insights article
+
+Insights articles can also be written in the Wusool Reports Studio.
+
+1. Create an **Insights article** and fill in the title, slug, content type
+   and excerpt.
+2. Pick **Write with**: the rich text editor, or pasted HTML. Then write the
+   body, and optionally the key takeaways and FAQ.
+3. Optionally fill in the cover image, author, silo, SEO fields and the
+   end-of-page button. Blank SEO fields use the title and excerpt.
+4. Publish.
+
+**Expected result:** the article appears on `wusoolcapital.com/insights`
+shortly after publishing. It isn't pinned; pin articles in Webflow. An
+existing hand-written article with the same slug is left untouched.
 
 ## Use a tool
 

@@ -1,8 +1,9 @@
 import {defineField, defineType} from 'sanity'
 
-// Exact Webflow names (read 2026-10-05); the sync resolves them to Webflow ids.
-const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar']
-const SILOS = [
+import {bodyFormat, isHtml, isRich, richText} from './richText'
+
+// Exact Webflow option names; the sync resolves them to Webflow ids.
+export const SILOS = [
   'Sell Your Business',
   'Business Valuation',
   'Exit Strategy',
@@ -26,7 +27,7 @@ export const report = defineType({
       name: 'slug',
       type: 'slug',
       description:
-        'The page URL: wusoolcapital.com/insights/<slug>. Must not reuse an existing article URL.',
+        'The page URL: wusoolcapital.com/reports/<slug>. Must not reuse an existing report URL.',
       options: {source: 'title', maxLength: 96},
       validation: (rule) =>
         rule
@@ -41,19 +42,37 @@ export const report = defineType({
       name: 'excerpt',
       type: 'text',
       rows: 3,
-      description: '2-3 sentences for the /insights card and search results.',
-      validation: (rule) => rule.required(),
+      description: 'Optional. 2-3 sentences for the /reports card and search results.',
+    }),
+    // Missing on reports made before the toggle, which are all pasted HTML.
+    bodyFormat(
+      'html',
+      'Pasted HTML keeps an exported design and its pages; readers see page one, then the form. A rich text report shows its first quarter.',
+    ),
+    defineField({
+      name: 'body',
+      title: 'Report',
+      type: 'array',
+      of: richText,
+      hidden: isHtml,
+      validation: (rule) =>
+        rule.custom((value, context) =>
+          isRich({document: context.document}) && !value?.length ? 'Required' : true,
+        ),
     }),
     defineField({
       name: 'html',
       title: 'Report HTML',
       type: 'text',
       rows: 20,
-      description: 'Paste the full report HTML. Readers see the first 25%, then the form.',
-      validation: (rule) => rule.required(),
+      description: 'Paste the full report HTML. Readers see the first page, then the form.',
+      hidden: isRich,
+      validation: (rule) =>
+        rule.custom((value, context) =>
+          !isRich({document: context.document}) && !value?.trim() ? 'Required' : true,
+        ),
     }),
     defineField({name: 'cover', title: 'Cover image', type: 'image'}),
-    defineField({name: 'author', type: 'string', options: {list: AUTHORS}}),
     defineField({name: 'silo', title: 'Primary silo', type: 'string', options: {list: SILOS}}),
     defineField({
       name: 'publishedAt',
@@ -63,7 +82,7 @@ export const report = defineType({
     }),
     defineField({
       name: 'featured',
-      title: 'Pin to top of /insights',
+      title: 'Pin to top of /reports',
       type: 'boolean',
       initialValue: false,
       description: 'Unpins whichever card is pinned now.',

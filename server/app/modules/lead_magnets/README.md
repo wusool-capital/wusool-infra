@@ -178,8 +178,9 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /get-started` | serves | No model at all — pure seller lead capture; the form's own figures go straight to `seller_role` |
 | `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline from the visitor's `/compare` comps and `/analyze` discounts, DCF overrides and search terms |
 | `GET /reports/{slug}` | serves | Gated insights report: the first page for a new reader, the whole report for a returning one |
-| `POST /reports/{slug}/unlock` | serves | The report gate (name, email, organisation); returns the whole report and records the reader |
-| `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook; syncs the Webflow Insights card |
+| `POST /reports/{slug}/unlock` | serves | The report gate (name, email, optional organisation); returns the whole report and records the reader |
+| `GET /reports/{slug}/pdf` | serves | The whole report as an A4 PDF, printed per download; 403 until the reader unlocks |
+| `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook for both document types; syncs the Webflow Reports card or Insights article |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
 visitor reads while still in the tool, long before there is a submission to
@@ -195,7 +196,7 @@ completion opens its own session, so an uncommitted row is invisible to it.
 ## Gated insights reports (PRD 3)
 
 The business publishes a report in the Sanity Studio (`sanity/` at the repo
-root). The report then appears at `wusoolcapital.com/insights/<slug>` with
+root). The report then appears at `wusoolcapital.com/reports/<slug>` with
 the first page open and the rest behind one short form. There are three parts:
 
 - **Content.** `providers/sanity/report_source.py` reads the published report
@@ -218,6 +219,11 @@ the first page open and the rest behind one short form. There are three parts:
   dropped. The playbook renders in about 2.4 s and peaks at about 300 MB RAM.
   Hidden copies (`<template>`, `<noscript>`, `[hidden]`) are removed so
   they can't leak into the preview.
+- **Rich text reports.** Editors can write a report in the Studio instead of
+  pasting HTML. `providers/sanity/portable_text.py::rich_report` turns it into
+  a styled page (title, DM Sans, A4 print margins) and marks the gate at about
+  the first quarter, since it has no pages; the serializer keeps a mark it
+  finds. From there it follows the pasted path: render, gate, save, PDF.
 - **Gate.** `domain/insights_report/split.py` cuts between block elements,
   never at an inline tag, before page two, or at a text share when the renderer set no mark. `GET /reports/{slug}` never sends the
   rest to a new reader. `POST /reports/{slug}/unlock` records an
@@ -227,8 +233,15 @@ the first page open and the rest behind one short form. There are three parts:
   - Their first visit to a *different* report records one more run, keyed
     `<reader>:<slug>`, so every report read becomes one `activities` row
     for PRD 2.
+  - `GET /reports/{slug}/pdf` prints the stored `renderedHtml` to A4 on
+    each download, under the same Chromium lock, network block and 30 s cap
+    as the render; a download still queued at 30 s is a 503. Google Fonts
+    are the one exception to the block: the server fetches them from a fixed
+    host list and hands them to Chromium. It returns 403 without a reader
+    cookie, has its own per-IP budget (`LEAD_MAGNET_REPORT_DOWNLOADS_PER_HOUR`),
+    and records a run on another report's cookie the same way a page view does.
 - **Card.** `application/insights_report/sync.py`, triggered by the Sanity
-  webhook, creates or updates the Webflow Insights item with `gated = true`.
+  webhook, creates or updates the item in the Webflow Reports collection.
   The webhook replies 202 at once and syncs in the background, so Sanity
   never times out and retries mid-sync. A failed sync is only logged
   (`insights_report_sync_failed`); republishing the report repairs it.
@@ -236,10 +249,8 @@ the first page open and the rest behind one short form. There are three parts:
   Cards go live without a Publish in Webflow. A new card uses the live
   create; an existing one is written to its staged item, then published, since
   the live update 409s on a card an earlier sync unpublished.
-  - It never touches an item with `gated = false`. Every hand-written
-    article is ungated.
-  - The exceptions are the pin writes. Featuring a new report unpins the
-    current card only after the new one is live.
+  - Featuring a new report unpins the current card only after the new one
+    is live.
   - When nothing is left pinned, the newest live card is pinned, so the
     featured block never reads "No items found".
   - The pin moves only when the edit ticked or unticked it (`featuredChanged`
@@ -250,9 +261,43 @@ CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
 writes an **organisation and a person only**, with no role and no deal.
 `AttioRoleWriter.write_organization` links an existing org without patching
 it. The org domain comes from the reader's email unless the address is
-free-mail. No emails are sent (`email_dispatch.sends_emails`). The
+free-mail. The organisation is optional: when it is blank, only the person
+is written, and a failure raises so the sweeper retries it. No emails are sent (`email_dispatch.sends_emails`). The
 "Insights & Reports" option must exist on `lead_source_detail` in Attio
 before this ships.
+
+Who read which report, and when: every reader's first access to each report
+is one `tool_runs` row, with the report in its payload and the time in
+`started_at`. Repeat visits to the same report aren't recorded again.
+
+```sql
+SELECT started_at, payload->>'report_title' AS report, payload->>'slug' AS slug,
+       payload->>'name' AS name, payload->>'email' AS email, payload->>'company' AS company
+FROM tool_runs WHERE tool = 'insights_report' ORDER BY started_at DESC;
+```
+
+## Insights articles from Sanity
+
+The Studio's second type, `insights`, publishes ordinary (ungated) articles to
+the Webflow Insights collection. The same Sanity webhook carries it; the
+endpoint routes on the projected `type`.
+
+- **Content.** `providers/sanity/article_source.py` reads the article fresh
+  from the API host. Editors pick rich text or pasted HTML per article.
+  `providers/sanity/portable_text.py` turns Portable Text into the HTML
+  hand-written articles use, and passes every body through `nh3` with a tag
+  allow-list. This matters: Webflow's API stores script tags and
+  `javascript:` links verbatim (checked 2026-10-07).
+- **Item.** `application/insights_article/sync.py` creates, updates or
+  unpublishes the item via `providers/webflow/insights_cms.py`. Items it
+  creates carry `sanity-managed`; it never updates or unpublishes one
+  without it, so a slug clash with a hand-written article is skipped and
+  logged (`insights_article_sync_skipped_unmanaged`). It never writes
+  `featured` or `hide-from-listings`. Content type, silo and author are
+  resolved to Webflow ids by name; an unknown content type fails the sync.
+- **Plumbing.** `providers/webflow/collection.py` holds the Webflow API code
+  both providers share: live create, staged update then publish, unpublish,
+  and option lookups.
 
 ## The write contract
 
@@ -616,9 +661,8 @@ WHERE status = 'succeeded' AND person_attio_id IS NULL
 ## Not built yet
 
 - Gated reports verified live. Not yet checked:
-  - that a live-API Webflow item shows on `/insights` without a site
+  - that a live-API Webflow item shows on `/reports` without a site
     publish;
-  - that the Insights template hides the body when Gated is on;
   - the first-page cut against the real "Buyouts in the GCC" playbook.
 
 - `POST /buyer/apply` and `POST /submit-lead` verified against a real

@@ -82,7 +82,8 @@ async () => {
       }
     }
   }
-  markGate(0);
+  // A rich text report arrives with its own mark; only an export needs one placed.
+  if (!document.querySelector('[data-wusool-gate]')) markGate(0);
   return '<!DOCTYPE html>' + document.documentElement.outerHTML;
 }
 

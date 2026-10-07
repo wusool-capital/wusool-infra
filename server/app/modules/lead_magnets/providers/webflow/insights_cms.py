@@ -1,310 +1,140 @@
-"""Webflow implementation of `InsightsCmsPort` — the `/insights` listing card.
+"""Webflow implementation of `ArticlesCmsPort` — Insights articles published
+from Sanity, alongside the hand-written ones in the same collection.
 
-Field slugs are the live Insights collection's own (read through the
-Webflow API, 2026-10-05). Option and Team ids are resolved by name at sync
-time, never hardcoded, so renaming an author in Webflow doesn't break this.
-
-Cards reach the live site without a Designer publish. A card update is written
-to the staged item and then published, because the `/live` update 409s
-("Item not published") on a card an earlier sync unpublished.
+Every item it creates carries `sanity-managed`, and it updates or unpublishes
+only those, so a hand-written article is never overwritten. It never writes
+`featured` or `hide-from-listings`: pins on `/insights` stay a Webflow job.
+Option, author and silo ids are resolved by name at sync time.
 """
 
 import logging
-from html import escape
+from dataclasses import dataclass
 
-import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.modules.lead_magnets.domain.insights_report.report import (
-    CmsItem,
-    ReportDocument,
-    reading_time,
+from app.modules.lead_magnets.domain.insights_article.article import ArticleDocument, CmsItem
+from app.modules.lead_magnets.domain.insights_report.report import reading_time, word_count
+from app.modules.lead_magnets.providers.webflow.collection import (
+    Image,
+    WebflowCollection,
 )
 
 logger = logging.getLogger(__name__)
 
-_API = "https://api.webflow.com/v2"
-_PAGE = 100
-_REPORT_CONTENT_TYPE = "Report"
-# Webflow fetches the image itself and rejects anything over 4MB.
-_COVER_PARAMS = "?w=1600&fm=jpg"
 
-
-class _Option(BaseModel):
-    id: str
-    name: str
-
-
-class _Validations(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    options: list[_Option] = []
-    collection_id: str | None = Field(default=None, alias="collectionId")
-
-
-class _CollectionField(BaseModel):
-    slug: str
-    validations: _Validations | None = None
-
-
-class _Collection(BaseModel):
-    fields: list[_CollectionField]
-
-
-class _ItemFields(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    name: str | None = None
-    slug: str | None = None
-    gated: bool | None = None
-    featured: bool | None = None
-    published_date: str | None = Field(default=None, alias="published-date")
-
-
-class _Item(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    id: str
-    field_data: _ItemFields = Field(alias="fieldData")
-
-
-class _Pagination(BaseModel):
-    total: int
-
-
-class _ItemList(BaseModel):
-    items: list[_Item]
-    pagination: _Pagination
-
-
-class _Image(BaseModel):
-    url: str
-    alt: str
-
-
-class InsightFieldData(BaseModel):
-    """The card written for a gated report. Required Webflow fields:
-    `name`, `slug`, `content-type`, `body-content` and `excerpt`."""
+class ArticleFieldData(BaseModel):
+    """Required Webflow fields: `name`, `slug`, `content-type`, `body-content` and `excerpt`."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     name: str
     slug: str
     content_type: str = Field(alias="content-type")
-    gated: bool = True
-    featured: bool | None = None
     excerpt: str
-    # Required by Webflow; the template hides it on gated items, where the report replaces it.
     body_content: str = Field(alias="body-content")
-    # The template's <title> and meta tags bind these, so they must never be blank.
+    key_takeaways: str | None = Field(default=None, alias="key-takeaways")
+    faq_content: str | None = Field(default=None, alias="faq-content")
+    h1_tag: str = Field(alias="h1-tag")
+    # The template's <title> and meta tags bind these, so they fall back to the title and excerpt.
     seo_title: str = Field(alias="seo-title")
     seo_description: str = Field(alias="seo-description")
     og_title: str = Field(alias="og-title")
+    target_keyword: str | None = Field(default=None, alias="target-keyword")
     reading_time: str = Field(alias="reading-time")
+    word_count: int = Field(alias="word-count")
     published_date: str | None = Field(default=None, alias="published-date")
     last_updated: str | None = Field(default=None, alias="last-updated")
-    featured_image: _Image | None = Field(default=None, alias="featured-image")
-    og_image: _Image | None = Field(default=None, alias="og-image")
+    featured_image: Image | None = Field(default=None, alias="featured-image")
+    og_image: Image | None = Field(default=None, alias="og-image")
     author: str | None = None
     primary_silo: str | None = Field(default=None, alias="primary-silo")
     # Omitted when unset, like every optional field: the API documents no way to clear one.
     cta_text: str | None = Field(default=None, alias="cta-text")
     cta_url: str | None = Field(default=None, alias="cta-url")
+    sanity_managed: bool = Field(default=True, alias="sanity-managed")
 
 
-class _FeaturedPatch(BaseModel):
-    featured: bool
+@dataclass(frozen=True)
+class _Ids:
+    """Webflow ids by name, resolved once per sync."""
 
-
-class _Publish(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    item_ids: list[str] = Field(alias="itemIds")
-
-
-class _Published(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    published_item_ids: list[str] = Field(default=[], alias="publishedItemIds")
-
-
-class _Created(BaseModel):
-    id: str
-
-
-class _ItemWrite(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    # Omitted on pin writes: they must not change a hand-written article's draft state.
-    is_draft: bool | None = Field(default=None, alias="isDraft")
-    field_data: InsightFieldData | _FeaturedPatch = Field(alias="fieldData")
-
-
-class _Schema(BaseModel):
-    report_option_id: str
-    silo_ids: dict[str, str]
-    author_ids: dict[str, str]
+    content_types: dict[str, str]
+    silos: dict[str, str]
+    authors: dict[str, str]
 
 
 class WebflowInsightsCms:
     def __init__(self, *, token: str, collection_id: str, timeout_s: float = 15.0) -> None:
-        self._headers = {"Authorization": f"Bearer {token}", "accept": "application/json"}
-        self._collection_id = collection_id
-        self._timeout_s = timeout_s
-        self._schema: _Schema | None = None
+        self._collection = WebflowCollection(
+            token=token, collection_id=collection_id, timeout_s=timeout_s
+        )
+        self._ids: _Ids | None = None
 
     async def find(self, slug: str) -> CmsItem | None:
-        # Staged items, so an unpublished card is reused rather than clashing on slug.
-        page = await self._list(f"/collections/{self._collection_id}/items", slug=slug)
-        # Checked here, not trusted: a loose filter must never hand back another card to overwrite.
-        item = next((i for i in page.items if i.field_data.slug == slug), None)
+        item = await self._collection.find(slug)
         if item is None:
             return None
-        return CmsItem(id=item.id, gated=bool(item.field_data.gated))
+        return CmsItem(id=item.id, managed=bool(item.field_data.sanity_managed))
 
-    async def create(self, report: ReportDocument, *, featured: bool | None) -> str:
-        body = _ItemWrite(is_draft=False, field_data=await self.field_data(report, featured))
-        response = await self._request(
-            "POST", f"/collections/{self._collection_id}/items/live", body=body
-        )
-        return _Created.model_validate_json(response.content).id
+    async def create(self, article: ArticleDocument) -> str:
+        return await self._collection.create_live(await self.field_data(article))
 
-    async def update(self, item_id: str, report: ReportDocument, *, featured: bool | None) -> None:
-        body = _ItemWrite(is_draft=False, field_data=await self.field_data(report, featured))
-        await self._request(
-            "PATCH", f"/collections/{self._collection_id}/items/{item_id}", body=body
-        )
-        response = await self._request(
-            "POST",
-            f"/collections/{self._collection_id}/items/publish",
-            body=_Publish(item_ids=[item_id]),
-        )
-        # Per-item failures come back in a 202, not as an HTTP error.
-        if item_id not in _Published.model_validate_json(response.content).published_item_ids:
-            raise RuntimeError(f"Webflow did not publish item {item_id}")
+    async def update(self, item_id: str, article: ArticleDocument) -> None:
+        await self._collection.update_and_publish(item_id, await self.field_data(article))
 
     async def unpublish(self, item_id: str) -> None:
-        try:
-            await self._request(
-                "DELETE", f"/collections/{self._collection_id}/items/{item_id}/live"
-            )
-        except httpx.HTTPStatusError as error:
-            # Already off the live site, e.g. an earlier sync unpublished it.
-            if error.response.status_code != 404:
-                raise
+        await self._collection.unpublish(item_id)
 
-    async def featured_ids(self) -> list[str]:
-        return [item.id for item in await self._live_items() if item.field_data.featured]
-
-    async def newest_id(self, *, excluding: str | None = None) -> str | None:
-        dated = [
-            item
-            for item in await self._live_items()
-            if item.field_data.published_date and item.id != excluding
-        ]
-        if not dated:
-            return None
-        return max(dated, key=lambda item: item.field_data.published_date or "").id
-
-    async def feature(self, item_id: str) -> None:
-        await self._pin(item_id, featured=True)
-
-    async def unfeature(self, item_id: str) -> None:
-        await self._pin(item_id, featured=False)
-
-    async def _pin(self, item_id: str, *, featured: bool) -> None:
-        await self._request(
-            "PATCH",
-            f"/collections/{self._collection_id}/items/{item_id}/live",
-            body=_ItemWrite(field_data=_FeaturedPatch(featured=featured)),
-        )
-
-    async def _live_items(self) -> list[_Item]:
-        items: list[_Item] = []
-        offset = 0
-        while True:
-            page = await self._list(f"/collections/{self._collection_id}/items/live", offset=offset)
-            items += page.items
-            offset += _PAGE
-            if offset >= page.pagination.total:
-                return items
-
-    async def field_data(
-        self, report: ReportDocument, featured: bool | None = None
-    ) -> InsightFieldData:
-        """`featured` `None` leaves the card's pin untouched (omitted from the write)."""
-        schema = await self._load_schema()
-        cover = (
-            _Image(url=report.cover_url + _COVER_PARAMS, alt=report.title)
-            if report.cover_url
-            else None
-        )
-        author = schema.author_ids.get(report.author or "")
-        silo = schema.silo_ids.get(report.silo or "")
-        if report.author and author is None:
-            logger.warning("insights_report_unknown_author author=%s", report.author)
-        if report.silo and silo is None:
-            logger.warning("insights_report_unknown_silo silo=%s", report.silo)
-        return InsightFieldData(
-            name=report.title,
-            slug=report.slug,
-            content_type=schema.report_option_id,
-            featured=featured,
-            excerpt=report.excerpt,
-            body_content=f"<p>{escape(report.excerpt)}</p>",
-            seo_title=report.title,
-            seo_description=report.excerpt,
-            og_title=report.title,
-            reading_time=reading_time(report.html),
-            published_date=report.published_at,
-            last_updated=report.updated_at,
+    async def field_data(self, article: ArticleDocument) -> ArticleFieldData:
+        ids = await self._load_ids()
+        content_type = ids.content_types.get(article.content_type)
+        if content_type is None:
+            # Required by Webflow; failing here names the cause instead of a bare 400.
+            raise ValueError(f"unknown Insights content type {article.content_type!r}")
+        silo = ids.silos.get(article.silo or "")
+        author = ids.authors.get(article.author or "")
+        if article.silo and silo is None:
+            logger.warning("insights_article_unknown_silo silo=%s", article.silo)
+        if article.author and author is None:
+            logger.warning("insights_article_unknown_author author=%s", article.author)
+        cover = Image(url=article.cover_url, alt=article.title) if article.cover_url else None
+        return ArticleFieldData(
+            name=article.title,
+            slug=article.slug,
+            content_type=content_type,
+            excerpt=article.excerpt,
+            body_content=article.body_html,
+            key_takeaways=_headed(article.key_takeaways_html, "Key Takeaways"),
+            faq_content=_headed(article.faq_html, "FAQ"),
+            h1_tag=article.h1 or article.title,
+            seo_title=article.seo_title or article.title,
+            seo_description=article.seo_description or article.excerpt,
+            og_title=article.og_title or article.title,
+            target_keyword=article.target_keyword,
+            reading_time=reading_time(article.body_html),
+            word_count=word_count(article.body_html),
+            published_date=article.published_at,
+            last_updated=article.updated_at,
             featured_image=cover,
             og_image=cover,
             author=author,
             primary_silo=silo,
-            cta_text=report.cta_text,
-            cta_url=report.cta_url,
+            cta_text=article.cta_text,
+            cta_url=article.cta_url,
         )
 
-    async def _load_schema(self) -> _Schema:
-        if self._schema is not None:
-            return self._schema
-        response = await self._request("GET", f"/collections/{self._collection_id}")
-        fields = {
-            f.slug: f.validations or _Validations()
-            for f in _Collection.model_validate_json(response.content).fields
-        }
-        content_types = {o.name: o.id for o in fields["content-type"].options}
-        silo_ids = {o.name: o.id for o in fields["primary-silo"].options}
-        author_ids: dict[str, str] = {}
-        if team_collection := fields["author"].collection_id:
-            team = await self._list(f"/collections/{team_collection}/items")
-            author_ids = {i.field_data.name: i.id for i in team.items if i.field_data.name}
-        self._schema = _Schema(
-            report_option_id=content_types[_REPORT_CONTENT_TYPE],
-            silo_ids=silo_ids,
-            author_ids=author_ids,
-        )
-        return self._schema
+    async def _load_ids(self) -> _Ids:
+        if self._ids is None:
+            self._ids = _Ids(
+                content_types=await self._collection.options("content-type"),
+                silos=await self._collection.options("primary-silo"),
+                authors=await self._collection.referenced_ids("author"),
+            )
+        return self._ids
 
-    async def _list(self, path: str, *, offset: int = 0, slug: str | None = None) -> _ItemList:
-        params: dict[str, str | int] = {"limit": _PAGE, "offset": offset}
-        if slug is not None:
-            params["slug"] = slug
-        response = await self._request("GET", path, params=params)
-        return _ItemList.model_validate_json(response.content)
 
-    async def _request(
-        self,
-        method: str,
-        path: str,
-        *,
-        params: dict[str, str | int] | None = None,
-        body: _ItemWrite | _Publish | None = None,
-    ) -> httpx.Response:
-        content = body.model_dump_json(by_alias=True, exclude_none=True) if body else None
-        headers = {**self._headers, "content-type": "application/json"} if body else self._headers
-        async with httpx.AsyncClient(timeout=self._timeout_s, headers=headers) as client:
-            response = await client.request(method, _API + path, params=params, content=content)
-        response.raise_for_status()
-        return response
+def _headed(html: str | None, heading: str) -> str | None:
+    """The template shows these fields bare; hand-written articles open each with its own h2."""
+    if html is None or html.lstrip().startswith("<h2"):
+        return html
+    return f"<h2>{heading}</h2>{html}"
