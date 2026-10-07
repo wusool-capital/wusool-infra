@@ -26,6 +26,8 @@ class ReportDocument:
     slug: str
     title: str
     html: str
+    # The published Sanity document id; pins are matched by id, since a draft can rename the slug.
+    document_id: str
     excerpt: str | None = None
     # Where the free preview ends in `html`; set at publish, so readers never re-split.
     preview_end: int = 0
@@ -43,6 +45,14 @@ class ReportDocument:
     def pins(self) -> list[Pin]:
         held: list[tuple[Pin, bool]] = [("featured", self.featured), ("banner", self.banner_pinned)]
         return [pin for pin, on in held if on]
+
+
+@dataclass(frozen=True)
+class LostPins:
+    """Pins just unticked on another report, which its Webflow card must drop too."""
+
+    slug: str
+    pins: tuple[Pin, ...]
 
 
 @dataclass(frozen=True)

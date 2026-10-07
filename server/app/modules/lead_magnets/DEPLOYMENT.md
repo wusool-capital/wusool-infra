@@ -216,8 +216,9 @@ needed per report:
    **Pin to banner** switch (`pin-to-banner`, added 2026-10-07), set only by
    the sync. On the home page, a sticky `div.latest-read` (no height or
    background, so it collapses when empty) holds a Collection List bound to
-   Reports. The list is filtered to **Pin to banner** on, with a limit of 1
-   and the empty state hidden. The Collection Item is the visible bar,
+   Reports. The list is filtered to **Pin to banner** on and sorted by
+   **Published Date** (newest), with a limit of 1 and the empty state hidden.
+   The sort means a pin briefly held twice still shows the newer report. The Collection Item is the visible bar,
    reading "Just released: {Name}. Get the playbook →" and linked to the
    report. Its Embed draws the blue flow and the close button, which
    remembers the dismissed slug in `localStorage`.

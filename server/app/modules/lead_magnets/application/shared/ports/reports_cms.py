@@ -19,6 +19,6 @@ class ReportsCmsPort(Protocol):
 
     async def unpublish(self, item_id: str) -> None: ...
 
-    async def unpin(self, item_id: str, pin: Pin) -> None:
-        """Clears `pin` on the live card only; the card is otherwise left as it is."""
+    async def unpin(self, item_id: str, pins: tuple[Pin, ...]) -> None:
+        """Clears `pins` on the live card only; the card is otherwise left as it is."""
         ...

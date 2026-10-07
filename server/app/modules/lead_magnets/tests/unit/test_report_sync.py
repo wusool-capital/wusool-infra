@@ -5,6 +5,7 @@ import pytest
 
 from app.modules.lead_magnets.application.insights_report.sync import ReportSync
 from app.modules.lead_magnets.domain.insights_report.report import (
+    LostPins,
     ReportDocument,
     ReportSource,
     fingerprint,
@@ -16,6 +17,7 @@ def _report(
     slug: str = "buyouts-in-the-gcc", *, featured: bool = False, banner_pinned: bool = False
 ) -> ReportDocument:
     return ReportDocument(
+        document_id="doc-1",
         slug=slug,
         title="Buyouts",
         html="<p>x</p>",
@@ -35,7 +37,7 @@ class _FakeSource:
         self.saved: list[tuple[str, str, int, str]] = []
         # Per pin, the slugs of the other reports still ticked in Sanity.
         self.ticked: dict[str, list[str]] = {"featured": [], "banner": []}
-        self.unpinned: list[tuple[str, str, str | None]] = []
+        self.unpinned: list[tuple[tuple[str, ...], str, str | None]] = []
 
     async def get(self, slug: str) -> ReportDocument | None:
         raise AssertionError("the sync must read fresh, never the cached copy")
@@ -63,11 +65,14 @@ class _FakeSource:
         self.saved.append((source.document_id, html, preview_end, rendered_from))
         return True
 
-    async def unpin_others(self, pin, slug: str, *, pinned_at: str | None) -> list[str]:
-        self.unpinned.append((pin, slug, pinned_at))
-        others = [s for s in self.ticked[pin] if s != slug]
-        self.ticked[pin] = []
-        return others
+    async def unpin_others(self, pins, document_id: str, *, pinned_at: str | None):
+        self.unpinned.append((tuple(pins), document_id, pinned_at))
+        lost: dict[str, list[str]] = {}
+        for pin in pins:
+            for slug in self.ticked[pin]:
+                lost.setdefault(slug, []).append(pin)
+            self.ticked[pin] = []
+        return [LostPins(slug=slug, pins=tuple(p)) for slug, p in sorted(lost.items())]
 
 
 class _FakeRenderer:
@@ -110,8 +115,8 @@ class _FakeCms:
     async def unpublish(self, item_id: str) -> None:
         self.calls.append(("unpublish", item_id))
 
-    async def unpin(self, item_id: str, pin) -> None:
-        self.calls.append((f"unpin {pin}", item_id))
+    async def unpin(self, item_id: str, pins) -> None:
+        self.calls.append((f"unpin {' '.join(pins)}", item_id))
 
 
 async def test_a_new_report_creates_its_card() -> None:
@@ -138,7 +143,7 @@ async def test_a_pinned_report_unpins_the_others_in_sanity_and_webflow() -> None
     await _sync(source=source, cms=cms).sync(slug="x", previous_slug="x")
 
     assert cms.calls == [("update", "item-x"), ("unpin featured", "item-y")]
-    assert [pin for pin, _, _ in source.unpinned] == ["featured"], "the banner is untouched"
+    assert [pins for pins, _, _ in source.unpinned] == [("featured",)], "the banner is untouched"
 
 
 async def test_both_pins_move_together_when_one_report_holds_both() -> None:
@@ -153,6 +158,17 @@ async def test_both_pins_move_together_when_one_report_holds_both() -> None:
         ("unpin featured", "item-y"),
         ("unpin banner", "item-z"),
     ]
+
+
+async def test_a_report_losing_both_pins_has_its_card_unpinned_once() -> None:
+    source = _FakeSource(_report("x", featured=True, banner_pinned=True))
+    source.ticked = {"featured": ["y"], "banner": ["y"]}
+    cms = _FakeCms({"x": "item-x", "y": "item-y"})
+
+    await _sync(source=source, cms=cms).sync(slug="x", previous_slug="x")
+
+    assert cms.calls == [("update", "item-x"), ("unpin featured banner", "item-y")]
+    assert len(source.unpinned) == 1, "one Sanity transaction for both pins"
 
 
 async def test_pinning_a_new_report_unpins_the_others_after_its_card_is_live() -> None:
@@ -189,11 +205,16 @@ async def test_every_sync_writes_the_pins_as_sanity_has_them() -> None:
 
 async def test_the_unpin_passes_the_reports_edit_time_so_the_later_pin_wins() -> None:
     report = ReportDocument(
-        slug="x", title="X", html="<p>x</p>", featured=True, updated_at="2026-10-07T10:00:00Z"
+        document_id="doc-1",
+        slug="x",
+        title="X",
+        html="<p>x</p>",
+        featured=True,
+        updated_at="2026-10-07T10:00:00Z",
     )
     source = _FakeSource(report)
     await _sync(source=source, cms=_FakeCms({"x": "item-x"})).sync(slug="x", previous_slug="x")
-    assert source.unpinned == [("featured", "x", "2026-10-07T10:00:00Z")]
+    assert source.unpinned == [(("featured",), "doc-1", "2026-10-07T10:00:00Z")]
 
 
 async def test_renaming_a_pinned_report_keeps_its_pins() -> None:

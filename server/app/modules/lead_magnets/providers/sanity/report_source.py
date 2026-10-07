@@ -23,6 +23,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report import (
+    LostPins,
     Pin,
     ReportDocument,
     ReportSource,
@@ -37,18 +38,18 @@ _CACHE_TTL_S = 300
 _CACHE_MAX = 512
 _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
-    '"slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
+    '_id, "slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
     'featured, bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url}'
 )
 # Raw perspective so open drafts are unticked too; publishing one must not re-pin it.
+# Release versions are left alone: they are the editor's staged content, not live state.
 _PINNED_QUERY = (
-    '*[_type == "report" && {field} == true && slug.current != $slug'
+    '*[_type == "report" && (featured == true || bannerPinned == true)'
+    ' && !(_id in [$id, "drafts." + $id]) && !(_id in path("versions.**"))'
     " && ($pinnedAt == null || dateTime(_updatedAt) <= dateTime($pinnedAt))]"
-    '{{_id, "slug": slug.current}}'
+    '{_id, "slug": slug.current, featured, bannerPinned}'
 )
-# The Sanity field behind each pin; GROQ can't take a field name as a parameter.
-_PIN_FIELD: dict[Pin, str] = {"featured": "featured", "banner": "bannerPinned"}
 _SOURCE_QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
     '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom}'
@@ -58,6 +59,7 @@ _SOURCE_QUERY = (
 class _SanityReport(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
+    id: str = Field(alias="_id")
     slug: str
     title: str
     html: str | None = None
@@ -100,6 +102,12 @@ class _Pinned(BaseModel):
 
     id: str = Field(alias="_id")
     slug: str | None = None
+    featured: bool | None = None
+    banner_pinned: bool | None = Field(default=None, alias="bannerPinned")
+
+    def held(self, pins: list[Pin]) -> tuple[Pin, ...]:
+        on: dict[Pin, bool] = {"featured": bool(self.featured), "banner": bool(self.banner_pinned)}
+        return tuple(pin for pin in pins if on[pin])
 
 
 class _PinnedResponse(BaseModel):
@@ -107,18 +115,19 @@ class _PinnedResponse(BaseModel):
 
 
 class _Unpinned(BaseModel):
-    """Clears one pin; the other is omitted (`exclude_none`) so it is left alone."""
+    """Clears the given pins; the rest are omitted (`exclude_none`) so they are left alone."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     featured: bool | None = None
     banner_pinned: bool | None = Field(default=None, alias="bannerPinned")
 
-
-_UNPIN: dict[Pin, _Unpinned] = {
-    "featured": _Unpinned(featured=False),
-    "banner": _Unpinned(banner_pinned=False),
-}
+    @classmethod
+    def of(cls, pins: tuple[Pin, ...]) -> "_Unpinned":
+        return cls(
+            featured=False if "featured" in pins else None,
+            banner_pinned=False if "banner" in pins else None,
+        )
 
 
 class _RenderedFields(BaseModel):
@@ -170,7 +179,7 @@ class SanityReportSource:
         return self._store(slug, await self._fetch(self._api_url, slug))
 
     async def source(self, slug: str) -> ReportSource | None:
-        response = await self._get(self._api_url, _SOURCE_QUERY, slug)
+        response = await self._get(self._api_url, _SOURCE_QUERY, slug=slug)
         doc = _SourceResponse.model_validate_json(response.content).result
         if doc is None:
             return None
@@ -194,25 +203,32 @@ class SanityReportSource:
         response.raise_for_status()
         return True
 
-    async def unpin_others(self, pin: Pin, slug: str, *, pinned_at: str | None) -> list[str]:
-        async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-            found = await client.get(
-                self._api_url,
-                params={
-                    "query": _PINNED_QUERY.format(field=_PIN_FIELD[pin]),
-                    "$slug": json.dumps(slug),
-                    "$pinnedAt": json.dumps(pinned_at),
-                    "perspective": "raw",
-                },
-                headers={"Authorization": f"Bearer {self._write_token}"},
-            )
-        found.raise_for_status()
-        pinned = _PinnedResponse.model_validate_json(found.content).result
-        if not pinned:
+    async def unpin_others(
+        self, pins: list[Pin], document_id: str, *, pinned_at: str | None
+    ) -> list[LostPins]:
+        found = await self._get(
+            self._api_url, _PINNED_QUERY, raw=True, id=document_id, pinnedAt=pinned_at
+        )
+        losers = [
+            (doc, lost)
+            for doc in _PinnedResponse.model_validate_json(found.content).result
+            if (lost := doc.held(pins))
+        ]
+        if not losers:
             return []
-        patches = [_PatchMutation(patch=_Patch(id=p.id, set_=_UNPIN[pin])) for p in pinned]
+        patches = [
+            _PatchMutation(patch=_Patch(id=doc.id, set_=_Unpinned.of(lost))) for doc, lost in losers
+        ]
         (await self._mutate(_Mutations(mutations=patches))).raise_for_status()
-        return sorted({p.slug for p in pinned if p.slug})
+        # A draft and its published report share a slug, hence a card: merge their pins.
+        by_slug: dict[str, set[Pin]] = {}
+        for doc, lost in losers:
+            if doc.slug:
+                by_slug.setdefault(doc.slug, set()).update(lost)
+        return [
+            LostPins(slug=slug, pins=tuple(p for p in pins if p in lost))
+            for slug, lost in sorted(by_slug.items())
+        ]
 
     async def _mutate(self, body: _Mutations) -> httpx.Response:
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
@@ -232,14 +248,22 @@ class SanityReportSource:
         self._cache[slug] = (time.monotonic() + _CACHE_TTL_S, report)
         return report
 
-    async def _get(self, url: str, query: str, slug: str) -> httpx.Response:
+    async def _get(
+        self, url: str, query: str, *, raw: bool = False, **params: str | None
+    ) -> httpx.Response:
+        """`raw` reads drafts too, which needs the token."""
+        query_params = {"query": query} | {f"${k}": json.dumps(v) for k, v in params.items()}
+        headers: dict[str, str] = {}
+        if raw:
+            query_params["perspective"] = "raw"
+            headers["Authorization"] = f"Bearer {self._write_token}"
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-            response = await client.get(url, params={"query": query, "$slug": json.dumps(slug)})
+            response = await client.get(url, params=query_params, headers=headers)
         response.raise_for_status()
         return response
 
     async def _fetch(self, url: str, slug: str) -> ReportDocument | None:
-        response = await self._get(url, _QUERY, slug)
+        response = await self._get(url, _QUERY, slug=slug)
         doc = _QueryResponse.model_validate_json(response.content).result
         if doc is None or doc.html is None or doc.preview_end is None:
             return None
@@ -247,6 +271,7 @@ class SanityReportSource:
             slug=doc.slug,
             title=doc.title,
             html=doc.html,
+            document_id=doc.id,
             preview_end=doc.preview_end,
             excerpt=doc.excerpt,
             published_at=doc.published_at,

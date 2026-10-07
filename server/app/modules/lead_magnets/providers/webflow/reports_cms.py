@@ -48,18 +48,19 @@ class ReportFieldData(BaseModel):
 
 
 class _PinPatch(BaseModel):
-    """Clears one pin; the other is omitted (`exclude_none`) so it is left alone."""
+    """Clears the given pins; the rest are omitted (`exclude_none`) so they are left alone."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     featured: bool | None = None
     pin_to_banner: bool | None = Field(default=None, alias="pin-to-banner")
 
-
-_UNPIN: dict[Pin, _PinPatch] = {
-    "featured": _PinPatch(featured=False),
-    "banner": _PinPatch(pin_to_banner=False),
-}
+    @classmethod
+    def of(cls, pins: tuple[Pin, ...]) -> "_PinPatch":
+        return cls(
+            featured=False if "featured" in pins else None,
+            pin_to_banner=False if "banner" in pins else None,
+        )
 
 
 class WebflowReportsCms:
@@ -82,13 +83,18 @@ class WebflowReportsCms:
     async def unpublish(self, item_id: str) -> None:
         await self._collection.unpublish(item_id)
 
-    async def unpin(self, item_id: str, pin: Pin) -> None:
+    async def unpin(self, item_id: str, pins: tuple[Pin, ...]) -> None:
         try:
-            await self._collection.patch_live(item_id, _UNPIN[pin])
+            await self._collection.patch_live(item_id, _PinPatch.of(pins))
         except httpx.HTTPStatusError as error:
             # Not live, so it shows no pin; its next sync rewrites the staged value.
             if error.response.status_code not in (404, 409):
                 raise
+            logger.info(
+                "insights_report_unpin_skipped item=%s status=%s",
+                item_id,
+                error.response.status_code,
+            )
 
     async def field_data(self, report: ReportDocument) -> ReportFieldData:
         if self._silo_ids is None:

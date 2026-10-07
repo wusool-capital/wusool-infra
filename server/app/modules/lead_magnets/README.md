@@ -264,9 +264,12 @@ the first page open and the rest behind one short form. There are three parts:
   - Two pins, `featured` (top of `/reports`) and `bannerPinned` -> Webflow
     `pin-to-banner` (home page bar), are level-triggered. Every sync writes
     the report's own ticks.
-  - Taking a pin unticks it on the other reports in Sanity (drafts included)
-    and Webflow, only after this card is live. A stale tick never exists, and
-    a failed sync is repaired by the next one.
+  - Taking a pin unticks it on the other reports in Sanity (drafts included,
+    release versions left alone) and Webflow, only after this card is live.
+    Sanity goes first, in one transaction for every pin. Each loser's own
+    webhook then repairs a Webflow unpin that failed. Reports are matched by
+    document id, so this report's own draft is never unticked, even with a
+    renamed slug.
   - Only reports last edited no later than this one are unticked, so the
     later of two simultaneous pins wins. Each untick's own webhook re-syncs
     that report.

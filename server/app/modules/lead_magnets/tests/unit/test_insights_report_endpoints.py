@@ -30,6 +30,7 @@ from app.modules.lead_magnets.persistence.unlock_challenges import InMemoryUnloc
 _REST = "GATED-REST-OF-THE-REPORT"
 _HTML = "".join(f"<p>part {n} " + "word " * 50 + "</p>" for n in range(3)) + f"<p>{_REST}</p>"
 _REPORT = ReportDocument(
+    document_id="doc-1",
     slug="buyouts-in-the-gcc",
     title="Buyouts in the GCC",
     html=_HTML,
@@ -37,7 +38,12 @@ _REPORT = ReportDocument(
     preview_end=len(split_report(_HTML, share=0.25)[0]),
 )
 _OTHER = ReportDocument(
-    slug="other-report", title="Other", html=_HTML, excerpt="E", preview_end=_REPORT.preview_end
+    document_id="doc-1",
+    slug="other-report",
+    title="Other",
+    html=_HTML,
+    excerpt="E",
+    preview_end=_REPORT.preview_end,
 )
 _SECRET = "s3cret"
 

@@ -66,11 +66,16 @@ class ReportSync:
         else:
             await self._cms.update(card_id, report)
 
-        # After this card is live, so a failed write never empties a pin.
-        for pin in report.pins:
-            for other in await self._source.unpin_others(pin, slug, pinned_at=report.updated_at):
-                if other_id := await self._cms.find(other):
-                    await self._cms.unpin(other_id, pin)
+        if not report.pins:
+            return
+        # After this card is live, so a failed write never empties a pin. Sanity is
+        # unticked first: each loser's own webhook then repairs a failed Webflow unpin.
+        lost = await self._source.unpin_others(
+            report.pins, report.document_id, pinned_at=report.updated_at
+        )
+        for other in lost:
+            if other_id := await self._cms.find(other.slug):
+                await self._cms.unpin(other_id, other.pins)
 
     async def _unpublish(self, slug: str) -> None:
         if card_id := await self._cms.find(slug):
