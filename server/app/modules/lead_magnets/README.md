@@ -261,13 +261,21 @@ the first page open and the rest behind one short form. There are three parts:
   Cards go live without a Publish in Webflow. A new card uses the live
   create; an existing one is written to its staged item, then published, since
   the live update 409s on a card an earlier sync unpublished.
-  - Featuring a new report unpins the current card only after the new one
-    is live.
-  - When nothing is left pinned, the newest live card is pinned, so the
-    featured block never reads "No items found".
-  - The pin moves only when the edit ticked or unticked it (`featuredChanged`
-    in the webhook projection). Otherwise a typo fix on an older, still-ticked
-    report would take the pin back.
+  - Two pins, `featured` (top of `/reports`) and `bannerPinned` -> Webflow
+    `pin-to-banner` (home page bar), are level-triggered. Every sync writes
+    the report's own ticks.
+  - Taking a pin unticks it on the other reports in Sanity (drafts included,
+    release versions left alone) and Webflow, only after this card is live.
+    Sanity goes first, in one transaction for every pin. Each loser's own
+    webhook then repairs a Webflow unpin that failed. Reports are matched by
+    document id, so this report's own draft is never unticked, even with a
+    renamed slug.
+  - Only reports last edited no later than this one are unticked, so the
+    later of two simultaneous pins wins. Each untick's own webhook re-syncs
+    that report.
+  - The server never refills an empty pin. The `/reports` featured block
+    sorts **Featured** on first, then newest, with a limit of 1. The banner
+    list shows nothing.
 
 CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
 writes an **organisation and a person only**, with no role and no deal.
