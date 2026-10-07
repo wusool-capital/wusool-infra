@@ -75,6 +75,7 @@ async function submitGateForm(e){
     }
     pendingPayload=payload;
     form.classList.add("hide");
+    document.getElementById("gate-lede").classList.add("hide");
     document.getElementById("code-email").textContent=payload.email;
     document.getElementById("code-form").classList.remove("hide");
     document.getElementById("code").focus({preventScroll:true});
@@ -151,6 +152,7 @@ function changeEmail(){
   hideCodeErrors();
   document.getElementById("code-form").classList.add("hide");
   document.getElementById("gate-form").classList.remove("hide");
+  document.getElementById("gate-lede").classList.remove("hide");
   document.getElementById("email").focus({preventScroll:true});
 }
 

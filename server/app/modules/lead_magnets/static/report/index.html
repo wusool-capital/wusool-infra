@@ -20,7 +20,7 @@
   <div class="card">
     <div class="eyebrow">Free report</div>
     <h2>Keep reading</h2>
-    <p class="lede">Tell us who you are and the full report opens right here.</p>
+    <p class="lede" id="gate-lede">Tell us who you are and the full report opens right here.</p>
     <form id="gate-form" novalidate>
       <div class="grid">
         <div class="fg"><label for="name">Full name *</label><input class="fi" type="text" id="name" name="name" autocomplete="name" placeholder="Jane Doe" maxlength="200" required></div>
@@ -61,7 +61,7 @@
 </div>
 
 <script src="../shared/submission-id.js?v=1"></script>
-<script src="10-main.js?v=9" onerror="window.__lmFail=1"></script>
+<script src="10-main.js?v=10" onerror="window.__lmFail=1"></script>
 <script src="../shared/height.js?v=3"></script>
 <script>
   if(window.__lmFail || typeof submitGateForm!=="function"){
