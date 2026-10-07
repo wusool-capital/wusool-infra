@@ -252,6 +252,21 @@ async def test_an_update_webflow_did_not_publish_is_an_error(monkeypatch) -> Non
         )
 
 
+@pytest.mark.parametrize("status", [404, 409])
+async def test_unpinning_a_card_that_is_not_live_is_not_an_error(monkeypatch, status) -> None:
+    """An unpublished report's draft can still hold the tick, so its card can be the loser."""
+    _use_transport(monkeypatch, lambda request: httpx.Response(status, json={}))
+
+    await WebflowReportsCms(token="t", collection_id="reports").unpin("item-1", "featured")
+
+
+async def test_unpinning_still_raises_on_other_errors(monkeypatch) -> None:
+    _use_transport(monkeypatch, lambda request: httpx.Response(500, json={}))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await WebflowReportsCms(token="t", collection_id="reports").unpin("item-1", "banner")
+
+
 async def test_unpublishing_a_card_that_is_not_live_is_not_an_error(monkeypatch) -> None:
     _use_transport(monkeypatch, lambda request: httpx.Response(404, json={}))
 

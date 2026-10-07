@@ -101,7 +101,9 @@ Two boxes pin a report, one report per pin:
   page ("Just released: …"). With nothing pinned, the bar is hidden.
 
 Publishing a pinned report unticks that box on the report that had the pin,
-here as well as on the site, so the boxes always show the truth.
+here as well as on the site, so the boxes always show the truth. One
+exception: a draft of that older report edited after your pin keeps its
+tick, and publishing that draft takes the pin back.
 
 - **Renaming a slug** unpublishes the old card and creates a new one, so
   the old URL stops working.

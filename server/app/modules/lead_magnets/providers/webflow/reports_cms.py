@@ -6,6 +6,7 @@ Silo option ids are resolved by name at sync time, never hardcoded.
 
 import logging
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report import (
@@ -82,7 +83,12 @@ class WebflowReportsCms:
         await self._collection.unpublish(item_id)
 
     async def unpin(self, item_id: str, pin: Pin) -> None:
-        await self._collection.patch_live(item_id, _UNPIN[pin])
+        try:
+            await self._collection.patch_live(item_id, _UNPIN[pin])
+        except httpx.HTTPStatusError as error:
+            # Not live, so it shows no pin; its next sync rewrites the staged value.
+            if error.response.status_code not in (404, 409):
+                raise
 
     async def field_data(self, report: ReportDocument) -> ReportFieldData:
         if self._silo_ids is None:
