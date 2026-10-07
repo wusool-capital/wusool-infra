@@ -11,8 +11,8 @@ from typing import Annotated, Literal
 import nh3
 from pydantic import BaseModel, ConfigDict, Field
 
-# Webflow fetches the image itself and rejects anything over 4MB.
-_IMAGE_PARAMS = "?w=1600&fm=jpg"
+from app.modules.lead_magnets.providers.sanity.images import resized
+
 _STYLES = {"normal": "p", "h2": "h2", "h3": "h3", "h4": "h4", "blockquote": "blockquote"}
 _DECORATORS = {"strong", "em"}
 _ALLOWED_TAGS = {
@@ -78,7 +78,13 @@ def sanitize(html: str) -> str:
         tags=_ALLOWED_TAGS,
         attributes=_ALLOWED_ATTRIBUTES,
         url_schemes={"http", "https", "mailto"},
+        attribute_filter=_resize_images,
     )
+
+
+def _resize_images(tag: str, attribute: str, value: str) -> str:
+    # Pasted and rich-text images alike, so neither can fail the Webflow write.
+    return resized(value) if (tag, attribute) == ("img", "src") else value
 
 
 def to_html(blocks: list[Block]) -> str:
@@ -102,9 +108,7 @@ def to_html(blocks: list[Block]) -> str:
         if isinstance(block, ImageBlock):
             if block.url:
                 alt = escape(block.alt or "")
-                out.append(
-                    f'<figure><img src="{escape(block.url + _IMAGE_PARAMS)}" alt="{alt}"></figure>'
-                )
+                out.append(f'<figure><img src="{escape(block.url)}" alt="{alt}"></figure>')
         else:
             tag = _STYLES.get(block.style, "p")
             out.append(f"<{tag}>{_inline(block)}</{tag}>")

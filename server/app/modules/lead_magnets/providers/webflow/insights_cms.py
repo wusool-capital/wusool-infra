@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.modules.lead_magnets.domain.insights_article.article import ArticleDocument, CmsItem
 from app.modules.lead_magnets.domain.insights_report.report import reading_time, word_count
 from app.modules.lead_magnets.providers.webflow.collection import (
-    COVER_PARAMS,
     Image,
     WebflowCollection,
 )
@@ -98,11 +97,7 @@ class WebflowInsightsCms:
             logger.warning("insights_article_unknown_silo silo=%s", article.silo)
         if article.author and author is None:
             logger.warning("insights_article_unknown_author author=%s", article.author)
-        cover = (
-            Image(url=article.cover_url + COVER_PARAMS, alt=article.title)
-            if article.cover_url
-            else None
-        )
+        cover = Image(url=article.cover_url, alt=article.title) if article.cover_url else None
         return ArticleFieldData(
             name=article.title,
             slug=article.slug,

@@ -69,6 +69,18 @@ def test_pasted_html_loses_anything_that_could_run_on_the_live_site() -> None:
     assert html.startswith("<h2>T</h2>") and 'href="/buyers"' in html
 
 
+def test_every_sanity_image_is_sized_under_webflows_4mb_limit_but_others_are_left_alone() -> None:
+    html = sanitize(
+        '<img src="https://cdn.sanity.io/images/p/production/big.png">'
+        '<img src="https://cdn.sanity.io/images/p/production/s.png?w=400">'
+        '<img src="https://example.com/x.png">'
+    )
+
+    assert 'src="https://cdn.sanity.io/images/p/production/big.png?w=1600&amp;fm=jpg"' in html
+    assert 'src="https://cdn.sanity.io/images/p/production/s.png?w=400"' in html
+    assert 'src="https://example.com/x.png"' in html
+
+
 def _use_transport(monkeypatch: pytest.MonkeyPatch, handler) -> None:
     patched = functools.partial(httpx.AsyncClient, transport=httpx.MockTransport(handler))
     monkeypatch.setattr(httpx, "AsyncClient", patched)

@@ -14,6 +14,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_article.article import ArticleDocument
+from app.modules.lead_magnets.providers.sanity.images import resized
 from app.modules.lead_magnets.providers.sanity.portable_text import Block, sanitize, to_html
 from app.modules.lead_magnets.providers.sanity.report_source import API_VERSION
 
@@ -105,7 +106,7 @@ class SanityArticleSource:
             target_keyword=doc.target_keyword,
             published_at=doc.published_at,
             updated_at=doc.updated_at,
-            cover_url=doc.cover_url,
+            cover_url=resized(doc.cover_url) if doc.cover_url else None,
             author=doc.author,
             silo=doc.silo,
             cta_text=doc.cta_text,

@@ -11,8 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny
 
 _API = "https://api.webflow.com/v2"
 _PAGE = 100
-# Webflow fetches the image itself and rejects anything over 4MB.
-COVER_PARAMS = "?w=1600&fm=jpg"
 
 
 class _Option(BaseModel):

@@ -22,6 +22,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, ReportSource
+from app.modules.lead_magnets.providers.sanity.images import resized
 
 # Shared with `article_source.py`; the webhook is pinned to the same version.
 API_VERSION = "v2025-02-19"
@@ -176,7 +177,7 @@ class SanityReportSource:
             excerpt=doc.excerpt,
             published_at=doc.published_at,
             updated_at=doc.updated_at,
-            cover_url=doc.cover_url,
+            cover_url=resized(doc.cover_url) if doc.cover_url else None,
             featured=bool(doc.featured),
             silo=doc.silo,
             cta_text=doc.cta_text,

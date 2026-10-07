@@ -49,6 +49,7 @@ class _Settings:
     lead_magnet_allowed_origins: str = ""
     lead_magnet_rate_per_hour: int = 20
     lead_magnet_report_reads_per_hour: int = 300
+    lead_magnet_report_downloads_per_hour: int = 30
 
 
 @dataclass
@@ -345,3 +346,17 @@ def test_report_page_views_have_their_own_per_ip_limit(client, world) -> None:
     statuses = [client.get("/reports/buyouts-in-the-gcc").status_code for _ in range(3)]
 
     assert statuses == [200, 200, 429]
+
+
+def test_pdf_downloads_have_their_own_per_ip_limit_apart_from_the_unlock(client, world) -> None:
+    world.settings.lead_magnet_report_downloads_per_hour = 1
+    client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
+
+    downloads = [client.get("/reports/buyouts-in-the-gcc/pdf").status_code for _ in range(2)]
+    unlock = client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "D", "email": "dana@acme.ae"},
+    )
+
+    assert downloads == [200, 429]
+    assert unlock.status_code == 200, "downloading never uses up the unlock budget"

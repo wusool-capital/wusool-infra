@@ -13,7 +13,6 @@ from app.modules.lead_magnets.domain.insights_report.report import (
     reading_time,
 )
 from app.modules.lead_magnets.providers.webflow.collection import (
-    COVER_PARAMS,
     Image,
     WebflowCollection,
 )
@@ -95,11 +94,7 @@ class WebflowReportsCms:
         """`featured` `None` leaves the card's pin untouched (omitted from the write)."""
         if self._silo_ids is None:
             self._silo_ids = await self._collection.options("primary-silo")
-        cover = (
-            Image(url=report.cover_url + COVER_PARAMS, alt=report.title)
-            if report.cover_url
-            else None
-        )
+        cover = Image(url=report.cover_url, alt=report.title) if report.cover_url else None
         silo = self._silo_ids.get(report.silo or "")
         if report.silo and silo is None:
             logger.warning("insights_report_unknown_silo silo=%s", report.silo)

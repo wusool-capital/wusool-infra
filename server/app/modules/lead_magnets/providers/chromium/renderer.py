@@ -12,7 +12,9 @@ Nothing in it may reach the network from inside our VPC: HTTP is aborted by
 `page.route`, WebSockets by `page.route_web_socket`, and as a backstop every
 connection goes to a dead proxy and WebRTC may not send unproxied UDP.
 Bundles carry their assets inline; external stylesheets stay as `<link>`
-tags for the reader's browser to load.
+tags for the reader's browser to load. A PDF has no reader's browser, so
+`pdf` lets through Google Fonts only, fetched by this process from a fixed
+host allow-list and handed to Chromium; Chromium itself still reaches nothing.
 
 A render is capped at `_RENDER_TIMEOUT_S` overall, and the "wait until the
 page stops changing" step at `_SETTLE_MAX_MS`, so an animated page is saved
@@ -25,6 +27,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 from playwright.async_api import Page, Route, WebSocketRoute, async_playwright
 
 _QUIET_MS = 1500
@@ -40,6 +43,10 @@ _ISOLATED = [
 # A refresh navigates mid-render and destroys the page being saved; it never belongs in a report.
 _META_REFRESH = re.compile(r"<meta\b[^>]*http-equiv\s*=\s*[\"']?refresh[^>]*>", re.IGNORECASE)
 
+# ponytail: Google Fonts only; any other linked stylesheet prints unstyled. Inline it at flatten.
+_PRINT_ASSET_HOSTS = ("https://fonts.googleapis.com/", "https://fonts.gstatic.com/")
+_PRINT_ASSET_MAX_BYTES = 5_000_000
+
 _HERE = Path(__file__).parent
 _WAIT_FOR_QUIET = (_HERE / "wait_for_quiet.js").read_text()
 _SERIALIZE = (_HERE / "serialize.js").read_text()
@@ -51,6 +58,23 @@ async def _block(route: Route) -> None:
 
 async def _block_socket(socket: WebSocketRoute) -> None:
     await socket.close()
+
+
+async def _fetch_print_asset(route: Route) -> None:
+    user_agent = route.request.headers.get("user-agent", "")
+    try:
+        # No redirects: an allow-listed host must not bounce the fetch somewhere else.
+        async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+            response = await client.get(route.request.url, headers={"user-agent": user_agent})
+    except httpx.HTTPError:
+        await route.abort()
+        return
+    if response.status_code != 200 or len(response.content) > _PRINT_ASSET_MAX_BYTES:
+        await route.abort()
+        return
+    await route.fulfill(
+        body=response.content, content_type=response.headers.get("content-type", "")
+    )
 
 
 class ChromiumReportRenderer:
@@ -82,6 +106,9 @@ class ChromiumReportRenderer:
     async def _pdf(self, html: str) -> bytes:
         # Flattened HTML has no scripts, so nothing to wait for beyond load and fonts.
         async with _isolated_page() as page:
+            # Registered after the block-all route, so it wins for these hosts only.
+            for host in _PRINT_ASSET_HOSTS:
+                await page.route(f"{host}**", _fetch_print_asset)
             await page.set_content(html, wait_until="load")
             await page.evaluate("document.fonts.ready.then(() => true)")
             return await page.pdf(

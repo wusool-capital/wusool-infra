@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     lead_magnet_rate_per_hour: int = 20
     # Per-IP hourly cap on report views: fine behind office NAT, stops quota-draining scans.
     lead_magnet_report_reads_per_hour: int = 300
+    # Per-IP hourly cap on PDF downloads, apart from submits: each one launches Chromium.
+    lead_magnet_report_downloads_per_hour: int = 30
 
     # Attio `workspace_membership_id` of the advisor a new inbound deal is
     # assigned to. Every deal in the live workspace has an owner, so a

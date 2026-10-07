@@ -4,9 +4,11 @@ Dockerfile does); skipped where it isn't there.
 """
 
 import asyncio
+import functools
 import os
 import re
 
+import httpx
 import pytest
 from playwright.async_api import async_playwright
 
@@ -159,3 +161,29 @@ async def test_the_pdf_keeps_the_reports_own_page_size_and_stays_offline() -> No
     assert pdf.startswith(b"%PDF-")
     assert len(re.findall(rb"/Type\s*/Page\b(?!s)", pdf)) == 3
     assert hits == []
+
+
+async def test_the_pdf_loads_google_fonts_but_no_other_linked_asset(monkeypatch) -> None:
+    """Fetched by Python from a fixed allow-list, so Chromium still reaches nothing itself."""
+    await _require_chromium()
+    fetched: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        fetched.append(str(request.url))
+        return httpx.Response(200, text="body{margin:0}", headers={"content-type": "text/css"})
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        functools.partial(real_client, transport=httpx.MockTransport(handler)),
+    )
+    html = (
+        '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">'
+        '<link rel="stylesheet" href="https://evil.example/x.css"><p>x</p>'
+    )
+
+    pdf = await ChromiumReportRenderer().pdf(html)
+
+    assert pdf.startswith(b"%PDF-")
+    assert fetched == ["https://fonts.googleapis.com/css2?family=Inter"]

@@ -63,6 +63,7 @@ async def test_sanity_report_is_parsed_and_cached(monkeypatch) -> None:
 
     assert report is not None and report.silo == "Buy a Business"
     assert report.featured is False
+    assert report.cover_url == "https://cdn.sanity.io/images/p/production/cover.jpg?w=1600&fm=jpg"
     assert (report.cta_text, report.cta_url) == ("Get your free valuation", "/valuation-tool")
     assert len(requests) == 1, "the second read comes from the cache"
     assert requests[0].url.host == "p.apicdn.sanity.io", "page views use the CDN quota"
@@ -147,7 +148,7 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
     assert data["seo-title"] == data["og-title"] == "Buyouts in the GCC"
     assert data["reading-time"] == "3 min read"
     assert data["primary-silo"] == "opt-buy"
-    assert data["featured-image"]["url"].endswith("cover.jpg?w=1600&fm=jpg")
+    assert data["featured-image"]["url"] == "https://cdn.sanity.io/cover.jpg"
     assert data["cta-text"] == "Get your free valuation"
     assert data["cta-url"] == "/valuation-tool"
 

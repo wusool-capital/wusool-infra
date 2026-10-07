@@ -230,9 +230,11 @@ the first page open and the rest behind one short form. There are three parts:
     for PRD 2.
   - `GET /reports/{slug}/pdf` prints the stored `renderedHtml` to A4 on
     each download, under the same Chromium lock, network block and 30 s cap
-    as the render. It returns 403 without a reader cookie, uses the unlock
-    rate limit, and records a run on another report's cookie the same way
-    a page view does.
+    as the render; a download still queued at 30 s is a 503. Google Fonts
+    are the one exception to the block: the server fetches them from a fixed
+    host list and hands them to Chromium. It returns 403 without a reader
+    cookie, has its own per-IP budget (`LEAD_MAGNET_REPORT_DOWNLOADS_PER_HOUR`),
+    and records a run on another report's cookie the same way a page view does.
 - **Card.** `application/insights_report/sync.py`, triggered by the Sanity
   webhook, creates or updates the item in the Webflow Reports collection.
   The webhook replies 202 at once and syncs in the background, so Sanity

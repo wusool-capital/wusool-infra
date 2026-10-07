@@ -28,6 +28,7 @@ from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
     is_valid_sanity_signature,
     rate_limit,
+    rate_limit_downloads,
     rate_limit_reads,
     require_allowed_origin,
 )
@@ -106,7 +107,7 @@ async def read_report(
     "/reports/{slug}/pdf",
     response_class=Response,
     responses={200: {"content": {"application/pdf": {}}}},
-    dependencies=[Depends(rate_limit)],
+    dependencies=[Depends(rate_limit_downloads)],
 )
 async def download_report_pdf(
     slug: Slug,
@@ -116,7 +117,7 @@ async def download_report_pdf(
     wusool_reader: Annotated[str | None, Cookie()] = None,
 ) -> Response:
     """The whole report as a PDF, for unlocked readers only. Printed on each
-    download, and on the unlock budget, because each one launches Chromium."""
+    download, on its own per-IP budget, because each one launches Chromium."""
     report = await _published(source, slug)
     if not await _record_read(session, background, report, wusool_reader):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "unlock the report first")
