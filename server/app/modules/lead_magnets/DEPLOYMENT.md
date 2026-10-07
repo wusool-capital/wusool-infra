@@ -173,43 +173,93 @@ that was never wired up.
 Rollback for any tool: revert that one `<script>` tag in Webflow back to
 the old embed. Nothing server-side needs to change.
 
-### Gated insights reports
+### Gated reports
 
-These are a one-time Designer change. Nothing is needed per report:
+Reports live in their own Webflow **Reports** collection
+(`6ac64c92647fc1acb46497de`, created 2026-10-07), at `/reports` and
+`/reports/<slug>`. Its fields mirror Insights minus `content-type`, `gated`,
+`author` and `body-content`. These are one-time Designer changes; nothing is
+needed per report:
 
-1. On the **Insights Template** page, add an Embed element directly under the
-   author row (`.insights-template-details`), before the first
-   `.breakline-thoughts` divider. Set its width to 100% so it spans the
-   whole content row (1008 px on desktop); the report scales to fill it.
+1. Duplicate the **Insights** page as **Reports** (slug `reports`) and rebind
+   both collection lists (featured block and grid) to Reports. The duplicate
+   still carries Insights-only bindings; delete or rebind each one:
+   - the author name and photo on the cards and the featured block;
+   - the content-type badge (`.badge-insights`): delete it, or make it
+     static text "Report";
+   - any **Hide from listings** filter on the lists, which Reports doesn't have.
+
+   Keep the silo badge (`.badge-silo`), bound to Reports' **Primary Silo**.
+2. On the **Reports Template** page, keep the site navbar and footer, and
+   remove the article header and author. In its page settings, bind the SEO
+   title, meta description, OG title and OG image to **SEO Title**, **SEO
+   Description**, **OG Title** and **OG Image**, as on the Insights Template. Add an Embed set to 100% width,
+   with `data-report` bound to the item's Slug:
 
    ```html
    <script src="https://tools.wusoolcapital.com/embed.js"
            data-tool="report" data-report="{{slug}}"></script>
    ```
 
-   Bind `data-report` to the item's Slug. Give the Embed a conditional
-   visibility of **Gated is on**, using the collection's existing switch.
-2. On the same template, give the article column (`.div-block-27`) and the
-   `.breakline-thoughts` dividers the visibility condition **Gated is not
-   set**. The report replaces the article, and the dividers would otherwise
-   remain as stray lines. Move the end-of-page button (`.btn-primary-valuation`)
-   out of `.div-block-27`, directly below it, and give it the condition
-   **CTA URL is set**. Reports then show it too.
+   Below it, add the end-of-page button bound to **CTA Text** and **CTA
+   URL**, with the visibility condition **CTA URL is set**. The embed already
+   carries the gate and the **Download PDF** button.
 3. Set `LEAD_MAGNET_SANITY_PROJECT_ID`, `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`,
    `LEAD_MAGNET_SANITY_WRITE_TOKEN` (a Sanity Editor token) and
    `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the
    Secrets Manager `env` map. Then add the Sanity webhook described in
    `sanity/README.md`, using its filter and projection exactly.
+4. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
+   Without it, the org write for every unlock that names an organisation
+   fails. A blank organisation writes the person only.
 
 The image now carries headless Chromium (see `server/Dockerfile`), about
-590 MB. It runs only during a Sanity publish, about 2.4 s and about 300 MB
-RAM for the first playbook, one render at a time on the `t3.small`.
-4. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
-   Without it, the org write for every unlock fails.
+590 MB. It runs during a Sanity publish (about 2.4 s for the first playbook)
+and for each PDF download (about 0.8 s). Each run uses about 300 MB RAM, one
+at a time on the `t3.small`; a download still queued after 30 s fails. The
+HTTP container is the same image, so downloads need nothing extra.
 
-Sanity report slugs share the Insights collection's URL space. The sync
-refuses to overwrite an ungated (hand-written) item with the same slug and
-logs `insights_report_sync_skipped_ungated`.
+#### Moving a report from Insights to Reports
+
+Follow this order. Republishing before the new code is live syncs the report
+back into Insights.
+
+1. Build the Reports page and template (steps 1–2 above), then publish the
+   site so the Reports collection exists on the live site.
+2. Deploy the code that points the sync at Reports to **prod**; a `dev`
+   deploy alone isn't enough, since prod would still sync reports into
+   Insights. Only then, on both Sanity webhooks (dev and prod), replace the
+   filter and projection with the ones in `sanity/README.md`, so they also
+   carry Insights articles. Redeploy the
+   Studio (`npx sanity deploy -y`) so editors see the Insights type.
+3. If the Insights featured block pins the report's old card, pin a
+   hand-written article there first, or remove the featured list.
+4. Republish the report in Sanity. An unchanged document can't be
+   republished, so make a trivial edit (for example, to the excerpt) first.
+   The sync creates its card in Reports.
+5. Unpublish the old card in the Insights collection.
+6. In Webflow **Site settings → Publishing → 301 redirects**, add the exact
+   path `/insights/how-to-fund-a-buyout-in-the-uae-and-gcc-2026-playbook` →
+   `/reports/how-to-fund-a-buyout-in-the-uae-and-gcc-2026-playbook`, then
+   publish the site. Never a wildcard such as `/insights/(.*)`: Insights
+   articles still live under `/insights`.
+
+#### Insights articles from Sanity
+
+The Insights collection has a hidden **Sanity managed** switch (added
+2026-10-07, off on every existing article). The sync sets it on items it
+creates and updates or unpublishes only those, so hand-written articles are
+never overwritten. Don't toggle it by hand. The sync never writes
+**Featured** or **Hide from listings**; pins stay manual.
+
+Dev writes to test collections only, set in the `/wusool/dev/toolkit`
+secret (2026-10-07): `LEAD_MAGNET_WEBFLOW_REPORTS_COLLECTION_ID` is
+`Reports (test)` (`6ac65e8154b939a67fa81fbe`) and
+`LEAD_MAGNET_WEBFLOW_INSIGHTS_COLLECTION_ID` is `Insights (test)s`
+(`6ac4d9fd87ac542edd2f4477`, which has the same switch). Without both
+overrides, enabling the dev webhook would write to the live site. Both
+environments read the same Sanity dataset, so keep the dev webhook disabled
+except while testing.
 
 ## 8. The sweeper
 

@@ -557,3 +557,39 @@ async def test_a_report_reader_writes_an_org_and_a_person_but_no_role_or_deal() 
     assert person.calls[0]["email"] == "dana@acme.com"
     assert person.calls[0]["organization_attio_id"] == "org-1"
     assert writer.seller_calls == writer.buyer_calls == deal.calls == []
+
+
+@pytest.mark.parametrize("company", ["", "   "])
+async def test_a_report_reader_without_an_organisation_writes_only_the_person(
+    company: str,
+) -> None:
+    """No org is guessed from the email, so a gmail reader never becomes a "gmail.com" org."""
+    writer = _FakeRoleWriter()
+    person = _FakePersonWriter(result=("person-9", "Dana"))
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        writer, _FakeOrganizations([]), person, _FakeDealWriter()
+    )
+
+    subjects = await role_attio_writer.write(
+        tool="insights_report",
+        payload={"name": "Dana", "email": "dana@gmail.com", "company": company, "domain": None},
+        ai={},
+    )
+
+    assert writer.org_calls == []
+    assert person.calls[0]["organization_attio_id"] is None
+    assert (subjects.org_attio_id, subjects.person_attio_id) == (None, "person-9")
+
+
+async def test_a_person_only_report_write_that_fails_is_retried_not_swallowed() -> None:
+    """With no org, the person is the whole lead; the sweeper must see the failure."""
+    role_attio_writer = bootstrap._RoleAttioWriter(
+        _FakeRoleWriter(), _FakeOrganizations([]), _FakePersonWriter(raises=True), _FakeDealWriter()
+    )
+
+    with pytest.raises(RuntimeError):
+        await role_attio_writer.write(
+            tool="insights_report",
+            payload={"name": "Dana", "email": "dana@gmail.com", "company": ""},
+            ai={},
+        )

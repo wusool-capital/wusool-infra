@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     lead_magnet_rate_per_hour: int = 20
     # Per-IP hourly cap on report views: fine behind office NAT, stops quota-draining scans.
     lead_magnet_report_reads_per_hour: int = 300
+    # Per-IP hourly cap on PDF downloads, apart from submits: each one launches Chromium.
+    lead_magnet_report_downloads_per_hour: int = 30
 
     # Attio `workspace_membership_id` of the advisor a new inbound deal is
     # assigned to. Every deal in the live workspace has an owner, so a
@@ -96,7 +98,8 @@ class Settings(BaseSettings):
     # Secrets Manager only: an Editor token, used solely to save flattened reports back.
     lead_magnet_sanity_write_token: str = ""
     lead_magnet_webflow_api_token: str = ""
-    # The live site's "Insights" collection; a fixed infra fact, like the model ids above.
+    # The live site's "Reports" and "Insights" collections; fixed infra facts, like the model ids.
+    lead_magnet_webflow_reports_collection_id: str = "6ac64c92647fc1acb46497de"
     lead_magnet_webflow_insights_collection_id: str = "69aaa645fa60624091050e8e"
 
     @field_validator("database_url")

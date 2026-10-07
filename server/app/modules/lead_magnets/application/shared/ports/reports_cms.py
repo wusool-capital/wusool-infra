@@ -1,13 +1,15 @@
-"""The Webflow Insights collection seam. Faked in tests, implemented by
-`providers/webflow/insights_cms.py`."""
+"""The Webflow Reports collection seam. Faked in tests, implemented by
+`providers/webflow/reports_cms.py`."""
 
 from typing import Protocol
 
-from app.modules.lead_magnets.domain.insights_report.report import CmsItem, ReportDocument
+from app.modules.lead_magnets.domain.insights_report.report import ReportDocument
 
 
-class InsightsCmsPort(Protocol):
-    async def find(self, slug: str) -> CmsItem | None: ...
+class ReportsCmsPort(Protocol):
+    async def find(self, slug: str) -> str | None:
+        """The id of the card with this slug, published or not."""
+        ...
 
     async def create(self, report: ReportDocument, *, featured: bool | None) -> str:
         """Creates the card already published to the live site and returns its

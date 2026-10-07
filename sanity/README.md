@@ -1,9 +1,15 @@
 # Wusool Reports Studio
 
-The dashboard where the business publishes gated insights reports (PRD 3).
-One document type, `report`. Publishing one makes it live on
-`wusoolcapital.com/insights/<slug>`: the first 25% is open, and the rest
-unlocks after a name, email and organisation form.
+The dashboard where the business publishes gated reports (PRD 3) and
+Insights articles. Two document types:
+
+- **Report** (`report`). Publishing one makes it live on
+  `wusoolcapital.com/reports/<slug>`: the first page is open, and the rest
+  and the PDF download unlock after a name and email form (organisation is
+  optional).
+- **Insights article** (`insights`). Publishing one creates or updates the
+  article at `wusoolcapital.com/insights/<slug>`, written with the rich text
+  editor or as pasted HTML.
 
 ## How it fits together
 
@@ -13,11 +19,11 @@ unlocks after a name, email and organisation form.
    saves what it draws back to the report as static HTML, in the hidden
    `renderedHtml` field (with `renderedPreviewEnd`, where the free part ends). This is how exports that build their pages with
    JavaScript, like "Buyouts in the GCC", become splittable. It then creates
-   or updates the matching card in the Webflow Insights collection with
-   **Gated** on, through the live API. This is
+   or updates the matching card in the Webflow Reports collection, through
+   the live API. This is
    meant to need no Publish in Webflow, which is not yet verified against
    the live site.
-4. The Insights template's embed loads `/report/?slug=<slug>` from the
+4. The Reports template's embed loads `/report/?slug=<slug>` from the
    toolkit server, which reads the HTML from Sanity and gates it.
 
 Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
@@ -49,14 +55,17 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, html, excerpt, cover, author, silo, publishedAt, featured, cta)) \|\| !defined(renderedHtml))` |
-   | Projection | `{"slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
+   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, excerpt, cover, silo, publishedAt, featured, cta)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
+   | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
    | Drafts | off |
    | API version | `v2025-02-19` |
 
-   The filter skips updates that touch only `renderedHtml`, so the server's
+   One webhook per environment serves both types; the server routes each
+   event by `type`, and treats a missing `type` as a report. Articles need no
+   update guard, because the server never writes back to them. The filter
+   skips report updates that touch only `renderedHtml`, so the server's
    own save never starts a second sync. Creates and deletes always pass,
    since `delta::changedAny` doesn't match them reliably; an unpublish fires
    as a delete. `!defined(renderedHtml)` catches a report whose rendered copy
@@ -71,10 +80,18 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
 ## Publishing a report
 
-Fill in the title, slug, excerpt and the pasted HTML. Cover image, author,
-primary silo, date and the end-of-page button are optional. The button
+Pick **Write with** first. **Pasted HTML** (the default) keeps an exported
+design and its pages: readers see page one, then the form. **Rich text
+editor** writes the report in the Studio: it gets a clean page with the title
+on top, readers see about the first quarter, and the PDF is printed with page
+margins.
+
+Only the title and the report (pasted HTML or rich text) are needed. For the slug, click
+**Generate** to build it from the title, or type your own (lowercase letters,
+numbers and hyphens). Excerpt, cover image, primary silo, date and the end-of-page
+button are optional. The button
 needs both its text and its link, and shows below the report. Removing it
-here doesn't remove it from the live page; clear it in Webflow as well. Tick **Pin to top of /insights** to make
+here doesn't remove it from the live page; clear it in Webflow as well. Tick **Pin to top of /reports** to make
 it the featured card; that unpins the current one. Then publish.
 
 The pin only moves when you tick or untick it. When a newer report takes the
@@ -83,11 +100,34 @@ won't take the pin back. To pin it again, untick, publish, then tick and
 publish.
 
 The featured slot is never left empty. When you untick, unpublish or delete
-the pinned report, the newest live card on `/insights` takes the pin.
+the pinned report, the newest live card on `/reports` takes the pin.
 
 - **Renaming a slug** unpublishes the old card and creates a new one, so
   the old URL stops working.
 - **Unpublishing or deleting** a report unpublishes its card.
+
+## Publishing an Insights article
+
+Fill in the title, slug, content type, excerpt and body. Pick **Write with**
+first: the rich text editor, or pasted HTML. The choice applies to the body,
+key takeaways and FAQ. Pasted HTML is cleaned on publish: scripts, styles,
+tables and anything else Webflow's rich text can't show are removed.
+
+The SEO title, SEO description, share title and H1 default to the title and
+excerpt when left blank. Cover image, author, silo, date, target keyword and
+the end-of-page button are optional. Then publish.
+
+- The article goes live on `/insights` without a Webflow publish. Its card
+  is not pinned; pin articles in Webflow as before.
+- A hand-written Webflow article with the same slug is never overwritten.
+  The publish is skipped and logged as `insights_article_sync_skipped_unmanaged`.
+- **Renaming a slug** or **unpublishing** works as it does for reports.
+- Sanity owns these articles: the next publish overwrites any edit made to
+  them in Webflow.
+- Clearing an optional field here (key takeaways, FAQ, cover, author, silo,
+  SEO fields, button) doesn't clear it on the site. Clear it in Webflow too.
+- Key takeaways and FAQ get a "Key Takeaways" / "FAQ" heading, as on
+  hand-written articles, unless they already start with a Heading 2.
 
 ## Accepted risk
 

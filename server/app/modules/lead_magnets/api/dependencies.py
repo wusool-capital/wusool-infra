@@ -113,6 +113,23 @@ async def rate_limit_reads(request: Request) -> None:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "rate limit exceeded")
 
 
+_download_limiter: FixedWindowRateLimiter | None = None
+
+
+async def rate_limit_downloads(request: Request) -> None:
+    """PDF downloads: their own budget, so downloading never uses up a reader's
+    unlock or another tool's submit behind the same office IP."""
+    global _download_limiter
+    if _download_limiter is None:
+        _download_limiter = FixedWindowRateLimiter(
+            limit=get_settings().lead_magnet_report_downloads_per_hour
+        )
+    ip = client_ip(request)
+    if not _download_limiter.check(ip):
+        logger.warning("lead_magnet_report_downloads_limited ip=%s", ip)
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "rate limit exceeded")
+
+
 SANITY_SIGNATURE_HEADER = "sanity-webhook-signature"
 _SANITY_SIGNATURE = re.compile(r"^t=(\d+)[, ]+v1=([^, ]+)$")
 # Sanity retries twice, 30 s apart; anything older is a replay.

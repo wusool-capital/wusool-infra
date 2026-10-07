@@ -4,8 +4,11 @@ Dockerfile does); skipped where it isn't there.
 """
 
 import asyncio
+import functools
 import os
+import re
 
+import httpx
 import pytest
 from playwright.async_api import async_playwright
 
@@ -132,3 +135,65 @@ async def test_rendering_cannot_reach_the_network() -> None:
         server.close()
 
     assert hits == []
+
+
+async def test_the_pdf_keeps_the_reports_own_page_size_and_stays_offline() -> None:
+    """Flattened reports carry their own A4 pages; printing must not reflow them or fetch."""
+    await _require_chromium()
+    hits: list[int] = []
+
+    async def on_connect(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        hits.append(1)
+        writer.close()
+
+    server = await asyncio.start_server(on_connect, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    page = '<section style="height:297mm;overflow:hidden;break-after:page">p</section>'
+    html = (
+        f"<style>@page{{size:A4;margin:0}} body{{margin:0}}</style>"
+        f'<img src="http://127.0.0.1:{port}/i.png" style="position:absolute">{page * 3}'
+    )
+    try:
+        pdf = await ChromiumReportRenderer().pdf(html)
+    finally:
+        server.close()
+
+    assert pdf.startswith(b"%PDF-")
+    assert len(re.findall(rb"/Type\s*/Page\b(?!s)", pdf)) == 3
+    assert hits == []
+
+
+async def test_the_pdf_loads_google_fonts_but_no_other_linked_asset(monkeypatch) -> None:
+    """Fetched by Python from a fixed allow-list, so Chromium still reaches nothing itself."""
+    await _require_chromium()
+    fetched: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        fetched.append(str(request.url))
+        return httpx.Response(200, text="body{margin:0}", headers={"content-type": "text/css"})
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        functools.partial(real_client, transport=httpx.MockTransport(handler)),
+    )
+    html = (
+        '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">'
+        '<link rel="stylesheet" href="https://evil.example/x.css"><p>x</p>'
+    )
+
+    pdf = await ChromiumReportRenderer().pdf(html)
+
+    assert pdf.startswith(b"%PDF-")
+    assert fetched == ["https://fonts.googleapis.com/css2?family=Inter"]
+
+
+async def test_a_rich_reports_own_gate_survives_rendering() -> None:
+    """The serializer places a gate only when the page arrives without one."""
+    await _require_chromium()
+    page = "<body><p>one</p><p>two</p><div data-wusool-gate></div><p>three</p></body>"
+
+    preview, _ = split_report(await ChromiumReportRenderer().render(page))
+
+    assert "two" in preview and "three" not in preview
