@@ -35,7 +35,6 @@ class ReportSync:
         slug: str | None,
         previous_slug: str | None,
         featured_changed: bool = False,
-        banner_changed: bool = False,
     ) -> None:
         """`slug` is `None` when the report was deleted or unpublished;
         `previous_slug` differs from it when an editor renamed the slug.
@@ -46,7 +45,9 @@ class ReportSync:
         would steal the pin back on a typo fix. When nothing is left pinned,
         the newest live card takes the slot.
 
-        The home banner pin moves the same way, but with no fallback: no pin, no bar."""
+        The home banner pin is level-triggered instead: every sync writes the
+        report's own tick, and taking the banner unticks the others in Sanity
+        too, so Sanity always matches Webflow. No fallback: no pin, no bar."""
         if previous_slug and previous_slug != slug:
             await self._source.refresh(previous_slug)
             await self._unpublish(previous_slug)
@@ -73,7 +74,7 @@ class ReportSync:
             return
 
         featured = report.featured if featured_changed else None
-        banner = report.banner_pinned if banner_changed else None
+        banner = report.banner_pinned
         card_id = await self._cms.find(slug)
         if card_id is None:
             card_id = await self._cms.create(report, featured=featured, banner_pinned=banner)
@@ -81,9 +82,10 @@ class ReportSync:
             await self._cms.update(card_id, report, featured=featured, banner_pinned=banner)
 
         if banner:
-            for item_id in await self._cms.banner_ids():
-                if item_id != card_id:
-                    await self._cms.unpin_banner(item_id)
+            # After this card is live, so a failed write never empties the banner.
+            for other in await self._source.unpin_banner_except(slug, pinned_at=report.updated_at):
+                if other_id := await self._cms.find(other):
+                    await self._cms.unpin_banner(other_id)
 
         if featured:
             # Unpinned only once this card is live, so a failed write never empties the slot.

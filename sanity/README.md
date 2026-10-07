@@ -56,7 +56,7 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
    | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, excerpt, cover, silo, publishedAt, featured, bannerPinned, cta)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
-   | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false), "bannerChanged": coalesce(before().bannerPinned, false) != coalesce(after().bannerPinned, false)}` |
+   | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
    | Drafts | off |
@@ -103,9 +103,10 @@ The featured slot is never left empty. When you untick, unpublish or delete
 the pinned report, the newest live card on `/reports` takes the pin.
 
 Tick **Pin to home page banner** to show the report in the bar at the top of
-the home page ("Just released: …"); that unpins the report there now. It
-moves only when you tick or untick it, like the pin above, but has no
-fallback: untick, unpublish or delete it and the bar disappears.
+the home page ("Just released: …"). Publishing it unticks the report that
+had the banner, here as well as on the site, so the box always shows the
+truth. There is no fallback: untick, unpublish or delete it and the bar
+disappears.
 
 - **Renaming a slug** unpublishes the old card and creates a new one, so
   the old URL stops working.

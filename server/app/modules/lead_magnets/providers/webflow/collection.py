@@ -40,7 +40,6 @@ class ItemFields(BaseModel):
     name: str | None = None
     slug: str | None = None
     featured: bool | None = None
-    pin_to_banner: bool | None = Field(default=None, alias="pin-to-banner")
     published_date: str | None = Field(default=None, alias="published-date")
     sanity_managed: bool | None = Field(default=None, alias="sanity-managed")
 

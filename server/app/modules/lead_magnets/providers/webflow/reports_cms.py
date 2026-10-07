@@ -107,9 +107,6 @@ class WebflowReportsCms:
     async def unfeature(self, item_id: str) -> None:
         await self._collection.patch_live(item_id, _FeaturedPatch(featured=False))
 
-    async def banner_ids(self) -> list[str]:
-        return [i.id for i in await self._collection.live_items() if i.field_data.pin_to_banner]
-
     async def unpin_banner(self, item_id: str) -> None:
         await self._collection.patch_live(item_id, _BannerPatch(pin_to_banner=False))
 

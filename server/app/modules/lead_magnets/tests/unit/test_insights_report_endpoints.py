@@ -97,8 +97,8 @@ def world(monkeypatch) -> _World:
             return world.runs.get(run_id)
 
     class _Sync:
-        async def sync(self, *, slug, previous_slug, featured_changed, banner_changed):
-            world.synced.append((slug, previous_slug, featured_changed, banner_changed))
+        async def sync(self, *, slug, previous_slug, featured_changed):
+            world.synced.append((slug, previous_slug, featured_changed))
 
     class _ArticleSync:
         async def sync(self, *, slug, previous_slug):
@@ -423,12 +423,7 @@ def _signed(body: bytes) -> dict[str, str]:
 
 def test_the_sanity_webhook_syncs_only_when_signed(client, world) -> None:
     body = json.dumps(
-        {
-            "slug": "new-slug",
-            "previousSlug": "old-slug",
-            "featuredChanged": True,
-            "bannerChanged": True,
-        }
+        {"slug": "new-slug", "previousSlug": "old-slug", "featuredChanged": True}
     ).encode()
 
     unsigned = client.post("/reports/webhooks/sanity", content=body)
@@ -436,7 +431,7 @@ def test_the_sanity_webhook_syncs_only_when_signed(client, world) -> None:
 
     assert unsigned.status_code == 401
     assert signed.status_code == 202
-    assert world.synced == [("new-slug", "old-slug", True, True)]
+    assert world.synced == [("new-slug", "old-slug", True)]
 
 
 def test_one_webhook_routes_reports_and_insights_articles_by_type(client, world) -> None:
@@ -452,7 +447,7 @@ def test_one_webhook_routes_reports_and_insights_articles_by_type(client, world)
         )
 
     assert world.articles == [("exit-guide", None)]
-    assert world.synced == [("buyouts", None, False, False)], "bannerChanged defaults off"
+    assert world.synced == [("buyouts", None, False)]
 
 
 def test_the_sanity_webhook_is_off_until_configured(client, world) -> None:

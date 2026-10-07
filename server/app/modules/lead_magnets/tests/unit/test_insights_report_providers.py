@@ -349,6 +349,53 @@ async def test_source_reads_the_pasted_html_and_its_rendered_version(monkeypatch
     assert (source.document_id, source.revision, source.rendered_from) == ("doc-1", "r1", "abc")
 
 
+async def test_unpin_banner_unticks_older_pins_and_drafts_in_one_transaction(
+    monkeypatch,
+) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        if request.method == "GET":
+            pinned = [
+                {"_id": "lbo", "slug": "lbo"},
+                {"_id": "drafts.lbo", "slug": "lbo"},
+            ]
+            return httpx.Response(200, json={"result": pinned})
+        return httpx.Response(200, json={})
+
+    _use_transport(monkeypatch, handler)
+    store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
+
+    slugs = await store.unpin_banner_except("buyouts", pinned_at="2026-10-07T10:00:00Z")
+
+    assert slugs == ["lbo"]
+    query = sent[0].url.params
+    assert query["perspective"] == "raw", "drafts must be unticked too"
+    assert json.loads(query["$slug"]) == "buyouts"
+    assert json.loads(query["$pinnedAt"]) == "2026-10-07T10:00:00Z"
+    assert json.loads(sent[1].content) == {
+        "mutations": [
+            {"patch": {"id": "lbo", "set": {"bannerPinned": False}}},
+            {"patch": {"id": "drafts.lbo", "set": {"bannerPinned": False}}},
+        ]
+    }
+
+
+async def test_unpin_banner_writes_nothing_when_no_other_report_is_pinned(monkeypatch) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={"result": []})
+
+    _use_transport(monkeypatch, handler)
+    store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
+
+    assert await store.unpin_banner_except("buyouts", pinned_at=None) == []
+    assert [r.method for r in sent] == ["GET"]
+
+
 async def test_save_rendered_is_guarded_by_the_revision_it_read(monkeypatch) -> None:
     sent: list[httpx.Request] = []
     status = 200

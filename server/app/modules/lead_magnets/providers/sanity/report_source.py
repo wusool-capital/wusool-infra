@@ -37,6 +37,12 @@ _QUERY = (
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
     'featured, bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url}'
 )
+# Raw perspective so open drafts are unticked too; publishing one must not re-pin it.
+_BANNER_QUERY = (
+    '*[_type == "report" && bannerPinned == true && slug.current != $slug'
+    " && ($pinnedAt == null || dateTime(_updatedAt) <= dateTime($pinnedAt))]"
+    '{_id, "slug": slug.current}'
+)
 _SOURCE_QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
     '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom}'
@@ -83,6 +89,23 @@ class _SourceResponse(BaseModel):
     result: _SanitySource | None = None
 
 
+class _BannerPinned(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(alias="_id")
+    slug: str | None = None
+
+
+class _BannerResponse(BaseModel):
+    result: list[_BannerPinned]
+
+
+class _Unpinned(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    banner_pinned: bool = Field(default=False, alias="bannerPinned")
+
+
 class _RenderedFields(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -96,8 +119,8 @@ class _Patch(BaseModel):
 
     id: str
     # Sanity rejects the patch (409) if the document moved on since it was read.
-    if_revision_id: str = Field(alias="ifRevisionID")
-    set_: _RenderedFields = Field(alias="set")
+    if_revision_id: str | None = Field(default=None, alias="ifRevisionID")
+    set_: _RenderedFields | _Unpinned = Field(alias="set")
 
 
 class _PatchMutation(BaseModel):
@@ -150,20 +173,42 @@ class SanityReportSource:
             rendered_html=html, rendered_preview_end=preview_end, rendered_from=rendered_from
         )
         patch = _Patch(id=source.document_id, if_revision_id=source.revision, set_=fields)
-        body = _Mutations(mutations=[_PatchMutation(patch=patch)])
+        response = await self._mutate(_Mutations(mutations=[_PatchMutation(patch=patch)]))
+        if response.status_code == 409:
+            return False
+        response.raise_for_status()
+        return True
+
+    async def unpin_banner_except(self, slug: str, *, pinned_at: str | None) -> list[str]:
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-            response = await client.post(
+            found = await client.get(
+                self._api_url,
+                params={
+                    "query": _BANNER_QUERY,
+                    "$slug": json.dumps(slug),
+                    "$pinnedAt": json.dumps(pinned_at),
+                    "perspective": "raw",
+                },
+                headers={"Authorization": f"Bearer {self._write_token}"},
+            )
+        found.raise_for_status()
+        pinned = _BannerResponse.model_validate_json(found.content).result
+        if not pinned:
+            return []
+        patches = [_PatchMutation(patch=_Patch(id=p.id, set_=_Unpinned())) for p in pinned]
+        (await self._mutate(_Mutations(mutations=patches))).raise_for_status()
+        return sorted({p.slug for p in pinned if p.slug})
+
+    async def _mutate(self, body: _Mutations) -> httpx.Response:
+        async with httpx.AsyncClient(timeout=self._timeout_s) as client:
+            return await client.post(
                 self._mutate_url,
-                content=body.model_dump_json(by_alias=True),
+                content=body.model_dump_json(by_alias=True, exclude_none=True),
                 headers={
                     "Authorization": f"Bearer {self._write_token}",
                     "content-type": "application/json",
                 },
             )
-        if response.status_code == 409:
-            return False
-        response.raise_for_status()
-        return True
 
     def _store(self, slug: str, report: ReportDocument | None) -> ReportDocument | None:
         self._cache.pop(slug, None)

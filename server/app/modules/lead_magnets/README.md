@@ -268,8 +268,12 @@ the first page open and the rest behind one short form. There are three parts:
   - The pin moves only when the edit ticked or unticked it (`featuredChanged`
     in the webhook projection). Otherwise a typo fix on an older, still-ticked
     report would take the pin back.
-  - The home banner pin (`bannerPinned` -> Webflow `pin-to-banner`) moves the
-    same way (`bannerChanged`), but with no fallback: no pin, no bar.
+  - The home banner pin (`bannerPinned` -> Webflow `pin-to-banner`) is
+    level-triggered: every sync writes the report's own tick. Taking the
+    banner unticks the other reports in Sanity (drafts included) and Webflow,
+    so a stale tick never exists. Only reports last edited no later than this
+    one are unticked, so the later of two simultaneous pins wins. The
+    untick's own webhook re-syncs each loser. No fallback: no pin, no bar.
 
 CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
 writes an **organisation and a person only**, with no role and no deal.

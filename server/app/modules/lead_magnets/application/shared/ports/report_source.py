@@ -26,3 +26,9 @@ class ReportSourcePort(Protocol):
         """Stores the flattened HTML that `get` serves from then on. `False`
         when the document changed since `source` was read; nothing is saved."""
         ...
+
+    async def unpin_banner_except(self, slug: str, *, pinned_at: str | None) -> list[str]:
+        """Unticks the home banner pin on every other report, drafts included,
+        last edited no later than `pinned_at`, and returns their slugs. The
+        time check lets the later of two near-simultaneous pins win."""
+        ...

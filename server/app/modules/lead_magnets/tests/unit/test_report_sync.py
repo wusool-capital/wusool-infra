@@ -33,6 +33,9 @@ class _FakeSource:
         self._stale = stale
         self.superseded = False
         self.saved: list[tuple[str, str, int, str]] = []
+        # Slugs of the other reports still ticked for the banner in Sanity.
+        self.banner: list[str] = []
+        self.unpinned: list[tuple[str, str | None]] = []
 
     async def get(self, slug: str) -> ReportDocument | None:
         raise AssertionError("the sync must read fresh, never the cached copy")
@@ -60,6 +63,11 @@ class _FakeSource:
         self.saved.append((source.document_id, html, preview_end, rendered_from))
         return True
 
+    async def unpin_banner_except(self, slug: str, *, pinned_at: str | None) -> list[str]:
+        self.unpinned.append((slug, pinned_at))
+        others, self.banner = [s for s in self.banner if s != slug], []
+        return others
+
 
 class _FakeRenderer:
     def __init__(self) -> None:
@@ -84,11 +92,9 @@ class _FakeCms:
         featured: list[str] | None = None,
         newest_first: list[str] | None = None,
         fail_update: bool = False,
-        banner: list[str] | None = None,
     ):
         self.items = items or {}
         self.featured = featured or []
-        self.banner = banner or []
         self.newest_first = newest_first or []
         self.fail_update = fail_update
         self.calls: list[tuple[str, str]] = []
@@ -134,9 +140,6 @@ class _FakeCms:
 
     async def unfeature(self, item_id: str) -> None:
         self.calls.append(("unfeature", item_id))
-
-    async def banner_ids(self) -> list[str]:
-        return self.banner
 
     async def unpin_banner(self, item_id: str) -> None:
         self.calls.append(("unpin_banner", item_id))
@@ -230,34 +233,45 @@ async def test_unticking_the_pin_unpins_only_that_card() -> None:
     assert cms.pins == [False]
 
 
-async def test_ticking_the_banner_pin_unpins_every_other_banner_card() -> None:
-    cms = _FakeCms({"x": "item-x"}, featured=["lbo"], banner=["item-y", "item-x"])
-    await _sync(source=_FakeSource(_report("x", banner_pinned=True)), cms=cms).sync(
-        slug="x", previous_slug="x", banner_changed=True
-    )
+async def test_a_banner_pinned_report_unpins_the_others_in_sanity_and_webflow() -> None:
+    source = _FakeSource(_report("x", banner_pinned=True))
+    source.banner = ["y"]
+    cms = _FakeCms({"x": "item-x", "y": "item-y"}, featured=["lbo"])
+
+    await _sync(source=source, cms=cms).sync(slug="x", previous_slug="x")
+
     assert cms.calls == [("update", "item-x"), ("unpin_banner", "item-y")]
     assert cms.banner_pins == [True]
     assert cms.pins == [None], "the /reports pin is untouched"
 
 
-async def test_an_edit_that_leaves_the_banner_pin_alone_does_not_write_it() -> None:
-    """Like the /reports pin: a stale Sanity tick must not steal the banner back."""
-    cms = _FakeCms({"x": "item-x"}, featured=["lbo"], banner=["item-y"])
-    await _sync(source=_FakeSource(_report("x", banner_pinned=True)), cms=cms).sync(
-        slug="x", previous_slug="x"
-    )
-    assert cms.calls == [("update", "item-x")]
-    assert cms.banner_pins == [None]
+async def test_every_sync_writes_the_banner_pin_as_sanity_has_it() -> None:
+    """Level-triggered: a lost or superseded earlier sync is repaired by the next one."""
+    cms = _FakeCms({"x": "item-x"}, featured=["lbo"])
+    source = _FakeSource(_report("x"))
 
+    await _sync(source=source, cms=cms).sync(slug="x", previous_slug="x")
 
-async def test_unticking_the_banner_pin_leaves_the_banner_empty() -> None:
-    """No fallback: with nothing pinned the home page shows no bar."""
-    cms = _FakeCms({"x": "item-x"}, featured=["lbo"], banner=["item-x"], newest_first=["lbo"])
-    await _sync(source=_FakeSource(_report("x")), cms=cms).sync(
-        slug="x", previous_slug="x", banner_changed=True
-    )
-    assert cms.calls == [("update", "item-x")]
     assert cms.banner_pins == [False]
+    assert source.unpinned == [], "an unpinned report never touches the others"
+
+
+async def test_renaming_the_banner_report_keeps_it_in_the_banner() -> None:
+    cms = _FakeCms({"old": "item-old"}, featured=["lbo"])
+    await _sync(source=_FakeSource(_report("new", banner_pinned=True)), cms=cms).sync(
+        slug="new", previous_slug="old"
+    )
+    assert cms.calls == [("unpublish", "item-old"), ("create", "new")]
+    assert cms.banner_pins == [True]
+
+
+async def test_a_failed_card_write_leaves_the_banner_alone() -> None:
+    source = _FakeSource(_report("x", banner_pinned=True))
+    source.banner = ["y"]
+    cms = _FakeCms({"x": "item-x"}, featured=["lbo"], fail_update=True)
+    with pytest.raises(RuntimeError):
+        await _sync(source=source, cms=cms).sync(slug="x", previous_slug="x")
+    assert source.unpinned == [] and cms.calls == []
 
 
 async def test_a_deleted_or_unpublished_report_unpublishes_its_card() -> None:
