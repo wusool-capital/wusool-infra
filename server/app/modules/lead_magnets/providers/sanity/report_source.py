@@ -45,7 +45,7 @@ class _SanityReport(BaseModel):
     title: str
     html: str | None = None
     preview_end: int | None = Field(default=None, alias="previewEnd")
-    excerpt: str
+    excerpt: str | None = None
     published_at: str | None = Field(default=None, alias="publishedAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
     cover_url: str | None = Field(default=None, alias="coverUrl")

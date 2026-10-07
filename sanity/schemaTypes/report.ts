@@ -40,8 +40,7 @@ export const report = defineType({
       name: 'excerpt',
       type: 'text',
       rows: 3,
-      description: '2-3 sentences for the /reports card and search results.',
-      validation: (rule) => rule.required(),
+      description: 'Optional. 2-3 sentences for the /reports card and search results.',
     }),
     defineField({
       name: 'html',

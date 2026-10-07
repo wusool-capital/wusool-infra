@@ -80,8 +80,9 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
 ## Publishing a report
 
-Fill in the title, slug, excerpt and the pasted HTML. Cover image,
-primary silo, date and the end-of-page button are optional. The button
+Only the title and the pasted HTML are needed; **Generate** fills the slug
+from the title. Excerpt, cover image, primary silo, date and the end-of-page
+button are optional. The button
 needs both its text and its link, and shows below the report. Removing it
 here doesn't remove it from the live page; clear it in Webflow as well. Tick **Pin to top of /reports** to make
 it the featured card; that unpins the current one. Then publish.

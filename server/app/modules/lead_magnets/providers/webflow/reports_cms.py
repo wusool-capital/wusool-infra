@@ -21,15 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 class ReportFieldData(BaseModel):
-    """The card written for a gated report. Required Webflow fields:
-    `name`, `slug` and `excerpt`."""
+    """The card written for a gated report. Required Webflow fields: `name` and `slug`."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     name: str
     slug: str
     featured: bool | None = None
-    excerpt: str
+    excerpt: str | None = None
     # The template's <title> and meta tags bind these, so they must never be blank.
     seo_title: str = Field(alias="seo-title")
     seo_description: str = Field(alias="seo-description")
@@ -104,7 +103,7 @@ class WebflowReportsCms:
             featured=featured,
             excerpt=report.excerpt,
             seo_title=report.title,
-            seo_description=report.excerpt,
+            seo_description=report.excerpt or report.title,
             og_title=report.title,
             reading_time=reading_time(report.html),
             published_date=report.published_at,

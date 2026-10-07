@@ -22,7 +22,7 @@ class ReportDocument:
     slug: str
     title: str
     html: str
-    excerpt: str
+    excerpt: str | None = None
     # Where the free preview ends in `html`; set at publish, so readers never re-split.
     preview_end: int = 0
     published_at: str | None = None

@@ -153,6 +153,18 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
     assert data["cta-url"] == "/valuation-tool"
 
 
+async def test_a_report_needs_only_a_title_and_its_html(monkeypatch) -> None:
+    _use_transport(monkeypatch, _webflow_handler)
+    cms = WebflowReportsCms(token="t", collection_id="reports")
+
+    data = (
+        await cms.field_data(ReportDocument(slug="r", title="Buyouts in the GCC", html="<p>x</p>"))
+    ).model_dump(by_alias=True, exclude_none=True)
+
+    assert "excerpt" not in data
+    assert data["seo-description"] == "Buyouts in the GCC", "meta tags must never be blank"
+
+
 async def test_an_unknown_silo_is_left_out_not_guessed(monkeypatch) -> None:
     _use_transport(monkeypatch, _webflow_handler)
     cms = WebflowReportsCms(token="t", collection_id="reports")
