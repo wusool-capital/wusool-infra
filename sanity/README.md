@@ -80,8 +80,9 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
 ## Publishing a report
 
-Only the title and the pasted HTML are needed; **Generate** fills the slug
-from the title. Excerpt, cover image, primary silo, date and the end-of-page
+Only the title and the pasted HTML are needed. For the slug, click
+**Generate** to build it from the title, or type your own (lowercase letters,
+numbers and hyphens). Excerpt, cover image, primary silo, date and the end-of-page
 button are optional. The button
 needs both its text and its link, and shows below the report. Removing it
 here doesn't remove it from the live page; clear it in Webflow as well. Tick **Pin to top of /reports** to make
