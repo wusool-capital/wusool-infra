@@ -152,7 +152,7 @@ def client(world: _World):
 
 def _sent_code(world: _World) -> str:
     _, subject, _ = world.emails[-1]
-    return subject.rsplit(" ", 1)[-1]
+    return subject.split(" ", 1)[0]
 
 
 def _unlock(client, world: _World, **form: str):

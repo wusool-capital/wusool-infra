@@ -6,13 +6,13 @@ address never becomes a lead.
 """
 
 import hmac
-import html
 import secrets
 import time
 from collections.abc import Callable
 from dataclasses import replace
 
 from app.modules.lead_magnets.application.shared.ports import UnlockChallengesPort
+from app.modules.lead_magnets.domain.insights_report.email import build_code_email
 from app.modules.lead_magnets.domain.insights_report.unlock import (
     CODE_LENGTH,
     MAX_ATTEMPTS,
@@ -72,12 +72,13 @@ class ReportUnlock:
             UnlockChallenge(slug=slug, form=form, code=code, expires_at=now + self._ttl_s),
             now=now,
         )
+        email = build_code_email(code=code, report_title=report_title, ttl_min=self._ttl_s // 60)
         try:
             await self._mailer.send(
                 to=[form.email],
                 from_addr=self._email_from,
-                subject=f"Your Wusool report code: {code}",
-                body=_code_email(code, report_title, self._ttl_s // 60),
+                subject=email.subject,
+                body=email.html,
                 is_html=True,
             )
         except Exception as exc:
@@ -108,13 +109,3 @@ class ReportUnlock:
     def spend(self, challenge_id: str) -> None:
         """Called once the lead is saved, so the code cannot be replayed."""
         self._challenges.delete(challenge_id)
-
-
-def _code_email(code: str, report_title: str, ttl_min: int) -> str:
-    return (
-        '<div style="font-family:Arial,sans-serif;color:#0b1b3f;font-size:15px;line-height:1.5">'
-        f"<p>Here is your code to read <strong>{html.escape(report_title)}</strong>:</p>"
-        f'<p style="font-size:28px;font-weight:700;letter-spacing:6px">{code}</p>'
-        f"<p>It expires in {ttl_min} minutes. If you did not ask for it, ignore this email.</p>"
-        "<p>Wusool Capital</p></div>"
-    )

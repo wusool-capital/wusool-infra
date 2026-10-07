@@ -10,6 +10,7 @@ from app.modules.lead_magnets.application.insights_report.unlock import (
     TooManyCodes,
     WrongCode,
 )
+from app.modules.lead_magnets.domain.insights_report.email import build_code_email
 from app.modules.lead_magnets.domain.insights_report.unlock import (
     MAX_ATTEMPTS,
     ReaderForm,
@@ -29,7 +30,7 @@ class _Mailer:
     async def send(
         self, *, to: list[str], from_addr: str, subject: str, body: str, is_html: bool = False
     ) -> None:
-        self.codes.append(subject.rsplit(" ", 1)[-1])
+        self.codes.append(subject.split(" ", 1)[0])
 
 
 class _Clock:
@@ -155,3 +156,12 @@ def test_old_challenges_are_evicted_on_the_service_clock() -> None:
     )
     store.add(UnlockChallenge(slug=_SLUG, form=_FORM, code="123456", expires_at=50.0), now=20.0)
     assert store.get(old) is None
+
+
+def test_the_code_email_is_branded_and_escapes_the_title() -> None:
+    email = build_code_email(code="042917", report_title="M&A <Playbook>", ttl_min=10)
+
+    assert email.subject.startswith("042917 ")
+    assert "042917" in email.html and "expires in 10 minutes" in email.html
+    assert "M&amp;A &lt;Playbook&gt;" in email.html
+    assert "a0288d00.png" in email.html, "same Wusool logo as the other tool emails"
