@@ -1,8 +1,7 @@
-"""Webflow implementation of `InsightsCmsPort` — the `/insights` listing card.
+"""Webflow implementation of `ReportsCmsPort` — the `/reports` listing card.
 
-Field slugs are the live Insights collection's own (read through the
-Webflow API, 2026-10-05). Option and Team ids are resolved by name at sync
-time, never hardcoded, so renaming an author in Webflow doesn't break this.
+Field slugs are the live Reports collection's own (created 2026-10-07).
+Silo option ids are resolved by name at sync time, never hardcoded.
 
 Cards reach the live site without a Designer publish. A card update is written
 to the staged item and then published, because the `/live` update 409s
@@ -10,13 +9,11 @@ to the staged item and then published, because the `/live` update 409s
 """
 
 import logging
-from html import escape
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report import (
-    CmsItem,
     ReportDocument,
     reading_time,
 )
@@ -25,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 _API = "https://api.webflow.com/v2"
 _PAGE = 100
-_REPORT_CONTENT_TYPE = "Report"
 # Webflow fetches the image itself and rejects anything over 4MB.
 _COVER_PARAMS = "?w=1600&fm=jpg"
 
@@ -36,10 +32,7 @@ class _Option(BaseModel):
 
 
 class _Validations(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
     options: list[_Option] = []
-    collection_id: str | None = Field(default=None, alias="collectionId")
 
 
 class _CollectionField(BaseModel):
@@ -56,7 +49,6 @@ class _ItemFields(BaseModel):
 
     name: str | None = None
     slug: str | None = None
-    gated: bool | None = None
     featured: bool | None = None
     published_date: str | None = Field(default=None, alias="published-date")
 
@@ -82,20 +74,16 @@ class _Image(BaseModel):
     alt: str
 
 
-class InsightFieldData(BaseModel):
+class ReportFieldData(BaseModel):
     """The card written for a gated report. Required Webflow fields:
-    `name`, `slug`, `content-type`, `body-content` and `excerpt`."""
+    `name`, `slug` and `excerpt`."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     name: str
     slug: str
-    content_type: str = Field(alias="content-type")
-    gated: bool = True
     featured: bool | None = None
     excerpt: str
-    # Required by Webflow; the template hides it on gated items, where the report replaces it.
-    body_content: str = Field(alias="body-content")
     # The template's <title> and meta tags bind these, so they must never be blank.
     seo_title: str = Field(alias="seo-title")
     seo_description: str = Field(alias="seo-description")
@@ -105,7 +93,6 @@ class InsightFieldData(BaseModel):
     last_updated: str | None = Field(default=None, alias="last-updated")
     featured_image: _Image | None = Field(default=None, alias="featured-image")
     og_image: _Image | None = Field(default=None, alias="og-image")
-    author: str | None = None
     primary_silo: str | None = Field(default=None, alias="primary-silo")
     # Omitted when unset, like every optional field: the API documents no way to clear one.
     cta_text: str | None = Field(default=None, alias="cta-text")
@@ -137,30 +124,21 @@ class _ItemWrite(BaseModel):
 
     # Omitted on pin writes: they must not change a hand-written article's draft state.
     is_draft: bool | None = Field(default=None, alias="isDraft")
-    field_data: InsightFieldData | _FeaturedPatch = Field(alias="fieldData")
+    field_data: ReportFieldData | _FeaturedPatch = Field(alias="fieldData")
 
 
-class _Schema(BaseModel):
-    report_option_id: str
-    silo_ids: dict[str, str]
-    author_ids: dict[str, str]
-
-
-class WebflowInsightsCms:
+class WebflowReportsCms:
     def __init__(self, *, token: str, collection_id: str, timeout_s: float = 15.0) -> None:
         self._headers = {"Authorization": f"Bearer {token}", "accept": "application/json"}
         self._collection_id = collection_id
         self._timeout_s = timeout_s
-        self._schema: _Schema | None = None
+        self._silo_ids: dict[str, str] | None = None
 
-    async def find(self, slug: str) -> CmsItem | None:
+    async def find(self, slug: str) -> str | None:
         # Staged items, so an unpublished card is reused rather than clashing on slug.
         page = await self._list(f"/collections/{self._collection_id}/items", slug=slug)
         # Checked here, not trusted: a loose filter must never hand back another card to overwrite.
-        item = next((i for i in page.items if i.field_data.slug == slug), None)
-        if item is None:
-            return None
-        return CmsItem(id=item.id, gated=bool(item.field_data.gated))
+        return next((i.id for i in page.items if i.field_data.slug == slug), None)
 
     async def create(self, report: ReportDocument, *, featured: bool | None) -> str:
         body = _ItemWrite(is_draft=False, field_data=await self.field_data(report, featured))
@@ -231,27 +209,22 @@ class WebflowInsightsCms:
 
     async def field_data(
         self, report: ReportDocument, featured: bool | None = None
-    ) -> InsightFieldData:
+    ) -> ReportFieldData:
         """`featured` `None` leaves the card's pin untouched (omitted from the write)."""
-        schema = await self._load_schema()
+        silo_ids = await self._load_silo_ids()
         cover = (
             _Image(url=report.cover_url + _COVER_PARAMS, alt=report.title)
             if report.cover_url
             else None
         )
-        author = schema.author_ids.get(report.author or "")
-        silo = schema.silo_ids.get(report.silo or "")
-        if report.author and author is None:
-            logger.warning("insights_report_unknown_author author=%s", report.author)
+        silo = silo_ids.get(report.silo or "")
         if report.silo and silo is None:
             logger.warning("insights_report_unknown_silo silo=%s", report.silo)
-        return InsightFieldData(
+        return ReportFieldData(
             name=report.title,
             slug=report.slug,
-            content_type=schema.report_option_id,
             featured=featured,
             excerpt=report.excerpt,
-            body_content=f"<p>{escape(report.excerpt)}</p>",
             seo_title=report.title,
             seo_description=report.excerpt,
             og_title=report.title,
@@ -260,32 +233,21 @@ class WebflowInsightsCms:
             last_updated=report.updated_at,
             featured_image=cover,
             og_image=cover,
-            author=author,
             primary_silo=silo,
             cta_text=report.cta_text,
             cta_url=report.cta_url,
         )
 
-    async def _load_schema(self) -> _Schema:
-        if self._schema is not None:
-            return self._schema
+    async def _load_silo_ids(self) -> dict[str, str]:
+        if self._silo_ids is not None:
+            return self._silo_ids
         response = await self._request("GET", f"/collections/{self._collection_id}")
         fields = {
             f.slug: f.validations or _Validations()
             for f in _Collection.model_validate_json(response.content).fields
         }
-        content_types = {o.name: o.id for o in fields["content-type"].options}
-        silo_ids = {o.name: o.id for o in fields["primary-silo"].options}
-        author_ids: dict[str, str] = {}
-        if team_collection := fields["author"].collection_id:
-            team = await self._list(f"/collections/{team_collection}/items")
-            author_ids = {i.field_data.name: i.id for i in team.items if i.field_data.name}
-        self._schema = _Schema(
-            report_option_id=content_types[_REPORT_CONTENT_TYPE],
-            silo_ids=silo_ids,
-            author_ids=author_ids,
-        )
-        return self._schema
+        self._silo_ids = {o.name: o.id for o in fields["primary-silo"].options}
+        return self._silo_ids
 
     async def _list(self, path: str, *, offset: int = 0, slug: str | None = None) -> _ItemList:
         params: dict[str, str | int] = {"limit": _PAGE, "offset": offset}

@@ -10,7 +10,17 @@ for current production evidence and open handover items.
 
 ## 2026-10-07
 
+### Added
+
+- Insights reports have moved to their own Reports collection on Webflow,
+  with a `/reports` listing and `/reports/<slug>` pages. Unlocked readers
+  can download the full report as a PDF. Old `/insights/<slug>` links
+  redirect to the new pages.
+
 ### Changed
+
+- The organization field on the report form is now optional. A reader who
+  leaves it blank is added to Attio as a person only.
 
 - Locked insights reports now show only the first page to a new reader,
   down from the first quarter. Each live report must be republished in

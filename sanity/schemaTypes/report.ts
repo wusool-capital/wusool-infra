@@ -1,7 +1,6 @@
 import {defineField, defineType} from 'sanity'
 
-// Exact Webflow names (read 2026-10-05); the sync resolves them to Webflow ids.
-const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar']
+// Exact Webflow option names; the sync resolves them to Webflow ids.
 const SILOS = [
   'Sell Your Business',
   'Business Valuation',
@@ -26,7 +25,7 @@ export const report = defineType({
       name: 'slug',
       type: 'slug',
       description:
-        'The page URL: wusoolcapital.com/insights/<slug>. Must not reuse an existing article URL.',
+        'The page URL: wusoolcapital.com/reports/<slug>. Must not reuse an existing report URL.',
       options: {source: 'title', maxLength: 96},
       validation: (rule) =>
         rule
@@ -41,7 +40,7 @@ export const report = defineType({
       name: 'excerpt',
       type: 'text',
       rows: 3,
-      description: '2-3 sentences for the /insights card and search results.',
+      description: '2-3 sentences for the /reports card and search results.',
       validation: (rule) => rule.required(),
     }),
     defineField({
@@ -53,7 +52,6 @@ export const report = defineType({
       validation: (rule) => rule.required(),
     }),
     defineField({name: 'cover', title: 'Cover image', type: 'image'}),
-    defineField({name: 'author', type: 'string', options: {list: AUTHORS}}),
     defineField({name: 'silo', title: 'Primary silo', type: 'string', options: {list: SILOS}}),
     defineField({
       name: 'publishedAt',
@@ -63,7 +61,7 @@ export const report = defineType({
     }),
     defineField({
       name: 'featured',
-      title: 'Pin to top of /insights',
+      title: 'Pin to top of /reports',
       type: 'boolean',
       initialValue: false,
       description: 'Unpins whichever card is pinned now.',

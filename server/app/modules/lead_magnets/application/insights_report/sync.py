@@ -1,4 +1,4 @@
-"""Keeps the Webflow Insights card in step with a report published in Sanity.
+"""Keeps the Webflow Reports card in step with a report published in Sanity.
 
 Triggered by Sanity's publish webhook. Every call re-reads the report rather
 than trusting the webhook body, so a retried or out-of-order delivery still
@@ -11,8 +11,8 @@ pages with JavaScript, and a gate can only split what is already on the page.
 import logging
 
 from app.modules.lead_magnets.application.shared.ports import (
-    InsightsCmsPort,
     ReportRendererPort,
+    ReportsCmsPort,
     ReportSourcePort,
 )
 from app.modules.lead_magnets.domain.insights_report.report import fingerprint
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class ReportSync:
     def __init__(
-        self, *, source: ReportSourcePort, cms: InsightsCmsPort, renderer: ReportRendererPort
+        self, *, source: ReportSourcePort, cms: ReportsCmsPort, renderer: ReportRendererPort
     ) -> None:
         self._source = source
         self._cms = cms
@@ -65,17 +65,11 @@ class ReportSync:
             await self._keep_one_pinned()
             return
 
-        item = await self._cms.find(slug)
-        if item is not None and not item.gated:
-            # Hand-written articles are never gated; a clashing slug must not overwrite one.
-            logger.warning("insights_report_sync_skipped_ungated slug=%s", slug)
-            return
-
         featured = report.featured if featured_changed else None
-        if item is None:
+        card_id = await self._cms.find(slug)
+        if card_id is None:
             card_id = await self._cms.create(report, featured=featured)
         else:
-            card_id = item.id
             await self._cms.update(card_id, report, featured=featured)
 
         if featured:
@@ -88,9 +82,8 @@ class ReportSync:
             await self._keep_one_pinned(excluding=card_id if featured is False else None)
 
     async def _unpublish(self, slug: str) -> None:
-        item = await self._cms.find(slug)
-        if item is not None and item.gated:
-            await self._cms.unpublish(item.id)
+        if card_id := await self._cms.find(slug):
+            await self._cms.unpublish(card_id)
 
     async def _keep_one_pinned(self, *, excluding: str | None = None) -> None:
         """The featured block lists every pinned card; with none it reads "No items found".

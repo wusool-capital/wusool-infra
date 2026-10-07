@@ -178,8 +178,9 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /get-started` | serves | No model at all — pure seller lead capture; the form's own figures go straight to `seller_role` |
 | `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline from the visitor's `/compare` comps and `/analyze` discounts, DCF overrides and search terms |
 | `GET /reports/{slug}` | serves | Gated insights report: the first page for a new reader, the whole report for a returning one |
-| `POST /reports/{slug}/unlock` | serves | The report gate (name, email, organisation); returns the whole report and records the reader |
-| `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook; syncs the Webflow Insights card |
+| `POST /reports/{slug}/unlock` | serves | The report gate (name, email, optional organisation); returns the whole report and records the reader |
+| `GET /reports/{slug}/pdf` | serves | The whole report as an A4 PDF, printed per download; 403 until the reader unlocks |
+| `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook; syncs the Webflow Reports card |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
 visitor reads while still in the tool, long before there is a submission to
@@ -195,7 +196,7 @@ completion opens its own session, so an uncommitted row is invisible to it.
 ## Gated insights reports (PRD 3)
 
 The business publishes a report in the Sanity Studio (`sanity/` at the repo
-root). The report then appears at `wusoolcapital.com/insights/<slug>` with
+root). The report then appears at `wusoolcapital.com/reports/<slug>` with
 the first page open and the rest behind one short form. There are three parts:
 
 - **Content.** `providers/sanity/report_source.py` reads the published report
@@ -227,8 +228,13 @@ the first page open and the rest behind one short form. There are three parts:
   - Their first visit to a *different* report records one more run, keyed
     `<reader>:<slug>`, so every report read becomes one `activities` row
     for PRD 2.
+  - `GET /reports/{slug}/pdf` prints the stored `renderedHtml` to A4 on
+    each download, under the same Chromium lock, network block and 30 s cap
+    as the render. It returns 403 without a reader cookie, uses the unlock
+    rate limit, and records a run on another report's cookie the same way
+    a page view does.
 - **Card.** `application/insights_report/sync.py`, triggered by the Sanity
-  webhook, creates or updates the Webflow Insights item with `gated = true`.
+  webhook, creates or updates the item in the Webflow Reports collection.
   The webhook replies 202 at once and syncs in the background, so Sanity
   never times out and retries mid-sync. A failed sync is only logged
   (`insights_report_sync_failed`); republishing the report repairs it.
@@ -236,10 +242,8 @@ the first page open and the rest behind one short form. There are three parts:
   Cards go live without a Publish in Webflow. A new card uses the live
   create; an existing one is written to its staged item, then published, since
   the live update 409s on a card an earlier sync unpublished.
-  - It never touches an item with `gated = false`. Every hand-written
-    article is ungated.
-  - The exceptions are the pin writes. Featuring a new report unpins the
-    current card only after the new one is live.
+  - Featuring a new report unpins the current card only after the new one
+    is live.
   - When nothing is left pinned, the newest live card is pinned, so the
     featured block never reads "No items found".
   - The pin moves only when the edit ticked or unticked it (`featuredChanged`
@@ -250,7 +254,8 @@ CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
 writes an **organisation and a person only**, with no role and no deal.
 `AttioRoleWriter.write_organization` links an existing org without patching
 it. The org domain comes from the reader's email unless the address is
-free-mail. No emails are sent (`email_dispatch.sends_emails`). The
+free-mail. The organisation is optional: when it is blank, only the person
+is written, and a failure raises so the sweeper retries it. No emails are sent (`email_dispatch.sends_emails`). The
 "Insights & Reports" option must exist on `lead_source_detail` in Attio
 before this ships.
 
@@ -616,9 +621,8 @@ WHERE status = 'succeeded' AND person_attio_id IS NULL
 ## Not built yet
 
 - Gated reports verified live. Not yet checked:
-  - that a live-API Webflow item shows on `/insights` without a site
+  - that a live-API Webflow item shows on `/reports` without a site
     publish;
-  - that the Insights template hides the body when Gated is on;
   - the first-page cut against the real "Buyouts in the GCC" playbook.
 
 - `POST /buyer/apply` and `POST /submit-lead` verified against a real

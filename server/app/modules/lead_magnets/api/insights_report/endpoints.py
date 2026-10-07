@@ -1,5 +1,5 @@
-"""Gated insights reports (PRD 3): the preview, the unlock, and the Sanity
-publish webhook that keeps the Webflow card in step.
+"""Gated insights reports (PRD 3): the preview, the unlock, the PDF download,
+and the Sanity publish webhook that keeps the Webflow card in step.
 
 The report page calls the first two from its iframe on this host, so they
 are same-origin. Only the unlock carries the origin check, because browsers
@@ -38,6 +38,7 @@ from app.modules.lead_magnets.api.schemas import (
 )
 from app.modules.lead_magnets.application.shared.ports import ReportSourcePort
 from app.modules.lead_magnets.bootstrap import (
+    build_report_renderer,
     build_report_source,
     build_report_sync,
     build_submission_service,
@@ -86,30 +87,70 @@ async def read_report(
     response: Response,
     wusool_reader: Annotated[str | None, Cookie()] = None,
 ) -> ReportResponse:
-    """The preview, or the whole report for a returning reader.
+    """The preview, or the whole report for a returning reader."""
+    report = await _published(source, slug)
+    # The body depends on the cookie, so no shared cache may store it.
+    response.headers["Cache-Control"] = "no-store"
+
+    if not await _record_read(session, background, report, wusool_reader):
+        return ReportResponse(
+            title=report.title, html=report.html[: report.preview_end], locked=True
+        )
+    return ReportResponse(title=report.title, html=report.html, locked=False)
+
+
+@router.get(
+    "/reports/{slug}/pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+    dependencies=[Depends(rate_limit)],
+)
+async def download_report_pdf(
+    slug: Slug,
+    source: SourceDep,
+    session: SessionDep,
+    background: BackgroundTasks,
+    wusool_reader: Annotated[str | None, Cookie()] = None,
+) -> Response:
+    """The whole report as a PDF, for unlocked readers only. Printed on each
+    download, and on the unlock budget, because each one launches Chromium."""
+    report = await _published(source, slug)
+    if not await _record_read(session, background, report, wusool_reader):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "unlock the report first")
+    pdf = await build_report_renderer().pdf(report.html)
+    return Response(
+        pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{slug}.pdf"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+async def _record_read(
+    session: SessionDep,
+    background: BackgroundTasks,
+    report: ReportDocument,
+    cookie: str | None,
+) -> bool:
+    """Whether the cookie belongs to a reader who unlocked a report.
 
     A returning reader's first visit to a *different* report records its own
     run, so each report read is one interaction for PRD 2. The
     `<reader>:<slug>` submission id makes repeat visits reuse that row.
     """
-    report = await _published(source, slug)
-    # The body depends on the cookie, so no shared cache may store it.
-    response.headers["Cache-Control"] = "no-store"
-
-    reader = await _known_reader(session, wusool_reader)
+    reader = await _known_reader(session, cookie)
     if reader is None:
-        return ReportResponse(
-            title=report.title, html=report.html[: report.preview_end], locked=True
-        )
-
+        return False
     identity, unlocked_slug = reader
-    if unlocked_slug != slug:
+    if unlocked_slug != report.slug:
         run_id = await build_submission_service(session).record(
             tool=_TOOL,
             payload={
-                "submission_id": f"{wusool_reader}:{slug}",
+                "submission_id": f"{cookie}:{report.slug}",
                 **identity.model_dump(include={"name", "email", "company", "domain"}),
-                "slug": slug,
+                "slug": report.slug,
                 "report_title": report.title,
             },
             email=identity.email,
@@ -117,7 +158,7 @@ async def read_report(
         )
         await session.commit()
         background.add_task(run_completion, run_id)
-    return ReportResponse(title=report.title, html=report.html, locked=False)
+    return True
 
 
 @router.post(

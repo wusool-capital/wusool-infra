@@ -5,6 +5,7 @@ Dockerfile does); skipped where it isn't there.
 
 import asyncio
 import os
+import re
 
 import pytest
 from playwright.async_api import async_playwright
@@ -131,4 +132,30 @@ async def test_rendering_cannot_reach_the_network() -> None:
     finally:
         server.close()
 
+    assert hits == []
+
+
+async def test_the_pdf_keeps_the_reports_own_page_size_and_stays_offline() -> None:
+    """Flattened reports carry their own A4 pages; printing must not reflow them or fetch."""
+    await _require_chromium()
+    hits: list[int] = []
+
+    async def on_connect(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        hits.append(1)
+        writer.close()
+
+    server = await asyncio.start_server(on_connect, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    page = '<section style="height:297mm;overflow:hidden;break-after:page">p</section>'
+    html = (
+        f"<style>@page{{size:A4;margin:0}} body{{margin:0}}</style>"
+        f'<img src="http://127.0.0.1:{port}/i.png" style="position:absolute">{page * 3}'
+    )
+    try:
+        pdf = await ChromiumReportRenderer().pdf(html)
+    finally:
+        server.close()
+
+    assert pdf.startswith(b"%PDF-")
+    assert len(re.findall(rb"/Type\s*/Page\b(?!s)", pdf)) == 3
     assert hits == []

@@ -1,7 +1,7 @@
 """A gated report as the rest of the module sees it. Pure — no vendor types.
 
 `providers/sanity` builds a `ReportDocument` from the CMS response and
-`providers/webflow` turns one into an Insights card; nothing in between
+`providers/webflow` turns one into a Reports card; nothing in between
 knows either vendor's field names.
 """
 
@@ -29,9 +29,8 @@ class ReportDocument:
     updated_at: str | None = None
     cover_url: str | None = None
     featured: bool = False
-    author: str | None = None
     silo: str | None = None
-    # The button at the end of the Insights page.
+    # The button at the end of the report page.
     cta_text: str | None = None
     cta_url: str | None = None
 
@@ -44,14 +43,6 @@ class ReportSource:
     revision: str
     html: str
     rendered_from: str | None
-
-
-@dataclass(frozen=True)
-class CmsItem:
-    """An existing Insights card, reduced to what the sync decides on."""
-
-    id: str
-    gated: bool
 
 
 # Bump when the renderer's output changes, so published reports are flattened again.

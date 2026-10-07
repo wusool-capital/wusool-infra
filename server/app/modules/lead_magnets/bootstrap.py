@@ -40,7 +40,7 @@ from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
 from app.modules.lead_magnets.providers.chromium.renderer import ChromiumReportRenderer
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
-from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
+from app.modules.lead_magnets.providers.webflow.reports_cms import WebflowReportsCms
 from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
 from app.modules.organizations import OrganizationRepository
 from app.modules.utilities.domain.json_types import JsonObject
@@ -156,7 +156,9 @@ class _RoleAttioWriter:
         if tool == "insights_report":
             # PRD 3: a report reader is an organisation and a person only — no role, no deal.
             reader = AttioIdentityPayload.model_validate(payload)
-            name = reader.company or "Unknown"
+            if not reader.company.strip():
+                return await self._person_only(name=reader.name, email=reader.email)
+            name = reader.company
             subjects = await self._writer.write_organization(
                 organization_name=name,
                 domain=reader.domain,
@@ -232,6 +234,14 @@ class _RoleAttioWriter:
             subjects, person_attio_id=person_attio_id, person_name=person_name
         )
 
+    async def _person_only(self, *, name: str | None, email: str | None) -> SubjectRefs:
+        """No organisation is guessed from the email: a free-mail domain would merge
+        unrelated readers. The person is the whole lead here, so a failure raises."""
+        person = await self._person.write(name=name, email=email, organization_attio_id=None)
+        if person is None:
+            return SubjectRefs()
+        return SubjectRefs(person_attio_id=person[0], person_name=person[1])
+
     async def _with_deal(self, subjects: SubjectRefs, *, deal_type: DealType) -> SubjectRefs:
         """Best-effort, same rule as `_with_person`: the org/role write above
         has already landed the lead, and a deal failure must not make the
@@ -273,9 +283,9 @@ def build_report_sync() -> ReportSync:
     settings = get_settings()
     return ReportSync(
         source=build_report_source(),
-        cms=WebflowInsightsCms(
+        cms=WebflowReportsCms(
             token=settings.lead_magnet_webflow_api_token,
-            collection_id=settings.lead_magnet_webflow_insights_collection_id,
+            collection_id=settings.lead_magnet_webflow_reports_collection_id,
         ),
         renderer=build_report_renderer(),
     )

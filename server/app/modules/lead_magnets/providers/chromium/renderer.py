@@ -1,5 +1,5 @@
-"""Chromium implementation of `ReportRendererPort`, run once per published
-report version, never per reader.
+"""Chromium implementation of `ReportRendererPort`. `render` runs once per
+published report version, never per reader; `pdf` runs per download.
 
 Some report exports are self-unpacking bundles: the page exists only after
 their JavaScript runs (the first playbook drew 40 A4 pages and React tables
@@ -21,9 +21,11 @@ as it stands rather than holding the render lock forever.
 
 import asyncio
 import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from playwright.async_api import Route, WebSocketRoute, async_playwright
+from playwright.async_api import Page, Route, WebSocketRoute, async_playwright
 
 _QUIET_MS = 1500
 _SETTLE_MAX_MS = 8_000
@@ -53,25 +55,48 @@ async def _block_socket(socket: WebSocketRoute) -> None:
 
 class ChromiumReportRenderer:
     def __init__(self) -> None:
-        # ponytail: one render at a time; Chromium peaks ~300 MB on a 2 GB t3.small.
+        # ponytail: one Chromium at a time, PDF downloads included (~300 MB peak, 2 GB t3.small).
+        # Cache PDFs per version if downloads start queueing.
         self._lock = asyncio.Lock()
 
     async def render(self, html: str) -> str:
         async with self._lock:
             return await asyncio.wait_for(self._render(html), _RENDER_TIMEOUT_S)
 
+    async def pdf(self, html: str) -> bytes:
+        async with self._lock:
+            return await asyncio.wait_for(self._pdf(html), _RENDER_TIMEOUT_S)
+
     async def _render(self, html: str) -> str:
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(args=_ISOLATED)
-            try:
-                page = await browser.new_page(viewport={"width": 1200, "height": 900})
-                page.set_default_timeout(_TIMEOUT_MS)
-                await page.route("**/*", _block)
-                await page.route_web_socket("**/*", _block_socket)
-                await page.set_content(_META_REFRESH.sub("", html), wait_until="load")
-                settle = {"quietMs": _QUIET_MS, "maxMs": _SETTLE_MAX_MS}
-                await page.evaluate(_WAIT_FOR_QUIET, settle)
-                await page.evaluate("document.fonts.ready.then(() => true)")
-                return await page.evaluate(_SERIALIZE)
-            finally:
-                await browser.close()
+        async with _isolated_page() as page:
+            await page.set_content(_META_REFRESH.sub("", html), wait_until="load")
+            settle = {"quietMs": _QUIET_MS, "maxMs": _SETTLE_MAX_MS}
+            await page.evaluate(_WAIT_FOR_QUIET, settle)
+            await page.evaluate("document.fonts.ready.then(() => true)")
+            return await page.evaluate(_SERIALIZE)
+
+    async def _pdf(self, html: str) -> bytes:
+        # Flattened HTML has no scripts, so nothing to wait for beyond load and fonts.
+        async with _isolated_page() as page:
+            await page.set_content(html, wait_until="load")
+            await page.evaluate("document.fonts.ready.then(() => true)")
+            return await page.pdf(
+                format="A4",
+                print_background=True,
+                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                prefer_css_page_size=True,
+            )
+
+
+@asynccontextmanager
+async def _isolated_page() -> AsyncIterator[Page]:
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(args=_ISOLATED)
+        try:
+            page = await browser.new_page(viewport={"width": 1200, "height": 900})
+            page.set_default_timeout(_TIMEOUT_MS)
+            await page.route("**/*", _block)
+            await page.route_web_socket("**/*", _block_socket)
+            yield page
+        finally:
+            await browser.close()

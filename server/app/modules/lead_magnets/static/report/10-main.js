@@ -7,6 +7,11 @@ function render(data){
   document.getElementById("report").innerHTML=data.html;
   document.getElementById("gate").classList.toggle("hide",!data.locked);
   document.getElementById("stage").classList.toggle("locked",data.locked);
+  const download=document.getElementById("download-pdf");
+  // aria-disabled, not disabled: the locked button must still take the click that leads to the gate.
+  if(data.locked)download.setAttribute("aria-disabled","true");
+  else download.removeAttribute("aria-disabled");
+  document.getElementById("download").classList.remove("hide");
   fit();
 }
 
@@ -81,5 +86,15 @@ async function submitGateForm(e){
   }
 }
 
+function downloadPdf(e){
+  if(!document.getElementById("stage").classList.contains("locked"))return;
+  e.preventDefault();
+  document.getElementById("gate").scrollIntoView({behavior:"smooth",block:"center"});
+  document.getElementById("name").focus({preventScroll:true});
+}
+
+document.getElementById("download-pdf").href=REPORT_URL+"/pdf";
+document.getElementById("download-pdf").download=SLUG+".pdf";
+document.getElementById("download-pdf").addEventListener("click",downloadPdf);
 document.getElementById("gate-form").addEventListener("submit",submitGateForm);
 loadReport().catch(error=>console.warn("report",error));

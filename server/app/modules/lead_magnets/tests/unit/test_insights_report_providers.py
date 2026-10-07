@@ -1,6 +1,6 @@
 """The Sanity reader, the Sanity webhook signature guard, and the Webflow card
 mapping, each against recorded response shapes through `httpx.MockTransport`.
-The Webflow collection below is a trimmed copy of the live Insights schema."""
+The Webflow collection below is a trimmed copy of the live Reports schema."""
 
 import base64
 import functools
@@ -15,7 +15,7 @@ import pytest
 from app.modules.lead_magnets.api.dependencies import is_valid_sanity_signature
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, ReportSource
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
-from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
+from app.modules.lead_magnets.providers.webflow.reports_cms import WebflowReportsCms
 
 _SANITY_REPORT = {
     "slug": "buyouts-in-the-gcc",
@@ -27,7 +27,6 @@ _SANITY_REPORT = {
     "updatedAt": "2026-10-05T09:00:00Z",
     "coverUrl": "https://cdn.sanity.io/images/p/production/cover.jpg",
     "featured": None,
-    "author": "Jules Chasles",
     "silo": "Buy a Business",
     "ctaText": "Get your free valuation",
     "ctaUrl": "/valuation-tool",
@@ -36,25 +35,11 @@ _SANITY_REPORT = {
 _COLLECTION = {
     "fields": [
         {
-            "slug": "content-type",
-            "validations": {
-                "options": [
-                    {"name": "Article", "id": "opt-article"},
-                    {"name": "Report", "id": "opt-report"},
-                ]
-            },
-        },
-        {
             "slug": "primary-silo",
             "validations": {"options": [{"name": "Buy a Business", "id": "opt-buy"}]},
         },
-        {"slug": "author", "validations": {"collectionId": "team"}},
-        {"slug": "body-content", "validations": None},
+        {"slug": "excerpt", "validations": None},
     ]
-}
-_TEAM = {
-    "items": [{"id": "team-jules", "fieldData": {"name": "Jules Chasles"}}],
-    "pagination": {"total": 1},
 }
 
 
@@ -76,7 +61,7 @@ async def test_sanity_report_is_parsed_and_cached(monkeypatch) -> None:
     report = await source.get("buyouts-in-the-gcc")
     await source.get("buyouts-in-the-gcc")
 
-    assert report is not None and report.author == "Jules Chasles"
+    assert report is not None and report.silo == "Buy a Business"
     assert report.featured is False
     assert (report.cta_text, report.cta_url) == ("Get your free valuation", "/valuation-tool")
     assert len(requests) == 1, "the second read comes from the cache"
@@ -131,23 +116,20 @@ def test_a_signature_older_than_ten_minutes_is_a_replay() -> None:
 
 
 def _webflow_handler(request: httpx.Request) -> httpx.Response:
-    if request.url.path == "/v2/collections/insights":
+    if request.url.path == "/v2/collections/reports":
         return httpx.Response(200, json=_COLLECTION)
-    if request.url.path == "/v2/collections/team/items":
-        return httpx.Response(200, json=_TEAM)
     raise AssertionError(f"unexpected {request.method} {request.url}")
 
 
 async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
     _use_transport(monkeypatch, _webflow_handler)
-    cms = WebflowInsightsCms(token="t", collection_id="insights")
+    cms = WebflowReportsCms(token="t", collection_id="reports")
     report = ReportDocument(
         slug="buyouts-in-the-gcc",
         title="Buyouts in the GCC",
         html="<p>" + "w " * 450 + "</p>",
         excerpt="The <b>eight-part</b> playbook.",
         cover_url="https://cdn.sanity.io/cover.jpg",
-        author="Jules Chasles",
         silo="Buy a Business",
         cta_text="Get your free valuation",
         cta_url="/valuation-tool",
@@ -157,37 +139,34 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
         mode="json", by_alias=True, exclude_none=True
     )
 
-    for required in ("name", "slug", "content-type", "body-content", "excerpt"):
+    for required in ("name", "slug", "excerpt"):
         assert data[required], required
-    assert data["content-type"] == "opt-report"
-    assert data["gated"] is True and data["featured"] is True
-    assert data["body-content"] == "<p>The &lt;b&gt;eight-part&lt;/b&gt; playbook.</p>"
+    for insights_only in ("content-type", "gated", "author", "body-content"):
+        assert insights_only not in data, insights_only
+    assert data["featured"] is True
     assert data["seo-title"] == data["og-title"] == "Buyouts in the GCC"
     assert data["reading-time"] == "3 min read"
-    assert data["author"] == "team-jules"
     assert data["primary-silo"] == "opt-buy"
     assert data["featured-image"]["url"].endswith("cover.jpg?w=1600&fm=jpg")
     assert data["cta-text"] == "Get your free valuation"
     assert data["cta-url"] == "/valuation-tool"
 
 
-async def test_unknown_author_and_silo_are_left_out_not_guessed(monkeypatch) -> None:
+async def test_an_unknown_silo_is_left_out_not_guessed(monkeypatch) -> None:
     _use_transport(monkeypatch, _webflow_handler)
-    cms = WebflowInsightsCms(token="t", collection_id="insights")
-    report = ReportDocument(
-        slug="x", title="X", html="", excerpt="E", author="Nobody", silo="Nowhere"
-    )
+    cms = WebflowReportsCms(token="t", collection_id="reports")
+    report = ReportDocument(slug="x", title="X", html="", excerpt="E", silo="Nowhere")
 
     data = (await cms.field_data(report)).model_dump(by_alias=True, exclude_none=True)
 
-    assert "author" not in data and "primary-silo" not in data
+    assert "primary-silo" not in data
     assert "cta-text" not in data and "cta-url" not in data, "no button means none is written"
     assert "featured" not in data, "no pin change means the pin isn't written at all"
 
 
 async def test_featured_ids_reads_every_live_page(monkeypatch) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v2/collections/insights/items/live"
+        assert request.url.path == "/v2/collections/reports/items/live"
         offset = int(request.url.params["offset"])
         items = [
             {"id": f"item-{offset + i}", "fieldData": {"featured": offset + i == 150}}
@@ -197,7 +176,7 @@ async def test_featured_ids_reads_every_live_page(monkeypatch) -> None:
 
     _use_transport(monkeypatch, handler)
 
-    assert await WebflowInsightsCms(token="t", collection_id="insights").featured_ids() == [
+    assert await WebflowReportsCms(token="t", collection_id="reports").featured_ids() == [
         "item-150"
     ]
 
@@ -212,21 +191,21 @@ async def test_writes_go_to_the_live_endpoints_with_typed_bodies(monkeypatch) ->
         return httpx.Response(202, json={"id": "new-item"})
 
     _use_transport(monkeypatch, handler)
-    cms = WebflowInsightsCms(token="t", collection_id="insights")
+    cms = WebflowReportsCms(token="t", collection_id="reports")
     report = ReportDocument(slug="r", title="R", html="", excerpt="E")
 
     assert await cms.create(report, featured=None) == "new-item"
     await cms.unfeature("lbo")
     await cms.unpublish("item-1")
 
-    assert sent[0][:2] == ("POST", "/v2/collections/insights/items/live")
+    assert sent[0][:2] == ("POST", "/v2/collections/reports/items/live")
     assert sent[0][2]["isDraft"] is False and sent[0][2]["fieldData"]["slug"] == "r"
     assert sent[1] == (
         "PATCH",
-        "/v2/collections/insights/items/lbo/live",
+        "/v2/collections/reports/items/lbo/live",
         {"fieldData": {"featured": False}},
     ), "the unpin must not change a hand-written article's draft state"
-    assert sent[2][:2] == ("DELETE", "/v2/collections/insights/items/item-1/live")
+    assert sent[2][:2] == ("DELETE", "/v2/collections/reports/items/item-1/live")
 
 
 async def test_an_update_writes_the_staged_card_then_publishes_it(monkeypatch) -> None:
@@ -240,15 +219,15 @@ async def test_an_update_writes_the_staged_card_then_publishes_it(monkeypatch) -
         return httpx.Response(202, json={"publishedItemIds": ["item-1"], "errors": []})
 
     _use_transport(monkeypatch, handler)
-    cms = WebflowInsightsCms(token="t", collection_id="insights")
+    cms = WebflowReportsCms(token="t", collection_id="reports")
 
     await cms.update(
         "item-1", ReportDocument(slug="r", title="R", html="", excerpt="E"), featured=None
     )
 
-    assert sent[0][:2] == ("PATCH", "/v2/collections/insights/items/item-1")
+    assert sent[0][:2] == ("PATCH", "/v2/collections/reports/items/item-1")
     assert sent[0][2]["isDraft"] is False
-    assert sent[1] == ("POST", "/v2/collections/insights/items/publish", {"itemIds": ["item-1"]})
+    assert sent[1] == ("POST", "/v2/collections/reports/items/publish", {"itemIds": ["item-1"]})
 
 
 async def test_an_update_webflow_did_not_publish_is_an_error(monkeypatch) -> None:
@@ -258,7 +237,7 @@ async def test_an_update_webflow_did_not_publish_is_an_error(monkeypatch) -> Non
         return httpx.Response(202, json={"publishedItemIds": [], "errors": ["nope"]})
 
     _use_transport(monkeypatch, handler)
-    cms = WebflowInsightsCms(token="t", collection_id="insights")
+    cms = WebflowReportsCms(token="t", collection_id="reports")
 
     with pytest.raises(RuntimeError):
         await cms.update(
@@ -269,7 +248,7 @@ async def test_an_update_webflow_did_not_publish_is_an_error(monkeypatch) -> Non
 async def test_unpublishing_a_card_that_is_not_live_is_not_an_error(monkeypatch) -> None:
     _use_transport(monkeypatch, lambda request: httpx.Response(404, json={}))
 
-    await WebflowInsightsCms(token="t", collection_id="insights").unpublish("item-1")
+    await WebflowReportsCms(token="t", collection_id="reports").unpublish("item-1")
 
 
 async def test_newest_id_skips_undated_and_excluded_cards(monkeypatch) -> None:
@@ -283,7 +262,7 @@ async def test_newest_id_skips_undated_and_excluded_cards(monkeypatch) -> None:
         monkeypatch,
         lambda request: httpx.Response(200, json={"items": items, "pagination": {"total": 4}}),
     )
-    cms = WebflowInsightsCms(token="t", collection_id="insights")
+    cms = WebflowReportsCms(token="t", collection_id="reports")
 
     assert await cms.newest_id() == "newest"
     assert await cms.newest_id(excluding="newest") == "mid"
@@ -293,11 +272,11 @@ async def test_find_ignores_a_card_whose_slug_does_not_match(monkeypatch) -> Non
     """Never trust the list filter: a loose match must not become the card we overwrite."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        items = [{"id": "other", "fieldData": {"slug": "other-report", "gated": True}}]
+        items = [{"id": "other", "fieldData": {"slug": "other-report"}}]
         return httpx.Response(200, json={"items": items, "pagination": {"total": 1}})
 
     _use_transport(monkeypatch, handler)
-    cms = WebflowInsightsCms(token="t", collection_id="insights")
+    cms = WebflowReportsCms(token="t", collection_id="reports")
 
     assert await cms.find("buyouts-in-the-gcc") is None
 

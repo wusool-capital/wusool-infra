@@ -519,7 +519,7 @@ _EMAIL_PATTERN = (
 
 
 class ReportUnlockRequest(_Strict):
-    """The gate on an insights report (PRD 3): name, email and organisation.
+    """The gate on an insights report (PRD 3): name, email and an optional organisation.
 
     The page asks for a work email, but free-mail is still accepted, by
     decision; only malformed addresses are rejected. Field names
@@ -529,7 +529,8 @@ class ReportUnlockRequest(_Strict):
 
     submission_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=200)
-    company: str = Field(min_length=1, max_length=200)
+    # Optional; `""`, not `None`, to match `AttioIdentityPayload.company`.
+    company: str = Field(default="", max_length=200)
     email: str = Field(min_length=3, max_length=320, pattern=_EMAIL_PATTERN)
 
 

@@ -1,5 +1,6 @@
 """`/reports/*`: the preview never carries the gated rest, the unlock and a
-returning reader get the whole report, and the Sanity webhook is signed.
+returning reader get the whole report, only they get the PDF, and the Sanity
+webhook is signed.
 
 No database: the session, ledger and Attio completion are faked at the
 composition-root seams the endpoints import, as `test_api_endpoints.py`
@@ -57,6 +58,7 @@ class _World:
     completed: list[UUID] = field(default_factory=list)
     runs: dict[UUID, ToolRunRecord] = field(default_factory=dict)
     synced: list[tuple[str | None, str | None]] = field(default_factory=list)
+    printed: list[str] = field(default_factory=list)
 
 
 class _Source:
@@ -92,6 +94,11 @@ def world(monkeypatch) -> _World:
         async def sync(self, *, slug, previous_slug, featured_changed):
             world.synced.append((slug, previous_slug, featured_changed))
 
+    class _Renderer:
+        async def pdf(self, html: str) -> bytes:
+            world.printed.append(html)
+            return b"%PDF-1.7 fake"
+
     async def fake_completion(run_id: UUID) -> None:
         world.completed.append(run_id)
 
@@ -100,6 +107,7 @@ def world(monkeypatch) -> _World:
     monkeypatch.setattr(deps, "get_settings", lambda: world.settings)
     monkeypatch.setattr(endpoints, "build_report_source", lambda: source)
     monkeypatch.setattr(endpoints, "build_report_sync", lambda: _Sync())
+    monkeypatch.setattr(endpoints, "build_report_renderer", lambda: _Renderer())
     monkeypatch.setattr(endpoints, "build_submission_service", lambda session: _Service())
     monkeypatch.setattr(endpoints, "build_tool_runs", lambda session: _ToolRuns())
     monkeypatch.setattr(endpoints, "run_completion", fake_completion)
@@ -207,6 +215,45 @@ def test_unlock_accepts_real_addresses_including_free_mail(client, email: str) -
         json={"submission_id": "s", "name": "D", "email": email, "company": "A"},
     )
     assert response.status_code == 200
+
+
+def test_unlock_works_without_an_organisation(client, world) -> None:
+    response = client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "D", "email": "dana@acme.ae"},
+    )
+
+    assert response.status_code == 200 and response.json()["locked"] is False
+    assert world.recorded[0]["payload"]["company"] == ""
+
+
+def test_the_pdf_is_locked_until_the_reader_unlocks(client, world) -> None:
+    assert client.get("/reports/buyouts-in-the-gcc/pdf").status_code == 403
+    assert world.printed == [], "a locked reader never costs a Chromium launch"
+
+    client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
+    response = client.get("/reports/buyouts-in-the-gcc/pdf")
+
+    assert response.status_code == 200
+    assert response.content == b"%PDF-1.7 fake"
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="buyouts-in-the-gcc.pdf"'
+    )
+    assert response.headers["cache-control"] == "no-store"
+    assert world.printed == [_HTML], "the whole report, not the preview"
+    assert world.recorded == [], "the report this reader unlocked is already one run"
+
+
+def test_a_pdf_of_another_report_records_its_own_read(client, world) -> None:
+    reader = _reader_run(world, slug="buyouts-in-the-gcc")
+    client.cookies.set("wusool_reader", str(reader))
+
+    assert client.get("/reports/other-report/pdf").status_code == 200
+
+    (recorded,) = world.recorded
+    assert recorded["payload"]["submission_id"] == f"{reader}:other-report"
+    assert len(world.completed) == 1
 
 
 def test_a_returning_reader_skips_the_gate_and_logs_one_read_per_new_report(client, world) -> None:

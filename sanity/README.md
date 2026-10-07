@@ -2,8 +2,9 @@
 
 The dashboard where the business publishes gated insights reports (PRD 3).
 One document type, `report`. Publishing one makes it live on
-`wusoolcapital.com/insights/<slug>`: the first 25% is open, and the rest
-unlocks after a name, email and organisation form.
+`wusoolcapital.com/reports/<slug>`: the first page is open, and the rest
+and the PDF download unlock after a name and email form (organisation is
+optional).
 
 ## How it fits together
 
@@ -13,11 +14,11 @@ unlocks after a name, email and organisation form.
    saves what it draws back to the report as static HTML, in the hidden
    `renderedHtml` field (with `renderedPreviewEnd`, where the free part ends). This is how exports that build their pages with
    JavaScript, like "Buyouts in the GCC", become splittable. It then creates
-   or updates the matching card in the Webflow Insights collection with
-   **Gated** on, through the live API. This is
+   or updates the matching card in the Webflow Reports collection, through
+   the live API. This is
    meant to need no Publish in Webflow, which is not yet verified against
    the live site.
-4. The Insights template's embed loads `/report/?slug=<slug>` from the
+4. The Reports template's embed loads `/report/?slug=<slug>` from the
    toolkit server, which reads the HTML from Sanity and gates it.
 
 Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
@@ -71,10 +72,10 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
 ## Publishing a report
 
-Fill in the title, slug, excerpt and the pasted HTML. Cover image, author,
+Fill in the title, slug, excerpt and the pasted HTML. Cover image,
 primary silo, date and the end-of-page button are optional. The button
 needs both its text and its link, and shows below the report. Removing it
-here doesn't remove it from the live page; clear it in Webflow as well. Tick **Pin to top of /insights** to make
+here doesn't remove it from the live page; clear it in Webflow as well. Tick **Pin to top of /reports** to make
 it the featured card; that unpins the current one. Then publish.
 
 The pin only moves when you tick or untick it. When a newer report takes the
@@ -83,7 +84,7 @@ won't take the pin back. To pin it again, untick, publish, then tick and
 publish.
 
 The featured slot is never left empty. When you untick, unpublish or delete
-the pinned report, the newest live card on `/insights` takes the pin.
+the pinned report, the newest live card on `/reports` takes the pin.
 
 - **Renaming a slug** unpublishes the old card and creates a new one, so
   the old URL stops working.

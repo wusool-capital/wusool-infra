@@ -128,10 +128,10 @@
       "id": "webflow",
       "type": "external",
       "label": "Webflow CMS",
-      "sublabel": "Insights cards",
+      "sublabel": "Reports cards",
       "pos": [40, 600],
       "size": [150, 64],
-      "sources": [{ "path": "server/app/modules/lead_magnets/providers/webflow/insights_cms.py", "label": "Insights card sync" }]
+      "sources": [{ "path": "server/app/modules/lead_magnets/providers/webflow/reports_cms.py", "label": "Reports card sync" }]
     }
   ],
   "boundaries": [
@@ -171,7 +171,7 @@
       "items": [
         "Slack, website lead magnets, Attio webhooks, and Scribe use one Toolkit FastAPI process",
         "Toolkit liveness is /health; database readiness is /readiness and /ready",
-        "Gated insights reports: Sanity holds the HTML; the Toolkit gates it and syncs the Webflow Insights card"
+        "Gated insights reports: Sanity holds the HTML; the Toolkit gates it and syncs the Webflow Reports card"
       ]
     },
     {
