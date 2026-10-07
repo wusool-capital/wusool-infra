@@ -178,7 +178,8 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /get-started` | serves | No model at all — pure seller lead capture; the form's own figures go straight to `seller_role` |
 | `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline from the visitor's `/compare` comps and `/analyze` discounts, DCF overrides and search terms |
 | `GET /reports/{slug}` | serves | Gated insights report: the first page for a new reader, the whole report for a returning one |
-| `POST /reports/{slug}/unlock` | serves | The report gate (name, email, optional organisation); returns the whole report and records the reader |
+| `POST /reports/{slug}/unlock` | serves | The report gate (name, email, optional organisation); emails a 6-digit code through SES and returns a `challenge_id`. Records nothing |
+| `POST /reports/{slug}/unlock/verify` | serves | Takes `{challenge_id, code}`. On a match it returns the whole report and records the reader. A wrong code is 400; an expired, used-up or unknown code is 410 |
 | `GET /reports/{slug}/pdf` | serves | The whole report as an A4 PDF, printed per download; 403 until the reader unlocks |
 | `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook for both document types; syncs the Webflow Reports card or Insights article |
 
@@ -226,9 +227,17 @@ the first page open and the rest behind one short form. There are three parts:
   finds. From there it follows the pasted path: render, gate, save, PDF.
 - **Gate.** `domain/insights_report/split.py` cuts between block elements,
   never at an inline tag, before page two, or at a text share when the renderer set no mark. `GET /reports/{slug}` never sends the
-  rest to a new reader. `POST /reports/{slug}/unlock` records an
-  `insights_report` run through the write contract, returns the whole
-  report, and sets the `wusool_reader` cookie, which holds the run id.
+  rest to a new reader.
+  - `POST /reports/{slug}/unlock` emails a one-time code
+    (`application/insights_report/unlock.py`). Nothing reaches `tool_runs`
+    or Attio yet, so a mistyped address never becomes a lead.
+  - A code lasts `LEAD_MAGNET_REPORT_CODE_TTL_S` (10 min) and allows five
+    guesses. One address gets three codes per 10 minutes.
+  - Pending codes live in process memory, because only one container runs.
+    A deploy drops codes in flight, and those readers request a new one.
+  - `POST /reports/{slug}/unlock/verify` with the right code records an
+    `insights_report` run through the write contract, returns the whole
+    report, and sets the `wusool_reader` cookie, which holds the run id.
   - A returning reader skips the form.
   - Their first visit to a *different* report records one more run, keyed
     `<reader>:<slug>`, so every report read becomes one `activities` row

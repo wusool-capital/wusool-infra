@@ -212,6 +212,10 @@ needed per report:
 4. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
    Without it, the org write for every unlock that names an organisation
    fails. A blank organisation writes the person only.
+5. Unlock codes go out through SES from `LEAD_MAGNET_EMAIL_FROM`. The
+   `wusoolcapital.com` domain is verified in eu-central-1, and the account
+   has production access, so codes reach any inbox. The toolkit role's
+   existing `ses:SendEmail` grant covers it, and no new secret is needed.
 
 The image now carries headless Chromium (see `server/Dockerfile`), about
 590 MB. It runs during a Sanity publish (about 2.4 s for the first playbook)

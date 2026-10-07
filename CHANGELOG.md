@@ -24,6 +24,11 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Readers now confirm their email before a report opens. The form emails a
+  6-digit code, and the report and PDF unlock once the reader enters it.
+  Only confirmed readers are added to Attio. Readers who already unlocked a
+  report keep their access.
+
 - The organization field on the report form is now optional. A reader who
   leaves it blank is added to Attio as a person only.
 

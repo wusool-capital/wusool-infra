@@ -534,6 +534,15 @@ class ReportUnlockRequest(_Strict):
     email: str = Field(min_length=3, max_length=320, pattern=_EMAIL_PATTERN)
 
 
+class ReportCodeSent(BaseModel):
+    challenge_id: str
+
+
+class ReportVerifyRequest(_Strict):
+    challenge_id: str = Field(min_length=1, max_length=64)
+    code: str = Field(pattern=r"^[0-9]{6}$")
+
+
 class ReportResponse(BaseModel):
     title: str
     html: str

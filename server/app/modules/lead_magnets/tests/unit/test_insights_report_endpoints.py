@@ -1,6 +1,6 @@
-"""`/reports/*`: the preview never carries the gated rest, the unlock and a
-returning reader get the whole report, only they get the PDF, and the Sanity
-webhook is signed.
+"""`/reports/*`: the preview never carries the gated rest, only a reader who
+types back the emailed code (or returns with the cookie) gets the whole
+report and the PDF, and the Sanity webhook is signed.
 
 No database: the session, ledger and Attio completion are faked at the
 composition-root seams the endpoints import, as `test_api_endpoints.py`
@@ -21,9 +21,11 @@ from fastapi.testclient import TestClient
 
 from app.modules.lead_magnets.api import dependencies as deps
 from app.modules.lead_magnets.api.insights_report import endpoints
+from app.modules.lead_magnets.application.insights_report.unlock import ReportUnlock
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.domain.shared.tool_run import ToolRunRecord
+from app.modules.lead_magnets.persistence.unlock_challenges import InMemoryUnlockChallenges
 
 _REST = "GATED-REST-OF-THE-REPORT"
 _HTML = "".join(f"<p>part {n} " + "word " * 50 + "</p>" for n in range(3)) + f"<p>{_REST}</p>"
@@ -61,6 +63,7 @@ class _World:
     synced: list[tuple[str | None, str | None]] = field(default_factory=list)
     articles: list[tuple[str | None, str | None]] = field(default_factory=list)
     printed: list[str] = field(default_factory=list)
+    emails: list[tuple[list[str], str, str]] = field(default_factory=list)
 
 
 class _Source:
@@ -105,8 +108,19 @@ def world(monkeypatch) -> _World:
             world.printed.append(html)
             return b"%PDF-1.7 fake"
 
+    class _Mailer:
+        async def send(self, *, to, from_addr, subject, body, is_html=False):
+            world.emails.append((to, subject, body))
+
     async def fake_completion(run_id: UUID) -> None:
         world.completed.append(run_id)
+
+    unlock = ReportUnlock(
+        challenges=InMemoryUnlockChallenges(),
+        mailer=_Mailer(),
+        email_from="contact@wusoolcapital.com",
+        ttl_s=600,
+    )
 
     source = _Source(world)
     monkeypatch.setattr(endpoints, "get_settings", lambda: world.settings)
@@ -118,6 +132,7 @@ def world(monkeypatch) -> _World:
     monkeypatch.setattr(endpoints, "build_submission_service", lambda session: _Service())
     monkeypatch.setattr(endpoints, "build_tool_runs", lambda session: _ToolRuns())
     monkeypatch.setattr(endpoints, "run_completion", fake_completion)
+    monkeypatch.setattr(endpoints, "build_report_unlock", lambda: unlock)
     return world
 
 
@@ -132,6 +147,22 @@ def client(world: _World):
     app.dependency_overrides[deps.get_session] = fake_session
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
+
+
+def _sent_code(world: _World) -> str:
+    _, subject, _ = world.emails[-1]
+    return subject.rsplit(" ", 1)[-1]
+
+
+def _unlock(client, world: _World, **form: str):
+    """Both gate steps: request the code, then type it back."""
+    body = {"submission_id": "s", "name": "D", "email": "dana@acme.ae", "company": "A", **form}
+    sent = client.post("/reports/buyouts-in-the-gcc/unlock", json=body)
+    assert sent.status_code == 200, sent.text
+    return client.post(
+        "/reports/buyouts-in-the-gcc/unlock/verify",
+        json={"challenge_id": sent.json()["challenge_id"], "code": _sent_code(world)},
+    )
 
 
 def _reader_run(world: _World, slug: str) -> UUID:
@@ -165,16 +196,23 @@ def test_unknown_or_unconfigured_reports_are_404(client, world) -> None:
     assert client.get("/reports/buyouts-in-the-gcc").status_code == 404
 
 
-def test_unlock_returns_the_whole_report_and_remembers_the_reader(client, world) -> None:
+def test_unlock_only_emails_a_code_and_records_nothing(client, world) -> None:
     response = client.post(
         "/reports/buyouts-in-the-gcc/unlock",
-        json={
-            "submission_id": "sub-1",
-            "name": "Dana",
-            "email": "dana@gmail.com",
-            "company": "Acme",
-        },
+        json={"submission_id": "s", "name": "Dana", "email": "dana@gmail.com"},
     )
+
+    assert response.status_code == 200
+    assert set(response.json()) == {"challenge_id"}
+    assert "set-cookie" not in response.headers
+    ((to, subject, body),) = world.emails
+    assert to == ["dana@gmail.com"]
+    assert "Buyouts in the GCC" in body and _sent_code(world) in body
+    assert world.recorded == [] and world.completed == [], "no lead until the email is proven"
+
+
+def test_the_right_code_returns_the_whole_report_and_remembers_the_reader(client, world) -> None:
+    response = _unlock(client, world, name="Dana", email="dana@gmail.com", company="Acme")
 
     assert response.status_code == 200
     assert response.json()["locked"] is False
@@ -187,7 +225,51 @@ def test_unlock_returns_the_whole_report_and_remembers_the_reader(client, world)
     assert recorded["tool"] == "insights_report"
     assert recorded["domain"] is None, "free-mail is accepted, but never becomes an org domain"
     assert recorded["payload"]["slug"] == "buyouts-in-the-gcc"
+    assert recorded["payload"]["email"] == "dana@gmail.com"
     assert len(world.completed) == 1
+
+
+def test_a_wrong_code_is_400_and_unlocks_nothing(client, world) -> None:
+    sent = client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "D", "email": "dana@acme.ae"},
+    )
+    wrong = "000000" if _sent_code(world) != "000000" else "111111"
+
+    response = client.post(
+        "/reports/buyouts-in-the-gcc/unlock/verify",
+        json={"challenge_id": sent.json()["challenge_id"], "code": wrong},
+    )
+
+    assert response.status_code == 400
+    assert "set-cookie" not in response.headers
+    assert world.recorded == []
+
+
+def test_a_used_or_unknown_challenge_is_410(client, world) -> None:
+    assert _unlock(client, world).status_code == 200
+    challenge = {"challenge_id": "nope", "code": "123456"}
+    response = client.post("/reports/buyouts-in-the-gcc/unlock/verify", json=challenge)
+    assert response.status_code == 410
+
+
+def test_a_failed_code_email_is_503_not_a_crash(client, world, monkeypatch) -> None:
+    class _Down:
+        async def send(self, **kwargs):
+            raise RuntimeError("ses down")
+
+    monkeypatch.setattr(
+        endpoints,
+        "build_report_unlock",
+        lambda: ReportUnlock(
+            challenges=InMemoryUnlockChallenges(), mailer=_Down(), email_from="x@y.z", ttl_s=600
+        ),
+    )
+    response = client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "D", "email": "dana@acme.ae"},
+    )
+    assert response.status_code == 503
 
 
 @pytest.mark.parametrize(
@@ -216,18 +298,16 @@ def test_unlock_rejects_anything_that_is_not_an_email(client, email: str) -> Non
 @pytest.mark.parametrize(
     "email", ["dana@acme.ae", "dana.k+reports@mail.acme-group.com", "dana@gmail.com"]
 )
-def test_unlock_accepts_real_addresses_including_free_mail(client, email: str) -> None:
-    response = client.post(
-        "/reports/buyouts-in-the-gcc/unlock",
-        json={"submission_id": "s", "name": "D", "email": email, "company": "A"},
-    )
-    assert response.status_code == 200
+def test_unlock_accepts_real_addresses_including_free_mail(client, world, email: str) -> None:
+    assert _unlock(client, world, email=email).status_code == 200
 
 
 def test_unlock_works_without_an_organisation(client, world) -> None:
+    body = {"submission_id": "s", "name": "D", "email": "dana@acme.ae"}
+    sent = client.post("/reports/buyouts-in-the-gcc/unlock", json=body)
     response = client.post(
-        "/reports/buyouts-in-the-gcc/unlock",
-        json={"submission_id": "s", "name": "D", "email": "dana@acme.ae"},
+        "/reports/buyouts-in-the-gcc/unlock/verify",
+        json={"challenge_id": sent.json()["challenge_id"], "code": _sent_code(world)},
     )
 
     assert response.status_code == 200 and response.json()["locked"] is False
