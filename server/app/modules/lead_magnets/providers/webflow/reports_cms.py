@@ -122,7 +122,7 @@ class _Created(BaseModel):
 class _ItemWrite(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    # Omitted on pin writes: they must not change a hand-written article's draft state.
+    # Omitted on pin writes: a pin must not change a card's draft state.
     is_draft: bool | None = Field(default=None, alias="isDraft")
     field_data: ReportFieldData | _FeaturedPatch = Field(alias="fieldData")
 

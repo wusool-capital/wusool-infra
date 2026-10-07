@@ -87,7 +87,7 @@ class ReportSync:
 
     async def _keep_one_pinned(self, *, excluding: str | None = None) -> None:
         """The featured block lists every pinned card; with none it reads "No items found".
-        This and the unpins are the sync's only writes to articles it didn't create."""
+        This and the unpins are the sync's only writes to cards other than this report's."""
         # `excluding` may still read as pinned while its unpin publishes.
         if any(item_id != excluding for item_id in await self._cms.featured_ids()):
             return

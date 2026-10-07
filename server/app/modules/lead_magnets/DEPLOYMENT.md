@@ -209,15 +209,15 @@ needed per report:
    `LEAD_MAGNET_WEBFLOW_API_TOKEN` (`CMS:read` + `CMS:write`) in the
    Secrets Manager `env` map. Then add the Sanity webhook described in
    `sanity/README.md`, using its filter and projection exactly.
-
-The image now carries headless Chromium (see `server/Dockerfile`), about
-590 MB. It runs during a Sanity publish (about 2.4 s for the first playbook)
-and for each PDF download (about 0.4 s). Each run uses about 300 MB RAM, one
-at a time on the `t3.small`. The HTTP container is the same image, so
-downloads need nothing extra.
 4. Add the **Insights & Reports** option to `lead_source_detail` in Attio.
    Without it, the org write for every unlock that names an organisation
    fails. A blank organisation writes the person only.
+
+The image now carries headless Chromium (see `server/Dockerfile`), about
+590 MB. It runs during a Sanity publish (about 2.4 s for the first playbook)
+and for each PDF download (about 0.8 s). Each run uses about 300 MB RAM, one
+at a time on the `t3.small`; a download still queued after 30 s fails. The
+HTTP container is the same image, so downloads need nothing extra.
 
 #### Moving a report from Insights to Reports
 

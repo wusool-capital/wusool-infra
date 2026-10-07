@@ -64,8 +64,12 @@ class ChromiumReportRenderer:
             return await asyncio.wait_for(self._render(html), _RENDER_TIMEOUT_S)
 
     async def pdf(self, html: str) -> bytes:
-        async with self._lock:
-            return await asyncio.wait_for(self._pdf(html), _RENDER_TIMEOUT_S)
+        async def locked() -> bytes:
+            async with self._lock:
+                return await self._pdf(html)
+
+        # The queue counts toward the cap, so downloads fail fast rather than pile up.
+        return await asyncio.wait_for(locked(), _RENDER_TIMEOUT_S)
 
     async def _render(self, html: str) -> str:
         async with _isolated_page() as page:
