@@ -226,9 +226,11 @@ back into Insights.
 
 1. Build the Reports page and template (steps 1–2 above), then publish the
    site so the Reports collection exists on the live site.
-2. Deploy the code that points the sync at Reports. Then, on both Sanity
-   webhooks (dev and prod), replace the filter and projection with the ones
-   in `sanity/README.md`, so they also carry Insights articles. Redeploy the
+2. Deploy the code that points the sync at Reports to **prod**; a `dev`
+   deploy alone isn't enough, since prod would still sync reports into
+   Insights. Only then, on both Sanity webhooks (dev and prod), replace the
+   filter and projection with the ones in `sanity/README.md`, so they also
+   carry Insights articles. Redeploy the
    Studio (`npx sanity deploy -y`) so editors see the Insights type.
 3. If the Insights featured block pins the report's old card, pin a
    hand-written article there first, or remove the featured list.

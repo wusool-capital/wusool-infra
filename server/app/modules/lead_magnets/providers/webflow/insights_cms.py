@@ -99,8 +99,8 @@ class WebflowInsightsCms:
             content_type=content_type,
             excerpt=article.excerpt,
             body_content=article.body_html,
-            key_takeaways=article.key_takeaways_html,
-            faq_content=article.faq_html,
+            key_takeaways=_headed(article.key_takeaways_html, "Key Takeaways"),
+            faq_content=_headed(article.faq_html, "FAQ"),
             h1_tag=article.h1 or article.title,
             seo_title=article.seo_title or article.title,
             seo_description=article.seo_description or article.excerpt,
@@ -126,3 +126,10 @@ class WebflowInsightsCms:
                 await self._collection.referenced_ids("author"),
             )
         return self._ids
+
+
+def _headed(html: str | None, heading: str) -> str | None:
+    """The template shows these fields bare; hand-written articles open each with its own h2."""
+    if html is None or html.lstrip().startswith("<h2"):
+        return html
+    return f"<h2>{heading}</h2>{html}"

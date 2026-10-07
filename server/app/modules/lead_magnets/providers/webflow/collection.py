@@ -160,7 +160,10 @@ class WebflowCollection:
     async def _validations(self, field_slug: str) -> _Validations:
         response = await self._request("GET", f"/collections/{self._id}")
         fields = _Collection.model_validate_json(response.content).fields
-        return next(f.validations or _Validations() for f in fields if f.slug == field_slug)
+        field = next((f for f in fields if f.slug == field_slug), None)
+        if field is None:
+            raise ValueError(f"Webflow collection {self._id} has no field {field_slug!r}")
+        return field.validations or _Validations()
 
     async def _list(self, path: str, *, offset: int = 0, slug: str | None = None) -> _ItemList:
         params: dict[str, str | int] = {"limit": _PAGE, "offset": offset}

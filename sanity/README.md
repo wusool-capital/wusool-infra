@@ -114,6 +114,12 @@ the end-of-page button are optional. Then publish.
 - A hand-written Webflow article with the same slug is never overwritten.
   The publish is skipped and logged as `insights_article_sync_skipped_unmanaged`.
 - **Renaming a slug** or **unpublishing** works as it does for reports.
+- Sanity owns these articles: the next publish overwrites any edit made to
+  them in Webflow.
+- Clearing an optional field here (key takeaways, FAQ, cover, author, silo,
+  SEO fields, button) doesn't clear it on the site. Clear it in Webflow too.
+- Key takeaways and FAQ get a "Key Takeaways" / "FAQ" heading, as on
+  hand-written articles, unless they already start with a Heading 2.
 
 ## Accepted risk
 

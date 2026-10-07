@@ -182,6 +182,18 @@ async def test_an_article_is_written_as_a_managed_item_that_never_touches_the_pi
         assert hand_set not in data, f"{hand_set} is set in Webflow, never by the sync"
 
 
+async def test_takeaways_and_faq_get_the_heading_hand_written_articles_carry(monkeypatch) -> None:
+    _use_transport(monkeypatch, _webflow)
+    cms = WebflowInsightsCms(token="t", collection_id="insights")
+
+    data = await cms.field_data(
+        _article(key_takeaways_html="<ul><li>A</li></ul>", faq_html="<h2>Questions</h2><p>Q</p>")
+    )
+
+    assert data.key_takeaways == "<h2>Key Takeaways</h2><ul><li>A</li></ul>"
+    assert data.faq_content == "<h2>Questions</h2><p>Q</p>", "an editor's own heading is kept"
+
+
 async def test_an_unknown_content_type_fails_by_name(monkeypatch) -> None:
     _use_transport(monkeypatch, _webflow)
     cms = WebflowInsightsCms(token="t", collection_id="insights")
