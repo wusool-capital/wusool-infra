@@ -42,6 +42,7 @@ from app.modules.lead_magnets.api.schemas import (
 )
 from app.modules.lead_magnets.application.insights_report.unlock import (
     ChallengeGone,
+    CodeNotSent,
     TooManyCodes,
     WrongCode,
 )
@@ -189,15 +190,14 @@ async def unlock_report(
 ) -> ReportCodeSent:
     """Step one of the gate: email the reader a code. Nothing is recorded yet."""
     report = await _published(source, slug)
+    form = ReaderForm(**request.model_dump())
     try:
         challenge_id = await build_report_unlock().send_code(
-            slug=slug,
-            report_title=report.title,
-            form=ReaderForm(**request.model_dump()),
+            slug=slug, report_title=report.title, form=form
         )
     except TooManyCodes:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many codes") from None
-    except Exception:
+    except CodeNotSent:
         logger.exception("insights_report_code_email_failed slug=%s", slug)
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "could not send code") from None
     return ReportCodeSent(challenge_id=challenge_id)
@@ -220,10 +220,9 @@ async def verify_report_unlock(
     """Step two: a matching code records the lead, as `/get-started` does, and
     sets the reader cookie. Attio is written in the background."""
     report = await _published(source, slug)
+    unlock = build_report_unlock()
     try:
-        form = build_report_unlock().verify(
-            slug=slug, challenge_id=request.challenge_id, code=request.code
-        )
+        form = unlock.verify(slug=slug, challenge_id=request.challenge_id, code=request.code)
     except WrongCode:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "wrong code") from None
     except ChallengeGone:
@@ -242,6 +241,7 @@ async def verify_report_unlock(
         domain=domain,
     )
     await session.commit()
+    unlock.spend(request.challenge_id)
     background.add_task(run_completion, run_id)
 
     response.headers["Cache-Control"] = "no-store"

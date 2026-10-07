@@ -44,8 +44,7 @@ async function submitGateForm(e){
   const form=document.getElementById("gate-form");
   const err=document.getElementById("e-form");
   const emailErr=document.getElementById("e-email");
-  err.classList.remove("show");
-  emailErr.classList.remove("show");
+  for(const id of ["e-form","e-email","e-wait","e-send"])document.getElementById(id).classList.remove("show");
   if(!document.getElementById("email").checkValidity()){
     emailErr.classList.add("show");
     return;
@@ -77,8 +76,8 @@ async function submitGateForm(e){
     document.getElementById("code").focus({preventScroll:true});
   }catch(error){
     console.warn("unlock",error);
-    if(error.status===422)emailErr.classList.add("show");
-    else err.classList.add("show");
+    const id={422:"e-email",429:"e-wait",503:"e-send"}[error.status]||"e-form";
+    document.getElementById(id).classList.add("show");
   }finally{
     btn.disabled=false;
     btn.textContent="Read the full report";
@@ -96,7 +95,7 @@ async function sendCode(payload){
 }
 
 function hideCodeErrors(){
-  for(const id of ["e-code","e-expired","e-sent"])document.getElementById(id).classList.remove("show");
+  for(const id of ["e-code","e-expired","e-sent","e-code-wait","e-retry"])document.getElementById(id).classList.remove("show");
 }
 
 async function submitCodeForm(e){
@@ -117,10 +116,11 @@ async function submitCodeForm(e){
       render(await r.json());
       return;
     }
-    document.getElementById(r.status===400?"e-code":"e-expired").classList.add("show");
+    const id={400:"e-code",410:"e-expired"}[r.status]||"e-retry";
+    document.getElementById(id).classList.add("show");
   }catch(error){
     console.warn("verify",error);
-    document.getElementById("e-expired").classList.add("show");
+    document.getElementById("e-retry").classList.add("show");
   }
   btn.disabled=false;
   btn.textContent="Verify and read";
@@ -136,7 +136,7 @@ async function resendCode(){
     document.getElementById("e-sent").classList.add("show");
   }catch(error){
     console.warn("resend",error);
-    document.getElementById("e-expired").classList.add("show");
+    document.getElementById(error.status===429?"e-code-wait":"e-retry").classList.add("show");
   }
   btn.disabled=false;
 }

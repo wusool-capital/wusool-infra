@@ -6,8 +6,8 @@ from app.modules.lead_magnets.domain.insights_report.unlock import UnlockChallen
 
 
 class UnlockChallengesPort(Protocol):
-    def add(self, challenge: UnlockChallenge) -> str:
-        """Returns a fresh, unguessable id for the challenge."""
+    def add(self, challenge: UnlockChallenge, *, now: float) -> str:
+        """Returns a fresh, unguessable id; drops challenges expired as of `now`."""
         ...
 
     def get(self, challenge_id: str) -> UnlockChallenge | None: ...

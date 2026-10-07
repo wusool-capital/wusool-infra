@@ -30,6 +30,8 @@
       <p class="note">By continuing you agree to Wusool Capital's <a href="https://www.wusoolcapital.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
       <div class="errtext" id="e-email">Please enter a valid work email, like you@yourcompany.com.</div>
       <div class="errtext" id="e-form">Something went wrong. Please check your details and try again.</div>
+      <div class="errtext" id="e-wait">You've asked for several codes. Please wait a few minutes, then try again.</div>
+      <div class="errtext" id="e-send">We couldn't send your code. Please try again shortly.</div>
       <button class="btn btn-p" type="submit" id="submit-btn">Read the full report</button>
     </form>
     <form id="code-form" class="hide" novalidate>
@@ -38,6 +40,8 @@
       <div class="errtext" id="e-code">That code is not right. Please check the email and try again.</div>
       <div class="errtext" id="e-expired">That code has expired. Request a new one below.</div>
       <div class="errtext" id="e-sent">A new code is on its way.</div>
+      <div class="errtext" id="e-code-wait">You've asked for several codes. Please wait a few minutes, then try again.</div>
+      <div class="errtext" id="e-retry">Something went wrong. Please try again.</div>
       <button class="btn btn-p" type="submit" id="verify-btn">Verify and read</button>
       <p class="note links"><button type="button" class="link" id="resend-btn">Resend code</button> · <button type="button" class="link" id="change-email-btn">Use a different email</button></p>
     </form>
@@ -57,7 +61,7 @@
 </div>
 
 <script src="../shared/submission-id.js?v=1"></script>
-<script src="10-main.js?v=7" onerror="window.__lmFail=1"></script>
+<script src="10-main.js?v=8" onerror="window.__lmFail=1"></script>
 <script src="../shared/height.js?v=3"></script>
 <script>
   if(window.__lmFail || typeof submitGateForm!=="function"){

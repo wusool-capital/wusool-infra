@@ -253,6 +253,27 @@ def test_a_used_or_unknown_challenge_is_410(client, world) -> None:
     assert response.status_code == 410
 
 
+def test_a_failed_save_keeps_the_code_for_a_retry(client, world, monkeypatch) -> None:
+    class _DbDown:
+        async def record(self, **kwargs):
+            raise RuntimeError("db down")
+
+    body = {"submission_id": "s", "name": "D", "email": "dana@acme.ae"}
+    sent = client.post("/reports/buyouts-in-the-gcc/unlock", json=body)
+    verify = {"challenge_id": sent.json()["challenge_id"], "code": _sent_code(world)}
+
+    with monkeypatch.context() as patch:
+        patch.setattr(endpoints, "build_submission_service", lambda session: _DbDown())
+        assert (
+            client.post("/reports/buyouts-in-the-gcc/unlock/verify", json=verify).status_code == 500
+        )
+
+    retry = client.post("/reports/buyouts-in-the-gcc/unlock/verify", json=verify)
+    assert retry.status_code == 200
+    again = client.post("/reports/buyouts-in-the-gcc/unlock/verify", json=verify)
+    assert again.status_code == 410, "spent once the lead is saved"
+
+
 def test_a_failed_code_email_is_503_not_a_crash(client, world, monkeypatch) -> None:
     class _Down:
         async def send(self, **kwargs):

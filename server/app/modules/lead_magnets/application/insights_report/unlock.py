@@ -18,6 +18,7 @@ from app.modules.lead_magnets.domain.insights_report.unlock import (
     MAX_ATTEMPTS,
     ReaderForm,
     UnlockChallenge,
+    inbox_key,
 )
 from app.modules.notifications import EmailSenderPort
 from app.modules.utilities import FixedWindowRateLimiter
@@ -39,6 +40,10 @@ class ChallengeGone(Exception):
     """Unknown, expired, used up, or for another report: the reader needs a new code."""
 
 
+class CodeNotSent(Exception):
+    """The email provider failed; nothing was stored or counted."""
+
+
 class ReportUnlock:
     def __init__(
         self,
@@ -58,12 +63,14 @@ class ReportUnlock:
 
     async def send_code(self, *, slug: str, report_title: str, form: ReaderForm) -> str:
         """Emails a fresh code and returns the challenge id the page sends back with it."""
-        key = form.email.lower()
-        if not self._per_email.check(key, now=self._clock()):
+        key = inbox_key(form.email)
+        now = self._clock()
+        if not self._per_email.check(key, now=now):
             raise TooManyCodes
         code = f"{secrets.randbelow(10**CODE_LENGTH):0{CODE_LENGTH}d}"
         challenge_id = self._challenges.add(
-            UnlockChallenge(slug=slug, form=form, code=code, expires_at=self._clock() + self._ttl_s)
+            UnlockChallenge(slug=slug, form=form, code=code, expires_at=now + self._ttl_s),
+            now=now,
         )
         try:
             await self._mailer.send(
@@ -73,14 +80,15 @@ class ReportUnlock:
                 body=_code_email(code, report_title, self._ttl_s // 60),
                 is_html=True,
             )
-        except Exception:
+        except Exception as exc:
             self._challenges.delete(challenge_id)
             self._per_email.refund(key)
-            raise
+            raise CodeNotSent from exc
         return challenge_id
 
     def verify(self, *, slug: str, challenge_id: str, code: str) -> ReaderForm:
-        """The verified form; the challenge is spent so the code cannot be replayed."""
+        """The verified form. The challenge stays until `spend`, so a failed
+        save after this still lets the reader retry the same code."""
         challenge = self._challenges.get(challenge_id)
         if (
             challenge is None
@@ -95,8 +103,11 @@ class ReportUnlock:
                 challenge_id, replace(challenge, failed_attempts=challenge.failed_attempts + 1)
             )
             raise WrongCode
-        self._challenges.delete(challenge_id)
         return challenge.form
+
+    def spend(self, challenge_id: str) -> None:
+        """Called once the lead is saved, so the code cannot be replayed."""
+        self._challenges.delete(challenge_id)
 
 
 def _code_email(code: str, report_title: str, ttl_min: int) -> str:
