@@ -68,7 +68,11 @@ async function submitGateForm(e){
   };
 
   try{
-    await sendCode(payload);
+    const data=await sendCode(payload);
+    if(data.html!==undefined){
+      render(data);
+      return;
+    }
     pendingPayload=payload;
     form.classList.add("hide");
     document.getElementById("code-email").textContent=payload.email;
@@ -91,7 +95,9 @@ let challengeId=null;
 async function sendCode(payload){
   const r=await fetch(REPORT_URL+"/unlock",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
   if(!r.ok)throw Object.assign(new Error("unlock failed: "+r.status),{status:r.status});
-  challengeId=(await r.json()).challenge_id;
+  const data=await r.json();
+  challengeId=data.challenge_id;
+  return data;
 }
 
 function hideCodeErrors(){

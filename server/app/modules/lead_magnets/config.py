@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     lead_magnet_report_reads_per_hour: int = 300
     # Per-IP hourly cap on PDF downloads, apart from submits: each one launches Chromium.
     lead_magnet_report_downloads_per_hour: int = 30
+    # Off: the report gate opens straight away, with no emailed code.
+    lead_magnet_report_email_otp: bool = True
     # How long the emailed report unlock code stays valid.
     lead_magnet_report_code_ttl_s: int = 600
 

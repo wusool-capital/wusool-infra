@@ -234,6 +234,8 @@ the first page open and the rest behind one short form. There are three parts:
   - A code lasts `LEAD_MAGNET_REPORT_CODE_TTL_S` (10 min) and allows five
     guesses. One inbox gets three codes per 10 minutes; `+tags` and Gmail
     dots count as the same inbox.
+  - `LEAD_MAGNET_REPORT_EMAIL_OTP=false` turns the code off: `/unlock`
+    then records the reader and returns the whole report, as before.
   - Pending codes live in process memory, because only one container runs.
     A deploy drops codes in flight, and those readers request a new one.
   - `POST /reports/{slug}/unlock/verify` with the right code records an

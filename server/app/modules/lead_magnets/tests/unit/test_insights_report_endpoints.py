@@ -52,6 +52,7 @@ class _Settings:
     lead_magnet_rate_per_hour: int = 20
     lead_magnet_report_reads_per_hour: int = 300
     lead_magnet_report_downloads_per_hour: int = 30
+    lead_magnet_report_email_otp: bool = True
 
 
 @dataclass
@@ -226,6 +227,23 @@ def test_the_right_code_returns_the_whole_report_and_remembers_the_reader(client
     assert recorded["domain"] is None, "free-mail is accepted, but never becomes an org domain"
     assert recorded["payload"]["slug"] == "buyouts-in-the-gcc"
     assert recorded["payload"]["email"] == "dana@gmail.com"
+    assert len(world.completed) == 1
+
+
+def test_with_email_otp_off_the_unlock_opens_the_report_directly(client, world) -> None:
+    world.settings.lead_magnet_report_email_otp = False
+
+    response = client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "Dana", "email": "dana@acme.ae", "company": "Acme"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["locked"] is False and _REST in response.json()["html"]
+    assert "wusool_reader=" in response.headers["set-cookie"]
+    assert world.emails == [], "no code is sent"
+    (recorded,) = world.recorded
+    assert recorded["payload"]["slug"] == "buyouts-in-the-gcc"
     assert len(world.completed) == 1
 
 

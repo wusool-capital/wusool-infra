@@ -182,15 +182,23 @@ async def _record_read(
 
 @router.post(
     "/reports/{slug}/unlock",
-    response_model=ReportCodeSent,
+    response_model=ReportCodeSent | ReportResponse,
     dependencies=[Depends(require_allowed_origin), Depends(rate_limit)],
 )
 async def unlock_report(
-    slug: Slug, request: ReportUnlockRequest, source: SourceDep
-) -> ReportCodeSent:
-    """Step one of the gate: email the reader a code. Nothing is recorded yet."""
+    slug: Slug,
+    request: ReportUnlockRequest,
+    source: SourceDep,
+    session: SessionDep,
+    background: BackgroundTasks,
+    response: Response,
+) -> ReportCodeSent | ReportResponse:
+    """Step one of the gate: email the reader a code. Nothing is recorded yet.
+    With email verification off, the report opens straight away instead."""
     report = await _published(source, slug)
     form = ReaderForm(**request.model_dump())
+    if not get_settings().lead_magnet_report_email_otp:
+        return await _open_report(session, background, response, report, form)
     try:
         challenge_id = await build_report_unlock().send_code(
             slug=slug, report_title=report.title, form=form
@@ -217,8 +225,7 @@ async def verify_report_unlock(
     background: BackgroundTasks,
     response: Response,
 ) -> ReportResponse:
-    """Step two: a matching code records the lead, as `/get-started` does, and
-    sets the reader cookie. Attio is written in the background."""
+    """Step two: a matching code opens the report."""
     report = await _published(source, slug)
     unlock = build_report_unlock()
     try:
@@ -228,20 +235,33 @@ async def verify_report_unlock(
     except ChallengeGone:
         raise HTTPException(status.HTTP_410_GONE, "code expired") from None
 
+    opened = await _open_report(session, background, response, report, form)
+    unlock.spend(request.challenge_id)
+    return opened
+
+
+async def _open_report(
+    session: SessionDep,
+    background: BackgroundTasks,
+    response: Response,
+    report: ReportDocument,
+    form: ReaderForm,
+) -> ReportResponse:
+    """Records the lead, as `/get-started` does, and sets the reader cookie.
+    Attio is written in the background."""
     domain = org_domain(form.email)
     run_id = await build_submission_service(session).record(
         tool=_TOOL,
         payload={
             **asdict(form),
             "domain": domain,
-            "slug": slug,
+            "slug": report.slug,
             "report_title": report.title,
         },
         email=form.email,
         domain=domain,
     )
     await session.commit()
-    unlock.spend(request.challenge_id)
     background.add_task(run_completion, run_id)
 
     response.headers["Cache-Control"] = "no-store"
