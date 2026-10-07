@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.attio import attio_is_test, get_attio_client
 from app.modules.lead_magnets.application.insights_article.sync import ArticleSync
 from app.modules.lead_magnets.application.insights_report.sync import ReportSync
+from app.modules.lead_magnets.application.insights_report.unlock import ReportUnlock
 from app.modules.lead_magnets.application.shared.service import LeadMagnetService
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
@@ -34,6 +35,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.database import get_sessionmaker
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
+from app.modules.lead_magnets.persistence.unlock_challenges import InMemoryUnlockChallenges
 from app.modules.lead_magnets.providers.attio.deal_writer import AttioDealWriter
 from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWriter
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
@@ -280,6 +282,18 @@ def build_report_source() -> SanityReportSource:
 def build_report_renderer() -> ChromiumReportRenderer:
     """One per process, so its lock really does serialise renders."""
     return ChromiumReportRenderer()
+
+
+@lru_cache
+def build_report_unlock() -> ReportUnlock:
+    """One per process: pending codes and per-email limits live in it."""
+    settings = get_settings()
+    return ReportUnlock(
+        challenges=InMemoryUnlockChallenges(),
+        mailer=build_lead_magnet_mailer(),
+        email_from=settings.lead_magnet_email_from,
+        ttl_s=settings.lead_magnet_report_code_ttl_s,
+    )
 
 
 def build_report_sync() -> ReportSync:

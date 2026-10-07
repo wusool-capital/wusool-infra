@@ -1,6 +1,6 @@
 """Every seam `application/` depends on: the LLM, the web search, the Attio
-write, the ledger, the report and article reads, the renderer, and the
-Webflow Reports and Insights collections — one Protocol per file,
+write, the ledger, the report and article reads, the renderer, the
+Webflow Reports and Insights collections, and pending report unlocks — one Protocol per file,
 re-exported here as this package's public surface so existing
 `from .ports import X` call sites are unaffected by the split.
 """
@@ -14,6 +14,9 @@ from app.modules.lead_magnets.application.shared.ports.report_source import Repo
 from app.modules.lead_magnets.application.shared.ports.reports_cms import ReportsCmsPort
 from app.modules.lead_magnets.application.shared.ports.search import SearchPort
 from app.modules.lead_magnets.application.shared.ports.tool_runs import ToolRunsPort
+from app.modules.lead_magnets.application.shared.ports.unlock_challenges import (
+    UnlockChallengesPort,
+)
 
 __all__ = [
     "ArticleSourcePort",
@@ -25,4 +28,5 @@ __all__ = [
     "ReportsCmsPort",
     "SearchPort",
     "ToolRunsPort",
+    "UnlockChallengesPort",
 ]

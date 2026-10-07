@@ -77,6 +77,32 @@ def render_confirmation_shell(
 </td></tr></table></td></tr></table></body></html>"""
 
 
+def render_code_shell(*, tag: str, heading: str, sub: str, code: str, note: str) -> str:
+    """The confirmation shell's frame around a one-time code instead of a CTA."""
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f2f2f2;font-family:Inter,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f2f2f2;padding:40px 20px;">
+<tr><td align="center">
+<table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e5e5;">
+<tr><td style="padding:28px 36px;border-bottom:1px solid #eeeeee;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+<td>{_LOGO_IMG}</td>
+<td align="right"><span style="font-family:Inter,sans-serif;font-size:11px;color:#999999;letter-spacing:0.5px;">{tag}</span></td>
+</tr></table></td></tr>
+<tr><td style="padding:36px 36px 28px 36px;">
+<p style="font-family:Inter,sans-serif;font-size:22px;font-weight:700;color:#000000;margin:0 0 6px 0;line-height:1.3;">{heading}</p>
+<p style="font-family:Inter,sans-serif;font-size:14px;color:#666666;margin:0 0 28px 0;">{sub}</p>
+<table cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;"><tr>
+<td style="background-color:#f5f5f5;border:1px solid #e5e5e5;border-radius:8px;padding:16px 28px;font-family:'Courier New',monospace;font-size:32px;font-weight:700;letter-spacing:10px;color:#000000;">{code}</td>
+</tr></table>
+<p style="font-family:Inter,sans-serif;font-size:13px;color:#666666;line-height:1.7;margin:0;">{note}</p>
+</td></tr>
+<tr><td style="padding:20px 36px;border-top:1px solid #eeeeee;background-color:#fafafa;">
+<p style="font-family:Inter,sans-serif;font-size:12px;color:#999999;margin:0;">Wusool Capital &mdash; M&amp;A Advisory, UAE &amp; GCC</p>
+</td></tr></table></td></tr></table></body></html>"""
+
+
 def render_field_rows(pairs: list[tuple[str, str]]) -> str:
     last = len(pairs) - 1
     rows = []
