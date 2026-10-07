@@ -38,8 +38,8 @@ class _SanityArticle(BaseModel):
     title: str
     content_type: str = Field(alias="contentType")
     excerpt: str
-    # Unset reads as pasted HTML, as in the Studio; new documents always set it.
-    body_format: Literal["rich", "html"] = Field(default="html", alias="bodyFormat")
+    # GROQ projects an unset field as null, read as pasted HTML like the Studio does.
+    body_format: Literal["rich", "html"] | None = Field(default=None, alias="bodyFormat")
     body: list[Block] | None = None
     body_html: str | None = Field(default=None, alias="bodyHtml")
     key_takeaways: list[Block] | None = Field(default=None, alias="keyTakeaways")
@@ -61,7 +61,7 @@ class _SanityArticle(BaseModel):
 
     def html(self, blocks: list[Block] | None, pasted: str | None) -> str | None:
         """The field in the editor's chosen format; the other one is ignored even if filled."""
-        if self.body_format == "html":
+        if self.body_format != "rich":
             html = sanitize(pasted) if pasted else ""
         else:
             html = to_html(blocks) if blocks else ""
