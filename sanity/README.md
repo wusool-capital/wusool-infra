@@ -55,8 +55,8 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, excerpt, cover, silo, publishedAt, featured, cta)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
-   | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current, "featuredChanged": coalesce(before().featured, false) != coalesce(after().featured, false)}` |
+   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, excerpt, cover, silo, publishedAt, featured, bannerPinned, cta)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
+   | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
    | Drafts | off |
@@ -91,16 +91,19 @@ Only the title and the report (pasted HTML or rich text) are needed. For the slu
 numbers and hyphens). Excerpt, cover image, primary silo, date and the end-of-page
 button are optional. The button
 needs both its text and its link, and shows below the report. Removing it
-here doesn't remove it from the live page; clear it in Webflow as well. Tick **Pin to top of /reports** to make
-it the featured card; that unpins the current one. Then publish.
+here doesn't remove it from the live page; clear it in Webflow as well. Then publish.
 
-The pin only moves when you tick or untick it. When a newer report takes the
-pin, the older report still shows the box ticked here; editing it later
-won't take the pin back. To pin it again, untick, publish, then tick and
-publish.
+Two boxes pin a report, one report per pin:
 
-The featured slot is never left empty. When you untick, unpublish or delete
-the pinned report, the newest live card on `/reports` takes the pin.
+- **Pin to top of /reports** makes it the featured card. With nothing
+  pinned, the newest report shows there instead.
+- **Pin to home page banner** shows it in the bar at the top of the home
+  page ("Just released: …"). With nothing pinned, the bar is hidden.
+
+Publishing a pinned report unticks that box on the report that had the pin,
+here as well as on the site, so the boxes always show the truth. One
+exception: a draft of that older report edited after your pin keeps its
+tick, and publishing that draft takes the pin back.
 
 - **Renaming a slug** unpublishes the old card and creates a new one, so
   the old URL stops working.
