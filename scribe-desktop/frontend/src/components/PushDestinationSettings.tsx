@@ -3,6 +3,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Send } from 'lucide-react';
 
@@ -10,6 +19,7 @@ interface PushConfig {
   server_url: string;
   api_key: string;
   install_id: string;
+  skip_attio: boolean;
 }
 
 /**
@@ -25,6 +35,10 @@ export function PushDestinationSettings() {
   const [installId, setInstallId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [skipAttio, setSkipAttio] = useState(false);
+  const [pendingSkipAttio, setPendingSkipAttio] = useState<boolean | null>(null);
+  const [password, setPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -33,6 +47,7 @@ export function PushDestinationSettings() {
         setServerUrl(config.server_url);
         setApiKey(config.api_key);
         setInstallId(config.install_id);
+        setSkipAttio(config.skip_attio);
       } catch (error) {
         console.error('Failed to load push config:', error);
       } finally {
@@ -63,6 +78,31 @@ export function PushDestinationSettings() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const closeSkipAttioDialog = () => {
+    setPendingSkipAttio(null);
+    setPassword('');
+  };
+
+  const handleSkipAttioConfirm = async () => {
+    if (pendingSkipAttio === null) return;
+    setUnlocking(true);
+    try {
+      const config = await invoke<PushConfig>('set_skip_attio', {
+        enabled: pendingSkipAttio,
+        password,
+      });
+      setSkipAttio(config.skip_attio);
+      toast.success(config.skip_attio ? 'Attio writes disabled' : 'Attio writes enabled');
+      closeSkipAttioDialog();
+    } catch (error) {
+      toast.error('Could not change setting', {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setUnlocking(false);
     }
   };
 
@@ -121,6 +161,46 @@ export function PushDestinationSettings() {
           {saving ? 'Verifying...' : 'Save'}
         </Button>
       </div>
+
+      <div className="flex items-center justify-between gap-4 p-4 border rounded-lg">
+        <div>
+          <div className="text-sm font-medium text-foreground/90 mb-1">Don&apos;t store to Attio</div>
+          <p className="text-xs text-muted-foreground">
+            Developer only. Pushed meetings are still summarized, but no Attio note is created.
+            Requires the developer password to change.
+          </p>
+        </div>
+        <Switch checked={skipAttio} onCheckedChange={(checked) => setPendingSkipAttio(checked)} />
+      </div>
+
+      <Dialog open={pendingSkipAttio !== null} onOpenChange={(open) => !open && closeSkipAttioDialog()}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Developer password</DialogTitle>
+            <DialogDescription>
+              Enter the developer password to {pendingSkipAttio ? 'stop' : 'resume'} storing pushed
+              meetings in Attio.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSkipAttioConfirm()}
+            disabled={unlocking}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={closeSkipAttioDialog} disabled={unlocking}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSkipAttioConfirm} disabled={unlocking || !password}>
+              {unlocking ? 'Checking...' : 'Confirm'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="p-4 border rounded-lg bg-muted">
         <div className="text-sm font-medium text-foreground/90 mb-1">Install ID</div>

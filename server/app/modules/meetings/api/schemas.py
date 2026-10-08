@@ -62,6 +62,8 @@ class DesktopMeetingSubmitRequest(BaseModel):
     slack_channel_id: str | None = None
     client_version: str | None = None
     return_summary: bool = True
+    # Dev-only switch from the desktop settings: process normally but file no Attio note.
+    skip_attio: bool = False
 
 
 class DesktopMeetingSubmitResponse(BaseModel):

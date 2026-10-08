@@ -74,6 +74,7 @@ async def submit_meeting(
         occurred_at=request.occurred_at,
         role_selections=role_selections,
         role_queries=role_queries,
+        skip_attio=request.skip_attio,
     )
     # Commit explicitly, here, before scheduling the background task: this
     # FastAPI version runs BackgroundTasks BEFORE a yield-dependency's

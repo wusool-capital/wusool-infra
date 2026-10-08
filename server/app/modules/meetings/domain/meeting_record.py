@@ -22,7 +22,10 @@ from uuid import UUID
 from app.modules.meetings.domain.roles import MeetingRole
 from app.modules.utilities.domain.json_types import JsonObject
 
-__all__ = ["MeetingRecord", "MeetingStatus", "MeetingSyncStatus"]
+__all__ = ["SKIP_ATTIO_METADATA_KEY", "MeetingRecord", "MeetingStatus", "MeetingSyncStatus"]
+
+# Kept in `meetings.metadata` (not a column) so a stalled-row re-publish still honours it.
+SKIP_ATTIO_METADATA_KEY = "skip_attio"
 
 # Mirrors the `ck_meetings_status` CHECK constraint on `meetings.status`
 # (see the migration that added it) — the three values that column can
@@ -60,6 +63,10 @@ class MeetingRecord:
     summary_started_at: datetime | None
     note_id: UUID | None
     removed_at: datetime | None
+
+    @property
+    def skip_attio(self) -> bool:
+        return self.metadata.get(SKIP_ATTIO_METADATA_KEY) is True
 
 
 @dataclass(frozen=True, slots=True)
