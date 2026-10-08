@@ -17,14 +17,18 @@ from app.modules.lead_magnets.providers.chromium.renderer import ChromiumReportR
 
 _EXPORT = """<!DOCTYPE html><html><head>
 <style>doc-page:not(:defined){visibility:hidden} p{color:#000523}</style>
+<style>@page{size:A4;margin:0} body{margin:0}</style>
 </head><body>
 <x-dc><section>SOURCE TEMPLATE WITH EVERY PAGE</section></x-dc>
 <doc-page><section class="page">static page one</section></doc-page>
-<img src="http://169.254.169.254/latest/meta-data">
+<img src="http://169.254.169.254/latest/meta-data" style="position:absolute">
 <script>
   customElements.define('doc-page', class extends HTMLElement {
     constructor() { super(); this.attachShadow({mode: 'open'}).innerHTML =
-      '<style>::slotted(.page){width:794px}</style><slot></slot>'; }
+      '<style>:host{display:block;padding:48px 24px;background:#f5f5f4}' +
+      '::slotted(.page){width:794px;height:290mm;overflow:hidden;' +
+      'box-shadow:0 2px 10px rgba(0,0,0,.25);border-radius:7px}' +
+      '::slotted(.page:not(:first-child)){margin-top:16px}</style><slot></slot>'; }
   });
   document.querySelector('doc-page').insertAdjacentHTML('beforeend',
     '<section class="page">page two drawn by script</section>');
@@ -61,6 +65,18 @@ async def test_a_script_built_export_becomes_static_html() -> None:
     assert "SOURCE TEMPLATE WITH EVERY PAGE" not in html, "the hidden source would leak"
     assert ":not(:defined)" not in html, "it would hide the page once scripts are gone"
     assert "width: 794px" in html, "the shadow-DOM page width is copied inline"
+
+
+async def test_pages_keep_the_viewers_gaps_on_screen_but_print_one_per_sheet() -> None:
+    await _require_chromium()
+    renderer = ChromiumReportRenderer()
+
+    html = await renderer.render(_EXPORT)
+    pdf = await renderer.pdf(html)
+
+    assert "margin-top: 16px" in html and "border-radius: 7px" in html
+    assert "background-color: rgb(245, 245, 244)" in html, "the desk shows between pages"
+    assert len(re.findall(rb"/Type\s*/Page\b(?!s)", pdf)) == 2, "a gap would spill onto a sheet"
 
 
 async def test_the_preview_is_exactly_the_first_page() -> None:
