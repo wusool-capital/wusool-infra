@@ -75,6 +75,10 @@ function formatMeetingDate(createdAt?: string | null): string | null {
   });
 }
 
+const SIDEBAR_MIN_WIDTH = 256;
+const SIDEBAR_MAX_VIEWPORT_RATIO = 0.7;
+const SIDEBAR_WIDTH_STORAGE_KEY = 'sidebarWidth';
+
 const Sidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
@@ -83,6 +87,44 @@ const Sidebar: React.FC = () => {
   useEffect(() => {
     getVersion().then(setAppVersion).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY));
+      if (saved >= SIDEBAR_MIN_WIDTH) setSidebarWidth(saved);
+    } catch (error) {
+      console.error('Failed to load sidebar width:', error);
+    }
+  }, []);
+
+  const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsResizing(true);
+    // Body-level cursor/select overrides keep the drag smooth when the pointer leaves the thin handle.
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    let latestWidth = sidebarWidth;
+
+    const onMove = (event: PointerEvent) => {
+      const maxWidth = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth * SIDEBAR_MAX_VIEWPORT_RATIO);
+      latestWidth = Math.round(Math.min(Math.max(event.clientX, SIDEBAR_MIN_WIDTH), maxWidth));
+      setSidebarWidth(latestWidth);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setIsResizing(false);
+      try {
+        localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(latestWidth));
+      } catch (error) {
+        console.error('Failed to save sidebar width:', error);
+      }
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
 
   const {
     currentMeeting,
@@ -105,6 +147,8 @@ const Sidebar: React.FC = () => {
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
+  const [sidebarWidth, setSidebarWidth] = useState<number>(SIDEBAR_MIN_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -743,12 +787,15 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="h-screen flex-shrink-0">
+    <div className="h-screen flex-shrink-0 relative">
       <div
         className={cn(
-          'h-screen bg-muted/40 shadow-sm flex flex-col transition-all duration-300 text-foreground',
-          isCollapsed ? 'w-16' : 'w-64'
+          'h-screen bg-muted/40 shadow-sm flex flex-col text-foreground',
+          !isResizing && 'transition-all duration-300',
+          isCollapsed && 'w-16'
         )}
+        // maxWidth re-clamps a saved width when the window later shrinks.
+        style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: `${SIDEBAR_MAX_VIEWPORT_RATIO * 100}vw` }}
       >
         {/*  Header with traffic light spacing */}
         <div className="flex-shrink-0">
@@ -929,6 +976,19 @@ const Sidebar: React.FC = () => {
           </div>
         )}
       </div>
+
+      {!isCollapsed && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          onPointerDown={handleResizeStart}
+          className={cn(
+            'absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-10 transition-colors hover:bg-primary/30',
+            isResizing && 'bg-primary/40'
+          )}
+        />
+      )}
 
       {/* Confirmation Modal for Delete */}
       <ConfirmationModal
