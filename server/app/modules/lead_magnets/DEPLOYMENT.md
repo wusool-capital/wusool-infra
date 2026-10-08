@@ -193,8 +193,10 @@ needed per report:
    The featured block has no filter; it sorts **Featured** (on first), then
    **Published Date** (newest), with a limit of 1. That way the newest report
    fills the slot when nothing is pinned (2026-10-07).
-2. On the **Reports Template** page, keep the site navbar and footer, and
-   remove the article header and author. In its page settings, bind the SEO
+2. On the **Reports Template** page, remove the article header and author.
+   Since 2026-10-08 the navbar and footer sit in a hidden wrapper ("Hidden:
+   navbar + footer"), along with the 64px navbar spacer, so a report page
+   shows only the report. Show the wrapper again to restore them. In its page settings, bind the SEO
    title, meta description, OG title and OG image to **SEO Title**, **SEO
    Description**, **OG Title** and **OG Image**, as on the Insights Template. Add an Embed set to 100% width.
    It needs no CMS binding: without `data-report`, `embed.js` reads the slug
