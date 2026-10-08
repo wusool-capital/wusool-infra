@@ -21,12 +21,12 @@ _EXPORT = """<!DOCTYPE html><html><head>
 </head><body>
 <x-dc><section>SOURCE TEMPLATE WITH EVERY PAGE</section></x-dc>
 <doc-page><section class="page">static page one</section></doc-page>
-<img src="http://169.254.169.254/latest/meta-data" style="position:absolute">
+<img src="http://169.254.169.254/latest/meta-data" style="position:absolute;top:0">
 <script>
   customElements.define('doc-page', class extends HTMLElement {
     constructor() { super(); this.attachShadow({mode: 'open'}).innerHTML =
       '<style>:host{display:block;padding:48px 24px;background:#f5f5f4}' +
-      '::slotted(.page){width:794px;height:290mm;overflow:hidden;' +
+      '::slotted(.page){width:794px;height:296mm;overflow:hidden;' +
       'box-shadow:0 2px 10px rgba(0,0,0,.25);border-radius:7px}' +
       '::slotted(.page:not(:first-child)){margin-top:16px}</style><slot></slot>'; }
   });
@@ -74,8 +74,8 @@ async def test_pages_keep_the_viewers_gaps_on_screen_but_print_one_per_sheet() -
     html = await renderer.render(_EXPORT)
     pdf = await renderer.pdf(html)
 
-    assert "margin-top: 16px" in html and "border-radius: 7px" in html
-    assert "background-color: rgb(245, 245, 244)" in html, "the desk shows between pages"
+    assert "background-color:rgb(245, 245, 244);padding:48px 24px" in html, "the desk shows"
+    assert "border-radius:7px" in html and "margin-top:16px" in html
     assert len(re.findall(rb"/Type\s*/Page\b(?!s)", pdf)) == 2, "a gap would spill onto a sheet"
 
 

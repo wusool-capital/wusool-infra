@@ -50,22 +50,27 @@ async () => {
     const cs = getComputedStyle(el);
     for (const p of props) el.style.setProperty(p, cs.getPropertyValue(p));
   };
-  for (const host of [...document.querySelectorAll('*')].filter((e) => e.shadowRoot)) {
-    // The viewer's desk and page gaps keep the PDF look; its 100vh min-height would ratchet the iframe.
-    freeze(host, ['display', 'position', 'box-sizing', 'background-color', 'padding']);
-    host.setAttribute('data-wusool-desk', '');
+  const hosts = [...document.querySelectorAll('*')].filter((e) => e.shadowRoot);
+  // Only the page viewer's desk and gaps, and screen-only: printed, they push each A4 page onto a second sheet.
+  const viewer = hosts.find((e) => e.children.length > 1);
+  if (viewer) {
+    const desk = getComputedStyle(viewer);
+    const page = getComputedStyle(viewer.children[1]);
+    viewer.setAttribute('data-wusool-desk', '');
+    const screen = document.createElement('style');
+    screen.textContent = `@media screen{[data-wusool-desk]{background-color:${desk.backgroundColor};` +
+      `padding:${desk.padding}}[data-wusool-desk]>*{box-shadow:${page.boxShadow};` +
+      `border-radius:${page.borderRadius}}[data-wusool-desk]>*+*{margin-top:${page.marginTop}}}`;
+    document.head.append(screen);
+  }
+  for (const host of hosts) {
+    // Not min-height: the viewer's 100vh would ratchet the self-sizing iframe ever taller.
+    freeze(host, ['display', 'position', 'box-sizing']);
     for (const child of host.children) {
       freeze(child, ['display', 'position', 'width', 'height', 'container-type', 'overflow', 'box-sizing',
-                     'background-color', 'margin-top', 'box-shadow', 'border-radius']);
+                     'background-color']);
       child.style.marginLeft = child.style.marginRight = 'auto';
     }
-  }
-  // Screen-only: printed, a gap or desk padding would push each A4 page onto a second sheet.
-  if (document.querySelector('[data-wusool-desk]')) {
-    const print = document.createElement('style');
-    print.textContent = '@media print{[data-wusool-desk]{padding:0!important;background:none!important}' +
-      '[data-wusool-desk]>*{margin-top:0!important;box-shadow:none!important;border-radius:0!important}}';
-    document.head.append(print);
   }
   // Hidden copies (a bundle's source template, noscript fallbacks) would leak gated text.
   document.querySelectorAll('x-dc, template, noscript, [hidden]').forEach((e) => e.remove());

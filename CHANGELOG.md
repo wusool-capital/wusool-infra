@@ -14,8 +14,8 @@ for current production evidence and open handover items.
 
 - On larger screens, reports exported as A4 pages now show each page as a
   separate sheet on a grey background, as in a PDF viewer. Phones and the
-  PDF download are unchanged. Published reports pick this up the next
-  time they are published in Sanity.
+  PDF download are unchanged. A published report picks this up the next
+  time an editor changes and republishes it in Sanity.
 
 ## 2026-10-07
 
