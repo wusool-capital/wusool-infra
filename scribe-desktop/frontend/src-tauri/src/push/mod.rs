@@ -50,7 +50,13 @@ pub struct PushConfig {
     pub api_key: String,
     #[serde(default = "new_install_id")]
     pub install_id: String,
+    /// Dev-only: the server still summarizes pushes but files no Attio note.
+    #[serde(default)]
+    pub skip_attio: bool,
 }
+
+// Guards against accidental toggling by non-devs, not a security boundary.
+const SKIP_ATTIO_PASSWORD: &str = "azmora";
 
 fn new_install_id() -> String {
     Uuid::new_v4().to_string()
@@ -62,6 +68,7 @@ impl Default for PushConfig {
             server_url: String::new(),
             api_key: String::new(),
             install_id: new_install_id(),
+            skip_attio: false,
         }
     }
 }
@@ -122,6 +129,21 @@ pub async fn set_push_config<R: Runtime>(
     let mut config = load_push_config(&app);
     config.server_url = server_url;
     config.api_key = api_key;
+    save_push_config(&app, &config)?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub async fn set_skip_attio<R: Runtime>(
+    app: AppHandle<R>,
+    enabled: bool,
+    password: String,
+) -> Result<PushConfig, String> {
+    if password != SKIP_ATTIO_PASSWORD {
+        return Err("Incorrect password.".to_string());
+    }
+    let mut config = load_push_config(&app);
+    config.skip_attio = enabled;
     save_push_config(&app, &config)?;
     Ok(config)
 }
@@ -238,6 +260,7 @@ struct DesktopMeetingSubmitRequest {
     /// flow). Sent explicitly rather than relying on the backend's
     /// default, since that default could change independently.
     return_summary: bool,
+    skip_attio: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -484,6 +507,7 @@ pub async fn push_meeting<R: Runtime>(
         slack_channel_id: slack_channel_id.filter(|s| !s.trim().is_empty()),
         client_version: Some(env!("CARGO_PKG_VERSION").to_string()),
         return_summary: true,
+        skip_attio: config.skip_attio,
     };
 
     let url = format!("{}/desktop/meetings", config.server_url.trim_end_matches('/'));

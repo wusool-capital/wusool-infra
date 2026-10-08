@@ -75,6 +75,10 @@ function formatMeetingDate(createdAt?: string | null): string | null {
   });
 }
 
+const SIDEBAR_MIN_WIDTH = 256;
+const SIDEBAR_MAX_VIEWPORT_RATIO = 0.7;
+const SIDEBAR_WIDTH_STORAGE_KEY = 'sidebarWidth';
+
 const Sidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
@@ -83,6 +87,44 @@ const Sidebar: React.FC = () => {
   useEffect(() => {
     getVersion().then(setAppVersion).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY));
+      if (saved >= SIDEBAR_MIN_WIDTH) setSidebarWidth(saved);
+    } catch (error) {
+      console.error('Failed to load sidebar width:', error);
+    }
+  }, []);
+
+  const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsResizing(true);
+    // Body-level cursor/select overrides keep the drag smooth when the pointer leaves the thin handle.
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    let latestWidth = sidebarWidth;
+
+    const onMove = (event: PointerEvent) => {
+      const maxWidth = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth * SIDEBAR_MAX_VIEWPORT_RATIO);
+      latestWidth = Math.round(Math.min(Math.max(event.clientX, SIDEBAR_MIN_WIDTH), maxWidth));
+      setSidebarWidth(latestWidth);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setIsResizing(false);
+      try {
+        localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(latestWidth));
+      } catch (error) {
+        console.error('Failed to save sidebar width:', error);
+      }
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
 
   const {
     currentMeeting,
@@ -105,6 +147,8 @@ const Sidebar: React.FC = () => {
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
+  const [sidebarWidth, setSidebarWidth] = useState<number>(SIDEBAR_MIN_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -149,9 +193,10 @@ const Sidebar: React.FC = () => {
 
   const [deleteModalState, setDeleteModalState] = useState<{
     isOpen: boolean;
-    itemId: string | null;
+    itemIds: string[];
+    folderTitle: string | null;
     anyPushed: boolean;
-  }>({ isOpen: false, itemId: null, anyPushed: false });
+  }>({ isOpen: false, itemIds: [], folderTitle: null, anyPushed: false });
   const [deleteRemoteChecked, setDeleteRemoteChecked] = useState(false);
 
   useEffect(() => {
@@ -357,10 +402,10 @@ const Sidebar: React.FC = () => {
 
 
   const handleDeleteConfirm = () => {
-    if (deleteModalState.itemId) {
-      deleteMeetings([deleteModalState.itemId], deleteModalState.anyPushed && deleteRemoteChecked);
+    if (deleteModalState.itemIds.length > 0) {
+      deleteMeetings(deleteModalState.itemIds, deleteModalState.anyPushed && deleteRemoteChecked);
     }
-    setDeleteModalState({ isOpen: false, itemId: null, anyPushed: false });
+    setDeleteModalState({ isOpen: false, itemIds: [], folderTitle: null, anyPushed: false });
     setDeleteRemoteChecked(false);
   };
 
@@ -632,7 +677,27 @@ const Sidebar: React.FC = () => {
                 <Folder className="w-4 h-4 mr-2 text-muted-foreground" />
               )}
               <RollingLabel text={item.title} className={cn('mr-2', depth !== 0 && 'font-medium')} />
-              <div className="ml-auto">
+              {item.id.startsWith(TAG_FOLDER_PREFIX) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 ml-auto flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:text-destructive hover:bg-destructive/10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const children = item.children ?? [];
+                    setDeleteModalState({
+                      isOpen: true,
+                      itemIds: children.map((child) => child.id),
+                      folderTitle: item.title,
+                      anyPushed: children.some((child) => !!child.pushedAt),
+                    });
+                  }}
+                  aria-label="Delete folder"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+              <div className={cn(item.id.startsWith(TAG_FOLDER_PREFIX) ? 'ml-1' : 'ml-auto')}>
                 {item.id.startsWith(TAG_FOLDER_PREFIX) ? (
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 ) : isExpanded ? (
@@ -687,7 +752,8 @@ const Sidebar: React.FC = () => {
                         e.stopPropagation();
                         setDeleteModalState({
                           isOpen: true,
-                          itemId: item.id,
+                          itemIds: [item.id],
+                          folderTitle: null,
                           anyPushed: !!item.pushedAt,
                         });
                       }}
@@ -721,12 +787,15 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="h-screen flex-shrink-0">
+    <div className="h-screen flex-shrink-0 relative">
       <div
         className={cn(
-          'h-screen bg-muted/40 shadow-sm flex flex-col transition-all duration-300 text-foreground',
-          isCollapsed ? 'w-16' : 'w-64'
+          'h-screen bg-muted/40 shadow-sm flex flex-col text-foreground',
+          !isResizing && 'transition-all duration-300',
+          isCollapsed && 'w-16'
         )}
+        // maxWidth re-clamps a saved width when the window later shrinks.
+        style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: `${SIDEBAR_MAX_VIEWPORT_RATIO * 100}vw` }}
       >
         {/*  Header with traffic light spacing */}
         <div className="flex-shrink-0">
@@ -908,13 +977,28 @@ const Sidebar: React.FC = () => {
         )}
       </div>
 
+      {!isCollapsed && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          onPointerDown={handleResizeStart}
+          className={cn(
+            'absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-10 transition-colors hover:bg-primary/30',
+            isResizing && 'bg-primary/40'
+          )}
+        />
+      )}
+
       {/* Confirmation Modal for Delete */}
       <ConfirmationModal
         isOpen={deleteModalState.isOpen}
-        text="Are you sure you want to delete this meeting? This action cannot be undone."
+        text={deleteModalState.folderTitle
+          ? `Are you sure you want to delete the folder "${deleteModalState.folderTitle}" and all ${deleteModalState.itemIds.length} meeting${deleteModalState.itemIds.length === 1 ? '' : 's'} in it? This action cannot be undone.`
+          : "Are you sure you want to delete this meeting? This action cannot be undone."}
         onConfirm={handleDeleteConfirm}
         onCancel={() => {
-          setDeleteModalState({ isOpen: false, itemId: null, anyPushed: false });
+          setDeleteModalState({ isOpen: false, itemIds: [], folderTitle: null, anyPushed: false });
           setDeleteRemoteChecked(false);
         }}
       >
