@@ -8,14 +8,6 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
-## 2026-10-08
-
-### Added
-
-- Scribe desktop has a password-protected **Don't store to Attio** switch
-  in its push settings, for developers. Pushed meetings are still
-  summarized and saved, but no Attio note is created.
-
 ## 2026-10-07
 
 ### Added
