@@ -2,6 +2,14 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.7.7
+
+### What's new
+
+* Hover over a folder in the sidebar to show a delete button. It deletes the folder and every meeting in it, after you confirm.
+* Drag the sidebar's right edge to make it wider, up to 70% of the window. Scribe remembers the width.
+* Developers can turn on **Don't store to Attio** under Push Destination settings, with the developer password. Pushed meetings are still summarized, but no Attio note is created.
+
 ## 0.7.6
 
 ### What's new
