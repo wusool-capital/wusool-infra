@@ -123,23 +123,26 @@ class PublishMixin(ServiceBase):
         # serves both environments now. `push_note` swallows its own Attio
         # errors and returns None; the except here covers anything it cannot.
         note_attio_id: UUID | None = None
-        try:
-            note_attio_id = await self._note_writer.push_note(
-                organization_attio_id=org_id,
-                content=content,
-                created_at=meeting.occurred_at,
-                primary_role=primary.value if primary is not None else None,
-                buyer_role_entry_id=buyer_role_entry_id,
-                seller_role_entry_id=seller_role_entry_id,
-            )
-        except Exception as exc:  # noqa: BLE001 - best-effort, must not affect the meeting
-            logger.warning(
-                "note_push_failed meeting_id=%s error=%s",
-                meeting.id,
-                exc,
-                extra={"meeting_id": str(meeting.id), "error": str(exc)},
-            )
-            note_attio_id = None
+        if meeting.skip_attio:
+            logger.info("note_push_skipped meeting_id=%s reason=skip_attio", meeting.id)
+        else:
+            try:
+                note_attio_id = await self._note_writer.push_note(
+                    organization_attio_id=org_id,
+                    content=content,
+                    created_at=meeting.occurred_at,
+                    primary_role=primary.value if primary is not None else None,
+                    buyer_role_entry_id=buyer_role_entry_id,
+                    seller_role_entry_id=seller_role_entry_id,
+                )
+            except Exception as exc:  # noqa: BLE001 - best-effort, must not affect the meeting
+                logger.warning(
+                    "note_push_failed meeting_id=%s error=%s",
+                    meeting.id,
+                    exc,
+                    extra={"meeting_id": str(meeting.id), "error": str(exc)},
+                )
+                note_attio_id = None
 
         try:
             note_id = await self._notes_repository.create(

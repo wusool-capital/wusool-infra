@@ -18,7 +18,7 @@ from app.modules.meetings.application.errors import (
     MeetingAlreadyExistsError,
     UnknownCompanyReferenceError,
 )
-from app.modules.meetings.domain.meeting_record import MeetingRecord
+from app.modules.meetings.domain.meeting_record import SKIP_ATTIO_METADATA_KEY, MeetingRecord
 from app.modules.meetings.domain.rendering import TranscriptTurn, render_transcript_text
 from app.modules.meetings.domain.roles import (
     MeetingRole,
@@ -58,6 +58,7 @@ class IngestMixin(ServiceBase):
         occurred_at: datetime | None,
         role_selections: dict[MeetingRole, str],
         role_queries: dict[MeetingRole, str],
+        skip_attio: bool = False,
     ) -> MeetingRecord:
         """Create the `meetings` row for a desktop-pushed transcript.
 
@@ -114,6 +115,8 @@ class IngestMixin(ServiceBase):
         metadata_: dict[str, object] | None = None
         if primary is not None or other_side:
             metadata_ = encode_role_metadata(primary=primary, other=other_side)
+        if skip_attio:
+            metadata_ = {**(metadata_ or {}), SKIP_ATTIO_METADATA_KEY: True}
 
         # Rendered once, reused both as the stored transcript column and
         # (in PublishMixin) as the summarization prompt's input — never

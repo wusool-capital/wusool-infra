@@ -17,7 +17,7 @@ import pytest
 
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
-from app.modules.meetings.domain.meeting_record import MeetingRecord
+from app.modules.meetings.domain.meeting_record import SKIP_ATTIO_METADATA_KEY, MeetingRecord
 from app.modules.meetings.domain.role_ref import ActiveRoleRef
 from app.modules.meetings.domain.roles import MeetingRole
 from app.modules.utilities.domain.json_types import JsonObject
@@ -82,13 +82,15 @@ class _FakeMeetingsRepository:
     set_note_id_calls: list[dict[str, object]] = field(default_factory=list)
     fail_set_note_id: bool = False
     removed_after_first_get: bool = False
+    create_calls: list[dict[str, object]] = field(default_factory=list)
     _gets: int = 0
 
     async def get_by_install_and_recording(self, install_id, local_recording_id):
-        raise NotImplementedError
+        return None
 
     async def create(self, **kwargs):
-        raise NotImplementedError
+        self.create_calls.append(kwargs)
+        return self.meeting
 
     async def mark_completed(self, meeting_id, *, summary_text, summary_json, title):
         self.mark_completed_calls.append(
@@ -405,3 +407,35 @@ async def test_meeting_deleted_mid_summarization_creates_no_note() -> None:
     assert note_writer.calls == []
     assert notes_repo.calls == []
     assert meetings_repo.set_note_id_calls == []
+
+
+async def test_skip_attio_meeting_files_postgres_note_without_attio() -> None:
+    meeting = _meeting(org_id=None, metadata={SKIP_ATTIO_METADATA_KEY: True})
+    service, meetings_repo, notes_repo, note_writer, _ = _service(meeting=meeting)
+    note_writer.returned_id = uuid4()
+
+    await service.summarize_and_publish(_MEETING_ID)
+
+    assert note_writer.calls == []
+    assert len(notes_repo.calls) == 1
+    assert notes_repo.calls[0]["note_id"] is None
+    assert len(meetings_repo.mark_completed_calls) == 1
+
+
+@pytest.mark.parametrize("skip_attio", [True, False])
+async def test_ingest_stores_skip_attio_in_metadata(skip_attio: bool) -> None:
+    service, meetings_repo, _, _, _ = _service(meeting=_meeting())
+
+    await service.ingest_meeting(
+        install_id="install-1",
+        local_recording_id="rec-1",
+        transcript=[],
+        duration_seconds=60,
+        occurred_at=datetime(2026, 9, 7, tzinfo=UTC),
+        role_selections={},
+        role_queries={},
+        skip_attio=skip_attio,
+    )
+
+    metadata = meetings_repo.create_calls[0]["metadata_"]
+    assert (metadata or {}).get(SKIP_ATTIO_METADATA_KEY) is (True if skip_attio else None)

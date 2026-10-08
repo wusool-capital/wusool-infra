@@ -8,6 +8,15 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-08
+
+### Changed
+
+- On larger screens, reports exported as A4 pages now show each page as a
+  separate sheet on a grey background, as in a PDF viewer. Phones and the
+  PDF download are unchanged. A published report picks this up the next
+  time an editor changes and republishes it in Sanity.
+
 ## 2026-10-07
 
 ### Added
