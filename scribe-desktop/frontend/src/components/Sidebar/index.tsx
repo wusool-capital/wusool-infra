@@ -149,9 +149,10 @@ const Sidebar: React.FC = () => {
 
   const [deleteModalState, setDeleteModalState] = useState<{
     isOpen: boolean;
-    itemId: string | null;
+    itemIds: string[];
+    folderTitle: string | null;
     anyPushed: boolean;
-  }>({ isOpen: false, itemId: null, anyPushed: false });
+  }>({ isOpen: false, itemIds: [], folderTitle: null, anyPushed: false });
   const [deleteRemoteChecked, setDeleteRemoteChecked] = useState(false);
 
   useEffect(() => {
@@ -357,10 +358,10 @@ const Sidebar: React.FC = () => {
 
 
   const handleDeleteConfirm = () => {
-    if (deleteModalState.itemId) {
-      deleteMeetings([deleteModalState.itemId], deleteModalState.anyPushed && deleteRemoteChecked);
+    if (deleteModalState.itemIds.length > 0) {
+      deleteMeetings(deleteModalState.itemIds, deleteModalState.anyPushed && deleteRemoteChecked);
     }
-    setDeleteModalState({ isOpen: false, itemId: null, anyPushed: false });
+    setDeleteModalState({ isOpen: false, itemIds: [], folderTitle: null, anyPushed: false });
     setDeleteRemoteChecked(false);
   };
 
@@ -632,7 +633,27 @@ const Sidebar: React.FC = () => {
                 <Folder className="w-4 h-4 mr-2 text-muted-foreground" />
               )}
               <RollingLabel text={item.title} className={cn('mr-2', depth !== 0 && 'font-medium')} />
-              <div className="ml-auto">
+              {item.id.startsWith(TAG_FOLDER_PREFIX) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 ml-auto flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:text-destructive hover:bg-destructive/10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const children = item.children ?? [];
+                    setDeleteModalState({
+                      isOpen: true,
+                      itemIds: children.map((child) => child.id),
+                      folderTitle: item.title,
+                      anyPushed: children.some((child) => !!child.pushedAt),
+                    });
+                  }}
+                  aria-label="Delete folder"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+              <div className={cn(item.id.startsWith(TAG_FOLDER_PREFIX) ? 'ml-1' : 'ml-auto')}>
                 {item.id.startsWith(TAG_FOLDER_PREFIX) ? (
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 ) : isExpanded ? (
@@ -687,7 +708,8 @@ const Sidebar: React.FC = () => {
                         e.stopPropagation();
                         setDeleteModalState({
                           isOpen: true,
-                          itemId: item.id,
+                          itemIds: [item.id],
+                          folderTitle: null,
                           anyPushed: !!item.pushedAt,
                         });
                       }}
@@ -911,10 +933,12 @@ const Sidebar: React.FC = () => {
       {/* Confirmation Modal for Delete */}
       <ConfirmationModal
         isOpen={deleteModalState.isOpen}
-        text="Are you sure you want to delete this meeting? This action cannot be undone."
+        text={deleteModalState.folderTitle
+          ? `Are you sure you want to delete the folder "${deleteModalState.folderTitle}" and all ${deleteModalState.itemIds.length} meeting${deleteModalState.itemIds.length === 1 ? '' : 's'} in it? This action cannot be undone.`
+          : "Are you sure you want to delete this meeting? This action cannot be undone."}
         onConfirm={handleDeleteConfirm}
         onCancel={() => {
-          setDeleteModalState({ isOpen: false, itemId: null, anyPushed: false });
+          setDeleteModalState({ isOpen: false, itemIds: [], folderTitle: null, anyPushed: false });
           setDeleteRemoteChecked(false);
         }}
       >
