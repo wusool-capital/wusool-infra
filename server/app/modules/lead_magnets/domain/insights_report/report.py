@@ -66,7 +66,7 @@ class ReportSource:
 
 
 # Bump when the renderer's output changes, so published reports are flattened again.
-RENDER_VERSION = "4"
+RENDER_VERSION = "5"
 
 
 def fingerprint(html: str) -> str:

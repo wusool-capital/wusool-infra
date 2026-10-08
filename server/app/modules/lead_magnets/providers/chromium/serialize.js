@@ -50,11 +50,23 @@ async () => {
     const cs = getComputedStyle(el);
     for (const p of props) el.style.setProperty(p, cs.getPropertyValue(p));
   };
-  for (const host of [...document.querySelectorAll('*')].filter((e) => e.shadowRoot)) {
-    // Only the layout survives; a standalone viewer's "desk" margin would waste the embed's width.
+  const hosts = [...document.querySelectorAll('*')].filter((e) => e.shadowRoot);
+  // Only the page viewer's desk and gaps, and screen-only: printed, they push each A4 page onto a second sheet.
+  const viewer = hosts.find((e) => e.children.length > 1);
+  if (viewer) {
+    const desk = getComputedStyle(viewer);
+    const page = getComputedStyle(viewer.children[1]);
+    viewer.setAttribute('data-wusool-desk', '');
+    const screen = document.createElement('style');
+    screen.textContent = `@media screen{[data-wusool-desk]{background-color:${desk.backgroundColor};` +
+      `padding:${desk.padding}}[data-wusool-desk]>*{box-shadow:${page.boxShadow};` +
+      `border-radius:${page.borderRadius}}[data-wusool-desk]>*+*{margin-top:${page.marginTop}}}`;
+    document.head.append(screen);
+  }
+  for (const host of hosts) {
+    // Not min-height: the viewer's 100vh would ratchet the self-sizing iframe ever taller.
     freeze(host, ['display', 'position', 'box-sizing']);
     for (const child of host.children) {
-      // Not the viewer's page gaps, shadows or corners: on the site, pages read as one document.
       freeze(child, ['display', 'position', 'width', 'height', 'container-type', 'overflow', 'box-sizing',
                      'background-color']);
       child.style.marginLeft = child.style.marginRight = 'auto';
