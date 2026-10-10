@@ -38,7 +38,7 @@ corruption as P0 and escalate immediately.
 1. Confirm AWS identity with the verified command `aws sts get-caller-identity`.
 2. From the repository root, inspect the live Toolkit stack outputs using the
    production or development backend procedure in
-   `gitbook/operations/environments-and-access.md` and
+   `gitbook/operations-and-handover/environments-and-access.md` and
    `infrastructure/terraform/README.md`. The Toolkit stack exposes
    `app_urls`, `ssm_instance_id`, `bootstrap_document_name`, and
    `autoscaling_group_name`.

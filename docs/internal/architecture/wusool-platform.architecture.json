@@ -29,7 +29,7 @@
       "sublabel": "lead magnets",
       "pos": [40, 300],
       "size": [150, 64],
-      "sources": [{ "path": "gitbook/technical/lead-tools.md", "label": "Lead tools" }]
+      "sources": [{ "path": "gitbook/technical-documentation/lead-tools.md", "label": "Lead tools" }]
     },
     {
       "id": "scribe",
@@ -38,7 +38,7 @@
       "sublabel": "desktop meeting API",
       "pos": [40, 430],
       "size": [150, 64],
-      "sources": [{ "path": "gitbook/technical/scribe.md", "label": "Scribe flow" }]
+      "sources": [{ "path": "gitbook/technical-documentation/scribe.md", "label": "Scribe flow" }]
     },
     {
       "id": "attio",
@@ -47,7 +47,7 @@
       "sublabel": "CRM of record",
       "pos": [330, 80],
       "size": [150, 64],
-      "sources": [{ "path": "gitbook/technical/attio-sync.md", "label": "CRM sync" }]
+      "sources": [{ "path": "gitbook/technical-documentation/attio-sync.md", "label": "CRM sync" }]
     },
     {
       "id": "toolkit",
@@ -76,7 +76,7 @@
       "sublabel": "matching + summaries",
       "pos": [620, 105],
       "size": [170, 64],
-      "sources": [{ "path": "gitbook/technical/toolkit.md", "label": "AI dependency" }]
+      "sources": [{ "path": "gitbook/technical-documentation/toolkit.md", "label": "AI dependency" }]
     },
     {
       "id": "research",
@@ -85,7 +85,7 @@
       "sublabel": "Firecrawl + Diffbot + PDL",
       "pos": [620, 500],
       "size": [190, 64],
-      "sources": [{ "path": "gitbook/technical/toolkit.md", "label": "Enrichment providers" }]
+      "sources": [{ "path": "gitbook/technical-documentation/toolkit.md", "label": "Enrichment providers" }]
     },
     {
       "id": "n8n",
@@ -95,7 +95,7 @@
       "tag": "EC2 / persistent volume",
       "pos": [930, 280],
       "size": [180, 70],
-      "sources": [{ "path": "gitbook/technical/n8n.md", "label": "n8n runtime" }]
+      "sources": [{ "path": "gitbook/technical-documentation/n8n.md", "label": "n8n runtime" }]
     },
     {
       "id": "github",
@@ -113,7 +113,7 @@
       "sublabel": "SSM + CloudWatch + Secrets Manager",
       "pos": [930, 500],
       "size": [210, 64],
-      "sources": [{ "path": "gitbook/operations/monitoring-and-incidents.md", "label": "Operations" }]
+      "sources": [{ "path": "gitbook/operations-and-handover/monitoring-and-incidents.md", "label": "Operations" }]
     },
     {
       "id": "sanity",

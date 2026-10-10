@@ -334,7 +334,7 @@ per-stack change detection keeps blast radius small.
 ## Project status
 
 See [`CHANGELOG.md`](CHANGELOG.md) for what has changed and
-[`gitbook/operations/delivery-status.md`](gitbook/operations/delivery-status.md) for the current
+[`gitbook/operations-and-handover/delivery-status.md`](gitbook/operations-and-handover/delivery-status.md) for the current
 delivered state and outstanding items.
 
 ## Documentation synchronization
