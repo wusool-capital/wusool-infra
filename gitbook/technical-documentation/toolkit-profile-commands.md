@@ -45,13 +45,15 @@ and deliberately reverted.
 
 ## Fields Slack can't edit
 
-- System-managed: connection strength.
+- System-managed: connection strength and the active flag.
 - Also written by pipelines, so a Slack edit could be overwritten:
   readiness and lead-quality scores, acquisition enrichment, and deals
   introduced or converted.
 - Reference fields with no picker yet: a buyer's key contact and an
   organization's owner.
-- `Intake source` is editable only with the "this is a correction" box ticked.
+- Not built yet: the readiness band, key personnel, and last interaction
+  date. Of the organization multi-selects, only sector focus is editable;
+  type, stage focus, geographic focus, and categories aren't.
 
 ## Failure behavior
 

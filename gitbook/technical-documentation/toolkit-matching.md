@@ -8,10 +8,11 @@ Qualified Buy-side deal in Attio.
 
 ## How it works
 
-1. **Resolve the buyer.** A fuzzy name search returns none, one, or several
-   buyers; several opens a picker.
+1. **Resolve the buyer.** A fuzzy name search finds the buyer, and a popup
+   asks the advisor to confirm it, even when there is only one match.
 2. **Check the buyer.** The [discrepancy check](toolkit-discrepancies.md)
-   runs first. The match starts only when the advisor clicks **Run anyway**.
+   fills the same popup. The match starts when the advisor clicks **Run
+   anyway**, which works even before the check has finished.
 3. **Extract requirements.** One Bedrock call reads the buyer's CRM fields,
    free text, recent meeting notes, and the advisor's note. It returns hard
    requirements and soft preferences. A criterion the advisor restates
@@ -20,21 +21,23 @@ Qualified Buy-side deal in Attio.
    result says so.
 4. **Narrow and filter.** SQL narrows sellers by the buyer role's vertical,
    target region and country, and EV ceiling. A seller with no data for a
-   dimension always passes. A seller is then dropped only on a confirmed hard
+   dimension always passes. If any target region can't be resolved, or is
+   unrestricted (such as Europe or Global), geography narrowing is skipped. A seller is then dropped only on a confirmed hard
    requirement's failure; missing data never eliminates anyone. Ticket size
    never eliminates; it only affects the score.
 5. **Score.** Each criterion scores Pass 100, Unknown 50, or Fail 0, and the
    weighted average ranks the sellers. Data confidence (how much of the score
    rests on CRM data rather than AI inference) is reported separately and
    never changes the ranking.
-6. **Explain.** One Bedrock call writes reasoning for the top of the
-   shortlist. It can't change scores or add facts it wasn't given.
+6. **Explain.** The top three sellers form the shortlist. One Bedrock call
+   writes reasoning for them. It can't change their scores, and its prompt
+   tells it to use only the facts it was given.
 7. **Save.** Scores, candidates, and the completed run are committed in one
    transaction, then posted to Slack with **Approve**, **Reject**, **View Full
    Analysis**, and **Find more sellers**.
 8. **Discover.** If every candidate scores below the discovery threshold,
-   [seller discovery](toolkit-discovery.md) runs automatically. **Find more
-   sellers** runs the same search on demand.
+   [seller discovery](toolkit-discovery.md) runs automatically. Otherwise
+   **Find more sellers** runs it on demand. Each run searches once.
 
 Meeting notes reach both Bedrock calls as labeled, unverified context: always
 for the buyer, and by default for shortlisted sellers.
@@ -67,8 +70,9 @@ Inbound deal is promoted; later stages are left alone.
 - If Attio accepts the deal but the database write fails, the approver is
   told what was saved. The Attio webhook or nightly resync fills in the
   database.
-- Duplicate Slack deliveries are ignored by an in-memory idempotency store.
-  It works for one process only, so the Toolkit runs as a single instance.
+- Duplicate Slack deliveries are ignored for five minutes by an in-memory
+  store. It works for one process only, which is one reason the Toolkit runs
+  as a single instance; the auto-scaling group is fixed at one.
 
 ## Not built
 

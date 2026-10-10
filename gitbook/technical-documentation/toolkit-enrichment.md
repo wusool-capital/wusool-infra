@@ -20,8 +20,10 @@ final:
 3. **Firecrawl and Bedrock:** a public web search, with Bedrock extracting
    values from the results. This is the last resort.
 
-Buyers skip the first two: their enrichable fields (assets under management,
-investment strategy, notable investments) aren't covered by either provider.
+For a buyer, the first two are asked only about the organization's fields.
+Neither provider covers the buyer role's own fields, so those go straight to
+the web search. They include investment strategy, target regions, check
+sizes, and deal structure.
 
 The research runs in the background. The result message lists every proposed
 value with a confidence level and one **Review & Save** button.
@@ -39,6 +41,7 @@ matched; discovery compares that with Google Maps before saving a lead.
 - A rate-limited response is logged as such, and retried once when the wait
   is short.
 - Existing non-empty fields are never proposed over.
+- Web-search values below 0.6 confidence are dropped rather than shown.
 
 ## Data it reads
 

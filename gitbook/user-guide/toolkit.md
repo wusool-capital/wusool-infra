@@ -66,8 +66,8 @@ never contacts an organization.
 The bot searches Google Maps for new sellers in the buyer's target regions
 and countries:
 
-- A lead is saved automatically only when the company's website matches the
-  one on Google Maps.
+- A lead is saved automatically when its researched details match its Google
+  Maps website. It is also saved when there are no extra details to check.
 - Otherwise a **Website check** message shows both websites and the proposed
   values. **Review & Save** opens the add-seller form; nothing is saved until
   you complete it.
@@ -102,7 +102,6 @@ and countries:
 If only part of it saved, the bot says which part.
 
 Scores, pipeline values, and people references can't be edited from Slack.
-`Intake source` requires the correction checkbox.
 
 ### Add a buyer or seller
 

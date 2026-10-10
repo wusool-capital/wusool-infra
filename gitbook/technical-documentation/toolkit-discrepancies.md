@@ -14,7 +14,7 @@ the **Before we match** popup.
 ## How it works
 
 1. **Read the note.** One Bedrock call parses the advisor's free-text note
-   into every vertical it could mean, regions, countries, and ticket and
+   into every vertical it could mean, a region, countries, and ticket and
    EBITDA bounds. An empty note, or a buyer with nothing stored that could
    conflict, skips this call.
 2. **Ground the amounts.** Any amount whose measure the note never names is

@@ -29,8 +29,8 @@ profile data.
 - **Enrichment** never saves anything. Its proposal opens Profile commands'
   real edit form, so every save takes the normal write path.
 - **Profile commands** writes to Attio first, then to the Wusool database.
-  Approving a match is the one other CRM write: Matching creates the
-  Qualified deal in Attio itself.
+  Matching writes to Attio directly in one case: approving a match creates
+  the Qualified deal.
 
 Modules only call each other through declared interfaces, wired together when
 the server starts. Architecture tests in the repo fail the build if a module
@@ -43,6 +43,10 @@ reaches into another's internals.
 | `POST /slack/events` | Receives every Slack command and interaction; Slack Bolt verifies the signature. |
 | `GET /health` | Process liveness, with no database dependency. |
 | `GET /readiness` and `GET /ready` | Database readiness; returns 503 when the database is unreachable. |
+| `POST /webhooks/attio` | Attio's change webhook; verified, then synced to the database in the background. See [Attio and database sync](attio-sync.md). |
+
+The same process also serves the [WusoolScribe](scribe.md) desktop API and
+the [website lead tools](lead-tools.md), and runs the lead tools' sweeper.
 
 **Test and production records.** There is one Attio workspace. Development
 stamps every record it creates as test data and refuses to edit production
