@@ -2,6 +2,8 @@
 
 ## Trust boundaries
 
+![How an inbound request is checked](../.gitbook/assets/security-checks.svg)
+
 | Boundary | Control |
 | --- | --- |
 | Slack → Toolkit | Slack Bolt verifies every request signature. |

@@ -8,6 +8,8 @@ shows an implied enterprise value. No AI is involved.
 
 ## How it works
 
+![How a benchmark result is produced](../.gitbook/assets/lead-benchmark.svg)
+
 1. `POST /benchmark` records the submission through the
    [write contract](lead-tools.md#the-write-contract).
 2. The figures are scored against a built-in peer dataset. SME mode compares

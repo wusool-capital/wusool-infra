@@ -7,6 +7,8 @@ band, and recommendations. The team gets an internal advisory note.
 
 ## How it works
 
+![How a readiness score is produced](../.gitbook/assets/lead-readiness.svg)
+
 1. `POST /readiness/score` records the submission through the
    [write contract](lead-tools.md#the-write-contract).
 2. Bedrock scores the answers and writes the recommendations and a note.

@@ -21,6 +21,8 @@ before the flag existed have none.
 
 ## The webhook
 
+![How the webhook syncs a change](../.gitbook/assets/attio-webhook.svg)
+
 `POST /webhooks/attio` is the only public sync endpoint.
 
 1. The Attio signature is checked; a bad one returns 401, and a malformed
@@ -51,6 +53,8 @@ ones whose Attio push failed. Only notes with a known Attio ID take part in
 deletion reconciliation.
 
 ## The nightly resync
+
+![How the nightly resync runs](../.gitbook/assets/attio-resync.svg)
 
 - **When:** every day at 22:00 UTC (02:00 in Dubai), and on demand from the
   workflow.

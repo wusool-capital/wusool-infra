@@ -31,6 +31,8 @@ Windows and Linux, but no builds are published for them.
 
 ## Releases and updates
 
+![How a Scribe update reaches users](../.gitbook/assets/scribe-release.svg)
+
 The `scribe-release` workflow is run by hand, choosing a `stable` or `beta`
 channel. The version is bumped by hand in three files, and the workflow
 checks they agree before building. It then uploads the payload, uploads
@@ -59,6 +61,8 @@ OpenRouter, and a custom OpenAI-compatible endpoint. Remote providers receive th
 transcript text when chosen.
 
 ## After a push
+
+![How a push reaches Attio](../.gitbook/assets/scribe-push.svg)
 
 1. `POST /desktop/meetings` stores the transcript and returns at once with
    status `summarizing`.

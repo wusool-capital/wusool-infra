@@ -7,6 +7,8 @@ form; it is the only tool built new rather than ported.
 
 ## How it works
 
+![How a Buyer Network application is handled](../.gitbook/assets/lead-buyer-network.svg)
+
 1. The form collects name, organization, email, organization types, target
    geography, sectors, optional cheque size range, prior GCC acquisitions,
    and LinkedIn, plus consent.

@@ -8,6 +8,8 @@ Tally popup.
 
 ## How it works
 
+![How a Get Started enquiry is handled](../.gitbook/assets/lead-get-started.svg)
+
 1. The form opens as an overlay through `embed.js`'s modal mode, so the page
    layout and URL don't change.
 2. It collects name, company, email, geography, sector, revenue, EBITDA,

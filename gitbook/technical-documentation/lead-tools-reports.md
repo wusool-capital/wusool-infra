@@ -8,6 +8,8 @@ report and a PDF. Only confirmed readers become leads.
 
 ## How it works
 
+![How a reader unlocks a report](../.gitbook/assets/report-unlock.svg)
+
 1. **`GET /reports/{slug}`** returns the stored report's preview to a new
    reader, or the whole report to a returning one. The preview is cut between
    block elements, never mid-tag, and never sends the rest to a new reader.

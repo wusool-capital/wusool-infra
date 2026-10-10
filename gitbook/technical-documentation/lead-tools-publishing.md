@@ -9,6 +9,8 @@ Webflow Insights items.
 
 ## How a report publish works
 
+![How a Sanity publish reaches the website](../.gitbook/assets/sanity-publish.svg)
+
 1. Sanity calls the signed **`POST /reports/webhooks/sanity`** webhook. The
    server replies 202 at once and syncs in the background, so Sanity never
    times out and retries. Signatures older than 10 minutes are rejected.

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 720 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="n8n-runtime-title n8n-runtime-desc" id="n8n-runtime-root">
+        <title id="n8n-runtime-title">How a request reaches n8n</title>
+        <desc id="n8n-runtime-desc">Flowchart: Caddy terminates HTTPS and forwards to n8n, which runs the workflow, sends Code nodes to the task runner, calls external services, and keeps state on the instance volume.</desc>
+        <defs>
+      <style>#n8n-runtime-root { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #000523; }
+      #n8n-runtime-root .diagram-container { width: 100%; overflow-x: auto; }
+      #n8n-runtime-root .diagram-container { overflow-x: visible; }</style>
+          <marker id="n8n-runtime-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="n8n-runtime-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="n8n-runtime-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="260" y1="64" x2="260" y2="96" stroke="#56596b" stroke-width="1.2" marker-end="url(#n8n-runtime-arrow)"/>
+<line x1="260" y1="144" x2="260" y2="176" stroke="#56596b" stroke-width="1.2" marker-end="url(#n8n-runtime-arrow)"/>
+<line x1="260" y1="224" x2="260" y2="256" stroke="#56596b" stroke-width="1.2" marker-end="url(#n8n-runtime-arrow)"/>
+<line x1="260" y1="304" x2="260" y2="336" stroke="#56596b" stroke-width="1.2" marker-end="url(#n8n-runtime-arrow)"/>
+<line x1="260" y1="384" x2="260" y2="416" stroke="#336a85" stroke-width="1.4" marker-end="url(#n8n-runtime-arrow-accent)"/>
+<rect x="140" y="24" width="240" height="40" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="24" width="240" height="40" rx="20" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="260" y="48" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Webhook caller or user</text>
+<rect x="140" y="96" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="117" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Caddy</text>
+<text x="260" y="131" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">HTTPS · certificate · proxy</text>
+<rect x="140" y="176" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="197" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">n8n runs the workflow</text>
+<text x="260" y="211" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">editor · API · webhooks</text>
+<rect x="140" y="256" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="277" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Code nodes use the task runner</text>
+<text x="260" y="291" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">separate container · JS and Python</text>
+<rect x="140" y="336" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="357" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Call external services</text>
+<text x="260" y="371" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">credentials stored in n8n</text>
+<rect x="140" y="416" width="240" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="416" width="240" height="48" rx="20" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="260" y="437" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">State kept on the volume</text>
+<text x="260" y="451" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">not backed up</text>
+<line x1="24" y1="504" x2="696" y2="504" stroke="#000523" stroke-opacity="0.10" stroke-width="0.8"/>
+<text x="24" y="520" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="532" width="24" height="12" rx="6" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="56" y="541" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Start / end</text>
+<rect x="144" y="532" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="176" y="541" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Step</text>
+<polygon points="228,538 240,532 252,538 240,544" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="541" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Decision</text>
+<line x1="332" y1="538" x2="356" y2="538" stroke="#336a85" stroke-width="1.4" marker-end="url(#n8n-runtime-arrow-accent)"/>
+<text x="364" y="541" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Main path</text>
+      </svg>
