@@ -459,7 +459,7 @@
       "label": "enrichment + Places APIs",
       "variant": "dashed",
       "fromSide": "bottom",
-      "toSide": "left"
+      "toSide": "top"
     },
     {
       "from": "github",

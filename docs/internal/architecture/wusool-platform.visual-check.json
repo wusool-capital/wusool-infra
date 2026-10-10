@@ -7,8 +7,8 @@
   "visualReview": "pending",
   "artifact": {
     "path": "/Users/sinanshamsudheen/orca/workspaces/wusool-infra/seadragon/docs/internal/architecture/wusool-platform.html",
-    "sha256": "0228ff265416331f8e860ad4ef94706f676bde6fe1bff044db78e8a31ab07f4c",
-    "bytes": 824497
+    "sha256": "4172df582bbe7423900988736bb0294c0c248bc74b3b1821aa0f797c7412ec26",
+    "bytes": 824463
   },
   "state": {
     "detail": "read",
