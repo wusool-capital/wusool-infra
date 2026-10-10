@@ -84,7 +84,7 @@
       "sublabel": "CRM of record",
       "pos": [
         470,
-        40
+        20
       ],
       "size": [
         170,
@@ -411,7 +411,7 @@
       "variant": "security",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelDx": -92,
+      "labelDx": -40,
       "labelDy": 24
     },
     {
