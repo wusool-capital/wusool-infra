@@ -1,42 +1,53 @@
 # Delivery status and open items
 
-This register separates repository-confirmed capability from production claims
-that require live verification. Update it at each client handover or material
-release.
+_Last updated: 10 October 2026._
 
-| Capability | Repository evidence | Handover status |
+This register separates what the repository delivers from what has been
+verified live. Update it at each handover or significant release.
+
+## Delivered
+
+| Capability | Status |
+| --- | --- |
+| Development and production AWS environments | Delivered; confirm live state |
+| Branch-based deploys with migrations and health checks | Delivered |
+| Toolkit in Slack: matching, `/check-buyer`, add, edit, enrich | Delivered; production instance enabled |
+| Discrepancy check before every match | Delivered |
+| Approving a match creates a Qualified deal in Attio | Delivered |
+| Seller discovery from Google Maps, with website verification | Delivered |
+| One buyer role per vertical | Delivered |
+| PostgreSQL on private, encrypted RDS | Delivered; restore test outstanding |
+| Attio real-time webhook and nightly resync, with soft deletes | Delivered; verify the webhook subscription and alert live |
+| Website lead tools: Valuation, Readiness, Benchmark, Buyer Network, Get Started | Delivered; see open items for end-to-end checks |
+| Gated reports on `/reports`, with emailed code, PDF, and A4 sheet view | Delivered |
+| Sanity Reports Studio, Webflow sync, home banner, Insights articles | Delivered; confirm webhooks live |
+| WusoolScribe 0.7.7 for Apple-silicon Macs | Delivered; ad-hoc signed |
+| n8n in both environments, with pinned images, logs, and alarms | Delivered; no backup |
+| Monitoring: alarms, security findings, Slack and email routing | Delivered in code; confirm subscriptions live |
+
+## Open items
+
+| Priority | Item | Done when |
 | --- | --- | --- |
-| Development and production AWS environments | Separate environment configuration, networks, databases, secrets, repositories, and deployment roles | Delivered; confirm live state |
-| Branch-based continuous deployment | `Deploy dev` and `Deploy prod` workflows build, apply, migrate, roll out, and health-check | Delivered |
-| Toolkit and Slack workflows | Application modules and production Toolkit infrastructure are present | Delivered; verify Slack routing live |
-| PostgreSQL | Private encrypted RDS, deletion protection, managed credentials, seven-day backups | Delivered; restore test outstanding |
-| Attio real-time sync | Signed webhook implementation | Delivered; verify current webhook subscription live |
-| Attio nightly full resync | Scheduled production workflow | Delivered; failure notification implemented, live delivery unverified |
-| Attio mirror deletion reconciliation | Six mirrored tables use reversible `removed_at` handling; final counts are checked after reconciliation | Delivered in code; production run evidence requires verification |
-| n8n | Dev/prod infrastructure, HTTPS configuration, pinned images, logs and alarms | Delivered; recovery procedure outstanding |
-| WusoolScribe | Application integration and update infrastructure are documented | Production environment and release state require live verification |
-| Website lead tools | Production hostname and Toolkit hosting configuration are present | Production DNS, secret, deploy, and end-to-end status require live verification |
-| Monitoring baseline | Toolkit/n8n alarms, logs, security findings, email/chat routing configuration | Delivered in code; recipients and live delivery require verification |
-
-## Open handover items
-
-| Priority | Item | Completion evidence |
-| --- | --- | --- |
-| High | Assign primary and backup client owners and document access/escalation routes | Completed ownership register and access review |
-| High | Verify the nightly Attio resync failure notification end to end | Deliberately failed test run produces an acknowledged alert |
-| High | Define recovery targets and test PostgreSQL restore | Approved RTO/RPO and dated restore-test record |
-| High | Define, implement, and test n8n data backup/recovery | Successful isolated restore with documented data coverage |
-| High | Reconcile Attio and PostgreSQL and confirm all current migrations in production | Signed reconciliation and migration evidence |
-| Medium | Bring the production n8n re-provisioning procedure in line with the current module | Reviewed drill using current configuration |
-| Medium | Verify production lead-tool DNS, secret, deployment, and each end-to-end submission | Dated production smoke-test evidence |
-| Medium | Verify lead-magnet SES sender/recipient configuration and the email-failure alarm end to end | Dated visitor-confirmation and internal-notice delivery test, including an acknowledged alarm drill |
-| Medium | Run the notes identity backfill review for existing production data | Dry-run output reviewed; any approved apply run has an operator and reconciliation evidence |
-| Medium | Verify Scribe production release, update path, and client access | Dated install/update/CRM submission test |
-| Medium | Confirm People Data Labs response handling against an authorized live account | Recorded successful enrichment test |
-| Medium | Verify operational and security alert subscriptions and chat authorization | Dated alert-delivery drill |
+| High | Assign primary and backup owners and document access and escalation | Ownership register complete |
+| High | Back up n8n data, then test a restore | A successful isolated restore |
+| High | Agree recovery targets and test a PostgreSQL restore | Approved targets and a dated restore test |
+| High | Verify the nightly resync failure alert end to end | A deliberate failure produces an acknowledged alert |
+| High | Alert on abandoned lead-tool runs, report code email failures, and Sanity or Webflow sync failures | Alarms exist and have been tested |
+| Medium | Add RDS alarms; consider Multi-AZ | Alarms exist; decision recorded |
+| Medium | Verify Buyer Network and Valuation submissions end to end against live Attio | Dated production test |
+| Medium | Confirm the Sanity webhooks are enabled and signed, and that Webflow cards go live without a site publish | Dated check |
+| Medium | Verify SES sender identities and sandbox status, and test every lead and code email | Dated delivery test |
+| Medium | Make the Scribe beta channel reachable, or remove it | The app can read a beta feed, or the option is gone |
+| Medium | Verify Scribe install, update, and CRM push on a client Mac | Dated test |
+| Medium | Confirm People Data Labs responses against a live account | Recorded successful lookup |
+| Medium | Run the notes identity backfill review on production data | Reviewed dry run |
+| Medium | Write the postmortem for the 28 September buyer-role deactivation | Postmortem filed |
+| Low | Keep the discovery daily cap across restarts | Cap survives a deploy |
+| Low | Bring the production n8n re-provisioning procedure in line with the module | Reviewed drill |
 
 ## Sign-off rule
 
-Do not describe an item as live from repository configuration alone. Mark it
+Don't describe an item as live from repository configuration alone. Mark it
 verified only when an operator records the environment, date, evidence, and
-result. Any failed critical check remains open with an owner and target date.
+result. A failed critical check stays open with an owner and target date.

@@ -1,60 +1,72 @@
 # Monitoring and incident response
 
-CloudWatch retains n8n and Toolkit logs for 30 days. Infrastructure alarms feed
-the environment alert topics; repository configuration routes operational
-alerts to email and the shared infrastructure alert channel. Confirm live
-subscriptions during handover because source code cannot prove that recipients
-accepted them or that chat authorization remains active.
+Toolkit and n8n logs are kept in CloudWatch for 30 days. Infrastructure alarms
+publish to SNS topics, which reach email and, through AWS Chatbot, a Slack
+alerts channel. Confirm the live subscriptions during handover: the repository
+can't prove that recipients accepted them.
 
-| Signal | Meaning | Automated action |
-| --- | --- | --- |
-| Toolkit has no in-service instance | The single-instance Auto Scaling Group is unavailable | A replacement instance is launched |
-| Toolkit container health fails | Process is unhealthy while the host remains available | The container is restarted |
-| Toolkit external `/health` fails | Public network path is unavailable | Alert only |
-| Toolkit CPU exceeds its threshold | Sustained host pressure | Alert only |
-| n8n EC2 status check fails | AWS detects host or instance impairment | Alert only |
-| n8n CPU exceeds its threshold | Sustained host pressure | Alert only |
-| Lead-magnet email send fails | SES retries are exhausted for a visitor confirmation or internal notice | Alert only; the lead remains safe in Attio |
-| GuardDuty or Security Hub finding | Potential security issue | Security notification |
+## Alarms
 
-The nightly Attio-to-PostgreSQL resync runs in GitHub Actions at 02:00
-Asia/Dubai. A failed run now publishes to the environment alert topic and so
-reaches the same email and chat recipients as the infrastructure alarms. That
-path is implemented but not yet proven by a deliberate failure, so confirm
-delivery during handover. The real-time Attio webhook complements this job but
-does not remove the need to check missed or failed nightly runs.
+| Alarm | Fires when | Goes to | Automatic action |
+| --- | --- | --- | --- |
+| Toolkit not in service | No healthy instance for two minutes | Email and Slack | A replacement instance is launched |
+| Toolkit unreachable | Route 53's HTTPS check of `/health` fails three times | **Slack only** (its topic is in `us-east-1`, with no email) | None |
+| Toolkit high CPU | Above 85% for 15 minutes | Email and Slack | None |
+| Lead email send failed | An email fails after SES's own retries, at least once in 5 minutes | Email and Slack | The sweeper tries again later |
+| n8n status check | A failed check for two minutes | Email and Slack | None |
+| n8n high CPU | Above 85% for 15 minutes | Email and Slack | None |
+| Nightly Attio resync failed | The production workflow run fails | Email and Slack | None |
+| GuardDuty finding | Severity 4 or higher | **Email only** | None |
+| Security Hub finding | High or critical | **Email only** | None |
+
+An unhealthy Toolkit container is restarted automatically by an `autoheal`
+container on the instance; this isn't an alarm.
+
+## What isn't alarmed
+
+These only appear in logs, so someone must look for them:
+
+- lead-tool runs abandoned by the sweeper (`lead_magnet_run_abandoned`);
+- report code emails that fail to send;
+- failed Sanity or Webflow syncs, and bad Sanity webhook signatures;
+- failed Attio writes from the lead tools, including person and deal writes;
+- the RDS database: there are no RDS alarms at all;
+- failed n8n workflows, which appear only in n8n's execution history.
+
+The nightly resync only runs in production, so development's mirror is never
+checked.
 
 ## Incident procedure
 
 1. Record the environment, start time in UTC, affected users and workflows,
-   recent deployment, and the exact error. Avoid customer data in the record.
-2. Confirm scope using the service health endpoint and one safe user-flow check.
-3. Check GitHub deployment and nightly-sync history for a correlated failure.
-4. Inspect CloudWatch alarms and logs for the same time window. For Toolkit,
-   distinguish host replacement, container restart, and external reachability;
-   they have different responses.
-5. Restore service with the smallest reversible action: allow self-healing to
-   complete, restart the affected container through Systems Manager, or roll
-   back the responsible release.
-6. Verify health and the affected user flow, monitor for recurrence, and record
-   the resolution and follow-up owner.
+   recent deploys, and the exact error. Keep customer data out of the record.
+2. Confirm scope with the health endpoint and one safe user-flow check.
+3. Check GitHub deploy and nightly-sync history for a related failure.
+4. Read the CloudWatch alarms and logs for the same window. For the Toolkit,
+   tell apart a replaced instance, a restarted container, and an unreachable
+   endpoint; each needs a different response.
+5. Restore service with the smallest reversible step: let self-healing
+   finish, restart the container through Systems Manager, or roll back.
+6. Verify health and the user flow, watch for recurrence, and record the
+   resolution and follow-up owner.
 
-**Expected outcome:** health returns, the user flow succeeds, and the incident
-record contains enough evidence for follow-up without secrets or private data.
+Use the matching runbook in `docs/runbooks/`: Toolkit outage, n8n outage,
+Attio sync failure, database and migration failure, or deployment failure.
+After resolving an incident, write a postmortem following
+`docs/postmortems/README.md`.
 
 ## Escalation guidance
 
-- Escalate immediately for suspected credential exposure, unauthorized access,
-  destructive database changes, or security findings affecting production.
-- Escalate after one failed self-healing cycle, repeated external reachability
-  alarms, an unavailable production database, or a failed rollback.
-- For a nightly sync failure, preserve the run URL and error. Confirm whether
-  real-time sync continued. Rerun only after you understand the failure, then
-  reconcile Attio and PostgreSQL.
-- For a lead-magnet email alarm, inspect the Toolkit CloudWatch log event and
-  confirm whether the visitor confirmation or internal notice failed. Check
-  `LEAD_MAGNET_EMAIL_FROM` and `LEAD_MAGNET_EMAIL_TO` configuration and SES
-  delivery status before retrying. Do not recreate the lead: it was written to
-  Attio before email delivery.
-- If no alert arrived for a confirmed incident, treat alert delivery itself as
-  impaired and verify SNS subscriptions and chat authorization.
+- Escalate at once for suspected credential exposure, unauthorized access,
+  destructive database changes, or a security finding affecting production.
+- Escalate after one failed self-healing cycle, repeated unreachable alarms,
+  an unavailable production database, or a failed rollback.
+- **Nightly resync failure:** keep the run URL and error, and check whether
+  the real-time webhook carried on. Rerun only once you understand the
+  failure, then reconcile Attio and PostgreSQL.
+- **Lead email alarm:** find the log event and whether the visitor
+  confirmation or team notice failed. Check the configured sender and
+  recipient and SES delivery status. Don't recreate the lead; it is already in
+  Attio.
+- **No alert for a real incident:** treat alerting itself as broken and check
+  the SNS subscriptions and Chatbot authorization.
