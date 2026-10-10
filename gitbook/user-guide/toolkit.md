@@ -54,7 +54,6 @@ How your note is read:
    **Approve Match** or **Reject Match**.
 
 **Expected result:** a ranked shortlist with fit and data-confidence scores.
-Check high scores carefully when confidence is low.
 
 **Approve Match** creates a Qualified Buy-side deal in Attio for that buyer
 and seller. If an Inbound deal already exists for the pair, the bot asks
@@ -76,7 +75,6 @@ and countries:
 - Pages on Instagram, Facebook, Shopify, Salla, Zid, or Google Sites count
   as "no website".
 
-**Find more sellers** repeats the search.
 
 ### If matching does not work
 
