@@ -1,77 +1,78 @@
 # n8n
 
-## Purpose
+## What it does
 
-n8n is the self-hosted workflow automation service. This repository manages
-its AWS runtime, networking, secrets injection, logs, and task runners.
-Workflow definitions, credentials, executions, and users live inside n8n and
-are administered through its own authenticated interface.
+n8n is the self-hosted workflow automation service. This repository manages its
+AWS runtime: networking, secrets, logs, and task runners. Workflows,
+credentials, executions, and users live inside n8n and are managed through its
+own interface.
 
 ## Components
 
-The environment-specific OpenTofu stack creates one EC2 instance. It includes
-an encrypted GP3 root disk, Elastic IP, security group, IAM instance profile,
-Secrets Manager secret, CloudWatch log group, and status/CPU alarms. Docker
-Compose runs:
+The n8n stack creates one EC2 instance per environment. It has an encrypted
+GP3 root disk, an Elastic IP, a security group, and an instance profile. Logs
+go to a CloudWatch log group kept for 30 days. The stack itself adds a Secrets
+Manager secret and Bedrock access, in both environments. IMDSv2 is required.
+
+Docker Compose runs:
 
 - `n8n`, with its persistent named volume;
-- `task-runners`, with JavaScript and native Python runner configuration; and
-- Caddy, which obtains HTTPS certificates and proxies to port 5678.
+- `task-runners`, for JavaScript and Python Code nodes; and
+- Caddy, which obtains HTTPS certificates and proxies to n8n.
 
-The instance role supports Systems Manager, CloudWatch, and access only to its
-configured secret. Optional Bedrock permissions are attached by the stack.
+Port 5678 is only exposed between containers, never published on the host.
+The security-group rule for it has no effect.
+
+## Access
+
+- Administration uses Systems Manager. SSH is closed in both environments.
+- DNS must point at the Elastic IP before Caddy can get a certificate.
+- The public interface is the environment's HTTPS URL: the editor, the API,
+  and workflow webhooks. There is no Wusool-specific API in front of it.
 
 ## Data flow
 
-Users and webhook callers connect over HTTPS to Caddy. Caddy forwards requests
-to n8n. Workflows call their configured services using credentials stored by
-n8n or supplied through the environment. Code nodes run in the external runner
-container through n8n's task broker. Application and Caddy state persist in
-Docker volumes on the instance.
+Users and webhook callers reach Caddy over HTTPS, and Caddy forwards to n8n.
+Workflows call their own configured services with credentials stored in n8n.
+Code nodes run in the separate runner container. All state lives in Docker
+volumes on the instance.
 
-## Dependencies and configuration
+## Upgrades
 
-OpenTofu inputs set the hostname, webhook URL, time zone, image versions,
-instance/disk size, network allowlists, optional hostnames, and alarm topic.
-The environment secret may contain SMTP settings and an `env` map. Bootstrap
-preserves the generated runner token and mounts a custom runner policy so the
-configured Python stdlib/external-module settings reach the runner.
+1. Change the image digest in the environment's `tfvars` file. Tags are
+   rejected; images must be pinned by digest. The AMI is pinned too.
+2. The deploy workflow applies the stack, runs the bootstrap SSM document to
+   recreate the containers on the same volume, and checks `/healthz`.
+3. Test the editor, webhooks, stored credentials, and both kinds of Code node.
 
-DNS must resolve to the Elastic IP before Caddy requests a certificate.
-Administration should use Systems Manager; SSH is optional and explicitly
-allowlisted. Port 5678 stays internal unless its exposure input is enabled.
+## Monitoring
 
-## Interfaces
+- CloudWatch collects cloud-init and Caddy access logs.
+- Two alarms go to the base stack's alert topic: a failed status check for
+  two minutes, and CPU above 85% for 15 minutes.
+- These only describe the host. Failed workflows appear in n8n's own
+  execution history.
 
-The public interface is the environment's HTTPS n8n URL, including n8n's
-editor, API, and workflow webhooks. Exact webhook contracts belong to their
-workflows inside n8n; there is no Wusool-specific REST facade.
+## Backups
 
-Operators can trigger the OpenTofu-managed SSM bootstrap document to refresh
-Compose configuration while preserving the volume. The stack outputs the URL,
-instance identifier, security group, secret name, and SSM document name.
+**There is no backup of n8n data.** No snapshot, AWS Backup plan, or export
+covers the instance volume, so losing it loses every workflow, credential, and
+execution. Rebuilding the infrastructure doesn't restore any of that. Adding a
+snapshot schedule is an open handover item.
 
-### Example failure investigation
+## Failure behavior
 
-A webhook execution reaches n8n but fails in an external-service node. The
-operator first records the execution ID and checks the completed nodes for
-side effects. Application logs establish whether the request reached n8n;
-execution history identifies the failed node and its returned error. EC2 and
-CPU alarms only describe host health.
+- Containers restart automatically. Inside the bootstrap script, a failed
+  container recreation is retried three times; the deploy runs the whole
+  bootstrap up to twice.
+- When a webhook execution fails, record the execution ID and check
+  completed nodes for side effects before retrying.
+- If a webhook never reaches n8n, check DNS, Caddy logs, and container
+  health before changing the workflow.
 
-Retry the execution only when the workflow's idempotency behavior and external
-state make that safe. If the webhook never reached n8n, check DNS, Caddy logs,
-and container health before changing the workflow.
+Runbook in the repository: `docs/runbooks/n8n-outage.md`.
 
-## Processing and failures
+## Code
 
-- Containers use `restart: always`; bootstrap retries transient Compose
-  recreation failures three times.
-- CloudWatch collects cloud-init and Caddy access logs. EC2 status and sustained
-  high-CPU alarms notify the shared SNS topic when configured.
-- Failed workflows and credential errors appear in n8n execution history; EC2
-  alarms do not prove that every workflow succeeds.
-- Workflow data lives on the instance volume. Infrastructure recreation alone
-  does not prove that application data was restored.
-- Upgrade validation must cover the editor, webhooks, stored credentials, and
-  JavaScript/Python Code nodes.
+`infrastructure/terraform/stacks/n8n` and
+`infrastructure/terraform/modules/n8n-ec2`.

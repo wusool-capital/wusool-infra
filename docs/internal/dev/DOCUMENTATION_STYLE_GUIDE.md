@@ -67,7 +67,7 @@ Use the smallest template that covers the reader's task.
 Install Vale 3.17.0 or a compatible Vale 3 release, then run:
 
 ```bash
-vale CHANGELOG.md gitbook/README.md gitbook/SUMMARY.md gitbook/user-guide gitbook/technical gitbook/operations gitbook/deliverables
+vale CHANGELOG.md gitbook/README.md gitbook/SUMMARY.md gitbook/user-guide gitbook/technical-documentation gitbook/operations-and-handover
 ```
 
 Warnings and errors fail the documentation-quality check. Fix the finding or

@@ -17,9 +17,8 @@ TARGETS = [
     "gitbook/README.md",
     "gitbook/SUMMARY.md",
     "gitbook/user-guide",
-    "gitbook/technical",
-    "gitbook/operations",
-    "gitbook/deliverables",
+    "gitbook/technical-documentation",
+    "gitbook/operations-and-handover",
     "gitbook/release-notes",
 ]
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")

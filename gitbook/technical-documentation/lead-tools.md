@@ -1,146 +1,142 @@
 # Website lead tools
 
-## Purpose and delivery status
+The `lead_magnets` module serves the public tools on wusoolcapital.com and the
+gated reports behind `/reports`. It runs in the shared Toolkit server, on a
+second hostname pointing at the same container. The sub-pages cover each tool.
 
-Five tools collect visitor details. Four provide an immediate business
-outcome; Get Started is pure lead capture:
+| Tool | Result for the visitor | AI | Page |
+| --- | --- | --- | --- |
+| Valuation | A low, mid, and high valuation from blended methods | Chooses comparables and adjustments that feed the figures; built-in data is the fallback | [Valuation](lead-tools-valuation.md) |
+| M&A Readiness | A 0–100 score, band, and recommendations | Required; there is no non-AI score | [M&A Readiness](lead-tools-readiness.md) |
+| GCC SME Benchmark | Peer percentiles, a score, and an implied enterprise value | None | [GCC SME Benchmark](lead-tools-benchmark.md) |
+| Buyer Network | Confirmation of the application | Optional internal note; never blocks | [Buyer Network](lead-tools-buyer-network.md) |
+| Get Started | Confirmation of the seller enquiry | None | [Get Started](lead-tools-get-started.md) |
+| Gated reports | The full report and a PDF, after an emailed code | None | [Gated reports](lead-tools-reports.md) |
 
-| Tool | Result | AI behavior |
-| --- | --- | --- |
-| Valuation | Blended DCF, trading-comps, transaction-comps, and VC-method range | AI enriches the report; the valuation has deterministic fallbacks. |
-| M&A Readiness | Score, band, and recommendations from 15 answers | Bedrock is required; there is no invented non-AI score. |
-| GCC SME Benchmark | Peer percentiles, score, and implied enterprise value | Deterministic dataset calculation. |
-| Buyer Network | Registers acquisition interest | Optional AI qualification never blocks the application. |
-| Get Started | Records a seller enquiry and confirms receipt | None. The form's own figures are recorded as given. |
-| Gated insights reports | The full report and its PDF, after a name and email form (organisation optional) | None. The first page is open; the rest unlocks in place. |
+Reports and Insights articles are published from Sanity; see
+[Sanity and Webflow publishing](lead-tools-publishing.md).
 
-All tool pages and eight endpoints are implemented in the Toolkit runtime.
-Benchmark and Readiness have been verified over HTTP with live dependencies.
-Buyer Network and final valuation submission are built and tested. They remain
-unverified in production until an end-to-end Attio/PostgreSQL check is recorded.
+## Embedding
 
-## Components and embedding
+Each tool page on wusoolcapital.com loads `embed.js`, which creates an iframe
+and resizes it to fit. Adding `data-modal` and a `data-trigger` selector opens
+the tool in an overlay instead; Get Started uses this to replace an old Tally
+popup. Static pages are served under `/valuation/`, `/readiness/`,
+`/benchmark/`, `/buyers/`, `/get-started/`, and `/report/`.
 
-The `lead_magnets` module contains per-tool calculations, a shared submission
-service, a `tool_runs` write-ahead ledger, Bedrock/Firecrawl/Attio providers,
-API endpoints, and static pages. Caddy exposes the same Toolkit container at
-the website-tools hostname. Each wusoolcapital.com tool page loads `embed.js`,
-which creates and resizes an iframe. Adding `data-modal` and a `data-trigger`
-selector opens the tool in an overlay instead. That is how Get Started
-replaces a Tally popup without changing the page's layout or its URL.
+The tools hostname must stay DNS-only in Cloudflare, so edge caching never
+delays an `embed.js` deploy or rollback.
 
-## Data flow
+## The write contract
 
-Ledger-backed submissions follow this contract:
+Every tool that records a lead follows the same order, so a recorded lead is
+never lost to a later failure:
 
-1. Validate the request and commit a `tool_runs` row before promising success.
-2. Return the result when that tool's required calculation is available.
-3. Complete non-blocking AI work where applicable.
-4. Create/update the organization, seller/buyer entry, and person in Attio
-   with an explicit `is_test` value. A buyer gets one `buyer_role` entry per
-   sector ticked on the form (`target_vertical`); a seller's single entry
-   carries its `sector`. The person write is best-effort — a
-   failure there does not fail the run, since the lead is already durable.
-5. Email the visitor an HTML confirmation via SES, with a "Book a Call" link.
-6. Email the internal team an HTML notice via SES, with the submitted details
-   and links back to the Attio organization/deal.
-7. Finish the run, add its activity, and let Attio sync the entity to Postgres.
-8. A sweeper resumes stale unfinished runs.
+![The lead write contract](../.gitbook/assets/lead-write-contract.svg)
 
-The two email steps are tracked and retried independently, so a resume after
-step 6 fails never re-sends the visitor's confirmation. Either step is
-skipped — permanently, not retried — when there is no visitor address or no
-`LEAD_MAGNET_EMAIL_FROM`/`LEAD_MAGNET_EMAIL_TO` configured; the lead is
-already durable in Attio regardless.
+1. **Record the submission** as a `tool_runs` row, committed before anything
+   else happens.
+2. **Respond** to the browser. Nothing that fails after this loses the lead.
+3. **AI work**, where the tool has any. Valuation and Benchmark fall back to
+   their own calculations; Readiness has no fallback by decision.
+4. **Write to Attio**, always with the test flag set: the organization, a
+   seller or buyer role, the person, and a deal at stage Inbound. The person
+   and deal writes are best-effort: a failure is logged and not retried.
+   Report readers get only an organization and a person.
+5. **Email the visitor** a confirmation through Amazon SES, with a Book a
+   Call link.
+6. **Email the team** a notice linking to the Attio organization and deal.
+7. **Finish** the run and add its activity.
 
-The idempotency key (`tool|email|domain`) distinguishes a network replay from
-a new duplicate using `submission_id`. A replay does not rerun the pipeline;
-a later submission for the same identity returns HTTP `409`.
+Two tools record later than step 1 suggests. Valuation records nothing until
+`/submit-lead`, after its AI calls; the page sends it once analysis settles or
+the visitor leaves. Readiness calls the model before responding, so a failed
+call leaves the run recorded but failed.
 
-## Dependencies and configuration
+**The sweeper** runs every five minutes and resumes runs left unfinished for
+more than five minutes, including failed emails. It gives up after one
+attempt for a failed Readiness score, two for other AI failures, and six for
+everything else. An abandoned run is logged as `lead_magnet_run_abandoned`
+with no alarm, so it needs someone watching the logs.
 
-The module shares PostgreSQL, AWS region, Firecrawl, and Attio configuration
-with the backend. Tool-specific values use `LEAD_MAGNET_*`: Bedrock models,
-allowed frame ancestors/origins, per-hour rate, sweeper timing, and the SES
-sender/recipient pair (`LEAD_MAGNET_EMAIL_FROM`/`LEAD_MAGNET_EMAIL_TO`) for
-the confirmation and internal-notice emails — both ship blank until the
-sender identity is verified in SES and the internal distribution list is
-confirmed. Production embedding also requires DNS, HTTPS, and the website
-script tag. Leave the tools hostname DNS-only in Cloudflare so edge caching
-does not delay `embed.js` deployments and rollbacks.
+The two emails are tracked as separate stages, so a resume never re-sends the
+visitor's confirmation. An email step with no address configured is skipped
+for good rather than retried.
 
-## Interfaces
+The module writes placeholder organization and person rows, and an activity
+row, to the database when a run finishes. Attio's webhook mirror then fills
+in the full records.
 
-| Endpoint | Processing |
+## Duplicates
+
+`tool_runs` is an append-only log: every genuine attempt gets its own row.
+An exact network retry of the same request (same submission ID) reuses its
+row instead of rerunning the pipeline. The CRM is where duplicates are
+merged:
+
+- **Organization:** found by a name search, and only treated as a match when
+  the domain also matches. A submission with no domain, including a report
+  reader with a free-mail address, always creates a new organization. A
+  match is updated with the latest values.
+- **Person:** matched by email. A match only gets blank fields filled; a
+  name is never overwritten.
+- **Deal:** one per organization per deal type, Sell-side or Buy-side. A
+  matched deal is left untouched, so a new lead never moves a Qualified deal
+  back to Inbound. If Attio rejects the deal for its owner, it is retried
+  once with a fallback owner.
+
+## Rules that fail silently if broken
+
+- **Send USD, convert nothing.** Every destination is USD; a wrong
+  conversion is off by 3.67× with nothing in the data to show it.
+- **Always set the test flag.** In Attio, a record without it is missing
+  from both the test and production views, even though the sync treats it as
+  production.
+- **Attio first.** A nightly job overwrites the database from Attio.
+
+## Endpoints
+
+| Endpoint | Purpose |
 | --- | --- |
-| `POST /enrich` | Scrapes a supplied URL and enriches valuation inputs. |
-| `POST /analyze` | Produces valuation analysis with a deterministic narrative fallback. |
-| `POST /compare` | Runs peer searches with static-data shortfall fill. |
-| `POST /submit-lead` | Computes and records the deterministic valuation submission. |
-| `POST /benchmark` | Computes and records the benchmark result. |
-| `POST /readiness/score` | Records the lead and requests the required Bedrock assessment. |
-| `POST /buyer/apply` | Records a Buyer Network application and starts non-blocking qualification. |
-| `POST /get-started` | Records a seller enquiry from the site's main call to action. |
-| `GET /reports/{slug}` | Returns a report's first page, or the whole report to a returning reader. |
-| `POST /reports/{slug}/unlock` | Records the reader (Attio person, plus an organization when given; no role or deal) and returns the whole report. |
-| `GET /reports/{slug}/pdf` | The whole report as an A4 PDF for an unlocked reader; 403 otherwise. |
-| `POST /reports/webhooks/sanity` | Signed Sanity publish webhook for reports and Insights articles; creates or updates the Webflow Reports card or Insights article. |
+| `POST /enrich`, `POST /analyze`, `POST /compare` | Valuation report building; stateless |
+| `POST /submit-lead` | Records the valuation |
+| `POST /readiness/score` | Records and scores a Readiness submission |
+| `POST /benchmark` | Records and scores a Benchmark submission |
+| `POST /buyer/apply` | Records a Buyer Network application |
+| `POST /get-started` | Records a Get Started enquiry |
+| `GET /reports/{slug}`, `POST /reports/{slug}/unlock`, `POST /reports/{slug}/unlock/verify`, `GET /reports/{slug}/pdf` | Gated reports |
+| `POST /reports/webhooks/sanity` | Sanity publish webhook |
 
-Static pages are served under `/valuation/`, `/readiness/`, `/benchmark/`,
-`/buyers/`, `/get-started/` and `/report/`, with `/embed.js` for website
-integration.
+| Response | Meaning |
+| --- | --- |
+| `403` | The request came from a website origin that isn't allowed |
+| `422` | Invalid input |
+| `429` | Rate limit reached |
+| `500` | Bedrock failed in `/enrich`, `/compare`, or Readiness scoring |
+| `401` | The Sanity webhook signature is invalid |
 
-Gated reports are written in a Sanity Studio (`sanity/README.md`). On
-publish, the server draws each new version once in headless Chromium and
-stores it as static HTML. That lets exports built with JavaScript be gated too.
-Publishing one there creates its card in the Webflow Reports collection
-(`/reports`) automatically. The same Studio publishes ordinary Insights
-articles to the Webflow Insights collection, sanitized, without touching
-hand-written ones. Report unlocks send no emails. A
-returning reader skips the form, and each new report they open is logged as
-one more interaction.
+A repeat submission is never rejected; it is recorded as a new attempt.
 
-### Valuation submission example
+**Rate limits** are per IP address per hour. The paid tool endpoints and
+report code requests allow 20, report views and code checks 300, and PDF
+downloads 30. They are held in memory, and the IP is taken from the last
+`X-Forwarded-For` entry.
 
-```http
-POST /submit-lead
-Content-Type: application/json
+**Option lists.** An option the CRM doesn't know, such as an unexpected
+selling timeline, fails the Attio write after the run is recorded. That lead
+never reaches the CRM. Keep the form options in step with Attio.
 
-{
-  "submission_id": "example-001",
-  "company": "Example Manufacturing",
-  "email": "owner@example.invalid",
-  "revenue": 2500000,
-  "cash": 100000,
-  "debt": 250000,
-  "consent": true
-}
-```
+## Failures and alerts
 
-A successful response contains `run_id`, the `low`, `mid`, and `high`
-valuation figures, and the contributing methods. Validation errors return
-`422`, and rate limiting returns `429`. A later duplicate for the same identity
-returns `409`. A network replay with the same submission ID is idempotent.
+- The sweeper retries failed organization and role writes, and stale runs.
+  Person and deal writes are best-effort and aren't retried.
+- An email that fails to send, after SES's own retries, raises a CloudWatch
+  alarm on the Toolkit instance's log group. It uses the same alert topic as
+  the other Toolkit alarms. The sweeper still tries again later, so an alarm
+  doesn't always mean the email was lost.
 
-The browser should display the returned range once and retain the run context
-for support. On `422`, it should identify the invalid input. On `429`, it
-should ask the visitor to wait. On `409`, it must not imply that a second CRM
-lead was created.
+## Code
 
-## Processing and failures
-
-- A durable ledger row exists before AI or Attio work, so downstream failure
-  does not lose the lead.
-- Valuation and Benchmark return deterministic results when optional AI fails.
-  Readiness returns a retryable error when required Bedrock assessment fails.
-  Buyer Network still accepts the application if its internal note fails.
-- Attio and stale-run failures are retried by the sweeper. Test submissions
-  remain separated from production by `is_test`.
-- Rate limits, validation, iframe origin policy, and idempotency errors are
-  browser-visible and must be handled by each static page.
-- A confirmation or internal-notice email can permanently fail to send,
-  once SES's own retries are exhausted. That raises a CloudWatch alarm on
-  the toolkit instance's log group. It reuses the same environment alert
-  topic every other toolkit alarm uses. See
-  `infrastructure/terraform/modules/toolkit-ec2`'s
-  `lead_magnet_email_send_failed` log metric filter and alarm.
+`server/app/modules/lead_magnets` and its README; the tool pages are in its
+`static` folder, with their own README. Alarms are defined in
+`infrastructure/terraform/modules/toolkit-ec2`.

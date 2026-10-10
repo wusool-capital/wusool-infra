@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wusool platform infrastructure</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f7f5f0; color: #000523; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    .eyebrow { font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em;
+      text-transform: uppercase; color: #56596b; margin-bottom: 0.5rem; }
+    h1 { font-family: serif; font-size: 2rem; font-weight: 400; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 720px; display: block; }
+    @media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · Wusool docs</p>
+    <h1>Wusool platform infrastructure</h1>
+    <div class="diagram-container">
+      <svg viewBox="0 0 720 468" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="platform-infrastructure-title platform-infrastructure-desc">
+        <title id="platform-infrastructure-title">Wusool platform infrastructure</title>
+        <desc id="platform-infrastructure-desc">Architecture: clients reach the Wusool Toolkit container on EC2, which uses Bedrock, SES and a private PostgreSQL database in AWS, calls Attio, Webflow and research APIs, and receives their webhooks; n8n runs on its own instance.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<rect x="184" y="32" width="376" height="356" rx="8" fill="rgba(0,5,35,0.02)" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
+<rect x="318" y="36" width="108" height="12" rx="2" fill="#f7f5f0"/>
+<text x="372" y="45" fill="#636575" font-size="7" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.14em">AWS · EU-CENTRAL-1</text>
+<line x1="160" y1="208" x2="200" y2="208" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="272" y1="160" x2="272" y2="112" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 320 160 L 320 144 Q 320 136 328 136 L 460 136 Q 468 136 468 128 L 468 112" fill="none" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="344" y1="208" x2="392" y2="208" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="344" y1="172" x2="584" y2="172" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 584 244 L 344 244" fill="none" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 272 304 L 272 256" fill="none" stroke="#56596b" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<rect x="436" y="152" width="64" height="12" rx="2" fill="#f7f5f0"/>
+<text x="468" y="161" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">API CALLS</text>
+<rect x="440" y="252" width="56" height="12" rx="2" fill="#f7f5f0"/>
+<text x="468" y="261" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">WEBHOOKS</text>
+<rect x="280" y="274" width="68" height="12" rx="2" fill="#f7f5f0"/>
+<text x="314" y="283" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">SSM · LOGS</text>
+<rect x="24" y="160" width="136" height="96" rx="6" fill="#f7f5f0"/>
+<rect x="24" y="160" width="136" height="96" rx="6" fill="rgba(0,5,35,0.06)" stroke="#636575" stroke-width="1"/>
+<text x="92" y="205" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Slack, Scribe,</text>
+<text x="92" y="219" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">website, Sanity</text>
+<rect x="200" y="64" width="144" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="200" y="64" width="144" height="48" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="272" y="85" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Amazon Bedrock</text>
+<text x="272" y="99" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">AI models</text>
+<rect x="392" y="64" width="152" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="392" y="64" width="152" height="48" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="468" y="85" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Amazon SES</text>
+<text x="468" y="99" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">lead emails</text>
+<rect x="200" y="160" width="144" height="96" rx="6" fill="#f7f5f0"/>
+<rect x="200" y="160" width="144" height="96" rx="6" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="272" y="205" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Wusool Toolkit</text>
+<text x="272" y="219" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">EC2 · one instance</text>
+<rect x="392" y="184" width="152" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="392" y="184" width="152" height="48" rx="6" fill="rgba(0,5,35,0.05)" stroke="#56596b" stroke-width="1"/>
+<text x="468" y="205" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">PostgreSQL</text>
+<text x="468" y="219" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">private RDS</text>
+<rect x="200" y="304" width="144" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="200" y="304" width="144" height="48" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="272" y="325" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">AWS operations</text>
+<text x="272" y="339" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">SSM · Secrets · logs</text>
+<rect x="392" y="304" width="152" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="392" y="304" width="152" height="48" rx="6" fill="rgba(0,5,35,0.02)" stroke="rgba(0,5,35,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="468" y="325" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">n8n</text>
+<text x="468" y="339" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">own EC2 instance</text>
+<rect x="584" y="148" width="120" height="112" rx="6" fill="#f7f5f0"/>
+<rect x="584" y="148" width="120" height="112" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="644" y="194" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Attio, Webflow,</text>
+<text x="644" y="208" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Google Maps,</text>
+<text x="644" y="222" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">research APIs</text>
+<line x1="24" y1="412" x2="696" y2="412" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
+<text x="24" y="428" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="440" width="24" height="12" rx="2" fill="rgba(0,5,35,0.06)" stroke="#636575" stroke-width="1"/>
+<text x="56" y="449" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Clients</text>
+<rect x="124" y="440" width="24" height="12" rx="2" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="156" y="449" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Toolkit server</text>
+<rect x="260" y="440" width="24" height="12" rx="2" fill="rgba(0,5,35,0.05)" stroke="#56596b" stroke-width="1"/>
+<text x="292" y="449" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Wusool data</text>
+<rect x="380" y="440" width="24" height="12" rx="2" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="412" y="449" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Managed service</text>
+<rect x="524" y="440" width="24" height="12" rx="2" fill="rgba(0,5,35,0.02)" stroke="rgba(0,5,35,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="556" y="449" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Runs separately</text>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>

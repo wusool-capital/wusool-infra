@@ -1,6 +1,6 @@
 ---
 name: sync-project-docs
-description: Keep the repo-wide documentation set synchronized with the actual state of the code, scripts, and Terraform — CHANGELOG.md, gitbook/operations/, gitbook/technical/, gitbook/user-guide/, and every README not owned by sync-terraform-docs or sync-crm-schema-docs. Use after finishing a unit of work (Terraform change, migration milestone, new script, new workstream, a user-facing behaviour change), whenever asked to refresh/update/sync documentation, and before ending a session that changed tracked files.
+description: Keep the repo-wide documentation set synchronized with the actual state of the code, scripts, and Terraform — CHANGELOG.md, gitbook/operations-and-handover/, gitbook/technical-documentation/, gitbook/user-guide/, and every README not owned by sync-terraform-docs or sync-crm-schema-docs. Use after finishing a unit of work (Terraform change, migration milestone, new script, new workstream, a user-facing behaviour change), whenever asked to refresh/update/sync documentation, and before ending a session that changed tracked files.
 ---
 
 # Sync Project Docs
@@ -12,10 +12,10 @@ owns everything else:
 1. **`CHANGELOG.md`** — append meaningful changes under a dated heading,
    newest first, grouped Added / Changed / Fixed / Removed. One or two lines
    each, referencing the PR number. Not a diary — skip routine churn.
-2. **`gitbook/operations/`** — the current delivered state and operational
+2. **`gitbook/operations-and-handover/`** — the current delivered state and operational
    handover. Update environments, deployment and recovery procedures,
    monitoring, ownership, dependencies, and open items when they change.
-3. **`gitbook/technical/`** — platform architecture plus one consolidated
+3. **`gitbook/technical-documentation/`** — platform architecture plus one consolidated
    technical reference per product. Update the affected product page when a
    module, service, API, configuration value, or data flow changes.
 4. **`gitbook/user-guide/`** — one consolidated guide per product. Update the
@@ -44,7 +44,7 @@ owns everything else:
    describes (file names, flags, commands, prerequisites, directory trees).
    Correct anything stale. Do not invent capability that isn't in the code.
 4. Add a `CHANGELOG.md` entry for anything meaningful, and reflect it in
-   `gitbook/operations/delivery-status.md` and the affected technical or user
+   `gitbook/operations-and-handover/delivery-status.md` and the affected technical or user
    guide where relevant.
 5. Run, if Terraform or scripts changed:
    ```powershell

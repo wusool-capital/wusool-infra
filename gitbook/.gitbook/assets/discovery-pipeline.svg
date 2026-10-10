@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 720 752" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="discovery-pipeline-title discovery-pipeline-desc" id="discovery-pipeline-root">
+        <title id="discovery-pipeline-title">How seller discovery handles each lead</title>
+        <desc id="discovery-pipeline-desc">Flowchart: build a search from the match requirements, search Google Maps, skip leads already known, send name look-alikes to a person, enrich the rest, and create sellers whose website checks out; the others go to a website check.</desc>
+        <defs>
+      <style>#discovery-pipeline-root { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #000523; }
+      #discovery-pipeline-root .diagram-container { width: 100%; overflow-x: auto; }
+      #discovery-pipeline-root .diagram-container { overflow-x: visible; }</style>
+          <marker id="discovery-pipeline-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="discovery-pipeline-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="discovery-pipeline-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="260" y1="64" x2="260" y2="96" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="260" y1="144" x2="260" y2="176" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="260" y1="224" x2="260" y2="248" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="364" y1="288" x2="440" y2="288" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="260" y1="328" x2="260" y2="352" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="364" y1="392" x2="440" y2="392" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="260" y1="432" x2="260" y2="456" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="260" y1="504" x2="260" y2="528" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="364" y1="568" x2="440" y2="568" stroke="#56596b" stroke-width="1.2" marker-end="url(#discovery-pipeline-arrow)"/>
+<line x1="260" y1="608" x2="260" y2="632" stroke="#336a85" stroke-width="1.4" marker-end="url(#discovery-pipeline-arrow-accent)"/>
+<rect x="388" y="268" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="277" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="268" y="334" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="280" y="343" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="388" y="372" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="381" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="268" y="438" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="280" y="447" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="390" y="548" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="557" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="268" y="614" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="282" y="623" fill="#336a85" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="140" y="24" width="240" height="40" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="24" width="240" height="40" rx="20" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="260" y="48" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Weak match or Find more</text>
+<rect x="144" y="96" width="232" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="117" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Build the search</text>
+<text x="260" y="131" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">sector · geography · exclusions</text>
+<rect x="144" y="176" width="232" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="197" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Search Google Maps</text>
+<text x="260" y="211" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">20 results · country filter</text>
+<polygon points="260,248 364,288 260,328 156,288" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="285" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Known or</text>
+<text x="260" y="299" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">awaiting review?</text>
+<rect x="440" y="264" width="216" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="440" y="264" width="216" height="48" rx="20" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="548" y="285" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Skip the lead</text>
+<text x="548" y="299" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">frees a slot</text>
+<polygon points="260,352 364,392 260,432 156,392" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="389" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Name looks</text>
+<text x="260" y="403" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">like an org?</text>
+<rect x="440" y="368" width="216" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="548" y="389" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Add as seller card</text>
+<text x="548" y="403" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">a person decides</text>
+<rect x="144" y="456" width="232" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="477" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Basic enrichment</text>
+<text x="260" y="491" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Diffbot · People Data Labs</text>
+<polygon points="260,528 364,568 260,608 156,568" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="565" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Website</text>
+<text x="260" y="579" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">matches Maps?</text>
+<rect x="440" y="544" width="216" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="548" y="565" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Website check card</text>
+<text x="548" y="579" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Review &amp; Save</text>
+<rect x="140" y="632" width="240" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="632" width="240" height="48" rx="20" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="260" y="653" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Create the seller</text>
+<text x="260" y="667" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">then Approve or Reject</text>
+<line x1="24" y1="696" x2="696" y2="696" stroke="#000523" stroke-opacity="0.10" stroke-width="0.8"/>
+<text x="24" y="712" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="724" width="24" height="12" rx="6" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="56" y="733" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Start / end</text>
+<rect x="144" y="724" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="176" y="733" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Step</text>
+<polygon points="228,730 240,724 252,730 240,736" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="733" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Decision</text>
+<line x1="332" y1="730" x2="356" y2="730" stroke="#336a85" stroke-width="1.4" marker-end="url(#discovery-pipeline-arrow-accent)"/>
+<text x="364" y="733" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Main path</text>
+      </svg>

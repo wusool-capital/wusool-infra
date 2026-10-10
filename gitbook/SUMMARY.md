@@ -9,17 +9,30 @@
 * [WusoolScribe](user-guide/scribe.md)
 * [Attio CRM](user-guide/attio.md)
 * [Website lead tools](user-guide/lead-tools.md)
+  * [Publish reports and articles in Sanity](user-guide/publish-in-sanity.md)
 * [n8n](user-guide/n8n.md)
 * [Troubleshooting and support](user-guide/troubleshooting.md)
+* [Glossary](user-guide/glossary.md)
 
 ## Technical Documentation
 
 * [Platform architecture](technical-documentation/technical.md)
-* [Architecture diagram](technical-documentation/architecture.md)
 * [Wusool Toolkit](technical-documentation/toolkit.md)
+  * [Matching engine](technical-documentation/toolkit-matching.md)
+  * [Discrepancy check](technical-documentation/toolkit-discrepancies.md)
+  * [Profile commands](technical-documentation/toolkit-profile-commands.md)
+  * [Enrichment](technical-documentation/toolkit-enrichment.md)
+  * [Seller discovery](technical-documentation/toolkit-discovery.md)
 * [WusoolScribe](technical-documentation/scribe.md)
 * [Attio and database sync](technical-documentation/attio-sync.md)
 * [Website lead tools](technical-documentation/lead-tools.md)
+  * [Valuation](technical-documentation/lead-tools-valuation.md)
+  * [M&A Readiness](technical-documentation/lead-tools-readiness.md)
+  * [GCC SME Benchmark](technical-documentation/lead-tools-benchmark.md)
+  * [Buyer Network](technical-documentation/lead-tools-buyer-network.md)
+  * [Get Started](technical-documentation/lead-tools-get-started.md)
+  * [Gated reports](technical-documentation/lead-tools-reports.md)
+  * [Sanity and Webflow publishing](technical-documentation/lead-tools-publishing.md)
 * [n8n](technical-documentation/n8n.md)
 * [Security and data handling](technical-documentation/security.md)
 
@@ -36,4 +49,9 @@
 ## Release Notes
 
 * [Scribe changelog](release-notes/scribe-changelog.md)
+* [October 2026](release-notes/october-2026.md)
+  * [Wusool Toolkit](release-notes/october-2026-toolkit.md)
+  * [Website lead tools and reports](release-notes/october-2026-website.md)
+  * [WusoolScribe](release-notes/october-2026-scribe.md)
+  * [Platform, data, and documentation](release-notes/october-2026-platform.md)
 * [September 2026](release-notes/september-2026.md)

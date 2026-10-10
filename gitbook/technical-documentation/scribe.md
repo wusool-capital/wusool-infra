@@ -1,110 +1,124 @@
 # WusoolScribe
 
-## Purpose
+## What it does
 
-WusoolScribe records or imports meetings and transcribes audio on the user's
-computer. It creates an editable summary and can push the completed meeting to
-the Wusool backend for CRM filing.
+WusoolScribe records or imports meetings and transcribes them on the user's
+Mac. It writes an editable summary, and can push a finished meeting to the
+Toolkit server, which files it in Attio as a note.
 
 ## Components
 
-The desktop application uses a Next.js interface inside Tauri with a Rust core.
-The core owns audio capture, Whisper transcription, summary-provider calls,
-SQLite persistence, and the server client. The repository contains platform
-dependencies for macOS, Windows, and Linux; client documentation should promise
-only platforms for which signed release artifacts are actually published.
+- **Desktop app:** a Next.js interface inside Tauri, with a Rust core. The
+  core handles audio capture, Whisper transcription, summary-provider calls,
+  local SQLite storage, and the server client.
+- **Server side:** the `meetings` module in the Toolkit, behind `/desktop/*`.
+- **Update feed:** a private, versioned S3 bucket behind CloudFront, in the
+  `scribe-updates` stack.
 
-The update feed is a separate AWS stack using S3 and CloudFront. A manifest
-selects the platform artifact and Tauri verifies the signed update.
+## Platforms and signing
+
+Only **macOS on Apple silicon** is released. The repository contains code for
+Windows and Linux, but no builds are published for them.
+
+- Builds are **ad-hoc signed and not notarized**, because there is no Apple
+  Developer account. A first install needs the quarantine flag removed with
+  `xattr`, as described in the user guide.
+- Because the ad-hoc signature changes with every build, macOS asks for
+  microphone and screen-recording permission again after **every update**.
+  This is an accepted trade-off.
+- Update payloads are signed separately with minisign, and the app verifies
+  that signature before installing.
+
+## Releases and updates
+
+The `scribe-release` workflow is run by hand, choosing a `stable` or `beta`
+channel. The version is bumped by hand in three files, and the workflow
+checks they agree before building. It then uploads the payload, uploads
+`latest.json`, and invalidates CloudFront. The workflow publishes through an
+OIDC role scoped to its own GitHub environment.
+
+The app's updater only reads the **stable** channel, so a beta release
+currently reaches nobody.
 
 ## Data flow
 
 ```text
-microphone/system audio or imported file
-  → local recording/import
+microphone and system audio, or an imported file
+  → local recording
   → local Whisper transcription
-  → user review
-  → configured summary provider
+  → user edits the transcript
+  → summary provider chosen in Settings
   → local SQLite meeting
-  → optional authenticated push to the Wusool backend
-  → Bedrock server summary and Attio note
+  → optional push to the Toolkit server
+  → server-side Bedrock summary and Attio note
 ```
 
-Audio and transcription happen locally. Summary data leaves the device when a
-remote provider such as Claude, Groq, OpenRouter, or a custom endpoint is
-selected. Ollama can keep summary generation local when it points to a local
-instance. A CRM push sends the finished transcript and meeting metadata to the
-configured Wusool server. The server then summarizes through Bedrock and files
-a note in Attio.
+Audio and transcription stay on the Mac. Two summary providers run locally:
+Ollama and a built-in model. The online ones are OpenAI, Claude, Groq,
+OpenRouter, and a custom OpenAI-compatible endpoint. Remote providers receive the
+transcript text when chosen.
 
-## Dependencies and configuration
+## After a push
 
-- Microphone permission is required. System-audio capture can require platform
-  permissions and a virtual audio device.
-- Whisper models and supported acceleration are selected locally.
-- Summary settings choose a provider, model, endpoint, and required API key.
-- Push Destination stores the backend URL and shared desktop API key. The app
-  also sends an installation identifier for synchronization.
-- Automatic updates require access to the CloudFront feed and a valid signing
-  key in the release pipeline.
+1. `POST /desktop/meetings` stores the transcript and returns at once with
+   status `summarizing`.
+2. In the background, Bedrock writes a structured summary.
+3. The server **always** creates an Attio note, with or without an
+   organization. The note links to the organization and, when the role has
+   an Attio entry, to its buyer or seller role. The server never creates
+   organizations.
+4. An Attio failure is logged; the meeting still completes on the server.
+
+A push for the same install and recording always returns 409, so pushing
+again doesn't recover a failed meeting. Instead, a meeting stalled for 10
+minutes is reset the next time its status is read, which re-runs the
+summary.
 
 ## Interfaces
 
-| Backend endpoint | Purpose |
+Every `/desktop/*` call needs the shared desktop API key as a bearer token,
+compared in constant time.
+
+| Endpoint | Purpose |
 | --- | --- |
-| `GET /desktop/verify` | Checks the configured server and API key before saving them. |
-| `POST /desktop/meetings` | Accepts a transcript while summarization continues in the background. |
-| `GET /desktop/meetings/{meeting_id}` | Returns one pushed meeting's processing state. |
-| `GET /desktop/meetings?install_id=…` | Lists meetings associated with an installation. |
-| `GET /desktop/companies/search` | Searches CRM organizations for meeting association. |
-| `POST /desktop/feedback` | Records in-app feedback (message, category, optional contact) and emails it. |
+| `GET /desktop/verify` | Checks the server address and key before Settings saves them. |
+| `POST /desktop/meetings` | Accepts a transcript. Over 1.5 million characters returns 422; a repeated install and recording returns 409. |
+| `GET /desktop/meetings/{meeting_id}` | One meeting's processing state and summary. |
+| `GET /desktop/meetings?install_id=…` | Meetings for an installation; 200 by default, at most 500. |
+| `GET /desktop/companies/search` | Searches CRM organizations to link a meeting to. |
+| `DELETE /desktop/meetings/{install_id}/{local_recording_id}` | Removes a meeting from the server and Attio; returns 204. |
+| `POST /desktop/transcripts/corrections` | Sends transcript lines to Bedrock for spelling suggestions. Nothing is stored. |
+| `POST /desktop/feedback` | Records in-app feedback and emails the team. |
 
-Every `/desktop/*` request uses `Authorization: Bearer <desktop-api-key>`.
-Internal Tauri commands are not a public integration API.
+Internal Tauri commands aren't a public integration API.
 
-`POST /desktop/feedback` writes the submission to `feedback_submissions`
-first — that row is the source of truth, so a `200` means the feedback is
-never lost. The SES email notification that follows is best-effort: if it
-fails or isn't configured, the request still returns `200` and the row's
-`email_sent` stays `false`, rather than returning an error the desktop app
-would need to handle.
+## Deleting a meeting
 
-### Meeting submission example
+Deleting from the server is idempotent. It returns 409 while the meeting is
+still being summarized, unless it has stalled. It deletes the Attio note
+first, then marks the server's note and meeting rows as removed; nothing is
+hard-deleted.
 
-```http
-POST /desktop/meetings
-Authorization: Bearer <desktop-api-key>
-Content-Type: application/json
+## Feedback
 
-{
-  "install_id": "example-install",
-  "local_recording_id": "meeting-2026-09-12",
-  "duration_seconds": 12.5,
-  "occurred_at": "2026-09-12T09:30:00Z",
-  "transcript": [
-    {"speaker": "Speaker 1", "start": 0, "end": 4.2, "text": "Synthetic example."}
-  ]
-}
-```
+Feedback is written to `feedback_submissions` first, so a 200 means it was
+kept. Categories are bug, feature request, transcription quality, and other;
+messages are capped at 4,000 characters. Limits are five per install and 20
+per IP address, with 429 beyond that. The SES email to the team is
+best-effort and is only sent when a sender and recipient are configured.
 
-An accepted request returns a generated `meeting_id`, status
-`"summarizing"`, and `already_existed: false`. Poll the meeting endpoint for
-the final typed summary. Invalid input returns `422`, an unknown company
-reference returns `422`, and a repeated install/recording pair returns `409`.
+## Failure behavior
 
-The desktop client should retain the local meeting while polling. A
-`"completed"` status means the structured summary is available; a failed
-status should preserve the local transcript and surface a recovery action.
-The client must not create a new local recording ID merely to bypass `409`.
+- Recordings and drafts are stored locally, so a network failure never loses
+  a meeting.
+- Transcription failures stay local and can be retried.
+- A failed remote summary doesn't affect the local transcript.
+- On the server, authentication, summarization, and Attio filing are
+  separate stages; the app polls for the result.
 
-## Processing and failures
+## Code
 
-Recordings and drafts persist locally, so a network failure does not erase the
-meeting. Transcription failures remain local and can be retried after checking
-the audio and model. Remote-summary failures do not make local transcription
-unavailable.
-
-The push endpoint returns before server-side Bedrock and Attio work finishes.
-The app polls for completion or failure. Authentication, reachability,
-summarization, and Attio filing are distinct stages; preserve the local meeting
-and retry the push rather than recreate the recording.
+The app is in `scribe-desktop/`; the server side is
+`server/app/modules/meetings`. The release workflow is
+`.github/workflows/scribe-release.yml`, and the update feed is
+`infrastructure/terraform/stacks/scribe-updates`.

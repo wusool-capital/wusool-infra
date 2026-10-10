@@ -1,119 +1,124 @@
 # WusoolScribe
 
-WusoolScribe is a desktop meeting assistant. It records and transcribes a
-meeting on your computer and can generate an editable summary. You can send a
-completed transcript to the Wusool server for filing in Attio.
+WusoolScribe is a Mac app that records and transcribes meetings on your
+computer and can generate an editable summary. You can send a finished
+meeting to Attio as a note.
 
-Audio recording and speech-to-text processing stay on the computer. A cloud
-summary provider receives transcript text only when you select it. The Wusool
-server receives the completed transcript when you push a meeting to the CRM.
-Audio is not part of the CRM push.
+Audio and transcription stay on your Mac. A cloud summary provider receives
+transcript text only when you choose one. Sending a meeting to Attio sends
+the transcript and summary, never the audio.
 
-## Install and prepare the app
+## Install and set up
 
-### Prerequisites
+WusoolScribe runs on Apple-silicon Macs (M1 or later).
 
-- Use the current installer link supplied by your team.
-- On macOS, allow microphone and screen-recording permissions. Capturing the
-  other side of a call may require a virtual audio device such as BlackHole.
-- On Windows, system-audio capture uses the built-in loopback facility.
-- Allow internet access and time for the first launch to download a local
-  transcription model.
+1. Download the `.dmg` file from the link your team supplied and save it to
+   your **Downloads** folder.
+2. Double-click the `.dmg` file and drag **WusoolScribe** to
+   **Applications**.
+3. Open **Terminal** and run:
 
-On Windows, run the supplied installer. On macOS, open the supplied `.dmg`,
-drag **WusoolScribe** to **Applications**, and launch it from there. The app
-detects supported hardware acceleration automatically and falls back to CPU
-transcription when necessary.
+   ```bash
+   xattr -cr /Applications/WusoolScribe.app
+   ```
 
-**Expected result:** the app opens, the local model finishes its first-time
-download, and audio sources appear under **Devices**.
+   macOS blocks apps downloaded outside the App Store until this is run.
+4. Open WusoolScribe and allow microphone and screen-recording access when
+   asked.
+5. Go to **Settings → Scribe Push**, enter the server URL and API key your
+   Wusool administrator gave you, then click **Save**.
 
-## Record and transcribe a meeting
+**Expected result:** Settings shows "Connection successful", and the first
+launch downloads a local transcription model. Scribe also starts in the menu
+bar each time you log in; turn this off with **Settings → Recordings → Open
+at Login**.
 
-1. Select the microphone and system-audio devices.
+After each update, macOS may ask for microphone and screen-recording access
+again. Allow it, or recordings will be silent.
+
+## Record a meeting
+
+1. Check the microphone and system-audio devices. Set the defaults under
+   **Settings → Recordings → Default Audio Devices**.
 2. Optionally name the meeting, then press **Record**.
-3. Confirm that transcript lines appear while people speak. You may copy the
-   transcript at any time.
-4. Pause when needed. Press **Stop** to finish and return it to the meeting
-   list.
+3. Check that transcript lines appear while people speak.
+4. Pause when needed, then press **Stop**.
 
-**Expected result:** the recording and timestamped transcript remain in the
-local meeting list. You can choose the model and language before or between
-recordings.
+**Expected result:** the meeting opens as soon as it is saved, so you can
+review and edit it straight away. While recording, the menu-bar icon shows a
+red dot, or an amber dot when paused.
 
-If only your voice is present, check the system-audio device and operating
-system permissions. If no speech appears, check microphone selection and
-input level before restarting.
+When a meeting app call ends, a pill counts down 15 seconds with **Keep**
+and **Stop now**. To turn this off, use **Settings → Recordings →
+Auto-stop When Meeting Ends**.
+
+If only your voice is captured, or no speech appears, see
+[Troubleshooting](troubleshooting.md).
+
+## Edit a transcript
+
+Fix the transcript before you summarize or send it:
+
+- Tick lines (Shift-click for a range), then delete, merge, or split them.
+- Right-click a line to delete everything before it.
+- Use **Find & replace** (Cmd+F) to fix a misheard name everywhere.
+- Undo and redo with Cmd+Z and Cmd+Shift+Z.
+
+Deleted lines are not sent to Summarize.
 
 ## Summarize a meeting
 
-After transcription, generate a summary using the provider configured in
-**Settings**. Documented choices include local Ollama, Claude, Groq,
-OpenRouter, and a custom OpenAI-compatible endpoint. Ollama keeps summary
-processing local; cloud providers receive transcript text under that
-provider's data-handling terms.
+Generate a summary with the provider chosen in **Settings**. The built-in
+model and Ollama run on your Mac; Claude, Groq, OpenRouter, OpenAI, and a
+custom OpenAI-compatible service are online. Cloud providers receive the transcript text under their own
+data-handling terms.
 
-Review and edit every summary before sharing or filing it. Treat generated
-content as a draft, especially names, figures, decisions, and actions.
+Treat every summary as a draft. Check names, figures, decisions, and actions
+before sharing or sending it.
 
 ## Import or enhance existing audio
 
 **Import & Enhance is a beta feature.** Choose **Import**, select an audio
-file, and let WusoolScribe transcribe it locally. For an existing meeting,
-**Enhance** can re-transcribe it with another model or language.
-
-**Expected result:** the imported or enhanced meeting appears with a new
-local transcript. Keep the original audio until you check the result.
+file, and Scribe transcribes it on your Mac. For an existing meeting,
+**Enhance** re-transcribes it with another model or language. Keep the
+original audio until you have checked the result.
 
 ## Send a meeting to Attio
 
-### One-time setup
-
-In **Settings → Push Destination**, enter the server URL and API key supplied
-by the engineering owner. The app validates them before saving. The screen
-also shows the generated **Install ID**; include it in support requests.
-
-### Steps
-
-1. Open a completed meeting and review its transcript and summary.
-2. When it concerns a company, search for and select that organization.
+1. Open the meeting and review its transcript and summary.
+2. If it concerns a company, search for and select that organization.
 3. Press **Push**.
 
-**Expected result:** the app acknowledges the push and processes the transcript
-in the background. Its status updates when the structured note reaches Attio.
-With an organization selected, the note links to an existing buyer or seller
-record. A meeting without one becomes a general note.
+**Expected result:** the meeting shows a processing status, then a completed
+status once the note reaches Attio. With an organization selected, the note
+links to its buyer or seller record; otherwise it becomes a general note.
 
-You can close the app while processing continues. Avoid pushing again merely
-because processing takes time. If it fails, verify destination settings and
-use [Troubleshooting](troubleshooting.md).
+You can close the app while processing continues. Don't push again just
+because it takes a while. If it fails, see
+[Troubleshooting](troubleshooting.md).
 
-## Example: file a client meeting
+## Organize and delete meetings
 
-After a call with **Example Manufacturing**, stop the recording and correct
-names, figures, decisions, and actions in the transcript and summary. Search
-for the company, select the matching Attio organization, and press **Push**.
+- Meetings are grouped in folders, with the most recently active first. A
+  meeting inside a folder has a back button to that folder's list.
+- To delete meetings, select one or more in a folder and delete them. To
+  delete a whole folder and every meeting in it, hover over the folder in
+  the sidebar and click its delete button.
+- When deleting a meeting you already sent, you can tick **Also delete from
+  Wusool server & Attio**. It is unticked by default. If that removal fails,
+  your meetings are kept on your Mac.
+- Drag the sidebar's right edge to make it wider.
 
-**Expected result:** the meeting first shows a processing status and later a
-completed status. Attio receives a structured note linked to the selected
-organization or role. The audio file remains local and is not uploaded.
-
-If processing fails, keep the local meeting, verify the destination, and retry
-through the app's supported recovery flow. Do not recreate the recording or
-push repeatedly while the first request is still processing.
+Follow your organization's retention rules when deleting or sharing meeting
+material.
 
 ## Send feedback
 
-Click the bug icon at the top of the sidebar (next to the collapse icon) to
-open the feedback form. Choose a category (bug, feature request,
-transcription quality, or other), describe what happened, and optionally
-leave an email or name so the team can follow up. Submitting emails the team
-through the same server connection configured under **Settings → Push
-Destination** — if that isn't set up yet, the form links you there first.
+Click the bug icon at the top of the sidebar, choose a category, and describe
+what happened. The form needs **Scribe Push** set up first.
 
-## Updates and local data
+## Updates
 
-WusoolScribe checks for signed updates automatically. Accept the prompt or
-check **Settings → About**. Recordings and local transcripts remain on the
-device; use **Settings** to see the storage location. Follow your
-organization's retention rules when deleting or sharing meeting material.
+Scribe updates itself and offers new versions in a dialog. Use the menu-bar
+**Check for Updates** to look now, or **View Changelog** to see what changed.
+The full history is in the [Scribe changelog](../release-notes/scribe-changelog.md).
