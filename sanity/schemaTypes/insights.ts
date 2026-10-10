@@ -92,6 +92,14 @@ export const insights = defineType({
       initialValue: () => new Date().toISOString(),
     }),
     defineField({
+      name: 'featured',
+      title: 'Pin to top of /insights',
+      type: 'boolean',
+      initialValue: false,
+      description:
+        'Unpins whichever article is pinned now, hand-written ones included. Unticking it pins the newest article.',
+    }),
+    defineField({
       name: 'h1',
       title: 'H1',
       type: 'string',

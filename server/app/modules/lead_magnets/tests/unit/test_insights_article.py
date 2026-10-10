@@ -116,6 +116,8 @@ def _use_transport(monkeypatch: pytest.MonkeyPatch, handler) -> None:
 
 
 _SANITY_ARTICLE = {
+    "_id": "doc-1",
+    "featured": None,
     "slug": "exit-guide",
     "title": "Exit guide",
     "contentType": "Article",
@@ -143,6 +145,7 @@ async def test_the_source_reads_the_chosen_format_fresh_and_sanitized(monkeypatc
     assert article.body_html == "<p>Pasted</p>", "HTML mode ignores the rich body and is cleaned"
     assert article.key_takeaways_html == "<ul><li>Point</li></ul>"
     assert article.faq_html is None
+    assert (article.document_id, article.featured) == ("doc-1", False)
     assert hosts == ["p.api.sanity.io"], "the webhook must never read a stale CDN copy"
 
 
@@ -189,13 +192,14 @@ def _article(**changes) -> ArticleDocument:
         "content_type": "Article",
         "excerpt": "E",
         "body_html": "<p>" + "w " * 450 + "</p>",
+        "document_id": "doc-1",
         "author": "Jules Chasles",
         "silo": "Exit Strategy",
     }
     return ArticleDocument(**{**fields, **changes})
 
 
-async def test_an_article_is_written_as_a_managed_item_that_never_touches_the_pin(
+async def test_an_article_is_written_as_a_managed_item_with_its_pin(
     monkeypatch,
 ) -> None:
     sent: list[dict] = []
@@ -212,7 +216,7 @@ async def test_an_article_is_written_as_a_managed_item_that_never_touches_the_pi
     _use_transport(monkeypatch, handler)
     cms = WebflowInsightsCms(token="t", collection_id="insights")
 
-    assert await cms.create(_article()) == "new-item"
+    assert await cms.create(_article(featured=True)) == "new-item"
 
     data = sent[0]["fieldData"]
     assert sent[0]["isDraft"] is False
@@ -225,7 +229,8 @@ async def test_an_article_is_written_as_a_managed_item_that_never_touches_the_pi
     assert data["seo-title"] == data["og-title"] == data["h1-tag"] == "Exit guide"
     assert data["seo-description"] == "E"
     assert (data["reading-time"], data["word-count"]) == ("3 min read", 450)
-    for hand_set in ("featured", "hide-from-listings", "gated"):
+    assert data["featured"] is True
+    for hand_set in ("hide-from-listings", "gated"):
         assert hand_set not in data, f"{hand_set} is set in Webflow, never by the sync"
     assert len(schema_reads) == 1, "one schema read serves every id lookup"
 
@@ -253,7 +258,7 @@ async def test_an_unknown_content_type_fails_by_name(monkeypatch) -> None:
 async def test_find_reports_whether_the_sync_owns_the_item(monkeypatch) -> None:
     items = [
         {"id": "mine", "fieldData": {"slug": "mine", "sanity-managed": True}},
-        {"id": "hand", "fieldData": {"slug": "hand", "sanity-managed": None}},
+        {"id": "hand", "fieldData": {"slug": "hand", "sanity-managed": None, "featured": True}},
     ]
     _use_transport(
         monkeypatch,
@@ -262,20 +267,49 @@ async def test_find_reports_whether_the_sync_owns_the_item(monkeypatch) -> None:
     cms = WebflowInsightsCms(token="t", collection_id="insights")
 
     assert await cms.find("mine") == CmsItem(id="mine", managed=True)
-    assert await cms.find("hand") == CmsItem(id="hand", managed=False)
+    assert await cms.find("hand") == CmsItem(id="hand", managed=False, featured=True)
 
 
 class _Source:
-    def __init__(self, *articles: ArticleDocument) -> None:
+    def __init__(
+        self,
+        *articles: ArticleDocument,
+        others_pinned: bool = False,
+        newest: list[str] | None = None,
+    ) -> None:
         self._articles = {a.slug: a for a in articles}
+        self.others_pinned = others_pinned
+        # Published article ids, newest first.
+        self.newest = newest or []
+        self.calls: list[tuple[str, str | None]] = []
 
     async def get(self, slug: str) -> ArticleDocument | None:
         return self._articles.get(slug)
 
+    async def unpin_others(self, document_id: str, *, pinned_at: str | None) -> None:
+        self.calls.append(("unpin_others", f"{document_id}@{pinned_at}"))
+
+    async def any_pinned(self) -> bool:
+        return self.others_pinned or any(a.featured for a in self._articles.values())
+
+    async def pin_newest(self, *, excluding: str | None) -> bool:
+        newest = next((i for i in self.newest if i != excluding), None)
+        if newest:
+            self.calls.append(("pin", newest))
+        return newest is not None
+
 
 class _Cms:
-    def __init__(self, items: dict[str, CmsItem] | None = None) -> None:
+    def __init__(
+        self,
+        items: dict[str, CmsItem] | None = None,
+        *,
+        live_pin: bool = False,
+        hand_written: str | None = None,
+    ) -> None:
         self.items = items or {}
+        self.live_pin = live_pin
+        self.hand_written = hand_written
         self.calls: list[tuple[str, str]] = []
 
     async def find(self, slug: str) -> CmsItem | None:
@@ -291,9 +325,28 @@ class _Cms:
     async def unpublish(self, item_id: str) -> None:
         self.calls.append(("unpublish", item_id))
 
+    async def unpin_others(self, keep_id: str) -> None:
+        self.calls.append(("unpin_others", keep_id))
 
-async def _sync(cms: _Cms, *articles: ArticleDocument, slug: str | None, previous: str | None):
-    await ArticleSync(source=_Source(*articles), cms=cms).sync(slug=slug, previous_slug=previous)
+    async def any_pinned(self) -> bool:
+        return self.live_pin
+
+    async def newest_hand_written(self) -> str | None:
+        return self.hand_written
+
+    async def pin(self, item_id: str) -> None:
+        self.calls.append(("pin", item_id))
+
+
+async def _sync(
+    cms: _Cms,
+    *articles: ArticleDocument,
+    slug: str | None,
+    previous: str | None,
+    source: _Source | None = None,
+):
+    source = source or _Source(*articles)
+    await ArticleSync(source=source, cms=cms).sync(slug=slug, previous_slug=previous)
 
 
 async def test_a_new_article_is_created_and_a_managed_one_updated() -> None:
@@ -318,6 +371,90 @@ async def test_unpublishing_or_renaming_takes_down_only_the_managed_item() -> No
     await _sync(cms, slug=None, previous="new")
 
     assert cms.calls == [("unpublish", "item-1"), ("create", "new")]
+
+
+_PINNED = CmsItem(id="item-1", managed=True, featured=True)
+
+
+async def test_a_pinned_article_takes_the_pin_from_every_item_then_from_sanity() -> None:
+    cms = _Cms({"exit-guide": CmsItem(id="item-1", managed=True)})
+    source = _Source(_article(featured=True, updated_at="t1"))
+
+    await _sync(cms, source=source, slug="exit-guide", previous=None)
+
+    assert cms.calls == [("update", "item-1"), ("unpin_others", "item-1")]
+    assert source.calls == [("unpin_others", "doc-1@t1")], "the later of two pins wins"
+
+
+async def test_a_new_pinned_article_takes_the_pin_once_it_is_live() -> None:
+    cms = _Cms()
+
+    await _sync(cms, _article(featured=True), slug="exit-guide", previous=None)
+
+    assert cms.calls == [("create", "exit-guide"), ("unpin_others", "new")]
+
+
+async def test_unpinning_hands_the_pin_to_the_newest_other_sanity_article() -> None:
+    cms = _Cms({"exit-guide": _PINNED}, hand_written="hand-1")
+    source = _Source(_article(), newest=["doc-1", "doc-2"])
+
+    await _sync(cms, source=source, slug="exit-guide", previous=None)
+
+    assert source.calls == [("pin", "doc-2")], "never straight back to the article just unpinned"
+    assert cms.calls == [("update", "item-1")], "doc-2's own webhook pins its Webflow item"
+
+
+async def test_with_no_other_sanity_article_the_newest_hand_written_one_is_pinned() -> None:
+    cms = _Cms({"exit-guide": _PINNED}, hand_written="hand-1")
+
+    await _sync(cms, source=_Source(_article(), newest=["doc-1"]), slug="exit-guide", previous=None)
+
+    assert cms.calls == [("update", "item-1"), ("pin", "hand-1")]
+
+
+async def test_deleting_or_unpublishing_the_pinned_article_hands_the_pin_on() -> None:
+    cms = _Cms({"exit-guide": _PINNED})
+    source = _Source(newest=["doc-2"])
+
+    await _sync(cms, source=source, slug=None, previous="exit-guide")
+
+    assert cms.calls == [("unpublish", "item-1")]
+    assert source.calls == [("pin", "doc-2")]
+
+
+async def test_renaming_the_pinned_article_keeps_its_pin() -> None:
+    cms = _Cms({"old": _PINNED}, hand_written="hand-1")
+    source = _Source(_article(slug="new", featured=True), newest=["doc-2"])
+
+    await _sync(cms, source=source, slug="new", previous="old")
+
+    assert ("pin", "doc-2") not in source.calls and ("pin", "hand-1") not in cms.calls
+
+
+@pytest.mark.parametrize(
+    ("others_pinned", "live_pin"),
+    [(True, False), (False, True)],
+    ids=["another-sanity-pin", "a-hand-pinned-webflow-item"],
+)
+async def test_nothing_is_handed_on_while_another_pin_holds(
+    others_pinned: bool, live_pin: bool
+) -> None:
+    """Also the losing article's own webhook, after another article took the pin."""
+    cms = _Cms({"exit-guide": _PINNED}, live_pin=live_pin, hand_written="hand-1")
+    source = _Source(_article(), others_pinned=others_pinned, newest=["doc-2"])
+
+    await _sync(cms, source=source, slug="exit-guide", previous=None)
+
+    assert source.calls == [] and cms.calls == [("update", "item-1")]
+
+
+async def test_an_edit_that_never_held_the_pin_hands_nothing_on() -> None:
+    cms = _Cms({"exit-guide": CmsItem(id="item-1", managed=True)}, hand_written="hand-1")
+    source = _Source(_article(), newest=["doc-2"])
+
+    await _sync(cms, source=source, slug="exit-guide", previous=None)
+
+    assert source.calls == [] and cms.calls == [("update", "item-1")]
 
 
 def _paragraphs(first: int, last: int) -> list[dict]:

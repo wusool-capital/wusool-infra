@@ -19,7 +19,9 @@ from app.modules.lead_magnets.domain.insights_report.report import (
     ReportSource,
 )
 from app.modules.lead_magnets.domain.insights_report.split import split_report
+from app.modules.lead_magnets.providers.sanity.article_source import SanityArticleSource
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
+from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
 from app.modules.lead_magnets.providers.webflow.reports_cms import WebflowReportsCms
 
 _SANITY_REPORT = {
@@ -501,3 +503,166 @@ async def test_save_rendered_is_guarded_by_the_revision_it_read(monkeypatch) -> 
             }
         ]
     }
+
+
+async def test_article_unpin_others_unticks_drafts_too_in_one_transaction(monkeypatch) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={"result": ["lbo", "drafts.lbo"]})
+        return httpx.Response(200, json={})
+
+    _use_transport(monkeypatch, handler)
+    articles = SanityArticleSource(project_id="p", dataset="production", write_token="tok")
+
+    await articles.unpin_others("doc-1", pinned_at="2026-10-10T10:00:00Z")
+
+    query = sent[0].url.params
+    assert query["perspective"] == "raw" and sent[0].headers["authorization"] == "Bearer tok"
+    assert json.loads(query["$id"]) == "doc-1"
+    assert json.loads(query["$pinnedAt"]) == "2026-10-10T10:00:00Z"
+    assert 'path("versions.**")' in query["query"], "release versions are the editor's"
+    assert sent[1].url.path == "/v2025-02-19/data/mutate/production"
+    assert json.loads(sent[1].content) == {
+        "mutations": [
+            {"patch": {"id": "lbo", "set": {"featured": False}}},
+            {"patch": {"id": "drafts.lbo", "set": {"featured": False}}},
+        ]
+    }
+
+
+async def test_article_unpin_others_writes_nothing_when_no_other_article_is_pinned(
+    monkeypatch,
+) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={"result": []})
+
+    _use_transport(monkeypatch, handler)
+
+    await SanityArticleSource(project_id="p", dataset="production").unpin_others(
+        "doc-1", pinned_at=None
+    )
+
+    assert [r.method for r in sent] == ["GET"]
+
+
+async def test_pin_newest_ticks_the_newest_other_article_and_its_draft(monkeypatch) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={"result": {"ids": ["b", "drafts.b"]}})
+        return httpx.Response(200, json={})
+
+    _use_transport(monkeypatch, handler)
+    articles = SanityArticleSource(project_id="p", dataset="production", write_token="tok")
+
+    assert await articles.pin_newest(excluding="a") is True
+
+    query = sent[0].url.params
+    assert query["perspective"] == "raw" and json.loads(query["$id"]) == "a"
+    assert 'path("drafts.**")' in query["query"], "only a published article takes the pin"
+    assert json.loads(sent[1].content) == {
+        "mutations": [
+            {"patch": {"id": "b", "set": {"featured": True}}},
+            {"patch": {"id": "drafts.b", "set": {"featured": True}}},
+        ]
+    }
+
+
+async def test_pin_newest_reports_when_there_is_no_article(monkeypatch) -> None:
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": None}))
+
+    assert not await SanityArticleSource(project_id="p", dataset="production").pin_newest(
+        excluding=None
+    )
+
+
+async def test_any_pinned_reads_published_articles_only(monkeypatch) -> None:
+    params: list[httpx.QueryParams] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        params.append(request.url.params)
+        return httpx.Response(200, json={"result": True})
+
+    _use_transport(monkeypatch, handler)
+
+    assert await SanityArticleSource(project_id="p", dataset="production").any_pinned()
+    assert "perspective" not in params[0], "a ticked draft holds no pin on the site"
+
+
+def _live(*items: dict, total: int | None = None) -> httpx.Response:
+    return httpx.Response(
+        200, json={"items": list(items), "pagination": {"total": total or len(items)}}
+    )
+
+
+def _item(item_id: str, **fields) -> dict:
+    return {"id": item_id, "fieldData": {"slug": item_id, **fields}}
+
+
+async def test_webflow_unpin_others_reads_every_live_page_and_spares_the_winner(
+    monkeypatch,
+) -> None:
+    patched: list[tuple[str, dict]] = []
+    first = [_item(f"i{n}") for n in range(99)] + [_item("hand", featured=True)]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            assert request.url.path == "/v2/collections/insights/items/live"
+            if request.url.params["offset"] == "0":
+                return _live(*first, total=102)
+            return _live(_item("win", featured=True), _item("gone", featured=True), total=102)
+        patched.append((request.url.path, json.loads(request.content)))
+        status = 409 if "gone" in request.url.path else 200
+        return httpx.Response(status, json={})
+
+    _use_transport(monkeypatch, handler)
+
+    await WebflowInsightsCms(token="t", collection_id="insights").unpin_others("win")
+
+    assert patched == [
+        ("/v2/collections/insights/items/hand/live", {"fieldData": {"featured": False}}),
+        ("/v2/collections/insights/items/gone/live", {"fieldData": {"featured": False}}),
+    ], "a hand-written pin is cleared too; an item gone from the live site is no error"
+
+
+async def test_the_newest_hand_written_article_is_listed_and_dated(monkeypatch) -> None:
+    items = [
+        _item("old", **{"published-date": "2026-01-01T00:00:00.000Z"}),
+        _item("new", **{"published-date": "2026-09-01T00:00:00.000Z"}),
+        _item("mine", **{"published-date": "2026-10-01T00:00:00.000Z", "sanity-managed": True}),
+        _item(
+            "hidden", **{"published-date": "2026-10-02T00:00:00.000Z", "hide-from-listings": True}
+        ),
+        _item("undated"),
+    ]
+    _use_transport(monkeypatch, lambda request: _live(*items))
+    cms = WebflowInsightsCms(token="t", collection_id="insights")
+
+    assert await cms.newest_hand_written() == "new"
+    assert not await cms.any_pinned()
+
+
+async def test_pin_sets_featured_on_the_live_item_only(monkeypatch) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={})
+
+    _use_transport(monkeypatch, handler)
+
+    await WebflowInsightsCms(token="t", collection_id="insights").pin("hand")
+
+    assert (sent[0].method, sent[0].url.path) == (
+        "PATCH",
+        "/v2/collections/insights/items/hand/live",
+    )
+    assert json.loads(sent[0].content) == {"fieldData": {"featured": True}}
