@@ -44,6 +44,27 @@ export const report = defineType({
       rows: 3,
       description: 'Optional. 2-3 sentences for the /reports card and search results.',
     }),
+    defineField({
+      name: 'seoTitle',
+      title: 'SEO title',
+      type: 'string',
+      description: 'Max 60 characters. Leave blank to use the title.',
+      validation: (rule) => rule.max(60).warning(),
+    }),
+    defineField({
+      name: 'seoDescription',
+      title: 'SEO description',
+      type: 'text',
+      rows: 2,
+      description: 'Max 155 characters. Leave blank to use the excerpt.',
+      validation: (rule) => rule.max(155).warning(),
+    }),
+    defineField({
+      name: 'ogTitle',
+      title: 'Share title',
+      type: 'string',
+      description: 'Shown when the page is shared on WhatsApp or LinkedIn. Leave blank to use the title.',
+    }),
     // Missing on reports made before the toggle, which are all pasted HTML.
     bodyFormat(
       'html',
@@ -71,6 +92,24 @@ export const report = defineType({
         rule.custom((value, context) =>
           !isRich({document: context.document}) && !value?.trim() ? 'Required' : true,
         ),
+    }),
+    defineField({
+      name: 'freePages',
+      title: 'Free pages',
+      type: 'number',
+      description:
+        'Pages readers see before the form. Blank means 1. The last page always stays behind the form.',
+      hidden: isRich,
+      validation: (rule) => rule.integer().min(1),
+    }),
+    defineField({
+      name: 'lockedPercent',
+      title: 'Locked share (%)',
+      type: 'number',
+      description:
+        'How much of the report sits behind the form, measured by text length. Blank means 75.',
+      hidden: isHtml,
+      validation: (rule) => rule.integer().min(10).max(90),
     }),
     defineField({name: 'cover', title: 'Cover image', type: 'image'}),
     defineField({name: 'silo', title: 'Primary silo', type: 'string', options: {list: SILOS}}),

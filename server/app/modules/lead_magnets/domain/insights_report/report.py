@@ -40,6 +40,10 @@ class ReportDocument:
     # The button at the end of the report page.
     cta_text: str | None = None
     cta_url: str | None = None
+    # Overrides for the card's meta tags; blank falls back to the title and excerpt.
+    seo_title: str | None = None
+    seo_description: str | None = None
+    og_title: str | None = None
 
     @property
     def pins(self) -> list[Pin]:
@@ -63,15 +67,17 @@ class ReportSource:
     revision: str
     html: str
     rendered_from: str | None
+    # Pasted HTML only: pages shown before the gate. A rich report carries its own gate.
+    free_pages: int = 1
 
 
 # Bump when the renderer's output changes, so published reports are flattened again.
-RENDER_VERSION = "5"
+RENDER_VERSION = "6"
 
 
-def fingerprint(html: str) -> str:
-    """Identifies one version of a report's source HTML, so it is flattened once."""
-    return hashlib.sha256(f"{RENDER_VERSION}\n{html}".encode()).hexdigest()
+def fingerprint(html: str, free_pages: int = 1) -> str:
+    """Identifies one version of a report's source HTML and gate, so it is flattened once."""
+    return hashlib.sha256(f"{RENDER_VERSION}\n{free_pages}\n{html}".encode()).hexdigest()
 
 
 def word_count(html: str) -> int:

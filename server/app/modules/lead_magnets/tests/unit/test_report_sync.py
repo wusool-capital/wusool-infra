@@ -30,9 +30,10 @@ def _report(
 class _FakeSource:
     """Every report already flattened from its current HTML, unless `stale`."""
 
-    def __init__(self, *reports: ReportDocument, stale: bool = False) -> None:
+    def __init__(self, *reports: ReportDocument, stale: bool = False, free_pages: int = 1) -> None:
         self._reports = {r.slug: r for r in reports}
         self._stale = stale
+        self.free_pages = free_pages
         self.superseded = False
         self.saved: list[tuple[str, str, int, str]] = []
         # Per pin, the slugs of the other reports still ticked in Sanity.
@@ -55,6 +56,7 @@ class _FakeSource:
             revision="rev-1",
             html=report.html,
             rendered_from=rendered_from,
+            free_pages=self.free_pages,
         )
 
     async def save_rendered(
@@ -78,9 +80,11 @@ class _FakeSource:
 class _FakeRenderer:
     def __init__(self) -> None:
         self.rendered: list[str] = []
+        self.free_pages: list[int] = []
 
-    async def render(self, html: str) -> str:
+    async def render(self, html: str, *, free_pages: int = 1) -> str:
         self.rendered.append(html)
+        self.free_pages.append(free_pages)
         return f"<flat>{html}</flat>"
 
     async def pdf(self, html: str) -> bytes:
@@ -269,6 +273,17 @@ async def test_an_already_flattened_version_is_not_rendered_again() -> None:
     )
 
     assert renderer.rendered == [] and source.saved == []
+
+
+async def test_changing_only_the_free_pages_flattens_again() -> None:
+    source, renderer = _FakeSource(_report(), free_pages=2), _FakeRenderer()
+
+    await _sync(source=source, cms=_FakeCms(), renderer=renderer).sync(
+        slug="buyouts-in-the-gcc", previous_slug=None
+    )
+
+    assert renderer.free_pages == [2]
+    assert source.saved[0][3] == fingerprint("<p>x</p>", 2)
 
 
 async def test_a_render_superseded_by_a_newer_edit_is_dropped_and_touches_nothing() -> None:

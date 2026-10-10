@@ -40,7 +40,8 @@ _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
     '_id, "slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
-    'featured, bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url}'
+    'featured, bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url, '
+    "seoTitle, seoDescription, ogTitle}"
 )
 # Raw perspective so open drafts are unticked too; publishing one must not re-pin it.
 # Release versions are left alone: they are the editor's staged content, not live state.
@@ -52,7 +53,8 @@ _PINNED_QUERY = (
 )
 _SOURCE_QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
-    '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom}'
+    '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom, '
+    '"freePages": coalesce(freePages, 1), "lockedPercent": coalesce(lockedPercent, 75)}'
 )
 
 
@@ -73,6 +75,9 @@ class _SanityReport(BaseModel):
     silo: str | None = None
     cta_text: str | None = Field(default=None, alias="ctaText")
     cta_url: str | None = Field(default=None, alias="ctaUrl")
+    seo_title: str | None = Field(default=None, alias="seoTitle")
+    seo_description: str | None = Field(default=None, alias="seoDescription")
+    og_title: str | None = Field(default=None, alias="ogTitle")
 
 
 class _QueryResponse(BaseModel):
@@ -91,6 +96,8 @@ class _SanitySource(BaseModel):
     body: list[Block] | None = None
     html: str | None = None
     rendered_from: str | None = Field(default=None, alias="renderedFrom")
+    free_pages: int = Field(default=1, alias="freePages")
+    locked_percent: int = Field(default=75, alias="lockedPercent")
 
 
 class _SourceResponse(BaseModel):
@@ -183,11 +190,19 @@ class SanityReportSource:
         doc = _SourceResponse.model_validate_json(response.content).result
         if doc is None:
             return None
-        html = rich_report(doc.title, doc.body or []) if doc.body_format == "rich" else doc.html
+        if doc.body_format == "rich":
+            share = (100 - doc.locked_percent) / 100
+            html = rich_report(doc.title, doc.body or [], share=share)
+        else:
+            html = doc.html
         if not html:
             return None
         return ReportSource(
-            document_id=doc.id, revision=doc.rev, html=html, rendered_from=doc.rendered_from
+            document_id=doc.id,
+            revision=doc.rev,
+            html=html,
+            rendered_from=doc.rendered_from,
+            free_pages=doc.free_pages,
         )
 
     async def save_rendered(
@@ -282,4 +297,7 @@ class SanityReportSource:
             silo=doc.silo,
             cta_text=doc.cta_text,
             cta_url=doc.cta_url,
+            seo_title=doc.seo_title,
+            seo_description=doc.seo_description,
+            og_title=doc.og_title,
         )

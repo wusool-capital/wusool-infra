@@ -44,8 +44,10 @@ class ReportSync:
             return
 
         source = await self._source.source(slug)
-        if source is not None and source.rendered_from != (version := fingerprint(source.html)):
-            rendered = await self._renderer.render(source.html)
+        if source is not None and source.rendered_from != (
+            version := fingerprint(source.html, source.free_pages)
+        ):
+            rendered = await self._renderer.render(source.html, free_pages=source.free_pages)
             preview, _ = split_report(rendered)
             saved = await self._source.save_rendered(
                 source, html=rendered, preview_end=len(preview), rendered_from=version

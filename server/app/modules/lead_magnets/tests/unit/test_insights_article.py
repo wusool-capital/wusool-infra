@@ -63,6 +63,28 @@ def test_portable_text_becomes_the_html_hand_written_articles_use() -> None:
     )
 
 
+def test_every_studio_style_and_mark_reaches_webflow() -> None:
+    marks = ["underline", "strike-through", "code", "sup", "sub"]
+    blocks = _BLOCKS.validate_python(
+        [
+            _text("Five", style="h5"),
+            _text("Six", style="h6"),
+            *(_text(mark, marks=[mark]) for mark in marks),
+            _text(
+                "Out",
+                marks=["l1"],
+                markDefs=[{"_key": "l1", "href": "https://x.io", "blank": True}],
+            ),
+        ]
+    )
+
+    assert to_html(blocks) == (
+        "<h5>Five</h5><h6>Six</h6><p><u>underline</u></p><p><s>strike-through</s></p>"
+        "<p><code>code</code></p><p><sup>sup</sup></p><p><sub>sub</sub></p>"
+        '<p><a href="https://x.io" target="_blank" rel="noopener noreferrer">Out</a></p>'
+    )
+
+
 def test_pasted_html_loses_anything_that_could_run_on_the_live_site() -> None:
     """Found 2026-10-07: Webflow's API stores script tags and javascript: links verbatim."""
     html = sanitize(
@@ -315,6 +337,17 @@ def test_a_rich_report_opens_its_first_quarter_and_never_cuts_a_list() -> None:
     assert "Paragraph 2 " in preview and "Paragraph 5 " not in preview
     assert "<li>c</li></ul>" in preview, "the cut falls after the list, never inside it"
     assert "Paragraph 12 " in rest
+
+
+def test_a_rich_report_opens_the_share_the_editor_set() -> None:
+    blocks = _BLOCKS.validate_python(_paragraphs(1, 8))
+
+    page = rich_report("T", blocks, share=0.5)
+
+    assert page is not None
+    preview, rest = split_report(page)
+    assert "Paragraph 4 " in preview and "Paragraph 5 " not in preview
+    assert "Paragraph 5 " in rest
 
 
 def test_a_rich_report_with_no_text_is_not_published() -> None:

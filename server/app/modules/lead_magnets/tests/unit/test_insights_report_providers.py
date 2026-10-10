@@ -18,6 +18,7 @@ from app.modules.lead_magnets.domain.insights_report.report import (
     ReportDocument,
     ReportSource,
 )
+from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
 from app.modules.lead_magnets.providers.webflow.reports_cms import WebflowReportsCms
 
@@ -174,6 +175,29 @@ async def test_a_report_needs_only_a_title_and_its_html(monkeypatch) -> None:
 
     assert "excerpt" not in data
     assert data["seo-description"] == "Buyouts in the GCC", "meta tags must never be blank"
+
+
+async def test_the_editors_seo_overrides_win_over_the_title_and_excerpt(monkeypatch) -> None:
+    _use_transport(monkeypatch, _webflow_handler)
+    cms = WebflowReportsCms(token="t", collection_id="reports")
+    report = ReportDocument(
+        document_id="doc-1",
+        slug="r",
+        title="T",
+        html="<p>x</p>",
+        excerpt="E",
+        seo_title="SEO",
+        seo_description="Meta",
+        og_title="Share",
+    )
+
+    data = (await cms.field_data(report)).model_dump(by_alias=True)
+
+    assert (data["seo-title"], data["seo-description"], data["og-title"]) == (
+        "SEO",
+        "Meta",
+        "Share",
+    )
 
 
 async def test_an_unknown_silo_is_left_out_not_guessed(monkeypatch) -> None:
@@ -338,6 +362,41 @@ async def test_source_reads_the_pasted_html_and_its_rendered_version(monkeypatch
 
     assert source is not None
     assert (source.document_id, source.revision, source.rendered_from) == ("doc-1", "r1", "abc")
+
+
+async def test_source_carries_the_editors_lock_settings(monkeypatch) -> None:
+    paragraphs = [
+        {"_type": "block", "children": [{"text": f"Para {n} " + "w " * 20}]} for n in range(1, 9)
+    ]
+    docs = iter(
+        [
+            {"_id": "d", "_rev": "r", "html": "<p>x</p>", "freePages": 3, "lockedPercent": 75},
+            {
+                "_id": "d",
+                "_rev": "r",
+                "bodyFormat": "rich",
+                "body": paragraphs,
+                "lockedPercent": 50,
+            },
+        ]
+    )
+    queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        queries.append(request.url.params["query"])
+        return httpx.Response(200, json={"result": next(docs)})
+
+    _use_transport(monkeypatch, handler)
+    reports = SanityReportSource(project_id="p", dataset="production")
+
+    pasted = await reports.source("r")
+    rich = await reports.source("r")
+
+    assert pasted is not None and pasted.free_pages == 3
+    assert "coalesce(freePages, 1)" in queries[0] and "coalesce(lockedPercent, 75)" in queries[0]
+    assert rich is not None
+    preview, _ = split_report(rich.html)
+    assert "Para 4 " in preview and "Para 5 " not in preview, "50% locked opens half"
 
 
 async def test_unpin_others_unticks_only_the_pins_asked_for_in_one_transaction(

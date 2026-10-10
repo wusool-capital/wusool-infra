@@ -14,6 +14,8 @@ export const richText = [
       {title: 'Heading 2', value: 'h2'},
       {title: 'Heading 3', value: 'h3'},
       {title: 'Heading 4', value: 'h4'},
+      {title: 'Heading 5', value: 'h5'},
+      {title: 'Heading 6', value: 'h6'},
       {title: 'Quote', value: 'blockquote'},
     ],
     lists: [
@@ -24,6 +26,11 @@ export const richText = [
       decorators: [
         {title: 'Bold', value: 'strong'},
         {title: 'Italic', value: 'em'},
+        {title: 'Underline', value: 'underline'},
+        {title: 'Strike', value: 'strike-through'},
+        {title: 'Code', value: 'code'},
+        {title: 'Superscript', value: 'sup'},
+        {title: 'Subscript', value: 'sub'},
       ],
       annotations: [
         defineArrayMember({
@@ -38,6 +45,7 @@ export const richText = [
               validation: (rule) =>
                 rule.required().uri({allowRelative: true, scheme: ['http', 'https', 'mailto']}),
             }),
+            defineField({name: 'blank', title: 'Open in new tab', type: 'boolean'}),
           ],
         }),
       ],

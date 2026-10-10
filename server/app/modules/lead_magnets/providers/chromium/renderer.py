@@ -89,9 +89,9 @@ class ChromiumReportRenderer:
         # Cache PDFs per version if downloads start queueing.
         self._lock = asyncio.Lock()
 
-    async def render(self, html: str) -> str:
+    async def render(self, html: str, *, free_pages: int = 1) -> str:
         async with self._lock:
-            return await asyncio.wait_for(self._render(html), _RENDER_TIMEOUT_S)
+            return await asyncio.wait_for(self._render(html, free_pages), _RENDER_TIMEOUT_S)
 
     async def pdf(self, html: str) -> bytes:
         async def locked() -> bytes:
@@ -101,13 +101,13 @@ class ChromiumReportRenderer:
         # The queue counts toward the cap, so downloads fail fast rather than pile up.
         return await asyncio.wait_for(locked(), _RENDER_TIMEOUT_S)
 
-    async def _render(self, html: str) -> str:
+    async def _render(self, html: str, free_pages: int) -> str:
         async with _isolated_page() as page:
             await page.set_content(_META_REFRESH.sub("", html), wait_until="load")
             settle = {"quietMs": _QUIET_MS, "maxMs": _SETTLE_MAX_MS}
             await page.evaluate(_WAIT_FOR_QUIET, settle)
             await page.evaluate("document.fonts.ready.then(() => true)")
-            return await page.evaluate(_SERIALIZE)
+            return await page.evaluate(_SERIALIZE, free_pages)
 
     async def _pdf(self, html: str) -> bytes:
         # Flattened HTML has no scripts, so nothing to wait for beyond load and fonts.

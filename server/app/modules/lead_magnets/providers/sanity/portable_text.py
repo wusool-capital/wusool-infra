@@ -15,21 +15,33 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.providers.sanity.images import resized
 
-_STYLES = {"normal": "p", "h2": "h2", "h3": "h3", "h4": "h4", "blockquote": "blockquote"}
-_DECORATORS = {"strong", "em"}
+_STYLES = {
+    "normal": "p",
+    "h2": "h2",
+    "h3": "h3",
+    "h4": "h4",
+    "h5": "h5",
+    "h6": "h6",
+    "blockquote": "blockquote",
+}
+# Sanity's built-in decorator names to the tag each one writes.
+_DECORATORS = {
+    "strong": "strong",
+    "em": "em",
+    "underline": "u",
+    "strike-through": "s",
+    "code": "code",
+    "sup": "sup",
+    "sub": "sub",
+}
 _ALLOWED_TAGS = {
     *_STYLES.values(),
-    *_DECORATORS,
-    "h5",
-    "h6",
+    *_DECORATORS.values(),
     "ul",
     "ol",
     "li",
     "a",
     "br",
-    "code",
-    "sup",
-    "sub",
     "figure",
     "img",
     "figcaption",
@@ -49,6 +61,7 @@ class _MarkDef(BaseModel):
 
     key: str = Field(alias="_key")
     href: str | None = None
+    blank: bool = False
 
 
 class TextBlock(BaseModel):
@@ -120,20 +133,22 @@ def to_html(blocks: list[Block]) -> str:
 
 
 def _inline(block: TextBlock) -> str:
-    links = {d.key: d.href for d in block.mark_defs if d.href}
+    links = {d.key: d for d in block.mark_defs if d.href}
     html = ""
     for span in block.children:
         text = escape(span.text).replace("\n", "<br>")
         for mark in span.marks:
-            if mark in _DECORATORS:
-                text = f"<{mark}>{text}</{mark}>"
-            elif href := links.get(mark):
-                text = f'<a href="{escape(href)}">{text}</a>'
+            if tag := _DECORATORS.get(mark):
+                text = f"<{tag}>{text}</{tag}>"
+            elif link := links.get(mark):
+                # nh3's `link_rel` adds the noopener rel itself.
+                target = ' target="_blank"' if link.blank else ""
+                text = f'<a href="{escape(link.href or "")}"{target}>{text}</a>'
         html += text
     return html
 
 
-# A rich text report has no pages to gate at, so it opens its first quarter.
+# A rich text report has no pages to gate at; by default it opens its first quarter.
 RICH_PREVIEW_SHARE = 0.25
 _GATE = "<div data-wusool-gate></div>"
 _TAG = re.compile(r"<[^>]+>")
@@ -147,6 +162,12 @@ _RICH_HEAD = (
     ".wusool-rich h2{font-size:26px;line-height:1.3;margin:36px 0 12px}"
     ".wusool-rich h3{font-size:21px;margin:28px 0 10px}"
     ".wusool-rich h4{font-size:18px;margin:24px 0 8px}"
+    ".wusool-rich h5{font-size:16px;margin:20px 0 8px}"
+    ".wusool-rich h6{font-size:14px;margin:20px 0 8px;text-transform:uppercase;"
+    "letter-spacing:.04em}"
+    ".wusool-rich code{font:.9em ui-monospace,monospace;padding:1px 4px;border-radius:3px;"
+    "background:rgba(0,5,35,.06)}"
+    ".wusool-rich sup,.wusool-rich sub{font-size:.75em;line-height:0}"
     ".wusool-rich p,.wusool-rich ul,.wusool-rich ol{margin:0 0 16px}"
     ".wusool-rich blockquote{margin:24px 0;padding-left:16px;border-left:3px solid rgba(0,5,35,.2)}"
     ".wusool-rich figure{margin:24px 0}.wusool-rich img{max-width:100%;height:auto}"
@@ -155,9 +176,9 @@ _RICH_HEAD = (
 )
 
 
-def rich_report(title: str, blocks: list[Block]) -> str | None:
+def rich_report(title: str, blocks: list[Block], share: float = RICH_PREVIEW_SHARE) -> str | None:
     """A whole page for a report written in the rich text editor, its gate
-    marked at about `RICH_PREVIEW_SHARE` of the text. Never cuts inside a list."""
+    marked at about `share` of the text. Never cuts inside a list."""
     units: list[list[Block]] = []
     for block in blocks:
         if _listed(block) and units and _listed(units[-1][-1]):
@@ -172,7 +193,7 @@ def rich_report(title: str, blocks: list[Block]) -> str | None:
     read = 0
     for part, size in zip(parts, sizes, strict=True):
         # Never before the first block, so the preview is never empty.
-        if body and _GATE not in body and read >= sum(sizes) * RICH_PREVIEW_SHARE:
+        if body and _GATE not in body and read >= sum(sizes) * share:
             body.append(_GATE)
         body.append(part)
         read += size
