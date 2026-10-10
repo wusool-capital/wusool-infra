@@ -17,14 +17,21 @@ export const report = defineType({
   name: 'report',
   title: 'Report',
   type: 'document',
+  groups: [
+    {name: 'content', title: 'Content', default: true},
+    {name: 'seo', title: 'SEO'},
+    {name: 'publishing', title: 'Publishing'},
+  ],
   fields: [
     defineField({
       name: 'title',
+      group: 'content',
       type: 'string',
       validation: (rule) => rule.required().max(256),
     }),
     defineField({
       name: 'slug',
+      group: 'content',
       type: 'slug',
       description:
         'The page URL: wusoolcapital.com/reports/<slug>. Must not reuse an existing report URL.',
@@ -40,12 +47,14 @@ export const report = defineType({
     }),
     defineField({
       name: 'excerpt',
+      group: 'content',
       type: 'text',
       rows: 3,
       description: 'Optional. 2-3 sentences for the /reports card and search results.',
     }),
     defineField({
       name: 'seoTitle',
+      group: 'seo',
       title: 'SEO title',
       type: 'string',
       description: 'Max 60 characters. Leave blank to use the title.',
@@ -53,6 +62,7 @@ export const report = defineType({
     }),
     defineField({
       name: 'seoDescription',
+      group: 'seo',
       title: 'SEO description',
       type: 'text',
       rows: 2,
@@ -61,6 +71,7 @@ export const report = defineType({
     }),
     defineField({
       name: 'ogTitle',
+      group: 'seo',
       title: 'Share title',
       type: 'string',
       description: 'Shown when the page is shared on WhatsApp or LinkedIn. Leave blank to use the title.',
@@ -68,10 +79,11 @@ export const report = defineType({
     // Missing on reports made before the toggle, which are all pasted HTML.
     bodyFormat(
       'html',
-      'Pasted HTML keeps an exported design and its pages; readers see page one, then the form. A rich text report shows its first quarter.',
+      'Pasted HTML keeps an exported design and its pages; readers see the free pages, then the form. A rich text report shows the part that is not locked.',
     ),
     defineField({
       name: 'body',
+      group: 'content',
       title: 'Report',
       type: 'array',
       of: richText,
@@ -83,10 +95,11 @@ export const report = defineType({
     }),
     defineField({
       name: 'html',
+      group: 'content',
       title: 'Report HTML',
       type: 'text',
       rows: 20,
-      description: 'Paste the full report HTML. Readers see the first page, then the form.',
+      description: 'Paste the full report HTML. Readers see the free pages, then the form.',
       hidden: isRich,
       validation: (rule) =>
         rule.custom((value, context) =>
@@ -95,6 +108,7 @@ export const report = defineType({
     }),
     defineField({
       name: 'freePages',
+      group: 'content',
       title: 'Free pages',
       type: 'number',
       description:
@@ -104,6 +118,7 @@ export const report = defineType({
     }),
     defineField({
       name: 'lockedPercent',
+      group: 'content',
       title: 'Locked share (%)',
       type: 'number',
       description:
@@ -111,16 +126,18 @@ export const report = defineType({
       hidden: isHtml,
       validation: (rule) => rule.integer().min(10).max(90),
     }),
-    defineField({name: 'cover', title: 'Cover image', type: 'image'}),
-    defineField({name: 'silo', title: 'Primary silo', type: 'string', options: {list: SILOS}}),
+    defineField({name: 'cover', group: 'content', title: 'Cover image', type: 'image'}),
+    defineField({name: 'silo', group: 'publishing', title: 'Primary silo', type: 'string', options: {list: SILOS}}),
     defineField({
       name: 'publishedAt',
+      group: 'publishing',
       title: 'Published date',
       type: 'datetime',
       initialValue: () => new Date().toISOString(),
     }),
     defineField({
       name: 'featured',
+      group: 'publishing',
       title: 'Pin to top of /reports',
       type: 'boolean',
       initialValue: false,
@@ -128,6 +145,7 @@ export const report = defineType({
     }),
     defineField({
       name: 'bannerPinned',
+      group: 'publishing',
       title: 'Pin to home page banner',
       type: 'boolean',
       initialValue: false,
@@ -135,6 +153,7 @@ export const report = defineType({
     }),
     defineField({
       name: 'cta',
+      group: 'content',
       title: 'End-of-page button',
       type: 'object',
       description:
@@ -163,8 +182,8 @@ export const report = defineType({
         ),
     }),
     // Written by the toolkit server after each publish: the report as a browser draws it.
-    defineField({name: 'renderedHtml', type: 'text', hidden: true, readOnly: true}),
-    defineField({name: 'renderedPreviewEnd', type: 'number', hidden: true, readOnly: true}),
-    defineField({name: 'renderedFrom', type: 'string', hidden: true, readOnly: true}),
+    defineField({name: 'renderedHtml', group: 'publishing', type: 'text', hidden: true, readOnly: true}),
+    defineField({name: 'renderedPreviewEnd', group: 'publishing', type: 'number', hidden: true, readOnly: true}),
+    defineField({name: 'renderedFrom', group: 'publishing', type: 'string', hidden: true, readOnly: true}),
   ],
 })

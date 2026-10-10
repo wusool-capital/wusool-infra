@@ -13,6 +13,7 @@ const richOrHtml = (name: string, title: string, required: boolean) => [
     name,
     title,
     type: 'array',
+    group: 'content',
     of: richText,
     hidden: isHtml,
     validation: (rule) =>
@@ -26,6 +27,7 @@ const richOrHtml = (name: string, title: string, required: boolean) => [
     name: `${name}Html`,
     title: `${title} (HTML)`,
     type: 'text',
+    group: 'content',
     rows: 16,
     description: 'Scripts, styles and anything Webflow rich text cannot show are removed on publish.',
     hidden: isRich,
@@ -42,17 +44,24 @@ export const insights = defineType({
   name: 'insights',
   title: 'Insights article',
   type: 'document',
+  groups: [
+    {name: 'content', title: 'Content', default: true},
+    {name: 'seo', title: 'SEO'},
+    {name: 'publishing', title: 'Publishing'},
+  ],
   fields: [
     defineField({
       name: 'title',
+      group: 'content',
       type: 'string',
       validation: (rule) => rule.required().max(256),
     }),
     defineField({
       name: 'slug',
+      group: 'content',
       type: 'slug',
       description:
-        'The page URL: wusoolcapital.com/insights/<slug>. An existing article with this slug is never overwritten.',
+        'The page URL: wusoolcapital.com/insights/<slug>. If a hand-written Webflow article already uses this slug, publishing is skipped.',
       options: {source: 'title', maxLength: 96},
       validation: (rule) =>
         rule
@@ -65,6 +74,7 @@ export const insights = defineType({
     }),
     defineField({
       name: 'contentType',
+      group: 'content',
       title: 'Content type',
       type: 'string',
       options: {list: CONTENT_TYPES},
@@ -73,6 +83,7 @@ export const insights = defineType({
     }),
     defineField({
       name: 'excerpt',
+      group: 'content',
       type: 'text',
       rows: 3,
       description: '2-3 sentences for the /insights card and search results.',
@@ -82,17 +93,19 @@ export const insights = defineType({
     ...richOrHtml('body', 'Body', true),
     ...richOrHtml('keyTakeaways', 'Key takeaways', false),
     ...richOrHtml('faq', 'FAQ', false),
-    defineField({name: 'cover', title: 'Cover image', type: 'image'}),
-    defineField({name: 'author', type: 'string', options: {list: AUTHORS}}),
-    defineField({name: 'silo', title: 'Primary silo', type: 'string', options: {list: SILOS}}),
+    defineField({name: 'cover', group: 'content', title: 'Cover image', type: 'image'}),
+    defineField({name: 'author', group: 'content', type: 'string', options: {list: AUTHORS}}),
+    defineField({name: 'silo', group: 'publishing', title: 'Primary silo', type: 'string', options: {list: SILOS}}),
     defineField({
       name: 'publishedAt',
+      group: 'publishing',
       title: 'Published date',
       type: 'datetime',
       initialValue: () => new Date().toISOString(),
     }),
     defineField({
       name: 'featured',
+      group: 'publishing',
       title: 'Pin to top of /insights',
       type: 'boolean',
       initialValue: false,
@@ -101,12 +114,14 @@ export const insights = defineType({
     }),
     defineField({
       name: 'h1',
+      group: 'seo',
       title: 'H1',
       type: 'string',
       description: 'Keyword-targeted page heading. Leave blank to use the title.',
     }),
     defineField({
       name: 'seoTitle',
+      group: 'seo',
       title: 'SEO title',
       type: 'string',
       description: 'Max 60 characters. Leave blank to use the title.',
@@ -114,6 +129,7 @@ export const insights = defineType({
     }),
     defineField({
       name: 'seoDescription',
+      group: 'seo',
       title: 'SEO description',
       type: 'text',
       rows: 2,
@@ -122,13 +138,15 @@ export const insights = defineType({
     }),
     defineField({
       name: 'ogTitle',
+      group: 'seo',
       title: 'Share title',
       type: 'string',
       description: 'Shown when the page is shared on WhatsApp or LinkedIn. Leave blank to use the title.',
     }),
-    defineField({name: 'targetKeyword', title: 'Target keyword', type: 'string'}),
+    defineField({name: 'targetKeyword', group: 'seo', title: 'Target keyword', type: 'string'}),
     defineField({
       name: 'cta',
+      group: 'content',
       title: 'End-of-page button',
       type: 'object',
       description:

@@ -62,6 +62,7 @@ export const bodyFormat = (initial: 'rich' | 'html', description: string) =>
   defineField({
     name: 'bodyFormat',
     title: 'Write with',
+    group: 'content',
     type: 'string',
     options: {
       list: [
