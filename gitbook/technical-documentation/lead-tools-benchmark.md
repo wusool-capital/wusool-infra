@@ -3,15 +3,16 @@
 ## What it does
 
 A business compares its figures with GCC peers. The visitor sees percentiles
-per metric, an overall score and band, a short narrative, and an implied
-enterprise value. No AI is involved.
+per metric, an overall score and band, and a short narrative. Tech mode also
+shows an implied enterprise value. No AI is involved.
 
 ## How it works
 
 1. `POST /benchmark` records the submission through the
    [write contract](lead-tools.md#the-write-contract).
-2. The figures are scored against a built-in peer dataset, in SME or tech
-   mode, by sector, stage, and revenue band.
+2. The figures are scored against a built-in peer dataset. SME mode compares
+   by sector and revenue band; tech mode compares by sector and funding
+   stage.
 3. The score maps to a band, from "Top decile operator" down.
 4. Templated paragraphs explain the metrics that stand out.
 

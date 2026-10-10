@@ -6,7 +6,7 @@ second hostname pointing at the same container. The sub-pages cover each tool.
 
 | Tool | Result for the visitor | AI | Page |
 | --- | --- | --- | --- |
-| Valuation | A low, mid, and high valuation from four blended methods | Enriches the report; the valuation itself is deterministic | [Valuation](lead-tools-valuation.md) |
+| Valuation | A low, mid, and high valuation from blended methods | Chooses comparables and adjustments that feed the figures; built-in data is the fallback | [Valuation](lead-tools-valuation.md) |
 | M&A Readiness | A 0–100 score, band, and recommendations | Required; there is no non-AI score | [M&A Readiness](lead-tools-readiness.md) |
 | GCC SME Benchmark | Peer percentiles, a score, and an implied enterprise value | None | [GCC SME Benchmark](lead-tools-benchmark.md) |
 | Buyer Network | Confirmation of the application | Optional internal note; never blocks | [Buyer Network](lead-tools-buyer-network.md) |
@@ -29,8 +29,8 @@ delays an `embed.js` deploy or rollback.
 
 ## The write contract
 
-Every tool that records a lead follows the same order, which makes losing a
-lead impossible:
+Every tool that records a lead follows the same order, so a recorded lead is
+never lost to a later failure:
 
 ![The lead write contract](../.gitbook/assets/lead-write-contract.svg)
 
@@ -40,19 +40,32 @@ lead impossible:
 3. **AI work**, where the tool has any. Valuation and Benchmark fall back to
    their own calculations; Readiness has no fallback by decision.
 4. **Write to Attio**, always with the test flag set: the organization, a
-   seller or buyer role, the person, and a deal at stage Inbound.
+   seller or buyer role, the person, and a deal at stage Inbound. The person
+   and deal writes are best-effort: a failure is logged and not retried.
+   Report readers get only an organization and a person.
 5. **Email the visitor** a confirmation through Amazon SES, with a Book a
    Call link.
 6. **Email the team** a notice linking to the Attio organization and deal.
 7. **Finish** the run and add its activity.
 
-A sweeper resumes any run left unfinished. The two emails are tracked as
-separate stages, so a resume never re-sends the visitor's confirmation. An
-email step with no address configured is skipped for good rather than
-retried; the lead is already in Attio.
+Two tools record later than step 1 suggests. Valuation records nothing until
+`/submit-lead`, after its AI calls; the page sends it once analysis settles or
+the visitor leaves. Readiness calls the model before responding, so a failed
+call leaves the run recorded but failed.
 
-The database is never written directly for CRM data: Attio's webhook mirror
-copies the records across.
+**The sweeper** runs every five minutes and resumes runs left unfinished for
+more than five minutes, including failed emails. It gives up after one
+attempt for a failed Readiness score, two for other AI failures, and six for
+everything else. An abandoned run is logged as `lead_magnet_run_abandoned`
+with no alarm, so it needs someone watching the logs.
+
+The two emails are tracked as separate stages, so a resume never re-sends the
+visitor's confirmation. An email step with no address configured is skipped
+for good rather than retried.
+
+The module writes placeholder organization and person rows, and an activity
+row, to the database when a run finishes. Attio's webhook mirror then fills
+in the full records.
 
 ## Duplicates
 
@@ -61,12 +74,16 @@ An exact network retry of the same request (same submission ID) reuses its
 row instead of rerunning the pipeline. The CRM is where duplicates are
 merged:
 
-- **Organization:** matched by domain and name, then updated with the
-  latest values.
+- **Organization:** found by a name search, and only treated as a match when
+  the domain also matches. A submission with no domain, including a report
+  reader with a free-mail address, always creates a new organization. A
+  match is updated with the latest values.
 - **Person:** matched by email. A match only gets blank fields filled; a
   name is never overwritten.
-- **Deal:** one per organization. A matched deal is left untouched, so a new
-  lead never moves a Qualified deal back to Inbound.
+- **Deal:** one per organization per deal type, Sell-side or Buy-side. A
+  matched deal is left untouched, so a new lead never moves a Qualified deal
+  back to Inbound. If Attio rejects the deal for its owner, it is retried
+  once with a fallback owner.
 
 ## Rules that fail silently if broken
 
@@ -89,15 +106,32 @@ merged:
 | `GET /reports/{slug}`, `POST /reports/{slug}/unlock`, `POST /reports/{slug}/unlock/verify`, `GET /reports/{slug}/pdf` | Gated reports |
 | `POST /reports/webhooks/sanity` | Sanity publish webhook |
 
-Common responses: `422` for invalid input and `429` for rate limiting. A
-repeat submission is never rejected; it is recorded as a new attempt.
+| Response | Meaning |
+| --- | --- |
+| `403` | The request came from a website origin that isn't allowed |
+| `422` | Invalid input |
+| `429` | Rate limit reached |
+| `500` | Bedrock failed in `/enrich`, `/compare`, or Readiness scoring |
+| `401` | The Sanity webhook signature is invalid |
+
+A repeat submission is never rejected; it is recorded as a new attempt.
+
+**Rate limits** are per IP address per hour. The paid tool endpoints and
+report code requests allow 20, report views and code checks 300, and PDF
+downloads 30. They are held in memory, and the IP is taken from the last
+`X-Forwarded-For` entry.
+
+**Option lists.** An option the CRM doesn't know, such as an unexpected
+selling timeline, fails the Attio write after the run is recorded. That lead
+never reaches the CRM. Keep the form options in step with Attio.
 
 ## Failures and alerts
 
 - Attio and stale-run failures are retried by the sweeper.
-- An email that permanently fails to send raises a CloudWatch alarm on the
-  Toolkit instance's log group. It uses the same alert topic as the other
-  Toolkit alarms.
+- An email that fails to send, after SES's own retries, raises a CloudWatch
+  alarm on the Toolkit instance's log group. It uses the same alert topic as
+  the other Toolkit alarms. The sweeper still tries again later, so an alarm
+  doesn't always mean the email was lost.
 
 ## Code
 

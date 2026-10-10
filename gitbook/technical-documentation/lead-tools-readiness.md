@@ -24,8 +24,9 @@ business back, reach the advisory note.
 ## Failure behavior
 
 There is no non-AI score, by decision. If Bedrock fails, the visitor sees a
-retryable error, but their submission is already recorded, so the lead is
-kept.
+retryable error. The submission stays in `tool_runs`, marked failed, but it
+is never retried. Unless the visitor tries again, it doesn't reach Attio and
+no emails go out.
 
 ## Differences from the old tool
 

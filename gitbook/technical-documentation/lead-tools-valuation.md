@@ -19,17 +19,30 @@ tool, then records the result:
    and Bedrock pick the comparables. Gaps are filled from built-in data.
 4. **`POST /submit-lead`** computes the final valuation with no AI call and
    records it through the [write contract](lead-tools.md#the-write-contract).
+   Nothing is recorded before this call.
 
 `/analyze` and `/compare` run in parallel. After a 10-second loading screen,
 the page shows a **Preliminary** valuation from the built-in sector tables.
 It refines in place and is marked **Done** when both return. If they take
-too long, the page settles on the preliminary figures.
+too long (about three minutes), the page settles on the preliminary figures
+and submits them. It also submits when the visitor leaves the page.
 
 ## The valuation
 
-Four methods are blended: a discounted cash flow, trading comparables,
-transaction comparables, and a venture-capital method. The built-in data
-holds about 1,000 M&A deals, 127 VC rounds, and 31 comparable sectors.
+The valuation is a simple average of up to five estimates:
+
+- a discounted cash flow;
+- trading comparables on EV/Revenue;
+- trading comparables on EV/EBITDA;
+- transaction comparables;
+- industry research from VC rounds.
+
+Trading comparables appear twice, so they carry double weight.
+
+The AI's comparables, discounts, and DCF overrides from `/analyze` and
+`/compare` feed straight into these figures. The built-in data, about 1,000
+M&A deals, 127 VC rounds, and 31 comparable sectors, is what the page falls
+back to.
 
 - If `/analyze` judges the sector a poor fit, the page shows a "Sector
   reclassified" note. If the input can't identify the business, the
@@ -41,13 +54,15 @@ holds about 1,000 M&A deals, 127 VC rounds, and 31 comparable sectors.
 
 The old browser tool was ported and diffed against the original over
 thousands of generated cases. One difference is deliberate: Qatar and
-Bahrain are taxed at 0%, their real rate. The old tool taxed them at 20% by
-mistake, which undervalued every profitable business there.
+Bahrain use 0%, the rate in the tool's own tax table. The old tool applied
+20% by mistake, which undervalued every profitable business there.
 
 ## Failure behavior
 
-Every AI step has a fallback, so a valuation is always produced. AI and
-search failures only make the report less detailed.
+If Bedrock fails, `/enrich` and `/compare` return 500, and the page carries
+on with its built-in data. Search failures are tolerated on the server.
+Either way, a valuation is always produced; failures only make it less
+tailored.
 
 ## Status
 

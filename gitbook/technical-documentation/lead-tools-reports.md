@@ -32,6 +32,8 @@ records one more run, so every report a person reads becomes one activity.
   Gmail dots count as the same inbox.
 - Pending codes are held in memory, because one container runs. A deploy
   drops codes in flight, and those readers request a new one.
+- The emailed code can be switched off by a server setting. The form then
+  opens the report straight away and records the reader.
 
 ## CRM records
 
@@ -44,9 +46,11 @@ readers get no confirmation or team emails.
 - Page views and PDF downloads each have a per-IP hourly limit.
 - Reports are cached for 5 minutes per process, up to 512 slugs, including
   misses.
-- A report that hasn't been rendered yet returns 404.
-- PDFs share the renderer's one-at-a-time lock and 30-second cap. A download
-  still waiting at 30 seconds returns 503.
+- A report that hasn't been rendered yet returns 404, and so does every
+  `/reports` route when Sanity isn't configured.
+- PDFs share the renderer's one-at-a-time lock and 30-second cap. For a
+  download, the 30 seconds include time spent waiting for the lock; a
+  download still waiting then returns 503.
 
 ## Who read what
 

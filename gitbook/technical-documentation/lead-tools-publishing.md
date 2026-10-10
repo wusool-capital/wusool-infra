@@ -23,7 +23,8 @@ Webflow Insights items.
    Reports collection. Cards go live without a Webflow site publish.
 
 A failed sync is only logged; republishing the report repairs it. A newer
-render always wins over an older one that finishes late.
+render always wins over an older one that finishes late. The webhook returns
+503 until Sanity and Webflow credentials are all configured.
 
 ## Pins
 
@@ -52,6 +53,8 @@ The same webhook carries Insights articles, which aren't gated.
 
 - Sanity's Free-plan dataset is public. This is an accepted risk, described
   in the Studio's README.
+- The Studio README notes the webhooks were created disabled and without a
+  secret. Check in Sanity that both are enabled and signed.
 - Rendering adds headless Chromium to the server image, and a render peaks at
   about 300 MB of memory.
 - A published report picks up changes to the report page's layout only when

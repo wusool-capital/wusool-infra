@@ -14,8 +14,9 @@ Tally popup.
    years active, and selling timeline, plus consent. Choosing "Other" for
    sector reveals a free-text field.
 3. `POST /get-started` records it through the
-   [write contract](lead-tools.md#the-write-contract). The visitor's figures
-   go to the seller role as given.
+   [write contract](lead-tools.md#the-write-contract). The form collects
+   AED and converts to USD in the browser; the server stores the USD figures
+   on the seller role as received.
 4. The visitor gets a confirmation email with a Book a Call link; the team
    gets a notice with the figures.
 
