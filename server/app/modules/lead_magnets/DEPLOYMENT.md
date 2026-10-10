@@ -288,7 +288,8 @@ secret (2026-10-07): `LEAD_MAGNET_WEBFLOW_REPORTS_COLLECTION_ID` is
 (`6ac4d9fd87ac542edd2f4477`, which has the same switch). Without both
 overrides, enabling the dev webhook would write to the live site. Both
 environments read the same Sanity dataset, so keep the dev webhook disabled
-except while testing.
+except while testing. The prod webhook fires on every Studio publish, so
+pinning a test article moves the live `/insights` pin; re-pin by hand after.
 
 ## 8. The sweeper
 

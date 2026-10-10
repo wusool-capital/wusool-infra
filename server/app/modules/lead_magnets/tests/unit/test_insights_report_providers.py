@@ -38,6 +38,9 @@ _SANITY_REPORT = {
     "silo": "Buy a Business",
     "ctaText": "Get your free valuation",
     "ctaUrl": "/valuation-tool",
+    "seoTitle": "GCC buyouts guide",
+    "seoDescription": "Meta",
+    "ogTitle": "Share",
 }
 
 _COLLECTION = {
@@ -73,6 +76,11 @@ async def test_sanity_report_is_parsed_and_cached(monkeypatch) -> None:
     assert report.featured is False
     assert report.cover_url == "https://cdn.sanity.io/images/p/production/cover.jpg?w=1600&fm=jpg"
     assert (report.cta_text, report.cta_url) == ("Get your free valuation", "/valuation-tool")
+    assert (report.seo_title, report.seo_description, report.og_title) == (
+        "GCC buyouts guide",
+        "Meta",
+        "Share",
+    )
     assert len(requests) == 1, "the second read comes from the cache"
     assert requests[0].url.host == "p.apicdn.sanity.io", "page views use the CDN quota"
     assert requests[0].url.params["$slug"] == '"buyouts-in-the-gcc"'
