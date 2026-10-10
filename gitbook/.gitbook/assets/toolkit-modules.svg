@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 720 456" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="toolkit-modules-title toolkit-modules-desc" id="toolkit-modules-root">
+        <title id="toolkit-modules-title">How Toolkit modules hand off work</title>
+        <desc id="toolkit-modules-desc">Architecture: the matching engine runs the discrepancy check and seller discovery; discovery and enrichment hand leads and proposals to profile commands, which write to Attio first and then the Wusool database.</desc>
+        <defs>
+      <style>#toolkit-modules-root { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #000523; }
+      #toolkit-modules-root .diagram-container { width: 100%; overflow-x: auto; }
+      #toolkit-modules-root .diagram-container { overflow-x: visible; }</style>
+          <marker id="toolkit-modules-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="toolkit-modules-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="toolkit-modules-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="272" y1="88" x2="184" y2="88" stroke="#56596b" stroke-width="1.2" marker-end="url(#toolkit-modules-arrow)"/>
+<line x1="448" y1="88" x2="536" y2="88" stroke="#56596b" stroke-width="1.2" marker-end="url(#toolkit-modules-arrow)"/>
+<path d="M 616 112 L 616 196 Q 616 204 608 204 L 448 204" fill="none" stroke="#56596b" stroke-width="1.2" marker-end="url(#toolkit-modules-arrow)"/>
+<line x1="184" y1="216" x2="272" y2="216" stroke="#56596b" stroke-width="1.2" marker-end="url(#toolkit-modules-arrow)"/>
+<line x1="360" y1="240" x2="360" y2="320" stroke="#56596b" stroke-width="1.2" marker-end="url(#toolkit-modules-arrow)"/>
+<path d="M 448 228 L 592 228 Q 600 228 600 236 L 600 320" fill="none" stroke="#56596b" stroke-width="1.2" marker-end="url(#toolkit-modules-arrow)"/>
+<line x1="448" y1="344" x2="536" y2="344" stroke="#56596b" stroke-width="1.2" marker-end="url(#toolkit-modules-arrow)"/>
+<rect x="196" y="68" width="64" height="12" rx="2" fill="#f7f5f0"/>
+<text x="228" y="77" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">PRE-CHECK</text>
+<rect x="454" y="68" width="76" height="12" rx="2" fill="#f7f5f0"/>
+<text x="492" y="77" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">WEAK RESULT</text>
+<rect x="624" y="150" width="76" height="12" rx="2" fill="#f7f5f0"/>
+<text x="662" y="159" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NEW SELLERS</text>
+<rect x="200" y="196" width="56" height="12" rx="2" fill="#f7f5f0"/>
+<text x="228" y="205" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">PROPOSAL</text>
+<rect x="368" y="274" width="64" height="12" rx="2" fill="#f7f5f0"/>
+<text x="400" y="283" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">1 · ATTIO</text>
+<rect x="608" y="274" width="80" height="12" rx="2" fill="#f7f5f0"/>
+<text x="648" y="283" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">2 · DATABASE</text>
+<rect x="474" y="324" width="36" height="12" rx="2" fill="#f7f5f0"/>
+<text x="492" y="333" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">SYNC</text>
+<rect x="24" y="64" width="160" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="24" y="64" width="160" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="104" y="85" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Discrepancy check</text>
+<text x="104" y="99" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">discrepancies</text>
+<rect x="272" y="64" width="176" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="272" y="64" width="176" height="48" rx="6" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="360" y="85" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Matching engine</text>
+<text x="360" y="99" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">matching_engine</text>
+<rect x="536" y="64" width="160" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="536" y="64" width="160" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="616" y="85" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Seller discovery</text>
+<text x="616" y="99" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">discovery</text>
+<rect x="24" y="192" width="160" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="24" y="192" width="160" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="104" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Enrichment</text>
+<text x="104" y="227" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">enrichment</text>
+<rect x="272" y="192" width="176" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="272" y="192" width="176" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="360" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Profile commands</text>
+<text x="360" y="227" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">ddl_commands</text>
+<rect x="272" y="320" width="176" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="272" y="320" width="176" height="48" rx="6" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="360" y="341" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Attio CRM</text>
+<text x="360" y="355" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">source of record</text>
+<rect x="536" y="320" width="160" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="536" y="320" width="160" height="48" rx="6" fill="#000523" fill-opacity="0.05" stroke="#56596b" stroke-width="1"/>
+<text x="616" y="341" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Wusool database</text>
+<text x="616" y="355" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">working copy</text>
+<line x1="24" y1="400" x2="696" y2="400" stroke="#000523" stroke-opacity="0.10" stroke-width="0.8"/>
+<text x="24" y="416" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="428" width="24" height="12" rx="2" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="56" y="437" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Entry module</text>
+<rect x="148" y="428" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="180" y="437" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Toolkit module</text>
+<rect x="284" y="428" width="24" height="12" rx="2" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="316" y="437" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">External service</text>
+<rect x="432" y="428" width="24" height="12" rx="2" fill="#000523" fill-opacity="0.05" stroke="#56596b" stroke-width="1"/>
+<text x="464" y="437" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Wusool data</text>
+      </svg>

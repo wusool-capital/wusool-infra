@@ -1,114 +1,69 @@
 # Wusool Toolkit
 
-## Purpose
+Wusool Toolkit is the deal team's Slack bot. Every command runs in the shared
+Toolkit server: one Slack app and one process, built from several modules that
+hand work to each other. The sub-pages describe each module.
 
-Wusool Toolkit is the internal Slack interface for finding acquisition
-matches, maintaining buyer and seller profiles, and researching missing
-profile data. It runs in the shared FastAPI backend and is not a separate
-Slack service per command.
+## Commands and modules
 
-## Components
+| Command | Module | Page |
+| --- | --- | --- |
+| `/find-match` | `matching_engine` | [Matching engine](toolkit-matching.md) |
+| `/check-buyer` | `discrepancies` | [Discrepancy check](toolkit-discrepancies.md) |
+| `/add-buyer`, `/add-seller`, `/edit-buyer`, `/edit-seller` | `ddl_commands` | [Profile commands](toolkit-profile-commands.md) |
+| `/enrich-buyer`, `/enrich-seller` | `enrichment` | [Enrichment](toolkit-enrichment.md) |
+| none (triggered by matching) | `discovery` | [Seller discovery](toolkit-discovery.md) |
+| `/toolkit-status`, `/toolkit-help` | server | Health and usage help |
 
-| Module | Responsibility |
-| --- | --- |
-| `matching_engine` | Resolves a buyer, extracts requirements, filters and scores sellers, explains the shortlist, and stores the run. |
-| `discrepancies` | Checks a buyer's stored criteria for conflicts with typed context or missing required fields. |
-| `ddl_commands` | Adds and edits buyer/seller profiles through Attio-first writes. |
-| `enrichment` | Researches proposed profile values; an operator must review them before the normal edit flow saves them. |
-| `discovery` | Searches public sources for sellers and hands a selected result to the normal add-seller flow. |
-| `organizations` | Shared organization search and persistence. |
-| `attio` | Attio API client, value conversion, notes, and webhook helpers. |
-| `notifications` / `utilities` | Shared Slack formatting, notifications, database wiring, logging, retry, and money handling. |
+There are no remove commands and no public REST endpoints for match or
+profile data.
 
-## Data flow
+## How the modules hand off work
 
-### Matching
+![Toolkit module hand-offs](../.gitbook/assets/toolkit-modules.svg)
 
-1. `/find-match` resolves the buyer by fuzzy organization search.
-2. Bedrock extracts confirmed hard requirements and soft preferences from CRM
-   fields, free text, and recent meeting notes.
-3. Deterministic rules reject only confirmed hard failures, then score the
-   remaining sellers. Missing data is neutral rather than disqualifying.
-4. Bedrock writes narrative reasoning for the configured top candidates; it
-   cannot alter their scores.
-5. The run and candidate results are committed atomically, then posted to
-   Slack with review actions.
-6. A weak result can trigger Google Places seller discovery. A new lead is
-   saved only when Diffbot or People Data Labs matched its Google Maps
-   website. Otherwise a "Website check" message's **Review & Save** opens the
-   ordinary, prefilled add-seller form.
+- **Matching** runs the discrepancy check before every match, and starts
+  seller discovery when no CRM seller scores well enough.
+- **Discovery** never writes to the CRM itself. It asks Profile commands to
+  create a verified lead, or to open the prefilled add-seller form.
+- **Enrichment** never saves anything. Its proposal opens Profile commands'
+  real edit form, so every save takes the normal write path.
+- **Profile commands** writes to Attio first, then to the Wusool database.
+  Approving a match is the one other CRM write: Matching creates the
+  Qualified deal in Attio itself.
 
-### Profile changes and enrichment
+Modules only call each other through declared interfaces, wired together when
+the server starts. Architecture tests in the repo fail the build if a module
+reaches into another's internals.
 
-Add/edit requests search for the organization, collect fields in Slack, write
-Attio first, and then update PostgreSQL. This order prevents the scheduled CRM
-sync from overwriting a Slack-originated change. Enrichment uses optional
-Diffbot, People Data Labs, and Firecrawl sources, then Bedrock normalizes the
-evidence. It only proposes values; saving still follows the edit flow.
-
-## Dependencies and configuration
-
-The runtime requires PostgreSQL, Slack credentials, Attio credentials, and
-Bedrock access. Matching model IDs, scoring weights, confidence penalties,
-meeting-note limits, and discovery thresholds are configured in the server
-environment. Google Places enables discovery; Firecrawl enables free-text
-enrichment; Diffbot and People Data Labs are optional enrichment tiers.
-
-Use the standard AWS credential provider chain in deployed environments.
-Terraform derives `APP_ENV` as `development` or `production` from the deployed
-environment; secret overrides cannot change this status label.
-`ATTIO_IS_TEST` separates test and production records inside the shared SOURCE
-Attio workspace; development stamps test records and refuses production
-records.
-
-## Interfaces
+## Shared runtime
 
 | Interface | Behavior |
 | --- | --- |
-| `/find-match <buyer>` | Creates and explains a ranked seller shortlist. |
-| `/check-buyer <buyer>` | Checks a buyer's stored criteria for conflicts or missing data. |
-| `/add-buyer <organization>` / `/add-seller <organization>` | Attaches a new role or creates an organization and role. |
-| `/edit-buyer <name>` / `/edit-seller <name>` | Selects and updates eligible fields. |
-| `/enrich-buyer <name>` / `/enrich-seller <name>` | Produces a reviewable research proposal. |
-| `/toolkit-help` | Lists usage guidance. |
-| `/toolkit-status` | Reports environment, uptime, database reachability, and Attio mode. |
-| `POST /slack/events` | Receives Slack events and interactions; Slack Bolt verifies signatures. |
-| `GET /health` | Process liveness. |
-| `GET /readiness` and `GET /ready` | Database readiness. |
+| `POST /slack/events` | Receives every Slack command and interaction; Slack Bolt verifies the signature. |
+| `GET /health` | Process liveness, with no database dependency. |
+| `GET /readiness` and `GET /ready` | Database readiness; returns 503 when the database is unreachable. |
 
-There are no remove commands and no public REST endpoints for match or profile
-data.
+**Test and production records.** There is one Attio workspace. Development
+stamps every record it creates as test data and refuses to edit production
+records; production does the reverse. Development also ignores inbound Attio
+webhooks.
 
-### Example matching trace
+**AI.** Matching, the discrepancy check, and enrichment call Amazon Bedrock.
+Deployed environments reach it through the instance's IAM role, not static
+keys.
 
-For `/find-match Example Holdings`, Slack first asks the user to confirm the
-buyer. After confirmation, the service creates a run, extracts requirements,
-filters and scores eligible sellers deterministically, and generates narrative
-reasoning for the shortlist. It commits the run and candidate results together
-before posting review actions to Slack.
+## Shared modules
 
-If requirement extraction or reasoning fails, the run stops and reports an
-error instead of inventing a result. If every CRM candidate scores below the
-discovery threshold, public seller discovery runs. Some leads need an
-operator: an enrichment website that doesn't match Google Maps, or a name-only
-CRM look-alike. Those become CRM sellers only through the add-seller flow.
+| Module | Responsibility |
+| --- | --- |
+| `organizations` | Organization search and persistence, shared by matching and profile commands. |
+| `attio` | Attio API client, value conversion, notes, and webhook types. |
+| `notifications` | Shared Slack message formatting and notifications. |
+| `utilities` | Database wiring, logging, retries, and money handling. |
 
-## Processing rules and failures
+## Code
 
-- Attio failures before any remote write leave PostgreSQL unchanged. If an
-  earlier Attio sub-write succeeded, Slack identifies the partial write.
-- Concurrent add requests for the same organization are not protected by a
-  cross-request lock. Both can succeed and create a duplicate, so operators
-  should avoid parallel submissions and reconcile duplicates in Attio.
-- Bedrock extraction or reasoning failures stop the matching run and surface an
-  operator-facing error; deterministic scoring cannot invent missing facts.
-- Discovery is unavailable without Google Places and enrichment skips any
-  missing optional provider.
-- Discovery's geography filter reads only the buyer's `Target geography`
-  field. HQ country and region never narrow it — they describe the buyer,
-  not their target market. A blank field, or a value including `Global`,
-  searches worldwide. `GCC-wide`, `MENA`, and `Middle East` resolve to a
-  fixed country list. Other values geocode live and fall back to worldwide
-  rather than restrict to a wrong match.
-- Slack forms exclude system-managed, reference, and pipeline-owned fields that
-  the interface cannot safely update.
+Each module lives in `server/app/modules/<module>` with its own README, which
+is the most detailed reference. `server/main.py` merges the modules' Slack
+handlers onto one app.
