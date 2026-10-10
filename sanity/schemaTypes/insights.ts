@@ -110,7 +110,7 @@ export const insights = defineType({
       type: 'boolean',
       initialValue: false,
       description:
-        'Unpins whichever article is pinned now, hand-written ones included. Unticking it pins the newest article.',
+        'Unpins whichever article is pinned now, hand-written ones included. With nothing pinned, the newest article shows there instead.',
     }),
     defineField({
       name: 'h1',

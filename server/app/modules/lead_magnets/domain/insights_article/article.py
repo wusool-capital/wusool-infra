@@ -41,4 +41,3 @@ class CmsItem:
     id: str
     # Only items the sync created; hand-written articles are never overwritten.
     managed: bool
-    featured: bool = False

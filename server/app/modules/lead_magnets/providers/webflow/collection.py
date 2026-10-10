@@ -41,8 +41,6 @@ class ItemFields(BaseModel):
     slug: str | None = None
     sanity_managed: bool | None = Field(default=None, alias="sanity-managed")
     featured: bool | None = None
-    published_date: str | None = Field(default=None, alias="published-date")
-    hide_from_listings: bool | None = Field(default=None, alias="hide-from-listings")
 
 
 class Item(BaseModel):

@@ -29,7 +29,6 @@ class ReportFieldData(BaseModel):
 
     name: str
     slug: str
-    featured: bool
     pin_to_banner: bool = Field(alias="pin-to-banner")
     excerpt: str | None = None
     # The template's <title> and meta tags bind these, so they must never be blank.
@@ -52,15 +51,11 @@ class _PinPatch(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    featured: bool | None = None
     pin_to_banner: bool | None = Field(default=None, alias="pin-to-banner")
 
     @classmethod
     def of(cls, pins: tuple[Pin, ...]) -> "_PinPatch":
-        return cls(
-            featured=False if "featured" in pins else None,
-            pin_to_banner=False if "banner" in pins else None,
-        )
+        return cls(pin_to_banner=False if "banner" in pins else None)
 
 
 class WebflowReportsCms:
@@ -106,7 +101,6 @@ class WebflowReportsCms:
         return ReportFieldData(
             name=report.title,
             slug=report.slug,
-            featured=report.featured,
             pin_to_banner=report.banner_pinned,
             excerpt=report.excerpt,
             seo_title=report.seo_title or report.title,

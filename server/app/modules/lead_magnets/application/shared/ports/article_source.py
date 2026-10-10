@@ -15,12 +15,3 @@ class ArticleSourcePort(Protocol):
         """Unticks the pin on every other article, drafts included, last edited no
         later than `pinned_at`, in one transaction, so the later of two pins wins."""
         ...
-
-    async def any_pinned(self) -> bool:
-        """Whether a published article holds the pin."""
-        ...
-
-    async def pin_newest(self, *, excluding: str | None) -> bool:
-        """Ticks the pin on the newest published article other than `excluding`,
-        and on its open draft. `False` when there is none."""
-        ...

@@ -81,11 +81,7 @@ class WebflowInsightsCms:
         item = await self._collection.find(slug)
         if item is None:
             return None
-        return CmsItem(
-            id=item.id,
-            managed=bool(item.field_data.sanity_managed),
-            featured=bool(item.field_data.featured),
-        )
+        return CmsItem(id=item.id, managed=bool(item.field_data.sanity_managed))
 
     async def create(self, article: ArticleDocument) -> str:
         return await self._collection.create_live(await self.field_data(article))
@@ -99,28 +95,11 @@ class WebflowInsightsCms:
     async def unpin_others(self, keep_id: str) -> None:
         for item in await self._collection.live_items():
             if item.field_data.featured and item.id != keep_id:
-                await self._set_featured(item.id, featured=False)
+                await self._unpin(item.id)
 
-    async def any_pinned(self) -> bool:
-        return any(item.field_data.featured for item in await self._collection.live_items())
-
-    async def newest_hand_written(self) -> str | None:
-        listed = [
-            item
-            for item in await self._collection.live_items()
-            if not item.field_data.sanity_managed
-            and not item.field_data.hide_from_listings
-            and item.field_data.published_date
-        ]
-        newest = max(listed, key=lambda item: item.field_data.published_date or "", default=None)
-        return newest.id if newest else None
-
-    async def pin(self, item_id: str) -> None:
-        await self._set_featured(item_id, featured=True)
-
-    async def _set_featured(self, item_id: str, *, featured: bool) -> None:
+    async def _unpin(self, item_id: str) -> None:
         try:
-            await self._collection.patch_live(item_id, _FeaturedPatch(featured=featured))
+            await self._collection.patch_live(item_id, _FeaturedPatch(featured=False))
         except httpx.HTTPStatusError as error:
             # Went off the live site since the listing; it shows no pin either way.
             if error.response.status_code not in (404, 409):

@@ -5,8 +5,8 @@ CDN can still serve the old document just after a publish. Editors pick rich
 text or pasted HTML per article (`bodyFormat`); either way every rich-text
 field arrives here and leaves as sanitized HTML.
 
-Its only writes move the `/insights` pin, with the write token. Each one fires
-the webhook for the article it changed, whose own sync then updates Webflow.
+Its only write unticks the `/insights` pin on other articles, with the write
+token. Each one fires that article's webhook, whose sync then updates Webflow.
 """
 
 import json
@@ -37,13 +37,6 @@ _PINNED_QUERY = (
     '*[_type == "insights" && featured == true'
     ' && !(_id in [$id, "drafts." + $id]) && !(_id in path("versions.**"))'
     " && ($pinnedAt == null || dateTime(_updatedAt) <= dateTime($pinnedAt))]._id"
-)
-_ANY_PINNED_QUERY = 'count(*[_type == "insights" && featured == true]) > 0'
-# Raw perspective again, filtered back to published documents; returns the newest and its draft.
-_NEWEST_QUERY = (
-    '*[_type == "insights" && !(_id in path("drafts.**")) && !(_id in path("versions.**"))'
-    " && _id != $id] | order(coalesce(publishedAt, _createdAt) desc)[0]"
-    '{"ids": *[_id in [^._id, "drafts." + ^._id]]._id}'
 )
 
 
@@ -95,18 +88,6 @@ class _IdsResponse(BaseModel):
     result: list[str]
 
 
-class _AnyPinnedResponse(BaseModel):
-    result: bool
-
-
-class _Newest(BaseModel):
-    ids: list[str]
-
-
-class _NewestResponse(BaseModel):
-    result: _Newest | None = None
-
-
 class _Featured(BaseModel):
     featured: bool
 
@@ -126,10 +107,10 @@ class _Mutations(BaseModel):
     mutations: list[_PatchMutation]
 
     @classmethod
-    def featured(cls, ids: list[str], *, featured: bool) -> "_Mutations":
+    def unpinned(cls, ids: list[str]) -> "_Mutations":
         return cls(
             mutations=[
-                _PatchMutation(patch=_Patch(id=i, set_=_Featured(featured=featured))) for i in ids
+                _PatchMutation(patch=_Patch(id=i, set_=_Featured(featured=False))) for i in ids
             ]
         )
 
@@ -182,19 +163,7 @@ class SanityArticleSource:
         found = await self._query(_PINNED_QUERY, raw=True, id=document_id, pinnedAt=pinned_at)
         ids = _IdsResponse.model_validate_json(found.content).result
         if ids:
-            await self._mutate(_Mutations.featured(ids, featured=False))
-
-    async def any_pinned(self) -> bool:
-        response = await self._query(_ANY_PINNED_QUERY)
-        return _AnyPinnedResponse.model_validate_json(response.content).result
-
-    async def pin_newest(self, *, excluding: str | None) -> bool:
-        found = await self._query(_NEWEST_QUERY, raw=True, id=excluding)
-        newest = _NewestResponse.model_validate_json(found.content).result
-        if newest is None or not newest.ids:
-            return False
-        await self._mutate(_Mutations.featured(newest.ids, featured=True))
-        return True
+            await self._mutate(_Mutations.unpinned(ids))
 
     async def _query(
         self, query: str, *, raw: bool = False, **params: str | None

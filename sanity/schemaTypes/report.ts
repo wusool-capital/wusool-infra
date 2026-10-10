@@ -136,14 +136,6 @@ export const report = defineType({
       initialValue: () => new Date().toISOString(),
     }),
     defineField({
-      name: 'featured',
-      group: 'publishing',
-      title: 'Pin to top of /reports',
-      type: 'boolean',
-      initialValue: false,
-      description: 'Unpins whichever card is pinned now.',
-    }),
-    defineField({
       name: 'bannerPinned',
       group: 'publishing',
       title: 'Pin to home page banner',

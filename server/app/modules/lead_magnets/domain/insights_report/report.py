@@ -17,8 +17,8 @@ _TAG = re.compile(r"<[^>]+>")
 _STYLE_OR_SCRIPT = re.compile(r"<(style|script)\b.*?</\1>", re.DOTALL | re.IGNORECASE)
 _WORDS_PER_MINUTE = 200
 
-# "featured" pins the top of /reports; "banner" pins the home page bar.
-Pin = Literal["featured", "banner"]
+# "banner" pins the home page bar. The top of /reports is always the newest report.
+Pin = Literal["banner"]
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,6 @@ class ReportDocument:
     published_at: str | None = None
     updated_at: str | None = None
     cover_url: str | None = None
-    featured: bool = False
     banner_pinned: bool = False
     silo: str | None = None
     # The button at the end of the report page.
@@ -47,8 +46,7 @@ class ReportDocument:
 
     @property
     def pins(self) -> list[Pin]:
-        held: list[tuple[Pin, bool]] = [("featured", self.featured), ("banner", self.banner_pinned)]
-        return [pin for pin, on in held if on]
+        return ["banner"] if self.banner_pinned else []
 
 
 @dataclass(frozen=True)
