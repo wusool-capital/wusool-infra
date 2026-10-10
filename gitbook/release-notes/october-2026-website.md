@@ -62,6 +62,8 @@ This period finished it:
 - **The AI analyst's judgement counts.** When a business is a poor fit for
   its sector tag, Valuation uses the analyst's growth assumptions, discounts,
   and comparables. The page says when it does.
+- **Attio matches what the visitor saw.** The valuation saved in Attio uses
+  the analyst-refined figures, recorded once the analysis finishes.
 - **Better models.** A new Childcare & Early Education sector, more
   realistic DCF margins, an editable illiquidity discount, and warnings for
   implausible results.
@@ -72,7 +74,10 @@ This period finished it:
 - **Two emails per lead.** Visitors get a branded confirmation with a Book a
   Call link, and the team gets a notice linking to the Attio record.
 - **Lead source.** Each organization records which tool it came through, so
-  "which leads came from the Valuation tool?" can finally be answered.
+  "which leads came from the Valuation tool?" can finally be answered. Report
+  readers have their own source, "Insights & Reports".
+- **Answers on the CRM activity.** Each submission's answers are copied onto
+  its Attio activity, so advisors can see exactly what a visitor entered.
 - **Seller sector.** Valuation, Benchmark, and Readiness record the seller's
   sector on its own profile.
 - **One buyer profile per sector.** Buyer Network creates one buyer profile

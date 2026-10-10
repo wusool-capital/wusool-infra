@@ -2,7 +2,7 @@
 
 Delivery period: 15 September – 10 October 2026.
 
-In four weeks, 69 changes were merged across every Wusool product. Two new
+In four weeks, more than 60 pull requests were merged across every Wusool product. Two new
 products launched: gated reports and the Reports Studio. Every lead tool
 started emailing visitors and the team. The Slack bot gained a pre-match check
 and automatic seller creation, and WusoolScribe went from 0.4.9 to 0.7.7.

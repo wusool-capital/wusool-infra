@@ -29,7 +29,8 @@ Delivery period: 15 September – 10 October 2026.
   - Regions only conflict when they truly can't overlap.
 - **Shows its reading.** Every message ends with "Read your note as: …", so
   a misread is easy to spot. If the note can't be read, it says so instead
-  of reporting an all-clear.
+  of reporting an all-clear. If the buyer search fails, the popup shows an
+  error instead of loading forever.
 
 ## Smarter matching
 
@@ -39,7 +40,8 @@ Delivery period: 15 September – 10 October 2026.
   1,000-seller cap is gone.
 - **Regions and countries together.** A GCC buyer now matches sellers tagged
   "UAE" or "KSA". A buyer targeting GCC plus Egypt keeps sellers from either.
-  Spelling differences such as Turkey and Türkiye now match.
+  Spelling differences such as Turkey and Türkiye now match. Naming a broad
+  region such as "Europe" in the note no longer drops almost every seller.
 - **The advisor's note wins.** "Egypt" for a buyer stored as US runs the
   search on Egypt. A stated ticket size or valuation cap replaces the stored
   one for that run, and "Run anyway" keeps the note.
@@ -63,7 +65,7 @@ Delivery period: 15 September – 10 October 2026.
   company gets an **Add as seller** button instead of being created.
 - **Safeguards.** A lead already waiting for review is skipped for 30 days.
   Social and shop pages count as "no website". Each buyer gets at most 10
-  searches a day.
+  searches a day; the count resets when the service restarts.
 - **Better geography.** Searches cover every target region and country.
   GCC and MENA resolve correctly; before, "GCC" could geocode to a college in
   California.

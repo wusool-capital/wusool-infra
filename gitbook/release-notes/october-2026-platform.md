@@ -51,7 +51,11 @@ older list-sync script now refuses to touch buyer profiles.
 
 ## Documentation
 
-These docs were reviewed end to end and rebuilt:
+- **GitBook and runbooks published.** On 20 September the client GitBook went
+  live, along with step-by-step runbooks for outages, sync failures, database
+  problems, and failed deployments.
+
+In this update, the docs were reviewed end to end and rebuilt:
 
 - **Fit for each reader.** Every User Guide page was rewritten for
   non-technical staff, then tested with a fresh reader. There is a new
