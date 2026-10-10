@@ -33,8 +33,8 @@ These only appear in logs, so someone must look for them:
 - the RDS database: there are no RDS alarms at all;
 - failed n8n workflows, which appear only in n8n's execution history.
 
-The nightly resync only runs in production, so development's mirror is never
-checked.
+The nightly resync only runs in production. Development has no mirror to
+check: its database is a hand-seeded sandbox.
 
 ## Incident procedure
 

@@ -89,8 +89,9 @@ merged:
 
 - **Send USD, convert nothing.** Every destination is USD; a wrong
   conversion is off by 3.67× with nothing in the data to show it.
-- **Always set the test flag.** A record without it disappears from both the
-  test and production views in Attio.
+- **Always set the test flag.** In Attio, a record without it is missing
+  from both the test and production views, even though the sync treats it as
+  production.
 - **Attio first.** A nightly job overwrites the database from Attio.
 
 ## Endpoints
@@ -127,7 +128,8 @@ never reaches the CRM. Keep the form options in step with Attio.
 
 ## Failures and alerts
 
-- Attio and stale-run failures are retried by the sweeper.
+- The sweeper retries failed organization and role writes, and stale runs.
+  Person and deal writes are best-effort and aren't retried.
 - An email that fails to send, after SES's own retries, raises a CloudWatch
   alarm on the Toolkit instance's log group. It uses the same alert topic as
   the other Toolkit alarms. The sweeper still tries again later, so an alarm

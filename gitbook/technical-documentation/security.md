@@ -7,7 +7,7 @@
 | Slack → Toolkit | Slack Bolt verifies every request signature. |
 | WusoolScribe → Toolkit | Every `/desktop/*` call needs the shared desktop key as a bearer token, compared in constant time. |
 | Attio → Toolkit | Webhook signature check (401 on failure); events from another workspace are dropped. |
-| Sanity → Toolkit | HMAC-SHA256 signature with a timestamp; signatures older than 10 minutes are rejected as replays. |
+| Sanity → Toolkit | HMAC-SHA256 signature with a timestamp (401 on failure); signatures older than 10 minutes are rejected as replays. The endpoint returns 503 until it is configured. |
 | Website → lead tools | An allowlist of website origins (403 otherwise) and per-IP rate limits (429). There is no CORS middleware. The allowlist is off if left empty. |
 | Readers → gated reports | A 6-digit emailed code, then an HTTP-only reader cookie that lasts a year. Report and PDF reads have per-IP limits but no origin check. |
 | Toolkit → Sanity, Webflow, Attio, research APIs | API tokens held only in Secrets Manager. |

@@ -62,8 +62,9 @@ snapshot schedule is an open handover item.
 
 ## Failure behavior
 
-- Containers restart automatically; bootstrap retries a failed container
-  recreation three times.
+- Containers restart automatically. Inside the bootstrap script, a failed
+  container recreation is retried three times; the deploy runs the whole
+  bootstrap up to twice.
 - When a webhook execution fails, record the execution ID and check
   completed nodes for side effects before retrying.
 - If a webhook never reaches n8n, check DNS, Caddy logs, and container

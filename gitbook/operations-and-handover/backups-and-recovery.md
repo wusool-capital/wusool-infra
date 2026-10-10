@@ -56,7 +56,9 @@ procedure.
 ## Recover other systems
 
 - **Reports:** republishing a report in Sanity re-renders it and rebuilds its
-  Webflow card.
+  Webflow card. If the Sanity content itself is lost, there is **no recovery
+  path**: the rendered reports live in Sanity too. Exporting the Sanity
+  dataset regularly is an open handover item.
 - **n8n:** with no backup, only the infrastructure can be rebuilt; workflows
   and credentials must be re-created by hand. Adding a snapshot schedule is an
   open handover item.

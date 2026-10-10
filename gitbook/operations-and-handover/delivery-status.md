@@ -12,7 +12,7 @@ verified live. Update it at each handover or significant release.
 | Development and production AWS environments | Delivered; confirm live state |
 | Branch-based deploys with migrations and health checks | Delivered |
 | Toolkit in Slack: matching, `/check-buyer`, add, edit, enrich | Delivered; production instance enabled |
-| Discrepancy check before every match | Delivered |
+| Discrepancy check in the pre-match popup | Delivered |
 | Approving a match creates a Qualified deal in Attio | Delivered |
 | Seller discovery from Google Maps, with website verification | Delivered |
 | One buyer role per vertical | Delivered |
@@ -33,6 +33,7 @@ verified live. Update it at each handover or significant release.
 | High | Back up n8n data, then test a restore | A successful isolated restore |
 | High | Agree recovery targets and test a PostgreSQL restore | Approved targets and a dated restore test |
 | High | Verify the nightly resync failure alert end to end | A deliberate failure produces an acknowledged alert |
+| High | Export the Sanity dataset on a schedule; reports have no other copy | A dated export and a tested import |
 | High | Alert on abandoned lead-tool runs, report code email failures, and Sanity or Webflow sync failures | Alarms exist and have been tested |
 | Medium | Add RDS alarms; consider Multi-AZ | Alarms exist; decision recorded |
 | Medium | Verify Buyer Network and Valuation submissions end to end against live Attio | Dated production test |

@@ -93,7 +93,8 @@ after review.
 
 ## Release WusoolScribe
 
-1. Bump the version in the three files the workflow checks.
+1. Bump the version in `tauri.conf.json`, `package.json`, and `Cargo.toml`
+   (with `Cargo.lock`) in a pull request. The workflow checks they agree.
 2. Run the `scribe-release` workflow, choosing the `stable` channel. The app
    only reads stable, so a beta release reaches nobody.
 3. The workflow builds for Apple silicon, signs the update, uploads it and
