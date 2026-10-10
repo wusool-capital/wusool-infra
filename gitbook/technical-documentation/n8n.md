@@ -9,9 +9,9 @@ own interface.
 
 ## Components
 
-The n8n stack creates one EC2 instance per environment. It comes with an
-encrypted GP3 root disk, an Elastic IP, a security group, an instance profile,
-alarms, and a CloudWatch log group kept for 30 days. The stack itself adds a Secrets
+The n8n stack creates one EC2 instance per environment. It has an encrypted
+GP3 root disk, an Elastic IP, a security group, and an instance profile. Logs
+go to a CloudWatch log group kept for 30 days. The stack itself adds a Secrets
 Manager secret and Bedrock access, in both environments. IMDSv2 is required.
 
 Docker Compose runs:
