@@ -29,6 +29,10 @@ Toolkit follows these rules.
 4. Submit writes the organization (if new) and the role to Attio, then to the
    database in one transaction.
 
+## How a save is written
+
+![How a profile command saves](../.gitbook/assets/toolkit-profile-save.svg)
+
 ## Why Attio first
 
 A scheduled sync copies Attio into the database. A change written only to the

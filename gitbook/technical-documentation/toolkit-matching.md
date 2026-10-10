@@ -8,6 +8,8 @@ Qualified Buy-side deal in Attio.
 
 ## How it works
 
+![How a match runs](../.gitbook/assets/toolkit-matching-pipeline.svg)
+
 1. **Resolve the buyer.** A fuzzy name search finds the buyer, and a popup
    asks the advisor to confirm it, even when there is only one match.
 2. **Check the buyer.** The [discrepancy check](toolkit-discrepancies.md)
@@ -43,6 +45,8 @@ Meeting notes reach both Bedrock calls as labeled, unverified context: always
 for the buyer, and by default for shortlisted sellers.
 
 ## Approving a match
+
+![What Approve Match does](../.gitbook/assets/toolkit-approval.svg)
 
 Approve and Reject re-read the candidate from the database rather than
 trusting the Slack payload. A compare-and-set on its pending status stops two

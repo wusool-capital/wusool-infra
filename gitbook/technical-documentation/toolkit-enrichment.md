@@ -9,6 +9,8 @@ opens the real edit form, prefilled, and the save follows the normal
 
 ## How it works
 
+![How enrichment finds values](../.gitbook/assets/toolkit-enrichment-waterfall.svg)
+
 For a seller, three sources are tried in order. Each is asked only about the
 fields the previous ones didn't resolve, and the first answer for a field is
 final:

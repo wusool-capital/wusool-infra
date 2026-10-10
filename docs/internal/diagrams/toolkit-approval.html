@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What Approve Match does</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f7f5f0; color: #000523; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    .eyebrow { font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em;
+      text-transform: uppercase; color: #56596b; margin-bottom: 0.5rem; }
+    h1 { font-family: serif; font-size: 2rem; font-weight: 400; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 720px; display: block; }
+    @media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Flowchart · Wusool docs</p>
+    <h1>What Approve Match does</h1>
+    <div class="diagram-container">
+      <svg viewBox="0 0 720 704" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="toolkit-approval-title toolkit-approval-desc">
+        <title id="toolkit-approval-title">What Approve Match does</title>
+        <desc id="toolkit-approval-desc">Flowchart: re-check the candidate in the database, reuse or create the deal in Attio, record it in the database, and, for a discovered seller, start full enrichment.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="260" y1="64" x2="260" y2="96" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="144" x2="260" y2="176" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="364" y1="216" x2="440" y2="216" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 548 240 L 548 272 Q 548 280 540 280 L 266 280" fill="none" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="256" x2="260" y2="276" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="284" x2="260" y2="312" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="360" x2="260" y2="392" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="440" x2="260" y2="472" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="364" y1="512" x2="440" y2="512" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="552" x2="260" y2="584" stroke="#336a85" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<path d="M 360 608 L 448 608" fill="none" stroke="#56596b" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<rect x="388" y="196" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="205" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="268" y="260" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="280" y="269" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="390" y="492" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="501" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="268" y="562" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="282" y="571" fill="#336a85" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="370" y="588" width="68" height="12" rx="2" fill="#f7f5f0"/>
+<text x="404" y="597" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">DISCOVERED</text>
+<rect x="160" y="24" width="200" height="40" rx="20" fill="#f7f5f0"/>
+<rect x="160" y="24" width="200" height="40" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="260" y="48" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Approve Match</text>
+<rect x="140" y="96" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="117" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Re-check the candidate</text>
+<text x="260" y="131" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">from the database · row lock</text>
+<polygon points="260,176 364,216 260,256 156,216" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Deal already</text>
+<text x="260" y="227" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">exists?</text>
+<rect x="440" y="192" width="216" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="548" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Approver chooses</text>
+<text x="548" y="227" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">promote Inbound · or new</text>
+<circle cx="260" cy="280" r="4" fill="#000523"/>
+<rect x="140" y="312" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="333" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Write the deal to Attio</text>
+<text x="260" y="347" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Qualified Buy-side · Attio first</text>
+<rect x="140" y="392" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="413" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Record it in the database</text>
+<text x="260" y="427" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">one transaction · links the match</text>
+<polygon points="260,472 364,512 260,552 156,512" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="509" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Database write</text>
+<text x="260" y="523" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">succeeded?</text>
+<rect x="440" y="488" width="216" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="548" y="509" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Approver is told</text>
+<text x="548" y="523" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">what saved · sync fills in</text>
+<rect x="160" y="584" width="200" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="160" y="584" width="200" height="48" rx="20" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="260" y="605" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Approved</text>
+<text x="260" y="619" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">deal is in Attio</text>
+<rect x="448" y="584" width="200" height="48" rx="6" fill="#f7f5f0"/>
+<rect x="448" y="584" width="200" height="48" rx="6" fill="rgba(0,5,35,0.02)" stroke="rgba(0,5,35,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="548" y="605" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Full enrichment</text>
+<text x="548" y="619" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">discovered sellers only</text>
+<line x1="24" y1="648" x2="696" y2="648" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
+<text x="24" y="664" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="676" width="24" height="12" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="56" y="685" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Start / end</text>
+<rect x="144" y="676" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="176" y="685" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Step</text>
+<polygon points="228,682 240,676 252,682 240,688" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="685" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Decision</text>
+<circle cx="344" cy="682" r="4" fill="#000523"/>
+<text x="364" y="685" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Paths rejoin</text>
+<line x1="456" y1="682" x2="480" y2="682" stroke="#336a85" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<text x="488" y="685" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Main path</text>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>
