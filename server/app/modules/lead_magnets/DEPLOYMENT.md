@@ -193,8 +193,8 @@ needed per report:
    The featured block has no filter; it sorts **Featured** (on first), then
    **Published Date** (newest), with a limit of 1. That way the newest report
    fills the slot when nothing is pinned (2026-10-07). Since AZM-139 the sync
-   never sets **Featured** on a card, so the slot always shows the newest
-   report. Untick **Featured** on any card that still has it.
+   writes **Featured** off on every card it writes, so the slot always shows
+   the newest report. Republish a card that still has it, or untick it here.
 2. On the **Reports Template** page, remove the article header and author.
    Since 2026-10-08 the navbar and footer sit in a hidden wrapper ("Hidden:
    navbar + footer"), along with the 64px navbar spacer, so a report page

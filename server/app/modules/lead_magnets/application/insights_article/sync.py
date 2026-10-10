@@ -51,10 +51,9 @@ class ArticleSync:
             item_id = item.id
             await self._cms.update(item_id, article)
         if article.featured:
-            # After this item is live, so a failed write never empties the pin. Sanity
-            # is unticked last: each loser's own webhook then repairs a failed Webflow unpin.
-            await self._cms.unpin_others(item_id)
+            # Sanity first: each unticked article's own webhook then rewrites its Webflow item.
             await self._source.unpin_others(article.document_id, pinned_at=article.updated_at)
+            await self._cms.unpin_others(item_id)
 
     async def _unpublish(self, slug: str) -> None:
         item = await self._cms.find(slug)

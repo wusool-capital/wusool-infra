@@ -11,6 +11,7 @@ import time
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from app.modules.lead_magnets.api.dependencies import is_valid_sanity_signature
 from app.modules.lead_magnets.domain.insights_report.report import (
@@ -159,7 +160,7 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
         assert data[required], required
     for insights_only in ("content-type", "gated", "author", "body-content"):
         assert insights_only not in data, insights_only
-    assert "featured" not in data, "the top of /reports is the newest card, never pinned from here"
+    assert data["featured"] is False, "clears pins left from before; /reports shows the newest"
     assert data["pin-to-banner"] is True
     assert data["seo-title"] == data["og-title"] == "Buyouts in the GCC"
     assert data["reading-time"] == "3 min read"
@@ -397,6 +398,17 @@ async def test_source_carries_the_editors_lock_settings(monkeypatch) -> None:
     assert rich is not None
     preview, _ = split_report(rich.html)
     assert "Para 4 " in preview and "Para 5 " not in preview, "50% locked opens half"
+
+
+async def test_free_pages_below_one_is_rejected_before_rendering(monkeypatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        doc = {"_id": "d", "_rev": "r", "html": "<p>x</p>", "freePages": 0}
+        return httpx.Response(200, json={"result": doc})
+
+    _use_transport(monkeypatch, handler)
+
+    with pytest.raises(ValidationError):
+        await SanityReportSource(project_id="p", dataset="production").source("r")
 
 
 async def test_unpin_others_unticks_the_banner_in_one_transaction(

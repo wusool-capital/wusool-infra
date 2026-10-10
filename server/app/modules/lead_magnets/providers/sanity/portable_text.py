@@ -61,7 +61,7 @@ class _MarkDef(BaseModel):
 
     key: str = Field(alias="_key")
     href: str | None = None
-    blank: bool = False
+    blank: bool | None = None
 
 
 class TextBlock(BaseModel):
@@ -197,6 +197,9 @@ def rich_report(title: str, blocks: list[Block], share: float = RICH_PREVIEW_SHA
             body.append(_GATE)
         body.append(part)
         read += size
+    # A high free share can pass every checkpoint; the last part still stays locked.
+    if _GATE not in body and len(body) > 1:
+        body.insert(-1, _GATE)
     return (
         f'{_RICH_HEAD}<article class="wusool-rich"><h1>{escape(title)}</h1>'
         f"{''.join(body)}</article></body></html>"

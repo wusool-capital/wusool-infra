@@ -29,6 +29,8 @@ class ReportFieldData(BaseModel):
 
     name: str
     slug: str
+    # Reports aren't pinned to /reports; writing False clears any pin set before.
+    featured: bool = False
     pin_to_banner: bool = Field(alias="pin-to-banner")
     excerpt: str | None = None
     # The template's <title> and meta tags bind these, so they must never be blank.

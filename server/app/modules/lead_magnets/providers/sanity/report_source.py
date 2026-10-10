@@ -95,7 +95,7 @@ class _SanitySource(BaseModel):
     body: list[Block] | None = None
     html: str | None = None
     rendered_from: str | None = Field(default=None, alias="renderedFrom")
-    free_pages: int = Field(default=1, alias="freePages")
+    free_pages: int = Field(default=1, ge=1, alias="freePages")
     locked_percent: int = Field(default=75, alias="lockedPercent")
 
 

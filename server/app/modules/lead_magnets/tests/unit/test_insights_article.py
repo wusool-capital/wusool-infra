@@ -75,6 +75,8 @@ def test_every_studio_style_and_mark_reaches_webflow() -> None:
                 marks=["l1"],
                 markDefs=[{"_key": "l1", "href": "https://x.io", "blank": True}],
             ),
+            # An API or import write can leave the toggle null.
+            _text("In", marks=["l2"], markDefs=[{"_key": "l2", "href": "/x", "blank": None}]),
         ]
     )
 
@@ -82,6 +84,7 @@ def test_every_studio_style_and_mark_reaches_webflow() -> None:
         "<h5>Five</h5><h6>Six</h6><p><u>underline</u></p><p><s>strike-through</s></p>"
         "<p><code>code</code></p><p><sup>sup</sup></p><p><sub>sub</sub></p>"
         '<p><a href="https://x.io" target="_blank" rel="noopener noreferrer">Out</a></p>'
+        '<p><a href="/x" rel="noopener noreferrer">In</a></p>'
     )
 
 
@@ -271,15 +274,19 @@ async def test_find_reports_whether_the_sync_owns_the_item(monkeypatch) -> None:
 
 
 class _Source:
-    def __init__(self, *articles: ArticleDocument) -> None:
+    def __init__(
+        self, *articles: ArticleDocument, log: list[tuple[str, str]] | None = None
+    ) -> None:
         self._articles = {a.slug: a for a in articles}
         self.unpinned: list[str] = []
+        self._log = log if log is not None else []
 
     async def get(self, slug: str) -> ArticleDocument | None:
         return self._articles.get(slug)
 
     async def unpin_others(self, document_id: str, *, pinned_at: str | None) -> None:
         self.unpinned.append(f"{document_id}@{pinned_at}")
+        self._log.append(("unpin_sanity", document_id))
 
 
 class _Cms:
@@ -339,13 +346,18 @@ async def test_unpublishing_or_renaming_takes_down_only_the_managed_item() -> No
     assert cms.calls == [("unpublish", "item-1"), ("create", "new")]
 
 
-async def test_a_pinned_article_takes_the_pin_from_every_item_then_from_sanity() -> None:
+async def test_a_pinned_article_takes_the_pin_in_sanity_then_from_every_item() -> None:
+    """Sanity first, so a failed Webflow unpin is healed by each loser's own webhook."""
     cms = _Cms({"exit-guide": CmsItem(id="item-1", managed=True)})
-    source = _Source(_article(featured=True, updated_at="t1"))
+    source = _Source(_article(featured=True, updated_at="t1"), log=cms.calls)
 
     await _sync(cms, source=source, slug="exit-guide", previous=None)
 
-    assert cms.calls == [("update", "item-1"), ("unpin_others", "item-1")]
+    assert cms.calls == [
+        ("update", "item-1"),
+        ("unpin_sanity", "doc-1"),
+        ("unpin_others", "item-1"),
+    ]
     assert source.unpinned == ["doc-1@t1"], "the later of two pins wins"
 
 
@@ -354,7 +366,8 @@ async def test_a_new_pinned_article_takes_the_pin_once_it_is_live() -> None:
 
     await _sync(cms, _article(featured=True), slug="exit-guide", previous=None)
 
-    assert cms.calls == [("create", "exit-guide"), ("unpin_others", "new")]
+    assert cms.calls[0] == ("create", "exit-guide")
+    assert cms.calls[-1] == ("unpin_others", "new")
 
 
 async def test_unpinning_or_removing_an_article_never_pins_another() -> None:
@@ -397,6 +410,16 @@ def test_a_rich_report_opens_the_share_the_editor_set() -> None:
     preview, rest = split_report(page)
     assert "Paragraph 4 " in preview and "Paragraph 5 " not in preview
     assert "Paragraph 5 " in rest
+
+
+def test_a_rich_report_with_a_high_free_share_still_locks_the_last_part() -> None:
+    blocks = _BLOCKS.validate_python(_paragraphs(1, 5))
+
+    page = rich_report("T", blocks, share=0.9)
+
+    assert page is not None
+    preview, rest = split_report(page)
+    assert "Paragraph 4 " in preview and "Paragraph 5 " in rest
 
 
 def test_a_rich_report_with_no_text_is_not_published() -> None:

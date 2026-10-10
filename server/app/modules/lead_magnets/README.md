@@ -224,7 +224,7 @@ its free part open and the rest behind one short form. There are three parts:
   pasting HTML. `providers/sanity/portable_text.py::rich_report` turns it into
   a styled page (title, DM Sans, A4 print margins) and marks the gate at the
   editor's `lockedPercent` of the text (75% locked by default), since it has
-  no pages; the serializer keeps a mark it finds. From there it follows the pasted path: render, gate, save, PDF.
+  no pages, and never after the last block; the serializer keeps a mark it finds. From there it follows the pasted path: render, gate, save, PDF.
 - **Gate.** `domain/insights_report/split.py` cuts between block elements,
   never at an inline tag. A paged export is cut after the editor's `freePages`
   (1 by default, never the last page), an export without pages after its
@@ -265,8 +265,8 @@ its free part open and the rest behind one short form. There are three parts:
   create; an existing one is written to its staged item, then published, since
   the live update 409s on a card an earlier sync unpublished.
   - One pin, `bannerPinned` -> Webflow `pin-to-banner` (home page bar), is
-    level-triggered. Every sync writes the report's own tick. The sync never
-    writes the card's `featured`; the top of `/reports` is the newest card.
+    level-triggered. Every sync writes the report's own tick. The sync always
+    writes the card's `featured` off; the top of `/reports` is the newest card.
   - Taking the pin unticks it on the other reports in Sanity (drafts included,
     release versions left alone) and Webflow, only after this card is live.
     Sanity goes first, in one transaction. Each loser's own
@@ -319,9 +319,10 @@ endpoint routes on the projected `type`.
   `hide-from-listings` or `gated`. Content type, silo and author are
   resolved to Webflow ids by name; an unknown content type fails the sync.
 - **Pin.** `featured` is the one field shared with hand-written items. A
-  pinned article clears `featured` on every other live item, then unticks
-  other Sanity articles (raw perspective, drafts included, later pin wins),
-  with the write token. Like the report banner, it never refills an empty
+  pinned article unticks other Sanity articles (raw perspective, drafts
+  included, later pin wins) with the write token, then clears `featured` on
+  every other live item. Each unticked article's own webhook rewrites its
+  item, so a failed Webflow step still heals. Like the report banner, it never refills an empty
   pin: the featured block's own sort shows the newest article.
 - **Plumbing.** `providers/webflow/collection.py` holds the Webflow API code
   both providers share: live create, staged update then publish, unpublish,
