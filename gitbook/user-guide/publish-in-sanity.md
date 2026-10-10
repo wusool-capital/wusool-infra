@@ -17,14 +17,11 @@ page on wusoolcapital.com within a few moments.
 4. Optionally fill in the excerpt, cover image, primary silo, date, and the
    end-of-page button (text and link). The **SEO** tab sets the search and
    share titles; blank ones use the title and excerpt.
-5. Optionally tick:
-   - **Pin to top of /reports** to make it the featured card on the reports
-     page.
-   - **Pin to home page banner** to show "Just released: {title}. Get the
-     playbook →" across the top of the home page. Visitors can close the
-     bar; it returns when a different report is pinned.
-
-   Each pin moves from whichever report held it before.
+5. Optionally tick **Pin to home page banner** to show "Just released:
+   {title}. Get the playbook →" across the top of the home page. It moves
+   from whichever report held it before. Visitors can close the bar; it
+   returns when a different report is pinned. The top of `/reports` always
+   shows the newest report.
 6. Publish.
 
 **Expected result:** the report has a card on `wusoolcapital.com/reports`
@@ -39,8 +36,8 @@ see.
   republished.
 - **Changing the slug** moves the report to the new URL, and the old URL
   stops working.
-- **Unpublishing** removes its card from `/reports`. If it was pinned, the
-  newest live report takes the pin.
+- **Unpublishing** removes its card from `/reports`. If it held the
+  banner, the banner is hidden until another report is pinned.
 
 ## Publish an Insights article
 
@@ -57,6 +54,6 @@ see.
 
 **Expected result:** the article appears on `wusoolcapital.com/insights`.
 Articles are not gated. Unticking the pin, or unpublishing the pinned
-article, passes the pin to the newest Sanity article (or, with none, the
-newest hand-written one). An existing
+article, leaves nothing pinned, and the newest article shows at the top
+instead. An existing
 hand-written Webflow article with the same slug is never overwritten.

@@ -19,8 +19,9 @@ for current production evidence and open handover items.
   - Each report sets how much is free: a number of pages for pasted HTML, or
     a locked share for rich text.
   - Insights articles can be pinned to the top of `/insights` from the
-    Studio. When the pinned article is unpinned or removed, the newest Sanity
-    article takes its place, or else the newest hand-written one.
+    Studio. With nothing pinned, the newest article shows there.
+  - Reports keep only the home page banner pin. The top of `/reports`
+    always shows the newest report.
   - Studio fields are grouped into Content, SEO and Publishing tabs.
 - The client GitBook was reviewed end to end and checked against the code.
   User guides were rewritten for non-technical staff and reader-tested. They

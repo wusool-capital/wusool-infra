@@ -55,7 +55,7 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, excerpt, cover, silo, publishedAt, featured, bannerPinned, cta, seoTitle, seoDescription, ogTitle, freePages, lockedPercent)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
+   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, excerpt, cover, silo, publishedAt, bannerPinned, cta, seoTitle, seoDescription, ogTitle, freePages, lockedPercent)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
    | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
@@ -64,8 +64,8 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
    One webhook per environment serves both types; the server routes each
    event by `type`, and treats a missing `type` as a report. Articles need no
-   update guard: the server writes to them only to move the `/insights` pin,
-   and the sync each such write starts is the one that updates Webflow. The filter
+   update guard: the server writes to them only to untick another article's
+   `/insights` pin, and that write's own sync is what updates Webflow. The filter
    skips report updates that touch only `renderedHtml`, so the server's
    own save never starts a second sync. Creates and deletes always pass,
    since `delta::changedAny` doesn't match them reliably; an unpublish fires
@@ -76,7 +76,7 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
    - `LEAD_MAGNET_SANITY_PROJECT_ID`
    - `LEAD_MAGNET_SANITY_WEBHOOK_SECRET`
    - `LEAD_MAGNET_SANITY_WRITE_TOKEN`, an **Editor** API token (API → Tokens).
-     It saves the flattened report back and moves the `/insights` pin.
+     It saves the flattened report back and unticks pins on other documents.
    - `LEAD_MAGNET_WEBFLOW_API_TOKEN`, a Webflow site token with `CMS:read` and `CMS:write`
 
 ## Publishing a report
@@ -107,14 +107,12 @@ share title; left blank, they use the title and excerpt. The button
 needs both its text and its link, and shows below the report. Removing it
 here doesn't remove it from the live page; clear it in Webflow as well. Then publish.
 
-Two boxes pin a report, one report per pin:
+**Pin to home page banner** shows the report in the bar at the top of the
+home page ("Just released: …"). One report holds it at a time; with none
+pinned, the bar is hidden. The top of `/reports` isn't pinned: it always
+shows the newest report.
 
-- **Pin to top of /reports** makes it the featured card. With nothing
-  pinned, the newest report shows there instead.
-- **Pin to home page banner** shows it in the bar at the top of the home
-  page ("Just released: …"). With nothing pinned, the bar is hidden.
-
-Publishing a pinned report unticks that box on the report that had the pin,
+Publishing a pinned report unticks the box on the report that had the pin,
 here as well as on the site, so the boxes always show the truth. One
 exception: a draft of that older report edited after your pin keeps its
 tick, and publishing that draft takes the pin back.
@@ -152,13 +150,12 @@ in the featured block. One article holds the pin at a time:
 
 - Publishing a pinned article unpins every other article on the site,
   hand-written ones included, and unticks the box on other Sanity articles.
-  As with reports, the later of two pins wins.
-- When the pinned article is unticked, unpublished or deleted, and nothing
-  else holds the pin, the newest other Sanity article takes it (its box is
-  ticked here). With no Sanity article, the newest listed hand-written
-  article is pinned in Webflow instead.
-- Pinning a hand-written article in Webflow still works. A later Sanity pin
-  replaces it, and it doesn't come back on its own.
+  As with the report banner, the later of two pins wins.
+- Unticking, unpublishing or deleting the pinned article leaves nothing
+  pinned. The featured block then shows the newest article by its own sort,
+  as `/reports` does. No earlier pin comes back.
+- Pinning a hand-written article in Webflow still works until a Sanity
+  article takes the pin.
 
 ## Accepted risk
 

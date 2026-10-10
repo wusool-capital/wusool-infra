@@ -192,7 +192,9 @@ needed per report:
    Keep the silo badge (`.badge-silo`), bound to Reports' **Primary Silo**.
    The featured block has no filter; it sorts **Featured** (on first), then
    **Published Date** (newest), with a limit of 1. That way the newest report
-   fills the slot when nothing is pinned (2026-10-07).
+   fills the slot when nothing is pinned (2026-10-07). Since AZM-139 the sync
+   never sets **Featured** on a card, so the slot always shows the newest
+   report. Untick **Featured** on any card that still has it.
 2. On the **Reports Template** page, remove the article header and author.
    Since 2026-10-08 the navbar and footer sit in a hidden wrapper ("Hidden:
    navbar + footer"), along with the 64px navbar spacer, so a report page
@@ -279,7 +281,10 @@ never overwritten. Don't toggle it by hand. The sync writes **Featured**,
 on hand-written items too, because Insights pins are set from the Studio
 (see `sanity/README.md`); it never writes **Hide from listings** or
 **Gated**. A pin set by hand in Webflow still works until a Sanity article
-takes it.
+takes it. The sync never refills an empty pin, so the `/insights` featured
+block must sort **Featured** (on first), then **Published Date** (newest),
+with a limit of 1, like `/reports`. With a "Featured is on" filter instead,
+unpinning leaves the block empty.
 
 Dev writes to test collections only, set in the `/wusool/dev/toolkit`
 secret (2026-10-07): `LEAD_MAGNET_WEBFLOW_REPORTS_COLLECTION_ID` is
@@ -289,7 +294,7 @@ secret (2026-10-07): `LEAD_MAGNET_WEBFLOW_REPORTS_COLLECTION_ID` is
 overrides, enabling the dev webhook would write to the live site. Both
 environments read the same Sanity dataset, so keep the dev webhook disabled
 except while testing. The prod webhook fires on every Studio publish, so
-pinning a test article moves the live `/insights` pin; re-pin by hand after.
+pinning a test article clears the live `/insights` pin; re-pin by hand after.
 
 ## 8. The sweeper
 

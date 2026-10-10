@@ -264,21 +264,21 @@ its free part open and the rest behind one short form. There are three parts:
   Cards go live without a Publish in Webflow. A new card uses the live
   create; an existing one is written to its staged item, then published, since
   the live update 409s on a card an earlier sync unpublished.
-  - Two pins, `featured` (top of `/reports`) and `bannerPinned` -> Webflow
-    `pin-to-banner` (home page bar), are level-triggered. Every sync writes
-    the report's own ticks.
-  - Taking a pin unticks it on the other reports in Sanity (drafts included,
+  - One pin, `bannerPinned` -> Webflow `pin-to-banner` (home page bar), is
+    level-triggered. Every sync writes the report's own tick. The sync never
+    writes the card's `featured`; the top of `/reports` is the newest card.
+  - Taking the pin unticks it on the other reports in Sanity (drafts included,
     release versions left alone) and Webflow, only after this card is live.
-    Sanity goes first, in one transaction for every pin. Each loser's own
+    Sanity goes first, in one transaction. Each loser's own
     webhook then repairs a Webflow unpin that failed. Reports are matched by
     document id, so this report's own draft is never unticked, even with a
     renamed slug.
   - Only reports last edited no later than this one are unticked, so the
     later of two simultaneous pins wins. Each untick's own webhook re-syncs
     that report.
-  - The server never refills an empty pin. The `/reports` featured block
-    sorts **Featured** on first, then newest, with a limit of 1. The banner
-    list shows nothing.
+  - The server never refills an empty pin: the banner list shows nothing.
+    The `/reports` featured block sorts **Featured** on first, then newest,
+    with a limit of 1, so it shows the newest report.
 
 CRM write: the `insights_report` branch of `bootstrap._RoleAttioWriter`
 writes an **organisation and a person only**, with no role and no deal.
@@ -321,10 +321,8 @@ endpoint routes on the projected `type`.
 - **Pin.** `featured` is the one field shared with hand-written items. A
   pinned article clears `featured` on every other live item, then unticks
   other Sanity articles (raw perspective, drafts included, later pin wins),
-  with the write token. When a sync releases the pin (untick, unpublish,
-  delete) and neither Sanity nor Webflow holds one, it ticks the newest other
-  published Sanity article, whose own webhook pins Webflow; with none, it
-  pins the newest listed hand-written item directly.
+  with the write token. Like the report banner, it never refills an empty
+  pin: the featured block's own sort shows the newest article.
 - **Plumbing.** `providers/webflow/collection.py` holds the Webflow API code
   both providers share: live create, staged update then publish, unpublish,
   and option lookups.

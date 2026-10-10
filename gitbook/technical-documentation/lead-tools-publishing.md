@@ -34,13 +34,15 @@ render always wins over an older one that finishes late. The webhook returns
 
 Two pins are kept in step between Sanity and Webflow:
 
-- **Pin to top of /reports**: the featured card.
-- **Pin to home page banner**: the "Just released" bar on the home page.
+- **Pin to home page banner** (reports): the "Just released" bar on the
+  home page.
+- **Pin to top of /insights** (articles): the featured article.
 
-Taking a pin unticks it on every other report, in Sanity first and then
-Webflow. If two editors pin at once, the later edit wins. The server never
-refills an empty pin: the `/reports` page shows the newest report instead,
-and the banner shows nothing.
+Taking a pin unticks it everywhere else, in Sanity and Webflow. If two
+editors pin at once, the later edit wins. The server never refills an empty
+pin: the banner shows nothing, and the `/insights` featured block shows the
+newest article. The top of `/reports` isn't pinned; it always shows the
+newest report.
 
 ## Insights articles
 
@@ -51,11 +53,8 @@ The same webhook carries Insights articles, which aren't gated.
 - Items the server creates are marked as Sanity-managed. It never updates or
   unpublishes an item without that mark, so a hand-written article with the
   same slug is skipped.
-- **Pin to top of /insights** works across hand-written and Sanity
-  articles: a Sanity pin clears every other pin on the site.
-- If the pinned article is unpinned, unpublished or deleted, and nothing
-  else is pinned, the newest Sanity article takes the pin. With none, the
-  newest hand-written one does.
+- A Sanity article's **Pin to top of /insights** clears every other pin on
+  the site, hand-written articles included.
 - Hiding articles stays in Webflow.
 
 ## Known gaps
