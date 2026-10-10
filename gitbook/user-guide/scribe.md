@@ -38,7 +38,8 @@ again. Allow it, or recordings will be silent.
 
 ## Record a meeting
 
-1. Select the microphone and system-audio devices.
+1. Check the microphone and system-audio devices. Set the defaults under
+   **Settings → Recordings → Default Audio Devices**.
 2. Optionally name the meeting, then press **Record**.
 3. Check that transcript lines appear while people speak.
 4. Pause when needed, then press **Stop**.
@@ -103,8 +104,9 @@ because it takes a while. If it fails, see
 - To delete meetings, select one or more in a folder and delete them. To
   delete a whole folder and every meeting in it, hover over the folder in
   the sidebar and click its delete button.
-- When deleting, you can also remove the meetings from the server and Attio.
-  If that removal fails, your meetings are kept on your Mac.
+- When deleting a meeting you already sent, you can tick **Also delete from
+  Wusool server & Attio**. It is unticked by default. If that removal fails,
+  your meetings are kept on your Mac.
 - Drag the sidebar's right edge to make it wider.
 
 Follow your organization's retention rules when deleting or sharing meeting

@@ -17,6 +17,7 @@ infrastructure.
 | Publish a report or Insights article | [Publish in Sanity](publish-in-sanity.md) |
 | Open or use workflow automation | [n8n](n8n.md) |
 | Resolve a problem or request support | [Troubleshooting and support](troubleshooting.md) |
+| Look up an unfamiliar term | [Glossary](glossary.md) |
 
 ## The products
 

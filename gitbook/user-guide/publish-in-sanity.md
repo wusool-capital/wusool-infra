@@ -49,5 +49,6 @@ see.
 4. Publish.
 
 **Expected result:** the article appears on `wusoolcapital.com/insights`.
-Articles are not gated. To pin an article, use Webflow. An existing
+Articles are not gated. Pinning an article isn't available in the Studio;
+pin it in Webflow instead. An existing
 hand-written Webflow article with the same slug is never overwritten.

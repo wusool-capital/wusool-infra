@@ -1,6 +1,6 @@
 # Start here
 
-This is the client handbook for the Wusool platform. It explains how to use each product, how the platform works, and how an engineering owner operates it.
+This is Wusool Capital's handbook for the Wusool platform. It explains how to use each product, how the platform works, and how an engineering owner operates it.
 
 ## What do you need to do?
 
@@ -23,7 +23,7 @@ This is the client handbook for the Wusool platform. It explains how to use each
 ![Products and data flow](.gitbook/assets/platform-overview.svg)
 
 * **Wusool Toolkit** finds buyer–seller matches and manages CRM profiles from Slack.
-* **WusoolScribe** records and transcribes meetings on your Mac and files the finished meeting in Attio as a note.
+* **WusoolScribe** records and transcribes meetings on your Mac and can send a finished meeting to Attio as a note.
 * **Website lead tools** collect valuation, readiness, benchmark, buyer network and Get Started submissions, and gate reports, on wusoolcapital.com.
 * **Sanity Studio** is where the team writes and publishes reports and Insights articles.
 * **Attio** is the source of record. The Wusool database keeps a working copy for the products.

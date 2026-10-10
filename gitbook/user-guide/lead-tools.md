@@ -1,8 +1,8 @@
 # Website lead tools
 
-Wusool Capital's website offers five tools and a library of gated reports.
-Visitors get a result or submit their details; their contact and company
-details are recorded for follow-up in Attio.
+Wusool Capital's website offers these tools to visitors. Each gives a result
+or confirmation, and the visitor's contact and company details are recorded
+for follow-up in Attio.
 
 | Tool | What the visitor receives |
 | --- | --- |

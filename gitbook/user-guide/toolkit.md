@@ -6,8 +6,8 @@ Its scores and research are decision support; always check the result.
 
 ## Before you start
 
-- Use the bot in a Slack channel it has been added to. It doesn't work in
-  direct messages.
+- Use the bot in a channel it's in (add it with `/invite @Wusool Toolkit`).
+  It doesn't work in direct messages.
 - Type `/toolkit-help` to see the available commands.
 
 | Command | Result |
@@ -48,19 +48,19 @@ How your note is read:
 
 1. Run `/find-match <buyer name>`, for example `/find-match Raoof Capital`.
 2. If several buyers have similar names, select the intended record.
-3. The **Before we match** popup shows the same check as `/check-buyer`.
-   Choose **Run anyway** to start the match, or **Cancel** to fix the
-   profile first.
+3. In the **Before we match** popup, choose **Run anyway**, or **Cancel** to
+   fix the profile first.
 4. Use **View Full Analysis** to inspect a seller's reasoning, then choose
    **Approve Match** or **Reject Match**.
 
 **Expected result:** a ranked shortlist with fit and data-confidence scores.
 Check high scores carefully when confidence is low.
 
-**Approve Match** creates a Qualified Buy-side deal in Attio and links it to
-the match. If a deal already exists for that buyer and seller, the bot asks
-whether to promote it or create a new one. Matching never contacts an
-organization.
+**Approve Match** creates a Qualified Buy-side deal in Attio for that buyer
+and seller. If an Inbound deal already exists for the pair, the bot asks
+whether to promote it to Qualified or create a new one. An approval can't be
+undone from Slack; ask the CRM owner to change the deal in Attio. Matching
+never contacts an organization.
 
 ### When no CRM seller is a strong fit
 

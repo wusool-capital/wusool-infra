@@ -19,7 +19,7 @@ notes, and activities according to your permissions.
 | --- | --- |
 | Toolkit additions and edits | Organization and linked buyer or seller |
 | Scribe meeting output | Note on the selected organization/role, or a general note without an organization |
-| Approved Toolkit match | A Qualified Buy-side deal linked to the buyer and seller |
+| Approved Toolkit match | A Qualified Buy-side deal for that buyer and seller |
 | Valuation, Readiness, Benchmark, or Get Started submission | Organization and seller context |
 | Buyer Network application | Organization, with one buyer role per sector chosen |
 | Gated report reader | A person, plus an organization if they gave one |
@@ -55,6 +55,7 @@ If a change is still missing elsewhere after a few minutes, report the record
 URL, field, and approximate edit time.
 
 {% hint style="warning" %}
-Leave merging, deleting, and removing roles to the CRM owner. Toolkit has no
-commands for these.
+Leave merging or deleting organizations, roles, and deals to the CRM owner.
+Toolkit has no commands for these. You can remove your own Scribe meeting
+notes from Scribe.
 {% endhint %}

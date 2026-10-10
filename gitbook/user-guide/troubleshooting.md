@@ -9,12 +9,12 @@ tell a service failure from invalid input.
 | Toolkit error or timeout | Run `/toolkit-status` and check the Attio name; don't resubmit a change repeatedly |
 | Match has low confidence | Review the records and run `/enrich-*` before matching again |
 | Website check shows no website | The lead's only web presence is a social or shop page, so it counts as having no website |
-| Scribe only captures your voice | Recheck the system-audio device under **Devices** and the screen-recording permission |
+| Scribe only captures your voice | Recheck the system-audio device in **Settings → Recordings → Default Audio Devices** and the screen-recording permission |
 | Scribe is silent after an update | macOS removed its access; allow microphone and screen recording again |
 | Scribe stopped recording too early | Auto-stop ended it with the call; press **Keep** next time, or turn it off in **Settings → Recordings** |
 | Scribe has no transcript | Confirm the model downloaded, then check the model, language, and microphone |
 | Scribe push fails | Check **Settings → Scribe Push**, your connection, and the selected organization |
-| Report code never arrives | Check spam, then use **Resend code**. Codes expire after 10 minutes |
+| Report code never arrives | Check spam, then use **Resend code**; codes expire after 10 minutes. If it still fails, send support the reader's email and the report link |
 | Attio change is missing elsewhere | Confirm it saved, then allow a few minutes |
 | Website tool fails | Note the tool name, time, company domain, and exact error; retry once |
 | n8n execution fails | Note the workflow, execution ID, failed node, and error before retrying |
