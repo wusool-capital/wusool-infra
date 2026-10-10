@@ -2,14 +2,16 @@
 from Sanity, alongside the hand-written ones in the same collection.
 
 Every item it creates carries `sanity-managed`, and it updates or unpublishes
-only those, so a hand-written article is never overwritten. It never writes
-`featured` or `hide-from-listings`: pins on `/insights` stay a Webflow job.
+only those, so a hand-written article is never overwritten. The one exception
+is `featured`: the `/insights` pin is shared, so a Sanity pin clears it on
+hand-written items too. It never writes `hide-from-listings` or `gated`.
 Option, author and silo ids are resolved by name at sync time.
 """
 
 import logging
 from dataclasses import dataclass
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_article.article import ArticleDocument, CmsItem
@@ -51,7 +53,12 @@ class ArticleFieldData(BaseModel):
     # Omitted when unset, like every optional field: the API documents no way to clear one.
     cta_text: str | None = Field(default=None, alias="cta-text")
     cta_url: str | None = Field(default=None, alias="cta-url")
+    featured: bool
     sanity_managed: bool = Field(default=True, alias="sanity-managed")
+
+
+class _FeaturedPatch(BaseModel):
+    featured: bool
 
 
 @dataclass(frozen=True)
@@ -84,6 +91,24 @@ class WebflowInsightsCms:
 
     async def unpublish(self, item_id: str) -> None:
         await self._collection.unpublish(item_id)
+
+    async def unpin_others(self, keep_id: str) -> None:
+        for item in await self._collection.live_items():
+            if item.field_data.featured and item.id != keep_id:
+                await self._unpin(item.id)
+
+    async def _unpin(self, item_id: str) -> None:
+        try:
+            await self._collection.patch_live(item_id, _FeaturedPatch(featured=False))
+        except httpx.HTTPStatusError as error:
+            # Went off the live site since the listing; it shows no pin either way.
+            if error.response.status_code not in (404, 409):
+                raise
+            logger.info(
+                "insights_article_pin_skipped item=%s status=%s",
+                item_id,
+                error.response.status_code,
+            )
 
     async def field_data(self, article: ArticleDocument) -> ArticleFieldData:
         ids = await self._load_ids()
@@ -121,6 +146,7 @@ class WebflowInsightsCms:
             primary_silo=silo,
             cta_text=article.cta_text,
             cta_url=article.cta_url,
+            featured=article.featured,
         )
 
     async def _load_ids(self) -> _Ids:

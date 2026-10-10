@@ -18,11 +18,13 @@ Webflow Insights items.
    server opens each new version once in headless Chromium, with the network
    blocked, one render at a time, and a 30-second cap. It saves the drawn
    page and the preview cut back to Sanity. Readers are only ever served this
-   stored copy.
-3. **Rich text reports** are turned into a styled A4 page first, then follow
-   the same path.
+   stored copy. The cut follows the editor's **Free pages** setting: one by
+   default, and never the last page. Changing it renders the report again.
+3. **Rich text reports** become a styled A4 page first, cut at the editor's
+   **Locked share** (75% by default). Then they follow the same path.
 4. **Card.** The server creates or updates the report's card in Webflow's
-   Reports collection. Cards go live without a Webflow site publish.
+   Reports collection. Its SEO title, description and share title come from
+   the report's SEO tab, or the title and excerpt when blank. Cards go live without a Webflow site publish.
 
 A failed sync is only logged; republishing the report repairs it. A newer
 render always wins over an older one that finishes late. The webhook returns
@@ -32,13 +34,15 @@ render always wins over an older one that finishes late. The webhook returns
 
 Two pins are kept in step between Sanity and Webflow:
 
-- **Pin to top of /reports**: the featured card.
-- **Pin to home page banner**: the "Just released" bar on the home page.
+- **Pin to home page banner** (reports): the "Just released" bar on the
+  home page.
+- **Pin to top of /insights** (articles): the featured article.
 
-Taking a pin unticks it on every other report, in Sanity first and then
-Webflow. If two editors pin at once, the later edit wins. The server never
-refills an empty pin: the `/reports` page shows the newest report instead,
-and the banner shows nothing.
+Taking a pin unticks it everywhere else, in Sanity and Webflow. If two
+editors pin at once, the later edit wins. The server never refills an empty
+pin: the banner shows nothing, and the `/insights` featured block shows the
+newest article. The top of `/reports` isn't pinned; it always shows the
+newest report.
 
 ## Insights articles
 
@@ -49,7 +53,9 @@ The same webhook carries Insights articles, which aren't gated.
 - Items the server creates are marked as Sanity-managed. It never updates or
   unpublishes an item without that mark, so a hand-written article with the
   same slug is skipped.
-- Pinning and hiding articles stay in Webflow.
+- A Sanity article's **Pin to top of /insights** clears every other pin on
+  the site, hand-written articles included.
+- Hiding articles stays in Webflow.
 
 ## Known gaps
 

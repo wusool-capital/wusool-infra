@@ -314,6 +314,7 @@ def build_article_sync() -> ArticleSync:
         source=SanityArticleSource(
             project_id=settings.lead_magnet_sanity_project_id,
             dataset=settings.lead_magnet_sanity_dataset,
+            write_token=settings.lead_magnet_sanity_write_token,
         ),
         cms=WebflowInsightsCms(
             token=settings.lead_magnet_webflow_api_token,

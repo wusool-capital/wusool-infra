@@ -3,8 +3,9 @@
 ## What it does
 
 Reports live at `wusoolcapital.com/reports/<slug>`. A new reader sees the
-first page, confirms their email with a 6-digit code, and then gets the full
-report and a PDF. Only confirmed readers become leads.
+free part the editor set (the first page by default), confirms their email
+with a 6-digit code, and then gets the full report and a PDF. Only confirmed
+readers become leads.
 
 ## How it works
 

@@ -10,3 +10,8 @@ class ArticleSourcePort(Protocol):
     async def get(self, slug: str) -> ArticleDocument | None:
         """The published article, read fresh; `None` if unpublished or deleted."""
         ...
+
+    async def unpin_others(self, document_id: str, *, pinned_at: str | None) -> None:
+        """Unticks the pin on every other article, drafts included, last edited no
+        later than `pinned_at`, in one transaction, so the later of two pins wins."""
+        ...

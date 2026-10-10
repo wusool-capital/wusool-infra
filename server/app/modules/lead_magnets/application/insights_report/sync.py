@@ -33,10 +33,10 @@ class ReportSync:
         """`slug` is `None` when the report was deleted or unpublished;
         `previous_slug` differs from it when an editor renamed the slug.
 
-        Pins are level-triggered: every sync writes the report's own ticks, and
-        taking a pin unticks it on the other reports in Sanity and Webflow, so
-        the two always agree. With no pin, the /reports featured block falls
-        back to the newest card by its own sort, and the home banner hides."""
+        The banner pin is level-triggered: every sync writes the report's own
+        tick, and taking it unticks the other reports in Sanity and Webflow, so
+        the two always agree. With no pin, the home banner hides. The /reports
+        featured block is not pinned from here; it shows the newest card."""
         if previous_slug and previous_slug != slug:
             await self._source.refresh(previous_slug)
             await self._unpublish(previous_slug)
@@ -44,8 +44,10 @@ class ReportSync:
             return
 
         source = await self._source.source(slug)
-        if source is not None and source.rendered_from != (version := fingerprint(source.html)):
-            rendered = await self._renderer.render(source.html)
+        if source is not None and source.rendered_from != (
+            version := fingerprint(source.html, source.free_pages)
+        ):
+            rendered = await self._renderer.render(source.html, free_pages=source.free_pages)
             preview, _ = split_report(rendered)
             saved = await self._source.save_rendered(
                 source, html=rendered, preview_end=len(preview), rendered_from=version

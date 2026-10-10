@@ -9,19 +9,20 @@ page on wusoolcapital.com within a few moments.
 1. Create a **Report**, fill in the title, then click **Generate** for the
    slug or type your own.
 2. Pick **Write with**: paste the exported report HTML, or write it in the
-   rich text editor. Either way, new readers see the first page before the
-   form.
-3. Optionally fill in the excerpt, cover image, primary silo, date, and the
-   end-of-page button (text and link).
-4. Optionally tick:
-   - **Pin to top of /reports** to make it the featured card on the reports
-     page.
-   - **Pin to home page banner** to show "Just released: {title}. Get the
-     playbook →" across the top of the home page. Visitors can close the
-     bar; it returns when a different report is pinned.
-
-   Each pin moves from whichever report held it before.
-5. Publish.
+   rich text editor.
+3. Choose how much is free. For pasted HTML, **Free pages** is how many
+   pages readers see before the form (1 if blank; the last page always
+   stays locked). For rich text, **Locked share (%)** is how much sits behind
+   the form, by text length (75 if blank).
+4. Optionally fill in the excerpt, cover image, primary silo, date, and the
+   end-of-page button (text and link). The **SEO** tab sets the search and
+   share titles; blank ones use the title and excerpt.
+5. Optionally tick **Pin to home page banner** to show "Just released:
+   {title}. Get the playbook →" across the top of the home page. It moves
+   from whichever report held it before. Visitors can close the bar; it
+   returns when a different report is pinned. The top of `/reports` always
+   shows the newest report.
+6. Publish.
 
 **Expected result:** the report has a card on `wusoolcapital.com/reports`
 and its own page at `wusoolcapital.com/reports/<slug>`. See
@@ -35,8 +36,8 @@ see.
   republished.
 - **Changing the slug** moves the report to the new URL, and the old URL
   stops working.
-- **Unpublishing** removes its card from `/reports`. If it was pinned, the
-  newest live report takes the pin.
+- **Unpublishing** removes its card from `/reports`. If it held the
+  banner, the banner is hidden until another report is pinned.
 
 ## Publish an Insights article
 
@@ -46,9 +47,13 @@ see.
    body, and optionally the key takeaways and FAQ.
 3. Optionally fill in the cover image, author, silo, SEO fields and the
    end-of-page button. Blank SEO fields use the title and excerpt.
-4. Publish.
+4. Optionally tick **Pin to top of /insights** to make it the featured
+   article. It replaces whichever article is pinned now, hand-written ones
+   included.
+5. Publish.
 
 **Expected result:** the article appears on `wusoolcapital.com/insights`.
-Articles are not gated. Pinning an article isn't available in the Studio;
-pin it in Webflow instead. An existing
+Articles are not gated. Unticking the pin, or unpublishing the pinned
+article, leaves nothing pinned, and the newest article shows at the top
+instead. An existing
 hand-written Webflow article with the same slug is never overwritten.

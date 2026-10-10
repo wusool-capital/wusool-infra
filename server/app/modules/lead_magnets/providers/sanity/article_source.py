@@ -4,6 +4,9 @@ Read only by the publish webhook, so it always uses the uncached API host: the
 CDN can still serve the old document just after a publish. Editors pick rich
 text or pasted HTML per article (`bodyFormat`); either way every rich-text
 field arrives here and leaves as sanitized HTML.
+
+Its only write unticks the `/insights` pin on other articles, with the write
+token. Each one fires that article's webhook, whose sync then updates Webflow.
 """
 
 import json
@@ -23,17 +26,25 @@ logger = logging.getLogger(__name__)
 _RICH = '[]{..., _type == "image" => {"url": asset->url}}'
 _QUERY = (
     '*[_type == "insights" && slug.current == $slug][0]{'
-    '"slug": slug.current, title, contentType, excerpt, bodyFormat, '
+    '_id, featured, "slug": slug.current, title, contentType, excerpt, bodyFormat, '
     f'"body": body{_RICH}, bodyHtml, "keyTakeaways": keyTakeaways{_RICH}, keyTakeawaysHtml, '
     f'"faq": faq{_RICH}, faqHtml, h1, seoTitle, seoDescription, ogTitle, targetKeyword, '
     'publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, author, silo, '
     '"ctaText": cta.text, "ctaUrl": cta.url}'
+)
+# Raw perspective, so open drafts are unticked too; publishing one must not re-pin it.
+_PINNED_QUERY = (
+    '*[_type == "insights" && featured == true'
+    ' && !(_id in [$id, "drafts." + $id]) && !(_id in path("versions.**"))'
+    " && ($pinnedAt == null || dateTime(_updatedAt) <= dateTime($pinnedAt))]._id"
 )
 
 
 class _SanityArticle(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
+    id: str = Field(alias="_id")
+    featured: bool | None = None
     slug: str
     title: str
     content_type: str = Field(alias="contentType")
@@ -73,17 +84,49 @@ class _QueryResponse(BaseModel):
     result: _SanityArticle | None = None
 
 
+class _IdsResponse(BaseModel):
+    result: list[str]
+
+
+class _Featured(BaseModel):
+    featured: bool
+
+
+class _Patch(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    set_: _Featured = Field(alias="set")
+
+
+class _PatchMutation(BaseModel):
+    patch: _Patch
+
+
+class _Mutations(BaseModel):
+    mutations: list[_PatchMutation]
+
+    @classmethod
+    def unpinned(cls, ids: list[str]) -> "_Mutations":
+        return cls(
+            mutations=[
+                _PatchMutation(patch=_Patch(id=i, set_=_Featured(featured=False))) for i in ids
+            ]
+        )
+
+
 class SanityArticleSource:
-    def __init__(self, *, project_id: str, dataset: str, timeout_s: float = 30.0) -> None:
-        self._url = f"https://{project_id}.api.sanity.io/{API_VERSION}/data/query/{dataset}"
+    def __init__(
+        self, *, project_id: str, dataset: str, write_token: str = "", timeout_s: float = 30.0
+    ) -> None:
+        host = f"https://{project_id}.api.sanity.io/{API_VERSION}/data"
+        self._url = f"{host}/query/{dataset}"
+        self._mutate_url = f"{host}/mutate/{dataset}"
+        self._write_token = write_token
         self._timeout_s = timeout_s
 
     async def get(self, slug: str) -> ArticleDocument | None:
-        async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-            response = await client.get(
-                self._url, params={"query": _QUERY, "$slug": json.dumps(slug)}
-            )
-        response.raise_for_status()
+        response = await self._query(_QUERY, slug=slug)
         doc = _QueryResponse.model_validate_json(response.content).result
         if doc is None:
             return None
@@ -93,6 +136,8 @@ class SanityArticleSource:
             logger.warning("insights_article_no_body slug=%s", slug)
             return None
         return ArticleDocument(
+            document_id=doc.id,
+            featured=bool(doc.featured),
             slug=doc.slug,
             title=doc.title,
             content_type=doc.content_type,
@@ -113,3 +158,35 @@ class SanityArticleSource:
             cta_text=doc.cta_text,
             cta_url=doc.cta_url,
         )
+
+    async def unpin_others(self, document_id: str, *, pinned_at: str | None) -> None:
+        found = await self._query(_PINNED_QUERY, raw=True, id=document_id, pinnedAt=pinned_at)
+        ids = _IdsResponse.model_validate_json(found.content).result
+        if ids:
+            await self._mutate(_Mutations.unpinned(ids))
+
+    async def _query(
+        self, query: str, *, raw: bool = False, **params: str | None
+    ) -> httpx.Response:
+        """`raw` reads drafts too, which needs the token."""
+        query_params = {"query": query} | {f"${k}": json.dumps(v) for k, v in params.items()}
+        headers: dict[str, str] = {}
+        if raw:
+            query_params["perspective"] = "raw"
+            headers["Authorization"] = f"Bearer {self._write_token}"
+        async with httpx.AsyncClient(timeout=self._timeout_s) as client:
+            response = await client.get(self._url, params=query_params, headers=headers)
+        response.raise_for_status()
+        return response
+
+    async def _mutate(self, body: _Mutations) -> None:
+        async with httpx.AsyncClient(timeout=self._timeout_s) as client:
+            response = await client.post(
+                self._mutate_url,
+                content=body.model_dump_json(by_alias=True),
+                headers={
+                    "Authorization": f"Bearer {self._write_token}",
+                    "content-type": "application/json",
+                },
+            )
+        response.raise_for_status()
