@@ -9,7 +9,7 @@
 * [WusoolScribe](user-guide/scribe.md)
 * [Attio CRM](user-guide/attio.md)
 * [Website lead tools](user-guide/lead-tools.md)
-* [Publish reports and articles in Sanity](user-guide/publish-in-sanity.md)
+  * [Publish reports and articles in Sanity](user-guide/publish-in-sanity.md)
 * [n8n](user-guide/n8n.md)
 * [Troubleshooting and support](user-guide/troubleshooting.md)
 * [Glossary](user-guide/glossary.md)
