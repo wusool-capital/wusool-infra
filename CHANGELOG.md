@@ -8,6 +8,29 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-10
+
+### Changed
+
+- The client GitBook was reviewed end to end and checked against the code.
+  User guides were rewritten for non-technical staff and reader-tested. They
+  gained a Glossary and a "Publish in Sanity" guide. The Technical section is
+  split into one page per Toolkit module and per lead tool. The discrepancy
+  check and seller discovery have in-depth pages. The Operations pages
+  now give the real deploy and rollback steps, every alarm, what isn't
+  alarmed, and backup coverage.
+- Release notes for 15 September to 10 October were added, grouped by
+  product, and the September notes were rewritten in plain terms.
+- Diagrams were redrawn in Wusool's brand colors, with editable sources in
+  `docs/internal/diagrams/`. The interactive architecture diagram was rebuilt
+  with SES, the Scribe update feed, Google Places, and account security
+  monitoring.
+
+### Removed
+
+- Duplicate GitBook folders left by an earlier export, and an empty export
+  under `docs/untitled/`.
+
 ## 2026-10-08
 
 ### Changed
