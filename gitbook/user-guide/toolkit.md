@@ -122,8 +122,8 @@ Scores, pipeline values, and people references can't be edited from Slack.
 
 **Expected result:** the organization and role appear in Attio.
 
-There is no `/remove-seller` or `/remove-buyer`. Remove roles directly in
-Attio.
+There is no `/remove-seller` or `/remove-buyer`. Ask the CRM owner to remove
+a role in Attio.
 
 ## Research missing details
 

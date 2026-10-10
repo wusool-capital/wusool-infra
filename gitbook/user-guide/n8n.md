@@ -1,5 +1,7 @@
 # n8n
 
+This page is for workflow owners and builders.
+
 n8n is Wusool Capital's self-hosted workflow-automation platform. It has its
 own account and web interface. Changing an active workflow can affect live
 business processes.
@@ -18,8 +20,7 @@ it exists in the other.
 
 Password reset and invitation email depend on the configured mail service.
 If no message arrives, check spam and ask the administrator to confirm your
-address. Some recipients may require verification while email remains in
-sandbox mode.
+address.
 
 ## Inspect or run a workflow
 
@@ -39,7 +40,7 @@ the run.
 Suppose an active workflow stops at **Create CRM record**.
 
 1. Open the failed execution without retrying it.
-2. Inspect that node's input, output, credential reference, and error.
+2. Inspect that node's input, output, the credential it uses, and its error.
 3. Check whether the target CRM already contains the intended record.
 4. Correct the cause in development or with the workflow owner.
 5. Retry only after confirming that completed nodes will not duplicate work.
@@ -60,7 +61,3 @@ node as proof that earlier nodes made no external changes.
 Use the [official n8n documentation](https://docs.n8n.io/) for the editor and
 nodes. For a Wusool workflow, credentials, or business behavior, contact its
 owner.
-
-If a run fails, record the environment, workflow, execution ID, failed node,
-error, and time. Check whether it affected an external system before retrying;
-a retry can duplicate messages or records.
