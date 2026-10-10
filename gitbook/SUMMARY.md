@@ -17,7 +17,6 @@
 ## Technical Documentation
 
 * [Platform architecture](technical-documentation/technical.md)
-* [Architecture diagram](technical-documentation/architecture.md)
 * [Wusool Toolkit](technical-documentation/toolkit.md)
   * [Matching engine](technical-documentation/toolkit-matching.md)
   * [Discrepancy check](technical-documentation/toolkit-discrepancies.md)
