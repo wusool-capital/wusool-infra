@@ -68,9 +68,9 @@ Deleted lines are not sent to Summarize.
 
 ## Summarize a meeting
 
-Generate a summary with the provider chosen in **Settings**: Ollama (runs on
-your Mac), Claude, Groq, OpenRouter, OpenAI, or a custom OpenAI-compatible
-service. Cloud providers receive the transcript text under their own
+Generate a summary with the provider chosen in **Settings**. The built-in
+model and Ollama run on your Mac; Claude, Groq, OpenRouter, OpenAI, and a
+custom OpenAI-compatible service are online. Cloud providers receive the transcript text under their own
 data-handling terms.
 
 Treat every summary as a draft. Check names, figures, decisions, and actions

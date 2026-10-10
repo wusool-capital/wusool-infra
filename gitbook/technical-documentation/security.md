@@ -4,76 +4,104 @@
 
 | Boundary | Control |
 | --- | --- |
-| Slack → Toolkit | Slack Bolt validates request signatures with the signing secret. |
-| WusoolScribe → Toolkit | Every `/desktop/*` call requires a shared bearer API key. |
-| Attio → Toolkit | Webhook signature verification; optional expected-workspace enforcement. |
-| Browser → lead tools | HTTPS, CORS, iframe `frame-ancestors`, validation, idempotency, and rate limiting. |
-| Internet → AWS | Security-group allowlists and Caddy HTTPS termination. |
-| Runtime → services | Scoped instance roles and runtime-supplied third-party secrets. |
-| Operators → instances | Systems Manager normally; SSH only when explicitly configured. |
+| Slack → Toolkit | Slack Bolt verifies every request signature. |
+| WusoolScribe → Toolkit | Every `/desktop/*` call needs the shared desktop key as a bearer token, compared in constant time. |
+| Attio → Toolkit | Webhook signature check (401 on failure); events from another workspace are dropped. |
+| Sanity → Toolkit | HMAC-SHA256 signature with a timestamp; signatures older than 10 minutes are rejected as replays. |
+| Website → lead tools | An allowlist of website origins (403 otherwise) and per-IP rate limits (429). There is no CORS middleware. The allowlist is off if left empty. |
+| Readers → gated reports | A 6-digit emailed code, then an HTTP-only reader cookie that lasts a year. Report and PDF reads have per-IP limits but no origin check. |
+| Toolkit → Sanity, Webflow, Attio, research APIs | API tokens held only in Secrets Manager. |
+| Toolkit → Bedrock, SES | The instance's IAM role; no static keys. |
+| Internet → AWS | Security-group allowlists and HTTPS terminated by Caddy. |
+| Operators → instances | Systems Manager; SSH is closed. |
 
 ## Credentials and access
 
-Application secrets live in AWS Secrets Manager and are read by the relevant
-instance role. GitHub Actions uses AWS OIDC roles rather than committed AWS
-keys. Local `.env` files and optional local AWS credentials are development
-mechanisms and must never be committed. n8n maintains its own users and stored
-workflow credentials.
+Application secrets live in AWS Secrets Manager and are read by each
+instance's role. GitHub Actions uses AWS OIDC roles, never committed keys.
+Local `.env` files are for development only and are never committed. n8n
+keeps its own users and stored credentials.
 
-The Toolkit has no separate Slack-user allowlist beyond membership and
-permissions in the configured Slack workspace/app. Treat app installation
-scope and channel access as part of the authorization boundary.
+The Toolkit has no user allowlist: anyone who can use the bot in its Slack
+channels can run its commands. Slack app installation and channel membership
+are the authorization boundary.
+
+The Toolkit's role can send SES email from any verified identity.
+
+## Rendering editor content
+
+Reports are drawn in headless Chromium, which runs editor-supplied HTML and
+JavaScript. To contain that:
+
+- all network access from the page is blocked;
+- only allowlisted Google Fonts and Sanity CDN images are fetched, by the
+  server rather than the page;
+- each render runs alone, with a 30-second cap.
+
+Insights article bodies are sanitized with an allowlist of tags, and links
+may only use `http`, `https`, or `mailto`.
+
+## Account-level controls
+
+- **GuardDuty and Security Hub** send findings to an email-only security
+  topic.
+- **AWS Chatbot** posts infrastructure alarms to Slack. Security findings go
+  by email only.
+- **CloudTrail** runs per environment, across regions, with log-file
+  validation.
+- RDS and EC2 volumes are encrypted. OpenTofu state is in an encrypted,
+  versioned S3 bucket.
 
 ## Data handling by product
 
 ### Wusool Toolkit
 
-Buyer, seller, meeting-note, and match data is read from PostgreSQL and Attio.
-Requirement extraction, shortlist reasoning, enrichment normalization, and
-server-side meeting summaries go to configured Bedrock models. Firecrawl,
-Diffbot, and People Data Labs receive only enabled lookup inputs. Seller
-discovery sends a buyer's industry/geography terms to Google's Places and
-Geocoding APIs.
+Buyer, seller, meeting-note, and match data is read from PostgreSQL and
+Attio. Requirement extraction, discrepancy notes, shortlist reasoning,
+enrichment, and meeting summaries go to Bedrock. Firecrawl, Diffbot, and
+People Data Labs receive company lookups. Discovery sends industry and
+geography terms to Google Places and the Geocoding API.
 
 ### WusoolScribe
 
-Recording and Whisper transcription run locally. Content leaves the device
-when the user selects a remote summary provider or pushes a meeting. Remote
-providers receive summary content; CRM push sends transcript and metadata to
-the Wusool backend, which uses Bedrock and Attio. Update checks contact the
-distribution feed.
+Recording and transcription run on the Mac. Content leaves it when the user
+picks a remote summary provider or pushes a meeting. The server keeps pushed
+meetings and notes, and creates an Attio note. Transcript lines sent for
+spelling corrections go to Bedrock and aren't stored. Feedback is stored in
+`feedback_submissions`.
 
-### Website lead tools
+### Website lead tools and reports
 
-The backend records submitted identity, company, financial, questionnaire, and
-consent data in `tool_runs` before downstream processing. Relevant inputs may
-go to Bedrock or Firecrawl, then approved fields go to Attio and PostgreSQL.
-Test submissions are stamped `is_test`.
+Submitted identity, company, financial, questionnaire, and consent data is
+recorded in `tool_runs` before anything else happens. Relevant inputs go to
+Bedrock or Firecrawl, then to Attio. Report readers are recorded in
+`tool_runs` with their name, email, company, and the report, but only after
+confirming their code. Test submissions are always flagged.
 
 ### n8n
 
-n8n workflow data and credentials persist in its application volume. A
-workflow can send data to any service its owner configures, so each client
-workflow needs an explicit data-flow and credential review.
+Workflow data and credentials live on its instance volume, which isn't backed
+up. A workflow can send data anywhere its owner configures, so each workflow
+needs its own data-flow review.
 
-## Storage, logging, and examples
+## Logging and examples
 
-RDS and EC2 root volumes are encrypted through infrastructure definitions;
-OpenTofu state uses an encrypted, versioned S3 backend. CloudWatch receives
-selected system/bootstrap and access logs. Application logs must avoid bearer
-tokens, provider keys, transcript bodies, and personal/financial payloads.
-Bootstrap disables shell tracing before reading the n8n secret so values do not
-enter SSM command history or CloudWatch.
+CloudWatch receives selected system, bootstrap, and access logs. Application
+logs must never contain bearer tokens, provider keys, transcript bodies, or
+personal or financial payloads. n8n's bootstrap turns off shell tracing before
+reading its secret, so values never reach SSM history or CloudWatch.
 
-Documentation, tests, screenshots, and support messages must use synthetic or
-redacted people, organizations, credentials, transcripts, and financial data.
+Documentation, tests, screenshots, and support messages use synthetic or
+redacted people, companies, credentials, transcripts, and figures.
 
 ## Security failure behavior
 
-- Authentication and signature failures are rejected before processing.
-- Missing optional provider credentials disable that provider; missing core
+- Failed signatures and authentication are rejected before any processing.
+- Missing optional provider credentials turn that provider off. Missing
   Slack, database, Attio, or desktop credentials stop the affected feature.
-- An incorrect `ATTIO_IS_TEST` value is a data-isolation incident. Stop writes,
-  preserve evidence, correct the environment, and reconcile affected records.
-- Host/process alarms do not guarantee successful CRM sync, n8n workflows,
-  Bedrock calls, or lead completion; operations must check those separately.
+- Lead tools return 403 for a disallowed origin and 429 at the rate limit.
+  The Sanity webhook returns 503 until it is configured.
+- A wrong test-mode setting is a data-isolation incident: stop writes, keep
+  the evidence, correct the setting, and reconcile the affected records.
+- Host alarms don't prove that syncs, workflows, AI calls, or leads
+  succeeded; check those separately.
