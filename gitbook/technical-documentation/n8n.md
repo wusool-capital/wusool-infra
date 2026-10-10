@@ -32,6 +32,8 @@ The security-group rule for it has no effect.
 
 ## Data flow
 
+![How a request reaches n8n](../.gitbook/assets/n8n-runtime.svg)
+
 Users and webhook callers reach Caddy over HTTPS, and Caddy forwards to n8n.
 Workflows call their own configured services with credentials stored in n8n.
 Code nodes run in the separate runner container. All state lives in Docker

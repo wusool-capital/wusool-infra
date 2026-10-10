@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How the nightly resync runs</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f7f5f0; color: #000523; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    .eyebrow { font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em;
+      text-transform: uppercase; color: #56596b; margin-bottom: 0.5rem; }
+    h1 { font-family: serif; font-size: 2rem; font-weight: 400; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 720px; display: block; }
+    @media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Flowchart · Wusool docs</p>
+    <h1>How the nightly resync runs</h1>
+    <div class="diagram-container">
+      <svg viewBox="0 0 720 784" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="attio-resync-title attio-resync-desc">
+        <title id="attio-resync-title">How the nightly resync runs</title>
+        <desc id="attio-resync-desc">Flowchart: a scheduled workflow signs in, runs the resync inside the Toolkit container over SSM, reconciles each object, checks counts, and alerts on failure.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="260" y1="64" x2="260" y2="96" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="144" x2="260" y2="176" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="364" y1="216" x2="440" y2="216" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="256" x2="260" y2="288" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="336" x2="260" y2="368" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="416" x2="260" y2="448" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="496" x2="260" y2="528" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="364" y1="568" x2="440" y2="568" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="608" x2="260" y2="640" stroke="#336a85" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<rect x="390" y="196" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="205" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="268" y="266" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="282" y="275" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="390" y="548" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="557" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="268" y="618" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="282" y="627" fill="#336a85" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="140" y="24" width="240" height="40" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="24" width="240" height="40" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="260" y="41" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">22:00 UTC schedule</text>
+<text x="260" y="55" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">02:00 in Dubai</text>
+<rect x="140" y="96" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="117" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Sign in with OIDC</text>
+<text x="260" y="131" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">GitHub Actions to AWS</text>
+<polygon points="260,176 364,216 260,256 156,216" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Toolkit instance</text>
+<text x="260" y="227" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">running?</text>
+<rect x="440" y="192" width="216" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="440" y="192" width="216" height="48" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="548" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Skip with a warning</text>
+<text x="548" y="227" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">nothing is resynced</text>
+<rect x="140" y="288" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="309" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Run the resync over SSM</text>
+<text x="260" y="323" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">inside the deployed image</text>
+<rect x="140" y="368" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="389" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Reconcile each object</text>
+<text x="260" y="403" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">users, orgs, people/deals, roles, notes</text>
+<rect x="140" y="448" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="469" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Reconcile deletions and roles</text>
+<text x="260" y="483" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">soft deletes · is_active to Attio</text>
+<polygon points="260,528 364,568 260,608 156,568" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="565" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Counts</text>
+<text x="260" y="579" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">match?</text>
+<rect x="440" y="544" width="216" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="548" y="565" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Fail and alert</text>
+<text x="548" y="579" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">production alerts topic</text>
+<rect x="140" y="640" width="240" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="640" width="240" height="48" rx="20" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="260" y="668" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Mirror verified</text>
+<line x1="24" y1="728" x2="696" y2="728" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
+<text x="24" y="744" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="756" width="24" height="12" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="56" y="765" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Start / end</text>
+<rect x="144" y="756" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="176" y="765" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Step</text>
+<polygon points="228,762 240,756 252,762 240,768" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="765" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Decision</text>
+<line x1="332" y1="762" x2="356" y2="762" stroke="#336a85" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<text x="364" y="765" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Main path</text>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>

@@ -7,6 +7,8 @@ with the methods behind it. The report adds a strategic read of the business.
 
 ## How it works
 
+![How a valuation is built](../.gitbook/assets/lead-valuation.svg)
+
 The page calls three stateless endpoints while the visitor is still in the
 tool, then records the result:
 

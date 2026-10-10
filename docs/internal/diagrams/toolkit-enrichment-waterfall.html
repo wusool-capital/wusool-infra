@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How enrichment finds values</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f7f5f0; color: #000523; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    .eyebrow { font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em;
+      text-transform: uppercase; color: #56596b; margin-bottom: 0.5rem; }
+    h1 { font-family: serif; font-size: 2rem; font-weight: 400; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 720px; display: block; }
+    @media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Flowchart · Wusool docs</p>
+    <h1>How enrichment finds values</h1>
+    <div class="diagram-container">
+      <svg viewBox="0 0 720 728" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="toolkit-enrichment-waterfall-title toolkit-enrichment-waterfall-desc">
+        <title id="toolkit-enrichment-waterfall-title">How enrichment finds values</title>
+        <desc id="toolkit-enrichment-waterfall-desc">Flowchart: list the empty fields, ask Diffbot, then People Data Labs for what it missed, then a web search with Bedrock as the last resort, and post a proposal to review.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="260" y1="64" x2="260" y2="96" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="144" x2="260" y2="176" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="224" x2="260" y2="256" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="304" x2="260" y2="336" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="384" x2="260" y2="416" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="364" y1="456" x2="440" y2="456" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="496" x2="260" y2="528" stroke="#336a85" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<line x1="260" y1="576" x2="260" y2="608" stroke="#336a85" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<rect x="390" y="436" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="445" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="268" y="506" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="282" y="515" fill="#336a85" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="120" y="24" width="280" height="40" rx="20" fill="#f7f5f0"/>
+<rect x="120" y="24" width="280" height="40" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="260" y="48" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">/enrich-seller or /enrich-buyer</text>
+<rect x="140" y="96" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="117" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">List the empty fields</text>
+<text x="260" y="131" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">current values from the database</text>
+<rect x="140" y="176" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="197" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Diffbot</text>
+<text x="260" y="211" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">structured company data</text>
+<rect x="140" y="256" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="277" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">People Data Labs</text>
+<text x="260" y="291" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">only what Diffbot missed</text>
+<rect x="140" y="336" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="357" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Firecrawl + Bedrock</text>
+<text x="260" y="371" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">web search · weak values dropped</text>
+<polygon points="260,416 364,456 260,496 156,456" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="453" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Values</text>
+<text x="260" y="467" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">found?</text>
+<rect x="440" y="432" width="216" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="440" y="432" width="216" height="48" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="548" y="453" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">No changes</text>
+<text x="548" y="467" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">nothing to review</text>
+<rect x="140" y="528" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="549" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Review &amp; Save</text>
+<text x="260" y="563" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">proposal · real edit form</text>
+<rect x="140" y="608" width="240" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="608" width="240" height="48" rx="20" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="260" y="629" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Reviewed values saved</text>
+<text x="260" y="643" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">existing values kept</text>
+<line x1="24" y1="672" x2="696" y2="672" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
+<text x="24" y="688" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="700" width="24" height="12" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="56" y="709" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Start / end</text>
+<rect x="144" y="700" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="176" y="709" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Step</text>
+<polygon points="228,706 240,700 252,706 240,712" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="709" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Decision</text>
+<line x1="332" y1="706" x2="356" y2="706" stroke="#336a85" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<text x="364" y="709" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Main path</text>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>
