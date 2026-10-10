@@ -177,7 +177,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /buyer/apply` | serves | No blocking model call; a best-effort Haiku qualification note, never shown to the applicant |
 | `POST /get-started` | serves | No model at all — pure seller lead capture; the form's own figures go straight to `seller_role` |
 | `POST /submit-lead` | serves | No model call at all — the blended valuation is entirely deterministic, computed inline from the visitor's `/compare` comps and `/analyze` discounts, DCF overrides and search terms |
-| `GET /reports/{slug}` | serves | Gated insights report: the first page for a new reader, the whole report for a returning one |
+| `GET /reports/{slug}` | serves | Gated insights report: the free part for a new reader, the whole report for a returning one |
 | `POST /reports/{slug}/unlock` | serves | The report gate (name, email, optional organisation); emails a 6-digit code through SES and returns a `challenge_id`. Records nothing |
 | `POST /reports/{slug}/unlock/verify` | serves | Takes `{challenge_id, code}`. On a match it returns the whole report and records the reader. A wrong code is 400; an expired, used-up or unknown code is 410 |
 | `GET /reports/{slug}/pdf` | serves | The whole report as an A4 PDF, printed per download; 403 until the reader unlocks |
@@ -198,7 +198,7 @@ completion opens its own session, so an uncommitted row is invisible to it.
 
 The business publishes a report in the Sanity Studio (`sanity/` at the repo
 root). The report then appears at `wusoolcapital.com/reports/<slug>` with
-the first page open and the rest behind one short form. There are three parts:
+its free part open and the rest behind one short form. There are three parts:
 
 - **Content.** `providers/sanity/report_source.py` reads the published report
   over GROQ and caches it, misses included, for 5 minutes per process. The
@@ -222,11 +222,14 @@ the first page open and the rest behind one short form. There are three parts:
   they can't leak into the preview.
 - **Rich text reports.** Editors can write a report in the Studio instead of
   pasting HTML. `providers/sanity/portable_text.py::rich_report` turns it into
-  a styled page (title, DM Sans, A4 print margins) and marks the gate at about
-  the first quarter, since it has no pages; the serializer keeps a mark it
-  finds. From there it follows the pasted path: render, gate, save, PDF.
+  a styled page (title, DM Sans, A4 print margins) and marks the gate at the
+  editor's `lockedPercent` of the text (75% locked by default), since it has
+  no pages; the serializer keeps a mark it finds. From there it follows the pasted path: render, gate, save, PDF.
 - **Gate.** `domain/insights_report/split.py` cuts between block elements,
-  never at an inline tag, before page two, or at a text share when the renderer set no mark. `GET /reports/{slug}` never sends the
+  never at an inline tag. A paged export is cut after the editor's `freePages`
+  (1 by default, never the last page), an export without pages after its
+  first block, and a rich report at its own mark. `freePages` is part of the
+  render fingerprint, so changing it re-renders. `GET /reports/{slug}` never sends the
   rest to a new reader.
   - `POST /reports/{slug}/unlock` emails a one-time code
     (`application/insights_report/unlock.py`). Nothing reaches `tool_runs`
@@ -313,8 +316,15 @@ endpoint routes on the projected `type`.
   creates carry `sanity-managed`; it never updates or unpublishes one
   without it, so a slug clash with a hand-written article is skipped and
   logged (`insights_article_sync_skipped_unmanaged`). It never writes
-  `featured` or `hide-from-listings`. Content type, silo and author are
+  `hide-from-listings` or `gated`. Content type, silo and author are
   resolved to Webflow ids by name; an unknown content type fails the sync.
+- **Pin.** `featured` is the one field shared with hand-written items. A
+  pinned article clears `featured` on every other live item, then unticks
+  other Sanity articles (raw perspective, drafts included, later pin wins),
+  with the write token. When a sync releases the pin (untick, unpublish,
+  delete) and neither Sanity nor Webflow holds one, it ticks the newest other
+  published Sanity article, whose own webhook pins Webflow; with none, it
+  pins the newest listed hand-written item directly.
 - **Plumbing.** `providers/webflow/collection.py` holds the Webflow API code
   both providers share: live create, staged update then publish, unpublish,
   and option lookups.

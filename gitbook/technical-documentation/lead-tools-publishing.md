@@ -18,11 +18,13 @@ Webflow Insights items.
    server opens each new version once in headless Chromium, with the network
    blocked, one render at a time, and a 30-second cap. It saves the drawn
    page and the preview cut back to Sanity. Readers are only ever served this
-   stored copy.
-3. **Rich text reports** are turned into a styled A4 page first, then follow
-   the same path.
+   stored copy. The cut follows the editor's **Free pages** setting: one by
+   default, and never the last page. Changing it renders the report again.
+3. **Rich text reports** become a styled A4 page first, cut at the editor's
+   **Locked share** (75% by default). Then they follow the same path.
 4. **Card.** The server creates or updates the report's card in Webflow's
-   Reports collection. Cards go live without a Webflow site publish.
+   Reports collection. Its SEO title, description and share title come from
+   the report's SEO tab, or the title and excerpt when blank. Cards go live without a Webflow site publish.
 
 A failed sync is only logged; republishing the report repairs it. A newer
 render always wins over an older one that finishes late. The webhook returns
@@ -49,7 +51,12 @@ The same webhook carries Insights articles, which aren't gated.
 - Items the server creates are marked as Sanity-managed. It never updates or
   unpublishes an item without that mark, so a hand-written article with the
   same slug is skipped.
-- Pinning and hiding articles stay in Webflow.
+- **Pin to top of /insights** works across hand-written and Sanity
+  articles: a Sanity pin clears every other pin on the site.
+- If the pinned article is unpinned, unpublished or deleted, and nothing
+  else is pinned, the newest Sanity article takes the pin. With none, the
+  newest hand-written one does.
+- Hiding articles stays in Webflow.
 
 ## Known gaps
 

@@ -39,7 +39,7 @@ Terms used across this guide, in plain words.
 
 | Term | Meaning |
 | --- | --- |
-| **Gated report** | A report that shows its first page, then asks the reader to confirm their email to read the rest. |
+| **Gated report** | A report that shows its free part (the first page by default), then asks the reader to confirm their email to read the rest. |
 | **Slug** | The last part of a page's web address, for example `gcc-healthcare` in `/reports/gcc-healthcare`. |
 | **Silo** | The website topic a report or article is filed under, such as Business Valuation or Exit Strategy. |
 | **Pin** | Feature a report at the top of `/reports` or in the home page banner. |

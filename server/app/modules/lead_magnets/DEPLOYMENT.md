@@ -275,8 +275,11 @@ back into Insights.
 The Insights collection has a hidden **Sanity managed** switch (added
 2026-10-07, off on every existing article). The sync sets it on items it
 creates and updates or unpublishes only those, so hand-written articles are
-never overwritten. Don't toggle it by hand. The sync never writes
-**Featured** or **Hide from listings**; pins stay manual.
+never overwritten. Don't toggle it by hand. The sync writes **Featured**,
+on hand-written items too, because Insights pins are set from the Studio
+(see `sanity/README.md`); it never writes **Hide from listings** or
+**Gated**. A pin set by hand in Webflow still works until a Sanity article
+takes it.
 
 Dev writes to test collections only, set in the `/wusool/dev/toolkit`
 secret (2026-10-07): `LEAD_MAGNET_WEBFLOW_REPORTS_COLLECTION_ID` is

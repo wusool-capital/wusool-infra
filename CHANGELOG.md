@@ -12,6 +12,15 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Editors control more from the Sanity Studio. The rich text editor gained
+  headings 5 and 6, underline, strikethrough, code, superscript and
+  subscript. Links can open in a new tab. Reports gained their own SEO title,
+  description and share title. Each report sets how much is free: a number
+  of pages for pasted HTML, or a locked share for rich text. Insights articles can be pinned to the top of `/insights`
+  from the Studio. When the pinned article is unpinned or removed, the
+  newest Sanity article takes its place, or else the newest hand-written
+  one. Studio fields are grouped into Content, SEO and Publishing tabs.
+
 - The client GitBook was reviewed end to end and checked against the code.
   User guides were rewritten for non-technical staff and reader-tested. They
   gained a Glossary and a "Publish in Sanity" guide. The Technical section is

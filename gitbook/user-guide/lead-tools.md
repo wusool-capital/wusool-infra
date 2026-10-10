@@ -46,8 +46,8 @@ submit again.
 Reports live at `wusoolcapital.com/reports`. Older `/insights` links to a
 report redirect to its new page.
 
-1. A new reader sees the first page, then a short form: name, email, and an
-   optional organization.
+1. A new reader sees the free part (the first page by default), then a short
+   form: name, email, and an optional organization.
 2. The form emails a 6-digit code. The code expires after 10 minutes; use
    **Resend code** or **Use a different email** if needed.
 3. Entering the code opens the full report and its **Download PDF** button.
