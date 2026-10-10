@@ -57,7 +57,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 ### What's new
 
 * Scribe stops recording automatically when a meeting ends. A pill counts down 15 seconds, with "Keep" and "Stop now" buttons. It never triggers when no meeting app was seen. Turn it off in Settings.
-* Refreshed meeting popups share one card design with the WusoolScribe logo. "Record" and "Stop now" open the home page.
+* Refreshed meeting popups share one card design with the WusoolScribe logo. "Record" and "Stop now" open the home page. Changed in 0.7.5.
 
 ### Fixed
 

@@ -49,4 +49,9 @@
 ## Release Notes
 
 * [Scribe changelog](release-notes/scribe-changelog.md)
+* [October 2026](release-notes/october-2026.md)
+  * [Wusool Toolkit](release-notes/october-2026-toolkit.md)
+  * [Website lead tools and reports](release-notes/october-2026-website.md)
+  * [WusoolScribe](release-notes/october-2026-scribe.md)
+  * [Platform, data, and documentation](release-notes/october-2026-platform.md)
 * [September 2026](release-notes/september-2026.md)
