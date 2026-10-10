@@ -8,8 +8,8 @@ information.
 
 1. Sign in to the Wusool Attio workspace using your administrator's invite.
 2. Use global search for the organization or person's name.
-3. Open the organization, then follow its linked buyer, seller, person, deal,
-   or mandate records as needed.
+3. Open the organization, then follow its linked buyer, seller, person, or
+   deal records as needed.
 4. Check similar names and domains before creating anything new.
 
 **Expected result:** the record shows its current attributes, related records,
@@ -19,8 +19,10 @@ notes, and activities according to your permissions.
 | --- | --- |
 | Toolkit additions and edits | Organization and linked buyer or seller |
 | Scribe meeting output | Note on the selected organization/role, or a general note without an organization |
-| Valuation, readiness, or benchmark submission | Organization and seller context |
-| Buyer Network application | Organization and buyer context |
+| Approved Toolkit match | A Qualified Buy-side deal for that buyer and seller |
+| Valuation, Readiness, Benchmark, or Get Started submission | Organization and seller context |
+| Buyer Network application | Organization, with one buyer role per sector chosen |
+| Gated report reader | A person, plus an organization if they gave one |
 
 The exact lists and views depend on workspace configuration and permissions.
 Search the underlying record if a saved view does not show an expected lead.
@@ -36,9 +38,8 @@ operator changed its seller revenue.
 4. Check the activity time against the Toolkit confirmation.
 
 **Expected result:** the existing organization and seller show the updated
-value; no second organization was created. If the update is absent, wait for
-the normal synchronization delay, then report the record URL, field, and edit
-time. Do not create a replacement record to work around a delayed update.
+value; no second organization was created. Don't create a replacement record
+to work around a missing update; see below.
 
 ## Edit safely
 
@@ -46,17 +47,15 @@ time. Do not create a replacement record to work around a delayed update.
   near-duplicates.
 - Keep domains and identifying details accurate because integrations use them
   to match records.
-- Direct Attio changes are copied to the Wusool database by a real-time
-  webhook and scheduled resynchronization. A brief delay does not necessarily
-  mean the change failed.
+- Changes made directly in Attio reach the other tools within a few minutes.
 - Use Toolkit for guided buyer/seller forms and Attio for fields or
   relationships the Slack forms do not expose.
 
-**Expected result:** a saved change appears in Attio immediately and later in
-connected systems. If it remains missing after the normal sync delay, report
-the record URL, field, and approximate edit time.
+If a change is still missing elsewhere after a few minutes, report the record
+URL, field, and approximate edit time.
 
 {% hint style="warning" %}
-Do not merge, delete, or restructure CRM records unless the CRM owner confirms
-the procedure. Toolkit does not provide role-removal commands.
+Leave merging or deleting organizations, roles, and deals to the CRM owner.
+Toolkit has no commands for these. You can remove your own Scribe meeting
+notes from Scribe.
 {% endhint %}

@@ -314,8 +314,10 @@ fixed-page documents.
 
 While locked, `#gate` overlays the end of the preview: the last stretch is
 blurred behind the "Keep reading" card, and the page ends at the card. The
-preview ends at 25% of the report's drawn height. The renderer marks that
-block with `data-wusool-gate`, and the server cuts there.
+preview ends where the editor set it: after the free pages of a paged export,
+after the first block of one without pages, or at the locked share of a rich
+text report. That block carries `data-wusool-gate`, and the server cuts
+there.
 
 The report's own `<style>` applies to the whole iframe document. The gate's
 rules are therefore all scoped under `#gate`. Nothing in a report can run

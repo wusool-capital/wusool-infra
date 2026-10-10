@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 720 784" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="sanity-publish-title sanity-publish-desc" id="sanity-publish-root">
+        <title id="sanity-publish-title">How a Sanity publish reaches the website</title>
+        <desc id="sanity-publish-desc">Flowchart: Sanity sends a signed webhook, the server replies 202 and syncs in the background, rendering and carding reports or sanitizing articles for Webflow.</desc>
+        <defs>
+      <style>#sanity-publish-root { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #000523; }
+      #sanity-publish-root .diagram-container { width: 100%; overflow-x: auto; }
+      #sanity-publish-root .diagram-container { overflow-x: visible; }</style>
+          <marker id="sanity-publish-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="sanity-publish-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="sanity-publish-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="260" y1="64" x2="260" y2="96" stroke="#56596b" stroke-width="1.2" marker-end="url(#sanity-publish-arrow)"/>
+<line x1="260" y1="144" x2="260" y2="176" stroke="#56596b" stroke-width="1.2" marker-end="url(#sanity-publish-arrow)"/>
+<line x1="364" y1="216" x2="440" y2="216" stroke="#56596b" stroke-width="1.2" marker-end="url(#sanity-publish-arrow)"/>
+<line x1="260" y1="256" x2="260" y2="288" stroke="#56596b" stroke-width="1.2" marker-end="url(#sanity-publish-arrow)"/>
+<line x1="260" y1="336" x2="260" y2="368" stroke="#56596b" stroke-width="1.2" marker-end="url(#sanity-publish-arrow)"/>
+<line x1="364" y1="408" x2="440" y2="408" stroke="#56596b" stroke-width="1.2" marker-end="url(#sanity-publish-arrow)"/>
+<line x1="260" y1="448" x2="260" y2="480" stroke="#56596b" stroke-width="1.2" marker-end="url(#sanity-publish-arrow)"/>
+<line x1="260" y1="528" x2="260" y2="560" stroke="#56596b" stroke-width="1.2" marker-end="url(#sanity-publish-arrow)"/>
+<line x1="260" y1="608" x2="260" y2="640" stroke="#336a85" stroke-width="1.4" marker-end="url(#sanity-publish-arrow-accent)"/>
+<rect x="390" y="196" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="205" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="268" y="266" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="282" y="275" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="390" y="388" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="397" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="268" y="458" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="282" y="467" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="120" y="24" width="280" height="40" rx="20" fill="#f7f5f0"/>
+<rect x="120" y="24" width="280" height="40" rx="20" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="260" y="48" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Editor publishes in Sanity</text>
+<rect x="140" y="96" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="117" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Signed webhook arrives</text>
+<text x="260" y="131" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">POST /reports/webhooks/sanity</text>
+<polygon points="260,176 364,216 260,256 156,216" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Signature valid</text>
+<text x="260" y="227" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">and fresh?</text>
+<rect x="440" y="192" width="216" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="440" y="192" width="216" height="48" rx="20" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="548" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Rejected</text>
+<text x="548" y="227" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">401 · replays refused</text>
+<rect x="140" y="288" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="309" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Reply 202, sync in background</text>
+<text x="260" y="323" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Sanity never times out</text>
+<polygon points="260,368 364,408 260,448 156,408" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="412" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Report?</text>
+<rect x="440" y="384" width="216" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="548" y="405" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Sanitize and publish</text>
+<text x="548" y="419" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Webflow Insights item</text>
+<rect x="140" y="480" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="501" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Render in Chromium</text>
+<text x="260" y="515" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">network blocked · 30 s cap</text>
+<rect x="140" y="560" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="581" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Create or update the card</text>
+<text x="260" y="595" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Webflow Reports · pins synced</text>
+<rect x="140" y="640" width="240" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="640" width="240" height="48" rx="20" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="260" y="668" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Live on the website</text>
+<line x1="24" y1="728" x2="696" y2="728" stroke="#000523" stroke-opacity="0.10" stroke-width="0.8"/>
+<text x="24" y="744" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="756" width="24" height="12" rx="6" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="56" y="765" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Start / end</text>
+<rect x="144" y="756" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="176" y="765" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Step</text>
+<polygon points="228,762 240,756 252,762 240,768" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="765" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Decision</text>
+<line x1="332" y1="762" x2="356" y2="762" stroke="#336a85" stroke-width="1.4" marker-end="url(#sanity-publish-arrow-accent)"/>
+<text x="364" y="765" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Main path</text>
+      </svg>

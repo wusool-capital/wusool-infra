@@ -74,7 +74,7 @@ P1 — Treat confirmed data loss or corruption as P0.
    do not retry until the live revision and affected objects are verified.
 5. For suspected data loss, preserve the existing RDS instance and follow the
    planned snapshot/point-in-time recovery procedure in
-   `gitbook/operations/backups-and-recovery.md`. Restoring to a new isolated RDS
+   `gitbook/operations-and-handover/backups-and-recovery.md`. Restoring to a new isolated RDS
    instance and validating Attio reconciliation requires explicit human
    approval.
 

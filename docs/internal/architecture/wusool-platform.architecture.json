@@ -9,8 +9,12 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "8f0a14fa2a12fb2bff733330d5d9446bed7b9f41"
-    }
+      "revision": "14c167a20bb1649efac315d0f23f6342efe331d5"
+    },
+    "viewBox": [
+      1300,
+      760
+    ]
   },
   "components": [
     {
@@ -18,46 +22,101 @@
       "type": "external",
       "label": "Slack users",
       "sublabel": "commands + interactions",
-      "pos": [40, 170],
-      "size": [150, 64],
-      "sources": [{ "path": "server/main.py", "label": "Slack entrypoint" }]
+      "pos": [
+        40,
+        250
+      ],
+      "size": [
+        220,
+        56
+      ],
+      "sources": [
+        {
+          "path": "server/main.py",
+          "label": "Slack entrypoint"
+        }
+      ]
     },
     {
       "id": "website",
       "type": "external",
       "label": "Website visitors",
       "sublabel": "lead magnets",
-      "pos": [40, 300],
-      "size": [150, 64],
-      "sources": [{ "path": "gitbook/technical/lead-tools.md", "label": "Lead tools" }]
+      "pos": [
+        40,
+        318
+      ],
+      "size": [
+        180,
+        56
+      ],
+      "sources": [
+        {
+          "path": "gitbook/technical-documentation/lead-tools.md",
+          "label": "Lead tools"
+        }
+      ]
     },
     {
       "id": "scribe",
       "type": "external",
       "label": "WusoolScribe",
       "sublabel": "desktop meeting API",
-      "pos": [40, 430],
-      "size": [150, 64],
-      "sources": [{ "path": "gitbook/technical/scribe.md", "label": "Scribe flow" }]
+      "pos": [
+        40,
+        460
+      ],
+      "size": [
+        220,
+        56
+      ],
+      "sources": [
+        {
+          "path": "gitbook/technical-documentation/scribe.md",
+          "label": "Scribe flow"
+        }
+      ]
     },
     {
       "id": "attio",
       "type": "external",
       "label": "Attio",
       "sublabel": "CRM of record",
-      "pos": [330, 80],
-      "size": [150, 64],
-      "sources": [{ "path": "gitbook/technical/attio-sync.md", "label": "CRM sync" }]
+      "pos": [
+        528,
+        20
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "sources": [
+        {
+          "path": "gitbook/technical-documentation/attio-sync.md",
+          "label": "CRM sync"
+        }
+      ]
     },
     {
       "id": "toolkit",
       "type": "backend",
       "label": "Wusool Toolkit",
-      "sublabel": "FastAPI + Slack Bolt",
+      "sublabel": "FastAPI + Slack Bolt + Caddy",
       "tag": "EC2 / Docker",
-      "pos": [330, 280],
-      "size": [170, 70],
-      "sources": [{ "path": "server/main.py", "label": "Deployed entrypoint" }]
+      "pos": [
+        470,
+        220
+      ],
+      "size": [
+        300,
+        300
+      ],
+      "sources": [
+        {
+          "path": "server/main.py",
+          "label": "Deployed entrypoint"
+        }
+      ]
     },
     {
       "id": "postgres",
@@ -65,27 +124,64 @@
       "label": "PostgreSQL",
       "sublabel": "private RDS / wusool_crm",
       "tag": "encrypted",
-      "pos": [620, 300],
-      "size": [170, 70],
-      "sources": [{ "path": "infrastructure/terraform/modules/postgres-rds/main.tf", "label": "RDS module" }]
+      "pos": [
+        980,
+        335
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "sources": [
+        {
+          "path": "infrastructure/terraform/modules/postgres-rds/main.tf",
+          "label": "RDS module"
+        }
+      ]
     },
     {
       "id": "bedrock",
       "type": "cloud",
       "label": "AWS Bedrock",
       "sublabel": "matching + summaries",
-      "pos": [620, 105],
-      "size": [170, 64],
-      "sources": [{ "path": "gitbook/technical/toolkit.md", "label": "AI dependency" }]
+      "pos": [
+        980,
+        255
+      ],
+      "size": [
+        180,
+        60
+      ],
+      "sources": [
+        {
+          "path": "gitbook/technical-documentation/toolkit.md",
+          "label": "AI dependency"
+        }
+      ]
     },
     {
       "id": "research",
       "type": "external",
       "label": "Research providers",
-      "sublabel": "Firecrawl + Diffbot + PDL",
-      "pos": [620, 500],
-      "size": [190, 64],
-      "sources": [{ "path": "gitbook/technical/toolkit.md", "label": "Enrichment providers" }]
+      "sublabel": "Firecrawl · Diffbot · PDL · Google Places",
+      "pos": [
+        1000,
+        650
+      ],
+      "size": [
+        250,
+        64
+      ],
+      "sources": [
+        {
+          "path": "server/app/modules/enrichment/README.md",
+          "label": "Enrichment providers"
+        },
+        {
+          "path": "server/app/modules/discovery/providers/google_places/client.py",
+          "label": "Google Places"
+        }
+      ]
     },
     {
       "id": "n8n",
@@ -93,103 +189,310 @@
       "label": "n8n",
       "sublabel": "Caddy + Docker Compose",
       "tag": "EC2 / persistent volume",
-      "pos": [930, 280],
-      "size": [180, 70],
-      "sources": [{ "path": "gitbook/technical/n8n.md", "label": "n8n runtime" }]
+      "pos": [
+        980,
+        130
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "gitbook/technical-documentation/n8n.md",
+          "label": "n8n runtime"
+        }
+      ]
     },
     {
       "id": "github",
       "type": "cloud",
       "label": "GitHub Actions",
-      "sublabel": "build + OpenTofu + SSM",
-      "pos": [930, 80],
-      "size": [180, 64],
-      "sources": [{ "path": ".github/workflows/_deploy.yml", "label": "Deployment flow" }]
+      "sublabel": "OIDC · build · OpenTofu · SSM",
+      "pos": [
+        980,
+        20
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": ".github/workflows/_deploy.yml",
+          "label": "Deployment flow"
+        },
+        {
+          "path": ".github/workflows/nightly-attio-sync.yml",
+          "label": "Nightly resync"
+        }
+      ]
     },
     {
       "id": "operations",
       "type": "security",
       "label": "AWS operations",
-      "sublabel": "SSM + CloudWatch + Secrets Manager",
-      "pos": [930, 500],
-      "size": [210, 64],
-      "sources": [{ "path": "gitbook/operations/monitoring-and-incidents.md", "label": "Operations" }]
+      "sublabel": "SSM access · logs · Secrets",
+      "pos": [
+        980,
+        520
+      ],
+      "size": [
+        200,
+        64
+      ],
+      "sources": [
+        {
+          "path": "gitbook/operations-and-handover/monitoring-and-incidents.md",
+          "label": "Operations"
+        },
+        {
+          "path": "infrastructure/terraform/stacks/account/main.tf",
+          "label": "Account security + alerts"
+        }
+      ]
     },
     {
       "id": "sanity",
       "type": "external",
       "label": "Sanity",
       "sublabel": "reports and articles",
-      "pos": [330, 600],
-      "size": [170, 64],
-      "sources": [{ "path": "sanity/README.md", "label": "Reports Studio" }]
+      "pos": [
+        40,
+        390
+      ],
+      "size": [
+        180,
+        56
+      ],
+      "sources": [
+        {
+          "path": "sanity/README.md",
+          "label": "Reports Studio"
+        }
+      ]
     },
     {
       "id": "webflow",
       "type": "external",
       "label": "Webflow CMS",
       "sublabel": "Reports + Insights",
-      "pos": [40, 600],
-      "size": [150, 64],
-      "sources": [{ "path": "server/app/modules/lead_magnets/providers/webflow/reports_cms.py", "label": "Reports card sync" }]
+      "pos": [
+        40,
+        660
+      ],
+      "size": [
+        170,
+        56
+      ],
+      "sources": [
+        {
+          "path": "server/app/modules/lead_magnets/providers/webflow/reports_cms.py",
+          "label": "Reports card sync"
+        }
+      ]
+    },
+    {
+      "id": "ses",
+      "type": "cloud",
+      "label": "Amazon SES",
+      "sublabel": "lead emails + report codes",
+      "pos": [
+        980,
+        425
+      ],
+      "size": [
+        180,
+        60
+      ],
+      "sources": [
+        {
+          "path": "server/app/modules/notifications/providers/ses/mailer.py",
+          "label": "SES mailer"
+        }
+      ]
+    },
+    {
+      "id": "scribe_updates",
+      "type": "cloud",
+      "label": "Scribe update feed",
+      "sublabel": "S3 + CloudFront",
+      "pos": [
+        40,
+        560
+      ],
+      "size": [
+        220,
+        56
+      ],
+      "sources": [
+        {
+          "path": "infrastructure/terraform/stacks/scribe-updates/main.tf",
+          "label": "Update feed stack"
+        },
+        {
+          "path": ".github/workflows/scribe-release.yml",
+          "label": "Release workflow"
+        }
+      ]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
       "label": "AWS eu-central-1",
-      "wraps": ["toolkit", "postgres", "n8n", "bedrock", "operations"],
+      "wraps": [
+        "toolkit",
+        "postgres",
+        "n8n",
+        "bedrock",
+        "operations",
+        "ses"
+      ],
       "pad": 24
     },
     {
       "kind": "security-group",
-      "label": "private database boundary",
-      "wraps": ["postgres"],
-      "pad": 14
+      "label": "private database",
+      "wraps": [
+        "postgres"
+      ],
+      "pad": 10
     }
   ],
   "connections": [
-    { "from": "slack", "to": "toolkit", "label": "HTTPS /slack/events", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [195, 248] },
-    { "from": "website", "to": "toolkit", "label": "HTTPS lead magnets", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [205, 290] },
-    { "from": "scribe", "to": "toolkit", "label": "HTTPS /desktop/*", "variant": "emphasis", "fromSide": "right", "toSide": "left", "route": "orthogonal-h", "labelAt": [205, 410] },
-    { "from": "attio", "to": "toolkit", "label": "signed POST /webhooks/attio", "variant": "security" },
-    { "from": "toolkit", "to": "attio", "label": "CRM writes", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "via": [[415, 220], [450, 220], [450, 190], [405, 190]], "labelAt": [470, 180] },
-    { "from": "toolkit", "to": "postgres", "label": "SQL / DATABASE_URL", "variant": "emphasis", "labelAt": [560, 365] },
-    { "from": "toolkit", "to": "bedrock", "label": "AWS SDK / instance role", "variant": "dashed", "labelAt": [545, 220] },
-    { "from": "toolkit", "to": "research", "label": "enrichment APIs", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v" },
-    { "from": "github", "to": "toolkit", "label": "ECR digest + SSM", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "via": [[1020, 180], [1160, 180], [1160, 250], [415, 250]], "labelAt": [780, 180] },
-    { "from": "github", "to": "n8n", "label": "OpenTofu + SSM bootstrap", "variant": "emphasis", "labelAt": [1140, 160] },
-    { "from": "operations", "to": "toolkit", "label": "logs + health", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v", "labelAt": [560, 395] },
-    { "from": "operations", "to": "postgres", "label": "private access", "variant": "security", "fromSide": "top", "toSide": "bottom", "via": [[1035, 450], [850, 450], [850, 410], [705, 410]], "labelAt": [850, 475] },
-    { "from": "sanity", "to": "toolkit", "label": "signed publish webhook", "variant": "security" },
-    { "from": "toolkit", "to": "webflow", "label": "card sync / CMS API", "variant": "dashed" }
+    {
+      "from": "slack",
+      "to": "toolkit",
+      "label": "HTTPS /slack/events",
+      "variant": "emphasis",
+      "labelSegment": 0
+    },
+    {
+      "from": "website",
+      "to": "toolkit",
+      "label": "embed.js iframe",
+      "variant": "emphasis",
+      "labelSegment": 0
+    },
+    {
+      "from": "sanity",
+      "to": "toolkit",
+      "label": "signed publish webhook",
+      "variant": "security",
+      "labelSegment": 0
+    },
+    {
+      "from": "scribe",
+      "to": "toolkit",
+      "label": "HTTPS /desktop/*",
+      "variant": "emphasis",
+      "labelSegment": 0
+    },
+    {
+      "from": "scribe",
+      "to": "scribe_updates",
+      "label": "signed updates",
+      "variant": "dashed",
+      "labelDy": 24
+    },
+    {
+      "from": "toolkit",
+      "to": "webflow",
+      "label": "report card sync",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "right"
+    },
+    {
+      "from": "attio",
+      "to": "toolkit",
+      "label": "signed POST /webhooks/attio",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 70,
+      "labelDx": -82
+    },
+    {
+      "from": "toolkit",
+      "to": "attio",
+      "label": "writes",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDx": 32,
+      "labelDy": -60
+    },
+    {
+      "from": "github",
+      "to": "toolkit",
+      "label": "deploy + nightly resync via SSM",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "top",
+      "labelDy": 14
+    },
+    {
+      "from": "toolkit",
+      "to": "bedrock",
+      "label": "instance role",
+      "variant": "dashed",
+      "labelSegment": 2
+    },
+    {
+      "from": "toolkit",
+      "to": "postgres",
+      "label": "SQL",
+      "variant": "emphasis",
+      "labelDx": 50
+    },
+    {
+      "from": "toolkit",
+      "to": "ses",
+      "label": "lead + code emails",
+      "variant": "dashed",
+      "labelSegment": 2
+    },
+    {
+      "from": "toolkit",
+      "to": "research",
+      "label": "enrichment + Places APIs",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "github",
+      "to": "n8n",
+      "label": "OpenTofu + SSM",
+      "variant": "emphasis",
+      "labelDy": 24
+    }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "Shared application boundary",
+      "title": "One Toolkit process",
       "items": [
-        "Slack, website lead magnets, Attio webhooks, and Scribe use one Toolkit FastAPI process",
-        "Toolkit liveness is /health; database readiness is /readiness and /ready",
-        "Gated insights reports: Sanity holds the HTML; the Toolkit gates it and syncs the Webflow Reports card; Insights articles publish from the same Studio"
+        "Serves Slack, Scribe, the lead tools, and Attio and Sanity webhooks",
+        "Renders and gates reports; syncs Webflow cards"
       ]
     },
     {
       "dot": "violet",
       "title": "Data ownership",
       "items": [
-        "Attio is the business CRM of record",
-        "PostgreSQL is the private processing and mirror layer",
-        "n8n state persists on its EC2 Docker volume"
+        "Attio is the CRM of record and is written first",
+        "PostgreSQL mirrors it via webhook and nightly resync"
       ]
     },
     {
       "dot": "amber",
       "title": "Operational controls",
       "items": [
-        "GitHub Actions builds immutable Toolkit images and deploys through OpenTofu and SSM",
-        "AWS operations provide SSM access, CloudWatch evidence, and Secrets Manager delivery",
-        "Live vendor ownership, DNS state, and backup coverage remain partly NOT VERIFIED"
+        "GitHub OIDC deploys through OpenTofu and SSM",
+        "Alarms and GuardDuty findings reach Slack via AWS Chatbot"
       ]
     }
   ]

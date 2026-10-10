@@ -17,8 +17,8 @@ _TAG = re.compile(r"<[^>]+>")
 _STYLE_OR_SCRIPT = re.compile(r"<(style|script)\b.*?</\1>", re.DOTALL | re.IGNORECASE)
 _WORDS_PER_MINUTE = 200
 
-# "featured" pins the top of /reports; "banner" pins the home page bar.
-Pin = Literal["featured", "banner"]
+# "banner" pins the home page bar. The top of /reports is always the newest report.
+Pin = Literal["banner"]
 
 
 @dataclass(frozen=True)
@@ -34,17 +34,19 @@ class ReportDocument:
     published_at: str | None = None
     updated_at: str | None = None
     cover_url: str | None = None
-    featured: bool = False
     banner_pinned: bool = False
     silo: str | None = None
     # The button at the end of the report page.
     cta_text: str | None = None
     cta_url: str | None = None
+    # Overrides for the card's meta tags; blank falls back to the title and excerpt.
+    seo_title: str | None = None
+    seo_description: str | None = None
+    og_title: str | None = None
 
     @property
     def pins(self) -> list[Pin]:
-        held: list[tuple[Pin, bool]] = [("featured", self.featured), ("banner", self.banner_pinned)]
-        return [pin for pin, on in held if on]
+        return ["banner"] if self.banner_pinned else []
 
 
 @dataclass(frozen=True)
@@ -63,15 +65,17 @@ class ReportSource:
     revision: str
     html: str
     rendered_from: str | None
+    # Pasted HTML only: pages shown before the gate. A rich report carries its own gate.
+    free_pages: int = 1
 
 
 # Bump when the renderer's output changes, so published reports are flattened again.
-RENDER_VERSION = "5"
+RENDER_VERSION = "6"
 
 
-def fingerprint(html: str) -> str:
-    """Identifies one version of a report's source HTML, so it is flattened once."""
-    return hashlib.sha256(f"{RENDER_VERSION}\n{html}".encode()).hexdigest()
+def fingerprint(html: str, free_pages: int = 1) -> str:
+    """Identifies one version of a report's source HTML and gate, so it is flattened once."""
+    return hashlib.sha256(f"{RENDER_VERSION}\n{free_pages}\n{html}".encode()).hexdigest()
 
 
 def word_count(html: str) -> int:

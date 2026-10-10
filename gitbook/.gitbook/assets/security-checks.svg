@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 720 592" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="security-checks-title security-checks-desc" id="security-checks-root">
+        <title id="security-checks-title">How an inbound request is checked</title>
+        <desc id="security-checks-desc">Flowchart: verify the sender by signature or key, reject failures before any work, apply origin and rate checks, then run the handler with scoped credentials.</desc>
+        <defs>
+      <style>#security-checks-root { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #000523; }
+      #security-checks-root .diagram-container { width: 100%; overflow-x: auto; }
+      #security-checks-root .diagram-container { overflow-x: visible; }</style>
+          <marker id="security-checks-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="security-checks-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="security-checks-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="260" y1="64" x2="260" y2="96" stroke="#56596b" stroke-width="1.2" marker-end="url(#security-checks-arrow)"/>
+<line x1="260" y1="144" x2="260" y2="176" stroke="#56596b" stroke-width="1.2" marker-end="url(#security-checks-arrow)"/>
+<line x1="364" y1="216" x2="440" y2="216" stroke="#56596b" stroke-width="1.2" marker-end="url(#security-checks-arrow)"/>
+<line x1="260" y1="256" x2="260" y2="288" stroke="#56596b" stroke-width="1.2" marker-end="url(#security-checks-arrow)"/>
+<line x1="260" y1="336" x2="260" y2="368" stroke="#56596b" stroke-width="1.2" marker-end="url(#security-checks-arrow)"/>
+<line x1="260" y1="416" x2="260" y2="448" stroke="#336a85" stroke-width="1.4" marker-end="url(#security-checks-arrow-accent)"/>
+<rect x="390" y="196" width="24" height="12" rx="2" fill="#f7f5f0"/>
+<text x="402" y="205" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">NO</text>
+<rect x="268" y="266" width="28" height="12" rx="2" fill="#f7f5f0"/>
+<text x="282" y="275" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">YES</text>
+<rect x="120" y="24" width="280" height="40" rx="20" fill="#f7f5f0"/>
+<rect x="120" y="24" width="280" height="40" rx="20" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="260" y="48" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Request reaches the Toolkit</text>
+<rect x="140" y="96" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="117" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Verify the sender</text>
+<text x="260" y="131" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Slack, Attio, Sanity signature · Scribe key</text>
+<polygon points="260,176 364,216 260,256 156,216" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="220" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Verified?</text>
+<rect x="440" y="192" width="216" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="440" y="192" width="216" height="48" rx="20" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="548" y="213" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Rejected</text>
+<text x="548" y="227" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">401 · before any work</text>
+<rect x="140" y="288" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="309" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Check origin and rate</text>
+<text x="260" y="323" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">lead tools · 403 or 429</text>
+<rect x="140" y="368" width="240" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="389" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Run the handler</text>
+<text x="260" y="403" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">IAM role · tokens from Secrets</text>
+<rect x="140" y="448" width="240" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="140" y="448" width="240" height="48" rx="20" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="260" y="469" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Work recorded</text>
+<text x="260" y="483" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">no secrets in logs</text>
+<line x1="24" y1="536" x2="696" y2="536" stroke="#000523" stroke-opacity="0.10" stroke-width="0.8"/>
+<text x="24" y="552" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="564" width="24" height="12" rx="6" fill="#000523" fill-opacity="0.03" stroke="#000523" stroke-opacity="0.30" stroke-width="1"/>
+<text x="56" y="573" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Start / end</text>
+<rect x="144" y="564" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="176" y="573" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Step</text>
+<polygon points="228,570 240,564 252,570 240,576" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="573" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Decision</text>
+<line x1="332" y1="570" x2="356" y2="570" stroke="#336a85" stroke-width="1.4" marker-end="url(#security-checks-arrow-accent)"/>
+<text x="364" y="573" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Main path</text>
+      </svg>

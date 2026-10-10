@@ -1,57 +1,20 @@
 # Website lead tools
 
-Wusool Capital provides four public tools through its website. Visitors get a
-report or submit an acquisition profile; their contact and company details
-are recorded for follow-up in Attio.
+Wusool Capital's website offers these tools to visitors. Each gives a result
+or confirmation, and the visitor's contact and company details are recorded
+for follow-up in Attio.
 
 | Tool | What the visitor receives |
 | --- | --- |
-| **Valuation** | Estimated company valuation using several methods |
+| **Valuation** | An estimated company valuation using several methods |
 | **M&A Readiness** | A 0–100 readiness score and recommendations from 15 questions |
 | **GCC SME Benchmark** | A comparison with relevant peer companies |
 | **Buyer Network** | Registration as a buyer seeking acquisitions |
+| **Get Started** | A confirmation that their enquiry to sell was received |
+| **Gated reports** | The full report and a PDF download, after confirming their email |
 
-## Publish a gated report
-
-Gated reports are written in the Wusool Reports Studio (Sanity), not in
-Webflow.
-
-1. Create a **Report**, fill in the title, then click **Generate** for the
-   slug or type your own.
-2. Pick **Write with**. Paste the exported report HTML, and readers see page
-   one. Or write it in the rich text editor, and readers see about the first
-   quarter.
-3. Optionally fill in the excerpt, cover image, primary silo, date, and the
-   end-of-page button (text and link).
-4. Tick **Pin to top of /reports** to make it the featured card. This
-   unpins the card that is currently featured.
-5. Publish.
-
-**Expected result:** shortly after publishing, the report has a card on
-`wusoolcapital.com/reports` and its own page there. Readers see the first
-page (or first quarter of a rich text report), then a short form; the organization field is optional. Completing it
-opens the full report and its **Download PDF** button. The reader appears in
-Attio as a person, plus an organization when they gave one. Returning
-readers skip the form.
-
-Changing a published report's slug moves it to the new URL, and the old URL
-stops working. Unpublishing it in the Studio removes the card.
-
-## Publish an Insights article
-
-Insights articles can also be written in the Wusool Reports Studio.
-
-1. Create an **Insights article** and fill in the title, slug, content type
-   and excerpt.
-2. Pick **Write with**: the rich text editor, or pasted HTML. Then write the
-   body, and optionally the key takeaways and FAQ.
-3. Optionally fill in the cover image, author, silo, SEO fields and the
-   end-of-page button. Blank SEO fields use the title and excerpt.
-4. Publish.
-
-**Expected result:** the article appears on `wusoolcapital.com/insights`
-shortly after publishing. It isn't pinned; pin articles in Webflow. An
-existing hand-written article with the same slug is left untouched.
+To publish or change a report, see
+[Publish reports and articles in Sanity](publish-in-sanity.md).
 
 ## Use a tool
 
@@ -62,52 +25,60 @@ existing hand-written article with the same slug is left untouched.
 4. Read the result on screen and follow any offered contact or booking action.
 
 **Expected result:** Valuation shows a calculated report, Readiness returns a
-score and advice, Benchmark shows peer comparisons, and Buyer Network confirms
-the application. The submission is recorded before downstream CRM processing
-so a later integration failure does not discard the lead.
+score and advice, and Benchmark shows peer comparisons. Buyer Network and Get
+Started confirm the submission.
 
 ## Example: complete a valuation
 
 An owner of **Example Manufacturing** enters current revenue, cash, debt, and
 contact details, accepts the consent statement, and submits the Valuation tool.
 
-**Expected result:** the page displays a low, midpoint, and high estimate with
-the methods used. A corresponding organization and seller context appear in
-Attio after processing. The figures are decision-support estimates, not a
-formal valuation.
+**Expected result:** after a short loading screen, the page shows a low,
+midpoint, and high estimate marked **Preliminary**. It refines in place and
+changes to **Done** once the full analysis finishes. The owner's company
+appears in Attio shortly afterwards.
 
 If the page reports a validation error, correct the highlighted field and
-submit again. If a result already appeared, do not submit a second time merely
-because Attio is still processing the record.
+submit again.
+
+## Read a gated report
+
+Reports live at `wusoolcapital.com/reports`. Older `/insights` links to a
+report redirect to its new page.
+
+1. A new reader sees the free part (the first page by default), then a short
+   form: name, email, and an optional organization.
+2. The form emails a 6-digit code. The code expires after 10 minutes; use
+   **Resend code** or **Use a different email** if needed.
+3. Entering the code opens the full report and its **Download PDF** button.
+
+**Expected result:** the reader appears in Attio as a person, plus an
+organization when they gave one. Only readers who confirmed their email are
+added. Returning readers skip the form.
 
 ## Find the submission in Attio
 
 Search using the submitted email, company name, or domain. Valuation,
-Readiness, and Benchmark information belongs with seller context; Buyer
-Network information belongs with buyer context. CRM processing can finish
-shortly after the browser result, so allow a brief delay. Non-production
-submissions are marked as test data and should not appear in normal production
-lead views.
+Readiness, Benchmark and Get Started information belongs with seller
+context; Buyer Network information belongs with buyer context. Records can
+appear a few moments after the on-screen result, so don't submit again while
+waiting.
 
 ## Understand the result
 
-- **Valuation** blends deterministic methods. AI and public search may enrich
-  the analysis, but a calculated valuation remains available without them.
-- **Readiness** depends on AI judgment and has no substitute score. A service
-  failure can show a retry message even though the lead was retained.
-- **Benchmark** is calculated from a peer dataset without an AI model.
-- **Buyer Network** accepts an application without waiting for its optional
-  internal AI qualification note.
+- **Valuation** combines several standard valuation methods. AI and public
+  search can add detail, but the valuation is still calculated without them.
+- **Readiness** depends on AI judgment and has no substitute score. If the AI
+  service is unavailable, the page asks the visitor to retry; their details
+  are kept.
+- **Benchmark** is calculated from a peer dataset without AI.
+- **Buyer Network** accepts the application straight away.
 
 These are indicative decision-support outputs, not a formal valuation,
 transaction recommendation, financing offer, or promise of contact.
 
 ## If a tool does not complete
 
-- Preserve the tool name, entered information, time, and exact error before
-  refreshing.
-- Retry once after checking required fields and connectivity. Repeated
-  submissions may be recognized as duplicates.
-- If a result appeared but Attio remains empty after a reasonable delay,
-  contact support through an approved private channel. Include the tool name,
-  time, company domain, and submitted email.
+Note the tool name, time, and exact error, then retry once. If it still
+fails, or a result appeared but nothing reached Attio after a few minutes,
+see [Troubleshooting and support](troubleshooting.md).

@@ -15,6 +15,9 @@ class ArticleDocument:
     content_type: str
     excerpt: str
     body_html: str
+    # The published Sanity document id; pins are matched by id, since a draft can rename the slug.
+    document_id: str
+    featured: bool = False
     key_takeaways_html: str | None = None
     faq_html: str | None = None
     h1: str | None = None

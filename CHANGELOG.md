@@ -5,8 +5,42 @@ product and operational milestones rather than individual implementation
 details. Git history remains the source for commit-level changes.
 
 The project has no version tags: merges to `dev` and `prod` deploy their
- respective environments. See [Delivery status](gitbook/operations/delivery-status.md)
+ respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
+
+## 2026-10-10
+
+### Changed
+
+- Editors control more from the Sanity Studio:
+  - The rich text editor gained headings 5 and 6, underline, strikethrough,
+    code, superscript and subscript. Links can open in a new tab.
+  - Reports gained their own SEO title, description and share title.
+  - Each report sets how much is free: a number of pages for pasted HTML, or
+    a locked share for rich text.
+  - Insights articles can be pinned to the top of `/insights` from the
+    Studio. With nothing pinned, the newest article shows there.
+  - Reports keep only the home page banner pin. The top of `/reports`
+    always shows the newest report.
+  - Studio fields are grouped into Content, SEO and Publishing tabs.
+- The client GitBook was reviewed end to end and checked against the code.
+  User guides were rewritten for non-technical staff and reader-tested. They
+  gained a Glossary and a "Publish in Sanity" guide. The Technical section is
+  split into one page per Toolkit module and per lead tool. The discrepancy
+  check and seller discovery have in-depth pages. The Operations pages
+  now give the real deploy and rollback steps, every alarm, what isn't
+  alarmed, and backup coverage.
+- Release notes for 15 September to 10 October were added, grouped by
+  product, and the September notes were rewritten in plain terms.
+- Diagrams were redrawn in Wusool's brand colors, with editable sources in
+  `docs/internal/diagrams/`. The interactive architecture diagram was rebuilt
+  with SES, the Scribe update feed, Google Places, and account security
+  monitoring.
+
+### Removed
+
+- Duplicate GitBook folders left by an earlier export, and an empty export
+  under `docs/untitled/`.
 
 ## 2026-10-08
 
@@ -644,7 +678,7 @@ for current production evidence and open handover items.
 ## 2026-09-12
 
 This release period is summarized in
-[September 2026 deliverables](gitbook/deliverables/september-2026.md).
+[September 2026 deliverables](gitbook/release-notes/september-2026.md).
 
 ### Added
 

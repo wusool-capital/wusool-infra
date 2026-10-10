@@ -40,19 +40,21 @@ _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
     '_id, "slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
-    'featured, bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url}'
+    'bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url, '
+    "seoTitle, seoDescription, ogTitle}"
 )
 # Raw perspective so open drafts are unticked too; publishing one must not re-pin it.
 # Release versions are left alone: they are the editor's staged content, not live state.
 _PINNED_QUERY = (
-    '*[_type == "report" && (featured == true || bannerPinned == true)'
+    '*[_type == "report" && bannerPinned == true'
     ' && !(_id in [$id, "drafts." + $id]) && !(_id in path("versions.**"))'
     " && ($pinnedAt == null || dateTime(_updatedAt) <= dateTime($pinnedAt))]"
-    '{_id, "slug": slug.current, featured, bannerPinned}'
+    '{_id, "slug": slug.current, bannerPinned}'
 )
 _SOURCE_QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
-    '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom}'
+    '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom, '
+    '"freePages": coalesce(freePages, 1), "lockedPercent": coalesce(lockedPercent, 75)}'
 )
 
 
@@ -68,11 +70,13 @@ class _SanityReport(BaseModel):
     published_at: str | None = Field(default=None, alias="publishedAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
     cover_url: str | None = Field(default=None, alias="coverUrl")
-    featured: bool | None = None
     banner_pinned: bool | None = Field(default=None, alias="bannerPinned")
     silo: str | None = None
     cta_text: str | None = Field(default=None, alias="ctaText")
     cta_url: str | None = Field(default=None, alias="ctaUrl")
+    seo_title: str | None = Field(default=None, alias="seoTitle")
+    seo_description: str | None = Field(default=None, alias="seoDescription")
+    og_title: str | None = Field(default=None, alias="ogTitle")
 
 
 class _QueryResponse(BaseModel):
@@ -91,6 +95,8 @@ class _SanitySource(BaseModel):
     body: list[Block] | None = None
     html: str | None = None
     rendered_from: str | None = Field(default=None, alias="renderedFrom")
+    free_pages: int = Field(default=1, ge=1, alias="freePages")
+    locked_percent: int = Field(default=75, alias="lockedPercent")
 
 
 class _SourceResponse(BaseModel):
@@ -102,11 +108,10 @@ class _Pinned(BaseModel):
 
     id: str = Field(alias="_id")
     slug: str | None = None
-    featured: bool | None = None
     banner_pinned: bool | None = Field(default=None, alias="bannerPinned")
 
     def held(self, pins: list[Pin]) -> tuple[Pin, ...]:
-        on: dict[Pin, bool] = {"featured": bool(self.featured), "banner": bool(self.banner_pinned)}
+        on: dict[Pin, bool] = {"banner": bool(self.banner_pinned)}
         return tuple(pin for pin in pins if on[pin])
 
 
@@ -119,15 +124,11 @@ class _Unpinned(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    featured: bool | None = None
     banner_pinned: bool | None = Field(default=None, alias="bannerPinned")
 
     @classmethod
     def of(cls, pins: tuple[Pin, ...]) -> "_Unpinned":
-        return cls(
-            featured=False if "featured" in pins else None,
-            banner_pinned=False if "banner" in pins else None,
-        )
+        return cls(banner_pinned=False if "banner" in pins else None)
 
 
 class _RenderedFields(BaseModel):
@@ -183,11 +184,19 @@ class SanityReportSource:
         doc = _SourceResponse.model_validate_json(response.content).result
         if doc is None:
             return None
-        html = rich_report(doc.title, doc.body or []) if doc.body_format == "rich" else doc.html
+        if doc.body_format == "rich":
+            share = (100 - doc.locked_percent) / 100
+            html = rich_report(doc.title, doc.body or [], share=share)
+        else:
+            html = doc.html
         if not html:
             return None
         return ReportSource(
-            document_id=doc.id, revision=doc.rev, html=html, rendered_from=doc.rendered_from
+            document_id=doc.id,
+            revision=doc.rev,
+            html=html,
+            rendered_from=doc.rendered_from,
+            free_pages=doc.free_pages,
         )
 
     async def save_rendered(
@@ -277,9 +286,11 @@ class SanityReportSource:
             published_at=doc.published_at,
             updated_at=doc.updated_at,
             cover_url=resized(doc.cover_url) if doc.cover_url else None,
-            featured=bool(doc.featured),
             banner_pinned=bool(doc.banner_pinned),
             silo=doc.silo,
             cta_text=doc.cta_text,
             cta_url=doc.cta_url,
+            seo_title=doc.seo_title,
+            seo_description=doc.seo_description,
+            og_title=doc.og_title,
         )

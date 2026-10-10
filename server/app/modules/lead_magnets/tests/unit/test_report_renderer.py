@@ -90,6 +90,29 @@ async def test_the_preview_is_exactly_the_first_page() -> None:
     assert "page two drawn by script" in rest
 
 
+_THREE_PAGES = _EXPORT.replace(
+    "page two drawn by script</section>'",
+    'page two drawn by script</section><section class="page">page three</section>\'',
+)
+
+
+async def test_the_editor_sets_how_many_pages_are_free() -> None:
+    await _require_chromium()
+
+    preview, rest = split_report(await ChromiumReportRenderer().render(_THREE_PAGES, free_pages=2))
+
+    assert "page two drawn by script" in preview and "page three" not in preview
+    assert "page three" in rest
+
+
+async def test_the_last_page_stays_locked_however_many_are_free() -> None:
+    await _require_chromium()
+
+    preview, rest = split_report(await ChromiumReportRenderer().render(_THREE_PAGES, free_pages=9))
+
+    assert "page two drawn by script" in preview and "page three" in rest
+
+
 async def test_without_pages_the_gate_falls_after_the_first_block() -> None:
     await _require_chromium()
     paragraphs = "".join(f'<p style="height:100px;margin:0">p{n}</p>' for n in range(20))

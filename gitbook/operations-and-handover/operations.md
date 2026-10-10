@@ -1,10 +1,10 @@
 # Operations and handover
 
-This section is the engineering runbook for operating the delivered Wusool
-platform. Start with [Environments and access](environments-and-access.md),
-then use the procedure for the task or incident at hand.
+This section is the engineering runbook for operating the Wusool platform.
+Start with [Environments and access](environments-and-access.md), then use the
+procedure for the task or incident at hand.
 
-| Need | Runbook |
+| Need | Page |
 | --- | --- |
 | Identify an environment or obtain access | [Environments and access](environments-and-access.md) |
 | Release or reverse a change | [Deployment and rollback](deployment-and-rollback.md) |
@@ -13,19 +13,24 @@ then use the procedure for the task or incident at hand.
 | Find the responsible system or supplier | [Ownership and service dependencies](ownership-and-dependencies.md) |
 | Check what is delivered or still open | [Delivery status and open items](delivery-status.md) |
 
+Step-by-step incident runbooks live in the repository under `docs/runbooks/`.
+They cover a Toolkit outage, an n8n outage, Attio sync failure, database and
+migration failure, and deployment failure. After an incident, follow
+`docs/postmortems/README.md`.
+
 ## Operating principles
 
 - Make infrastructure changes through source control and OpenTofu. Record any
-  emergency console change in code immediately after service is restored.
-- Use AWS Systems Manager for server access. The repository does not enable SSH
-  ingress by default, and the databases are not public.
-- Store runtime secrets in AWS Secrets Manager. Never place secret values in an
+  emergency console change in code as soon as service is restored.
+- Use AWS Systems Manager for server access. SSH is closed and the database is
+  private.
+- Keep runtime secrets in AWS Secrets Manager. Never put a secret value in an
   issue, chat message, log excerpt, or this documentation.
-- Treat a green infrastructure apply as incomplete until the service health
-  check passes.
-- Preserve evidence during an incident: note the environment, UTC time,
-  affected workflow, deployment run, alarms, and relevant log window.
+- Treat a green infrastructure apply as incomplete until the health check
+  passes.
+- Preserve evidence during an incident: environment, UTC time, affected
+  workflow, deployment run, alarms, and the relevant log window.
 
-This documentation describes repository-defined behavior. A repository review
-cannot prove the current state of AWS, GitHub, Slack, Attio, Cloudflare, or n8n;
-operators should confirm live state before a production change.
+This documentation describes what the repository defines. It can't prove the
+live state of AWS, GitHub, Slack, Attio, Sanity, Webflow, SES, Cloudflare, or
+n8n. Confirm live state before a production change.

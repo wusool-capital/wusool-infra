@@ -40,6 +40,7 @@ class ItemFields(BaseModel):
     name: str | None = None
     slug: str | None = None
     sanity_managed: bool | None = Field(default=None, alias="sanity-managed")
+    featured: bool | None = None
 
 
 class Item(BaseModel):
@@ -100,6 +101,14 @@ class WebflowCollection:
         page = await self._list(f"/collections/{self._id}/items", slug=slug)
         # Checked here, not trusted: a loose filter must never hand back another item to overwrite.
         return next((i for i in page.items if i.field_data.slug == slug), None)
+
+    async def live_items(self) -> list[Item]:
+        items: list[Item] = []
+        while True:
+            page = await self._list(f"/collections/{self._id}/items/live", offset=len(items))
+            items += page.items
+            if not page.items or len(items) >= page.pagination.total:
+                return items
 
     async def create_live(self, field_data: BaseModel) -> str:
         body = _ItemWrite(is_draft=False, field_data=field_data)

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The lead write contract</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f7f5f0; color: #000523; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    .eyebrow { font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em;
+      text-transform: uppercase; color: #56596b; margin-bottom: 0.5rem; }
+    h1 { font-family: serif; font-size: 2rem; font-weight: 400; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 720px; display: block; }
+    @media print { .diagram-container { overflow-x: visible; } svg { min-width: 0; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Flowchart · Wusool docs</p>
+    <h1>The lead write contract</h1>
+    <div class="diagram-container">
+      <svg viewBox="0 0 720 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="lead-write-contract-title lead-write-contract-desc">
+        <title id="lead-write-contract-title">The lead write contract</title>
+        <desc id="lead-write-contract-desc">Flowchart: a submission is recorded first, then the browser gets its answer, then AI work, the Attio write and two emails run in order; a sweeper resumes unfinished runs.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f7f5f0"/>
+<line x1="260" y1="64" x2="260" y2="96" stroke="#336a85" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+<line x1="260" y1="140" x2="260" y2="164" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="208" x2="260" y2="232" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="276" x2="260" y2="300" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="344" x2="260" y2="368" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="412" x2="260" y2="436" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="260" y1="480" x2="260" y2="504" stroke="#56596b" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M 472 310 L 392 310 Q 384 310 384 302 L 384 262 Q 384 254 376 254 L 368 254" fill="none" stroke="#56596b" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<rect x="412" y="290" width="48" height="12" rx="2" fill="#f7f5f0"/>
+<text x="436" y="299" fill="#636575" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.08em">RESUME</text>
+<rect x="160" y="24" width="200" height="40" rx="20" fill="#f7f5f0"/>
+<rect x="160" y="24" width="200" height="40" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="260" y="48" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Visitor submits</text>
+<rect x="152" y="96" width="216" height="44" rx="6" fill="#f7f5f0"/>
+<rect x="152" y="96" width="216" height="44" rx="6" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="260" y="115" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Record the submission</text>
+<text x="260" y="129" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">tool_runs row, committed</text>
+<rect x="152" y="164" width="216" height="44" rx="6" fill="#f7f5f0"/>
+<rect x="152" y="164" width="216" height="44" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="183" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Respond to the browser</text>
+<text x="260" y="197" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">lead is now safe</text>
+<rect x="152" y="232" width="216" height="44" rx="6" fill="#f7f5f0"/>
+<rect x="152" y="232" width="216" height="44" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="251" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">AI work</text>
+<text x="260" y="265" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">fallback where available</text>
+<rect x="152" y="300" width="216" height="44" rx="6" fill="#f7f5f0"/>
+<rect x="152" y="300" width="216" height="44" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="319" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Write to Attio</text>
+<text x="260" y="333" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">org · role · person · deal</text>
+<rect x="152" y="368" width="216" height="44" rx="6" fill="#f7f5f0"/>
+<rect x="152" y="368" width="216" height="44" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="387" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Email the visitor</text>
+<text x="260" y="401" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">SES confirmation</text>
+<rect x="152" y="436" width="216" height="44" rx="6" fill="#f7f5f0"/>
+<rect x="152" y="436" width="216" height="44" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="260" y="455" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Email the team</text>
+<text x="260" y="469" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">SES notice</text>
+<rect x="160" y="504" width="200" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="160" y="504" width="200" height="48" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="260" y="525" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Finish the run</text>
+<text x="260" y="539" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">add the activity</text>
+<rect x="472" y="288" width="200" height="44" rx="6" fill="#f7f5f0"/>
+<rect x="472" y="288" width="200" height="44" rx="6" fill="rgba(0,5,35,0.02)" stroke="rgba(0,5,35,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="572" y="307" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Sweeper</text>
+<text x="572" y="321" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">resumes unfinished runs</text>
+<line x1="24" y1="584" x2="696" y2="584" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
+<text x="24" y="600" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="612" width="24" height="12" rx="2" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="56" y="621" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Happens first</text>
+<rect x="156" y="612" width="24" height="12" rx="2" fill="#ffffff" stroke="#000523" stroke-width="1"/>
+<text x="188" y="621" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Step</text>
+<rect x="240" y="612" width="24" height="12" rx="2" fill="rgba(0,5,35,0.02)" stroke="rgba(0,5,35,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="272" y="621" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Background job</text>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>
