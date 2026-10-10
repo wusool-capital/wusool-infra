@@ -27,7 +27,7 @@
         250
       ],
       "size": [
-        170,
+        220,
         56
       ],
       "sources": [
@@ -47,7 +47,7 @@
         318
       ],
       "size": [
-        170,
+        180,
         56
       ],
       "sources": [
@@ -67,7 +67,7 @@
         460
       ],
       "size": [
-        170,
+        220,
         56
       ],
       "sources": [
@@ -83,8 +83,8 @@
       "label": "Attio",
       "sublabel": "CRM of record",
       "pos": [
-        470,
-        40
+        528,
+        20
       ],
       "size": [
         170,
@@ -262,7 +262,7 @@
         390
       ],
       "size": [
-        170,
+        180,
         56
       ],
       "sources": [
@@ -322,7 +322,7 @@
         560
       ],
       "size": [
-        170,
+        220,
         56
       ],
       "sources": [
@@ -411,8 +411,8 @@
       "variant": "security",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelDx": -92,
-      "labelDy": 24
+      "labelDy": 70,
+      "labelDx": -82
     },
     {
       "from": "toolkit",
@@ -421,7 +421,8 @@
       "variant": "dashed",
       "fromSide": "top",
       "toSide": "bottom",
-      "labelDx": 40
+      "labelDx": 32,
+      "labelDy": -60
     },
     {
       "from": "github",
@@ -459,7 +460,7 @@
       "label": "enrichment + Places APIs",
       "variant": "dashed",
       "fromSide": "bottom",
-      "toSide": "left"
+      "toSide": "top"
     },
     {
       "from": "github",
