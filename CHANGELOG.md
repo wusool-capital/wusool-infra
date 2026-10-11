@@ -8,6 +8,13 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-11
+
+### Changed
+
+- The Sanity Studio shows the Wusool Capital logo as its navbar icon and
+  favicon.
+
 ## 2026-10-10
 
 ### Changed
