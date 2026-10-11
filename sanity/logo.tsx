@@ -1,7 +1,7 @@
 // White tile keeps the navy mark visible in the Studio dark theme.
 export function WusoolLogo() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-hidden="true">
       <rect width="512" height="512" fill="#fff" />
       <path
         fill="#000523"

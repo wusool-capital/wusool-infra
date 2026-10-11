@@ -31,6 +31,15 @@ Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 
 The Studio uses the Wusool Capital logo for its navbar icon (`logo.tsx`)
 and favicons (`static/`, which replace Sanity's defaults at build time).
+`static/favicon.svg` is the source: keep its path data in step with
+`logo.tsx`, and after changing it, regenerate the other favicons from
+`static/` with ImageMagick:
+
+```bash
+for n in 96 192 512; do magick -density 300 favicon.svg -resize ${n}x${n} -depth 8 -strip favicon-$n.png; done
+magick -density 300 favicon.svg -resize 180x180 -depth 8 -strip apple-touch-icon.png
+magick -density 300 favicon.svg -define icon:auto-resize=48,32,16 favicon.ico
+```
 
 ## One-time setup
 
