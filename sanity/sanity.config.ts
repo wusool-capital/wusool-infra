@@ -1,12 +1,14 @@
 import {defineConfig} from 'sanity'
 import {structureTool} from 'sanity/structure'
 
+import {WusoolLogo} from './logo'
 import {insights} from './schemaTypes/insights'
 import {report} from './schemaTypes/report'
 
 export default defineConfig({
   name: 'default',
   title: 'Wusool Reports & Insights',
+  icon: WusoolLogo,
   projectId: process.env.SANITY_STUDIO_PROJECT_ID ?? 'itidwo8t',
   dataset: process.env.SANITY_STUDIO_DATASET ?? 'production',
   plugins: [structureTool()],

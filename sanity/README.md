@@ -29,6 +29,9 @@ Insights articles. Two document types:
 Server code: `server/app/modules/lead_magnets/` (`api/insights_report/`,
 `providers/sanity/`, `providers/webflow/`).
 
+The Studio uses the Wusool Capital logo for its navbar icon (`logo.tsx`)
+and favicons (`static/`, which replace Sanity's defaults at build time).
+
 ## One-time setup
 
 1. The project is **Insights and Reports** (`itidwo8t`) on the Free plan, with
