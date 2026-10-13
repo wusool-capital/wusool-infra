@@ -126,7 +126,7 @@ class SellerRepository:
         narrowing: CandidateNarrowing,
         limit: int = MAX_ELIGIBLE_SELLERS,
         *,
-        rejected_for_buyer_role_id: str | None = None,
+        rejected_for_buyer_role_id: str | None,
     ) -> list[SellerCandidate]:
         """ "Eligible" is lifecycle state (`is_active`, soft-deletes) plus the
         buyer's `narrowing` on vertical, geography and EV ceiling, minus any
@@ -147,11 +147,11 @@ class SellerRepository:
         if narrowing.ev_ceiling is not None:
             conditions.append(_ev_ceiling_predicate(narrowing.ev_ceiling))
         if rejected_for_buyer_role_id is not None:
-            # Per buyer role (one vertical): other buyers and verticals still see the seller.
+            # Per buyer role (one vertical) but per seller org, so a duplicate role can't return.
             rejected = exists(
                 select(literal(1)).where(
                     MatchResult.buyer_role_id == uuid.UUID(rejected_for_buyer_role_id),
-                    MatchResult.seller_role_id == SellerRole.id,
+                    MatchResult.seller_attio_id == SellerRole.org_attio_id,
                     MatchResult.decision == "REJECTED",
                 )
             )

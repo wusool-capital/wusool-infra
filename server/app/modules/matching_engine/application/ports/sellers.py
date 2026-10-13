@@ -19,6 +19,6 @@ class SellerRepositoryPort(Protocol):
         narrowing: CandidateNarrowing,
         limit: int = ...,
         *,
-        rejected_for_buyer_role_id: str | None = None,
+        rejected_for_buyer_role_id: str | None,
     ) -> list[SellerCandidate]: ...
     async def get_structured_fields(self, seller_role_id: str) -> SellerCandidate | None: ...

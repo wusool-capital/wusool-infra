@@ -63,7 +63,7 @@ never contacts an organization.
 
 **Reject Match** keeps that seller out of later matches for the same buyer
 and vertical. It still appears for other buyers, and the seller stays in
-the CRM.
+the CRM. A rejection can't be undone from Slack.
 
 ### When no CRM seller is a strong fit
 

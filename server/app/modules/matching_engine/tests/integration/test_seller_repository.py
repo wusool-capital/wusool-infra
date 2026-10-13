@@ -40,7 +40,7 @@ async def test_get_eligible_sellers_excludes_inactive_and_removed(
     await db_session.flush()
 
     repo = SellerRepository(db_session)
-    results = await repo.get_eligible_sellers(CandidateNarrowing())
+    results = await repo.get_eligible_sellers(CandidateNarrowing(), rejected_for_buyer_role_id=None)
     result_ids = {r.seller_role_id for r in results}
 
     assert str(eligible.id) in result_ids
@@ -89,7 +89,9 @@ async def _add_seller(
 
 
 async def _eligible_ids(db_session: AsyncSession, narrowing: CandidateNarrowing) -> set[str]:
-    results = await SellerRepository(db_session).get_eligible_sellers(narrowing)
+    results = await SellerRepository(db_session).get_eligible_sellers(
+        narrowing, rejected_for_buyer_role_id=None
+    )
     return {r.seller_role_id for r in results}
 
 
@@ -167,13 +169,16 @@ async def _add_buyer_role(db_session: AsyncSession) -> BuyerRole:
 async def _decide(
     db_session: AsyncSession, buyer: BuyerRole, seller_role_id: str, decision: str
 ) -> None:
+    seller = await db_session.get(SellerRole, uuid.UUID(seller_role_id))
+    assert seller is not None
     db_session.add(
         MatchResult(
             run_id=uuid.uuid4(),
             buyer_attio_id=buyer.org_attio_id,
             buyer_role_id=buyer.id,
             rank=1,
-            seller_role_id=uuid.UUID(seller_role_id),
+            seller_attio_id=seller.org_attio_id,
+            seller_role_id=seller.id,
             status=decision,
             decision=decision,
         )
@@ -189,6 +194,10 @@ async def test_a_seller_rejected_for_one_buyer_role_is_hidden_only_for_that_role
     approved = await _add_seller(db_session)
     await _decide(db_session, rejecting, rejected, "REJECTED")
     await _decide(db_session, rejecting, approved, "APPROVED")
+    rejected_org = (await db_session.get(SellerRole, uuid.UUID(rejected))).org_attio_id
+    duplicate = SellerRole(org_attio_id=rejected_org, is_active=True)
+    db_session.add(duplicate)
+    await db_session.flush()
     repo = SellerRepository(db_session)
 
     for_rejecting = {
@@ -205,5 +214,6 @@ async def test_a_seller_rejected_for_one_buyer_role_is_hidden_only_for_that_role
     }
 
     assert rejected not in for_rejecting
+    assert str(duplicate.id) not in for_rejecting
     assert approved in for_rejecting
-    assert {rejected, approved} <= for_other
+    assert {rejected, approved, str(duplicate.id)} <= for_other

@@ -110,9 +110,9 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
 3. **Candidate load + Stage 1 filtering** (one call) — SQL first narrows
    sellers on the buyer role's vertical, target region/country and EV ceiling
    (`domain/matching/narrowing.py`; a seller with no data for a dimension
-   always passes). It also drops sellers already rejected for this buyer
-   role (a `match_results` row with `decision = 'REJECTED'`); other buyer
-   roles still see them. Cheque size never eliminates: `ticket_fit`
+   always passes). It also drops seller organizations already rejected for
+   this buyer role (a `match_results` row with `decision = 'REJECTED'`);
+   other buyer roles still see them. Cheque size never eliminates: `ticket_fit`
    (`domain/matching/ticket.py`) scores it in Stage 2 instead. Then a candidate is dropped only on a confirmed
    hard requirement's `Fail`; missing/unconfirmed data never eliminates
    anyone.
