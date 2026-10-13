@@ -35,6 +35,7 @@ def build_seller_add_form_modal(
     duplicate_candidates: list[str] | None = None,
     prefill: dict[str, PrefillValue] | None = None,
     source_place_id: str | None = None,
+    review_card_token: str | None = None,
 ) -> View:
     is_new_org = org is None
     blocks: list[Block] = []
@@ -88,6 +89,8 @@ def build_seller_add_form_modal(
                 # A discovered lead's Google place id, so the next discovery
                 # run recognizes it even if the operator changed the domain.
                 "source_place_id": source_place_id,
+                # Marks discovery's website-check card as added once saved.
+                "review_card_token": review_card_token,
             }
         ),
         title="Add seller",

@@ -78,6 +78,7 @@ def build_organization_selection_modal(
     channel_id: str,
     prefill: dict[str, PrefillValue] | None = None,
     source_place_id: str | None = None,
+    review_card_token: str | None = None,
 ) -> View:
     options = []
     for org in candidates:
@@ -100,6 +101,7 @@ def build_organization_selection_modal(
                 "requested_by": requested_by,
                 "channel_id": channel_id,
                 "source_place_id": source_place_id,
+                "review_card_token": review_card_token,
                 "payload_token": _encode_selection_payload(
                     [org.name for org in candidates], prefill or {}
                 ),
