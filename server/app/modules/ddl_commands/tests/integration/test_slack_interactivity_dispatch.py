@@ -1131,7 +1131,7 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
     assert postgres_use_case.calls[0]["org_name"] == "New Seller Co"
     posted = _mock_slack_web_client.posted[0]
     assert "*Added* seller profile for *New Seller Co*." in posted["text"]
-    assert "Run `/enrich-seller New Seller Co` to research missing fields." in posted["text"]
+    assert "/enrich-seller" not in posted["text"]
 
 
 def test_seller_add_form_new_org_without_name_shows_error() -> None:
