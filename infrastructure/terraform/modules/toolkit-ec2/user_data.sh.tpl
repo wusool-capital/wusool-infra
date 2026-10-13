@@ -194,3 +194,7 @@ for attempt in 1 2 3; do
   sleep 5
   [ "$attempt" -eq 3 ] && exit 1
 done
+
+# Each deploy leaves its old image behind; on 2026-10-13 they filled the root
+# disk and the next pull failed. ECR keeps every image for rollback.
+docker image prune -af || true

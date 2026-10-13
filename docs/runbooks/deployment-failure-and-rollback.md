@@ -41,7 +41,11 @@ P1 — Treat destructive changes, data loss, or security impact as P0.
    verify `/healthz` at the environment URL.
 4. If the first failure is database-related, use
    [database-and-migration-failure.md](database-and-migration-failure.md).
-5. If the first failure is service-specific, use
+5. If the migration or bootstrap step logs `no space left on device`, old
+   Docker images have filled the root disk. Check with `df -h /` and
+   `docker system df` over SSM, run `docker image prune -af` (it keeps
+   images in use, and ECR keeps the rest), then rerun the failed workflow.
+6. If the first failure is service-specific, use
    [toolkit-outage.md](toolkit-outage.md) or
    [n8n-outage.md](n8n-outage.md).
 
