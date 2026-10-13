@@ -1,6 +1,6 @@
 # October 2026: Wusool Toolkit
 
-Delivery period: 15 September – 10 October 2026.
+Delivery period: 15 September – 14 October 2026.
 
 ## Approved matches become deals
 
