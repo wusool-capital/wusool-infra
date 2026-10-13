@@ -16,6 +16,8 @@ for current production evidence and open handover items.
   the person who saved the seller, so a reviewed lead no longer looks open.
 - `/find-match` candidates no longer end with a "Run `/enrich-seller …`"
   hint.
+- A seller rejected in `/find-match` is no longer suggested again for that
+  buyer and vertical. Other buyers still see it.
 
 ## 2026-10-11
 
