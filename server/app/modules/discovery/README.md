@@ -64,7 +64,10 @@ fields must report a homepage that matches the lead's Maps website
   `discovery_reviews` by place id, and is posted one message per lead, styled
   like `enrichment`'s proposal. **Review & Save** (`discover_review_seller`)
   loads the stored draft and opens the prefilled `/add-seller` form. The
-  lead's `place_id` rides along to the save.
+  lead's `place_id` rides along to the save. Once the seller is saved, the
+  card's button becomes "✅ ADDED by @user" (`api/slack/review_card.py`).
+  The clicked card is held in memory for 24 hours, so a save after a
+  restart leaves the button in place.
 
 Once its card is in Slack (`matching_engine` calls `mark_review_posted`),
 later runs skip the lead for 30 days (counted as "awaiting review"), so it

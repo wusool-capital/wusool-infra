@@ -30,7 +30,13 @@ class FakeSellerDraftPort(SellerDraftPort):
         self.calls: list[SellerDraft] = []
 
     async def open_confirm_form(
-        self, *, trigger_id: str, draft: SellerDraft, channel_id: str, requested_by: str
+        self,
+        *,
+        trigger_id: str,
+        draft: SellerDraft,
+        channel_id: str,
+        requested_by: str,
+        card_token: str | None = None,
     ) -> None:
         self.calls.append(draft)
 

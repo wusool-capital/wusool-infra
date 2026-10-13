@@ -27,7 +27,7 @@ infrastructure.
 | **WusoolScribe** | Record, transcribe, summarize, and file meetings | Mac app |
 | **Attio** | View and manage the business CRM | Web browser or Attio app |
 | **Website lead tools** | Give website visitors useful reports and capture their details | Wusool Capital website |
-| **Sanity (Reports Studio)** | Write and publish gated reports and Insights articles | Web browser |
+| **Sanity (Reports & Insights Studio)** | Write and publish gated reports and Insights articles | Web browser |
 | **n8n** | Build and run internal workflow automations | Web browser |
 
 Attio is the source of record. Toolkit edits, website leads, report readers

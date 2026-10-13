@@ -8,8 +8,8 @@ A new way to turn Wusool's research into leads.
 
 - **Reports on the website.** Reports are published at
   `wusoolcapital.com/reports`, each with its own page and card.
-- **Gated preview.** New readers see the first page, then enter their name,
-  email, and an optional organization.
+- **Gated preview.** New readers see the free pages (the first page by
+  default), then enter their name, email, and an optional organization.
 - **Email confirmation.** Readers confirm with a 6-digit code before the
   report opens, so only genuine contacts become leads.
 - **Download PDF.** Unlocked readers can download the full report as an A4
@@ -27,7 +27,7 @@ A new way to turn Wusool's research into leads.
 - Reports hide the site's navigation and footer, so the reader stays on the
   report.
 
-## The Wusool Reports Studio (new)
+## The Wusool Reports & Insights Studio (new)
 
 The team now publishes without Webflow or a developer.
 
@@ -35,14 +35,21 @@ The team now publishes without Webflow or a developer.
   HTML or in a rich text editor.
 - **Publishing updates the website automatically.** A report's card appears
   on `/reports`, and an Insights article appears on `/insights`.
-- **Pin to top of /reports** features a report, and **Pin to home page
-  banner** shows "Just released: … Get the playbook →" across the home page.
-  Pins always stay in step between the Studio and the site.
+- **Pin to home page banner** shows "Just released: … Get the playbook →"
+  across the home page, and **Pin to top of /insights** features an article.
+  Taking a pin unticks it everywhere else, in the Studio and on the site. The
+  top of `/reports` always shows the newest report.
+- **Choose how much is free.** A pasted HTML report shows a set number of free
+  pages (one by default). A rich text report locks a share of its text (75%
+  by default).
+- **SEO tab.** Set each report's and article's search title, description, and
+  share title. Blank fields use the title and excerpt.
+- **Richer editor.** Smaller headings, underline, strikethrough, inline code,
+  superscript, subscript, and links that open in a new tab.
 - **End-of-page button.** Each report can end with a custom call to action.
 - **Safe for existing content.** Hand-written Webflow articles are never
   overwritten, and article content is cleaned of unsafe code.
-- Republishing a hidden report brings its card back, and the featured slot
-  is never left empty.
+- Republishing a hidden report brings its card back.
 
 ## Get Started completed
 

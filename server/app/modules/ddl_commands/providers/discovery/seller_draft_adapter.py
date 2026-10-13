@@ -29,7 +29,13 @@ _SELLER_FIELDS_BY_NAME = {**SELLER_ROLE_FIELDS_BY_NAME, **ORGANIZATION_FIELDS_BY
 
 class DdlCommandsSellerDraftAdapter:
     async def open_confirm_form(
-        self, *, trigger_id: str, draft: SellerDraft, channel_id: str, requested_by: str
+        self,
+        *,
+        trigger_id: str,
+        draft: SellerDraft,
+        channel_id: str,
+        requested_by: str,
+        card_token: str | None = None,
     ) -> None:
         client = get_slack_client(get_settings().slack_bot_token)
         # `warn_on_drop=False`: `draft.values["sector_focus"]` is a free-text
@@ -50,6 +56,7 @@ class DdlCommandsSellerDraftAdapter:
                     channel_id=channel_id,
                     prefill=prefill,
                     source_place_id=draft.source_place_id,
+                    review_card_token=card_token,
                 ),
             )
             return
@@ -63,5 +70,6 @@ class DdlCommandsSellerDraftAdapter:
                 prefill_name=draft.org_name,
                 prefill=prefill,
                 source_place_id=draft.source_place_id,
+                review_card_token=card_token,
             ),
         )

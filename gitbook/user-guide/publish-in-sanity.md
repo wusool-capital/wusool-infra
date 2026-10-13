@@ -1,6 +1,6 @@
 # Publish reports and articles in Sanity
 
-Gated reports and Insights articles are written in the Wusool Reports Studio
+Gated reports and Insights articles are written in the Wusool Reports & Insights Studio
 (Sanity), not in Webflow. Publishing in the Studio creates or updates the
 page on wusoolcapital.com within a few moments.
 

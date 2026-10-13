@@ -7,6 +7,7 @@ method returns `SellerCandidate` (domain), mapped from the ORM row here so
 """
 
 import logging
+import uuid
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -24,7 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Organization, SellerRole
+from app.models import MatchResult, Organization, SellerRole
 from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 from app.modules.matching_engine.persistence.mappers import to_seller_candidate
@@ -121,10 +122,15 @@ class SellerRepository:
         return to_seller_candidate(role) if role else None
 
     async def get_eligible_sellers(
-        self, narrowing: CandidateNarrowing, limit: int = MAX_ELIGIBLE_SELLERS
+        self,
+        narrowing: CandidateNarrowing,
+        limit: int = MAX_ELIGIBLE_SELLERS,
+        *,
+        rejected_for_buyer_role_id: str | None,
     ) -> list[SellerCandidate]:
         """ "Eligible" is lifecycle state (`is_active`, soft-deletes) plus the
-        buyer's `narrowing` on vertical, geography and EV ceiling. A seller
+        buyer's `narrowing` on vertical, geography and EV ceiling, minus any
+        seller already rejected for `rejected_for_buyer_role_id`. A seller
         with no data for a narrowed dimension always passes it — the same
         missing-data rule as `apply_structured_filters`, which still runs
         after this for the requirement-level filters.
@@ -140,6 +146,16 @@ class SellerRepository:
             conditions.append(_geography_predicate(narrowing))
         if narrowing.ev_ceiling is not None:
             conditions.append(_ev_ceiling_predicate(narrowing.ev_ceiling))
+        if rejected_for_buyer_role_id is not None:
+            # Per buyer role (one vertical) but per seller org, so a duplicate role can't return.
+            rejected = exists(
+                select(literal(1)).where(
+                    MatchResult.buyer_role_id == uuid.UUID(rejected_for_buyer_role_id),
+                    MatchResult.seller_attio_id == SellerRole.org_attio_id,
+                    MatchResult.decision == "REJECTED",
+                )
+            )
+            conditions.append(~rejected)
 
         stmt = (
             select(SellerRole)

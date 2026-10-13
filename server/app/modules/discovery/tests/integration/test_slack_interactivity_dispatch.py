@@ -12,10 +12,12 @@ import pytest
 
 import app.modules.discovery.api.slack.handlers as handlers_module
 from app.modules.discovery.api.dependencies import encode_draft
+from app.modules.discovery.api.slack.review_card import ReviewCard
 from app.modules.discovery.bootstrap import create_app
 from app.modules.discovery.config import get_settings
 from app.modules.discovery.domain.drafts import draft_from_lead
 from app.modules.discovery.domain.leads import DiscoveredLead
+from app.modules.utilities import get_shared_ephemeral_store
 from tests.slack_test_helpers import (
     mock_slack_auth,
     mock_slack_ephemeral,
@@ -130,7 +132,10 @@ def test_discover_review_seller_opens_the_stored_review(monkeypatch) -> None:
             "user": {"id": "U_TEST"},
             "channel": {"id": "C_TEST"},
             "trigger_id": "trigger.123",
-            "actions": [{"action_id": "discover_review_seller", "value": "place-1"}],
+            "message": {"ts": "111.222", "text": "Website check for Acme", "blocks": []},
+            "actions": [
+                {"action_id": "discover_review_seller", "block_id": "b1", "value": "place-1"}
+            ],
         }
     )
 
@@ -141,8 +146,13 @@ def test_discover_review_seller_opens_the_stored_review(monkeypatch) -> None:
             "review_id": "place-1",
             "channel_id": "C_TEST",
             "requested_by": "U_TEST",
+            "card_token": calls[0]["card_token"],
         }
     ]
+    stored = get_shared_ephemeral_store().get(calls[0]["card_token"])
+    assert stored is not None
+    card = ReviewCard.model_validate_json(stored)
+    assert (card.channel_id, card.ts, card.block_id) == ("C_TEST", "111.222", "b1")
 
 
 def test_discover_review_seller_reports_an_unknown_review(monkeypatch) -> None:
@@ -160,7 +170,10 @@ def test_discover_review_seller_reports_an_unknown_review(monkeypatch) -> None:
             "user": {"id": "U_TEST"},
             "channel": {"id": "C_TEST"},
             "trigger_id": "trigger.123",
-            "actions": [{"action_id": "discover_review_seller", "value": "place-1"}],
+            "message": {"ts": "111.222", "text": "Website check for Acme", "blocks": []},
+            "actions": [
+                {"action_id": "discover_review_seller", "block_id": "b1", "value": "place-1"}
+            ],
         }
     )
 

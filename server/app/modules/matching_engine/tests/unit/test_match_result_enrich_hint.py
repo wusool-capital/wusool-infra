@@ -1,6 +1,5 @@
-"""A match candidate no longer gets its own "Enrich" button — that action
-now lives only on the seller-add flow (`ddl_commands`). Here, a pending
-candidate instead gets a plain-text hint pointing at `/enrich-seller`.
+"""A match candidate gets neither an "Enrich" button nor an `/enrich-seller`
+hint — operators found the per-candidate hint noise.
 """
 
 from dataclasses import replace
@@ -47,18 +46,8 @@ def test_pending_candidate_has_no_enrich_button() -> None:
     assert "view_full_analysis" in action_ids
 
 
-def test_pending_candidate_with_seller_role_shows_enrich_seller_hint() -> None:
+def test_pending_candidate_shows_no_enrich_seller_hint() -> None:
     blocks = [b.to_dict() for b in build_match_result_blocks(_result("seller-1"))]
-
-    context_texts = [
-        el["text"] for b in blocks if b.get("type") == "context" for el in b["elements"]
-    ]
-
-    assert any("/enrich-seller Acme Seller" in text for text in context_texts)
-
-
-def test_pending_candidate_without_seller_role_shows_no_hint() -> None:
-    blocks = [b.to_dict() for b in build_match_result_blocks(_result(None))]
 
     context_texts = [
         el["text"] for b in blocks if b.get("type") == "context" for el in b["elements"]

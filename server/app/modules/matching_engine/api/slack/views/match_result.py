@@ -58,7 +58,6 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
             _candidate_block(
                 run_id=result.run_id,
                 match_result_id=candidate.match_result_id,
-                seller_role_id=candidate.seller_role_id,
                 rank=candidate.rank,
                 seller_org_name=candidate.seller_org_name,
                 match_score=candidate.match_score,
@@ -95,7 +94,6 @@ def build_match_result_blocks_from_view(view: MatchRunView) -> list[Block]:
             _candidate_block(
                 run_id=view.run_id,
                 match_result_id=candidate.match_result_id,
-                seller_role_id=candidate.seller_role_id,
                 rank=candidate.rank,
                 seller_org_name=candidate.seller_org_name,
                 match_score=candidate.match_score,
@@ -142,7 +140,6 @@ def _candidate_block(
     *,
     run_id: str,
     match_result_id: str,
-    seller_role_id: str | None,
     rank: int,
     seller_org_name: str,
     match_score: float,
@@ -180,17 +177,6 @@ def _candidate_block(
             ),
         ]
         blocks.append(ActionsBlock(block_id=f"match_actions_{match_result_id}", elements=elements))
-        if seller_role_id:
-            blocks.append(
-                ContextBlock(
-                    elements=[
-                        MarkdownTextObject(
-                            text=f"Run `/enrich-seller {sanitize_mrkdwn(seller_org_name)}` "
-                            "to research missing fields."
-                        )
-                    ]
-                )
-            )
     else:
         emoji = {"APPROVED": "✅", "REJECTED": "❌"}.get(decision or "", "•")
         who = f" by <@{approved_by}>" if approved_by else ""

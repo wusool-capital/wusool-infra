@@ -9,6 +9,7 @@ always re-resolved from the currently-loaded row, not from the payload.
 
 import asyncio
 import json
+import logging
 from contextlib import nullcontext
 from typing import Any
 from weakref import WeakValueDictionary
@@ -93,7 +94,10 @@ from app.modules.ddl_commands.providers.attio.write_payload import (
     build_attio_values,
     build_postgres_values,
 )
+from app.modules.discovery import mark_review_card_added
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
+
+logger = logging.getLogger(__name__)
 
 
 def register(app: AsyncApp) -> None:
@@ -518,7 +522,11 @@ def register(app: AsyncApp) -> None:
         # `build_buyer_add_form_modal` has no such parameter, so it's never
         # passed for a buyer.
         prefill_kwargs = (
-            {"prefill": prefill, "source_place_id": metadata.get("source_place_id")}
+            {
+                "prefill": prefill,
+                "source_place_id": metadata.get("source_place_id"),
+                "review_card_token": metadata.get("review_card_token"),
+            }
             if kind == "seller"
             else {}
         )
@@ -681,6 +689,12 @@ def register(app: AsyncApp) -> None:
                 f"Run `/enrich-seller {org_name}` to research missing fields."
             ),
         )
+        if card_token := metadata.get("review_card_token"):
+            # The seller is already saved; a stale card must not read as a failed save.
+            try:
+                await mark_review_card_added(card_token, requested_by)
+            except Exception:
+                logger.exception("review_card_update_failed")
 
     @app.view("buyer_add_form_modal")
     async def handle_buyer_add_form_submission(

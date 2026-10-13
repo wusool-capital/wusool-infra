@@ -14,7 +14,7 @@ and keep them current in the client's operations register.
 | PostgreSQL and CRM sync | Schema, migrations, webhook and nightly reconciliation | Unassigned |
 | Attio | CRM structure, data quality, users, webhooks | Unassigned |
 | Slack | Toolkit app, workspace access, alerts channel | Unassigned |
-| Sanity Reports Studio | Report and article content, editors, webhooks | Unassigned |
+| Sanity Reports & Insights Studio | Report and article content, editors, webhooks | Unassigned |
 | Webflow | The website and its CMS collections | Unassigned |
 | n8n | Users, workflows, credentials, execution history | Unassigned |
 | Cloudflare | Public DNS for service hostnames | Unassigned |
