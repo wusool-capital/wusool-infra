@@ -684,10 +684,7 @@ def register(app: AsyncApp) -> None:
         await client.chat_postEphemeral(
             channel=channel_id,
             user=requested_by,
-            text=(
-                f"*Added* seller profile for *{org_name}*.\n"
-                f"Run `/enrich-seller {org_name}` to research missing fields."
-            ),
+            text=f"*Added* seller profile for *{org_name}*.",
         )
         if card_token := metadata.get("review_card_token"):
             # The seller is already saved; a stale card must not read as a failed save.

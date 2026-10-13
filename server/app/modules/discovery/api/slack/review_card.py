@@ -67,10 +67,10 @@ async def mark_review_card_added(card_token: str, added_by: str) -> None:
         logger.info("review_card_token_expired")
         return
     card = ReviewCard.model_validate_json(payload)
+    blocks = mark_card_added(card, added_by)
+    if blocks == card.blocks:
+        logger.warning("review_card_block_not_found block_id=%s", card.block_id)
+        return
     client = get_slack_client(get_settings().slack_bot_token)
-    await client.chat_update(
-        channel=card.channel_id,
-        ts=card.ts,
-        text=card.text,
-        blocks=mark_card_added(card, added_by),
-    )
+    await client.chat_update(channel=card.channel_id, ts=card.ts, text=card.text, blocks=blocks)
+    logger.info("review_card_marked_added ts=%s", card.ts)
