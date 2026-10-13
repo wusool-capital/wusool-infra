@@ -30,6 +30,7 @@ class SlackMessage(TypedDict):
 
 class SlackBlockAction(TypedDict, total=False):
     action_id: str
+    block_id: str
     value: str
 
 

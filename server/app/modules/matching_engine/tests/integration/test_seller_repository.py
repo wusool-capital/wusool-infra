@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Organization, SellerRole
+from app.models import BuyerRole, MatchResult, Organization, SellerRole
 from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
 from app.modules.matching_engine.persistence.repositories.sellers_repository import SellerRepository
 from app.modules.utilities.domain.json_types import JsonObject
@@ -40,7 +40,7 @@ async def test_get_eligible_sellers_excludes_inactive_and_removed(
     await db_session.flush()
 
     repo = SellerRepository(db_session)
-    results = await repo.get_eligible_sellers(CandidateNarrowing())
+    results = await repo.get_eligible_sellers(CandidateNarrowing(), rejected_for_buyer_role_id=None)
     result_ids = {r.seller_role_id for r in results}
 
     assert str(eligible.id) in result_ids
@@ -89,7 +89,9 @@ async def _add_seller(
 
 
 async def _eligible_ids(db_session: AsyncSession, narrowing: CandidateNarrowing) -> set[str]:
-    results = await SellerRepository(db_session).get_eligible_sellers(narrowing)
+    results = await SellerRepository(db_session).get_eligible_sellers(
+        narrowing, rejected_for_buyer_role_id=None
+    )
     return {r.seller_role_id for r in results}
 
 
@@ -152,3 +154,66 @@ async def test_ev_ceiling_drops_sellers_valued_above_it(db_session: AsyncSession
 
     assert within in ids
     assert above not in ids
+
+
+async def _add_buyer_role(db_session: AsyncSession) -> BuyerRole:
+    org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name="Rejecting Buyer Org")
+    db_session.add(org)
+    await db_session.flush()
+    role = BuyerRole(org_attio_id=org.attio_id, is_active=True)
+    db_session.add(role)
+    await db_session.flush()
+    return role
+
+
+async def _decide(
+    db_session: AsyncSession, buyer: BuyerRole, seller_role_id: str, decision: str
+) -> None:
+    seller = await db_session.get(SellerRole, uuid.UUID(seller_role_id))
+    assert seller is not None
+    db_session.add(
+        MatchResult(
+            run_id=uuid.uuid4(),
+            buyer_attio_id=buyer.org_attio_id,
+            buyer_role_id=buyer.id,
+            rank=1,
+            seller_attio_id=seller.org_attio_id,
+            seller_role_id=seller.id,
+            status=decision,
+            decision=decision,
+        )
+    )
+    await db_session.flush()
+
+
+async def test_a_seller_rejected_for_one_buyer_role_is_hidden_only_for_that_role(
+    db_session: AsyncSession,
+) -> None:
+    rejecting, other = await _add_buyer_role(db_session), await _add_buyer_role(db_session)
+    rejected = await _add_seller(db_session)
+    approved = await _add_seller(db_session)
+    await _decide(db_session, rejecting, rejected, "REJECTED")
+    await _decide(db_session, rejecting, approved, "APPROVED")
+    rejected_org = (await db_session.get(SellerRole, uuid.UUID(rejected))).org_attio_id
+    duplicate = SellerRole(org_attio_id=rejected_org, is_active=True)
+    db_session.add(duplicate)
+    await db_session.flush()
+    repo = SellerRepository(db_session)
+
+    for_rejecting = {
+        r.seller_role_id
+        for r in await repo.get_eligible_sellers(
+            CandidateNarrowing(), rejected_for_buyer_role_id=str(rejecting.id)
+        )
+    }
+    for_other = {
+        r.seller_role_id
+        for r in await repo.get_eligible_sellers(
+            CandidateNarrowing(), rejected_for_buyer_role_id=str(other.id)
+        )
+    }
+
+    assert rejected not in for_rejecting
+    assert str(duplicate.id) not in for_rejecting
+    assert approved in for_rejecting
+    assert {rejected, approved, str(duplicate.id)} <= for_other

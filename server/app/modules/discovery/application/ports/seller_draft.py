@@ -11,5 +11,12 @@ from app.modules.discovery.domain.drafts import SellerDraft
 
 class SellerDraftPort(Protocol):
     async def open_confirm_form(
-        self, *, trigger_id: str, draft: SellerDraft, channel_id: str, requested_by: str
+        self,
+        *,
+        trigger_id: str,
+        draft: SellerDraft,
+        channel_id: str,
+        requested_by: str,
+        # Opaque; handed back to `mark_review_card_added` once the seller is saved.
+        card_token: str | None = None,
     ) -> None: ...

@@ -53,7 +53,7 @@ def build_buyer_selection_modal(
             ),
             InputBlock(
                 block_id="advisor_context",
-                label="Anything specific about this search? (optional)",
+                label="Anything specific about this search?",
                 optional=True,
                 element=PlainTextInputElement(
                     action_id="context_text",

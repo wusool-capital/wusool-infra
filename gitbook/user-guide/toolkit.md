@@ -61,6 +61,10 @@ whether to promote it to Qualified or create a new one. An approval can't be
 undone from Slack; ask the CRM owner to change the deal in Attio. Matching
 never contacts an organization.
 
+**Reject Match** keeps that seller out of later matches for the same buyer
+and vertical. It still appears for other buyers, and the seller stays in
+the CRM. A rejection can't be undone from Slack.
+
 ### When no CRM seller is a strong fit
 
 The bot searches Google Maps for new sellers in the buyer's target regions

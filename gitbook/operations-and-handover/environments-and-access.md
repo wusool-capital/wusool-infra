@@ -31,7 +31,7 @@ Give each operator the minimum role for the task.
 | AWS, through the approved sign-in | Logs, alarms, Systems Manager, RDS, Secrets Manager, and OpenTofu. Includes Bedrock model access and SES sending. |
 | Slack administration | The Toolkit app, and the AWS Chatbot alerts channel |
 | Attio administration | CRM attributes, lists, webhooks, and users |
-| Sanity | The Reports Studio project: member invites, API tokens, and webhooks |
+| Sanity | The Reports & Insights Studio project: member invites, API tokens, and webhooks |
 | Webflow | The site, and a CMS read/write API token |
 | Cloudflare | Service DNS records |
 | n8n owner or administrator | Users, credentials, workflows, and execution history |

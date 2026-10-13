@@ -20,6 +20,7 @@ from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.discovery.api.dependencies import decode_draft, discovery_service
+from app.modules.discovery.api.slack.review_card import store_review_card
 from app.modules.notifications import SlackInteractionBody
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ def register_handlers(app: AsyncApp) -> None:
                 review_id=body["actions"][0]["value"],
                 channel_id=channel_id,
                 requested_by=user_id,
+                card_token=store_review_card(body),
             )
         except Exception:
             logger.exception("discover_review_form_failed")

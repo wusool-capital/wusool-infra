@@ -3,7 +3,7 @@
 Delivery period: 15 September – 14 October 2026.
 
 In four weeks, more than 60 pull requests were merged across every Wusool product. Two new
-products launched: gated reports and the Reports Studio. Every lead tool
+products launched: gated reports and the Reports & Insights Studio. Every lead tool
 started emailing visitors and the team. The Slack bot gained a pre-match check
 and automatic seller creation, and WusoolScribe went from 0.4.9 to 0.7.7.
 
@@ -12,7 +12,7 @@ and automatic seller creation, and WusoolScribe went from 0.4.9 to 0.7.7.
 - **Gated reports, a new lead channel.** Wusool can publish research reports
   on wusoolcapital.com that readers unlock with their email. Every confirmed
   reader lands in Attio as a lead, and each report becomes a downloadable PDF.
-- **The Wusool Reports Studio.** The team writes and publishes reports and
+- **The Wusool Reports & Insights Studio.** The team writes and publishes reports and
   Insights articles themselves, without touching Webflow or a developer.
 - **Approved matches become deals.** Approving a match in Slack now opens a
   Qualified deal in Attio automatically.
@@ -33,6 +33,6 @@ and automatic seller creation, and WusoolScribe went from 0.4.9 to 0.7.7.
 | Product | Details |
 | --- | --- |
 | Wusool Toolkit (Slack bot) | [Wusool Toolkit](october-2026-toolkit.md) |
-| Website lead tools, gated reports, and the Reports Studio | [Website lead tools and reports](october-2026-website.md) |
+| Website lead tools, gated reports, and the Reports & Insights Studio | [Website lead tools and reports](october-2026-website.md) |
 | WusoolScribe | [WusoolScribe](october-2026-scribe.md) |
 | CRM sync, infrastructure, and documentation | [Platform, data, and documentation](october-2026-platform.md) |

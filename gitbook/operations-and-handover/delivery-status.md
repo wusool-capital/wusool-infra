@@ -20,7 +20,7 @@ verified live. Update it at each handover or significant release.
 | Attio real-time webhook and nightly resync, with soft deletes | Delivered; verify the webhook subscription and alert live |
 | Website lead tools: Valuation, Readiness, Benchmark, Buyer Network, Get Started | Delivered; see open items for end-to-end checks |
 | Gated reports on `/reports`, with emailed code, PDF, and A4 sheet view | Delivered |
-| Sanity Reports Studio, Webflow sync, home banner, Insights articles | Delivered; confirm webhooks live |
+| Sanity Reports & Insights Studio, Webflow sync, home banner, Insights articles | Delivered; confirm webhooks live |
 | WusoolScribe 0.7.7 for Apple-silicon Macs | Delivered; ad-hoc signed |
 | n8n in both environments, with pinned images, logs, and alarms | Delivered; no backup |
 | Monitoring: alarms, security findings, Slack and email routing | Delivered in code; confirm subscriptions live |

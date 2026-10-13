@@ -107,7 +107,7 @@ skip it.
 | --- | --- |
 | **Discovered sellers**, created and added to the match run | **Approve** or **Reject**. These sellers are labelled "Discovered via Google Maps; not scored". |
 | **Possible duplicates** | **Add as seller** opens the add-seller form, prefilled, so a person can attach the lead to the existing organization or create a new one. |
-| **Website check**, one per unverified lead | Shows both websites and the proposed values. **Review & Save** opens the prefilled add-seller form; it keeps working after a restart. |
+| **Website check**, one per unverified lead | Shows both websites and the proposed values. **Review & Save** opens the prefilled add-seller form; it keeps working after a restart. After a save, the button becomes "✅ ADDED by" the person who saved it. |
 | Failures and counts | Leads that failed to save, with anything that reached the CRM, plus counts of leads already in the CRM or awaiting review. |
 
 ## Approve or reject a discovered seller

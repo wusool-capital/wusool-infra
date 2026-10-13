@@ -32,7 +32,8 @@ class StructuredCandidateRetriever(CandidateRetriever):
     ) -> CandidateBatch:
         async with self._sessionmaker() as session:
             candidates = await SellerRepository(session).get_eligible_sellers(
-                CandidateNarrowing.from_buyer(buyer, profile)
+                CandidateNarrowing.from_buyer(buyer, profile),
+                rejected_for_buyer_role_id=buyer.buyer_role_id,
             )
         passed, filters_skipped = apply_structured_filters(profile, candidates)
         return CandidateBatch(

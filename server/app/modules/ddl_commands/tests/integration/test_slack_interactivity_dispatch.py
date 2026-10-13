@@ -806,6 +806,7 @@ def _organization_selection_payload(
     candidate_names: list[str] | None = None,
     prefill: dict | None = None,
     source_place_id: str | None = None,
+    review_card_token: str | None = None,
 ) -> dict:
     return {
         "type": "view_submission",
@@ -821,6 +822,7 @@ def _organization_selection_payload(
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
                     "source_place_id": source_place_id,
+                    "review_card_token": review_card_token,
                     "payload_token": _encode_selection_payload(
                         candidate_names or [], prefill or {}
                     ),
@@ -861,12 +863,15 @@ def test_organization_selection_new_option_keeps_a_dated_prefill_and_place_id() 
         NEW_ORGANIZATION_VALUE,
         prefill={"foundation_date": date(2015, 3, 1)},
         source_place_id="place-1",
+        review_card_token="card-1",
     )
 
     response = _post_interactivity(payload)
 
     body = response.json()
-    assert json.loads(body["view"]["private_metadata"])["source_place_id"] == "place-1"
+    metadata = json.loads(body["view"]["private_metadata"])
+    assert metadata["source_place_id"] == "place-1"
+    assert metadata["review_card_token"] == "card-1"
     founded = next(b for b in body["view"]["blocks"] if b["block_id"] == "org_foundation_date")
     assert founded["element"]["initial_date"] == "2015-03-01"
 
@@ -1042,6 +1047,7 @@ def _seller_add_form_payload(
     org_name: str | None,
     values: dict,
     source_place_id: str | None = None,
+    review_card_token: str | None = None,
 ) -> dict:
     return {
         "type": "view_submission",
@@ -1058,6 +1064,7 @@ def _seller_add_form_payload(
                     "requested_by": "U_TEST",
                     "channel_id": "C_TEST",
                     "source_place_id": source_place_id,
+                    "review_card_token": review_card_token,
                 }
             ),
             "state": {"values": values},
@@ -1100,14 +1107,24 @@ def test_seller_add_form_new_org_writes_attio_before_postgres(
         lambda: SimpleNamespace(create_seller=fake_execute),
     )
 
+    marked: list[tuple[str, str]] = []
+
+    async def fake_mark(card_token: str, added_by: str) -> None:
+        marked.append((card_token, added_by))
+
+    monkeypatch.setattr(actions_module, "mark_review_card_added", fake_mark)
+
     values = {"name": {"name": {"value": "New Seller Co"}}}
-    payload = _seller_add_form_payload(True, None, None, values, source_place_id="place-1")
+    payload = _seller_add_form_payload(
+        True, None, None, values, source_place_id="place-1", review_card_token="card-1"
+    )
 
     response = _post_interactivity(payload)
 
     assert response.status_code == 200
     assert response.text == ""
     assert call_order == ["create_organization", "create_role_entry", "postgres_write"]
+    assert marked == [("card-1", "U_TEST")]
     assert postgres_use_case.calls[0]["source_place_id"] == "place-1"
     assert postgres_use_case.calls[0]["org_attio_id"] == "org-new-1"
     assert postgres_use_case.calls[0]["is_new_org"] is True

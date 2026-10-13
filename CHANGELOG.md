@@ -8,6 +8,17 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-13
+
+### Changed
+
+- A website-check card's **Review & Save** button becomes "✅ ADDED by"
+  the person who saved the seller, so a reviewed lead no longer looks open.
+- `/find-match` candidates no longer end with a "Run `/enrich-seller …`"
+  hint.
+- A seller rejected in `/find-match` is no longer suggested again for that
+  buyer and vertical. Other buyers still see it.
+
 ## 2026-10-11
 
 ### Changed
