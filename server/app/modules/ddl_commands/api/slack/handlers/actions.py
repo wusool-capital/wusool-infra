@@ -684,10 +684,7 @@ def register(app: AsyncApp) -> None:
         await client.chat_postEphemeral(
             channel=channel_id,
             user=requested_by,
-            text=(
-                f"*Added* seller profile for *{org_name}*.\n"
-                f"Run `/enrich-seller {org_name}` to research missing fields."
-            ),
+            text=f"*Added* seller profile for *{org_name}*.",
         )
         if card_token := metadata.get("review_card_token"):
             # The seller is already saved; a stale card must not read as a failed save.
@@ -695,6 +692,9 @@ def register(app: AsyncApp) -> None:
                 await mark_review_card_added(card_token, requested_by)
             except Exception:
                 logger.exception("review_card_update_failed")
+        elif place_id := metadata.get("source_place_id"):
+            # Only discovery forms carry a place id, so plain /add-seller stays quiet.
+            logger.warning("review_card_token_missing place_id=%s", place_id)
 
     @app.view("buyer_add_form_modal")
     async def handle_buyer_add_form_submission(

@@ -18,6 +18,8 @@ for current production evidence and open handover items.
   hint.
 - A seller rejected in `/find-match` is no longer suggested again for that
   buyer and vertical. Other buyers still see it.
+- The "Added seller profile" confirmation no longer ends with a
+  "Run `/enrich-seller …`" hint.
 
 ## 2026-10-11
 
