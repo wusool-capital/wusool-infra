@@ -692,6 +692,9 @@ def register(app: AsyncApp) -> None:
                 await mark_review_card_added(card_token, requested_by)
             except Exception:
                 logger.exception("review_card_update_failed")
+        elif place_id := metadata.get("source_place_id"):
+            # Only discovery forms carry a place id, so plain /add-seller stays quiet.
+            logger.warning("review_card_token_missing place_id=%s", place_id)
 
     @app.view("buyer_add_form_modal")
     async def handle_buyer_add_form_submission(

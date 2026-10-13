@@ -75,10 +75,15 @@ async def test_open_review_form_loads_the_stored_draft() -> None:
     service, draft_port = _service(store=store)
 
     await service.open_review_form(
-        trigger_id="trigger.1", review_id="p1", channel_id="C1", requested_by="U1"
+        trigger_id="trigger.1",
+        review_id="p1",
+        channel_id="C1",
+        requested_by="U1",
+        card_token="card-1",
     )
 
     assert draft_port.calls == [draft]
+    assert draft_port.card_tokens == ["card-1"]
 
 
 async def test_open_review_form_raises_for_an_unknown_review() -> None:

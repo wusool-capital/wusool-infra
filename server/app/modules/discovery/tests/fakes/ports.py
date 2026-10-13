@@ -28,6 +28,7 @@ class FakeLeadSearchClient(LeadSearchClient):
 class FakeSellerDraftPort(SellerDraftPort):
     def __init__(self) -> None:
         self.calls: list[SellerDraft] = []
+        self.card_tokens: list[str | None] = []
 
     async def open_confirm_form(
         self,
@@ -39,6 +40,7 @@ class FakeSellerDraftPort(SellerDraftPort):
         card_token: str | None = None,
     ) -> None:
         self.calls.append(draft)
+        self.card_tokens.append(card_token)
 
 
 class FakeSellerWriterPort(SellerWriterPort):
