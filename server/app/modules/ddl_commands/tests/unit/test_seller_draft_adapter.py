@@ -91,13 +91,14 @@ async def test_open_confirm_form_with_no_existing_org_opens_prefilled_add_form(
     )
 
     await module.DdlCommandsSellerDraftAdapter().open_confirm_form(
-        trigger_id="trigger.1", draft=draft, channel_id="C1", requested_by="U1"
+        trigger_id="trigger.1", draft=draft, channel_id="C1", requested_by="U1", card_token="c1"
     )
 
     assert len(client.opened) == 1
     view = client.opened[0]["view"]
     assert view.callback_id == "seller_add_form_modal"
     assert json.loads(view.private_metadata)["source_place_id"] == "p1"
+    assert json.loads(view.private_metadata)["review_card_token"] == "c1"
 
 
 async def test_open_confirm_form_with_existing_candidates_opens_selection_modal(

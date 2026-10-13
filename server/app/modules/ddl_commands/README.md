@@ -108,6 +108,11 @@ organization-selection and add-form `private_metadata` to the same write
 (set only when the organization has none and no other organization holds it). `source_place_id` goes to Postgres only: Attio has
 no such attribute, and the sync's `COALESCE` keeps it.
 
+A website-check card's `review_card_token` travels the same way. After a
+successful save, the add-seller handler passes it to
+`discovery.mark_review_card_added`, which marks the card as added. This is
+the one call from this module's Slack handlers into `discovery`.
+
 ## Why Attio-first, not a Postgres-only write
 
 `scripts/postgres-sync/prod/sync-source-to-prod.ps1` runs on its own schedule and

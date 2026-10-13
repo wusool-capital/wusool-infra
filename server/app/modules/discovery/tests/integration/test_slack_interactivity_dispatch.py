@@ -132,7 +132,7 @@ def test_discover_review_seller_opens_the_stored_review(monkeypatch) -> None:
             "user": {"id": "U_TEST"},
             "channel": {"id": "C_TEST"},
             "trigger_id": "trigger.123",
-            "message": {"ts": "111.222", "blocks": []},
+            "message": {"ts": "111.222", "text": "Website check for Acme", "blocks": []},
             "actions": [
                 {"action_id": "discover_review_seller", "block_id": "b1", "value": "place-1"}
             ],
@@ -170,7 +170,7 @@ def test_discover_review_seller_reports_an_unknown_review(monkeypatch) -> None:
             "user": {"id": "U_TEST"},
             "channel": {"id": "C_TEST"},
             "trigger_id": "trigger.123",
-            "message": {"ts": "111.222", "blocks": []},
+            "message": {"ts": "111.222", "text": "Website check for Acme", "blocks": []},
             "actions": [
                 {"action_id": "discover_review_seller", "block_id": "b1", "value": "place-1"}
             ],

@@ -7,7 +7,7 @@ stashed at click time and carried through the add-seller modals as a token.
 
 import logging
 
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, JsonValue, ValidationError
 from slack_sdk.models.blocks import ContextBlock
 from slack_sdk.models.blocks.basic_components import MarkdownTextObject
 
@@ -17,30 +17,40 @@ from app.modules.utilities import get_shared_ephemeral_store
 
 logger = logging.getLogger(__name__)
 
-# Slack's own block JSON, passed back to `chat.update` untouched.
+# Slack's own block JSON, echoed back to `chat.update` untouched; parsing it
+# through slack_sdk models could drop fields they don't cover.
 SlackBlockJson = dict[str, JsonValue]
 
 
 class _ClickedMessage(BaseModel):
     ts: str
+    text: str
     blocks: list[SlackBlockJson]
 
 
 class ReviewCard(BaseModel):
     channel_id: str
     ts: str
+    text: str
     block_id: str
     blocks: list[SlackBlockJson]
 
 
-def store_review_card(body: SlackInteractionBody) -> str:
-    message = _ClickedMessage.model_validate(body["message"])
-    card = ReviewCard(
-        channel_id=body["channel"]["id"],
-        ts=message.ts,
-        block_id=body["actions"][0]["block_id"],
-        blocks=message.blocks,
-    )
+def store_review_card(body: SlackInteractionBody) -> str | None:
+    """`None` when the click can't be captured: the form must still open."""
+    try:
+        message = _ClickedMessage.model_validate(body["message"])
+        card = ReviewCard(
+            channel_id=body["channel"]["id"],
+            ts=message.ts,
+            text=message.text,
+            block_id=body["actions"][0]["block_id"],
+            blocks=message.blocks,
+        )
+    except (KeyError, ValidationError):
+        logger.exception("review_card_capture_failed")
+        return None
+    # ponytail: in-memory, lost on restart; persist channel/ts on `discovery_reviews` if that bites.
     return get_shared_ephemeral_store().put(card.model_dump_json())
 
 
@@ -61,6 +71,6 @@ async def mark_review_card_added(card_token: str, added_by: str) -> None:
     await client.chat_update(
         channel=card.channel_id,
         ts=card.ts,
-        text="Website check: seller added",
+        text=card.text,
         blocks=mark_card_added(card, added_by),
     )
