@@ -21,6 +21,12 @@ for current production evidence and open handover items.
 - The "Added seller profile" confirmation no longer ends with a
   "Run `/enrich-seller …`" hint.
 
+### Fixed
+
+- Discovered leads now keep their Google place ID. Without it, the
+  **Review & Save** button never changed after a save, and place-ID
+  deduplication never ran.
+
 ## 2026-10-11
 
 ### Changed

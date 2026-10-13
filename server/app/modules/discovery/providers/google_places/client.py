@@ -209,6 +209,7 @@ class GooglePlacesClient:
             country=_place_country(place),
             website=place.websiteUri,
             types=tuple(place.types),
+            place_id=place.id,
         )
 
     async def _resolve_geography(
