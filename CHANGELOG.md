@@ -14,6 +14,8 @@ for current production evidence and open handover items.
 
 - A website-check card's **Review & Save** button becomes "✅ ADDED by"
   the person who saved the seller, so a reviewed lead no longer looks open.
+- `/find-match` candidates no longer end with a "Run `/enrich-seller …`"
+  hint.
 
 ## 2026-10-11
 
