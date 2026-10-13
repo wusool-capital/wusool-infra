@@ -564,6 +564,19 @@ async def test_a_place_with_no_country_component_is_kept() -> None:
     assert lead.country is None
 
 
+async def test_a_lead_carries_its_place_id() -> None:
+    """Review storage, the card's saved state and place-id dedupe all key on it."""
+    from app.modules.discovery.providers.google_places.client import GooglePlacesClient
+    from app.modules.discovery.providers.google_places.schemas import LocalizedText, Place
+
+    place = Place(id="ChIJ123", displayName=LocalizedText(text="Acme Co"))
+
+    lead = GooglePlacesClient._to_lead(place, "Healthcare companies")
+
+    assert lead is not None
+    assert lead.place_id == "ChIJ123"
+
+
 async def test_a_place_with_no_country_component_is_logged_as_unverified(
     monkeypatch, caplog
 ) -> None:
