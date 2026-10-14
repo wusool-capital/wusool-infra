@@ -37,6 +37,10 @@ profile. No data was deleted: only an "active" flag changed. The flags were
 restored the next day with a repair script and the sync was corrected. The
 older list-sync script now refuses to touch buyer profiles.
 
+On 13 October, a dev deploy failed before migrating because old Docker
+images had filled the Toolkit server's disk. Each deploy now removes old
+images after rollout.
+
 ## Infrastructure and operations
 
 - **Website stack.** The server can render complex reports in a headless

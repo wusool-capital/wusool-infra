@@ -119,8 +119,10 @@ posts a research proposal for the new seller. Nothing from that proposal is
 saved until someone uses **Review & Save**.
 
 **Reject** marks the candidate rejected, recording who decided and when. The
-seller stays in the CRM, because it was created when discovered. If it isn't
-wanted at all, the CRM owner removes it in Attio.
+seller stays in the CRM, because it was created when discovered. Like any
+rejected match, it isn't suggested again for that buyer and vertical; other
+buyers still see it. If it isn't wanted at all, the CRM owner removes it in
+Attio.
 
 | | Basic enrichment | Full enrichment |
 | --- | --- | --- |
