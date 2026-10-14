@@ -47,6 +47,8 @@ Delivery period: 15 September – 14 October 2026.
   one for that run, and "Run anyway" keeps the note.
 - **Partial stakes.** Sellers valued above a buyer's cheque size stay in the
   pool with a lower score, because a cheque can buy a partial stake.
+- **Rejections stick.** A seller rejected for a buyer and sector isn't
+  suggested again for that buyer. Other buyers still see it.
 - **Clean-up.** A scoring criterion that never matched anything was retired,
   and discovered sellers are numbered in their own message.
 
@@ -60,7 +62,8 @@ Delivery period: 15 September – 14 October 2026.
   a full research proposal for review.
 - **Website verification.** A seller is saved automatically only when its
   researched website matches Google Maps. Otherwise a **Website check**
-  message lets a person review and save it.
+  message lets a person review and save it. After a save, its **Review &
+  Save** button shows "✅ ADDED by" the person who saved it.
 - **Duplicates go to a person.** A result that only resembles an existing
   company gets an **Add as seller** button instead of being created.
 - **Safeguards.** A lead already waiting for review is skipped for 30 days.
@@ -80,3 +83,9 @@ Delivery period: 15 September – 14 October 2026.
 - Company lookups pass the website to the data providers, for more accurate
   results.
 - Removed organizations no longer appear in searches, matches, or edits.
+
+## Bug fixes
+
+- Discovered leads now keep their Google place ID. Before, a saved lead's
+  **Review & Save** button never changed, and later searches didn't skip
+  places already in the CRM.

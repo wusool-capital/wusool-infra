@@ -23,9 +23,10 @@ Qualified Buy-side deal in Attio.
    result says so.
 4. **Narrow and filter.** SQL narrows sellers by the buyer role's vertical,
    target region and country, and EV ceiling. A seller with no data for a
-   dimension always passes. Sellers already rejected for this buyer role are
-   left out; other buyers and verticals still see them. If any target region can't be resolved, or is
-   unrestricted (such as Europe or Global), geography narrowing is skipped. A seller is then dropped only on a confirmed hard
+   dimension always passes. Seller organizations already rejected for this
+   buyer role are left out, even under a duplicate seller profile; other
+   buyers and verticals still see them. If any target region can't be
+   resolved, or is unrestricted (such as Europe or Global), geography narrowing is skipped. A seller is then dropped only on a confirmed hard
    requirement's failure; missing data never eliminates anyone. Ticket size
    never eliminates; it only affects the score.
 5. **Score.** Each criterion scores Pass 100, Unknown 50, or Fail 0, and the

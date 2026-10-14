@@ -24,7 +24,8 @@ deploy anything; they have their own release steps below.
    SSM, with two attempts. A failed migration stops the deploy before the new
    version is rolled out.
 7. **Roll out**: run the bootstrap document, which pulls the new image and
-   restarts the container.
+   restarts the container. It then removes old Docker images so they can't
+   fill the disk.
 8. **Check**: poll `/health`, then check that `/embed.js` returns 200.
 9. **PostgreSQL**, if changed, last.
 
