@@ -74,7 +74,8 @@ and countries:
   Maps website. It is also saved when there are no extra details to check.
 - Otherwise a **Website check** message shows both websites and the proposed
   values. **Review & Save** opens the add-seller form; nothing is saved until
-  you complete it.
+  you complete it. After a save, the button becomes "✅ ADDED by" the person
+  who saved it.
 - A lead already waiting for review is skipped for 30 days.
 - Pages on Instagram, Facebook, Shopify, Salla, Zid, or Google Sites count
   as "no website".
