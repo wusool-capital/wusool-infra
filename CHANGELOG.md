@@ -58,7 +58,7 @@ for current production evidence and open handover items.
   check and seller discovery have in-depth pages. The Operations pages
   now give the real deploy and rollback steps, every alarm, what isn't
   alarmed, and backup coverage.
-- Release notes for 15 September to 14 October were added, grouped by
+- Release notes for 15 September to 10 October were added, grouped by
   product, and the September notes were rewritten in plain terms.
 - Diagrams were redrawn in Wusool's brand colors, with editable sources in
   `docs/internal/diagrams/`. The interactive architecture diagram was rebuilt
