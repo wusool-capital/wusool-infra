@@ -5,7 +5,7 @@ import {bodyFormat, isHtml, isRich, richText} from './richText'
 
 // Exact Webflow names; the sync resolves them to Webflow ids. "Report" belongs to /reports.
 const CONTENT_TYPES = ['Article', 'Playbook', 'Case Study', 'Press']
-const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar']
+const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar', 'Wusool Capital']
 
 // One rich-text field and its pasted-HTML twin; `bodyFormat` shows one of the pair.
 const richOrHtml = (name: string, title: string, required: boolean) => [

@@ -30,6 +30,10 @@ grep -oiE 'font-family:[^;"]{1,80}' "$F" | sort | uniq -c | head
 grep -oiE '#(000523|c6e1ee|f7f5f0)' "$F" | sort | uniq -c
 ```
 
+Record every result in `checks.md`. Tell the person only the problems, in plain words
+(such as "the charts load from another site and won't show"), and say "Everything else
+checks out." in one line.
+
 What each result means:
 
 - **Size:** over 20 MB is refused by the server.
@@ -37,7 +41,8 @@ What each result means:
   `cdn.sanity.io` is blocked while rendering, so a script or image from it won't appear.
   Stylesheets from it load for readers but are missing in the PDF.
 - **Page viewer:** `0` means no page viewer, so `freePages` is ignored and the form falls
-  at the first block. Tell the person.
+  at the first block. Tell the person the sign-up form will appear right after the
+  opening section.
 - **Title:** use it to suggest `title`; warn if missing.
 - **Fonts and colours:** warn only if it's not DM Sans or Inter, or uses none of the brand
   colours.
@@ -64,10 +69,11 @@ Check the slug is free:
 count(*[_type == "report" && slug.current == $slug])
 ```
 
-It must be `0` (the count covers drafts too). If it's taken, propose another.
+It must be `0` (the count covers drafts too). If it's taken, propose another web
+address in one line.
 
-Show the checks and the staff-field answers, list every field still blank, and wait for
-an OK before writing.
+One message, before writing: any check that failed (passed ones in one line), the
+staff-field table, and "Still blank: … Leave these blank?". Wait for an OK.
 
 ## 5. Write the draft
 
@@ -96,9 +102,11 @@ seconds between checks (the code tool can `sleep`), for up to about 3 minutes, u
 `renderedFrom` is set (on a republish, until it changes). Then:
 
 - `renderedPreviewEnd` is where the free preview ends in `renderedHtml`. A very small
-  share of `renderedLen` means the gate fell at the first block: tell the person.
-- If it never renders, say so: the server may not be deployed with `htmlFile` support
-  yet, or the sync failed. Republishing retries it.
+  share of `renderedLen` means the gate fell at the first block: tell the person the
+  sign-up form appears almost at the top.
+- If it never renders, tell the person the report isn't showing on the site yet and
+  that publishing again retries it. Put the likely cause in `checks.md`: the server may
+  not be deployed with `htmlFile` support yet, or the sync failed.
 - Check Webflow: the Reports collection's **list collection items** action filtered by
   `slug` should return the item. Without the Webflow connector, say this check didn't run.
 

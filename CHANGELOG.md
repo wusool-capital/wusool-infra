@@ -12,6 +12,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The `wusool-content` skill now talks to staff in plain words: no field
+  names or jargon, problems first, and check details kept in `checks.md`.
+  It still gives full answers when the content needs them.
 - Discovery no longer matches a lead to an existing company over a shared
   generic word, such as "Intelligence" or "GmbH". A lead with a similar name
   is now skipped and counted. It no longer gets an **Add as seller** button
@@ -44,6 +47,9 @@ for current production evidence and open handover items.
   of pasted. The server downloads it from Sanity before rendering.
 - Before an Insights draft, the skill scores whether the piece is worth
   publishing as a blog article and checks for overlap with existing articles.
+- Insights articles can be credited to **Wusool Capital** as the author,
+  with the brand mark and company LinkedIn page. The Team page filters
+  this item out, so it does not appear as a team member.
 
 ## 2026-10-13
 
