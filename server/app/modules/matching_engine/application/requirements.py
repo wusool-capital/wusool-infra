@@ -48,6 +48,51 @@ _SECTOR_BY_LOWER: dict[str, str] = {s.lower(): str(s) for s in SECTOR_FOCUS_OPTI
 _SECTOR_LIST = "; ".join(sorted(_SECTOR_BY_LOWER.values()))
 
 
+# Sectors that usually describe HOW a company works, not what it is.
+_MODIFIER_SECTORS = frozenset({"AI / ML", "Technology", "Sharia-Compliant"})
+# "AI tools for asset managers": the order flips, so a relational phrase skips the demotion.
+_RELATIONAL = re.compile(r"\b(for|serving|serve|helps?|helping|that|which|to)\b", re.IGNORECASE)
+_MODIFIER_SOFT_WEIGHT = 0.8
+
+
+def _is_advisor_sector(item: JsonObject) -> bool:
+    return (
+        is_sector_criterion(item["criterion"])
+        and item["source"] == "advisor_context"
+        and item["value"] is not None
+    )
+
+
+def _demote_modifier_sectors(
+    hard: list[JsonObject], soft: list[JsonObject], advisor_context: str | None
+) -> tuple[list[JsonObject], list[JsonObject]]:
+    """The model sometimes keeps "AI" as a second hard sector next to the real
+    business; hard sectors are OR-ed, so an AI-only seller would then pass."""
+    if not advisor_context or _RELATIONAL.search(advisor_context):
+        return hard, soft
+    rows = [h for h in hard if _is_advisor_sector(h)]
+    is_modifier = [
+        _SECTOR_BY_LOWER.get(h["value"].strip().lower()) in _MODIFIER_SECTORS for h in rows
+    ]
+    if all(is_modifier) or not any(is_modifier):
+        return hard, soft
+    demoted = [h for h, flag in zip(rows, is_modifier, strict=True) if flag]
+    kept = [h for h in hard if not any(h is d for d in demoted)]
+    already = {s["value"] for s in soft if is_sector_criterion(s["criterion"])}
+    added = [
+        {
+            "criterion": h["criterion"],
+            "value": h["value"],
+            "weight": _MODIFIER_SOFT_WEIGHT,
+            "source": "advisor_context",
+            "confidence": h["confidence"],
+        }
+        for h in demoted
+        if h["value"] not in already
+    ]
+    return kept, [*soft, *added]
+
+
 def _canonical_sector(criterion: str, value: str | None) -> str | None:
     """Sector values must be CRM options: seller sectors are matched by exact
     string, so a free-text sector could only ever score Fail or Unknown."""
@@ -142,7 +187,8 @@ class BuyerRequirementExtractionService:
             ),
             "target_country (specific countries the buyer targets, in addition to "
             "target_region)": buyer.target_country,
-            "sector_focus": buyer.org_sector_focus,
+            "target_vertical (the sector this buyer role is for — the hard `sector` unless "
+            "the advisor names another business type)": buyer.target_vertical,
         }
         # Real CRM data, but none of it is itself a criterion value — folded
         # into `strategic_thesis`/`ideal_target_description` grounding
@@ -152,6 +198,8 @@ class BuyerRequirementExtractionService:
             "see target_region/target_country above for that)": buyer.org_hq_country,
             "org_region (buyer's own HQ region -- NOT their target geography)": buyer.org_region,
             "org_type": buyer.org_type,
+            "org_sector_focus (the buyer organization's own sector interests — context "
+            "only, never a requirement)": buyer.org_sector_focus,
             "org_categories": buyer.org_categories,
             "org_description": buyer.org_description,
             "notable_investments": buyer.notable_investments,
@@ -232,18 +280,60 @@ class BuyerRequirementExtractionService:
             "Every `sector` value must be copied exactly from this list of CRM sectors — "
             "never free text: "
             f"{_SECTOR_LIST}\n"
-            "Sector rule: the CORE BUSINESS (what the company is — the head noun) is the hard "
-            "`sector`; modifiers (AI, digital, tech-enabled, Sharia-compliant) only rank, so they "
-            "go in soft_preferences `sector` with weight >= 0.7. Emit one hard `sector` per "
-            "alternative when the core business maps to several sectors (they are OR-ed). "
-            "Example: advisor says 'AI asset or wealth managers' -> hard sector 'Asset "
-            "Management' and hard sector 'Family Office / Wealth Management', soft sector "
-            "'AI / ML' weight 0.8. 'X for Y' flips it: 'AI tools for asset managers' -> hard "
-            "sector 'AI / ML', soft sector 'Asset Management'. When the advisor context names "
-            "a sector, do not copy the buyer's own `sector_focus` into soft preferences. "
-            "Also set top-level `search_phrase`: a 2-6 word 'type of business' for a map "
-            "search that keeps the modifiers (e.g. 'AI wealth management'); null if the "
-            "advisor named no business type.\n"
+            "SECTOR PROCEDURE — follow in order:\n"
+            "1. Does the advisor context name a business type (what companies to find)? If NOT, "
+            "emit no advisor-sourced sector at all; the hard `sector` is the buyer's "
+            "`target_vertical` (source crm_field) and `search_phrase` is null. The buyer "
+            "organization's own sector interests are context, never a requirement.\n"
+            "2. If YES, it fully REPLACES `target_vertical` (do not emit the CRM sector). "
+            "Split the "
+            "phrase into CORE (the noun: what the company is or does) and MODIFIERS (adjectives: "
+            "AI, digital, tech-enabled, green, Sharia-compliant, robotics-driven, online, "
+            "'X-style', 'X-like').\n"
+            "3. CORE -> hard `sector` rows, source advisor_context, human_confirmed true: pick "
+            "the 1-3 closest CRM sectors, one row each (OR-ed alternatives). MODIFIERS -> "
+            "soft_preferences `sector` rows, weight 0.8, source advisor_context, never hard. "
+            "The advisor context outranks every CRM value and every inference: whatever "
+            "it states is source advisor_context. The CORE is decided by "
+            "the noun, not the adjective: 'AI dental clinics' -> hard 'Dental / Specialist "
+            "Clinics', soft 'AI / ML'; 'green real estate developers' -> hard 'Real Estate "
+            "Development', soft 'Renewable Energy / CleanTech'; 'robotics-driven warehouse "
+            "operators' -> hard 'Logistics / 3PL / Freight', soft 'Robotics / Automation'.\n"
+            "4. 'X for / serving / helping Y' -> X is CORE (hard), Y is soft: 'AI tools for asset "
+            "managers' -> hard 'AI / ML', soft 'Asset Management'. 'AI asset or wealth "
+            "managers' -> hard 'Asset Management' + 'Family Office / Wealth Management', soft "
+            "'AI / ML'.\n"
+            "Worked example — advisor says 'AI tools for asset managers': hard_requirements has "
+            "ONE sector row {criterion: sector, value: 'AI / ML', source: advisor_context, "
+            "human_confirmed: true}; soft_preferences has {criterion: sector, value: 'Asset "
+            "Management', weight: 0.8, source: advisor_context}. Asset Management must NOT be "
+            "a hard row. Same shape for 'software for clinics', 'AI platforms serving "
+            "insurers', 'analytics for hotels', 'startups that help family offices'.\n"
+            "5. Several different business types joined by and/or/commas are all CORE (hard, "
+            "OR-ed): 'clinics, dental or pharma'.\n"
+            "6. Map slang to the CRM sector that names the business: cloud kitchens / food tech / "
+            "food delivery -> 'Food Manufacturing / FoodTech' + 'Food & Beverage / QSR'; "
+            "robo-advisors / wealthtech -> 'Fintech' + 'Family Office / Wealth Management'; "
+            "payments / BNPL / lending -> 'Fintech'; crypto / web3 -> 'Web3 / Blockchain / "
+            "Digital Assets' (hard); marketplace -> 'Retail / E-Commerce'; pet clinics -> 'Pet "
+            "Care'; last-mile / warehouse -> 'Logistics / 3PL / Freight'; solar -> 'Renewable "
+            "Energy / CleanTech'; car dealerships -> 'Automotive'; healthcare -> 'Healthcare "
+            "Services / Clinics'; tech / technology companies -> 'Technology'; software -> "
+            "'Enterprise Software' + 'SaaS / Cloud'. If nothing is close, emit "
+            "the hard row with the advisor's own words as value (it is checked afterwards). "
+            "The advisor's words may be in any language.\n"
+            "7. Geography: when the advisor names places, emit only those as hard `geography` "
+            "(source advisor_context) and none of the CRM target_region/target_country. Use "
+            "full country names ('Saudi Arabia', 'United Arab Emirates') or region names "
+            "(GCC, MENA), never abbreviations like KSA.\n"
+            "8. `sector_exclusion`: 'not X', 'except X', 'avoid X' -> a hard `sector_exclusion` "
+            "with the CRM sector for X.\n"
+            "9. Top-level `search_phrase`: whenever step 2 applies (even a single word), 2-6 words "
+            "naming the type of business with its "
+            "modifiers (e.g. 'AI wealth management'), built ONLY from the advisor's words, "
+            "never from CRM fields, and with no place names. Null when the advisor named no "
+            "business type (for example only a place, an amount, a quality like 'profitable', "
+            "or text that is not a request).\n"
             "If something in the free text below doesn't fit any of these "
             "names, do not invent a new criterion for it — fold it into "
             "`strategic_thesis` or `ideal_target_description` instead, both of "
@@ -282,6 +372,9 @@ class BuyerRequirementExtractionService:
         extracted: JsonObject, version: int, model_id: str, *, advisor_context: str | None
     ) -> RequirementProfile:
         has_advisor_context = bool(advisor_context)
+        hard_items, soft_items = _demote_modifier_sectors(
+            extracted["hard_requirements"], extracted["soft_preferences"], advisor_context
+        )
 
         def source_of(item: JsonObject) -> RequirementSource:
             # Without typed context nothing can honestly be advisor-sourced; a
@@ -296,6 +389,15 @@ class BuyerRequirementExtractionService:
                 or _canonical_sector(item["criterion"], item["value"]) is not None
             )
 
+        # The model fills the phrase from CRM sectors when the advisor named only a
+        # place or a quality, so it counts only if the advisor typed a sector.
+        named_business_type = any(
+            is_sector_criterion(item["criterion"])
+            and item["value"] is not None
+            and source_of(item) == "advisor_context"
+            for item in [*hard_items, *soft_items]
+        )
+
         profile = RequirementProfile(
             hard_requirements=[
                 HardRequirement(
@@ -305,7 +407,7 @@ class BuyerRequirementExtractionService:
                     confidence=h["confidence"],
                     human_confirmed=h["human_confirmed"] and source_of(h) == h["source"],
                 )
-                for h in extracted["hard_requirements"]
+                for h in hard_items
                 if in_vocabulary(h)
             ],
             soft_preferences=[
@@ -316,7 +418,7 @@ class BuyerRequirementExtractionService:
                     source=source_of(s),
                     confidence=s["confidence"],
                 )
-                for s in extracted["soft_preferences"]
+                for s in soft_items
                 if in_vocabulary(s)
             ],
             strategic_thesis=extracted["strategic_thesis"],
@@ -326,6 +428,6 @@ class BuyerRequirementExtractionService:
             generated_by_model=model_id,
             version=version,
             advisor_limits=_advisor_limits(extracted, advisor_context),
-            search_phrase=extracted.get("search_phrase"),
+            search_phrase=extracted.get("search_phrase") if named_business_type else None,
         )
         return apply_advisor_overrides(profile)

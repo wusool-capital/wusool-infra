@@ -16,6 +16,9 @@ for current production evidence and open handover items.
   manager") is required and modifiers ("AI") only rank higher. Sellers with no
   sector data are no longer shown as matches; when no CRM seller fits, the
   result says so and starts a Google Maps search for the real request.
+- The **Anything specific about this search?** text now outranks the stored buyer
+  sector and geography. The buyer organization's own sector interests no longer
+  count as requirements.
 - `/enrich-buyer` now asks for the organization first, then the vertical, the
   same way `/edit-buyer` does. The vertical step has an optional "Anything
   specific about this search?" box that steers the research.

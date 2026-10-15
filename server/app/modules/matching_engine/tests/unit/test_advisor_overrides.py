@@ -22,6 +22,7 @@ from app.modules.matching_engine.domain.requirements import (
     HardRequirement,
     RequirementProfile,
     RequirementSource,
+    SoftPreference,
 )
 from app.modules.matching_engine.persistence.mappers import _profile_from_dict, profile_to_dict
 from app.modules.matching_engine.tests.unit.test_candidate_narrowing import _buyer
@@ -187,3 +188,32 @@ def test_a_stored_crm_amount_does_not_hide_the_note() -> None:
 @pytest.mark.parametrize("context", [None, "", "pharma tech only, UAE", "founded in 2024"])
 def test_no_note_without_a_money_amount(context: str | None) -> None:
     assert unlabelled_amount_note(context, _profile()) is None
+
+
+def test_advisor_sector_beats_crm_and_inferred_sector_rows() -> None:
+    profile = replace(
+        _profile(
+            _hard("sector", "AI / ML", "crm_field"),
+            _hard("sector", "Asset Management", "advisor_context"),
+        ),
+        soft_preferences=[
+            SoftPreference("sector", "Cybersecurity", 0.3, "crm_field", "medium"),
+            SoftPreference("sector", "Healthtech", 0.3, "llm_extracted", "low"),
+            SoftPreference("sector", "AI / ML", 0.8, "advisor_context", "high"),
+        ],
+    )
+
+    result = apply_advisor_overrides(profile)
+
+    assert [h.value for h in result.hard_requirements] == ["Asset Management"]
+    assert [s.value for s in result.soft_preferences] == ["AI / ML"]
+
+
+def test_unmappable_advisor_business_type_drops_the_stored_vertical() -> None:
+    profile = replace(
+        _profile(_hard("sector", "AI / ML", "crm_field")), search_phrase="quantum basket weaving"
+    )
+
+    assert apply_advisor_overrides(profile).hard_requirements == []
+    narrowing = CandidateNarrowing.from_buyer(_buyer(target_vertical="AI / ML"), profile)
+    assert narrowing.verticals == frozenset()

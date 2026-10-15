@@ -56,6 +56,8 @@ class CandidateNarrowing:
         target_regions, target_countries = buyer.target_region, buyer.target_country
         if "sector" in stated:
             verticals = list(stated["sector"])
+        elif profile and profile.search_phrase:
+            verticals = []
         if "geography" in stated:
             target_regions = [v for v in stated["geography"] if _is_region(v)]
             target_countries = [v for v in stated["geography"] if not _is_region(v)]

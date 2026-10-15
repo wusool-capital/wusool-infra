@@ -236,7 +236,8 @@ def has_core_sector_evidence(profile: RequirementProfile, score: CandidateScore)
         h.value and normalize_criterion(h.criterion) in _SECTOR_KEYS
         for h in profile.hard_requirements
     ):
-        return True
+        # A business type with no CRM sector can't be verified against any seller.
+        return not profile.search_phrase
     return any(
         c.criterion_type == "hard"
         and normalize_criterion(c.criterion) in _SECTOR_KEYS

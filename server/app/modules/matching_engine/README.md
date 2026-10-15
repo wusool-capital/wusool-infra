@@ -125,6 +125,8 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    Before top-N, a relevance gate drops candidates with no sector `Pass`
    whenever a hard sector exists; if none remain the run is empty and
    Google Maps discovery starts, searching the profile's `search_phrase`.
+   The advisor's typed context outranks every CRM value for the criteria it
+   restates (sector, geography, limits); stored values only fill the gaps.
 5. **Reasoning** (Bedrock, one call) — narrative only for the top-N
    shortlist; cannot change scores, cannot invent facts not given to it.
 6. **Persistence** — one atomic transaction: `match_scores` rows, linked
