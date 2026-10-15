@@ -77,6 +77,9 @@ and countries:
   values. **Review & Save** opens the add-seller form; nothing is saved until
   you complete it. After a save, the button becomes "✅ ADDED by" the person
   who saved it.
+- A lead whose name resembles a company already in the CRM is skipped, and
+  the result message says how many. The search moves on to the next result.
+  If one was really a different company, add it with `/add-seller`.
 - A lead already waiting for review is skipped for 30 days.
 - Pages on Instagram, Facebook, Shopify, Salla, Zid, or Google Sites count
   as "no website".
