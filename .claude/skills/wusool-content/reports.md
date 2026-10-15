@@ -100,9 +100,10 @@ Follow **Publish** in `reference.md`. Then confirm the render, using the publish
 *[_id == $id][0]{renderedFrom, renderedPreviewEnd, "renderedLen": length(renderedHtml)}
 ```
 
-The server renders after each publish, which can take a minute. Check again every
-20–30 seconds, for up to about 3 minutes, until `renderedFrom` is set (on a republish,
-until it changes). Then:
+The server renders after each publish, which can take a minute or two. Don't sleep in
+the foreground: re-run the query from a background or Monitor wait if your tools have
+one, or tell the person it's rendering and re-check when they reply. Wait until
+`renderedFrom` is set (on a republish, until it changes). Then:
 
 - `renderedPreviewEnd` is where the free preview ends in `renderedHtml`. A very small
   share of `renderedLen` means the gate fell at the first block: tell the person.

@@ -27,14 +27,10 @@ person fix it.
    name: prefixes differ between installs.
 2. **Node.js (for the Sanity CLI, which does the writes).** `node --version` must print
    v20 or later. If not, ask the person to install Node.js LTS from nodejs.org.
-3. **Sanity CLI login.** Run this read-only check:
-
-   ```bash
-   npx -y sanity@6.19.0 documents query 'count(*[_type == "report"])' -p itidwo8t -d production
-   ```
-
-   It should print a number. If it reports a login or permission error, ask the person
-   to type `! npx -y sanity@6.19.0 login` and sign in with the same Sanity account.
+3. **Sanity CLI login.** Run `npx -y sanity@6.19.0 projects list`. It needs a login, and
+   its table must include `itidwo8t`. If it reports a login error or the project is
+   missing, ask the person to type `! npx -y sanity@6.19.0 login` and sign in with the
+   same Sanity account.
 4. **Permission rules (once per person).** Check them:
 
    ```bash
@@ -50,7 +46,9 @@ person fix it.
    node -e 'const fs=require("fs"),p=process.argv[1];const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p)):{};if(fs.existsSync(p))fs.copyFileSync(p,p+".bak");s.permissions??={};s.permissions.allow=[...new Set([...(s.permissions.allow??[]),"Bash(npx -y sanity@6.19.0 documents create *)","Bash(npx -y sanity@6.19.0 assets upload *)","mcp__Sanity__publish_documents"])];fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n")' ~/.claude/settings.json
    ```
 
-   It keeps every existing setting and saves a backup as `settings.json.bak`. If the
+   It keeps every existing setting and saves a backup as `settings.json.bak`. If Claude
+   Code refuses to run it, ask the person to run the same command themselves with a `!`
+   in front, or to add the three rules through `/permissions`. If the
    person's Sanity MCP tools carry a different prefix than `mcp__Sanity__`, use their
    publish tool's full name instead. Without the rules, the skill still works, but
    Claude Code asks before each write.

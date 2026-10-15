@@ -60,7 +60,8 @@ Only when the person approves this document, every time:
    which item it unpins (query the currently pinned one).
 2. Publish only after they reply "publish" or clearly approve. Approval covers this one
    document; a later edit needs a new approval.
-3. Call the Sanity MCP's **publish documents** tool with the draft id.
+3. Call the Sanity MCP's **publish documents** tool with `ids: [{"id": "<uuid>"}]`: the
+   id without `drafts.`. It publishes that document's current draft.
 4. Confirm it went live, as the sub-skill describes.
 
 ### Fields to set yourself
