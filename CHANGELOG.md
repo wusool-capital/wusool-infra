@@ -12,8 +12,10 @@ for current production evidence and open handover items.
 
 ### Changed
 
-- Discovery no longer flags a lead as "Possibly the same as" an existing
-  company over a shared generic word, such as "Intelligence" or "GmbH".
+- Discovery no longer matches a lead to an existing company over a shared
+  generic word, such as "Intelligence" or "GmbH". A lead with a similar name
+  is now skipped and counted instead of posted with an **Add as seller**
+  button, and it no longer uses up one of the five slots.
 - `/enrich-buyer` now asks for the organization first, then the vertical, the
   same way `/edit-buyer` does. The vertical step has an optional "Anything
   specific about this search?" box that steers the research.

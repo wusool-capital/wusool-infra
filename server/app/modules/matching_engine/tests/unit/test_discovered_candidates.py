@@ -14,7 +14,6 @@ from app.modules.discovery import (
     DiscoveredLead,
     DiscoveryOutcome,
     FailedLead,
-    PossibleDuplicate,
     SellerDraft,
     UnverifiedSeller,
 )
@@ -222,10 +221,9 @@ def harness(monkeypatch: pytest.MonkeyPatch):
     return SimpleNamespace(service=service, notifier=notifier, seller_role_id=seller_role_id)
 
 
-async def test_trigger_appends_created_sellers_and_posts_duplicates_separately(
+async def test_trigger_appends_created_sellers_and_notes_skipped_duplicates(
     monkeypatch, harness
 ) -> None:
-    lead = DiscoveredLead(name="Twin Co", source_url="https://m/t")
     outcome = DiscoveryOutcome(
         status="ok",
         created=(
@@ -236,7 +234,7 @@ async def test_trigger_appends_created_sellers_and_posts_duplicates_separately(
                 source_url="https://maps.example/acme",
             ),
         ),
-        possible_duplicates=(PossibleDuplicate(lead=lead, existing_org_name="Twin Holdings"),),
+        possible_duplicates=1,
         failed=(FailedLead(lead=DiscoveredLead(name="Bad Co", source_url="u"), reason="x"),),
         already_in_crm=2,
     )
@@ -253,8 +251,8 @@ async def test_trigger_appends_created_sellers_and_posts_duplicates_separately(
     rendered = str([b.to_dict() for b in final["blocks"]])
     assert "2 more already in the CRM." in rendered
     assert "Couldn't save: Bad Co." in rendered
-    assert len(harness.notifier.posts) == 2  # the placeholder, then the duplicates message
-    assert "possible duplicate" in harness.notifier.posts[1]["text"]
+    assert "1 skipped as possible duplicates" in rendered
+    assert len(harness.notifier.posts) == 1  # just the placeholder
 
 
 async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, harness) -> None:

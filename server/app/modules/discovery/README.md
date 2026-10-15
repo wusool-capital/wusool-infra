@@ -46,8 +46,8 @@ write (`CreateMixin.discover_and_create`):
   threshold 0.3): *not* created. That search is loose for an advisor
   reviewing every hit, so `domain/names.py::names_similar` then drops hits
   that only share a generic word ("Intelligence", "Capital"). What survives
-  comes back as a `PossibleDuplicate`, posted with an "Add as seller" button.
-  The `/add-seller` organization search is the human's final check.
+  is skipped and counted (`possible_duplicates`); it doesn't use up one of
+  the run's slots, so the search keeps walking the pool for new leads.
 - **No match**: enriched (basic tier), then website-checked (below), then
   created in one Attio-first write.
 
@@ -111,7 +111,7 @@ sellers" button on the match-result message → same function. Then:
 `DiscoveryOutcome` back to `matching_engine`, which appends the created
 sellers to the run as `PENDING_REVIEW` rows (Approve opens a Qualified deal and
 posts the full enrichment proposal)
-and posts the possible duplicates. Their "Add as seller" button →
-`api/slack/handlers.py` → `domain/drafts.py::draft_from_lead` →
-`ConfirmMixin.open_confirm_form` → `SellerDraftPort` → `ddl_commands`'
-prefilled `/add-seller` modal.
+and notes how many possible duplicates were skipped. A website-check card's
+fallback "Add as seller" button → `api/slack/handlers.py` →
+`domain/drafts.py::draft_from_lead` → `ConfirmMixin.open_confirm_form` →
+`SellerDraftPort` → `ddl_commands`' prefilled `/add-seller` modal.

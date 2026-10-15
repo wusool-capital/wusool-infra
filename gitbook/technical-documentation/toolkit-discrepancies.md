@@ -20,7 +20,10 @@ the message is written from a fixed template.
   result appears in the popup.
 - **`/find-match <buyer>`:** the same check fills the **Before we match**
   popup. **Run anyway** starts the match, even before the check finishes;
-  **Cancel** stops it.
+  **Cancel** stops it. When details are missing, **Edit buyer** opens the
+  edit form on top of the popup, holding only the empty fields. Cancelling
+  the form returns to the popup. If only the vertical is missing, it opens
+  the field picker instead.
 
 Buyer criteria are read through an interface the
 [matching engine](toolkit-matching.md) implements, since it already owns

@@ -63,7 +63,7 @@ keys.
 | --- | --- |
 | `organizations` | Organization search and persistence, shared by matching and profile commands. |
 | `attio` | Attio API client, value conversion, notes, and webhook types. |
-| `notifications` | Shared Slack message formatting and notifications. |
+| `notifications` | Shared Slack message formatting and notifications. Every message it sends has link previews turned off. |
 | `utilities` | Database wiring, logging, retries, and money handling. |
 
 ## Code

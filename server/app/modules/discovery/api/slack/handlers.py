@@ -1,7 +1,6 @@
 """Registers `discover_add_seller` on the shared Bolt app — the button is
-emitted for leads that were not auto-created: a fuzzy name match against an
-existing CRM organization (`build_possible_duplicate_blocks`), or a website
-the enrichment provider didn't confirm (`build_needs_review_blocks`). The
+emitted for a lead whose website the enrichment provider didn't confirm
+(`build_needs_review_blocks`) when its review couldn't be stored. The
 coupling to `matching_engine`, which posts that message, is a shared action_id/value
 contract, not a Python import.
 

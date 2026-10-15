@@ -14,7 +14,8 @@ Qualified Buy-side deal in Attio.
    asks the advisor to confirm it, even when there is only one match.
 2. **Check the buyer.** The [discrepancy check](toolkit-discrepancies.md)
    fills the same popup. The match starts when the advisor clicks **Run
-   anyway**, which works even before the check has finished.
+   anyway**, which works even before the check has finished. **Edit buyer**
+   lets them fill missing details without leaving Slack.
 3. **Extract requirements.** One Bedrock call reads the buyer's CRM fields,
    free text, recent meeting notes, and the advisor's note. It returns hard
    requirements and soft preferences. A criterion the advisor restates

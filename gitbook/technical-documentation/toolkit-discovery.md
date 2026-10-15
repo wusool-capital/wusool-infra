@@ -64,19 +64,21 @@ Leads are checked in order until five survivors are found:
 | --- | --- |
 | Same Google place ID as an organization | Skipped: already in the CRM |
 | Same website domain (with or without `www.`) | Skipped: already in the CRM |
-| Name resembles an organization (fuzzy match, see below) | Not created; posted with **Add as seller** for a person to decide |
+| Name resembles an organization (fuzzy match, see below) | Skipped and counted as a possible duplicate. It doesn't use up a slot |
 | Already waiting for a website review, flagged in the last 30 days | Skipped, so it isn't researched or posted twice |
 | No match | Goes on to enrichment |
 
-A skipped lead frees its slot for the next result.
+A skipped lead frees its slot for the next result. That includes possible
+duplicates, so the search keeps going through the 20 results until it has five
+new leads or runs out.
 
 **How names are compared.** A loose database search finds organizations with
 similar names. A second check then ignores generic words, such as
 "Intelligence", "Capital", "Solutions", "GmbH", "KG", and "Ltd". The distinctive
 words that remain must pass one of two tests. Either they all appear in the
-other name, or the names reach a trigram similarity of 0.5. "Acme Co" still matches "Acme Trading". Two unrelated
-companies that only share a word like "Intelligence" don't. A name with no
-distinctive words is compared in full. The word list is `GENERIC_WORDS` in
+other name, or the names reach a trigram similarity of 0.5. "Acme Co" still
+matches "Acme Trading". Two unrelated companies that only share a word like
+"Intelligence" don't. A name with no distinctive words is compared in full. The word list is `GENERIC_WORDS` in
 `discovery/domain/names.py`.
 
 ### 4. Basic enrichment
@@ -115,9 +117,8 @@ skip it.
 | Message | What people can do |
 | --- | --- |
 | **Discovered sellers**, created and added to the match run | **Approve** or **Reject**. These sellers are labelled "Discovered via Google Maps; not scored". |
-| **Possible duplicates** | **Add as seller** opens the add-seller form, prefilled, so a person can attach the lead to the existing organization or create a new one. |
 | **Website check**, one per unverified lead | Shows both websites and the proposed values. **Review & Save** opens the prefilled add-seller form; it keeps working after a restart. After a save, the button becomes "✅ ADDED by" the person who saved it. |
-| Failures and counts | Leads that failed to save, with anything that reached the CRM, plus counts of leads already in the CRM or awaiting review. |
+| Failures and counts | Leads that failed to save, with anything that reached the CRM. Also counts of leads already in the CRM, skipped as possible duplicates, or awaiting review. Add a skipped duplicate by hand with `/add-seller`. |
 
 ## Approve or reject a discovered seller
 

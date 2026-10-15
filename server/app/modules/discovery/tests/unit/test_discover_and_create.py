@@ -91,18 +91,17 @@ async def test_exact_matches_are_skipped_and_their_slots_refilled() -> None:
     assert len(writer.created) == 5
 
 
-async def test_a_fuzzy_match_is_flagged_not_created() -> None:
+async def test_a_fuzzy_match_is_skipped_and_counted() -> None:
     fuzzy = {"Lead 1": CrmMatch(kind=CrmMatchKind.FUZZY_NAME, org_name="Lead One Holdings")}
     service, writer = _service(leads=_leads(3), writer=FakeSellerWriterPort(matches=fuzzy))
 
     outcome = await _run(service)
 
-    assert [d.lead.name for d in outcome.possible_duplicates] == ["Lead 1"]
-    assert outcome.possible_duplicates[0].existing_org_name == "Lead One Holdings"
+    assert outcome.possible_duplicates == 1
     assert [d.org_name for d in writer.created] == ["Lead 0", "Lead 2"]
 
 
-async def test_possible_duplicates_use_up_slots() -> None:
+async def test_possible_duplicates_do_not_use_up_slots() -> None:
     fuzzy = {f"Lead {i}": CrmMatch(kind=CrmMatchKind.FUZZY_NAME, org_name="X") for i in range(2)}
     service, writer = _service(
         leads=_leads(10), writer=FakeSellerWriterPort(matches=fuzzy), lead_limit=3
@@ -110,8 +109,8 @@ async def test_possible_duplicates_use_up_slots() -> None:
 
     outcome = await _run(service)
 
-    assert len(outcome.possible_duplicates) == 2
-    assert len(outcome.created) == 1
+    assert outcome.possible_duplicates == 2
+    assert len(outcome.created) == 3
 
 
 async def test_the_search_asks_for_a_wide_pool_before_prefiltering() -> None:

@@ -242,7 +242,6 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
 
     from app.modules.discovery import (
         build_needs_review_blocks,
-        build_possible_duplicate_blocks,
         discover_and_create_sellers,
         mark_review_posted,
     )
@@ -322,6 +321,11 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         notes.append(f"{count} {verb} a website review before saving (below).")
     if outcome.awaiting_review:
         notes.append(f"{outcome.awaiting_review} still awaiting an earlier website review.")
+    if outcome.possible_duplicates:
+        notes.append(
+            f"{outcome.possible_duplicates} skipped as possible duplicates "
+            "(a similar name is already in the CRM)."
+        )
     if outcome.failed:
         notes.append(
             "Couldn't save: "
@@ -367,16 +371,6 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
             logger.exception(
                 "discovery_review_post_failed", extra={"lead": unverified.draft.org_name}
             )
-
-    if outcome.possible_duplicates:
-        try:
-            await notifier.post_message(
-                channel=channel_id,
-                text=f"{len(outcome.possible_duplicates)} possible duplicate(s) found",
-                blocks=build_possible_duplicate_blocks(outcome.possible_duplicates),
-            )
-        except Exception:
-            logger.exception("discovery_duplicates_post_failed", extra={"run_id": str(run_id)})
 
 
 _DISCOVERY_STATUS_TEXT = {

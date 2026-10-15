@@ -20,11 +20,11 @@ Follow the "find more sellers" flow end to end.
    startup.
 5. `matching_engine` appends the created sellers to the run as `PENDING_REVIEW` rows
    (Approve opens a Qualified deal, Reject just updates the status) and posts them. Possible
-   duplicates are posted by `api/slack/views.py::build_possible_duplicate_blocks`, one "Add
-   as seller" button per lead, the lead stored server-side and an opaque token encoded in the
-   button value (`api/dependencies.py::encode_lead`/`decode_lead`, via `utilities`' shared
+   duplicates are only counted and noted ("N skipped as possible duplicates"). A website-check
+   card whose review couldn't be stored carries an "Add as seller" button, the lead encoded as
+   an opaque token in the button value (`api/dependencies.py::encode_lead`/`decode_lead`, via `utilities`' shared
    ephemeral store — same reason `enrichment`'s proposal button does this).
-6. Operator clicks a possible duplicate → `api/slack/handlers.py::handle_discover_add_seller`
+6. Operator clicks that "Add as seller" button → `api/slack/handlers.py::handle_discover_add_seller`
    → `domain/drafts.py::draft_from_lead` (pure mapping — a Places category becomes a
    `sector_focus` guess, a Places country becomes an `hq_country` prefill; a street
    address maps to nothing, since there's no organization field for it) →

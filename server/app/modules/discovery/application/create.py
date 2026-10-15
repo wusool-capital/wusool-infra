@@ -20,7 +20,6 @@ from app.modules.discovery.domain.outcome import (
     CreatedSeller,
     DiscoveryOutcome,
     FailedLead,
-    PossibleDuplicate,
     SellerWriteError,
     UnverifiedSeller,
 )
@@ -67,19 +66,17 @@ class CreateMixin(ServiceBase):
 
         pending = await self._pending_reviews(leads)
         to_create: list[DiscoveredLead] = []
-        possible_duplicates: list[PossibleDuplicate] = []
+        possible_duplicates = 0
         already_in_crm = 0
         awaiting_review = 0
         for lead in leads:
-            if len(to_create) + len(possible_duplicates) >= self._policy.lead_limit:
+            if len(to_create) >= self._policy.lead_limit:
                 break
             match = await self._seller_writer_port.find_existing(lead)
             if match.kind in (CrmMatchKind.PLACE_ID, CrmMatchKind.DOMAIN):
                 already_in_crm += 1
             elif match.kind is CrmMatchKind.FUZZY_NAME:
-                possible_duplicates.append(
-                    PossibleDuplicate(lead=lead, existing_org_name=match.org_name or "")
-                )
+                possible_duplicates += 1
             elif lead.place_id in pending:
                 # Its earlier card still works; don't pay to enrich it again.
                 awaiting_review += 1
@@ -90,7 +87,7 @@ class CreateMixin(ServiceBase):
         return DiscoveryOutcome(
             status="ok",
             created=created,
-            possible_duplicates=tuple(possible_duplicates),
+            possible_duplicates=possible_duplicates,
             needs_review=tuple([await self._store_for_review(u) for u in needs_review]),
             failed=failed,
             already_in_crm=already_in_crm,
