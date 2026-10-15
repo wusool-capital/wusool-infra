@@ -171,3 +171,12 @@ def test_every_geography_value_reaches_discovery_once() -> None:
     _, geography, _ = extract_query_terms(profile)
 
     assert geography == "GCC, Egypt"
+
+
+def test_search_phrase_beats_the_bare_sector_value() -> None:
+    profile = _profile(
+        hard_requirements=[_hard("sector", "Asset Management"), _hard("geography", "GCC")],
+        search_phrase="AI wealth management",
+    )
+
+    assert extract_query_terms(profile)[0] == "AI wealth management"

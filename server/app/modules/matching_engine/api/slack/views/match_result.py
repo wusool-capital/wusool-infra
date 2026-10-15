@@ -36,7 +36,9 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
             SectionBlock(
                 text=(
                     f"*{result.buyer_org_name}*\n"
-                    "No qualifying seller candidates were available for this buyer."
+                    "No strong CRM match for this request, so no sellers are shown. "
+                    "New candidates from Google Maps appear below; "
+                    "use *Find more sellers* if none do."
                 )
             ),
             *_notes_context(result.notes),

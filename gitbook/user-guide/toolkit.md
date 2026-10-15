@@ -28,8 +28,8 @@ Its scores and research are decision support; always check the result.
 
 **Expected result:** a popup lists **conflicts** with the buyer's profile and
 **missing details**, each naming the `/edit-buyer` field to fix. It ends with
-how your note was read, for example "Read your note as: Pharmaceuticals /
-Biotech · United Arab Emirates".
+how your note was read, as a short list such as "Sector: Pharmaceuticals /
+Biotech" and "Country: United Arab Emirates".
 
 How your note is read:
 
@@ -56,6 +56,14 @@ How your note is read:
 
 **Expected result:** a ranked shortlist with fit and data-confidence scores.
 
+**Anything specific about this search?** What you type there outranks the
+buyer's stored details. Name the business you want and put the modifier first.
+"AI asset managers" finds asset or wealth managers and ranks AI ones higher.
+"AI tools for asset managers" looks for AI companies serving them. Places,
+ticket sizes ("ticket 5 to 10M") and exclusions ("not crypto") work too. If no
+CRM seller fits, the bot says so and searches Google Maps instead of showing
+sellers with no sector data.
+
 **Approve Match** creates a Qualified Buy-side deal in Attio for that buyer
 and seller. If an Inbound deal already exists for the pair, the bot asks
 whether to promote it to Qualified or create a new one. An approval can't be
@@ -71,13 +79,17 @@ the CRM. A rejection can't be undone from Slack.
 The bot searches Google Maps for new sellers in the buyer's target regions
 and countries:
 
+- Each search writes up to five new sellers. It checks the Google Maps
+  results in order and keeps going until it has five or runs out.
 - A lead is saved automatically when its researched details match its Google
   Maps website. It is also saved when there are no extra details to check.
-- Otherwise a **Website check** message shows both websites and the proposed
-  values. **Review & Save** opens the add-seller form; nothing is saved until
-  you complete it. After a save, the button becomes "✅ ADDED by" the person
-  who saved it.
-- A lead already waiting for review is skipped for 30 days.
+- A lead whose researched website doesn't match is skipped, and the result
+  message says how many. Nothing is written for it.
+- A lead whose name resembles a company already in the CRM is skipped too,
+  and the message counts those. If one was really a different company, add
+  it with `/add-seller`.
+- A lead already waiting on an older **Website check** message is skipped for
+  30 days. Those older messages still work.
 - Pages on Instagram, Facebook, Shopify, Salla, Zid, or Google Sites count
   as "no website".
 

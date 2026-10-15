@@ -91,18 +91,17 @@ async def test_exact_matches_are_skipped_and_their_slots_refilled() -> None:
     assert len(writer.created) == 5
 
 
-async def test_a_fuzzy_match_is_flagged_not_created() -> None:
+async def test_a_fuzzy_match_is_skipped_and_counted() -> None:
     fuzzy = {"Lead 1": CrmMatch(kind=CrmMatchKind.FUZZY_NAME, org_name="Lead One Holdings")}
     service, writer = _service(leads=_leads(3), writer=FakeSellerWriterPort(matches=fuzzy))
 
     outcome = await _run(service)
 
-    assert [d.lead.name for d in outcome.possible_duplicates] == ["Lead 1"]
-    assert outcome.possible_duplicates[0].existing_org_name == "Lead One Holdings"
+    assert outcome.possible_duplicates == 1
     assert [d.org_name for d in writer.created] == ["Lead 0", "Lead 2"]
 
 
-async def test_possible_duplicates_use_up_slots() -> None:
+async def test_possible_duplicates_do_not_use_up_slots() -> None:
     fuzzy = {f"Lead {i}": CrmMatch(kind=CrmMatchKind.FUZZY_NAME, org_name="X") for i in range(2)}
     service, writer = _service(
         leads=_leads(10), writer=FakeSellerWriterPort(matches=fuzzy), lead_limit=3
@@ -110,8 +109,8 @@ async def test_possible_duplicates_use_up_slots() -> None:
 
     outcome = await _run(service)
 
-    assert len(outcome.possible_duplicates) == 2
-    assert len(outcome.created) == 1
+    assert outcome.possible_duplicates == 2
+    assert len(outcome.created) == 3
 
 
 async def test_the_search_asks_for_a_wide_pool_before_prefiltering() -> None:
@@ -149,17 +148,46 @@ async def test_one_failed_write_does_not_abort_the_batch() -> None:
     assert {c.org_name for c in outcome.created} == {"Lead 0", "Lead 2"}
 
 
-async def test_an_unverified_lead_is_stored_and_returned_for_review_not_created() -> None:
+async def test_an_unverified_lead_is_skipped_and_its_slot_refilled() -> None:
     writer = FakeSellerWriterPort(review_names=frozenset({"Lead 1"}))
-    store = FakeReviewStore()
-    service, _ = _service(leads=_leads(3), writer=writer, store=store)
+    service, _ = _service(leads=_leads(8), writer=writer, lead_limit=3)
 
     outcome = await _run(service)
 
-    assert [(u.draft.org_name, u.review_id) for u in outcome.needs_review] == [("Lead 1", "p1")]
-    assert set(store.drafts) == {"p1"}
-    assert {c.org_name for c in outcome.created} == {"Lead 0", "Lead 2"}
+    assert [c.org_name for c in outcome.created] == ["Lead 0", "Lead 2", "Lead 3"]
+    assert outcome.unverified_skipped == 1
     assert outcome.failed == ()
+
+
+async def test_a_failed_write_is_refilled_and_still_reported() -> None:
+    writer = FakeSellerWriterPort(fail_names=frozenset({"Lead 1"}))
+    service, _ = _service(leads=_leads(6), writer=writer, lead_limit=3)
+
+    outcome = await _run(service)
+
+    assert [c.org_name for c in outcome.created] == ["Lead 0", "Lead 2", "Lead 3"]
+    assert [f.lead.name for f in outcome.failed] == ["Lead 1"]
+    assert outcome.failed[0].landed == ("organization created in Attio",)
+
+
+async def test_fewer_than_the_limit_are_created_when_the_pool_runs_out() -> None:
+    writer = FakeSellerWriterPort(review_names=frozenset({"Lead 1", "Lead 2"}))
+    service, _ = _service(leads=_leads(4), writer=writer, lead_limit=5)
+
+    outcome = await _run(service)
+
+    assert [c.org_name for c in outcome.created] == ["Lead 0", "Lead 3"]
+    assert outcome.unverified_skipped == 2
+
+
+async def test_refilling_slots_shares_one_enrichment_budget() -> None:
+    writer = FakeSellerWriterPort(review_names=frozenset({"Lead 0", "Lead 1"}), create_delay_s=0.05)
+    service, _ = _service(leads=_leads(4), writer=writer, lead_limit=2, concurrency=2)
+
+    await _run(service)
+
+    # The second round gets what's left of the 30s, not a fresh 30s.
+    assert writer.timeouts and all(t < 30.0 - 0.04 for t in writer.timeouts)
 
 
 async def test_a_lead_already_awaiting_review_is_skipped_and_its_slot_refilled() -> None:
@@ -174,21 +202,6 @@ async def test_a_lead_already_awaiting_review_is_skipped_and_its_slot_refilled()
     assert [d.org_name for d in writer.created] == ["Lead 1", "Lead 2", "Lead 3"]
 
 
-async def test_a_flagged_lead_is_only_hidden_once_its_card_was_posted() -> None:
-    """A card that never reached Slack must not hide its lead."""
-    writer = FakeSellerWriterPort(review_names=frozenset({"Lead 0"}))
-    store = FakeReviewStore()
-    service, _ = _service(leads=_leads(1), writer=writer, store=store)
-
-    await _run(service, key="a")
-    unposted = await _run(service, key="b")
-    await service.mark_review_posted("p0")
-    posted = await _run(service, key="c")
-
-    assert [u.draft.org_name for u in unposted.needs_review] == ["Lead 0"]
-    assert (posted.needs_review, posted.awaiting_review) == ((), 1)
-
-
 async def test_pending_reviews_expire_after_thirty_days() -> None:
     store = FakeReviewStore()
     service, _ = _service(leads=_leads(1), store=store)
@@ -197,15 +210,6 @@ async def test_pending_reviews_expire_after_thirty_days() -> None:
 
     age = datetime.now(UTC) - store.flagged_since[0]
     assert timedelta(days=30) <= age < timedelta(days=30, minutes=1)
-
-
-async def test_a_store_outage_still_returns_the_lead_with_a_token_fallback() -> None:
-    writer = FakeSellerWriterPort(review_names=frozenset({"Lead 0"}))
-    service, _ = _service(leads=_leads(1), writer=writer, store=FakeReviewStore(fail=True))
-
-    outcome = await _run(service)
-
-    assert [(u.draft.org_name, u.review_id) for u in outcome.needs_review] == [("Lead 0", None)]
 
 
 async def test_creation_concurrency_is_bounded() -> None:

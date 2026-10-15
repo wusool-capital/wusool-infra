@@ -69,6 +69,7 @@ class ExtractedRequirementProfile(BaseModel):
     scoring_rubric: dict[str, float] = Field(default_factory=dict)
     data_confidence: float = Field(ge=0.0, le=1.0)
     advisor_limits: ExtractedAdvisorLimits = Field(default_factory=ExtractedAdvisorLimits)
+    search_phrase: str | None = None
 
 
 class ReasoningCandidateResult(BaseModel):

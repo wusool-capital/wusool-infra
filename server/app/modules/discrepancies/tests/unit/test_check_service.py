@@ -118,7 +118,7 @@ async def test_result_carries_the_grounded_context_and_echoes_it() -> None:
     result = await service.check(_CRITERIA, "UAE, around $3M")
 
     assert result.context == ParsedContext(countries=("United Arab Emirates",))
-    assert result.message.endswith("_Read your note as: United Arab Emirates_")
+    assert result.message.endswith("_From your note:_\n• _Country: United Arab Emirates_")
 
 
 @pytest.mark.asyncio
@@ -129,4 +129,4 @@ async def test_extraction_failure_never_echoes_a_reading() -> None:
 
     assert not result.context_checked
     assert result.context == ParsedContext()
-    assert "Read your note as" not in result.message
+    assert "From your note" not in result.message

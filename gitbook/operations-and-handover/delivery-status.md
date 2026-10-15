@@ -1,6 +1,6 @@
 # Delivery status and open items
 
-_Last updated: 14 October 2026._
+_Last updated: 15 October 2026._
 
 This register separates what the repository delivers from what has been
 verified live. Update it at each handover or significant release.
