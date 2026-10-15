@@ -39,8 +39,9 @@ How your note is read:
   overlap the buyer's range.
 - The check compares four things with the buyer profile: sector, geography,
   ticket size, and EBITDA.
-- It doesn't flag exclusions such as "no pharma", or an EV cap, revenue floor,
-  or seller status. The match itself applies them.
+- It doesn't flag exclusions such as "no pharma", or an EV cap, revenue,
+  seller status, or a modifier such as "AI". The match applies them, and the
+  list shows each one it read.
 - Geography uses the buyer's target regions and target countries together.
 
 `/find-match` runs the same check before every match.

@@ -43,6 +43,14 @@ class ParsedContext:
     ticket_high: float | None = None
     ebitda_low: float | None = None
     ebitda_high: float | None = None
+    # Read from the note and shown back, never compared with the profile: the match
+    # applies them, but the buyer profile has nothing to conflict with.
+    modifier_verticals: tuple[str, ...] = ()
+    excluded_verticals: tuple[str, ...] = ()
+    ev_ceiling: float | None = None
+    revenue_low: float | None = None
+    revenue_high: float | None = None
+    seller_status: tuple[str, ...] = ()
 
     @property
     def is_empty(self) -> bool:

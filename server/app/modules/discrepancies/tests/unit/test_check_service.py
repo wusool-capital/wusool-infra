@@ -33,16 +33,20 @@ async def test_empty_note_never_calls_the_extractor(context_text: str | None) ->
 
 
 @pytest.mark.asyncio
-async def test_buyer_with_nothing_to_conflict_never_calls_the_extractor() -> None:
-    extractor = FakeContextExtractor(ParsedContext(verticals=("Garage",)))
+async def test_a_buyer_with_nothing_to_conflict_still_has_its_note_read_and_echoed() -> None:
+    extractor = FakeContextExtractor(
+        ParsedContext(verticals=("Garage",), seller_status=("Tier 1",))
+    )
     service = DiscrepancyCheckService(extractor=extractor)
     empty = BuyerCriteria(buyer_role_id="role-2", org_name="Empty Capital", target_vertical=None)
 
-    result = await service.check(empty, "fintech in GCC, ticket $5M")
+    result = await service.check(empty, "garages, Tier 1 only")
 
-    assert extractor.texts == []
+    assert extractor.texts == ["garages, Tier 1 only"]
     assert result.context_checked
+    assert result.report.conflicts == ()
     assert len(result.report.missing) == 4
+    assert "• _Seller status: Tier 1_" in result.message
 
 
 @pytest.mark.asyncio
