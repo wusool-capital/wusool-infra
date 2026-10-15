@@ -335,6 +335,9 @@ async def _show_discrepancies(
         elif result.report.has_missing:
             text = f"{result.message}\n\n{_FIX_FIRST_TEXT}"
             offer_edit = True
+            gate = gate.model_copy(
+                update={"missing_criteria": tuple(m.criterion.value for m in result.report.missing)}
+            )
         else:
             text = result.message
 

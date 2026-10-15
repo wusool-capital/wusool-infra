@@ -143,6 +143,8 @@ def _fake_buyer_role(role_id: str, *, org=None):
         notable_investments=None,
         relationship_warmth=None,
         target_geography=None,
+        target_region=None,
+        target_country=None,
         last_mandate_briefing_date=None,
         prior_gcc_acquisition=None,
     )
@@ -1495,7 +1497,21 @@ async def test_buyer_add_lock_is_released_once_no_add_is_waiting(monkeypatch) ->
     assert len(actions_module._buyer_add_locks) == 0
 
 
-def test_edit_buyer_from_find_match_gate_pushes_before_querying(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("missing_criteria", "callback_id", "shown_fields"),
+    [
+        (
+            ["ebitda", "geography"],
+            "buyer_edit_form_modal",
+            ["ebitda_floor", "ebitda_ceiling", "target_region", "target_country"],
+        ),
+        # Only the vertical missing: it has no editable field, so offer the picker.
+        (["vertical"], "buyer_field_picker_modal", None),
+    ],
+)
+def test_edit_buyer_from_find_match_gate_pushes_before_querying(
+    monkeypatch, missing_criteria: list[str], callback_id: str, shown_fields: list[str] | None
+) -> None:
     """Stacks the `/edit-buyer` field picker on the "Before we match" popup;
     the push must come first, since the lookup could outlast the trigger_id."""
     role_id = str(uuid.uuid4())
@@ -1528,7 +1544,12 @@ def test_edit_buyer_from_find_match_gate_pushes_before_querying(monkeypatch) -> 
             "type": "modal",
             "id": "V_GATE",
             "private_metadata": json.dumps(
-                {"buyer_role_id": role_id, "channel_id": "C_TEST", "requested_by": "U_TEST"}
+                {
+                    "buyer_role_id": role_id,
+                    "channel_id": "C_TEST",
+                    "requested_by": "U_TEST",
+                    "missing_criteria": missing_criteria,
+                }
             ),
         },
         "actions": [{"action_id": "edit_buyer_from_gate", "value": role_id}],
@@ -1539,5 +1560,10 @@ def test_edit_buyer_from_find_match_gate_pushes_before_querying(monkeypatch) -> 
     assert response.status_code == 200
     assert calls == ["push", "resolve", "update"]
     view = updated[0]["view"]
-    assert view.callback_id == "buyer_field_picker_modal"
-    assert json.loads(view.private_metadata)["buyer_role_id"] == role_id
+    assert view.callback_id == callback_id
+    metadata = json.loads(view.private_metadata)
+    if shown_fields is None:
+        assert metadata["buyer_role_id"] == role_id
+    else:
+        assert metadata["selected_role_fields"] == shown_fields
+        assert metadata["selected_org_fields"] == []

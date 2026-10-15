@@ -1,15 +1,14 @@
 """Search, pre-filter against the CRM, then auto-create what's new.
 
 Replaces the human `/add-seller` step as the dedupe gate: an exact `place_id`
-or domain hit skips a lead, a name-only hit is handed back for a human to
-decide, and only leads with no CRM match are written — unless their enriched
-fields came from a provider whose website disagrees with Maps', in which case
-they come back as `UnverifiedSeller` for a human to review.
+or domain hit skips a lead, as does a similar name, and only leads with no CRM
+match are written. A lead whose enriched fields came from a provider whose
+website disagrees with Maps' is skipped too. Skipped leads free their slot, so
+the search keeps going until `lead_limit` sellers are written or the pool runs out.
 """
 
 import asyncio
 import logging
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from app.modules.discovery.application.base import ServiceBase
@@ -20,7 +19,6 @@ from app.modules.discovery.domain.outcome import (
     CreatedSeller,
     DiscoveryOutcome,
     FailedLead,
-    PossibleDuplicate,
     SellerWriteError,
     UnverifiedSeller,
 )
@@ -66,33 +64,44 @@ class CreateMixin(ServiceBase):
             self._search_limiter.refund(quota_key)
 
         pending = await self._pending_reviews(leads)
-        to_create: list[DiscoveredLead] = []
-        possible_duplicates: list[PossibleDuplicate] = []
-        already_in_crm = 0
-        awaiting_review = 0
-        for lead in leads:
-            if len(to_create) + len(possible_duplicates) >= self._policy.lead_limit:
+        limit = self._policy.lead_limit
+        loop = asyncio.get_running_loop()
+        # One budget for every round, so refilling slots can't multiply the wait.
+        deadline = loop.time() + self._policy.enrichment_budget_s
+        created: list[CreatedSeller] = []
+        failed: list[FailedLead] = []
+        possible_duplicates = already_in_crm = awaiting_review = unverified_skipped = 0
+        remaining = iter(leads)
+        while len(created) < limit:
+            # A lead that fails its website check or its write frees its slot, so
+            # keep taking the next ones until `limit` sellers are written.
+            batch: list[DiscoveredLead] = []
+            for lead in remaining:
+                match = await self._seller_writer_port.find_existing(lead)
+                if match.kind in (CrmMatchKind.PLACE_ID, CrmMatchKind.DOMAIN):
+                    already_in_crm += 1
+                elif match.kind is CrmMatchKind.FUZZY_NAME:
+                    possible_duplicates += 1
+                elif lead.place_id in pending:
+                    # Its earlier card still works; don't pay to enrich it again.
+                    awaiting_review += 1
+                else:
+                    batch.append(lead)
+                    if len(batch) >= limit - len(created):
+                        break
+            if not batch:
                 break
-            match = await self._seller_writer_port.find_existing(lead)
-            if match.kind in (CrmMatchKind.PLACE_ID, CrmMatchKind.DOMAIN):
-                already_in_crm += 1
-            elif match.kind is CrmMatchKind.FUZZY_NAME:
-                possible_duplicates.append(
-                    PossibleDuplicate(lead=lead, existing_org_name=match.org_name or "")
-                )
-            elif lead.place_id in pending:
-                # Its earlier card still works; don't pay to enrich it again.
-                awaiting_review += 1
-            else:
-                to_create.append(lead)
+            done, unverified, errors = await self._create_all(batch, deadline)
+            created.extend(done)
+            unverified_skipped += len(unverified)
+            failed.extend(errors)
 
-        created, needs_review, failed = await self._create_all(to_create)
         return DiscoveryOutcome(
             status="ok",
-            created=created,
-            possible_duplicates=tuple(possible_duplicates),
-            needs_review=tuple([await self._store_for_review(u) for u in needs_review]),
-            failed=failed,
+            created=tuple(created),
+            possible_duplicates=possible_duplicates,
+            unverified_skipped=unverified_skipped,
+            failed=tuple(failed),
             already_in_crm=already_in_crm,
             awaiting_review=awaiting_review,
         )
@@ -108,29 +117,11 @@ class CreateMixin(ServiceBase):
             logger.exception("discovery_pending_reviews_lookup_failed")
             return set()
 
-    async def _store_for_review(self, unverified: UnverifiedSeller) -> UnverifiedSeller:
-        """Without a stored row the card falls back to a short-lived token, so
-        the lead is never lost, only not deduplicated."""
-        place_id = unverified.draft.source_place_id
-        if place_id is None:
-            return unverified
-        try:
-            await self._review_store.add(unverified)
-        except Exception:
-            logger.exception("discovery_review_store_failed", extra={"place_id": place_id})
-            return unverified
-        return replace(unverified, review_id=place_id)
-
-    async def mark_review_posted(self, review_id: str) -> None:
-        """Called once the card reached Slack: only then may it hide its lead."""
-        await self._review_store.mark_posted(review_id)
-
     async def _create_all(
-        self, leads: list[DiscoveredLead]
+        self, leads: list[DiscoveredLead], deadline: float
     ) -> tuple[tuple[CreatedSeller, ...], tuple[UnverifiedSeller, ...], tuple[FailedLead, ...]]:
         semaphore = asyncio.Semaphore(self._policy.enrichment_concurrency)
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + self._policy.enrichment_budget_s
 
         async def _create(lead: DiscoveredLead) -> CreatedSeller | UnverifiedSeller | FailedLead:
             async with semaphore:

@@ -9,7 +9,6 @@ the same pattern via `configure_seller_writer_port`.
 
 import json
 import logging
-from dataclasses import asdict
 from functools import lru_cache
 
 from app.modules.discovery.application.base import CreationPolicy
@@ -106,15 +105,10 @@ def discovery_service() -> DiscoveryService:
     )
 
 
-def encode_draft(draft: SellerDraft) -> str:
-    """Stores a draft server-side and returns a short token for a button
-    `value` (Slack caps it at 2000 chars). Dates go in as ISO strings;
-    `ddl_commands`' prefill shaping turns them back into dates."""
-    return get_shared_ephemeral_store().put(json.dumps(asdict(draft), default=str))
-
-
 def decode_draft(token: str) -> SellerDraft:
-    """Raises `NotFoundError` for an expired/unknown token."""
+    """Raises `NotFoundError` for an expired/unknown token. Only buttons posted
+    before discovery stopped creating cards still carry one; dates are ISO
+    strings, which `ddl_commands`' prefill shaping turns back into dates."""
     payload = get_shared_ephemeral_store().get(token)
     if payload is None:
         raise NotFoundError(f"No stored draft for token {token!r}")

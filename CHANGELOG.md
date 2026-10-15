@@ -19,12 +19,22 @@ for current production evidence and open handover items.
 - The **Anything specific about this search?** text now outranks the stored buyer
   sector and geography. The buyer organization's own sector interests no longer
   count as requirements.
+- Discovery no longer matches a lead to an existing company over a shared
+  generic word, such as "Intelligence" or "GmbH". A lead with a similar name
+  is now skipped and counted. It no longer gets an **Add as seller** button
+  or uses up one of the five slots.
+- The echo of how a note was read now starts "From your note:". It lists
+  each part on its own line, so sectors, countries, and ticket sizes are
+  easy to tell apart.
+- Seller discovery now writes up to five sellers per search. A lead whose
+  website doesn't match Google Maps is skipped instead of getting a **Website
+  check** message, and the next lead takes its slot.
 - `/enrich-buyer` now asks for the organization first, then the vertical, the
   same way `/edit-buyer` does. The vertical step has an optional "Anything
   specific about this search?" box that steers the research.
 - When `/find-match` finds missing buyer details, its "Before we match" popup
-  shows an **Edit buyer** button. It opens the `/edit-buyer` field picker, so
-  you can fill the details in without leaving Slack.
+  shows an **Edit buyer** button. It opens the edit form with only the empty
+  fields, so you can fill them in without leaving Slack.
 - Links in bot messages no longer expand into large previews, so cards
   stay short.
 - After a **Review & Save** from `/enrich-seller` or `/enrich-buyer` is saved,
