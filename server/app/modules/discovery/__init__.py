@@ -19,11 +19,8 @@ Public cross-module facade — see the module-boundary rule in
 listed in `__all__` here.
 """
 
-from app.modules.discovery.api.lead_flow import discover_and_create_sellers, mark_review_posted
+from app.modules.discovery.api.lead_flow import discover_and_create_sellers
 from app.modules.discovery.api.slack.review_card import mark_review_card_added, store_review_card
-from app.modules.discovery.api.slack.views import (
-    build_needs_review_blocks,
-)
 from app.modules.discovery.application.ports.seller_draft import SellerDraftPort
 from app.modules.discovery.application.ports.seller_writer import SellerWriterPort
 from app.modules.discovery.domain.crm import CrmMatch, CrmMatchKind
@@ -51,9 +48,7 @@ __all__ = [
     "SellerWriteError",
     "SellerWriterPort",
     "UnverifiedSeller",
-    "build_needs_review_blocks",
     "discover_and_create_sellers",
     "mark_review_card_added",
-    "mark_review_posted",
     "store_review_card",
 ]

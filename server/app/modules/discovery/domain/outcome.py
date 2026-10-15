@@ -63,10 +63,11 @@ class FailedLead:
 class DiscoveryOutcome:
     status: DiscoveryStatus
     created: tuple[CreatedSeller, ...] = ()
-    needs_review: tuple[UnverifiedSeller, ...] = ()
     failed: tuple[FailedLead, ...] = ()
     already_in_crm: int = 0
     # Leads skipped for a similar name; they don't use up a slot.
     possible_duplicates: int = 0
+    # Leads whose provider website disagreed with Maps; nothing was written.
+    unverified_skipped: int = 0
     # Leads skipped because an earlier run already flagged them for review.
     awaiting_review: int = 0

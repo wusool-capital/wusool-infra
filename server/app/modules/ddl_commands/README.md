@@ -102,8 +102,8 @@ beyond the `AttioClientProtocol` Port.
 created `SellerRole` and raises `PartialWriteError` (`api/write_errors.py`) with
 what already landed. The adapter also runs the CRM pre-filter lookup and basic
 enrichment, returns the lead unwritten as `UnverifiedSeller` when a provider's
-website doesn't match the Maps website (see `discovery/README.md`), then
-writes once. A reviewed lead's `source_place_id` travels through the
+website doesn't match the Maps website (discovery skips it and takes the next
+lead; see `discovery/README.md`), then writes once. A reviewed lead's `source_place_id` travels through the
 organization-selection and add-form `private_metadata` to the same write
 (set only when the organization has none and no other organization holds it). `source_place_id` goes to Postgres only: Attio has
 no such attribute, and the sync's `COALESCE` keeps it.

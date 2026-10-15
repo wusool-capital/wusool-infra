@@ -14,8 +14,6 @@ from app.modules.discovery import (
     DiscoveredLead,
     DiscoveryOutcome,
     FailedLead,
-    SellerDraft,
-    UnverifiedSeller,
 )
 from app.modules.matching_engine.api import dependencies as deps
 from app.modules.matching_engine.api.slack.views.discovered_candidates import (
@@ -255,31 +253,17 @@ async def test_trigger_appends_created_sellers_and_notes_skipped_duplicates(
     assert len(harness.notifier.posts) == 1  # just the placeholder
 
 
-async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, harness) -> None:
-    unverified = UnverifiedSeller(
-        draft=SellerDraft(org_name="Acme Co", source_urls=("https://maps.example/acme",)),
-        maps_website="acme.com",
-        provider_websites=(("Diffbot", "acme-group.de"),),
-        values=(),
-        review_id="p1",
-    )
-    marked = AsyncMock()
-    monkeypatch.setattr(discovery_module, "mark_review_posted", marked)
+async def test_trigger_notes_leads_skipped_for_a_website_mismatch(monkeypatch, harness) -> None:
     monkeypatch.setattr(
         discovery_module,
         "discover_and_create_sellers",
-        AsyncMock(return_value=DiscoveryOutcome(status="ok", needs_review=(unverified,))),
+        AsyncMock(return_value=DiscoveryOutcome(status="ok", unverified_skipped=2)),
     )
 
     await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
 
-    assert harness.notifier.updates[-1]["text"] == (
-        "No new sellers created. 1 needs a website review before saving (below)."
-    )
-    review = harness.notifier.posts[1]
-    assert review["text"] == "Website check for Acme Co"
-    marked.assert_awaited_once_with("p1")
-    assert review["blocks"][-1].to_dict()["accessory"]["text"]["text"] == "Review & Save"
+    assert "2 skipped because their website didn't match" in harness.notifier.updates[-1]["text"]
+    assert len(harness.notifier.posts) == 1  # no per-lead review cards any more
 
 
 async def test_trigger_notes_leads_still_awaiting_an_earlier_review(monkeypatch, harness) -> None:
@@ -292,43 +276,6 @@ async def test_trigger_notes_leads_still_awaiting_an_earlier_review(monkeypatch,
     await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
 
     assert "2 still awaiting an earlier website review." in harness.notifier.updates[-1]["text"]
-
-
-async def test_one_failed_review_post_does_not_stop_the_others(monkeypatch, harness) -> None:
-    def _unverified(name: str) -> UnverifiedSeller:
-        return UnverifiedSeller(
-            draft=SellerDraft(org_name=name),
-            maps_website=None,
-            provider_websites=(),
-            values=(),
-            review_id=name,
-        )
-
-    marked = AsyncMock()
-    monkeypatch.setattr(discovery_module, "mark_review_posted", marked)
-
-    monkeypatch.setattr(
-        discovery_module,
-        "discover_and_create_sellers",
-        AsyncMock(
-            return_value=DiscoveryOutcome(
-                status="ok", needs_review=(_unverified("Bad Co"), _unverified("Good Co"))
-            )
-        ),
-    )
-    original = harness.notifier.post_message
-
-    async def _flaky(**kwargs: object) -> str:
-        if kwargs["text"] == "Website check for Bad Co":
-            raise RuntimeError("invalid_blocks")
-        return await original(**kwargs)
-
-    harness.notifier.post_message = _flaky
-
-    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
-
-    assert [p["text"] for p in harness.notifier.posts][-1] == "Website check for Good Co"
-    marked.assert_awaited_once_with("Good Co")  # the failed card stays unmarked
 
 
 async def test_trigger_reports_the_daily_cap_and_creates_nothing(monkeypatch, harness) -> None:

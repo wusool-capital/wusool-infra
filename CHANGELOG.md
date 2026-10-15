@@ -16,6 +16,9 @@ for current production evidence and open handover items.
   generic word, such as "Intelligence" or "GmbH". A lead with a similar name
   is now skipped and counted. It no longer gets an **Add as seller** button
   or uses up one of the five slots.
+- Seller discovery now writes up to five sellers per search. A lead whose
+  website doesn't match Google Maps is skipped instead of getting a **Website
+  check** message, and the next lead takes its slot.
 - `/enrich-buyer` now asks for the organization first, then the vertical, the
   same way `/edit-buyer` does. The vertical step has an optional "Anything
   specific about this search?" box that steers the research.

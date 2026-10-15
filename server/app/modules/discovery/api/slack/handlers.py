@@ -1,11 +1,10 @@
 """Registers `discover_add_seller` on the shared Bolt app — the button is
-emitted for a lead whose website the enrichment provider didn't confirm
-(`build_needs_review_blocks`) when its review couldn't be stored. The
-coupling to `matching_engine`, which posts that message, is a shared action_id/value
-contract, not a Python import.
+kept for website-check cards already posted in Slack; discovery no longer
+creates new ones. The coupling to `matching_engine`, which posted them, is a
+shared action_id/value contract, not a Python import.
 
-`discover_review_seller` is the website-review card's button when its lead
-was stored: it loads the draft back by place id first.
+`discover_review_seller` is those cards' button when the lead was stored: it
+loads the draft back by place id first.
 
 Clicking either hands the lead to `ddl_commands`' `/add-seller` flow through
 `SellerDraftPort.open_confirm_form`: its organization search is the human's

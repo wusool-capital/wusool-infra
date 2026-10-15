@@ -240,11 +240,7 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
     _discovery_idempotency_store.mark(idempotency_key)
 
-    from app.modules.discovery import (
-        build_needs_review_blocks,
-        discover_and_create_sellers,
-        mark_review_posted,
-    )
+    from app.modules.discovery import discover_and_create_sellers
     from app.modules.matching_engine.api.slack.views.discovered_candidates import (
         build_discovered_candidates_blocks,
     )
@@ -315,12 +311,12 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
 
     notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
-    if outcome.needs_review:
-        count = len(outcome.needs_review)
-        verb = "needs" if count == 1 else "need"
-        notes.append(f"{count} {verb} a website review before saving (below).")
     if outcome.awaiting_review:
         notes.append(f"{outcome.awaiting_review} still awaiting an earlier website review.")
+    if outcome.unverified_skipped:
+        notes.append(
+            f"{outcome.unverified_skipped} skipped because their website didn't match Google Maps."
+        )
     if outcome.possible_duplicates:
         notes.append(
             f"{outcome.possible_duplicates} skipped as possible duplicates "
@@ -353,24 +349,6 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         await notifier.update_message(
             channel=channel_id, ts=placeholder_ts, text=f"No new sellers created. {detail}"
         )
-
-    # One message per lead: each can carry a dozen field sections, and
-    # Slack caps a message at 50 blocks.
-    for unverified in outcome.needs_review:
-        # One bad card must not cost the operator every card after it.
-        try:
-            await notifier.post_message(
-                channel=channel_id,
-                text=f"Website check for {unverified.draft.org_name}",
-                blocks=build_needs_review_blocks(unverified),
-            )
-            # Unmarked, the next run re-flags the lead instead of hiding it.
-            if unverified.review_id:
-                await mark_review_posted(unverified.review_id)
-        except Exception:
-            logger.exception(
-                "discovery_review_post_failed", extra={"lead": unverified.draft.org_name}
-            )
 
 
 _DISCOVERY_STATUS_TEXT = {

@@ -71,16 +71,17 @@ the CRM. A rejection can't be undone from Slack.
 The bot searches Google Maps for new sellers in the buyer's target regions
 and countries:
 
+- Each search writes up to five new sellers. It checks the Google Maps
+  results in order and keeps going until it has five or runs out.
 - A lead is saved automatically when its researched details match its Google
   Maps website. It is also saved when there are no extra details to check.
-- Otherwise a **Website check** message shows both websites and the proposed
-  values. **Review & Save** opens the add-seller form; nothing is saved until
-  you complete it. After a save, the button becomes "✅ ADDED by" the person
-  who saved it.
-- A lead whose name resembles a company already in the CRM is skipped, and
-  the result message says how many. The search moves on to the next result.
-  If one was really a different company, add it with `/add-seller`.
-- A lead already waiting for review is skipped for 30 days.
+- A lead whose researched website doesn't match is skipped, and the result
+  message says how many. Nothing is written for it.
+- A lead whose name resembles a company already in the CRM is skipped too,
+  and the message counts those. If one was really a different company, add
+  it with `/add-seller`.
+- A lead already waiting on an older **Website check** message is skipped for
+  30 days. Those older messages still work.
 - Pages on Instagram, Facebook, Shopify, Salla, Zid, or Google Sites count
   as "no website".
 
