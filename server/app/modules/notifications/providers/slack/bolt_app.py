@@ -10,10 +10,12 @@ from collections.abc import Callable
 
 from slack_bolt.async_app import AsyncApp
 
+from app.modules.notifications.providers.slack.client import NoUnfurlWebClient
+
 
 def build_bolt_app(
     bot_token: str, signing_secret: str, register_fn: Callable[[AsyncApp], None]
 ) -> AsyncApp:
-    app = AsyncApp(token=bot_token, signing_secret=signing_secret)
+    app = AsyncApp(client=NoUnfurlWebClient(token=bot_token), signing_secret=signing_secret)
     register_fn(app)
     return app

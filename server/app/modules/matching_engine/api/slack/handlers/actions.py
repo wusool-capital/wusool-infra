@@ -477,7 +477,9 @@ async def _handle_decision(
             replace(view, results=[r for r in view.results if r.origin == "crm"])
         )
     if original_ts is None:
-        await respond(replace_original=True, text=text, blocks=blocks)
+        await respond(
+            replace_original=True, text=text, blocks=blocks, unfurl_links=False, unfurl_media=False
+        )
         return
     # Coming from the ephemeral deal prompt: `respond` would overwrite the
     # prompt, so refresh the real message and drop the prompt.
