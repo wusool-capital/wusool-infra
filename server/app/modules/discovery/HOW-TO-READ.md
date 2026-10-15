@@ -11,20 +11,22 @@ Follow the "find more sellers" flow end to end.
    `providers/google_places/client.py::GooglePlacesClient` (Google Places API Text
    Search, geocoded and country-restricted to `geography`) returns up to 20 leads.
 3. Each lead goes through `SellerWriterPort.find_existing` — the CRM pre-filter. An exact
-   `place_id`/domain match is skipped; a name-only match becomes a `PossibleDuplicate`;
-   anything else is created via `SellerWriterPort.enrich_and_create` (2 at a time, within
-   an overall time budget). The result is a typed `DiscoveryOutcome`.
+   `place_id`/domain match is skipped, as is a similar name (counted). Anything else is
+   created via `SellerWriterPort.enrich_and_create` (2 at a time, within one time budget
+   for the run). A lead that comes back unverified or failed frees its slot, and the next
+   leads fill it until `lead_limit` sellers are written or the pool runs out. The result is
+   a typed `DiscoveryOutcome`.
 4. `ddl_commands/providers/discovery/seller_writer_adapter.py` implements that Port: basic
    enrichment in memory, then one Attio-first write through
    `ddl_commands/api/seller_write.py::write_seller_add`. `server/main.py` wires it at
    startup.
 5. `matching_engine` appends the created sellers to the run as `PENDING_REVIEW` rows
-   (Approve opens a Qualified deal, Reject just updates the status) and posts them. Possible
-   duplicates are posted by `api/slack/views.py::build_possible_duplicate_blocks`, one "Add
-   as seller" button per lead, the lead stored server-side and an opaque token encoded in the
-   button value (`api/dependencies.py::encode_lead`/`decode_lead`, via `utilities`' shared
+   (Approve opens a Qualified deal, Reject just updates the status) and posts them. Skipped
+   leads are only counted and noted ("N skipped as possible duplicates", "N skipped because
+   their website didn't match"). Website-check cards from earlier runs may carry an "Add as
+   seller" button, the lead encoded as an opaque token in the button value (`api/dependencies.py::encode_lead`/`decode_lead`, via `utilities`' shared
    ephemeral store — same reason `enrichment`'s proposal button does this).
-6. Operator clicks a possible duplicate → `api/slack/handlers.py::handle_discover_add_seller`
+6. Operator clicks that "Add as seller" button → `api/slack/handlers.py::handle_discover_add_seller`
    → `domain/drafts.py::draft_from_lead` (pure mapping — a Places category becomes a
    `sector_focus` guess, a Places country becomes an `hq_country` prefill; a street
    address maps to nothing, since there's no organization field for it) →

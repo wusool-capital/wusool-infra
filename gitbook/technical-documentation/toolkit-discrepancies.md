@@ -20,7 +20,10 @@ the message is written from a fixed template.
   result appears in the popup.
 - **`/find-match <buyer>`:** the same check fills the **Before we match**
   popup. **Run anyway** starts the match, even before the check finishes;
-  **Cancel** stops it.
+  **Cancel** stops it. When details are missing, **Edit buyer** opens the
+  edit form on top of the popup, holding only the empty fields. Cancelling
+  the form returns to the popup. If only the vertical is missing, it opens
+  the field picker instead.
 
 Buyer criteria are read through an interface the
 [matching engine](toolkit-matching.md) implements, since it already owns
@@ -101,7 +104,8 @@ The template produces up to four parts:
 2. **"Missing from {Buyer}'s profile"**, one line per missing field.
 3. If the note couldn't be read: "Your note couldn't be checked for
    conflicts." It never says "no conflicts" in that case.
-4. **"Read your note as: …"**, echoing what was understood, so a misread is
+4. **"From your note: …"**, a short list of what was understood, with one
+   line each for sector, region, country, ticket, and EBITDA. A misread is
    easy to spot.
 
 ## Example
@@ -117,7 +121,7 @@ The advisor types `clinics in Europe, $20M ticket`.
 - **EBITDA:** nothing is stored, so it is listed as missing.
 
 The popup lists the three conflicts, then EBITDA under missing details. It
-ends with "Read your note as: Clinic or … · Europe · ticket USD 20,000,000".
+ends with a "From your note" list: sector, region (Europe), and ticket (USD 20,000,000).
 
 ## Failure behavior
 

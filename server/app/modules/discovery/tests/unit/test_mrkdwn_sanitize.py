@@ -1,39 +1,24 @@
-"""Regression coverage moved from `matching_engine` alongside
-`WebSourcedLead`/`build_web_fallback_blocks` — see this module's own
-`build_possible_duplicate_blocks`/`DiscoveredLead`. Slack's mrkdwn parses a stray Markdown
-heading as literal `#` text; sanitizing must strip the marker without
-mangling the rest of the line.
+"""Slack's mrkdwn parses a stray Markdown heading as literal `#` text; sanitizing
+must strip the marker without mangling the rest of the line. Regression moved
+here from the lead-card tests, which exercised it through scraped addresses.
 """
 
-from app.modules.discovery.api.slack.views import build_possible_duplicate_blocks
-from app.modules.discovery.domain.leads import DiscoveredLead
-from app.modules.discovery.domain.outcome import PossibleDuplicate
+from app.modules.notifications import sanitize_mrkdwn
 
 
-def test_lead_details_render_without_markdown_heading_markers() -> None:
-    lead = DiscoveredLead(
-        name="What are the Principles | PRI",
-        source_url="https://www.google.com/maps/place/What+are+the+Principles/data=!4m7",
-        address=(
-            "## Related content\n"
-            "###### About PRI\n"
-            "Set up with the UN's support.\n\n"
-            "###### Become a signatory\n"
-            "Demonstrate your commitment to responsible investment."
-        ),
+def test_markdown_heading_markers_are_stripped() -> None:
+    scraped = (
+        "## Related content\n"
+        "###### About PRI\n"
+        "Set up with the UN's support.\n\n"
+        "###### Become a signatory\n"
+        "Demonstrate your commitment to responsible investment."
     )
 
-    blocks = build_possible_duplicate_blocks(
-        [PossibleDuplicate(lead=lead, existing_org_name="Acme")]
-    )
-    rendered = blocks[2].to_dict()["text"]["text"]
-
-    assert rendered == (
-        "*1. What are the Principles | PRI*\n"
+    assert sanitize_mrkdwn(scraped) == (
         "Related content\n"
         "About PRI\n"
         "Set up with the UN's support.\n\n"
         "Become a signatory\n"
-        "Demonstrate your commitment to responsible investment.\n"
-        "_Possibly the same as *Acme*_"
+        "Demonstrate your commitment to responsible investment."
     )

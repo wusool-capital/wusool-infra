@@ -206,14 +206,23 @@ def _fields(d: Discrepancy) -> str:
     return " / ".join(CRITERION_FIELD_LABELS[d.criterion])
 
 
-def _context_summary(context: ParsedContext) -> str:
-    parts = [" or ".join(context.verticals)] if context.verticals else []
-    parts += [p for p in (context.region, *context.countries) if p]
+def _context_lines(context: ParsedContext) -> list[str]:
+    """One labelled line per thing read. A list, not a joined sentence: sector
+    names contain slashes, which would blur where one ends and the next begins."""
+    lines = []
+    if context.verticals:
+        label = "Sector (any of)" if len(context.verticals) > 1 else "Sector"
+        lines.append(f"{label}: {', '.join(context.verticals)}")
+    if context.region:
+        lines.append(f"Region: {context.region}")
+    if context.countries:
+        label = "Countries" if len(context.countries) > 1 else "Country"
+        lines.append(f"{label}: {', '.join(context.countries)}")
     if context.ticket_low is not None or context.ticket_high is not None:
-        parts.append(f"ticket {_format_bounds(context.ticket_low, context.ticket_high)}")
+        lines.append(f"Ticket: {_format_bounds(context.ticket_low, context.ticket_high)}")
     if context.ebitda_low is not None or context.ebitda_high is not None:
-        parts.append(f"EBITDA {_format_bounds(context.ebitda_low, context.ebitda_high)}")
-    return " · ".join(parts)
+        lines.append(f"EBITDA: {_format_bounds(context.ebitda_low, context.ebitda_high)}")
+    return lines
 
 
 def template_message(
@@ -251,5 +260,6 @@ def template_message(
     elif report.is_clear:
         lines.append(f"No missing or conflicting details found for {org}.")
     if context_checked and context is not None and not context.is_empty:
-        lines.append(f"_Read your note as: {sanitize_mrkdwn(_context_summary(context))}_")
+        read = "\n".join(f"• _{sanitize_mrkdwn(line)}_" for line in _context_lines(context))
+        lines.append(f"_From your note:_\n{read}")
     return "\n\n".join(lines)

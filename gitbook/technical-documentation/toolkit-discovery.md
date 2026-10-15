@@ -58,25 +58,43 @@ then filtered out by name and category.
 
 ### 3. Check each lead against the CRM
 
-Leads are checked in order until five survivors are found:
+Leads are checked in order until five sellers are written or the 20 results run out:
 
 | Check | Result |
 | --- | --- |
 | Same Google place ID as an organization | Skipped: already in the CRM |
 | Same website domain (with or without `www.`) | Skipped: already in the CRM |
-| Name resembles an organization (fuzzy match) | Not created; posted with **Add as seller** for a person to decide |
+| Name resembles an organization (fuzzy match, see below) | Skipped and counted as a possible duplicate. It doesn't use up a slot |
 | Already waiting for a website review, flagged in the last 30 days | Skipped, so it isn't researched or posted twice |
 | No match | Goes on to enrichment |
 
-A skipped lead frees its slot for the next result.
+A skipped lead frees its slot for the next result. That includes possible
+duplicates, so the search keeps going through the 20 results until it has five
+new leads or runs out.
+
+**How names are compared.** A loose database search finds organizations with
+similar names. A second check then ignores generic words, such as
+"Intelligence", "Capital", "Solutions", "GmbH", "KG", and "Ltd".
+
+The distinctive words that remain must pass one of two tests. Either they all
+appear in the other name, or the names reach a trigram similarity of 0.5.
+
+- One short word isn't enough on its own. "Noor" doesn't match "Noor
+  Trading", but "Savvytec" matches "Savvytec Trading".
+- Words that name a business line, such as "Ventures" or "Partners", still
+  tell firms apart.
+- Two companies that only share a word like "Intelligence" don't match.
+- A name with no distinctive words is compared in full.
+
+The word list is `GENERIC_WORDS` in `discovery/domain/names.py`.
 
 ### 4. Basic enrichment
 
 New leads get the [basic enrichment tier](toolkit-enrichment.md#basic-tier):
 Diffbot and People Data Labs only, given the company name and its Maps
 domain. Two leads are researched at a time, within a 45-second budget for the
-whole batch. A lead that runs out of time is created from its Google Maps
-details alone and marked as such.
+whole run, shared by every round. A lead that runs out of time is created from
+its Google Maps details alone and marked as such.
 
 ### 5. Check the website
 
@@ -85,8 +103,12 @@ lead's Google Maps website. A match is the same host, ignoring `www.`, or a
 subdomain of it. This catches a provider that resolved the name to a different company.
 
 - **All match, or nothing from a provider is used:** the seller is created.
-- **Any mismatch, or no website to compare:** nothing is written. The lead
-  is stored for review instead.
+- **Any mismatch, or no website to compare:** nothing is written. The lead is
+  skipped and counted, and the next lead takes its slot.
+
+A lead whose write fails is also replaced by the next one, and the failure is
+still reported. A skipped lead isn't recorded, so a later search may research
+it again.
 
 Pages on shared platforms count as no website, because they name the
 platform, not the company. These include Instagram, Facebook, LinkedIn,
@@ -106,9 +128,7 @@ skip it.
 | Message | What people can do |
 | --- | --- |
 | **Discovered sellers**, created and added to the match run | **Approve** or **Reject**. These sellers are labelled "Discovered via Google Maps; not scored". |
-| **Possible duplicates** | **Add as seller** opens the add-seller form, prefilled, so a person can attach the lead to the existing organization or create a new one. |
-| **Website check**, one per unverified lead | Shows both websites and the proposed values. **Review & Save** opens the prefilled add-seller form; it keeps working after a restart. After a save, the button becomes "✅ ADDED by" the person who saved it. |
-| Failures and counts | Leads that failed to save, with anything that reached the CRM, plus counts of leads already in the CRM or awaiting review. |
+| Failures and counts | Leads that failed to save, with anything that reached the CRM. Also counts of leads already in the CRM, skipped as possible duplicates, skipped for a website mismatch, or awaiting an older review. Add a skipped duplicate by hand with `/add-seller`. |
 
 ## Approve or reject a discovered seller
 

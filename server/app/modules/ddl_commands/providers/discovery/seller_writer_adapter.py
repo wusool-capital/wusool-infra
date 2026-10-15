@@ -39,6 +39,7 @@ from app.modules.discovery import (
     UnverifiedSeller,
 )
 from app.modules.discovery.domain.drafts import company_hostname, websites_match
+from app.modules.discovery.domain.names import names_similar
 from app.modules.enrichment import BasicEnrichment, ProviderEvidence, propose_basic_seller_fields
 
 logger = logging.getLogger(__name__)
@@ -68,8 +69,10 @@ class DdlCommandsSellerWriterAdapter:
     async def find_existing(self, lead: DiscoveredLead) -> CrmMatch:
         if match := await self._find_exact(lead.place_id, lead.website):
             return match
-        if candidates := await search_organizations(lead.name):
-            return CrmMatch(CrmMatchKind.FUZZY_NAME, candidates[0].attio_id, candidates[0].name)
+        # The search is loose on purpose; `names_similar` drops hits that only share a generic word.
+        candidates = await search_organizations(lead.name)
+        if org := next((c for c in candidates if names_similar(lead.name, c.name)), None):
+            return CrmMatch(CrmMatchKind.FUZZY_NAME, org.attio_id, org.name)
         return CrmMatch(CrmMatchKind.NONE)
 
     @staticmethod

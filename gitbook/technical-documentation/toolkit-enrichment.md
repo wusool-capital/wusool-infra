@@ -33,7 +33,8 @@ optional note. It is trimmed to 900 characters and added to the research
 prompt, and it does not change the web search itself.
 
 The research runs in the background. The result message lists every proposed
-value with a confidence level and one **Review & Save** button.
+value with a confidence level and one **Review & Save** button. After the
+edit form is saved, the button becomes "✅ ADDED by" the person who saved it.
 
 ## Basic tier
 
