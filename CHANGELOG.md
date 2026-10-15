@@ -44,6 +44,9 @@ for current production evidence and open handover items.
   of pasted. The server downloads it from Sanity before rendering.
 - Before an Insights draft, the skill scores whether the piece is worth
   publishing as a blog article and checks for overlap with existing articles.
+- Insights articles can be credited to **Wusool Capital** as the author,
+  with the brand mark and company LinkedIn page. The Team page filters
+  this item out, so it does not appear as a team member.
 
 ## 2026-10-13
 
