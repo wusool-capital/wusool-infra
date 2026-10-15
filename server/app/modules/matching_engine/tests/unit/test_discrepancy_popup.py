@@ -79,13 +79,13 @@ def test_gate_modal_cuts_a_long_message_at_a_line_break() -> None:
 
 @dataclass
 class _Harness:
-    """Doubles as the fake Slack client: `_show_discrepancies` only calls `views_update`."""
+    """Doubles as the fake Slack client: `show_discrepancies` only calls `views_update`."""
 
     run: AsyncMock
     views_update: AsyncMock
 
     async def show(self) -> str:
-        await actions._show_discrepancies(self, "V1", _GATE)  # ty: ignore[invalid-argument-type]
+        await actions.show_discrepancies(self, "V1", _GATE)  # ty: ignore[invalid-argument-type]
         return self.views_update.await_args.kwargs["view"].to_dict()["blocks"][0]["text"]["text"]
 
 
@@ -135,7 +135,7 @@ async def test_only_a_closed_modal_is_logged_quietly(
     )
 
     with caplog.at_level(logging.INFO, logger=actions.logger.name):
-        await actions._show_discrepancies(harness, "V1", _GATE)  # ty: ignore[invalid-argument-type]
+        await actions.show_discrepancies(harness, "V1", _GATE)  # ty: ignore[invalid-argument-type]
 
     assert [r.levelno for r in caplog.records] == [level]
     harness.run.assert_not_awaited()

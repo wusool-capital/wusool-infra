@@ -119,7 +119,7 @@ def register(app: AsyncApp) -> None:
         )
         if view_id:
             _task_runner.run(
-                lambda: _show_discrepancies(client, view_id, gate),
+                lambda: show_discrepancies(client, view_id, gate),
                 name=f"find-match-check:{gate.buyer_role_id}",
             )
 
@@ -317,7 +317,7 @@ _CHECK_FAILED_TEXT = (
 _MIN_UPDATE_DELAY_S = 1.5
 
 
-async def _show_discrepancies(
+async def show_discrepancies(
     client: AsyncWebClient, view_id: str, gate: DiscrepancyGateMetadata
 ) -> None:
     """Fills the popup with the check result. Never runs the match — only

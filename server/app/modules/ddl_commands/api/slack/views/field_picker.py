@@ -39,6 +39,7 @@ def build_field_picker_modal(
     requested_by: str,
     channel_id: str,
     role_fields: tuple[FieldSpec, ...],
+    gate_token: str | None = None,
 ) -> View:
     role_id_key = f"{kind}_role_id"
     return View(
@@ -50,6 +51,7 @@ def build_field_picker_modal(
                 "org_name": org_name,
                 "requested_by": requested_by,
                 "channel_id": channel_id,
+                "gate_token": gate_token,
             }
         ),
         title=f"Edit {kind}: fields",

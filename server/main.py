@@ -34,6 +34,7 @@ from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.attio import attio_is_test
 from app.modules.ddl_commands.api.attio_sync import router as attio_sync_router
+from app.modules.ddl_commands.api.dependencies import configure_edit_gate_port
 from app.modules.ddl_commands.api.slack.handlers import (
     register_handlers as register_ddl_commands_handlers,
 )
@@ -65,6 +66,7 @@ from app.modules.enrichment.api.slack.handlers import (
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.lead_magnets.api.static import ToolStatic, static_dir
 from app.modules.lead_magnets.bootstrap import run_sweeper_forever
+from app.modules.matching_engine.api.slack.edit_gate import MatchingEngineEditGate
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
 )
@@ -102,6 +104,9 @@ configure_seller_writer_port(DdlCommandsSellerWriterAdapter())
 # points the other way) — this is the composition root that already
 # imports both sides, so it wires the Port here.
 configure_criteria_reader_port(MatchingEngineCriteriaReaderAdapter())
+# `ddl_commands` never imports `matching_engine` either: the popup an edit form
+# can be opened from lives there, so this wires the Port the other way round.
+configure_edit_gate_port(MatchingEngineEditGate())
 
 # Which service owns each command/interaction trigger Slack can send. Bolt's
 # own global error handler always logs a caught exception under its own

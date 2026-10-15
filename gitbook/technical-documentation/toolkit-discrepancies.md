@@ -38,6 +38,11 @@ A note that sets one of these still takes effect in the match. The popup's
   edit form on top of the popup, holding only the empty fields. Cancelling
   the form returns to the popup. If only the vertical is missing, it opens
   the field picker instead.
+- **Saving from the popup:** when the form is submitted, the popup loses its
+  **Run anyway** button and shows "Saving your changes…". The Attio write takes
+  a couple of seconds, and the match reads the buyer from Postgres, so an early
+  click would use the old profile. When the write ends, saved or failed, the
+  popup checks the buyer again and restores **Run anyway**.
 
 Buyer criteria are read through an interface the
 [matching engine](toolkit-matching.md) implements, since it already owns

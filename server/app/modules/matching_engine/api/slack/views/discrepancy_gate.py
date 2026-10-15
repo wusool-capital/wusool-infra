@@ -22,10 +22,17 @@ def _fit(message: str) -> str:
 
 
 def build_discrepancy_gate_modal(
-    metadata: DiscrepancyGateMetadata, message: str, *, offer_edit: bool = False
+    metadata: DiscrepancyGateMetadata,
+    message: str,
+    *,
+    offer_edit: bool = False,
+    saving: bool = False,
 ) -> View:
+    """`saving` drops "Run anyway" (a modal with no submit button can't be
+    submitted) while an edit is being written, so a quick click can't start a
+    match on the old profile."""
     blocks: list[Block] = [SectionBlock(text=_fit(message))]
-    if offer_edit:
+    if offer_edit and not saving:
         # Handled by `ddl_commands` (it owns the edit-buyer flow); a modal's
         # footer can't hold a third button, so this lives in the body.
         blocks.append(
@@ -44,7 +51,7 @@ def build_discrepancy_gate_modal(
         callback_id="discrepancy_gate_modal",
         private_metadata=metadata.model_dump_json(exclude_none=True),
         title="Before we match",
-        submit="Run anyway",
+        submit=None if saving else "Run anyway",
         close="Cancel",
         blocks=blocks,
     )

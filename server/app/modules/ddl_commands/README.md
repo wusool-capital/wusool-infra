@@ -9,6 +9,13 @@ the new role to it, or create a brand new organization if nothing matched.
 `/remove-seller`/`/remove-buyer` don't exist — built and then deliberately
 reverted (see "History" below).
 
+`/find-match`'s "Before we match" popup can open an edit form from here
+(`edit_buyer_from_gate`). The form carries a `gate_token` (`api/slack/views/gate_ref.py`),
+and saving calls `EditGatePort` (`application/ports/edit_gate.py`) before and after the
+write, so the popup's owner can lock "Run anyway" and refresh it. `main.py` wires
+`configure_edit_gate_port(MatchingEngineEditGate())`; this module never imports
+`matching_engine`.
+
 Not independently deployed — `server/main.py` merges this module's Slack
 handlers with `matching_engine`'s onto one `AsyncApp`. `bootstrap.py::create_app()`
 here exists only for running this module standalone (its own test suite).
