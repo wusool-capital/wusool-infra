@@ -43,10 +43,11 @@ write (`CreateMixin.discover_and_create`):
   skipped and counted as "already in the CRM". Exact identifiers are safe to
   act on unattended.
 - **Name-only match** (`FUZZY_NAME`, `organizations.org_name_trigram_predicate`,
-  threshold 0.3): *not* created. That threshold is tuned for an advisor
-  reviewing every hit, so it comes back as a `PossibleDuplicate`, posted with
-  an "Add as seller" button. The `/add-seller` organization search is the
-  human's final check.
+  threshold 0.3): *not* created. That search is loose for an advisor
+  reviewing every hit, so `domain/names.py::names_similar` then drops hits
+  that only share a generic word ("Intelligence", "Capital"). What survives
+  comes back as a `PossibleDuplicate`, posted with an "Add as seller" button.
+  The `/add-seller` organization search is the human's final check.
 - **No match**: enriched (basic tier), then website-checked (below), then
   created in one Attio-first write.
 
