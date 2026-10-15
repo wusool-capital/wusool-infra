@@ -44,11 +44,13 @@ Do all of these, in order, every run, even when the request already says "create
    for an insight.
 3. For an insight: run `blog-worthiness.md` and show the verdict before anything else.
    On **Revise** or **Don't publish**, stop and ask whether to go ahead.
-4. Show the proposed fields and the checks, and wait for an explicit OK. Ask for any
-   required field you'd otherwise have to invent (such as `excerpt`); never write
+4. Ask for the **staff fields** (see `reference.md`): every non-content field, in one
+   table with your suggestions and what blank means. Then list the ones still blank,
+   ask "Leave these blank?", and wait for an explicit OK. Never invent a value or write
    placeholder content.
 5. Only then upload files and create the draft.
-6. Publish only after the person says "publish" for this document.
+6. Report what was written and every staff field left blank.
+7. Publish only after the person says "publish" for this document.
 
 ## Step 1: ask
 

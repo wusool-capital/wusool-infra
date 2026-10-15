@@ -42,8 +42,8 @@ What each result means:
 - **Fonts and colours:** warn only if it's not DM Sans or Inter, or uses none of the brand
   colours.
 
-Ask the person for `freePages` (default 1). With a page viewer, it must leave at least
-the last page locked.
+`freePages` is a staff field (default 1). With a page viewer, it must leave at least the
+last page locked.
 
 ## 3. Check rich text (`bodyFormat: "rich"`)
 
@@ -51,13 +51,12 @@ the last page locked.
   lists, marks and links only, every item with a `_key`.
 - Turn `h1` into the `title` (or `h2` if a title already exists). Turn tables into
   lists. Ask the person to attach each image.
-- Ask for `lockedPercent` (10–90, default 75).
+- `lockedPercent` is a staff field (10–90, default 75).
 
 ## 4. Fields and slug
 
-Propose `title`, `slug`, `excerpt`, `seoTitle` (≤ 60), `seoDescription` (≤ 155), `silo`,
-and an optional `cta`. Ask the person to attach a cover image, and whether to pin the
-home banner (default no).
+Ask for the reports **staff fields** in `reference.md`, as that section describes.
+Limits: `seoTitle` ≤ 60, `seoDescription` ≤ 155.
 
 Check the slug is free:
 
@@ -67,13 +66,14 @@ count(*[_type == "report" && slug.current == $slug])
 
 It must be `0` (the count covers drafts too). If it's taken, propose another.
 
-Show the person the checks and the fields, and wait for an OK before writing.
+Show the checks and the staff-field answers, list every field still blank, and wait for
+an OK before writing.
 
 ## 5. Write the draft
 
-1. Upload the cover, any rich-text images and, for HTML, the report file as `file`.
+1. Upload the cover (if given), any rich-text images and, for HTML, the report file as `file`.
 2. Create the draft with every field, including `bodyFormat`, `publishedAt`,
-   `bannerPinned`, `cover` and, for HTML, `htmlFile`. Never set `html`.
+   `bannerPinned` and, for HTML, `htmlFile`. Never set `html`.
 3. For HTML, confirm the upload is the whole file:
 
    ```groq

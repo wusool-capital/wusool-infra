@@ -28,10 +28,9 @@ list in `reference.md`) and what the reader loses, such as a table's layout.
 
 ## 3. Fields
 
-Propose: `title`, `slug`, `contentType` (default `Article`), `excerpt` (required),
-`author`, `silo`, `h1`, `seoTitle` (≤ 60), `seoDescription` (≤ 155), `ogTitle`,
-`targetKeyword`. Ask whether to pin it to the top of /insights (default no).
-`author` and `silo` take only the listed values; leave them blank rather than guess.
+Ask for the insights **staff fields** in `reference.md`, as that section describes.
+Limits: `seoTitle` ≤ 60, `seoDescription` ≤ 155. `author` and `silo` take only the listed
+values; leave them blank rather than guess.
 
 ## 4. Slug: unique in Sanity and Webflow
 
@@ -70,13 +69,13 @@ When the person said yes to "Is this insight + report?":
 
 ## 6. Confirm
 
-Ask the person to attach a cover image. Show them the checks and the fields, and wait
-for an OK before writing.
+Show the checks and the staff-field answers, list every field still blank, and wait for
+an OK before writing.
 
 ## 7. Write the draft
 
-Upload the cover and any images, then create the draft as `reference.md` describes.
-Always include `bodyFormat`, `contentType`, `publishedAt`, `featured` and `cover`. An
+Upload the cover (if given) and any images, then create the draft as `reference.md` describes.
+Always include `bodyFormat`, `contentType`, `publishedAt` and `featured`. An
 HTML body over 90 KB doesn't fit one call: ask the person to switch to rich text or
 shorten it.
 

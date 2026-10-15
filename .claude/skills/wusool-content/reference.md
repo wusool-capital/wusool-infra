@@ -73,13 +73,67 @@ The Studio's `initialValue`s don't apply. Always set these yourself:
   | Type | Field | Value |
   |---|---|---|
   | both | `bodyFormat` | `"rich"` or `"html"`. Unset reads as HTML on the server. |
-  | both | `publishedAt` | The current time in UTC, as ISO 8601, from the code tool (`date -u +%Y-%m-%dT%H:%M:%SZ`). Never a fixed or example time |
+  | both | `publishedAt` | The person's date, else the current time in UTC, as ISO 8601, from the code tool (`date -u +%Y-%m-%dT%H:%M:%SZ`). Never a fixed or example time |
   | report | `bannerPinned` | `false`, unless the person asks to pin it |
   | insights | `contentType` | `"Article"` unless told otherwise |
   | insights | `featured` | `false`, unless the person asks to pin it |
 
 - Never write `renderedHtml`, `renderedPreviewEnd` or `renderedFrom`; the server owns them.
 - Never touch report `6ea065ae-fae1-4c7e-a3ec-6d67304ccc17` or its draft.
+
+## Staff fields
+
+The **content** comes from what the person gives: the attached HTML, document, Markdown
+or pasted text (`body` / `bodyHtml` / `htmlFile`, plus `keyTakeaways` and `faq` if the
+source has those sections). **Every other field is a staff field.**
+
+Rules for staff fields:
+
+- Ask for all of them in one message, as a table: field, what it's for, your suggestion
+  (if any), and what happens if it's left blank.
+- You may suggest a value from the content (marked "suggested"), but only the person's
+  answer or explicit "use your suggestion" fills a field. Never invent a value.
+- Before writing, list every staff field still blank, with what blank means, and ask
+  "Leave these blank?". Required ones can't be left blank.
+- After writing, end with the list of fields left blank.
+
+### Insights staff fields (Studio order)
+
+| Field | Required | If left blank |
+|---|---|---|
+| Title | Yes | — |
+| Slug | Yes | — (suggest from the title) |
+| Content type | Yes | — (Article, Playbook, Case Study or Press) |
+| Excerpt | Yes | — (the /insights card and search results) |
+| Cover image | No | The card keeps the site's default picture |
+| Author | No | No author on the article |
+| Primary silo | No | No silo tag |
+| Published date | No | Now |
+| Pin to top of /insights | No | Not pinned |
+| H1 | No | The title |
+| SEO title | No | The title |
+| SEO description | No | The excerpt |
+| Share title | No | The title |
+| Target keyword | No | None |
+| End-of-page button (text + link) | No | No button. Insight + report fills it automatically |
+| Insight + report? | Ask always | Not linked to a report |
+
+### Reports staff fields (Studio order)
+
+| Field | Required | If left blank |
+|---|---|---|
+| Title | Yes | — |
+| Slug | Yes | — (suggest from the title) |
+| Excerpt | No | The /reports card has no description |
+| SEO title | No | The title |
+| SEO description | No | The excerpt, else the title |
+| Share title | No | The title |
+| Free pages (HTML) / Locked share % (rich) | No | 1 page / 75% locked |
+| Cover image | No | The card keeps the site's default picture |
+| Primary silo | No | No silo tag |
+| Published date | No | Now |
+| Pin to home page banner | No | Not pinned |
+| End-of-page button (text + link) | No | No button |
 
 ## Fields
 
