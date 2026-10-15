@@ -1,6 +1,6 @@
 ---
 name: wusool-content
-description: Create a Wusool report or Insights article as a Sanity draft. Use when asked to publish, create, add or upload a report or an insight (article, playbook, case study, press) to Sanity or the Wusool site.
+description: Create a Wusool report or Insights article as a Sanity draft, or check whether a piece is blog-worthy. Use when asked to publish, create, add or upload a report or an insight (article, playbook, case study, press) to Sanity or the Wusool site, or whether an article is worth publishing.
 ---
 
 # Wusool content: reports and insights to Sanity
@@ -43,6 +43,9 @@ run produces goes there.
 
 Read `reference.md` first, then read and follow `reports.md` or `insights.md`.
 For insight + report, finish the report flow before starting the insight.
+
+If the person only wants to know whether a piece is blog-worthy, skip question 3, then
+follow `blog-worthiness.md` alone and stop at its verdict: no draft.
 
 ## Never
 

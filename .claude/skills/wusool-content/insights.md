@@ -10,6 +10,9 @@ takeaways and FAQ together.
 
 Save the input as `<dir>/source.md` (or `source.html`).
 
+Then follow `blog-worthiness.md`. Continue only on a **Publish** verdict, or when the
+person chooses to go ahead anyway.
+
 ## 2. Check the content
 
 **Rich (`"rich"`):** convert to Portable Text as `reference.md` describes.

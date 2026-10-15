@@ -71,7 +71,9 @@ It checks the content against what the site can show, and never publishes.
 3. Ask Claude, for example: "Create an insight in Sanity from
    `article.md`". Claude asks whether it's a report or an insight, and
    whether an insight promotes a report.
-4. Review the checks Claude shows, then confirm.
+4. Review the checks Claude shows, then confirm. For an insight, Claude
+   first scores whether it's worth publishing as a blog article and
+   suggests fixes. You can go ahead anyway.
 
 **Expected result:** a draft in the Studio and a folder named
 `wusool-content/<date>-<slug>/` with the checks and fields Claude used.

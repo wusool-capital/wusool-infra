@@ -16,6 +16,8 @@ for current production evidence and open handover items.
   Sanity. It checks the content against what the site renders and leaves
   publishing to the Studio. See
   [Publish with Claude](gitbook/user-guide/publish-in-sanity.md#publish-with-claude).
+- Before an Insights draft, the skill scores whether the piece is worth
+  publishing as a blog article and checks for overlap with existing articles.
 
 ## 2026-10-13
 
