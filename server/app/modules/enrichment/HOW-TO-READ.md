@@ -8,8 +8,10 @@ by name).
 
 1. `api/slack/handlers/commands.py::_handle_enrich_command` — resolves org+role
    candidates via `api/dependencies.py::resolve_org_roles` (organizations trigram search).
-2. One match → straight to step 4. Multiple → `api/slack/views/role_selection.py` modal,
-   submission handled in `handlers/actions.py`.
+2. Sellers: one match → straight to step 4; multiple → `api/slack/views/role_selection.py`
+   modal, submission handled in `handlers/actions.py`. Buyers: several orgs →
+   `views/buyer_selection.py` org modal, then its vertical modal (one role per vertical),
+   which is skipped when the organization has a single buyer role.
 3. `api/dependencies.py::propose_and_post` — posts a placeholder, since research + LLM
    extraction routinely runs past Slack's 3s ack budget (same pattern as
    `matching_engine.run_match_and_post`).

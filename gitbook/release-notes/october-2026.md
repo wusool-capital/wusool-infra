@@ -1,6 +1,6 @@
 # October 2026
 
-Delivery period: 15 September – 14 October 2026.
+Delivery period: 15 September – 15 October 2026.
 
 In four weeks, more than 60 pull requests were merged across every Wusool product. Two new
 products launched: gated reports and the Reports & Insights Studio. Every lead tool

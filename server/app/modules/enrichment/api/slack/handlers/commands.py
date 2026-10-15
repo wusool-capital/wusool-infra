@@ -20,6 +20,10 @@ from app.modules.enrichment.api.dependencies import (
     resolve_org_roles,
     target_from_resolved,
 )
+from app.modules.enrichment.api.slack.views.buyer_selection import (
+    build_buyer_organization_modal,
+    build_buyer_vertical_modal,
+)
 from app.modules.enrichment.api.slack.views.role_selection import build_role_selection_modal
 from app.modules.notifications import (
     SlackCommandPayload,
@@ -121,6 +125,19 @@ async def _handle_enrich_command(
                 title, f"No active {role_kind} found for *{org_name}*. _Try a different name._"
             ),
         )
+        return
+
+    if role_kind == "buyer" and len(candidates) > 1:
+        # Org first, then vertical — the same order as `/edit-buyer`.
+        if len({c.org_attio_id for c in candidates}) > 1:
+            view = build_buyer_organization_modal(
+                candidates, search_term=org_name, requested_by=user_id, channel_id=channel_id
+            )
+        else:
+            view = build_buyer_vertical_modal(
+                candidates, requested_by=user_id, channel_id=channel_id
+            )
+        await client.views_update(view_id=view_id, view=view)
         return
 
     if len(candidates) == 1:

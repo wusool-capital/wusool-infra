@@ -9,6 +9,13 @@ the new role to it, or create a brand new organization if nothing matched.
 `/remove-seller`/`/remove-buyer` don't exist — built and then deliberately
 reverted (see "History" below).
 
+`/find-match`'s "Before we match" popup can open an edit form from here
+(`edit_buyer_from_gate`). The form carries a `gate_token` (`api/slack/views/gate_ref.py`),
+and saving calls `EditGatePort` (`application/ports/edit_gate.py`) before and after the
+write, so the popup's owner can lock "Run anyway" and refresh it. `main.py` wires
+`configure_edit_gate_port(MatchingEngineEditGate())`; this module never imports
+`matching_engine`.
+
 Not independently deployed — `server/main.py` merges this module's Slack
 handlers with `matching_engine`'s onto one `AsyncApp`. `bootstrap.py::create_app()`
 here exists only for running this module standalone (its own test suite).
@@ -102,8 +109,8 @@ beyond the `AttioClientProtocol` Port.
 created `SellerRole` and raises `PartialWriteError` (`api/write_errors.py`) with
 what already landed. The adapter also runs the CRM pre-filter lookup and basic
 enrichment, returns the lead unwritten as `UnverifiedSeller` when a provider's
-website doesn't match the Maps website (see `discovery/README.md`), then
-writes once. A reviewed lead's `source_place_id` travels through the
+website doesn't match the Maps website (discovery skips it and takes the next
+lead; see `discovery/README.md`), then writes once. A reviewed lead's `source_place_id` travels through the
 organization-selection and add-form `private_metadata` to the same write
 (set only when the organization has none and no other organization holds it). `source_place_id` goes to Postgres only: Attio has
 no such attribute, and the sync's `COALESCE` keeps it.

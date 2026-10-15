@@ -14,9 +14,6 @@ from app.modules.discovery import (
     DiscoveredLead,
     DiscoveryOutcome,
     FailedLead,
-    PossibleDuplicate,
-    SellerDraft,
-    UnverifiedSeller,
 )
 from app.modules.matching_engine.api import dependencies as deps
 from app.modules.matching_engine.api.slack.views.discovered_candidates import (
@@ -222,10 +219,9 @@ def harness(monkeypatch: pytest.MonkeyPatch):
     return SimpleNamespace(service=service, notifier=notifier, seller_role_id=seller_role_id)
 
 
-async def test_trigger_appends_created_sellers_and_posts_duplicates_separately(
+async def test_trigger_appends_created_sellers_and_notes_skipped_duplicates(
     monkeypatch, harness
 ) -> None:
-    lead = DiscoveredLead(name="Twin Co", source_url="https://m/t")
     outcome = DiscoveryOutcome(
         status="ok",
         created=(
@@ -236,7 +232,7 @@ async def test_trigger_appends_created_sellers_and_posts_duplicates_separately(
                 source_url="https://maps.example/acme",
             ),
         ),
-        possible_duplicates=(PossibleDuplicate(lead=lead, existing_org_name="Twin Holdings"),),
+        possible_duplicates=1,
         failed=(FailedLead(lead=DiscoveredLead(name="Bad Co", source_url="u"), reason="x"),),
         already_in_crm=2,
     )
@@ -253,35 +249,21 @@ async def test_trigger_appends_created_sellers_and_posts_duplicates_separately(
     rendered = str([b.to_dict() for b in final["blocks"]])
     assert "2 more already in the CRM." in rendered
     assert "Couldn't save: Bad Co." in rendered
-    assert len(harness.notifier.posts) == 2  # the placeholder, then the duplicates message
-    assert "possible duplicate" in harness.notifier.posts[1]["text"]
+    assert "1 skipped as possible duplicates" in rendered
+    assert len(harness.notifier.posts) == 1  # just the placeholder
 
 
-async def test_trigger_posts_a_review_message_per_unverified_lead(monkeypatch, harness) -> None:
-    unverified = UnverifiedSeller(
-        draft=SellerDraft(org_name="Acme Co", source_urls=("https://maps.example/acme",)),
-        maps_website="acme.com",
-        provider_websites=(("Diffbot", "acme-group.de"),),
-        values=(),
-        review_id="p1",
-    )
-    marked = AsyncMock()
-    monkeypatch.setattr(discovery_module, "mark_review_posted", marked)
+async def test_trigger_notes_leads_skipped_for_a_website_mismatch(monkeypatch, harness) -> None:
     monkeypatch.setattr(
         discovery_module,
         "discover_and_create_sellers",
-        AsyncMock(return_value=DiscoveryOutcome(status="ok", needs_review=(unverified,))),
+        AsyncMock(return_value=DiscoveryOutcome(status="ok", unverified_skipped=2)),
     )
 
     await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
 
-    assert harness.notifier.updates[-1]["text"] == (
-        "No new sellers created. 1 needs a website review before saving (below)."
-    )
-    review = harness.notifier.posts[1]
-    assert review["text"] == "Website check for Acme Co"
-    marked.assert_awaited_once_with("p1")
-    assert review["blocks"][-1].to_dict()["accessory"]["text"]["text"] == "Review & Save"
+    assert "2 skipped because their website didn't match" in harness.notifier.updates[-1]["text"]
+    assert len(harness.notifier.posts) == 1  # no per-lead review cards any more
 
 
 async def test_trigger_notes_leads_still_awaiting_an_earlier_review(monkeypatch, harness) -> None:
@@ -294,43 +276,6 @@ async def test_trigger_notes_leads_still_awaiting_an_earlier_review(monkeypatch,
     await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
 
     assert "2 still awaiting an earlier website review." in harness.notifier.updates[-1]["text"]
-
-
-async def test_one_failed_review_post_does_not_stop_the_others(monkeypatch, harness) -> None:
-    def _unverified(name: str) -> UnverifiedSeller:
-        return UnverifiedSeller(
-            draft=SellerDraft(org_name=name),
-            maps_website=None,
-            provider_websites=(),
-            values=(),
-            review_id=name,
-        )
-
-    marked = AsyncMock()
-    monkeypatch.setattr(discovery_module, "mark_review_posted", marked)
-
-    monkeypatch.setattr(
-        discovery_module,
-        "discover_and_create_sellers",
-        AsyncMock(
-            return_value=DiscoveryOutcome(
-                status="ok", needs_review=(_unverified("Bad Co"), _unverified("Good Co"))
-            )
-        ),
-    )
-    original = harness.notifier.post_message
-
-    async def _flaky(**kwargs: object) -> str:
-        if kwargs["text"] == "Website check for Bad Co":
-            raise RuntimeError("invalid_blocks")
-        return await original(**kwargs)
-
-    harness.notifier.post_message = _flaky
-
-    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
-
-    assert [p["text"] for p in harness.notifier.posts][-1] == "Website check for Good Co"
-    marked.assert_awaited_once_with("Good Co")  # the failed card stays unmarked
 
 
 async def test_trigger_reports_the_daily_cap_and_creates_nothing(monkeypatch, harness) -> None:
@@ -452,3 +397,31 @@ async def test_a_partly_saved_lead_says_what_landed(monkeypatch, harness) -> Non
 
     rendered = str([b.to_dict() for b in harness.notifier.updates[-1]["blocks"]])
     assert "Half Co (partly saved: organization created in Attio)" in rendered
+
+
+async def test_trigger_says_sellers_were_created_when_the_run_view_is_missing(
+    monkeypatch, harness
+) -> None:
+    harness.service.get_match_run_view = AsyncMock(return_value=None)
+    outcome = DiscoveryOutcome(
+        status="ok",
+        created=(
+            CreatedSeller(
+                seller_role_id=harness.seller_role_id,
+                org_attio_id="attio-acme",
+                org_name="Acme Co",
+                source_url="https://maps.example/acme",
+            ),
+        ),
+        possible_duplicates=1,
+    )
+    monkeypatch.setattr(
+        discovery_module, "discover_and_create_sellers", AsyncMock(return_value=outcome)
+    )
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    text = harness.notifier.updates[-1]["text"]
+    assert "Created 1 seller(s) in the CRM" in text
+    assert "1 skipped as possible duplicates" in text
+    assert "No new sellers created" not in text

@@ -143,6 +143,8 @@ def _fake_buyer_role(role_id: str, *, org=None):
         notable_investments=None,
         relationship_warmth=None,
         target_geography=None,
+        target_region=None,
+        target_country=None,
         last_mandate_briefing_date=None,
         prior_gcc_acquisition=None,
     )
@@ -721,7 +723,10 @@ def test_gated_field_without_confirmation_requires_checkbox(monkeypatch) -> None
 # --------------------------------------------------------------------------
 
 
-def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_client) -> None:
+@pytest.mark.parametrize("card_token", [None, "card-1"])
+def test_buyer_edit_form_writes_attio_before_postgres(
+    monkeypatch, _mock_slack_web_client, card_token: str | None
+) -> None:
     buyer_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-2", name="Blue Horizon")
     role = _fake_buyer_role(buyer_id, org=org)
@@ -758,6 +763,13 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
         lambda: SimpleNamespace(update_buyer=fake_execute),
     )
 
+    marked: list[tuple[str, str]] = []
+
+    async def fake_mark(card_token: str, added_by: str) -> None:
+        marked.append((card_token, added_by))
+
+    monkeypatch.setattr(actions_module, "mark_review_card_added", fake_mark)
+
     payload = {
         "type": "view_submission",
         "user": {"id": "U_TEST"},
@@ -774,6 +786,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
                     "channel_id": "C_TEST",
                     "selected_org_fields": [],
                     "selected_role_fields": ["model"],
+                    "review_card_token": card_token,
                 }
             ),
             "state": {
@@ -787,6 +800,8 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
     assert response.status_code == 200
     assert len(postgres_use_case.calls) == 1
     assert patched_entries == ["entry-of-this-vertical"]
+    # Only an enrichment review carries a card; a plain edit leaves messages alone.
+    assert marked == ([(card_token, "U_TEST")] if card_token else [])
     text = _mock_slack_web_client.posted[0]["text"]
     assert "*Updated* buyer profile for *Blue Horizon*." in text
     # Every buyer save suggests re-running matching — a copy-pasteable
@@ -1480,3 +1495,190 @@ async def test_buyer_add_lock_is_released_once_no_add_is_waiting(monkeypatch) ->
     gc.collect()
 
     assert len(actions_module._buyer_add_locks) == 0
+
+
+@pytest.mark.parametrize(
+    ("missing_criteria", "callback_id", "shown_fields"),
+    [
+        (
+            ["ebitda", "geography"],
+            "buyer_edit_form_modal",
+            ["ebitda_floor", "ebitda_ceiling", "target_region", "target_country"],
+        ),
+        # Only the vertical missing: it has no editable field, so offer the picker.
+        (["vertical"], "buyer_field_picker_modal", None),
+    ],
+)
+def test_edit_buyer_from_find_match_gate_pushes_before_querying(
+    monkeypatch, missing_criteria: list[str], callback_id: str, shown_fields: list[str] | None
+) -> None:
+    """Stacks the `/edit-buyer` field picker on the "Before we match" popup;
+    the push must come first, since the lookup could outlast the trigger_id."""
+    role_id = str(uuid.uuid4())
+    role = _fake_buyer_role(role_id, org=_fake_org(attio_id="org-attio-9", name="Blue Horizon"))
+    calls: list[str] = []
+    updated: list[dict] = []
+
+    async def fake_resolve(_buyer_role_id: str):
+        calls.append("resolve")
+        return role
+
+    async def fake_views_push(self, **_kwargs):  # noqa: ANN001
+        calls.append("push")
+        return {"view": {"id": "V_PUSHED"}}
+
+    async def fake_views_update(self, **kwargs):  # noqa: ANN001
+        calls.append("update")
+        updated.append(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(actions_module, "resolve_buyer_by_id", fake_resolve)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_push", fake_views_push)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
+
+    payload = {
+        "type": "block_actions",
+        "user": {"id": "U_TEST"},
+        "trigger_id": "T1",
+        "view": {
+            "type": "modal",
+            "id": "V_GATE",
+            "private_metadata": json.dumps(
+                {
+                    "buyer_role_id": role_id,
+                    "channel_id": "C_TEST",
+                    "requested_by": "U_TEST",
+                    "missing_criteria": missing_criteria,
+                }
+            ),
+        },
+        "actions": [{"action_id": "edit_buyer_from_gate", "value": role_id}],
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert calls == ["push", "resolve", "update"]
+    view = updated[0]["view"]
+    assert view.callback_id == callback_id
+    metadata = json.loads(view.private_metadata)
+    # The form remembers which popup it was opened from, to lock and refresh it on save.
+    from app.modules.ddl_commands.api.slack.views.gate_ref import decode_gate_ref
+
+    ref = decode_gate_ref(metadata["gate_token"])
+    assert ref is not None and ref.view_id == "V_GATE"
+    if shown_fields is None:
+        assert metadata["buyer_role_id"] == role_id
+    else:
+        assert metadata["selected_role_fields"] == shown_fields
+        assert metadata["selected_org_fields"] == []
+
+
+# --------------------------------------------------------------------------
+# `/find-match` popup: locked while its edit form saves, refreshed after
+# --------------------------------------------------------------------------
+
+
+class _RecordingGate:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.refs: list[tuple[str, str]] = []
+
+    async def saving(self, *, gate_view_id: str, gate_state: str) -> None:
+        self.events.append("saving")
+        self.refs.append((gate_view_id, gate_state))
+
+    async def finished(self, *, gate_view_id: str, gate_state: str) -> None:
+        self.events.append("finished")
+
+
+def _gate_buyer_edit_payload(gate_token: str | None) -> dict:
+    return {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V_EDIT",
+            "callback_id": "buyer_edit_form_modal",
+            "private_metadata": json.dumps(
+                {
+                    "buyer_role_id": str(uuid.uuid4()),
+                    "org_attio_id": "org-attio-2",
+                    "org_name": "Blue Horizon",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "selected_org_fields": [],
+                    "selected_role_fields": ["model"],
+                    "gate_token": gate_token,
+                }
+            ),
+            "state": {
+                "values": {"model": {"model": {"selected_option": {"value": "Model 1 (Network)"}}}}
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_saving_from_the_popup_locks_it_then_refreshes_it(monkeypatch, fails: bool) -> None:
+    from app.modules.ddl_commands.api.slack.views.gate_ref import GateRef, encode_gate_ref
+    from app.modules.ddl_commands.api.write_errors import PartialWriteError
+
+    events: list[str] = []
+    gate = _RecordingGate(events)
+
+    async def fake_write(**_kwargs) -> None:
+        events.append("write")
+        if fails:
+            raise PartialWriteError([], RuntimeError("attio down"))
+
+    monkeypatch.setattr(actions_module, "edit_gate_port", lambda: gate)
+    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+    token = encode_gate_ref(GateRef(view_id="V_GATE", state='{"buyer_role_id": "b1"}'))
+
+    response = _post_interactivity(_gate_buyer_edit_payload(token))
+
+    assert response.status_code == 200
+    # Locked before the write starts and refreshed after, even when it fails.
+    assert events == ["saving", "write", "finished"]
+    assert gate.refs == [("V_GATE", '{"buyer_role_id": "b1"}')]
+
+
+def test_a_plain_edit_never_touches_the_popup(monkeypatch) -> None:
+    events: list[str] = []
+
+    async def fake_write(**_kwargs) -> None:
+        events.append("write")
+
+    monkeypatch.setattr(actions_module, "edit_gate_port", lambda: _RecordingGate(events))
+    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+
+    response = _post_interactivity(_gate_buyer_edit_payload(None))
+
+    assert response.status_code == 200
+    assert events == ["write"]
+
+
+def test_a_failing_popup_update_does_not_stop_the_save(monkeypatch) -> None:
+    from app.modules.ddl_commands.api.slack.views.gate_ref import GateRef, encode_gate_ref
+
+    events: list[str] = []
+
+    class _BrokenGate:
+        async def saving(self, **_kwargs) -> None:
+            raise RuntimeError("slack down")
+
+        async def finished(self, **_kwargs) -> None:
+            raise RuntimeError("slack down")
+
+    async def fake_write(**_kwargs) -> None:
+        events.append("write")
+
+    monkeypatch.setattr(actions_module, "edit_gate_port", lambda: _BrokenGate())
+    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+    token = encode_gate_ref(GateRef(view_id="V_GATE", state="{}"))
+
+    response = _post_interactivity(_gate_buyer_edit_payload(token))
+
+    assert response.status_code == 200
+    assert events == ["write"]

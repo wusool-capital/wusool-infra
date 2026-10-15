@@ -14,7 +14,6 @@ from app.modules.discrepancies.domain.criteria import (
     ParsedContext,
 )
 from app.modules.discrepancies.domain.rules import (
-    can_conflict,
     ground,
     run_checks,
     template_message,
@@ -41,7 +40,9 @@ class DiscrepancyCheckService:
     ) -> DiscrepancyCheckResult:
         context = ParsedContext()
         context_checked = True
-        if context_text and context_text.strip() and can_conflict(criteria):
+        # Read whenever there is a note: even a buyer with nothing to conflict with
+        # gets the reading echoed back, since the match applies the note either way.
+        if context_text and context_text.strip():
             try:
                 context = ground(await self._extractor.extract(context_text), context_text)
             except Exception:

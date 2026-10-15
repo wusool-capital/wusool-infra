@@ -9,6 +9,7 @@ Diffbot/PDL cost) and post two duplicate proposal messages.
 """
 
 import json
+import uuid
 
 from app.modules.enrichment.api.slack.handlers import actions as actions_module
 from app.modules.enrichment.bootstrap import create_app
@@ -111,3 +112,188 @@ def test_stale_selection_notifies_the_operator_instead_of_silently_no_oping(
     assert response.status_code == 200
     assert len(posted) == 1
     assert "no longer available" in posted[0]["text"]
+
+
+def test_buyer_organization_submission_opens_vertical_step(monkeypatch) -> None:
+    from app.modules.enrichment.api.slack.views.buyer_selection import (
+        BuyerSelectionMetadata,
+        encode_roles,
+    )
+
+    roles = [
+        ResolvedOrgRole(
+            org_attio_id="org-1",
+            org_name="Google Ventures",
+            role_id=f"role-{vertical}",
+            kind="buyer",
+            target_vertical=vertical,
+        )
+        for vertical in ("Banking / Commercial", "Healthcare")
+    ]
+    mock_slack_auth(monkeypatch)
+
+    def fail_if_called(coro_factory, *, name: str) -> None:
+        raise AssertionError("must not enrich before the vertical is chosen")
+
+    monkeypatch.setattr(actions_module._task_runner, "run", fail_if_called)
+
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V_BUYER_ORG",
+            "callback_id": "enrichment_buyer_organization_modal",
+            "private_metadata": BuyerSelectionMetadata(
+                requested_by="U_TEST", channel_id="C_TEST", roles_token=encode_roles(roles)
+            ).model_dump_json(),
+            "state": {
+                "values": {
+                    "organization_id": {
+                        "selected_organization": {"selected_option": {"value": "org-1"}}
+                    }
+                }
+            },
+        },
+    }
+
+    response = _post_interactivity(payload, get_settings())
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["response_action"] == "update"
+    assert body["view"]["callback_id"] == "enrichment_buyer_vertical_modal"
+
+
+def test_duplicate_buyer_vertical_submission_only_enriches_once(monkeypatch) -> None:
+    from app.modules.enrichment.api.slack.views.buyer_selection import (
+        BuyerSelectionMetadata,
+        encode_roles,
+    )
+
+    role_id = "fae6496c-63bf-42d1-873b-e432ad2bcd39"
+    role = ResolvedOrgRole(
+        org_attio_id="org-1", org_name="Google Ventures", role_id=role_id, kind="buyer"
+    )
+    mock_slack_auth(monkeypatch)
+    calls: list[str] = []
+
+    def fake_run(coro_factory, *, name: str) -> None:
+        calls.append(name)
+
+    monkeypatch.setattr(actions_module._task_runner, "run", fake_run)
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V_BUYER_DUP",
+            "callback_id": "enrichment_buyer_vertical_modal",
+            "private_metadata": BuyerSelectionMetadata(
+                requested_by="U_TEST", channel_id="C_TEST", roles_token=encode_roles([role])
+            ).model_dump_json(),
+            "state": {
+                "values": {
+                    "buyer_vertical": {
+                        "selected_vertical": {"selected_option": {"value": role_id}}
+                    },
+                }
+            },
+        },
+    }
+
+    settings = get_settings()
+    assert _post_interactivity(payload, settings).status_code == 200
+    assert _post_interactivity(payload, settings).status_code == 200
+    assert calls == [f"enrich:{role_id}"]
+
+
+def test_review_click_hands_the_card_token_to_the_review_form(monkeypatch) -> None:
+    from app.modules.enrichment.api.slack.views.proposal_message import _encode_proposal
+    from app.modules.enrichment.domain.proposals import EnrichmentProposal
+    from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
+
+    proposal = EnrichmentProposal(
+        target=EnrichmentTarget(
+            kind=EnrichmentTargetKind.BUYER,
+            role_id=uuid.UUID("fae6496c-63bf-42d1-873b-e432ad2bcd39"),
+            org_attio_id="org-1",
+            org_name="Google Ventures",
+        ),
+        values=(),
+        generated_by_model="m",
+    )
+    mock_slack_auth(monkeypatch)
+    opened: list[str | None] = []
+
+    class FakeService:
+        async def open_review_form(self, *, card_token: str | None = None, **_kwargs) -> None:  # noqa: ANN003
+            opened.append(card_token)
+
+    monkeypatch.setattr(
+        "app.modules.enrichment.api.dependencies.enrichment_service", lambda: FakeService()
+    )
+    monkeypatch.setattr(actions_module, "store_review_card", lambda body: "card-1")
+
+    payload = {
+        "type": "block_actions",
+        "user": {"id": "U_TEST"},
+        "trigger_id": "T1",
+        "channel": {"id": "C_TEST"},
+        "actions": [
+            {
+                "action_id": "enrichment_review",
+                "block_id": "enrichment_review_block",
+                "value": _encode_proposal(proposal),
+            }
+        ],
+    }
+
+    response = _post_interactivity(payload, get_settings())
+
+    assert response.status_code == 200
+    assert opened == ["card-1"]
+
+
+def test_buyer_organization_with_one_role_enriches_without_a_vertical_step(monkeypatch) -> None:
+    from app.modules.enrichment.api.slack.views.buyer_selection import (
+        BuyerSelectionMetadata,
+        encode_roles,
+    )
+
+    role_id = "fae6496c-63bf-42d1-873b-e432ad2bcd39"
+    role = ResolvedOrgRole(
+        org_attio_id="org-1", org_name="Google Ventures", role_id=role_id, kind="buyer"
+    )
+    mock_slack_auth(monkeypatch)
+    calls: list[str] = []
+
+    def fake_run(coro_factory, *, name: str) -> None:
+        calls.append(name)
+
+    monkeypatch.setattr(actions_module._task_runner, "run", fake_run)
+    payload = {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V_BUYER_ORG_ONE",
+            "callback_id": "enrichment_buyer_organization_modal",
+            "private_metadata": BuyerSelectionMetadata(
+                requested_by="U_TEST", channel_id="C_TEST", roles_token=encode_roles([role])
+            ).model_dump_json(),
+            "state": {
+                "values": {
+                    "organization_id": {
+                        "selected_organization": {"selected_option": {"value": "org-1"}}
+                    }
+                }
+            },
+        },
+    }
+
+    response = _post_interactivity(payload, get_settings())
+
+    assert response.status_code == 200
+    assert response.text == ""  # closes the modal; no vertical step to show
+    assert calls == [f"enrich:{role_id}"]

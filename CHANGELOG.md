@@ -10,6 +10,45 @@ for current production evidence and open handover items.
 
 ## 2026-10-15
 
+### Changed
+
+- `/find-match` now ranks on what the advisor typed. The core business ("asset
+  manager") is required and modifiers ("AI") only rank higher. Sellers with no
+  sector data are no longer shown as matches. When no CRM seller fits, the
+  result says so and starts a Google Maps search for the real request.
+- The **Anything specific about this search?** text now outranks the stored buyer
+  sector and geography. The buyer organization's own sector interests no longer
+  count as requirements. Words such as "regional founders" no longer count
+  against sellers, and the Google Maps search no longer repeats the region.
+- The `wusool-content` skill now talks to staff in plain words: no field
+  names or jargon, problems first, and check details kept in `checks.md`.
+  It still gives full answers when the content needs them.
+- Discovery no longer matches a lead to an existing company over a shared
+  generic word, such as "Intelligence" or "GmbH". A lead with a similar name
+  is now skipped and counted. It no longer gets an **Add as seller** button
+  or uses up one of the five slots.
+- The "From your note" list now also shows an EV ceiling, revenue,
+  exclusions, seller status, and modifiers, because the match applies them. A
+  note is read even when the buyer has nothing that could conflict.
+- The echo of how a note was read now starts "From your note:". It lists
+  each part on its own line, so sectors, countries, and ticket sizes are
+  easy to tell apart.
+- Seller discovery now writes up to five sellers per search. A lead whose
+  website doesn't match Google Maps is skipped instead of getting a **Website
+  check** message, and the next lead takes its slot.
+- `/enrich-buyer` now asks for the organization first, then the vertical, the
+  same way `/edit-buyer` does. A buyer with one vertical skips that step.
+- When `/find-match` finds missing buyer details, its "Before we match" popup
+  shows an **Edit buyer** button. It opens the edit form with only the empty
+  fields, so you can fill them in without leaving Slack.
+- While that form saves, the popup hides **Run anyway**. When the save ends, it
+  checks the buyer again, so a quick click can't match on the old profile.
+- Links in bot messages no longer expand into large previews, so cards
+  stay short.
+- After a **Review & Save** from `/enrich-seller` or `/enrich-buyer` is saved,
+  the proposal's button becomes "✅ ADDED by" the person who saved it, like a
+  website-check card.
+
 ### Added
 
 - A `wusool-content` Claude skill creates and publishes reports and Insights
@@ -20,6 +59,9 @@ for current production evidence and open handover items.
   of pasted. The server downloads it from Sanity before rendering.
 - Before an Insights draft, the skill scores whether the piece is worth
   publishing as a blog article and checks for overlap with existing articles.
+- Insights articles can be credited to **Wusool Capital** as the author,
+  with the brand mark and company LinkedIn page. The Team page filters
+  this item out, so it does not appear as a team member.
 
 ## 2026-10-13
 

@@ -27,8 +27,14 @@ Neither provider covers the buyer role's own fields, so those go straight to
 the web search. They include investment strategy, target regions, check
 sizes, and deal structure.
 
+For a buyer, the command asks for the organization and then the vertical,
+because each vertical is a separate buyer role. A buyer with one vertical
+skips that step. Enrichment has no free-text note; only `/check-buyer` and
+`/find-match` take one.
+
 The research runs in the background. The result message lists every proposed
-value with a confidence level and one **Review & Save** button.
+value with a confidence level and one **Review & Save** button. After the
+edit form is saved, the button becomes "✅ ADDED by" the person who saved it.
 
 ## Basic tier
 

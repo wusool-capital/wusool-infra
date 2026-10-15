@@ -19,7 +19,6 @@ from app.modules.discrepancies.domain.vocabulary import (
     GENERALIST_VERTICAL,
     REGION_OPTIONS,
     Criterion,
-    region_can_conflict,
     regions_disjoint,
 )
 from app.modules.enrichment.domain.missingness import is_missing
@@ -30,6 +29,10 @@ _TICKET_WORDS = re.compile(
     r"\b(tickets?|che(?:que|ck)(?:[\s-]sizes?|s)|invest\w*|deal[\s-]sizes?)\b", re.IGNORECASE
 )
 _EBITDA_WORDS = re.compile(r"\bebitda\b", re.IGNORECASE)
+# The same words `matching_engine` trusts for an EV cap, so the echo only shows
+# what the match will actually apply.
+_EV_WORDS = re.compile(r"\b(ev|enterprise value|valuation|valued)\b", re.IGNORECASE)
+_REVENUE_WORDS = re.compile(r"\b(revenues?|turnover|sales)\b", re.IGNORECASE)
 
 
 def _vertical_conflict(criteria: BuyerCriteria, candidates: tuple[str, ...]) -> Discrepancy | None:
@@ -136,30 +139,17 @@ def ground(context: ParsedContext, note: str) -> ParsedContext:
     name what it measures. Only ever removes what the LLM found, never adds."""
     names_ticket = _TICKET_WORDS.search(note) is not None
     names_ebitda = _EBITDA_WORDS.search(note) is not None
+    names_ev = _EV_WORDS.search(note) is not None
+    names_revenue = _REVENUE_WORDS.search(note) is not None
     return replace(
         context,
         ticket_low=context.ticket_low if names_ticket else None,
         ticket_high=context.ticket_high if names_ticket else None,
         ebitda_low=context.ebitda_low if names_ebitda else None,
         ebitda_high=context.ebitda_high if names_ebitda else None,
-    )
-
-
-def can_conflict(criteria: BuyerCriteria) -> bool:
-    """False when no stored criterion could ever conflict, so the note needn't be read."""
-    return (
-        criteria.target_vertical not in (None, GENERALIST_VERTICAL)
-        or any(region_can_conflict(r) for r in criteria.target_region)
-        or bool(criteria.target_country)
-        or any(
-            v is not None
-            for v in (
-                criteria.check_size_min,
-                criteria.check_size_max,
-                criteria.ebitda_floor,
-                criteria.ebitda_ceiling,
-            )
-        )
+        ev_ceiling=context.ev_ceiling if names_ev else None,
+        revenue_low=context.revenue_low if names_revenue else None,
+        revenue_high=context.revenue_high if names_revenue else None,
     )
 
 
@@ -206,14 +196,33 @@ def _fields(d: Discrepancy) -> str:
     return " / ".join(CRITERION_FIELD_LABELS[d.criterion])
 
 
-def _context_summary(context: ParsedContext) -> str:
-    parts = [" or ".join(context.verticals)] if context.verticals else []
-    parts += [p for p in (context.region, *context.countries) if p]
+def _context_lines(context: ParsedContext) -> list[str]:
+    """One labelled line per thing read. A list, not a joined sentence: sector
+    names contain slashes, which would blur where one ends and the next begins."""
+    lines = []
+    if context.verticals:
+        label = "Sector (any of)" if len(context.verticals) > 1 else "Sector"
+        lines.append(f"{label}: {', '.join(context.verticals)}")
+    if context.region:
+        lines.append(f"Region: {context.region}")
+    if context.countries:
+        label = "Countries" if len(context.countries) > 1 else "Country"
+        lines.append(f"{label}: {', '.join(context.countries)}")
     if context.ticket_low is not None or context.ticket_high is not None:
-        parts.append(f"ticket {_format_bounds(context.ticket_low, context.ticket_high)}")
+        lines.append(f"Ticket: {_format_bounds(context.ticket_low, context.ticket_high)}")
     if context.ebitda_low is not None or context.ebitda_high is not None:
-        parts.append(f"EBITDA {_format_bounds(context.ebitda_low, context.ebitda_high)}")
-    return " · ".join(parts)
+        lines.append(f"EBITDA: {_format_bounds(context.ebitda_low, context.ebitda_high)}")
+    if context.ev_ceiling is not None:
+        lines.append(f"EV ceiling: {_format_bounds(None, context.ev_ceiling)}")
+    if context.revenue_low is not None or context.revenue_high is not None:
+        lines.append(f"Revenue: {_format_bounds(context.revenue_low, context.revenue_high)}")
+    if context.excluded_verticals:
+        lines.append(f"Excluding: {', '.join(context.excluded_verticals)}")
+    if context.seller_status:
+        lines.append(f"Seller status: {', '.join(context.seller_status)}")
+    if context.modifier_verticals:
+        lines.append(f"Ranks higher (not required): {', '.join(context.modifier_verticals)}")
+    return lines
 
 
 def template_message(
@@ -251,5 +260,6 @@ def template_message(
     elif report.is_clear:
         lines.append(f"No missing or conflicting details found for {org}.")
     if context_checked and context is not None and not context.is_empty:
-        lines.append(f"_Read your note as: {sanitize_mrkdwn(_context_summary(context))}_")
+        read = "\n".join(f"• _{sanitize_mrkdwn(line)}_" for line in _context_lines(context))
+        lines.append(f"_From your note:_\n{read}")
     return "\n\n".join(lines)

@@ -12,6 +12,7 @@ from app.modules.matching_engine.domain.matching.entities import (
 from app.modules.matching_engine.domain.matching.scoring import (
     ScoringEngine,
     apply_structured_filters,
+    has_core_sector_evidence,
     needs_web_fallback,
     select_top_n,
 )
@@ -443,3 +444,86 @@ def test_unconfirmed_geography_still_counts_in_the_scored_union() -> None:
     score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b1", "germany", profile, germany)
 
     assert [c.result for c in score.criteria if c.criterion == "geography"] == ["Pass"]
+
+
+def _sector_req(value: str, *, hard: bool = True) -> HardRequirement:
+    return HardRequirement(
+        criterion="sector",
+        value=value,
+        source="advisor_context",
+        confidence="high",
+        human_confirmed=hard,
+    )
+
+
+def _ai_wealth_profile() -> RequirementProfile:
+    return replace(
+        _profile(
+            [_sector_req("Asset Management"), _sector_req("Family Office / Wealth Management")]
+        ),
+        soft_preferences=[
+            SoftPreference(
+                criterion="sector",
+                value="AI / ML",
+                weight=0.8,
+                source="advisor_context",
+                confidence="high",
+            )
+        ],
+    )
+
+
+def test_hard_sector_alternatives_are_a_union_in_stage_one() -> None:
+    wealth_only = _seller("a", sector_focus=["Family Office / Wealth Management"])
+    asset_only = _seller("b", sector_focus=["Asset Management"])
+    clinic = _seller("c", sector_focus=["Clinic"])
+
+    passed, _ = apply_structured_filters(_ai_wealth_profile(), [wealth_only, asset_only, clinic])
+
+    assert [c.seller_role_id for c in passed] == ["a", "b"]
+
+
+def test_ai_native_asset_manager_outranks_plain_asset_manager() -> None:
+    profile = _ai_wealth_profile()
+    engine = ScoringEngine(CONFIDENCE_MULTIPLIERS)
+    ai_native = engine.score(
+        "b", "a", profile, _seller("a", sector_focus=["AI / ML", "Asset Management"])
+    )
+    plain = engine.score("b", "p", profile, _seller("p", sector_focus=["Asset Management"]))
+
+    assert ai_native.overall_score > plain.overall_score > 50
+    assert has_core_sector_evidence(profile, plain)
+
+
+def test_sector_less_seller_fails_relevance_gate_and_ai_only_fails_core() -> None:
+    profile = _ai_wealth_profile()
+    engine = ScoringEngine(CONFIDENCE_MULTIPLIERS)
+
+    no_data = engine.score("b", "n", profile, _seller("n"))
+    ai_only = engine.score("b", "x", profile, _seller("x", sector_focus=["AI / ML"]))
+
+    assert not has_core_sector_evidence(profile, no_data)
+    assert not has_core_sector_evidence(profile, ai_only)
+
+
+def test_gate_is_open_when_no_sector_requirement_exists() -> None:
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b", "n", _profile(), _seller("n"))
+
+    assert has_core_sector_evidence(_profile(), score)
+
+
+def test_matched_soft_sector_uses_its_own_weight_and_name() -> None:
+    profile = replace(
+        _profile(),
+        soft_preferences=[
+            SoftPreference("sector", "AI / ML", 0.8, "advisor_context", "high"),
+            SoftPreference("sector", "Asset Management", 0.5, "advisor_context", "high"),
+        ],
+    )
+
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score(
+        "b", "s", profile, _seller("s", sector_focus=["Asset Management"])
+    )
+
+    soft = [c for c in score.criteria if c.criterion_type == "soft"]
+    assert [(c.result, c.weight) for c in soft] == [("Pass", 0.5)]

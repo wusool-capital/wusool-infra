@@ -1,6 +1,6 @@
 # October 2026: Website lead tools and reports
 
-Delivery period: 15 September – 14 October 2026.
+Delivery period: 15 September – 15 October 2026.
 
 ## Gated reports (new)
 

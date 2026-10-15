@@ -144,6 +144,7 @@ async def resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
                         org_name=org.name,
                         role_id=str(role.id),
                         kind="buyer",
+                        target_vertical=role.target_vertical,
                     )
                 )
     return resolved

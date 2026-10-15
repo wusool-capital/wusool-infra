@@ -13,8 +13,15 @@ from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_sdk.web.async_client import AsyncWebClient
 
+from app.modules.discovery import store_review_card
 from app.modules.enrichment.api.dependencies import propose_and_post, target_from_resolved
+from app.modules.enrichment.api.slack.views.buyer_selection import (
+    BuyerSelectionMetadata,
+    build_buyer_vertical_modal,
+    decode_roles,
+)
 from app.modules.enrichment.api.slack.views.proposal_message import decode_proposal
+from app.modules.enrichment.domain.targets import ResolvedOrgRole
 from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
 from app.modules.utilities import (
     NotFoundError,
@@ -26,6 +33,22 @@ logger = logging.getLogger(__name__)
 
 _task_runner = get_shared_task_runner()
 _submission_idempotency_store = get_shared_idempotency_store()
+
+
+def _run_enrichment(role: ResolvedOrgRole, channel_id: str) -> None:
+    _task_runner.run(
+        lambda: propose_and_post(target_from_resolved(role), channel_id=channel_id),
+        name=f"enrich:{role.role_id}",
+    )
+
+
+async def _notify_expired(client: AsyncWebClient, metadata: BuyerSelectionMetadata) -> None:
+    # Roles are held server-side for a limited time, so an idle modal loses them.
+    await client.chat_postEphemeral(
+        channel=metadata.channel_id,
+        user=metadata.requested_by,
+        text="This selection expired — run `/enrich-buyer` again.",
+    )
 
 
 def register(app: AsyncApp) -> None:
@@ -83,6 +106,62 @@ def register(app: AsyncApp) -> None:
             name=f"enrich:{role_id}",
         )
 
+    @app.view("enrichment_buyer_organization_modal")
+    async def handle_buyer_organization_submission(
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
+    ) -> None:
+        metadata = BuyerSelectionMetadata.model_validate_json(view["private_metadata"])
+        org_attio_id = view["state"]["values"]["organization_id"]["selected_organization"][
+            "selected_option"
+        ]["value"]
+        roles = [
+            r for r in decode_roles(metadata.roles_token) or [] if r.org_attio_id == org_attio_id
+        ]
+        if not roles:
+            await ack()
+            await _notify_expired(client, metadata)
+            return
+        if len(roles) == 1:
+            await ack()
+            _run_enrichment(roles[0], metadata.channel_id)
+            return
+        await ack(
+            response_action="update",
+            view=build_buyer_vertical_modal(
+                roles, requested_by=metadata.requested_by, channel_id=metadata.channel_id
+            ),
+        )
+
+    @app.view("enrichment_buyer_vertical_modal")
+    async def handle_buyer_vertical_submission(
+        ack: AsyncAck,
+        body: SlackInteractionBody,
+        view: SlackViewSubmissionPayload,
+        client: AsyncWebClient,
+    ) -> None:
+        await ack()
+        view_id = view.get("id")
+        if view_id:
+            idempotency_key = f"buyer_vertical_submission:{view_id}"
+            if _submission_idempotency_store.seen(idempotency_key):
+                logger.info("buyer_vertical_duplicate_delivery_skipped key=%s", idempotency_key)
+                return
+            _submission_idempotency_store.mark(idempotency_key)
+        metadata = BuyerSelectionMetadata.model_validate_json(view["private_metadata"])
+        role_id = view["state"]["values"]["buyer_vertical"]["selected_vertical"]["selected_option"][
+            "value"
+        ]
+        match = next(
+            (r for r in decode_roles(metadata.roles_token) or [] if r.role_id == role_id), None
+        )
+        if match is None:
+            await _notify_expired(client, metadata)
+            return
+        _run_enrichment(match, metadata.channel_id)
+
     @app.action("enrichment_review")
     async def handle_review(
         ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient
@@ -115,6 +194,7 @@ def register(app: AsyncApp) -> None:
                 proposal=proposal,
                 channel_id=channel_id,
                 requested_by=user_id,
+                card_token=store_review_card(body),
             )
         except Exception:
             logger.exception(

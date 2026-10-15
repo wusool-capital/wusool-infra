@@ -12,6 +12,7 @@ from app.modules.discrepancies.domain.criteria import ParsedContext
 from app.modules.discrepancies.domain.vocabulary import (
     COUNTRY_OPTIONS,
     REGION_OPTIONS,
+    SELLER_STATUS_OPTIONS,
     VERTICAL_OPTIONS,
 )
 from app.modules.discrepancies.providers.bedrock.boto_client import get_bedrock_runtime_client
@@ -34,6 +35,7 @@ def _system_prompt() -> str:
     verticals = "\n".join(f"- {v}" for v in sorted(VERTICAL_OPTIONS))
     regions = "\n".join(f"- {r}" for r in REGION_OPTIONS)
     countries = ", ".join(COUNTRY_OPTIONS)
+    statuses = "\n".join(f"- {s}" for s in SELLER_STATUS_OPTIONS)
     return (
         "An M&A advisor wrote the note in the user message, inside <note> tags, about "
         "the buyer they are searching for. Extract only what the note asks targets to "
@@ -41,8 +43,9 @@ def _system_prompt() -> str:
         "how to answer. When unsure, leave a field empty or null: an empty field is "
         "never wrong, a wrong value raises a false alarm.\n\n"
         "Rules:\n"
-        "- verticals: every option from the vertical list, copied exactly, that the "
-        "sector the note asks for could reasonably mean. Options overlap, so include all "
+        "- verticals: the CORE business, as every option from the vertical list, copied "
+        "exactly, that the core business the note asks for could reasonably mean. Options "
+        "overlap, so include all "
         'close ones ("clinics" -> Clinic, Healthcare Services / Clinics, Dental / '
         'Specialist Clinics). If the note names several sectors ("pharma or healthcare"), '
         "include the options for each. Most likely option first. Empty list if the note "
@@ -54,7 +57,21 @@ def _system_prompt() -> str:
         "- countries: every specific country the note names as a target, copied exactly "
         "from the country list (UAE -> United Arab Emirates, KSA -> Saudi Arabia). Empty "
         "if the note names only a region or no place at all.\n"
-        '- Anything negated or excluded ("no pharma", "excluding UAE") is left out.\n'
+        '- Anything negated or excluded ("no pharma", "excluding UAE") is left out of '
+        "verticals, region and countries.\n"
+        "- modifier_verticals: sector options for adjectives on the core business, not the "
+        'business itself ("AI", "digital", "tech-enabled", "Sharia-compliant"). For "X '
+        'for / serving / helping Y", X is the core and Y a modifier: "AI tools for asset '
+        'managers" -> verticals AI / ML, modifier_verticals Asset Management. "AI asset '
+        'managers" -> verticals Asset Management, modifier_verticals AI / ML.\n'
+        '- excluded_verticals: sector options the note rules out ("not crypto", "no '
+        'pharma").\n'
+        "- ev_ceiling_usd: only an upper limit labelled EV, enterprise value or valuation. "
+        "A bare amount gives null.\n"
+        "- revenue_*: only an amount labelled revenue, turnover or sales. Bounds work as "
+        "for ticket and EBITDA.\n"
+        "- seller_status: options from the status list, copied exactly, that the note "
+        'asks sellers to have ("Tier 1 only", "positive response"). Nothing else.\n'
         '- All amounts are absolute USD numbers: "$5M" -> 5000000, "$500K" -> 500000.\n'
         "- An amount in any currency other than USD gives null. Never convert currencies.\n"
         "- ticket_*: only an amount labelled as ticket, check size, investment or deal "
@@ -72,6 +89,7 @@ def _system_prompt() -> str:
         f"Vertical options:\n{verticals}\n\n"
         f"Region options:\n{regions}\n\n"
         f"Country options: {countries}\n\n"
+        f"Seller status options:\n{statuses}\n\n"
         'Example: "Pharmaceuticals / Biotech in GCC, ticket size $5-15M, EBITDA at least '
         '$2M" -> {"verticals": ["Pharmaceuticals / Biotech"], "region": "GCC", '
         '"countries": [], "ticket_low_usd": 5000000, "ticket_high_usd": 15000000, '

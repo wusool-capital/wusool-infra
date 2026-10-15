@@ -1,6 +1,6 @@
 # October 2026: Wusool Toolkit
 
-Delivery period: 15 September – 14 October 2026.
+Delivery period: 15 September – 15 October 2026.
 
 ## Approved matches become deals
 
@@ -45,6 +45,17 @@ Delivery period: 15 September – 14 October 2026.
 - **The advisor's note wins.** "Egypt" for a buyer stored as US runs the
   search on Egypt. A stated ticket size or valuation cap replaces the stored
   one for that run, and "Run anyway" keeps the note.
+- **The note decides the sector.** "AI asset managers" now requires asset
+  or wealth managers and ranks AI ones higher. "AI tools for asset managers"
+  flips it. The buyer's own sector interests no longer count as requirements.
+- **What the note can control.** The note can set the business type,
+  places, exclusions, revenue and EBITDA floors, ticket size, EV cap, and
+  seller status. Founder background and runway reach the written explanation
+  only. The pre-match check still compares just four things: sector,
+  geography, ticket size, and EBITDA.
+- **No sector data, no match.** A seller with no sector data is no longer
+  shown as a match. If no CRM seller fits, the bot says so and searches
+  Google Maps for the real request, such as "AI wealth management".
 - **Partial stakes.** Sellers valued above a buyer's cheque size stay in the
   pool with a lower score, because a cheque can buy a partial stake.
 - **Rejections stick.** A seller rejected for a buyer and sector isn't

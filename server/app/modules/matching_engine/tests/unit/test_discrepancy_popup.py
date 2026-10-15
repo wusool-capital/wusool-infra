@@ -79,13 +79,13 @@ def test_gate_modal_cuts_a_long_message_at_a_line_break() -> None:
 
 @dataclass
 class _Harness:
-    """Doubles as the fake Slack client: `_show_discrepancies` only calls `views_update`."""
+    """Doubles as the fake Slack client: `show_discrepancies` only calls `views_update`."""
 
     run: AsyncMock
     views_update: AsyncMock
 
     async def show(self) -> str:
-        await actions._show_discrepancies(self, "V1", _GATE)  # ty: ignore[invalid-argument-type]
+        await actions.show_discrepancies(self, "V1", _GATE)  # ty: ignore[invalid-argument-type]
         return self.views_update.await_args.kwargs["view"].to_dict()["blocks"][0]["text"]["text"]
 
 
@@ -135,7 +135,7 @@ async def test_only_a_closed_modal_is_logged_quietly(
     )
 
     with caplog.at_level(logging.INFO, logger=actions.logger.name):
-        await actions._show_discrepancies(harness, "V1", _GATE)  # ty: ignore[invalid-argument-type]
+        await actions.show_discrepancies(harness, "V1", _GATE)  # ty: ignore[invalid-argument-type]
 
     assert [r.levelno for r in caplog.records] == [level]
     harness.run.assert_not_awaited()
@@ -160,3 +160,13 @@ async def test_find_buyer_discrepancies_returns_none_for_a_missing_buyer(monkeyp
     monkeypatch.setattr(dependencies, "resolve_buyer_by_id", AsyncMock(return_value=None))
 
     assert await dependencies.find_buyer_discrepancies("buyer-1", None) is None
+
+
+def test_gate_modal_offers_edit_buyer_only_when_asked() -> None:
+    plain = build_discrepancy_gate_modal(_GATE, _MISSING.message).to_dict()
+    offered = build_discrepancy_gate_modal(_GATE, _MISSING.message, offer_edit=True).to_dict()
+
+    assert all(b["type"] != "actions" for b in plain["blocks"])
+    button = offered["blocks"][-1]["elements"][0]
+    assert button["action_id"] == "edit_buyer_from_gate"
+    assert button["value"] == "buyer-1"

@@ -15,7 +15,7 @@ domain/            # EnrichmentTarget, ProposedFieldValue/EnrichmentProposal, fi
 application/        # EnrichMixin (structured lookup + research+extract), ReviewMixin (hand-off), ports/
 providers/          # diffbot/ + people_data_labs/ (structured, seller-only) — Firecrawl + Bedrock (fallback)
 persistence/        # SqlAlchemyRoleReader — reads current values + resolves a target by role id
-api/                # /enrich-seller, /enrich-buyer Slack commands + handlers, "Review & Save" button
+api/                # /enrich-seller, /enrich-buyer Slack commands + handlers, buyer org → vertical modals, "Review & Save" button
 ```
 
 ### Seller research waterfall
@@ -114,10 +114,14 @@ credentials required; `tests/fakes/` stands in for all three.
 `/enrich-seller <name>` / `/enrich-buyer <name>` (always kind-scoped — no
 bare `/enrich`, so an org with both an active buyer and seller role never
 needs a role-selection modal just to pick the kind; or a match result's
-"Enrich" button) → `enrich_and_post` → `api/dependencies.py
+"Enrich" button; `/enrich-buyer` instead goes organization → vertical via
+`api/slack/views/buyer_selection.py`, like `/edit-buyer`; a single-role org
+skips the vertical step)
+→ `enrich_and_post` → `api/dependencies.py
 ::propose_and_post` (background task, mirrors
 `matching_engine.run_match_and_post`) → `EnrichMixin.propose` →
 `api/slack/views/proposal_message.py` (shows every proposed field, one
 "Review & Save" button) → operator clicks it → `handlers/actions.py` →
-`ReviewMixin.open_review_form` → `EnrichmentReviewPort` → `ddl_commands`'
+`ReviewMixin.open_review_form` (carries a `card_token` from `discovery.store_review_card`; the
+edit-form save swaps the button for "✅ ADDED by") → `EnrichmentReviewPort` → `ddl_commands`'
 real, prefilled edit modal → the ordinary edit-form write path.

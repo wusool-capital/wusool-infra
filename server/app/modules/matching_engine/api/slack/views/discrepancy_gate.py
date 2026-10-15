@@ -3,7 +3,8 @@ conflicting buyer criteria, and "Run anyway" — the only way to start the
 expensive matching workflow. Block Kit builders only, no logic.
 """
 
-from slack_sdk.models.blocks import SectionBlock
+from slack_sdk.models.blocks import ActionsBlock, Block, SectionBlock
+from slack_sdk.models.blocks.block_elements import ButtonElement
 from slack_sdk.models.views import View
 
 from app.modules.matching_engine.api.slack.schemas import DiscrepancyGateMetadata
@@ -20,13 +21,37 @@ def _fit(message: str) -> str:
     return message[: cut if cut > 0 else _MAX_SECTION_CHARS]
 
 
-def build_discrepancy_gate_modal(metadata: DiscrepancyGateMetadata, message: str) -> View:
+def build_discrepancy_gate_modal(
+    metadata: DiscrepancyGateMetadata,
+    message: str,
+    *,
+    offer_edit: bool = False,
+    saving: bool = False,
+) -> View:
+    """`saving` drops "Run anyway" (a modal with no submit button can't be
+    submitted) while an edit is being written, so a quick click can't start a
+    match on the old profile."""
+    blocks: list[Block] = [SectionBlock(text=_fit(message))]
+    if offer_edit and not saving:
+        # Handled by `ddl_commands` (it owns the edit-buyer flow); a modal's
+        # footer can't hold a third button, so this lives in the body.
+        blocks.append(
+            ActionsBlock(
+                elements=[
+                    ButtonElement(
+                        action_id="edit_buyer_from_gate",
+                        text="Edit buyer",
+                        value=metadata.buyer_role_id,
+                    )
+                ]
+            )
+        )
     return View(
         type="modal",
         callback_id="discrepancy_gate_modal",
         private_metadata=metadata.model_dump_json(exclude_none=True),
         title="Before we match",
-        submit="Run anyway",
+        submit=None if saving else "Run anyway",
         close="Cancel",
-        blocks=[SectionBlock(text=_fit(message))],
+        blocks=blocks,
     )

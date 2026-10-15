@@ -33,16 +33,20 @@ async def test_empty_note_never_calls_the_extractor(context_text: str | None) ->
 
 
 @pytest.mark.asyncio
-async def test_buyer_with_nothing_to_conflict_never_calls_the_extractor() -> None:
-    extractor = FakeContextExtractor(ParsedContext(verticals=("Garage",)))
+async def test_a_buyer_with_nothing_to_conflict_still_has_its_note_read_and_echoed() -> None:
+    extractor = FakeContextExtractor(
+        ParsedContext(verticals=("Garage",), seller_status=("Tier 1",))
+    )
     service = DiscrepancyCheckService(extractor=extractor)
     empty = BuyerCriteria(buyer_role_id="role-2", org_name="Empty Capital", target_vertical=None)
 
-    result = await service.check(empty, "fintech in GCC, ticket $5M")
+    result = await service.check(empty, "garages, Tier 1 only")
 
-    assert extractor.texts == []
+    assert extractor.texts == ["garages, Tier 1 only"]
     assert result.context_checked
+    assert result.report.conflicts == ()
     assert len(result.report.missing) == 4
+    assert "• _Seller status: Tier 1_" in result.message
 
 
 @pytest.mark.asyncio
@@ -118,7 +122,7 @@ async def test_result_carries_the_grounded_context_and_echoes_it() -> None:
     result = await service.check(_CRITERIA, "UAE, around $3M")
 
     assert result.context == ParsedContext(countries=("United Arab Emirates",))
-    assert result.message.endswith("_Read your note as: United Arab Emirates_")
+    assert result.message.endswith("_From your note:_\n• _Country: United Arab Emirates_")
 
 
 @pytest.mark.asyncio
@@ -129,4 +133,4 @@ async def test_extraction_failure_never_echoes_a_reading() -> None:
 
     assert not result.context_checked
     assert result.context == ParsedContext()
-    assert "Read your note as" not in result.message
+    assert "From your note" not in result.message

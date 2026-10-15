@@ -28,8 +28,8 @@ Its scores and research are decision support; always check the result.
 
 **Expected result:** a popup lists **conflicts** with the buyer's profile and
 **missing details**, each naming the `/edit-buyer` field to fix. It ends with
-how your note was read, for example "Read your note as: Pharmaceuticals /
-Biotech · United Arab Emirates".
+how your note was read, as a short list such as "Sector: Pharmaceuticals /
+Biotech" and "Country: United Arab Emirates".
 
 How your note is read:
 
@@ -37,7 +37,11 @@ How your note is read:
   "check size", "investment", or "deal size".
 - Open-ended amounts such as "at least $2M" conflict only when they can't
   overlap the buyer's range.
-- Exclusions such as "no pharma" aren't checked.
+- The check compares four things with the buyer profile: sector, geography,
+  ticket size, and EBITDA.
+- It doesn't flag exclusions such as "no pharma", or an EV cap, revenue,
+  seller status, or a modifier such as "AI". The match applies them, and the
+  list shows each one it read.
 - Geography uses the buyer's target regions and target countries together.
 
 `/find-match` runs the same check before every match.
@@ -48,12 +52,47 @@ How your note is read:
 
 1. Run `/find-match <buyer name>`, for example `/find-match Raoof Capital`.
 2. If several buyers have similar names, select the intended record.
-3. In the **Before we match** popup, choose **Run anyway**, or **Cancel** to
-   fix the profile first.
+3. In the **Before we match** popup, choose **Run anyway**. If details are
+   missing, press **Edit buyer** to fill just those fields in without leaving
+   Slack. While it saves, **Run anyway** is hidden. When the save ends, the
+   popup checks the buyer again and shows what is still missing. Press
+   **Cancel** to stop.
 4. Use **View Full Analysis** to inspect a seller's reasoning, then choose
    **Approve Match** or **Reject Match**.
 
 **Expected result:** a ranked shortlist with fit and data-confidence scores.
+
+**Anything specific about this search?** What you type there outranks the
+buyer's stored details. Name the business you want and put the modifier first.
+"AI asset managers" finds asset or wealth managers and ranks AI ones higher.
+"AI tools for asset managers" looks for AI companies serving them. Places,
+ticket sizes ("ticket 5 to 10M") and exclusions ("not crypto") work too. If no
+CRM seller fits, the bot says so and searches Google Maps instead of showing
+sellers with no sector data.
+
+### What your note can control
+
+| You can set | Example | Effect |
+|---|---|---|
+| Business type | "AI asset managers" | Required sector. Modifiers such as AI only rank higher. |
+| Places | "Saudi Arabia only", "UAE and Egypt" | Required geography. |
+| Exclusions | "not crypto", "avoid real estate" | Removes sellers in that sector. |
+| Revenue or EBITDA floor | "revenue above 5M" | Removes sellers below it. Sellers with no figure stay. |
+| Ticket size | "ticket 5 to 10M" | Lowers the score of sellers outside the range. |
+| Enterprise value cap | "EV below 50M" | Removes sellers above it. |
+| Seller status | "Tier 1 sellers only" | Matches the seller's outreach tier, appetite signal or relationship status. |
+
+Qualities such as founder background, runway or profitability appear in the
+written explanation only. They don't change which sellers are shown or their
+order.
+
+The note can't change these:
+
+- The shortlist is always three sellers.
+- Google Maps search starts when no seller scores 50 or more.
+- Each search adds up to five new sellers.
+- Each buyer gets at most ten searches a day.
+- Sellers already rejected for this buyer and vertical stay out.
 
 **Approve Match** creates a Qualified Buy-side deal in Attio for that buyer
 and seller. If an Inbound deal already exists for the pair, the bot asks
@@ -70,13 +109,17 @@ the CRM. A rejection can't be undone from Slack.
 The bot searches Google Maps for new sellers in the buyer's target regions
 and countries:
 
+- Each search writes up to five new sellers. It checks the Google Maps
+  results in order and keeps going until it has five or runs out.
 - A lead is saved automatically when its researched details match its Google
   Maps website. It is also saved when there are no extra details to check.
-- Otherwise a **Website check** message shows both websites and the proposed
-  values. **Review & Save** opens the add-seller form; nothing is saved until
-  you complete it. After a save, the button becomes "✅ ADDED by" the person
-  who saved it.
-- A lead already waiting for review is skipped for 30 days.
+- A lead whose researched website doesn't match is skipped, and the result
+  message says how many. Nothing is written for it.
+- A lead whose name resembles a company already in the CRM is skipped too,
+  and the message counts those. If one was really a different company, add
+  it with `/add-seller`.
+- A lead already waiting on an older **Website check** message is skipped for
+  30 days. Those older messages still work.
 - Pages on Instagram, Facebook, Shopify, Salla, Zid, or Google Sites count
   as "no website".
 
@@ -132,11 +175,13 @@ a role in Attio.
 ![Research missing details flowchart](../.gitbook/assets/toolkit-enrich.svg)
 
 1. Run `/enrich-seller <name>` or `/enrich-buyer <name>` and select the
-   intended record if asked.
+   intended record if asked. For a buyer, pick the organization, then the
+   vertical. A buyer with one vertical skips that step.
 2. The bot researches public company sources and lists proposed values with
    confidence levels.
 3. Press **Review & Save**, correct or clear anything you don't want, and
-   submit the normal edit form.
+   submit the normal edit form. Once saved, the button changes to
+   "✅ ADDED by" with your name.
 
 **Expected result:** only reviewed values are saved. Fields that already
 have a value are never overwritten.
