@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import time
+from collections.abc import Callable
 
 import httpx
 import pytest
@@ -398,6 +399,100 @@ async def test_source_carries_the_editors_lock_settings(monkeypatch) -> None:
     assert rich is not None
     preview, _ = split_report(rich.html)
     assert "Para 4 " in preview and "Para 5 " not in preview, "50% locked opens half"
+
+
+_FILE_URL = "https://cdn.sanity.io/files/p/production/abc.html"
+
+
+def _file_handler(
+    file: httpx.Response, **doc: str
+) -> tuple[list[str], Callable[[httpx.Request], httpx.Response]]:
+    """Serves one source document, and `file` for any other host."""
+    hosts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hosts.append(request.url.host)
+        if request.url.host == "p.api.sanity.io":
+            return httpx.Response(200, json={"result": {"_id": "d", "_rev": "r", **doc}})
+        return file
+
+    return hosts, handler
+
+
+async def test_source_downloads_the_html_file_when_nothing_is_pasted(monkeypatch) -> None:
+    hosts, handler = _file_handler(
+        httpx.Response(200, content=b"<p>from file \xe2\x9c\x93</p>"), htmlFileUrl=_FILE_URL
+    )
+    _use_transport(monkeypatch, handler)
+
+    source = await SanityReportSource(project_id="p", dataset="production").source("r")
+
+    assert source is not None and source.html == "<p>from file ✓</p>"
+    assert hosts == ["p.api.sanity.io", "cdn.sanity.io"]
+
+
+async def test_whitespace_left_in_the_paste_box_still_uses_the_file(monkeypatch) -> None:
+    hosts, handler = _file_handler(
+        httpx.Response(200, content=b"<p>from file</p>"), html="\n ", htmlFileUrl=_FILE_URL
+    )
+    _use_transport(monkeypatch, handler)
+
+    source = await SanityReportSource(project_id="p", dataset="production").source("r")
+
+    assert source is not None and source.html == "<p>from file</p>"
+
+
+async def test_source_prefers_pasted_html_over_the_file(monkeypatch) -> None:
+    hosts, handler = _file_handler(httpx.Response(500), html="<p>pasted</p>", htmlFileUrl=_FILE_URL)
+    _use_transport(monkeypatch, handler)
+
+    source = await SanityReportSource(project_id="p", dataset="production").source("r")
+
+    assert source is not None and source.html == "<p>pasted</p>"
+    assert hosts == ["p.api.sanity.io"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.example/files/p/production/abc.html",
+        "https://cdn.sanity.io/files/other-project/production/abc.html",
+    ],
+)
+async def test_source_refuses_html_files_outside_its_own_dataset(monkeypatch, url) -> None:
+    hosts, handler = _file_handler(httpx.Response(200, content=b"<p>x</p>"), htmlFileUrl=url)
+    _use_transport(monkeypatch, handler)
+
+    with pytest.raises(ValueError, match="not in"):
+        await SanityReportSource(project_id="p", dataset="production").source("r")
+    assert hosts == ["p.api.sanity.io"], "never fetched"
+
+
+@pytest.mark.parametrize("status", [302, 404, 503])
+async def test_a_failed_html_file_download_raises_instead_of_unpublishing(
+    monkeypatch, status
+) -> None:
+    """Returning None would let the sync unpublish a report that has no render yet."""
+    _, handler = _file_handler(
+        httpx.Response(status, headers={"location": "https://x"}), htmlFileUrl=_FILE_URL
+    )
+    _use_transport(monkeypatch, handler)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await SanityReportSource(project_id="p", dataset="production").source("r")
+
+
+async def test_an_oversized_html_file_is_refused(monkeypatch) -> None:
+    from app.modules.lead_magnets.providers.sanity import report_source
+
+    monkeypatch.setattr(report_source, "_HTML_FILE_MAX_BYTES", 10)
+    _, handler = _file_handler(
+        httpx.Response(200, content=b"<p>" + b"x" * 20 + b"</p>"), htmlFileUrl=_FILE_URL
+    )
+    _use_transport(monkeypatch, handler)
+
+    with pytest.raises(ValueError, match="over"):
+        await SanityReportSource(project_id="p", dataset="production").source("r")
 
 
 async def test_free_pages_below_one_is_rejected_before_rendering(monkeypatch) -> None:
