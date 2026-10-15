@@ -40,7 +40,7 @@ One upload per file; the file never goes into the conversation.
 3. The response's `reference` is the field value, as is: `cover`, a rich-text image
    block (add `_key` and `alt`), or the report's `htmlFile`.
 4. A `403` saying `blocked-by-allowlist` or `Host not in allowlist` means the code tool
-   can't reach Sanity. Tell the person: a Claude org owner must add `mcp.sanity.io` under
+   can't reach Sanity. Tell the person uploads are blocked: a Claude org owner must add `mcp.sanity.io` under
    **Organization settings → Capabilities → Code execution → Additional allowed domains**,
    then start a new chat. An upload URL expires; prepare a new one if it did.
 
@@ -57,7 +57,7 @@ One upload per file; the file never goes into the conversation.
 
 Only when the person approves this document, every time:
 
-1. Show them: title, live URL (`wusoolcapital.com/reports/<slug>` or
+1. Show them: title and live URL (`wusoolcapital.com/reports/<slug>` or
    `wusoolcapital.com/insights/<slug>`), and, if `bannerPinned` or `featured` is true,
    which item it unpins (query the currently pinned one).
 2. Publish only after they reply "publish" or clearly approve. Approval covers this one
@@ -89,13 +89,14 @@ source has those sections). **Every other field is a staff field.**
 
 Rules for staff fields:
 
-- Ask for all of them in one message, as a table: field, what it's for, your suggestion
-  (if any), and what happens if it's left blank.
+- Ask for all of them in one message, as one table with three columns: field (Studio
+  label), your suggestion, and what blank means (a few words, from the tables below).
+  No other explanation.
 - You may suggest a value from the content (marked "suggested"), but only the person's
-  answer or explicit "use your suggestion" fills a field. Never invent a value.
-- Before writing, list every staff field still blank, with what blank means, and ask
-  "Leave these blank?". Required ones can't be left blank.
-- After writing, end with the list of fields left blank.
+  answer or an explicit "use your suggestions" fills a field. Never invent a value.
+- Under the table, one line: "Still blank: X, Y, Z. Leave these blank?" Wait for an
+  explicit OK. Required ones can't be left blank.
+- After writing, end with one line listing the fields left blank.
 
 ### Insights staff fields (Studio order)
 
@@ -172,7 +173,7 @@ Rules for staff fields:
 | `keyTakeaways` / `keyTakeawaysHtml` | rich text / text | Optional |
 | `faq` / `faqHtml` | rich text / text | Optional |
 | `cover` | image | Uploaded (see Upload a file). Without one, the Webflow card and share image are blank |
-| `author` | enum | `Jules Chasles`, `Hugo Cugnet`, `Ramzy Osman`, `Maria Najjar` |
+| `author` | enum | `Jules Chasles`, `Hugo Cugnet`, `Ramzy Osman`, `Maria Najjar`, `Wusool Capital` |
 | `silo` | enum | See below |
 | `publishedAt` | datetime | Always set |
 | `featured` | boolean | Pins to the top of /insights, unpinning the current one (hand-written included) |
