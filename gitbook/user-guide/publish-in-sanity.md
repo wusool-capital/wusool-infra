@@ -60,23 +60,27 @@ hand-written Webflow article with the same slug is never overwritten.
 
 ## Publish with Claude
 
-Claude Code can turn a report file or an article into a Sanity draft for you.
-It checks the content against what the site can show, and never publishes.
+Claude Code can publish a report or an article for you, without opening
+the Studio. It checks the content against what the site can show, saves a
+draft, and publishes only when you say so.
 
-1. Copy `.claude/skills/wusool-content/` from the `wusool-infra` repository
+1. Install Node.js LTS from nodejs.org.
+2. Copy `.claude/skills/wusool-content/` from the `wusool-infra` repository
    into `~/.claude/skills/` on your computer.
-2. Connect the Sanity MCP once:
+3. Connect the Sanity MCP once:
    `claude mcp add Sanity -t http https://mcp.sanity.io --scope user`.
    Then restart Claude Code, run `/mcp`, and sign in to Sanity.
-3. Ask Claude, for example: "Create an insight in Sanity from
-   `article.md`". Claude asks whether it's a report or an insight, and
-   whether an insight promotes a report.
-4. Review the checks Claude shows, then confirm. For an insight, Claude
-   first scores whether it's worth publishing as a blog article and
-   suggests fixes. You can go ahead anyway.
+4. Ask Claude, for example: "Publish an insight in Sanity from
+   `article.md`". The first time, Claude checks your setup. It may ask you
+   to sign in to the Sanity CLI. It may also ask to add three permission
+   rules, so it can save drafts, upload images and publish.
+5. Answer Claude's questions and review the checks it shows. For an
+   insight, Claude first scores whether it's worth publishing as a blog
+   article and suggests fixes. You can go ahead anyway.
+6. Give Claude a cover image file, then confirm the draft.
+7. Reply "publish" when Claude shows the summary.
 
-**Expected result:** a draft in the Studio and a folder named
-`wusool-content/<date>-<slug>/` with the checks and fields Claude used.
-Open the Studio link Claude gives you, add the cover image, then publish.
-A large report HTML file can't be sent through the MCP; Claude tells you
-to paste it into **Report HTML** yourself.
+**Expected result:** the page is live at `wusoolcapital.com/reports/<slug>`
+or `wusoolcapital.com/insights/<slug>`, and Claude confirms it reached
+Webflow. A folder named `wusool-content/<date>-<slug>/` keeps the checks
+and fields Claude used.

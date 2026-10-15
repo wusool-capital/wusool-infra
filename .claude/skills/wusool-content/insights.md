@@ -18,7 +18,7 @@ person chooses to go ahead anyway.
 **Rich (`"rich"`):** convert to Portable Text as `reference.md` describes.
 - Allowed styles, lists, marks and links only; every item gets a `_key`.
 - `h1` becomes the `title` (or `h2`). Tables become lists or short paragraphs.
-- List each image the person must add in the Studio, with where it goes.
+- Ask for each image file and where it goes; upload it as `reference.md` describes.
 
 **HTML (`"html"`):** list every tag or attribute the server will strip (see the allowed
 list in `reference.md`) and what the reader loses, such as a table's layout.
@@ -70,30 +70,26 @@ When the person said yes to "Is this insight + report?":
 
 ## 6. Save and confirm
 
-Write to `<dir>`:
+Ask for a cover image file. Then write to `<dir>`:
 
-- `fields.json`: the full document content you'll send.
-- `checks.md`: each check, its result, and what the person must do by hand.
+- `fields.json`: the full document, with `_id` and `_type`. For HTML, leave out
+  `bodyHtml`; it's merged from `source.html`.
+- `checks.md`: each check and its result.
 
 Show the person `checks.md` and the fields, and wait for an OK before writing.
 
 ## 7. Write the draft
 
-Create one `insights` document with the Sanity MCP's **create documents** tool:
-`projectId: itidwo8t`, `dataset: production`. Always include `bodyFormat`,
-`contentType`, `publishedAt` and `featured`.
+Upload the cover and any images, then create the draft as `reference.md` describes.
+Always include `bodyFormat`, `contentType`, `publishedAt` and `featured`. For HTML, merge
+`bodyHtml` from `source.html`.
 
-If the JSON is near 100 KB, create it without `body`, then add the body with
-**patch documents**: `setIfMissing: {"body": []}`, then
-`insert: {after: "body[-1]", items: [...]}` in batches under 90 KB. If `bodyHtml` alone
-is over 90 KB, create without it and ask the person to paste `source.html` into
-**Body (HTML)** in the Studio.
+## 8. Publish (with approval)
 
-## 8. Hand off
+Follow **Publish** in `reference.md`. Then confirm it reached Webflow: the Insights
+collection's **list collection items** action filtered by `slug` should return the item
+within a minute. If it doesn't, the slug may belong to a hand-written article (the sync
+skips it silently); tell the person. If the Webflow MCP isn't connected, say this check
+didn't run.
 
-Never publish. Give the person:
-
-1. The Studio link (see `reference.md`), with the id minus `drafts.`.
-2. What's left: add the cover and any images, review, then **Publish**. Without a cover,
-   the Webflow card and share image are blank.
-3. A reminder: the page appears at `wusoolcapital.com/insights/<slug>` only after publishing.
+Give the person the live URL: `https://www.wusoolcapital.com/insights/<slug>`.

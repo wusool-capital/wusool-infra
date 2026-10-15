@@ -6,13 +6,66 @@ Source of truth: `sanity/schemaTypes/*.ts` and `server/app/modules/lead_magnets/
 
 Project `itidwo8t`, dataset `production`, Studio `https://wusool-reports.sanity.studio`.
 
-## MCP write rules
+## Tools
 
-- Create and patch save **drafts only** (`drafts.<id>`). Publishing happens in the Studio.
-- Each request must be under **100 KB** of JSON, including escaping.
-- Query responses are capped near 64 KB: project only the fields you need, and use
-  `length(field)` to check large text instead of reading it back.
-- The Studio's `initialValue`s don't apply. Always set these yourself:
+| Job | Tool |
+|---|---|
+| Read | The Sanity MCP's **query documents** tool. Responses cap near 64 KB: project only the fields you need, and use `length(field)` for large text |
+| Write a draft, upload an image | The Sanity CLI, always as `npx -y sanity@6.19.0 … -p itidwo8t -d production`. It has no practical size limit, so a 1 MB report goes in one call |
+| Publish | The Sanity MCP's **publish documents** tool, only with the person's approval (see Publish) |
+
+Always give the CLI absolute paths, and run its write commands exactly as shown, with
+no `cd`, pipe or redirect, so they match the permission rules in `SKILL.md`. Never run
+`documents delete`, and never print `doc.json` or a large field.
+
+### Create a draft
+
+1. Make an id: `node -p 'crypto.randomUUID()'`. The draft id is `drafts.<uuid>`.
+2. Put `_id` (the draft id) and `_type` at the top level of `<dir>/fields.json`, next to
+   the other fields. Leave out large text (report `html`, insights `bodyHtml`).
+3. Build `<dir>/doc.json`. Large text is merged from its file by Node, never retyped:
+
+   ```bash
+   node -e 'const fs=require("fs"),[,dir,field,file]=process.argv;const d=JSON.parse(fs.readFileSync(dir+"/fields.json"));if(field)d[field]=fs.readFileSync(dir+"/"+file,"utf8");fs.writeFileSync(dir+"/doc.json",JSON.stringify(d))' <dir> html report.html
+   ```
+
+   Leave off the last two arguments when there's no large text.
+4. Create it:
+
+   ```bash
+   npx -y sanity@6.19.0 documents create <dir>/doc.json -p itidwo8t -d production
+   ```
+
+5. To change the draft later in the same run, rebuild `doc.json` and rerun with
+   `--replace`. Use `--replace` only on a draft this run created.
+
+### Upload an image
+
+```bash
+npx -y sanity@6.19.0 assets upload --file <absolute path> -p itidwo8t -d production
+```
+
+It prints the asset document as JSON; take its `_id`.
+
+Reference it as `{"_type": "image", "asset": {"_type": "reference", "_ref": "<_id>"}}`
+(for `cover`), or as an `image` block in rich text with a `_key` and `alt`. Upload before
+building `doc.json`.
+
+### Publish
+
+Only when the person approves this document, every time:
+
+1. Show them: title, live URL (`wusoolcapital.com/reports/<slug>` or
+   `wusoolcapital.com/insights/<slug>`), and, if `bannerPinned` or `featured` is true,
+   which item it unpins (query the currently pinned one).
+2. Publish only after they reply "publish" or clearly approve. Approval covers this one
+   document; a later edit needs a new approval.
+3. Call the Sanity MCP's **publish documents** tool with the draft id.
+4. Confirm it went live, as the sub-skill describes.
+
+### Fields to set yourself
+
+The Studio's `initialValue`s don't apply. Always set these yourself:
 
   | Type | Field | Value |
   |---|---|---|
@@ -42,7 +95,7 @@ Project `itidwo8t`, dataset `production`, Studio `https://wusool-reports.sanity.
 | `html` | text | Required when `html`: the whole exported page |
 | `freePages` | integer ≥ 1 | HTML only. Blank = 1; the last page always stays locked |
 | `lockedPercent` | integer 10–90 | Rich only. Blank = 75 |
-| `cover` | image | Added in the Studio |
+| `cover` | image | Uploaded with the CLI. Without one, the Webflow card and share image are blank |
 | `silo` | enum | See below |
 | `publishedAt` | datetime | Always set |
 | `bannerPinned` | boolean | Pinning moves the home banner from the current report |
@@ -60,7 +113,7 @@ Project `itidwo8t`, dataset `production`, Studio `https://wusool-reports.sanity.
 | `body` / `bodyHtml` | rich text / text | Required (whichever `bodyFormat` picks) |
 | `keyTakeaways` / `keyTakeawaysHtml` | rich text / text | Optional |
 | `faq` / `faqHtml` | rich text / text | Optional |
-| `cover` | image | Added in the Studio |
+| `cover` | image | Uploaded with the CLI. Without one, the Webflow card and share image are blank |
 | `author` | enum | `Jules Chasles`, `Hugo Cugnet`, `Ramzy Osman`, `Maria Najjar` |
 | `silo` | enum | See below |
 | `publishedAt` | datetime | Always set |
@@ -87,9 +140,8 @@ Allowed, and nothing else:
 - **Lists:** `listItem: "bullet"` or `"number"`, with `level` (1 = top).
 - **Decorators:** `strong`, `em`, `underline`, `strike-through`, `code`, `sup`, `sub`.
 - **Annotation:** `link` with `href` (full URL, site path, or `mailto:`) and optional `blank`.
-- **Image block:** `{_type:"image", asset:{_type:"reference", _ref:"image-…"}, alt}`. Needs
-  an uploaded asset, so leave images to the person: list each one, with where it goes,
-  in `checks.md`.
+- **Image block:** `{_type:"image", _key, asset:{_type:"reference", _ref:"image-…"}, alt}`.
+  Ask the person for each image file, upload it with the CLI, and always set `alt`.
 - **Not possible:** tables, embeds, iframes, code blocks, colours, fonts. Turn tables into
   lists or short paragraphs, and say so in `checks.md`.
 
@@ -147,10 +199,12 @@ From `server/app/modules/lead_magnets/static/*/00-styles.css`:
 - Only **published** documents sync; drafts never do.
 - Clearing a field in Sanity doesn't clear it in Webflow; clear it there too.
 - An insight whose slug a hand-written Webflow article already uses is **silently
-  skipped**. Webflow Insights collection: `69aaa645fa60624091050e8e`.
-- With no cover image, the Webflow card and share image are blank.
+  skipped**.
+- Webflow collections: Reports `6ac64c92647fc1acb46497de`, Insights
+  `69aaa645fa60624091050e8e`.
 
-## Studio link
+## Studio link (optional)
 
+For a person who wants to look before publishing:
 `https://wusool-reports.sanity.studio/intent/edit/id=<id>;type=<report|insights>`, where
 `<id>` is the document id **without** the `drafts.` prefix.
