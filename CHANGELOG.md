@@ -8,6 +8,19 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-15
+
+### Added
+
+- A `wusool-content` Claude skill creates and publishes reports and Insights
+  articles from a normal Claude chat, so staff don't need the Studio. It
+  checks the content against what the site renders and publishes only on
+  approval. See [Publish with Claude](gitbook/user-guide/publish-in-sanity.md#publish-with-claude).
+- A report's HTML can be uploaded as a file (**Report HTML file**) instead
+  of pasted. The server downloads it from Sanity before rendering.
+- Before an Insights draft, the skill scores whether the piece is worth
+  publishing as a blog article and checks for overlap with existing articles.
+
 ## 2026-10-13
 
 ### Changed

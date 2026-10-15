@@ -66,3 +66,6 @@ outputs/
 
 # Firecrawl SDK local debug output
 .firecrawl/
+
+# Working folders from the wusool-content Claude skill (may hold ~1 MB report HTML).
+**/wusool-content/20*/

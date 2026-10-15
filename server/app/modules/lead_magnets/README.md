@@ -206,7 +206,10 @@ its free part open and the rest behind one short form. There are three parts:
   (`LEAD_MAGNET_REPORT_READS_PER_HOUR`), so slug-scanning can't drain the
   Free quota. The
   Free-plan dataset is public, which is an accepted risk described in
-  `sanity/README.md`.
+  `sanity/README.md`. When a report's HTML is an uploaded file (`htmlFile`)
+  rather than pasted, `source()` downloads it from this dataset's
+  `cdn.sanity.io/files/` path only, up to 20 MB. A failed download raises,
+  so the sync stops before it can unpublish.
 - **Flattening.** Some exports draw their pages with JavaScript. "Buyouts in
   the GCC" is a self-unpacking design-tool bundle whose 40 A4 pages and
   React tables exist only after its scripts run. On each publish,
