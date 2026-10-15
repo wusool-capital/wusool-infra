@@ -94,7 +94,9 @@ magick -density 300 favicon.svg -define icon:auto-resize=48,32,16 favicon.ico
 ## Publishing a report
 
 Pick **Write with** first. **Pasted HTML** (the default) keeps an exported
-design and its pages: readers see the free pages, then the form. **Rich text
+design and its pages: readers see the free pages, then the form. Instead of
+pasting, the export can be uploaded as a file in **Report HTML file**; use one
+or the other, not both. Claude chat uploads it this way. **Rich text
 editor** writes the report in the Studio: it gets a clean page with the title
 on top, readers see the unlocked part (the first quarter by default), and the
 PDF is printed with page margins.

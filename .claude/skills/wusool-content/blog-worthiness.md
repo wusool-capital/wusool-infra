@@ -6,13 +6,13 @@ work. Insights only: reports are gated lead magnets and skip this check.
 It reads only, never writes to Sanity or Webflow. The verdict is advice: the person can
 override it, and you note the override in `checks.md`.
 
-Work on `<dir>/source.md`. For HTML input, strip the tags first:
+Work on `source.md` in the code tool. For HTML input, strip the tags first:
 `sed 's/<[^>]*>//g' source.html > source.md`.
 
 ## 1. Readability (measured, not guessed)
 
 Same limits as the Wusool docs style: headings ≤ 12 words, paragraphs ≤ 100,
-sentences ≤ 25. Run from `<dir>`; each prints only the offenders.
+sentences ≤ 25. Run in the code tool; each prints only the offenders.
 
 ```bash
 # Headings over 12 words
@@ -38,12 +38,12 @@ Pick the article's main topic keyword (two or three words). Then check both plac
    *[_type == "insights" && title match $kw]{title, "slug": slug.current}
    ```
 
-2. Webflow: the Webflow MCP's CMS **list collection items** action on collection
+2. Webflow: the Webflow connector's CMS **list collection items** action on collection
    `69aaa645fa60624091050e8e`, filtering `name` by `contains` the keyword, with `limit: 5`.
    Read only each item's name and slug: the items carry full article bodies.
 
 A close match isn't a rejection: say which article it overlaps and how this one differs,
-or suggest updating the existing one. If the Webflow MCP isn't connected, write
+or suggest updating the existing one. Without the Webflow connector, write
 "Webflow duplicate check **not run**".
 
 ## 3. Rubric
@@ -67,7 +67,7 @@ Score each from 0 to 2, with one line of reasons quoting the text where possible
 - **Don't publish:** 6 or less, or a 0 on criterion 1 or 3.
 
 Write the scores, verdict, readability hits and duplicate findings to the top of
-`<dir>/checks.md` under `## Blog-worthiness`. Show the person the verdict and the
+`checks.md` under `## Blog-worthiness`. Show the person the verdict and the
 reasons.
 
 - **Publish:** carry on with `insights.md`.

@@ -1,6 +1,6 @@
 # Insights flow
 
-Use `reference.md` for every field rule. `<dir>` is the working folder from `SKILL.md`.
+Use `reference.md` for every field rule and for how to upload, create and publish.
 
 ## 1. Pick the format
 
@@ -8,7 +8,7 @@ Default to `bodyFormat: "rich"`: convert the input to Portable Text. Use `"html"
 when the person wants to keep pasted HTML as it is. The choice covers the body, key
 takeaways and FAQ together.
 
-Save the input as `<dir>/source.md` (or `source.html`).
+In the code tool, save the input as `source.md` (or `source.html`).
 
 Then follow `blog-worthiness.md`. Continue only on a **Publish** verdict, or when the
 person chooses to go ahead anyway.
@@ -42,10 +42,10 @@ Propose: `title`, `slug`, `contentType` (default `Article`), `excerpt` (required
    ```
 
    Must be `0`.
-2. Webflow: with the Webflow MCP's CMS **list collection items** action, filter
+2. Webflow: with the Webflow connector's CMS **list collection items** action, filter
    collection `69aaa645fa60624091050e8e` by `slug` equal to the slug. It must return
    no items: a hand-written article with this slug would silently block the sync.
-   If the Webflow MCP isn't connected, say so plainly and write "Webflow slug check
+   If the Webflow connector isn't available, say so plainly and write "Webflow slug check
    **not run**" in `checks.md`.
 
 If either is taken, propose another slug.
@@ -68,28 +68,24 @@ When the person said yes to "Is this insight + report?":
    mentions the report (rich: a `link` markDef; HTML: an `<a href>`). Show the person
    the sentence.
 
-## 6. Save and confirm
+## 6. Confirm
 
-Ask for a cover image file. Then write to `<dir>`:
-
-- `fields.json`: the full document, with `_id` and `_type`. For HTML, leave out
-  `bodyHtml`; it's merged from `source.html`.
-- `checks.md`: each check and its result.
-
-Show the person `checks.md` and the fields, and wait for an OK before writing.
+Ask the person to attach a cover image. Show them the checks and the fields, and wait
+for an OK before writing.
 
 ## 7. Write the draft
 
 Upload the cover and any images, then create the draft as `reference.md` describes.
-Always include `bodyFormat`, `contentType`, `publishedAt` and `featured`. For HTML, merge
-`bodyHtml` from `source.html`.
+Always include `bodyFormat`, `contentType`, `publishedAt`, `featured` and `cover`. An
+HTML body over 90 KB doesn't fit one call: ask the person to switch to rich text or
+shorten it.
 
 ## 8. Publish (with approval)
 
 Follow **Publish** in `reference.md`. Then confirm it reached Webflow: the Insights
 collection's **list collection items** action filtered by `slug` should return the item
 within a minute. If it doesn't, the slug may belong to a hand-written article (the sync
-skips it silently); tell the person. If the Webflow MCP isn't connected, say this check
+skips it silently); tell the person. Without the Webflow connector, say this check
 didn't run.
 
 Give the person the live URL: `https://www.wusoolcapital.com/insights/<slug>`.

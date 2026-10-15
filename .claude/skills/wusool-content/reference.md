@@ -1,55 +1,57 @@
 # Reference: what Sanity stores and the site renders
 
 Source of truth: `sanity/schemaTypes/*.ts` and `server/app/modules/lead_magnets/` in
-`wusool-infra`. If a check here disagrees with the live schema (the Sanity MCP's
+`wusool-infra`. If a check here disagrees with the live schema (the Sanity connector's
 **get schema** tool), trust the schema and tell the person.
 
 Project `itidwo8t`, dataset `production`, Studio `https://wusool-reports.sanity.studio`.
 
 ## Tools
 
+Claude chat (or Cowork) with the **Sanity connector** and the **code tool** turned on.
+In Claude Code, the code tool is the shell.
+
 | Job | Tool |
 |---|---|
-| Read | The Sanity MCP's **query documents** tool. Responses cap near 64 KB: project only the fields you need, and use `length(field)` for large text |
-| Write a draft, upload an image | The Sanity CLI, always as `npx -y sanity@6.19.0 … -p itidwo8t -d production`. It has no practical size limit, so a 1 MB report goes in one call |
-| Publish | The Sanity MCP's **publish documents** tool, only with the person's approval (see Publish) |
+| Read | Sanity **query documents**. Responses cap near 64 KB: project only the fields you need, and use `length(field)` for large text |
+| Write fields | Sanity **create documents** / **patch documents**. Each call must be under 100 KB of JSON. Both save drafts only |
+| Files: cover, body images, report HTML | Sanity **upload from file**, then a POST from the code tool |
+| Publish | Sanity **publish documents**, only with the person's approval (see Publish) |
+| Checks on an attached file | The code tool (shell or Python). Never paste a large file into the conversation |
 
-Always give the CLI absolute paths, and run its write commands exactly as shown, with
-no `cd`, pipe or redirect, so they match the permission rules in `SKILL.md`. Never run
-`documents delete`, and never print `doc.json` or a large field.
+Never delete or unpublish anything.
+
+### Upload a file
+
+One upload per file; the file never goes into the conversation.
+
+1. Call **upload from file**: `projectId: itidwo8t`, `dataset: production`, `assetType`
+   `image` (cover, body images) or `file` (report HTML), and the `filename`.
+2. In the code tool, POST the file's raw bytes to the returned `uploadUrl`, with its
+   `Content-Type` and no auth header, JSON, base64 or multipart wrapping:
+
+   ```python
+   import urllib.request
+   req = urllib.request.Request(UPLOAD_URL, data=open(PATH, "rb").read(), method="POST",
+                                headers={"Content-Type": "text/html"})
+   print(urllib.request.urlopen(req).read().decode())
+   ```
+
+3. The response's `reference` is the field value, as is: `cover`, a rich-text image
+   block (add `_key` and `alt`), or the report's `htmlFile`.
+4. A `403` saying `blocked-by-allowlist` or `Host not in allowlist` means the code tool
+   can't reach Sanity. Tell the person: a Claude org owner must add `mcp.sanity.io` under
+   **Organization settings → Capabilities → Code execution → Additional allowed domains**,
+   then start a new chat. An upload URL expires; prepare a new one if it did.
 
 ### Create a draft
 
-1. Make an id: `node -p 'crypto.randomUUID()'`. The draft id is `drafts.<uuid>`.
-2. Put `_id` (the draft id) and `_type` at the top level of `<dir>/fields.json`, next to
-   the other fields. Leave out large text (report `html`, insights `bodyHtml`).
-3. Build `<dir>/doc.json`. Large text is merged from its file by Node, never retyped:
-
-   ```bash
-   node -e 'const fs=require("fs"),[,dir,field,file]=process.argv;const d=JSON.parse(fs.readFileSync(dir+"/fields.json"));if(field)d[field]=fs.readFileSync(dir+"/"+file,"utf8");fs.writeFileSync(dir+"/doc.json",JSON.stringify(d))' <dir> html report.html
-   ```
-
-   Leave off the last two arguments when there's no large text.
-4. Create it:
-
-   ```bash
-   npx -y sanity@6.19.0 documents create <dir>/doc.json -p itidwo8t -d production
-   ```
-
-5. To change the draft later in the same run, rebuild `doc.json` and rerun with
-   `--replace`. Use `--replace` only on a draft this run created.
-
-### Upload an image
-
-```bash
-npx -y sanity@6.19.0 assets upload --file <absolute path> -p itidwo8t -d production
-```
-
-It prints the asset document as JSON; take its `_id`.
-
-Reference it as `{"_type": "image", "asset": {"_type": "reference", "_ref": "<_id>"}}`
-(for `cover`), or as an `image` block in rich text with a `_key` and `alt`. Upload before
-building `doc.json`.
+1. Call **create documents** with the `type` and every field inside `content`. Leave out
+   `_id`: Sanity generates it. Note the returned `drafts.<id>`.
+2. If the JSON nears 100 KB (a long rich-text body), create without `body`, then
+   **patch documents** on the draft: `setIfMissing: {"body": []}`, then
+   `insert: {after: "body[-1]", items: [...]}` in batches under 90 KB.
+3. Later changes in the same run: **patch documents** on the draft id (`set`, `unset`).
 
 ### Publish
 
@@ -60,7 +62,7 @@ Only when the person approves this document, every time:
    which item it unpins (query the currently pinned one).
 2. Publish only after they reply "publish" or clearly approve. Approval covers this one
    document; a later edit needs a new approval.
-3. Call the Sanity MCP's **publish documents** tool with `ids: [{"id": "<uuid>"}]`: the
+3. Call Sanity **publish documents** with `ids: [{"id": "<uuid>"}]`: the
    id without `drafts.`. It publishes that document's current draft.
 4. Confirm it went live, as the sub-skill describes.
 
@@ -93,10 +95,11 @@ The Studio's `initialValue`s don't apply. Always set these yourself:
 | `ogTitle` | string | Optional |
 | `bodyFormat` | `"rich"` \| `"html"` | Always set |
 | `body` | rich text | Required when `rich` |
-| `html` | text | Required when `html`: the whole exported page |
+| `htmlFile` | file | The exported page as an uploaded `.html` file. Use this for HTML reports |
+| `html` | text | The same page pasted as text. Exactly one of `html` and `htmlFile`; leave `html` unset |
 | `freePages` | integer ≥ 1 | HTML only. Blank = 1; the last page always stays locked |
 | `lockedPercent` | integer 10–90 | Rich only. Blank = 75 |
-| `cover` | image | Uploaded with the CLI. Without one, the Webflow card and share image are blank |
+| `cover` | image | Uploaded (see Upload a file). Without one, the Webflow card and share image are blank |
 | `silo` | enum | See below |
 | `publishedAt` | datetime | Always set |
 | `bannerPinned` | boolean | Pinning moves the home banner from the current report |
@@ -114,7 +117,7 @@ The Studio's `initialValue`s don't apply. Always set these yourself:
 | `body` / `bodyHtml` | rich text / text | Required (whichever `bodyFormat` picks) |
 | `keyTakeaways` / `keyTakeawaysHtml` | rich text / text | Optional |
 | `faq` / `faqHtml` | rich text / text | Optional |
-| `cover` | image | Uploaded with the CLI. Without one, the Webflow card and share image are blank |
+| `cover` | image | Uploaded (see Upload a file). Without one, the Webflow card and share image are blank |
 | `author` | enum | `Jules Chasles`, `Hugo Cugnet`, `Ramzy Osman`, `Maria Najjar` |
 | `silo` | enum | See below |
 | `publishedAt` | datetime | Always set |
@@ -142,7 +145,7 @@ Allowed, and nothing else:
 - **Decorators:** `strong`, `em`, `underline`, `strike-through`, `code`, `sup`, `sub`.
 - **Annotation:** `link` with `href` (full URL, site path, or `mailto:`) and optional `blank`.
 - **Image block:** `{_type:"image", _key, asset:{_type:"reference", _ref:"image-…"}, alt}`.
-  Ask the person for each image file, upload it with the CLI, and always set `alt`.
+  Ask the person to attach each image, upload it, and always set `alt`.
 - **Not possible:** tables, embeds, iframes, code blocks, colours, fonts. Turn tables into
   lists or short paragraphs, and say so in `checks.md`.
 

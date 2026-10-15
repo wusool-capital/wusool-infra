@@ -5,68 +5,49 @@ description: Create and publish a Wusool report or Insights article in Sanity, o
 
 # Wusool content: reports and insights to Sanity
 
-Turns a file or pasted text into a report or Insights article in the Wusool Reports &
-Insights Sanity project (`itidwo8t`, dataset `production`), after checking it against what
-the site can actually render. Claude writes a draft, and publishes it only when the person
-approves. The person never needs to open the Studio.
+Turns an attached file or pasted text into a report or Insights article in the Wusool
+Reports & Insights Sanity project (`itidwo8t`, dataset `production`), after checking it
+against what the site can actually render. Claude writes a draft, and publishes it only
+when the person approves. The person never needs to open the Studio.
 
-Every file named below sits next to this one, in this skill's folder.
+Made for Claude chat; it also works in Cowork and Claude Code. Every file named below
+sits next to this one, in this skill's folder.
 
 ## Step 0: setup check
 
-Run these checks in order, every time. Stop at the first one that fails and help the
-person fix it.
+Stop at the first check that fails and help the person fix it.
 
-1. **Sanity MCP (reads and publishing).** Call its **whoami** tool, then **list projects**.
-   If either is missing or fails, or `itidwo8t` isn't listed, tell the person:
-   > Run `claude mcp add Sanity -t http https://mcp.sanity.io --scope user`, restart
-   > Claude Code, run `/mcp`, pick **Sanity**, and sign in with the Sanity account that
-   > has access to the Wusool Reports & Insights project.
+1. **Sanity connector.** Call its **whoami** tool, then **list projects**. If either is
+   missing or fails, or `itidwo8t` isn't listed, tell the person:
+   > Add Sanity as a custom connector (`https://mcp.sanity.io`) in Claude's settings,
+   > or ask your Claude org owner to add it for everyone. Sign in with the Sanity account that has access
+   > to the Wusool Reports & Insights project, then start a new chat.
 
-   Say which account is signed in. Refer to MCP tools by what they do, not by a prefixed
-   name: prefixes differ between installs.
-2. **Node.js (for the Sanity CLI, which does the writes).** `node --version` must print
-   v20 or later. If not, ask the person to install Node.js LTS from nodejs.org.
-3. **Sanity CLI login.** Run `npx -y sanity@6.19.0 projects list`. It needs a login, and
-   its table must include `itidwo8t`. If it reports a login error or the project is
-   missing, ask the person to type `! npx -y sanity@6.19.0 login` and sign in with the
-   same Sanity account.
-4. **Permission rules (once per person).** Check them:
+   Say which account is signed in. Refer to connector tools by what they do, not by a
+   prefixed name: prefixes differ between apps.
+2. **Code tool.** Checks and file uploads run in Claude's code tool. If it isn't
+   available, ask the person to turn on **Code execution and file creation** in
+   Claude's settings (Capabilities), or ask their org owner.
+3. **Webflow connector (optional).** Without it, the Webflow slug and duplicate checks
+   can't run; say so whenever one is skipped.
 
-   ```bash
-   node -e 'const fs=require("fs"),p=process.argv[1];const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p)):{};const have=new Set(s.permissions?.allow??[]);const need=["Bash(npx -y sanity@6.19.0 documents create *)","Bash(npx -y sanity@6.19.0 assets upload *)","mcp__Sanity__publish_documents"].filter(r=>!have.has(r));console.log(need.length?"missing: "+need.join(" | "):"ok")' ~/.claude/settings.json
-   ```
-
-   If it prints `missing`, explain: Claude Code blocks writes to the live Sanity dataset
-   unless these three rules allow them. They cover only creating drafts, uploading
-   images, and publishing (which this skill still does only on approval). Ask whether to
-   add them to `~/.claude/settings.json`. Only on a clear yes, run:
-
-   ```bash
-   node -e 'const fs=require("fs"),p=process.argv[1];const s=fs.existsSync(p)?JSON.parse(fs.readFileSync(p)):{};if(fs.existsSync(p))fs.copyFileSync(p,p+".bak");s.permissions??={};s.permissions.allow=[...new Set([...(s.permissions.allow??[]),"Bash(npx -y sanity@6.19.0 documents create *)","Bash(npx -y sanity@6.19.0 assets upload *)","mcp__Sanity__publish_documents"])];fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n")' ~/.claude/settings.json
-   ```
-
-   It keeps every existing setting and saves a backup as `settings.json.bak`. If Claude
-   Code refuses to run it, ask the person to run the same command themselves with a `!`
-   in front, or to add the three rules through `/permissions`. If the
-   person's Sanity MCP tools carry a different prefix than `mcp__Sanity__`, use their
-   publish tool's full name instead. Without the rules, the skill still works, but
-   Claude Code asks before each write.
+File uploads also need the code tool to reach `mcp.sanity.io`. That's checked at the
+first upload (see **Upload a file** in `reference.md`).
 
 ## Step 1: ask
 
 Ask these together, in one message:
 
 1. Report or insight?
-2. Where's the content: a file path, or pasted text?
+2. The content: attach the file, or paste the text.
 3. For an insight only: "Is this insight + report?" (does it promote a report?).
    If yes, ask for the report's slug, or offer to run the report flow first.
 
-## Step 2: working folder
+## Step 2: working files
 
-Create `wusool-content/<YYYY-MM-DD>-<slug>/` in the current directory, using today's
-date and the proposed slug (rename the folder if the slug changes). Everything this
-run produces goes there.
+Keep the run's files in the code tool, in `wusool-content/<YYYY-MM-DD>-<slug>/`: the input (`source.md`, `source.html` or
+`report.html`), `fields.json` with the fields you'll send, and `checks.md` with every
+check and its result. At the end, offer `fields.json` and `checks.md` as downloads.
 
 ## Step 3: follow the sub-skill
 
@@ -80,5 +61,6 @@ follow `blog-worthiness.md` alone and stop at its verdict: no draft.
 
 - Publish without the person's approval for that document, or unpublish or delete
   anything.
+- Paste a large file into the conversation or into a tool call: upload it.
 - Write `renderedHtml`, `renderedPreviewEnd` or `renderedFrom`.
 - Touch the report `6ea065ae-fae1-4c7e-a3ec-6d67304ccc17` or its draft.

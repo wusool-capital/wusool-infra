@@ -20,6 +20,8 @@ Webflow Insights items.
    page and the preview cut back to Sanity. Readers are only ever served this
    stored copy. The cut follows the editor's **Free pages** setting: one by
    default, and never the last page. Changing it renders the report again.
+   A report uploaded as an `.html` file instead of pasted (`htmlFile`) is
+   downloaded from Sanity's CDN first: only this dataset's files, up to 20 MB.
 3. **Rich text reports** become a styled A4 page first, cut at the editor's
    **Locked share** (75% by default). Then they follow the same path.
 4. **Card.** The server creates or updates the report's card in Webflow's

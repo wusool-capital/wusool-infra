@@ -1,39 +1,38 @@
 # Reports flow
 
-Use `reference.md` for every field rule and for how to create, upload and publish.
-`<dir>` is the working folder from `SKILL.md`.
+Use `reference.md` for every field rule and for how to upload, create and publish.
 
 ## 1. Pick the format
 
-- An exported HTML file (`.html`) → `bodyFormat: "html"`.
+- An exported HTML file, attached → `bodyFormat: "html"`. It goes up as `htmlFile`.
 - Pasted text, Markdown or a document → `bodyFormat: "rich"`.
-
-Copy an HTML input to `<dir>/report.html` and work only on that copy.
 
 ## 2. Check HTML (`bodyFormat: "html"`)
 
-Exported reports are often around 1 MB. **Never read the whole file**: use `wc -c` and
-short `grep -o` / `grep -c` patterns, and never print matching lines in full (a single
-line can be the whole bundle). Run from `<dir>`:
+Exported reports are often around 1 MB. **Never read the whole file into the
+conversation**: run these in the code tool on the attached file, and never print
+matching lines in full (a single line can be the whole bundle).
 
 ```bash
-wc -c report.html
+F=report.html   # the attached file's path in the code tool
+wc -c "$F"
 # Meta refresh: stripped on render; the page must not depend on it
-grep -ciE 'http-equiv=["'\'']?refresh' report.html
+grep -ciE 'http-equiv=["'\'']?refresh' "$F"
 # External hosts
-grep -oiE '(src|href)=["'\'']?https?://[^/"'\'' >]+' report.html | sort | uniq -c
+grep -oiE '(src|href)=["'\'']?https?://[^/"'\'' >]+' "$F" | sort | uniq -c
 # Page viewer (shadow DOM)
-grep -c 'attachShadow' report.html
+grep -c 'attachShadow' "$F"
 # Title and headings
-grep -oiE '<title>[^<]{0,200}</title>' report.html
-grep -oiE '<h[1-3][^>]{0,80}>[^<]{1,120}' report.html | head -20
+grep -oiE '<title>[^<]{0,200}</title>' "$F"
+grep -oiE '<h[1-3][^>]{0,80}>[^<]{1,120}' "$F" | head -20
 # Fonts and brand colours (advisory)
-grep -oiE 'font-family:[^;"]{1,80}' report.html | sort | uniq -c | head
-grep -oiE '#(000523|c6e1ee|f7f5f0)' report.html | sort | uniq -c
+grep -oiE 'font-family:[^;"]{1,80}' "$F" | sort | uniq -c | head
+grep -oiE '#(000523|c6e1ee|f7f5f0)' "$F" | sort | uniq -c
 ```
 
 What each result means:
 
+- **Size:** over 20 MB is refused by the server.
 - **External hosts:** any host other than `fonts.googleapis.com`, `fonts.gstatic.com` or
   `cdn.sanity.io` is blocked while rendering, so a script or image from it won't appear.
   Stylesheets from it load for readers but are missing in the PDF.
@@ -51,14 +50,14 @@ the last page locked.
 - Convert the content to Portable Text as `reference.md` describes: allowed styles,
   lists, marks and links only, every item with a `_key`.
 - Turn `h1` into the `title` (or `h2` if a title already exists). Turn tables into
-  lists. Ask for each image file and upload it.
+  lists. Ask the person to attach each image.
 - Ask for `lockedPercent` (10–90, default 75).
 
 ## 4. Fields and slug
 
 Propose `title`, `slug`, `excerpt`, `seoTitle` (≤ 60), `seoDescription` (≤ 155), `silo`,
-and an optional `cta`. Ask for a cover image file, and whether to pin the home banner
-(default no).
+and an optional `cta`. Ask the person to attach a cover image, and whether to pin the
+home banner (default no).
 
 Check the slug is free:
 
@@ -68,28 +67,20 @@ count(*[_type == "report" && slug.current == $slug])
 
 It must be `0` (the count covers drafts too). If it's taken, propose another.
 
-Write to `<dir>`:
-
-- `fields.json`: the full document, with `_id` and `_type`, minus `html`.
-- `checks.md`: each check above and its result.
-
-Show the person `checks.md` and the fields, and wait for an OK before writing.
+Show the person the checks and the fields, and wait for an OK before writing.
 
 ## 5. Write the draft
 
-Upload the cover (and any rich-text images), then create the draft as `reference.md`
-describes. For HTML, merge `html` from `report.html`. Always include `bodyFormat`,
-`publishedAt` and `bannerPinned`.
+1. Upload the cover, any rich-text images and, for HTML, the report file as `file`.
+2. Create the draft with every field, including `bodyFormat`, `publishedAt`,
+   `bannerPinned`, `cover` and, for HTML, `htmlFile`. Never set `html`.
+3. For HTML, confirm the upload is the whole file:
 
-For HTML, confirm it arrived intact:
+   ```groq
+   *[_id == $draftId][0]{"size": htmlFile.asset->size}
+   ```
 
-```groq
-*[_id == $draftId]{"len": length(html)}
-```
-
-against `node -p 'require("fs").readFileSync("<dir>/report.html", "utf8").length'`. They
-should match; emoji can cause a small difference. If they differ by more than that,
-rebuild `doc.json` and rerun with `--replace`.
+   It must equal the `wc -c` size. If not, upload again and patch `htmlFile`.
 
 ## 6. Publish (with approval)
 
@@ -100,15 +91,15 @@ Follow **Publish** in `reference.md`. Then confirm the render, using the publish
 *[_id == $id][0]{renderedFrom, renderedPreviewEnd, "renderedLen": length(renderedHtml)}
 ```
 
-The server renders after each publish, which can take a minute or two. Don't sleep in
-the foreground: re-run the query from a background or Monitor wait if your tools have
-one, or tell the person it's rendering and re-check when they reply. Wait until
+The server renders after each publish, which can take a minute or two. Wait about 20
+seconds between checks (the code tool can `sleep`), for up to about 3 minutes, until
 `renderedFrom` is set (on a republish, until it changes). Then:
 
 - `renderedPreviewEnd` is where the free preview ends in `renderedHtml`. A very small
   share of `renderedLen` means the gate fell at the first block: tell the person.
+- If it never renders, say so: the server may not be deployed with `htmlFile` support
+  yet, or the sync failed. Republishing retries it.
 - Check Webflow: the Reports collection's **list collection items** action filtered by
-  `slug` should return the item. If the Webflow MCP isn't connected, say this check
-  didn't run.
+  `slug` should return the item. Without the Webflow connector, say this check didn't run.
 
 Give the person the live URL: `https://www.wusoolcapital.com/reports/<slug>`.

@@ -12,10 +12,12 @@ for current production evidence and open handover items.
 
 ### Added
 
-- A `wusool-content` Claude Code skill creates and publishes reports and
-  Insights articles in Sanity, so staff don't need the Studio. It checks
-  the content against what the site renders and publishes only on approval.
-  See [Publish with Claude](gitbook/user-guide/publish-in-sanity.md#publish-with-claude).
+- A `wusool-content` Claude skill creates and publishes reports and Insights
+  articles from a normal Claude chat, so staff don't need the Studio. It
+  checks the content against what the site renders and publishes only on
+  approval. See [Publish with Claude](gitbook/user-guide/publish-in-sanity.md#publish-with-claude).
+- A report's HTML can be uploaded as a file (**Report HTML file**) instead
+  of pasted. The server downloads it from Sanity before rendering.
 - Before an Insights draft, the skill scores whether the piece is worth
   publishing as a blog article and checks for overlap with existing articles.
 
