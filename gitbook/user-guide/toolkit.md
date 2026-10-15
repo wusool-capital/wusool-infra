@@ -37,8 +37,10 @@ How your note is read:
   "check size", "investment", or "deal size".
 - Open-ended amounts such as "at least $2M" conflict only when they can't
   overlap the buyer's range.
-- This check doesn't flag exclusions such as "no pharma". The match itself
-  does apply them.
+- The check compares four things with the buyer profile: sector, geography,
+  ticket size, and EBITDA.
+- It doesn't flag exclusions such as "no pharma", or an EV cap, revenue floor,
+  or seller status. The match itself applies them.
 - Geography uses the buyer's target regions and target countries together.
 
 `/find-match` runs the same check before every match.
