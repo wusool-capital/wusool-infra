@@ -12,6 +12,13 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- `/find-match` now ranks on what the advisor typed. The core business ("asset
+  manager") is required and modifiers ("AI") only rank higher. Sellers with no
+  sector data are no longer shown as matches. When no CRM seller fits, the
+  result says so and starts a Google Maps search for the real request.
+- The **Anything specific about this search?** text now outranks the stored buyer
+  sector and geography. The buyer organization's own sector interests no longer
+  count as requirements.
 - The `wusool-content` skill now talks to staff in plain words: no field
   names or jargon, problems first, and check details kept in `checks.md`.
   It still gives full answers when the content needs them.

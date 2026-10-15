@@ -103,7 +103,7 @@ async def test_vertical_narrowing_matches_either_sector_field_and_passes_missing
     other_vertical = await _add_seller(db_session, sector=["Industrials"], sector_focus=["AI"])
     no_data = await _add_seller(db_session)
 
-    ids = await _eligible_ids(db_session, CandidateNarrowing(vertical="pharma tech"))
+    ids = await _eligible_ids(db_session, CandidateNarrowing(verticals=frozenset({"pharma tech"})))
 
     assert {by_role_sector, by_org_focus, no_data} <= ids
     assert other_vertical not in ids

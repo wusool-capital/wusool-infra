@@ -56,6 +56,14 @@ How your note is read:
 
 **Expected result:** a ranked shortlist with fit and data-confidence scores.
 
+**Anything specific about this search?** What you type there outranks the
+buyer's stored details. Name the business you want and put the modifier first.
+"AI asset managers" finds asset or wealth managers and ranks AI ones higher.
+"AI tools for asset managers" looks for AI companies serving them. Places,
+ticket sizes ("ticket 5 to 10M") and exclusions ("not crypto") work too. If no
+CRM seller fits, the bot says so and searches Google Maps instead of showing
+sellers with no sector data.
+
 **Approve Match** creates a Qualified Buy-side deal in Attio for that buyer
 and seller. If an Inbound deal already exists for the pair, the bot asks
 whether to promote it to Qualified or create a new one. An approval can't be

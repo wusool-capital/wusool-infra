@@ -24,6 +24,7 @@ from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.requirements import (
     RequirementProfile,
     RequirementSource,
+    SoftPreference,
 )
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 from app.modules.utilities.domain.money import parse_usd_amount
@@ -103,6 +104,10 @@ def normalize_criterion(name: str) -> str:
 def canonical_criterion(name: str) -> str | None:
     key = normalize_criterion(name)
     return next((c for c, spec in CRITERION_REGISTRY.items() if key in spec.synonyms), None)
+
+
+def is_sector_criterion(name: str) -> bool:
+    return normalize_criterion(name) in _SECTOR_KEYS
 
 
 def is_monetary_criterion(name: str) -> bool:
@@ -205,13 +210,39 @@ def _geography_matches(target: str, candidate: SellerCandidate) -> bool:
     return bool(places & wanted)
 
 
-def _geography_values(profile: RequirementProfile, *, confirmed_only: bool) -> list[str | None]:
+def _union_group(key: str) -> frozenset[str] | None:
+    """Geography and sector hard values are OR-ed alternatives."""
+    if key in _GEOGRAPHY_KEYS:
+        return _GEOGRAPHY_KEYS
+    if key in _SECTOR_KEYS:
+        return _SECTOR_KEYS
+    return None
+
+
+def _group_values(
+    profile: RequirementProfile, group: frozenset[str], *, confirmed_only: bool
+) -> list[str | None]:
     return [
         r.value
         for r in profile.hard_requirements
-        if normalize_criterion(r.criterion) in _GEOGRAPHY_KEYS
-        and (r.human_confirmed or not confirmed_only)
+        if normalize_criterion(r.criterion) in group and (r.human_confirmed or not confirmed_only)
     ]
+
+
+def has_core_sector_evidence(profile: RequirementProfile, score: CandidateScore) -> bool:
+    """A hard sector needs a real Pass; Unknown says nothing about relevance."""
+    if not any(
+        h.value and normalize_criterion(h.criterion) in _SECTOR_KEYS
+        for h in profile.hard_requirements
+    ):
+        # An unmappable business type can't be verified against any seller.
+        return not profile.search_phrase
+    return any(
+        c.criterion_type == "hard"
+        and normalize_criterion(c.criterion) in _SECTOR_KEYS
+        and c.result == "Pass"
+        for c in score.criteria
+    )
 
 
 def _evaluate_any(
@@ -235,8 +266,7 @@ def apply_structured_filters(
     """
     passed = list(candidates)
     filters_skipped: list[FilterSkipped] = []
-    geography_values = _geography_values(profile, confirmed_only=True)
-    geography_applied = False
+    applied_groups: set[frozenset[str]] = set()
 
     for requirement in profile.hard_requirements:
         key = normalize_criterion(requirement.criterion)
@@ -261,11 +291,16 @@ def apply_structured_filters(
             )
             continue
 
-        is_geography = key in _GEOGRAPHY_KEYS
-        if is_geography and geography_applied:
+        group = _union_group(key)
+        if group is not None and group in applied_groups:
             continue
-        geography_applied = geography_applied or is_geography
-        values = geography_values if is_geography else [requirement.value]
+        if group is not None:
+            applied_groups.add(group)
+        values = (
+            _group_values(profile, group, confirmed_only=True)
+            if group is not None
+            else [requirement.value]
+        )
 
         survivors = []
         exempted = 0
@@ -289,6 +324,15 @@ def apply_structured_filters(
         passed = survivors
 
     return passed, filters_skipped
+
+
+def _best_soft_sector(profile: RequirementProfile, candidate: SellerCandidate) -> SoftPreference:
+    """Matched soft sector with its own weight, else the heaviest."""
+    sectors = [p for p in profile.soft_preferences if is_sector_criterion(p.criterion)]
+    matched = [
+        p for p in sectors if _evaluate_criterion(p.criterion, p.value, candidate)[0] == "Pass"
+    ]
+    return max(matched or sectors, key=lambda p: p.weight)
 
 
 # Same weight as a hard requirement: a seller far outside the buyer's cheque
@@ -326,8 +370,7 @@ class ScoringEngine:
         weighted_sum = 0.0
         weighted_confidence_sum = 0.0
         total_weight = 0.0
-        geography_values = _geography_values(profile, confirmed_only=False)
-        geography_scored = False
+        scored_groups: set[frozenset[str]] = set()
 
         # Hard requirements carry full weight and are always evaluated here
         # regardless of human_confirmed — §13: unconfirmed ones must still
@@ -350,12 +393,17 @@ class ScoringEngine:
                 )
                 continue
 
-            # Geography values are scored once together, matching the Stage 1 union.
-            is_geography = normalize_criterion(requirement.criterion) in _GEOGRAPHY_KEYS
-            if is_geography and geography_scored:
+            # Union values are scored once together, matching the Stage 1 union.
+            group = _union_group(normalize_criterion(requirement.criterion))
+            if group is not None and group in scored_groups:
                 continue
-            geography_scored = geography_scored or is_geography
-            values = geography_values if is_geography else [requirement.value]
+            if group is not None:
+                scored_groups.add(group)
+            values = (
+                _group_values(profile, group, confirmed_only=False)
+                if group is not None
+                else [requirement.value]
+            )
 
             weight = 1.0
             result, data_backing, sub_score = _evaluate_any(
@@ -374,6 +422,7 @@ class ScoringEngine:
             weighted_confidence_sum += weight * self._multiplier(data_backing)
             total_weight += weight
 
+        soft_done: set[str] = set()
         for preference in profile.soft_preferences:
             if normalize_criterion(preference.criterion) not in _ALL_MAPPED_KEYS:
                 criteria.append(
@@ -387,6 +436,14 @@ class ScoringEngine:
                 )
                 continue
 
+            # Soft sectors are alternatives: missing one must not read as a Fail.
+            if is_sector_criterion(preference.criterion):
+                if "soft_sector" in soft_done:
+                    continue
+                soft_done.add("soft_sector")
+                preference = _best_soft_sector(profile, candidate)
+
+            weight = preference.weight
             result, data_backing, sub_score = _evaluate_criterion(
                 preference.criterion, preference.value, candidate
             )
@@ -394,14 +451,14 @@ class ScoringEngine:
                 CriterionScore(
                     criterion=preference.criterion,
                     criterion_type="soft",
-                    weight=preference.weight,
+                    weight=weight,
                     result=result,
                     data_backing=data_backing,
                 )
             )
-            weighted_sum += preference.weight * sub_score
-            weighted_confidence_sum += preference.weight * self._multiplier(data_backing)
-            total_weight += preference.weight
+            weighted_sum += weight * sub_score
+            weighted_confidence_sum += weight * self._multiplier(data_backing)
+            total_weight += weight
 
         if ticket_band is not None:
             result, has_valuation = ticket_band.fit(candidate)

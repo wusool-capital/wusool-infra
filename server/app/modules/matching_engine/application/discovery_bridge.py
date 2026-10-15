@@ -67,7 +67,11 @@ def extract_query_terms(profile: RequirementProfile) -> tuple[str, str, tuple[st
             if normalize_criterion(requirement.criterion) in synonyms and requirement.value
         )
 
-    sector = _value_for("sector")
+    sector = (
+        _clean_query_phrase(profile.search_phrase)
+        if profile.search_phrase
+        else _value_for("sector")
+    )
     # Comma-joined so discovery searches the union of every region and country.
     geography = ", ".join(dict.fromkeys(_values_for("geography")))
     exclude_terms = _values_for("sector_exclusion")

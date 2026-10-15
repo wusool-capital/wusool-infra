@@ -200,9 +200,9 @@ async def test_prompt_includes_target_region_as_a_known_field() -> None:
     await service.extract(buyer, next_version=1)
 
     prompt = fake.structured_calls[0]
-    known_fields_start = prompt.index("Known structured buyer fields")
-    context_start = prompt.index("Additional buyer/organization context")
-    assert known_fields_start < prompt.index("GCC") < context_start
+    known_fields_start = prompt.index("Known structured buyer fields (")
+    context_start = prompt.index("Additional buyer/organization context (")
+    assert known_fields_start < prompt.index("GCC", known_fields_start) < context_start
 
 
 async def test_prompt_never_labels_org_hq_country_as_target_geography() -> None:
@@ -452,3 +452,139 @@ async def test_prompt_tells_the_model_a_bare_amount_sets_no_limit() -> None:
     await service.extract(_buyer(), next_version=1, advisor_context="up to 10M")
 
     assert "sets NO limit" in fake.structured_calls[0]
+
+
+def _sector_item(value: str) -> dict:
+    return {
+        "criterion": "sector",
+        "value": value,
+        "source": "advisor_context",
+        "confidence": "high",
+        "human_confirmed": True,
+    }
+
+
+async def test_sector_values_are_canonicalised_and_off_vocabulary_ones_dropped() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            _sector_item("asset management"),
+            _sector_item("AI-native wealth platform"),
+        ],
+        "search_phrase": "AI wealth management",
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="AI asset managers")
+
+    assert [h.value for h in profile.hard_requirements] == ["Asset Management"]
+    assert profile.search_phrase == "AI wealth management"
+
+
+async def test_prompt_teaches_core_business_vs_modifier_rule() -> None:
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.extract(_buyer(), next_version=1, advisor_context="AI asset managers")
+
+    prompt = fake.structured_calls[0]
+    assert "CORE" in prompt
+    assert "AI tools for asset managers" in prompt
+    assert "Family Office / Wealth Management" in prompt
+
+
+async def test_target_vertical_is_a_known_field_and_org_sectors_are_context_only() -> None:
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    buyer = replace(_buyer(), target_vertical="Fintech", org_sector_focus=["Cybersecurity"])
+
+    await service.extract(buyer, next_version=1)
+
+    prompt = fake.structured_calls[0]
+    context_start = prompt.index("Additional buyer/organization context (")
+    assert prompt.index("Fintech", prompt.index("Known structured buyer fields (")) < context_start
+    assert prompt.index("Cybersecurity", context_start) > context_start
+
+
+async def test_search_phrase_is_dropped_unless_the_advisor_named_a_business_type() -> None:
+    response = {**VALID_RESPONSE, "search_phrase": "AI ML companies"}
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="profitable only")
+
+    assert profile.search_phrase is None
+
+
+def _extract_with(
+    hard_values: list[str], advisor_context: str
+) -> tuple[FakeBedrockClient, BuyerRequirementExtractionService, str]:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [_sector_item(v) for v in hard_values],
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    return fake, service, advisor_context
+
+
+async def test_modifier_sector_next_to_a_core_sector_is_demoted_to_soft() -> None:
+    fake, service, context = _extract_with(["Cybersecurity", "AI / ML"], "AI cybersecurity firms")
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context=context)
+
+    assert [h.value for h in profile.hard_requirements] == ["Cybersecurity"]
+    assert [(s.value, s.weight) for s in profile.soft_preferences] == [("AI / ML", 0.8)]
+
+
+async def test_relational_phrasing_keeps_both_sectors_hard() -> None:
+    fake, service, context = _extract_with(
+        ["AI / ML", "Asset Management"], "AI tools for asset managers"
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context=context)
+
+    assert [h.value for h in profile.hard_requirements] == ["AI / ML", "Asset Management"]
+
+
+async def test_incidental_relational_words_in_the_context_do_not_block_demotion() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [_sector_item("Asset Management"), _sector_item("AI / ML")],
+        "search_phrase": "AI asset management",
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(
+        _buyer(), next_version=1, advisor_context="AI asset managers, looking to deploy $5M"
+    )
+
+    assert [h.value for h in profile.hard_requirements] == ["Asset Management"]
+
+
+async def test_crm_sourced_sector_outside_the_vocabulary_is_kept() -> None:
+    crm_row = {**_sector_item("Legacy Vertical"), "source": "crm_field"}
+    fake = FakeBedrockClient(
+        structured_responses=[{**VALID_RESPONSE, "hard_requirements": [crm_row]}]
+    )
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    assert [h.value for h in profile.hard_requirements] == ["Legacy Vertical"]

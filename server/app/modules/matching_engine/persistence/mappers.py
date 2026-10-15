@@ -163,6 +163,7 @@ def profile_to_dict(profile: RequirementProfile) -> JsonObject:
             "ticket_max": profile.advisor_limits.ticket_max,
             "ev_ceiling": profile.advisor_limits.ev_ceiling,
         },
+        "search_phrase": profile.search_phrase,
     }
 
 
@@ -185,6 +186,8 @@ def _profile_from_dict(
         version=version or 0,
         # Absent on profiles persisted before advisor limits existed.
         advisor_limits=AdvisorLimits(**(data.get("advisor_limits") or {})),
+        # Absent on profiles persisted before the search phrase existed.
+        search_phrase=data.get("search_phrase"),
     )
 
 
