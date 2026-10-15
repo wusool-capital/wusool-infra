@@ -16,6 +16,9 @@ for current production evidence and open handover items.
   generic word, such as "Intelligence" or "GmbH". A lead with a similar name
   is now skipped and counted. It no longer gets an **Add as seller** button
   or uses up one of the five slots.
+- The echo of how a note was read now starts "From your note:". It lists
+  each part on its own line, so sectors, countries, and ticket sizes are
+  easy to tell apart.
 - Seller discovery now writes up to five sellers per search. A lead whose
   website doesn't match Google Maps is skipped instead of getting a **Website
   check** message, and the next lead takes its slot.

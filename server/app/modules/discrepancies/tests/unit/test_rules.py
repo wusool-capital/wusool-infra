@@ -450,8 +450,26 @@ def test_template_message_echoes_what_the_note_was_read_as() -> None:
     report = DiscrepancyReport(buyer_role_id="role-8")
     message = template_message(_CURSOR, report, context_checked=True, context=context)
     assert message.endswith(
-        "_Read your note as: Pharmaceuticals / Biotech · United Arab Emirates · "
-        "ticket USD 5,000,000 - USD 15,000,000_"
+        "_From your note:_\n"
+        "• _Sector: Pharmaceuticals / Biotech_\n"
+        "• _Country: United Arab Emirates_\n"
+        "• _Ticket: USD 5,000,000 - USD 15,000,000_"
+    )
+
+
+def test_several_sectors_are_listed_as_any_of() -> None:
+    context = ParsedContext(
+        verticals=("Pharmaceuticals / Biotech", "AI / ML", "Family Office / Wealth Management"),
+        countries=("Egypt",),
+    )
+    message = template_message(
+        _CURSOR, DiscrepancyReport(buyer_role_id="role-8"), context_checked=True, context=context
+    )
+    assert message.endswith(
+        "_From your note:_\n"
+        "• _Sector (any of): Pharmaceuticals / Biotech, AI / ML, "
+        "Family Office / Wealth Management_\n"
+        "• _Country: Egypt_"
     )
 
 
@@ -461,4 +479,4 @@ def test_template_message_skips_the_echo_when_nothing_was_read(
 ) -> None:
     report = DiscrepancyReport(buyer_role_id="role-8")
     message = template_message(_CURSOR, report, context_checked=context_checked, context=context)
-    assert "Read your note as" not in message
+    assert "From your note" not in message

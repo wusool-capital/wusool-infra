@@ -28,8 +28,8 @@ Its scores and research are decision support; always check the result.
 
 **Expected result:** a popup lists **conflicts** with the buyer's profile and
 **missing details**, each naming the `/edit-buyer` field to fix. It ends with
-how your note was read, for example "Read your note as: Pharmaceuticals /
-Biotech · United Arab Emirates".
+how your note was read, as a short list such as "Sector: Pharmaceuticals /
+Biotech" and "Country: United Arab Emirates".
 
 How your note is read:
 
