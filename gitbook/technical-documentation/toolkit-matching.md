@@ -88,6 +88,10 @@ value and eliminates on a populated field that contradicts it.
 - **Not controllable:** the shortlist size, the discovery threshold, the five
   leads per search, the daily search cap, and sellers already rejected.
 
+The [discrepancy check](toolkit-discrepancies.md#what-it-doesnt-check)
+compares only four of these with the buyer profile: sector, geography,
+ticket size, and EBITDA.
+
 The seller-field criteria accept only the exact CRM options. The code copies
 those options, and `tests/test_seller_select_vocabulary.py` checks the copy.
 A row whose value isn't an option is dropped, so free text such as "regional
