@@ -34,8 +34,7 @@ for current production evidence and open handover items.
   website doesn't match Google Maps is skipped instead of getting a **Website
   check** message, and the next lead takes its slot.
 - `/enrich-buyer` now asks for the organization first, then the vertical, the
-  same way `/edit-buyer` does. The vertical step has an optional "Anything
-  specific about this search?" box that steers the research.
+  same way `/edit-buyer` does. A buyer with one vertical skips that step.
 - When `/find-match` finds missing buyer details, its "Before we match" popup
   shows an **Edit buyer** button. It opens the edit form with only the empty
   fields, so you can fill them in without leaving Slack.

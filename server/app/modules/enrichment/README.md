@@ -115,8 +115,8 @@ credentials required; `tests/fakes/` stands in for all three.
 bare `/enrich`, so an org with both an active buyer and seller role never
 needs a role-selection modal just to pick the kind; or a match result's
 "Enrich" button; `/enrich-buyer` instead goes organization → vertical via
-`api/slack/views/buyer_selection.py`, like `/edit-buyer`, and the vertical
-modal's optional "Anything specific" text reaches `propose(guidance=…)`)
+`api/slack/views/buyer_selection.py`, like `/edit-buyer`; a single-role org
+skips the vertical step)
 → `enrich_and_post` → `api/dependencies.py
 ::propose_and_post` (background task, mirrors
 `matching_engine.run_match_and_post`) → `EnrichMixin.propose` →

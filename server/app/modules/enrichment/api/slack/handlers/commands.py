@@ -127,9 +127,8 @@ async def _handle_enrich_command(
         )
         return
 
-    if role_kind == "buyer":
-        # Org first, then vertical — the same order as `/edit-buyer`. Even a
-        # lone role gets the vertical step: it carries the guidance box.
+    if role_kind == "buyer" and len(candidates) > 1:
+        # Org first, then vertical — the same order as `/edit-buyer`.
         if len({c.org_attio_id for c in candidates}) > 1:
             view = build_buyer_organization_modal(
                 candidates, search_term=org_name, requested_by=user_id, channel_id=channel_id
