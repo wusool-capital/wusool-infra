@@ -21,7 +21,8 @@ person chooses to go ahead anyway.
 - Ask for each image file and where it goes; upload it as `reference.md` describes.
 
 **HTML (`"html"`):** list every tag or attribute the server will strip (see the allowed
-list in `reference.md`) and what the reader loses, such as a table's layout.
+list in `reference.md`) in `checks.md`. Tell the person only what readers lose, in plain
+words, such as "the table will show as plain text".
 
 **Either:** if the input has a key-takeaways or FAQ section, move it into
 `keyTakeaways` / `faq` instead of the body. Both are optional.
@@ -47,7 +48,7 @@ values; leave them blank rather than guess.
    If the Webflow connector isn't available, say so plainly and write "Webflow slug check
    **not run**" in `checks.md`.
 
-If either is taken, propose another slug.
+If either is taken, propose another web address in one line.
 
 ## 5. Insight + report
 
@@ -60,8 +61,8 @@ When the person said yes to "Is this insight + report?":
    ```
 
    If it returns nothing, check for a draft (raw perspective). If only a draft exists,
-   tell the person to publish the report first; the link would 404 until then. Stop
-   until they confirm.
+   tell the person to publish the report first, or the link won't work. Stop until they
+   confirm.
 2. Set `cta: {"text": "Download the full report", "url": "/reports/<reportSlug>"}`.
 3. Add one inline link to `/reports/<reportSlug>` in the body, where the article first
    mentions the report (rich: a `link` markDef; HTML: an `<a href>`). Show the person
@@ -69,8 +70,8 @@ When the person said yes to "Is this insight + report?":
 
 ## 6. Confirm
 
-Show the checks and the staff-field answers, list every field still blank, and wait for
-an OK before writing.
+One message, before writing: any check that failed (passed ones in one line), the
+staff-field table, and "Still blank: … Leave these blank?". Wait for an OK.
 
 ## 7. Write the draft
 
@@ -84,7 +85,7 @@ shorten it.
 Follow **Publish** in `reference.md`. Then confirm it reached Webflow: the Insights
 collection's **list collection items** action filtered by `slug` should return the item
 within a minute. If it doesn't, the slug may belong to a hand-written article (the sync
-skips it silently); tell the person. Without the Webflow connector, say this check
-didn't run.
+skips it silently); tell the person the article didn't reach the site and why, in one
+line. Without the Webflow connector, say this check didn't run.
 
 Give the person the live URL: `https://www.wusoolcapital.com/insights/<slug>`.
