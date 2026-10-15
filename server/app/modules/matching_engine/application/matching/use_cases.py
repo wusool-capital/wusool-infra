@@ -175,7 +175,7 @@ class MatchingMixin(ServiceBase):
             )
             for candidate in batch.passed
         ]
-        # Before top-N so sector-less sellers can't take slots from real matches.
+        # Gate before top-N so sector-less sellers can't take slots.
         relevant = [s for _, s in scored if has_core_sector_evidence(profile, s)]
         top_scores = select_top_n(relevant, self._top_n)
         by_seller_id = {c.seller_role_id: c for c, _ in scored}
@@ -205,7 +205,7 @@ class MatchingMixin(ServiceBase):
                 filters_skipped=batch.filters_skipped,
             )
 
-        # Nothing relevant: skip the LLM call; the empty run triggers discovery.
+        # Empty shortlist: no LLM call, discovery takes over.
         reasoning_by_id = (
             {
                 c.seller_role_id: c

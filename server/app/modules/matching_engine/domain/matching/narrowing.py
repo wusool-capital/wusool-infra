@@ -34,7 +34,7 @@ def _is_region(value: str) -> bool:
 
 @dataclass(frozen=True)
 class CandidateNarrowing:
-    # Lower-cased alternatives; a seller matching any one stays. Empty means unnarrowed.
+    # Lower-cased OR-ed alternatives; empty means unnarrowed.
     verticals: frozenset[str] = frozenset()
     # Lower-cased. Both empty means geography is not narrowed at all.
     regions: frozenset[str] = frozenset()

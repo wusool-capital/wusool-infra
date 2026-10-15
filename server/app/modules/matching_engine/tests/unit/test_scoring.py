@@ -510,3 +510,20 @@ def test_gate_is_open_when_no_sector_requirement_exists() -> None:
     score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score("b", "n", _profile(), _seller("n"))
 
     assert has_core_sector_evidence(_profile(), score)
+
+
+def test_matched_soft_sector_uses_its_own_weight_and_name() -> None:
+    profile = replace(
+        _profile(),
+        soft_preferences=[
+            SoftPreference("sector", "AI / ML", 0.8, "advisor_context", "high"),
+            SoftPreference("sector", "Asset Management", 0.5, "advisor_context", "high"),
+        ],
+    )
+
+    score = ScoringEngine(CONFIDENCE_MULTIPLIERS).score(
+        "b", "s", profile, _seller("s", sector_focus=["Asset Management"])
+    )
+
+    soft = [c for c in score.criteria if c.criterion_type == "soft"]
+    assert [(c.result, c.weight) for c in soft] == [("Pass", 0.5)]

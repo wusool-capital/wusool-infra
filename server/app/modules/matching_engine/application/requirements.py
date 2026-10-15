@@ -48,60 +48,46 @@ _SECTOR_BY_LOWER: dict[str, str] = {s.lower(): str(s) for s in SECTOR_FOCUS_OPTI
 _SECTOR_LIST = "; ".join(sorted(_SECTOR_BY_LOWER.values()))
 
 
-# Sectors that usually describe HOW a company works, not what it is.
 _MODIFIER_SECTORS = frozenset({"AI / ML", "Technology", "Sharia-Compliant"})
-# "AI tools for asset managers": the order flips, so a relational phrase skips the demotion.
+# A relational phrase flips which side is the core business, so demotion is skipped.
 _RELATIONAL = re.compile(r"\b(for|serving|serve|helps?|helping|that|which|to)\b", re.IGNORECASE)
 _MODIFIER_SOFT_WEIGHT = 0.8
 
 
-def _is_advisor_sector(item: JsonObject) -> bool:
-    return (
-        is_sector_criterion(item["criterion"])
-        and item["source"] == "advisor_context"
-        and item["value"] is not None
-    )
+def _checked_value(item: JsonObject) -> str | None:
+    """CRM-sourced rows pass through; advisor/LLM sectors must be CRM options."""
+    value = item["value"]
+    if value is None or item["source"] == "crm_field" or not is_sector_criterion(item["criterion"]):
+        return value
+    return _SECTOR_BY_LOWER.get(value.strip().lower())
+
+
+def _is_dropped(item: JsonObject) -> bool:
+    return item["value"] is not None and _checked_value(item) is None
 
 
 def _demote_modifier_sectors(
-    hard: list[JsonObject], soft: list[JsonObject], advisor_context: str | None
-) -> tuple[list[JsonObject], list[JsonObject]]:
-    """The model sometimes keeps "AI" as a second hard sector next to the real
-    business; hard sectors are OR-ed, so an AI-only seller would then pass."""
-    if not advisor_context or _RELATIONAL.search(advisor_context):
+    hard: list[HardRequirement], soft: list[SoftPreference], phrase: str | None
+) -> tuple[list[HardRequirement], list[SoftPreference]]:
+    # A modifier kept as a second hard sector lets modifier-only sellers pass the OR-ed filter.
+    if not phrase or _RELATIONAL.search(phrase):
         return hard, soft
-    rows = [h for h in hard if _is_advisor_sector(h)]
-    is_modifier = [
-        _SECTOR_BY_LOWER.get(h["value"].strip().lower()) in _MODIFIER_SECTORS for h in rows
+    rows = [
+        h
+        for h in hard
+        if is_sector_criterion(h.criterion) and h.source == "advisor_context" and h.value
     ]
-    if all(is_modifier) or not any(is_modifier):
+    flags = [h.value in _MODIFIER_SECTORS for h in rows]
+    if all(flags) or not any(flags):
         return hard, soft
-    demoted = [h for h, flag in zip(rows, is_modifier, strict=True) if flag]
-    kept = [h for h in hard if not any(h is d for d in demoted)]
-    already = {s["value"] for s in soft if is_sector_criterion(s["criterion"])}
+    demoted = [h for h, flag in zip(rows, flags, strict=True) if flag]
+    have = {p.value for p in soft if is_sector_criterion(p.criterion)}
     added = [
-        {
-            "criterion": h["criterion"],
-            "value": h["value"],
-            "weight": _MODIFIER_SOFT_WEIGHT,
-            "source": "advisor_context",
-            "confidence": h["confidence"],
-        }
+        SoftPreference(h.criterion, h.value, _MODIFIER_SOFT_WEIGHT, "advisor_context", h.confidence)
         for h in demoted
-        if h["value"] not in already
+        if h.value not in have
     ]
-    return kept, [*soft, *added]
-
-
-def _canonical_sector(criterion: str, value: str | None) -> str | None:
-    """Sector values must be CRM options: seller sectors are matched by exact
-    string, so a free-text sector could only ever score Fail or Unknown."""
-    if not is_sector_criterion(criterion) or value is None:
-        return value
-    canonical = _SECTOR_BY_LOWER.get(value.strip().lower())
-    if canonical is None:
-        logger.warning("extraction_sector_not_in_vocabulary value=%s", value)
-    return canonical
+    return [h for h in hard if not any(h is d for d in demoted)], [*soft, *added]
 
 
 # A limit is only trusted if the advisor's own words name what it measures. A
@@ -372,9 +358,6 @@ class BuyerRequirementExtractionService:
         extracted: JsonObject, version: int, model_id: str, *, advisor_context: str | None
     ) -> RequirementProfile:
         has_advisor_context = bool(advisor_context)
-        hard_items, soft_items = _demote_modifier_sectors(
-            extracted["hard_requirements"], extracted["soft_preferences"], advisor_context
-        )
 
         def source_of(item: JsonObject) -> RequirementSource:
             # Without typed context nothing can honestly be advisor-sourced; a
@@ -383,44 +366,48 @@ class BuyerRequirementExtractionService:
                 return "llm_extracted"
             return item["source"]
 
-        def in_vocabulary(item: JsonObject) -> bool:
-            return (
-                item["value"] is None
-                or _canonical_sector(item["criterion"], item["value"]) is not None
-            )
-
-        # The model fills the phrase from CRM sectors when the advisor named only a
-        # place or a quality, so it counts only if the advisor typed a sector.
+        raw_items = [*extracted["hard_requirements"], *extracted["soft_preferences"]]
+        for item in raw_items:
+            if _is_dropped(item):
+                logger.warning("extraction_sector_not_in_vocabulary value=%s", item["value"])
+        # The model fills the phrase from CRM sectors when the advisor named only
+        # a place or quality. A dropped advisor sector still counts: it is unmappable.
         named_business_type = any(
-            is_sector_criterion(item["criterion"])
-            and item["value"] is not None
-            and source_of(item) == "advisor_context"
-            for item in [*hard_items, *soft_items]
+            is_sector_criterion(i["criterion"])
+            and i["value"] is not None
+            and source_of(i) == "advisor_context"
+            for i in raw_items
         )
+        search_phrase = extracted.get("search_phrase") if named_business_type else None
 
-        profile = RequirementProfile(
-            hard_requirements=[
+        hard, soft = _demote_modifier_sectors(
+            [
                 HardRequirement(
                     criterion=h["criterion"],
-                    value=_canonical_sector(h["criterion"], h["value"]),
+                    value=_checked_value(h),
                     source=source_of(h),
                     confidence=h["confidence"],
                     human_confirmed=h["human_confirmed"] and source_of(h) == h["source"],
                 )
-                for h in hard_items
-                if in_vocabulary(h)
+                for h in extracted["hard_requirements"]
+                if not _is_dropped(h)
             ],
-            soft_preferences=[
+            [
                 SoftPreference(
                     criterion=s["criterion"],
-                    value=_canonical_sector(s["criterion"], s["value"]),
+                    value=_checked_value(s),
                     weight=s["weight"],
                     source=source_of(s),
                     confidence=s["confidence"],
                 )
-                for s in soft_items
-                if in_vocabulary(s)
+                for s in extracted["soft_preferences"]
+                if not _is_dropped(s)
             ],
+            search_phrase or advisor_context,
+        )
+        profile = RequirementProfile(
+            hard_requirements=hard,
+            soft_preferences=soft,
             strategic_thesis=extracted["strategic_thesis"],
             ideal_target_description=extracted["ideal_target_description"],
             scoring_rubric=extracted["scoring_rubric"],
@@ -428,6 +415,6 @@ class BuyerRequirementExtractionService:
             generated_by_model=model_id,
             version=version,
             advisor_limits=_advisor_limits(extracted, advisor_context),
-            search_phrase=extracted.get("search_phrase") if named_business_type else None,
+            search_phrase=search_phrase,
         )
         return apply_advisor_overrides(profile)

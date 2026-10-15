@@ -32,15 +32,14 @@ def apply_advisor_overrides(profile: RequirementProfile) -> RequirementProfile:
     """Drops CRM-sourced requirements for any criterion the advisor restated,
     so a stale stored value can't eliminate sellers the advisor asked for."""
     overridden = set(advisor_stated_values(profile))
-    # The advisor named a business type that maps to no CRM sector: the stored
-    # vertical must not speak for them, so it is dropped rather than kept.
+    # Unmappable advisor business type: the stored vertical must not speak for them.
     if profile.search_phrase and "sector" not in overridden:
         overridden.add("sector")
     if not overridden:
         return profile
 
     def is_superseded(criterion: str, source: str) -> bool:
-        # Anything the advisor didn't type loses to what they did for that criterion.
+        # Whatever the advisor didn't type loses to what they did.
         return source != "advisor_context" and canonical_criterion(criterion) in overridden
 
     return replace(

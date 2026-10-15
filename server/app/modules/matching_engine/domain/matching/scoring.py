@@ -24,6 +24,7 @@ from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.requirements import (
     RequirementProfile,
     RequirementSource,
+    SoftPreference,
 )
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 from app.modules.utilities.domain.money import parse_usd_amount
@@ -210,8 +211,7 @@ def _geography_matches(target: str, candidate: SellerCandidate) -> bool:
 
 
 def _union_group(key: str) -> frozenset[str] | None:
-    """Geography and sector hard values are alternatives (a region plus its
-    countries; an advisor's 'asset or wealth manager'), so each passes together."""
+    """Geography and sector hard values are OR-ed alternatives."""
     if key in _GEOGRAPHY_KEYS:
         return _GEOGRAPHY_KEYS
     if key in _SECTOR_KEYS:
@@ -230,13 +230,12 @@ def _group_values(
 
 
 def has_core_sector_evidence(profile: RequirementProfile, score: CandidateScore) -> bool:
-    """A stated hard sector needs a real Pass: a seller with no sector data
-    scores a neutral Unknown that says nothing about relevance."""
+    """A hard sector needs a real Pass; Unknown says nothing about relevance."""
     if not any(
         h.value and normalize_criterion(h.criterion) in _SECTOR_KEYS
         for h in profile.hard_requirements
     ):
-        # A business type with no CRM sector can't be verified against any seller.
+        # An unmappable business type can't be verified against any seller.
         return not profile.search_phrase
     return any(
         c.criterion_type == "hard"
@@ -325,6 +324,15 @@ def apply_structured_filters(
         passed = survivors
 
     return passed, filters_skipped
+
+
+def _best_soft_sector(profile: RequirementProfile, candidate: SellerCandidate) -> SoftPreference:
+    """Matched soft sector with its own weight, else the heaviest."""
+    sectors = [p for p in profile.soft_preferences if is_sector_criterion(p.criterion)]
+    matched = [
+        p for p in sectors if _evaluate_criterion(p.criterion, p.value, candidate)[0] == "Pass"
+    ]
+    return max(matched or sectors, key=lambda p: p.weight)
 
 
 # Same weight as a hard requirement: a seller far outside the buyer's cheque
@@ -428,20 +436,17 @@ class ScoringEngine:
                 )
                 continue
 
-            # Soft sectors are alternatives too: missing one must not read as a Fail.
-            weight = preference.weight
-            values = [preference.value]
+            # Soft sectors are alternatives: missing one must not read as a Fail.
             if is_sector_criterion(preference.criterion):
                 if "soft_sector" in soft_done:
                     continue
                 soft_done.add("soft_sector")
-                sector_prefs = [
-                    p for p in profile.soft_preferences if is_sector_criterion(p.criterion)
-                ]
-                values = [p.value for p in sector_prefs]
-                weight = max(p.weight for p in sector_prefs)
+                preference = _best_soft_sector(profile, candidate)
 
-            result, data_backing, sub_score = _evaluate_any(preference.criterion, values, candidate)
+            weight = preference.weight
+            result, data_backing, sub_score = _evaluate_criterion(
+                preference.criterion, preference.value, candidate
+            )
             criteria.append(
                 CriterionScore(
                     criterion=preference.criterion,

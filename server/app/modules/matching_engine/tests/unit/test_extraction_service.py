@@ -556,3 +556,35 @@ async def test_relational_phrasing_keeps_both_sectors_hard() -> None:
     profile = await service.extract(_buyer(), next_version=1, advisor_context=context)
 
     assert [h.value for h in profile.hard_requirements] == ["AI / ML", "Asset Management"]
+
+
+async def test_incidental_relational_words_in_the_context_do_not_block_demotion() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [_sector_item("Asset Management"), _sector_item("AI / ML")],
+        "search_phrase": "AI asset management",
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(
+        _buyer(), next_version=1, advisor_context="AI asset managers, looking to deploy $5M"
+    )
+
+    assert [h.value for h in profile.hard_requirements] == ["Asset Management"]
+
+
+async def test_crm_sourced_sector_outside_the_vocabulary_is_kept() -> None:
+    crm_row = {**_sector_item("Legacy Vertical"), "source": "crm_field"}
+    fake = FakeBedrockClient(
+        structured_responses=[{**VALID_RESPONSE, "hard_requirements": [crm_row]}]
+    )
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    assert [h.value for h in profile.hard_requirements] == ["Legacy Vertical"]

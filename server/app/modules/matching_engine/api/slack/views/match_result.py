@@ -37,7 +37,8 @@ def build_match_result_blocks(result: MatchRunResult) -> list[Block]:
                 text=(
                     f"*{result.buyer_org_name}*\n"
                     "No strong CRM match for this request, so no sellers are shown. "
-                    "Searching Google Maps for new candidates\u2026"
+                    "New candidates from Google Maps appear below; "
+                    "use *Find more sellers* if none do."
                 )
             ),
             *_notes_context(result.notes),
