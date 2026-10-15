@@ -721,7 +721,10 @@ def test_gated_field_without_confirmation_requires_checkbox(monkeypatch) -> None
 # --------------------------------------------------------------------------
 
 
-def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_client) -> None:
+@pytest.mark.parametrize("card_token", [None, "card-1"])
+def test_buyer_edit_form_writes_attio_before_postgres(
+    monkeypatch, _mock_slack_web_client, card_token: str | None
+) -> None:
     buyer_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-2", name="Blue Horizon")
     role = _fake_buyer_role(buyer_id, org=org)
@@ -758,6 +761,13 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
         lambda: SimpleNamespace(update_buyer=fake_execute),
     )
 
+    marked: list[tuple[str, str]] = []
+
+    async def fake_mark(card_token: str, added_by: str) -> None:
+        marked.append((card_token, added_by))
+
+    monkeypatch.setattr(actions_module, "mark_review_card_added", fake_mark)
+
     payload = {
         "type": "view_submission",
         "user": {"id": "U_TEST"},
@@ -774,6 +784,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
                     "channel_id": "C_TEST",
                     "selected_org_fields": [],
                     "selected_role_fields": ["model"],
+                    "review_card_token": card_token,
                 }
             ),
             "state": {
@@ -787,6 +798,8 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
     assert response.status_code == 200
     assert len(postgres_use_case.calls) == 1
     assert patched_entries == ["entry-of-this-vertical"]
+    # Only an enrichment review carries a card; a plain edit leaves messages alone.
+    assert marked == ([(card_token, "U_TEST")] if card_token else [])
     text = _mock_slack_web_client.posted[0]["text"]
     assert "*Updated* buyer profile for *Blue Horizon*." in text
     # Every buyer save suggests re-running matching — a copy-pasteable

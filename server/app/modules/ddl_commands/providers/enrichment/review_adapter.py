@@ -36,6 +36,7 @@ class DdlCommandsReviewAdapter:
         values: tuple[ProposedFieldValue, ...],
         channel_id: str,
         requested_by: str,
+        card_token: str | None = None,
     ) -> None:
         if not values:
             return
@@ -65,6 +66,7 @@ class DdlCommandsReviewAdapter:
                 requested_by=requested_by,
                 channel_id=channel_id,
                 prefill=prefill,
+                review_card_token=card_token,
             )
         else:
             role = await resolve_buyer_by_id(str(target.role_id))
@@ -78,6 +80,7 @@ class DdlCommandsReviewAdapter:
                 requested_by=requested_by,
                 channel_id=channel_id,
                 prefill=prefill,
+                review_card_token=card_token,
             )
 
         await client.views_open(trigger_id=trigger_id, view=view)

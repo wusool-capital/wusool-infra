@@ -8,7 +8,13 @@ from app.modules.enrichment.domain.proposals import EnrichmentProposal
 
 class ReviewMixin(ServiceBase):
     async def open_review_form(
-        self, *, trigger_id: str, proposal: EnrichmentProposal, channel_id: str, requested_by: str
+        self,
+        *,
+        trigger_id: str,
+        proposal: EnrichmentProposal,
+        channel_id: str,
+        requested_by: str,
+        card_token: str | None = None,
     ) -> None:
         if not proposal.values:
             return
@@ -18,4 +24,5 @@ class ReviewMixin(ServiceBase):
             values=proposal.values,
             channel_id=channel_id,
             requested_by=requested_by,
+            card_token=card_token,
         )

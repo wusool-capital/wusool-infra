@@ -100,6 +100,17 @@ from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionP
 logger = logging.getLogger(__name__)
 
 
+async def _mark_enrichment_card(metadata: dict[str, str | None], requested_by: str) -> None:
+    """A no-op for plain edits, which carry no card."""
+    if not (card_token := metadata.get("review_card_token")):
+        return
+    # The edit is already saved; a stale card must not read as a failed save.
+    try:
+        await mark_review_card_added(card_token, requested_by)
+    except Exception:
+        logger.exception("review_card_update_failed")
+
+
 def register(app: AsyncApp) -> None:
     @app.view("seller_role_selection_modal")
     async def handle_seller_selection_submission(
@@ -406,6 +417,7 @@ def register(app: AsyncApp) -> None:
             user=requested_by,
             text=f"*Updated* seller profile for *{org_name}*.",
         )
+        await _mark_enrichment_card(metadata, requested_by)
 
     @app.view("buyer_edit_form_modal")
     async def handle_buyer_edit_form_submission(
@@ -499,6 +511,7 @@ def register(app: AsyncApp) -> None:
                 f"Run `/find-match {org_name}` to see matches."
             ),
         )
+        await _mark_enrichment_card(metadata, requested_by)
 
     @app.view("organization_selection_modal")
     async def handle_organization_selection_submission(

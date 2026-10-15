@@ -177,6 +177,8 @@ def build_proposal_blocks(proposal: EnrichmentProposal) -> list[Block]:
     blocks.append(DividerBlock())
     blocks.append(
         SectionBlock(
+            # Fixed so the saved-state swap finds this block deterministically.
+            block_id="enrichment_review_block",
             text="Review these values in the edit form before they're saved.",
             accessory=ButtonElement(
                 action_id="enrichment_review",

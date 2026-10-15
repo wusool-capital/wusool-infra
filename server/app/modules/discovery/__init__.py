@@ -19,7 +19,7 @@ listed in `__all__` here.
 """
 
 from app.modules.discovery.api.lead_flow import discover_and_create_sellers, mark_review_posted
-from app.modules.discovery.api.slack.review_card import mark_review_card_added
+from app.modules.discovery.api.slack.review_card import mark_review_card_added, store_review_card
 from app.modules.discovery.api.slack.views import (
     build_needs_review_blocks,
     build_possible_duplicate_blocks,
@@ -58,4 +58,5 @@ __all__ = [
     "discover_and_create_sellers",
     "mark_review_card_added",
     "mark_review_posted",
+    "store_review_card",
 ]
