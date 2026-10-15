@@ -39,6 +39,7 @@ from app.modules.ddl_commands.api.buyers import (
 )
 from app.modules.ddl_commands.api.dependencies import (
     ddl_commands_service,
+    edit_gate_port,
     resolve_buyer_by_id,
     resolve_organization,
     resolve_seller_by_id,
@@ -74,6 +75,11 @@ from app.modules.ddl_commands.api.slack.views.form_values import (
     get_checkbox_selected,
     get_text,
     pydantic_errors_to_slack,
+)
+from app.modules.ddl_commands.api.slack.views.gate_ref import (
+    GateRef,
+    decode_gate_ref,
+    encode_gate_ref,
 )
 from app.modules.ddl_commands.api.slack.views.organization_selection import (
     NEW_ORGANIZATION_VALUE,
@@ -119,6 +125,21 @@ def _fields_for_missing_criteria(criteria: list[str]) -> list[str]:
     names = [n for c in criteria for n in _CRITERION_BUYER_FIELDS.get(c, ())]
     editable = {f.name for f in BUYER_FORM_FIELDS}
     return [n for n in names if n in editable]
+
+
+async def _notify_gate(gate: GateRef | None, *, saving: bool) -> None:
+    """Pauses, then refreshes, the popup an edit form was opened from. A failure
+    here must never undo or hide a save."""
+    port = edit_gate_port()
+    if gate is None or port is None:
+        return
+    try:
+        if saving:
+            await port.saving(gate_view_id=gate.view_id, gate_state=gate.state)
+        else:
+            await port.finished(gate_view_id=gate.view_id, gate_state=gate.state)
+    except Exception:
+        logger.exception("edit_gate_notify_failed saving=%s", saving)
 
 
 async def _mark_enrichment_card(metadata: dict[str, str | None], requested_by: str) -> None:
@@ -295,6 +316,9 @@ def register(app: AsyncApp) -> None:
                 view=build_notice_modal("Edit buyer", "This *buyer* could not be found."),
             )
             return
+        gate_token = encode_gate_ref(
+            GateRef(view_id=body["view"]["id"], state=body["view"].get("private_metadata") or "")
+        )
         missing_fields = _fields_for_missing_criteria(gate.get("missing_criteria") or [])
         if missing_fields:
             # Straight to the form, holding only what the check found empty.
@@ -305,6 +329,7 @@ def register(app: AsyncApp) -> None:
                 selected_role_fields=missing_fields,
                 requested_by=user_id,
                 channel_id=channel_id,
+                gate_token=gate_token,
             )
         else:
             view = build_field_picker_modal(
@@ -314,6 +339,7 @@ def register(app: AsyncApp) -> None:
                 requested_by=user_id,
                 channel_id=channel_id,
                 role_fields=BUYER_FORM_FIELDS,
+                gate_token=gate_token,
             )
         await client.views_update(view_id=view_id, view=view)
 
@@ -392,6 +418,7 @@ def register(app: AsyncApp) -> None:
                 selected_role_fields=role_fields,
                 requested_by=requested_by,
                 channel_id=channel_id,
+                gate_token=metadata.get("gate_token"),
             ),
         )
 
@@ -545,40 +572,48 @@ def register(app: AsyncApp) -> None:
         role_extracted = role_validated.model_dump(exclude_unset=True)
 
         await ack()
+        # Opened from `/find-match`'s popup: lock its "Run anyway" while the write
+        # runs, so a quick click can't match on the old profile.
+        gate = decode_gate_ref(metadata.get("gate_token"))
+        await _notify_gate(gate, saving=True)
         try:
-            await _write_buyer_edit(
-                buyer_role_id=buyer_role_id,
-                org_attio_id=org_attio_id,
-                org_extracted=org_extracted,
-                role_extracted=role_extracted,
-            )
-        except BuyerNotFoundError:
-            await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text="This *buyer* could not be found."
-            )
-            return
-        except _OrgRemovedError:
+            try:
+                await _write_buyer_edit(
+                    buyer_role_id=buyer_role_id,
+                    org_attio_id=org_attio_id,
+                    org_extracted=org_extracted,
+                    role_extracted=role_extracted,
+                )
+            except BuyerNotFoundError:
+                await client.chat_postEphemeral(
+                    channel=channel_id, user=requested_by, text="This *buyer* could not be found."
+                )
+                return
+            except _OrgRemovedError:
+                await client.chat_postEphemeral(
+                    channel=channel_id,
+                    user=requested_by,
+                    text=f"*{org_name}*'s Attio record is gone or was merged — can't write to it.",
+                )
+                return
+            except PartialWriteError as exc:
+                await client.chat_postEphemeral(
+                    channel=channel_id, user=requested_by, text=partial_write_message(exc)
+                )
+                return
+
             await client.chat_postEphemeral(
                 channel=channel_id,
                 user=requested_by,
-                text=f"*{org_name}*'s Attio record is gone or was merged — can't write to it.",
+                text=(
+                    f"*Updated* buyer profile for *{org_name}*.\n"
+                    f"Run `/find-match {org_name}` to see matches."
+                ),
             )
-            return
-        except PartialWriteError as exc:
-            await client.chat_postEphemeral(
-                channel=channel_id, user=requested_by, text=partial_write_message(exc)
-            )
-            return
-
-        await client.chat_postEphemeral(
-            channel=channel_id,
-            user=requested_by,
-            text=(
-                f"*Updated* buyer profile for *{org_name}*.\n"
-                f"Run `/find-match {org_name}` to see matches."
-            ),
-        )
-        await _mark_enrichment_card(metadata, requested_by)
+            await _mark_enrichment_card(metadata, requested_by)
+        finally:
+            # Saved or not, re-check the buyer so the popup shows what's true now.
+            await _notify_gate(gate, saving=False)
 
     @app.view("organization_selection_modal")
     async def handle_organization_selection_submission(

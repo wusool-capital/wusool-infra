@@ -1562,8 +1562,123 @@ def test_edit_buyer_from_find_match_gate_pushes_before_querying(
     view = updated[0]["view"]
     assert view.callback_id == callback_id
     metadata = json.loads(view.private_metadata)
+    # The form remembers which popup it was opened from, to lock and refresh it on save.
+    from app.modules.ddl_commands.api.slack.views.gate_ref import decode_gate_ref
+
+    ref = decode_gate_ref(metadata["gate_token"])
+    assert ref is not None and ref.view_id == "V_GATE"
     if shown_fields is None:
         assert metadata["buyer_role_id"] == role_id
     else:
         assert metadata["selected_role_fields"] == shown_fields
         assert metadata["selected_org_fields"] == []
+
+
+# --------------------------------------------------------------------------
+# `/find-match` popup: locked while its edit form saves, refreshed after
+# --------------------------------------------------------------------------
+
+
+class _RecordingGate:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.refs: list[tuple[str, str]] = []
+
+    async def saving(self, *, gate_view_id: str, gate_state: str) -> None:
+        self.events.append("saving")
+        self.refs.append((gate_view_id, gate_state))
+
+    async def finished(self, *, gate_view_id: str, gate_state: str) -> None:
+        self.events.append("finished")
+
+
+def _gate_buyer_edit_payload(gate_token: str | None) -> dict:
+    return {
+        "type": "view_submission",
+        "user": {"id": "U_TEST"},
+        "view": {
+            "type": "modal",
+            "id": "V_EDIT",
+            "callback_id": "buyer_edit_form_modal",
+            "private_metadata": json.dumps(
+                {
+                    "buyer_role_id": str(uuid.uuid4()),
+                    "org_attio_id": "org-attio-2",
+                    "org_name": "Blue Horizon",
+                    "requested_by": "U_TEST",
+                    "channel_id": "C_TEST",
+                    "selected_org_fields": [],
+                    "selected_role_fields": ["model"],
+                    "gate_token": gate_token,
+                }
+            ),
+            "state": {
+                "values": {"model": {"model": {"selected_option": {"value": "Model 1 (Network)"}}}}
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_saving_from_the_popup_locks_it_then_refreshes_it(monkeypatch, fails: bool) -> None:
+    from app.modules.ddl_commands.api.slack.views.gate_ref import GateRef, encode_gate_ref
+    from app.modules.ddl_commands.api.write_errors import PartialWriteError
+
+    events: list[str] = []
+    gate = _RecordingGate(events)
+
+    async def fake_write(**_kwargs) -> None:
+        events.append("write")
+        if fails:
+            raise PartialWriteError([], RuntimeError("attio down"))
+
+    monkeypatch.setattr(actions_module, "edit_gate_port", lambda: gate)
+    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+    token = encode_gate_ref(GateRef(view_id="V_GATE", state='{"buyer_role_id": "b1"}'))
+
+    response = _post_interactivity(_gate_buyer_edit_payload(token))
+
+    assert response.status_code == 200
+    # Locked before the write starts and refreshed after, even when it fails.
+    assert events == ["saving", "write", "finished"]
+    assert gate.refs == [("V_GATE", '{"buyer_role_id": "b1"}')]
+
+
+def test_a_plain_edit_never_touches_the_popup(monkeypatch) -> None:
+    events: list[str] = []
+
+    async def fake_write(**_kwargs) -> None:
+        events.append("write")
+
+    monkeypatch.setattr(actions_module, "edit_gate_port", lambda: _RecordingGate(events))
+    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+
+    response = _post_interactivity(_gate_buyer_edit_payload(None))
+
+    assert response.status_code == 200
+    assert events == ["write"]
+
+
+def test_a_failing_popup_update_does_not_stop_the_save(monkeypatch) -> None:
+    from app.modules.ddl_commands.api.slack.views.gate_ref import GateRef, encode_gate_ref
+
+    events: list[str] = []
+
+    class _BrokenGate:
+        async def saving(self, **_kwargs) -> None:
+            raise RuntimeError("slack down")
+
+        async def finished(self, **_kwargs) -> None:
+            raise RuntimeError("slack down")
+
+    async def fake_write(**_kwargs) -> None:
+        events.append("write")
+
+    monkeypatch.setattr(actions_module, "edit_gate_port", lambda: _BrokenGate())
+    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+    token = encode_gate_ref(GateRef(view_id="V_GATE", state="{}"))
+
+    response = _post_interactivity(_gate_buyer_edit_payload(token))
+
+    assert response.status_code == 200
+    assert events == ["write"]

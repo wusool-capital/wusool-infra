@@ -38,6 +38,8 @@ for current production evidence and open handover items.
 - When `/find-match` finds missing buyer details, its "Before we match" popup
   shows an **Edit buyer** button. It opens the edit form with only the empty
   fields, so you can fill them in without leaving Slack.
+- While that form saves, the popup hides **Run anyway**. When the save ends, it
+  checks the buyer again, so a quick click can't match on the old profile.
 - Links in bot messages no longer expand into large previews, so cards
   stay short.
 - After a **Review & Save** from `/enrich-seller` or `/enrich-buyer` is saved,

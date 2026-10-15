@@ -6,6 +6,7 @@ definitions here; those live in each concept's own `api/<concept>.py`.
 from app.models import BuyerRole, Organization, SellerRole
 from app.modules.ddl_commands.api.buyers import BuyerResolutionRead, BuyerSummary
 from app.modules.ddl_commands.api.sellers import SellerResolutionRead, SellerSummary
+from app.modules.ddl_commands.application.ports.edit_gate import EditGatePort
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
 from app.modules.ddl_commands.application.service import DdlCommandsService
 from app.modules.ddl_commands.bootstrap import (
@@ -14,6 +15,20 @@ from app.modules.ddl_commands.bootstrap import (
     build_organization_repository,
 )
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
+
+_edit_gate_port_holder: EditGatePort | None = None
+
+
+def configure_edit_gate_port(port: EditGatePort) -> None:
+    """Called once at startup by `server/main.py`; `ddl_commands` never imports
+    the module that owns the popup an edit form can be opened from."""
+    global _edit_gate_port_holder
+    _edit_gate_port_holder = port
+
+
+def edit_gate_port() -> EditGatePort | None:
+    """`None` when nothing is wired (a plain `/edit-buyer`, or a test)."""
+    return _edit_gate_port_holder
 
 
 def _ddl_commands_unit_of_work_factory() -> DdlCommandsUnitOfWorkFactory:
