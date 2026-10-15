@@ -9,10 +9,9 @@ The candidate roles ride in a server-side token (same reasoning as
 from pydantic import BaseModel, TypeAdapter
 from slack_sdk.models.blocks import InputBlock, SectionBlock
 from slack_sdk.models.blocks.basic_components import Option
-from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
+from slack_sdk.models.blocks.block_elements import StaticSelectElement
 from slack_sdk.models.views import View
 
-from app.modules.enrichment.application.enrich import MAX_GUIDANCE_CHARS
 from app.modules.enrichment.domain.targets import ResolvedOrgRole
 from app.modules.notifications import sanitize_mrkdwn
 from app.modules.utilities import get_shared_ephemeral_store
@@ -100,17 +99,6 @@ def build_buyer_vertical_modal(
                 label="Vertical",
                 element=StaticSelectElement(
                     action_id="selected_vertical", options=options, initial_option=options[0]
-                ),
-            ),
-            InputBlock(
-                block_id="guidance",
-                label="Anything specific about this search?",
-                optional=True,
-                element=PlainTextInputElement(
-                    action_id="guidance_text",
-                    multiline=True,
-                    max_length=MAX_GUIDANCE_CHARS,
-                    placeholder="e.g. focus on recent fund size and AUM",
                 ),
             ),
         ],

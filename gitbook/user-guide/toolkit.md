@@ -173,8 +173,7 @@ a role in Attio.
 
 1. Run `/enrich-seller <name>` or `/enrich-buyer <name>` and select the
    intended record if asked. For a buyer, pick the organization, then the
-   vertical. You can add a note under **Anything specific about this
-   search?** to steer the research.
+   vertical. A buyer with one vertical skips that step.
 2. The bot researches public company sources and lists proposed values with
    confidence levels.
 3. Press **Review & Save**, correct or clear anything you don't want, and

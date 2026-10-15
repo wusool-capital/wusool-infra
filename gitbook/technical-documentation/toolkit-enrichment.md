@@ -28,9 +28,9 @@ the web search. They include investment strategy, target regions, check
 sizes, and deal structure.
 
 For a buyer, the command asks for the organization and then the vertical,
-because each vertical is a separate buyer role. The vertical step has an
-optional note. It is trimmed to 900 characters and added to the research
-prompt, and it does not change the web search itself.
+because each vertical is a separate buyer role. A buyer with one vertical
+skips that step. Enrichment has no free-text note; only `/check-buyer` and
+`/find-match` take one.
 
 The research runs in the background. The result message lists every proposed
 value with a confidence level and one **Review & Save** button. After the
