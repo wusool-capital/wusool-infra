@@ -105,6 +105,22 @@ from app.modules.notifications import (
 logger = logging.getLogger(__name__)
 
 
+# `discrepancies`' `Criterion` values -> the buyer form fields that fill them.
+# Copied (not imported) like its own label table; drift is tested. The vertical
+# is fixed per role, so it has no editable field.
+_CRITERION_BUYER_FIELDS: dict[str, tuple[str, ...]] = {
+    "geography": ("target_region", "target_country"),
+    "ticket_band": ("check_size_min", "check_size_max"),
+    "ebitda": ("ebitda_floor", "ebitda_ceiling"),
+}
+
+
+def _fields_for_missing_criteria(criteria: list[str]) -> list[str]:
+    names = [n for c in criteria for n in _CRITERION_BUYER_FIELDS.get(c, ())]
+    editable = {f.name for f in BUYER_FORM_FIELDS}
+    return [n for n in names if n in editable]
+
+
 async def _mark_enrichment_card(metadata: dict[str, str | None], requested_by: str) -> None:
     """A no-op for plain edits, which carry no card."""
     if not (card_token := metadata.get("review_card_token")):
@@ -279,17 +295,27 @@ def register(app: AsyncApp) -> None:
                 view=build_notice_modal("Edit buyer", "This *buyer* could not be found."),
             )
             return
-        await client.views_update(
-            view_id=view_id,
-            view=build_field_picker_modal(
+        missing_fields = _fields_for_missing_criteria(gate.get("missing_criteria") or [])
+        if missing_fields:
+            # Straight to the form, holding only what the check found empty.
+            view = build_buyer_edit_form_modal(
+                role,
+                role.organization,
+                selected_org_fields=[],
+                selected_role_fields=missing_fields,
+                requested_by=user_id,
+                channel_id=channel_id,
+            )
+        else:
+            view = build_field_picker_modal(
                 kind="buyer",
                 role_id=str(role.id),
                 org_name=role.organization.name,
                 requested_by=user_id,
                 channel_id=channel_id,
                 role_fields=BUYER_FORM_FIELDS,
-            ),
-        )
+            )
+        await client.views_update(view_id=view_id, view=view)
 
     @app.view("seller_field_picker_modal")
     async def handle_seller_field_picker_submission(

@@ -49,7 +49,7 @@ How your note is read:
 1. Run `/find-match <buyer name>`, for example `/find-match Raoof Capital`.
 2. If several buyers have similar names, select the intended record.
 3. In the **Before we match** popup, choose **Run anyway**. If details are
-   missing, press **Edit buyer** to fill them in without leaving Slack, or
+   missing, press **Edit buyer** to fill just those fields in without leaving Slack, or
    **Cancel** to stop.
 4. Use **View Full Analysis** to inspect a seller's reasoning, then choose
    **Approve Match** or **Reject Match**.
