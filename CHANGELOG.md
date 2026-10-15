@@ -21,6 +21,11 @@ for current production evidence and open handover items.
 - Before an Insights draft, the skill scores whether the piece is worth
   publishing as a blog article and checks for overlap with existing articles.
 
+### Fixed
+
+- The `/check-buyer` modal no longer shows "(optional)" twice on its search
+  notes field.
+
 ## 2026-10-13
 
 ### Changed
