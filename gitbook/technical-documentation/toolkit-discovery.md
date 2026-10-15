@@ -64,11 +64,20 @@ Leads are checked in order until five survivors are found:
 | --- | --- |
 | Same Google place ID as an organization | Skipped: already in the CRM |
 | Same website domain (with or without `www.`) | Skipped: already in the CRM |
-| Name resembles an organization (fuzzy match) | Not created; posted with **Add as seller** for a person to decide |
+| Name resembles an organization (fuzzy match, see below) | Not created; posted with **Add as seller** for a person to decide |
 | Already waiting for a website review, flagged in the last 30 days | Skipped, so it isn't researched or posted twice |
 | No match | Goes on to enrichment |
 
 A skipped lead frees its slot for the next result.
+
+**How names are compared.** A loose database search finds organizations with
+similar names. A second check then ignores generic words, such as
+"Intelligence", "Capital", "Solutions", "GmbH", "KG", and "Ltd". The distinctive
+words that remain must pass one of two tests. Either they all appear in the
+other name, or the names reach a trigram similarity of 0.5. "Acme Co" still matches "Acme Trading". Two unrelated
+companies that only share a word like "Intelligence" don't. A name with no
+distinctive words is compared in full. The word list is `GENERIC_WORDS` in
+`discovery/domain/names.py`.
 
 ### 4. Basic enrichment
 
