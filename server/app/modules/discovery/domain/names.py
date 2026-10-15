@@ -14,8 +14,8 @@ GENERIC_WORDS: frozenset[str] = frozenset(
     {
         # What the company does.
         "advanced", "ai", "artificial", "capital", "global", "group", "intelligence",
-        "international", "partners", "services", "solutions", "systems", "tech",
-        "technologies", "technology", "ventures",
+        "international", "services", "solutions", "systems", "tech", "technologies",
+        "technology",
         # How it's incorporated.
         "ab", "ag", "as", "bv", "co", "company", "corp", "corporation", "fze", "fzco",
         "gmbh", "holding", "holdings", "inc", "kg", "kgaa", "limited", "llc", "llp", "lp",
@@ -27,6 +27,9 @@ GENERIC_WORDS: frozenset[str] = frozenset(
 
 # Trigram overlap (as in Postgres `pg_trgm`) the distinctive words must reach.
 MIN_SIMILARITY = 0.5
+# A single shared word only settles it alone when it is this long; "Atlas" or
+# "Noor" sit inside too many unrelated company names.
+MIN_SOLE_WORD_LENGTH = 7
 
 
 def _words(name: str) -> list[str]:
@@ -56,7 +59,10 @@ def names_similar(lead_name: str, org_name: str) -> bool:
         # Nothing distinctive on one side: compare the full names instead.
         return _similarity(all_a, all_b) >= MIN_SIMILARITY
     set_a, set_b = set(key_a), set(key_b)
-    # "Acme" vs "Acme Trading": one name's distinctive words contained in the other's.
-    if set_a <= set_b or set_b <= set_a:
+    # "Savvytec" vs "Savvytec Trading": one name's distinctive words sit inside the other's.
+    smaller = set_a if len(set_a) <= len(set_b) else set_b
+    if (set_a <= set_b or set_b <= set_a) and (
+        len(smaller) > 1 or len(next(iter(smaller))) >= MIN_SOLE_WORD_LENGTH
+    ):
         return True
     return _similarity(key_a, key_b) >= MIN_SIMILARITY

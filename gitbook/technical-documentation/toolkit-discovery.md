@@ -74,12 +74,19 @@ new leads or runs out.
 
 **How names are compared.** A loose database search finds organizations with
 similar names. A second check then ignores generic words, such as
-"Intelligence", "Capital", "Solutions", "GmbH", "KG", and "Ltd". The distinctive
-words that remain must pass one of two tests. Either they all appear in the
-other name, or the names reach a trigram similarity of 0.5. "Acme Co" still
-matches "Acme Trading". Two unrelated companies that only share a word like
-"Intelligence" don't. A name with no distinctive words is compared in full. The word list is `GENERIC_WORDS` in
-`discovery/domain/names.py`.
+"Intelligence", "Capital", "Solutions", "GmbH", "KG", and "Ltd".
+
+The distinctive words that remain must pass one of two tests. Either they all
+appear in the other name, or the names reach a trigram similarity of 0.5.
+
+- One short word isn't enough on its own. "Noor" doesn't match "Noor
+  Trading", but "Savvytec" matches "Savvytec Trading".
+- Words that name a business line, such as "Ventures" or "Partners", still
+  tell firms apart.
+- Two companies that only share a word like "Intelligence" don't match.
+- A name with no distinctive words is compared in full.
+
+The word list is `GENERIC_WORDS` in `discovery/domain/names.py`.
 
 ### 4. Basic enrichment
 

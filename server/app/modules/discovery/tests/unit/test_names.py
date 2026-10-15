@@ -10,6 +10,11 @@ from app.modules.discovery.domain.names import names_similar
         ("AITS - Advanced Artificial Intelligence", "FLOW Intelligence"),
         ("Gulf Capital Group", "Atlas Capital Group"),
         ("savvytec GmbH & Co. KG", "NXI GmbH & Co. KG"),
+        # Investor words name a business line, so they still tell firms apart.
+        ("Atlas Capital", "Atlas Ventures"),
+        # One short word alone isn't enough to call two companies the same.
+        ("Noor", "Noor Trading"),
+        ("Acme Co", "Acme Trading"),
         ("Heilberg Solutions GmbH", "ComfNet Solutions GmbH"),
     ],
 )
@@ -20,7 +25,8 @@ def test_a_shared_generic_word_is_not_a_match(lead: str, org: str) -> None:
 @pytest.mark.parametrize(
     ("lead", "org"),
     [
-        ("Acme Co", "Acme Trading"),
+        ("Savvytec Co", "Savvytec Trading"),
+        ("Acme Co", "Acme Holdings"),
         ("Blu Horizon Capital", "Blue Horizon Capital Group"),
         ("FLOW Intelligence", "Flow Intelligence Ltd"),
         ("NXI GmbH & Co. KG", "NXI GmbH"),

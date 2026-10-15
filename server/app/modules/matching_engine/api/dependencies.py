@@ -344,6 +344,16 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
             text=f"Found {len(discovered)} new seller(s)",
             blocks=build_discovered_candidates_blocks(discovered, notes=notes),
         )
+    elif outcome.created:
+        # Written to the CRM, just not attached to this run, so "none created" would mislead.
+        await notifier.update_message(
+            channel=channel_id,
+            ts=placeholder_ts,
+            text=(
+                f"Created {len(outcome.created)} seller(s) in the CRM but couldn't add them "
+                f"to this run. Find them in the CRM. {' '.join(notes)}"
+            ).strip(),
+        )
     else:
         detail = " ".join(notes) or "No new potential sellers found."
         await notifier.update_message(

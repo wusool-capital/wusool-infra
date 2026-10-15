@@ -87,12 +87,12 @@ async def test_domain_match_checks_bare_and_www_variants(monkeypatch, lookups) -
 
 
 async def test_name_only_hit_is_fuzzy(monkeypatch, lookups) -> None:
-    monkeypatch.setattr(module, "search_organizations", _returning([_org(name="Acme Trading")]))
+    monkeypatch.setattr(module, "search_organizations", _returning([_org(name="Acme Holdings")]))
 
     match = await module.DdlCommandsSellerWriterAdapter().find_existing(LEAD)
 
     assert match.kind is CrmMatchKind.FUZZY_NAME
-    assert match.org_name == "Acme Trading"
+    assert match.org_name == "Acme Holdings"
 
 
 async def test_name_hit_sharing_only_a_generic_word_is_not_a_match(monkeypatch, lookups) -> None:

@@ -397,3 +397,31 @@ async def test_a_partly_saved_lead_says_what_landed(monkeypatch, harness) -> Non
 
     rendered = str([b.to_dict() for b in harness.notifier.updates[-1]["blocks"]])
     assert "Half Co (partly saved: organization created in Attio)" in rendered
+
+
+async def test_trigger_says_sellers_were_created_when_the_run_view_is_missing(
+    monkeypatch, harness
+) -> None:
+    harness.service.get_match_run_view = AsyncMock(return_value=None)
+    outcome = DiscoveryOutcome(
+        status="ok",
+        created=(
+            CreatedSeller(
+                seller_role_id=harness.seller_role_id,
+                org_attio_id="attio-acme",
+                org_name="Acme Co",
+                source_url="https://maps.example/acme",
+            ),
+        ),
+        possible_duplicates=1,
+    )
+    monkeypatch.setattr(
+        discovery_module, "discover_and_create_sellers", AsyncMock(return_value=outcome)
+    )
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    text = harness.notifier.updates[-1]["text"]
+    assert "Created 1 seller(s) in the CRM" in text
+    assert "1 skipped as possible duplicates" in text
+    assert "No new sellers created" not in text
