@@ -41,3 +41,5 @@ class DiscrepancyGateMetadata(BaseModel):
     channel_id: str
     requested_by: str
     advisor_context: str | None = None
+    # Criteria the check found empty; "Edit buyer" opens just their fields.
+    missing_criteria: tuple[str, ...] = ()

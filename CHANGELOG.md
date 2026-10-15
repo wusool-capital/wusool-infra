@@ -16,8 +16,8 @@ for current production evidence and open handover items.
   same way `/edit-buyer` does. The vertical step has an optional "Anything
   specific about this search?" box that steers the research.
 - When `/find-match` finds missing buyer details, its "Before we match" popup
-  shows an **Edit buyer** button. It opens the `/edit-buyer` field picker, so
-  you can fill the details in without leaving Slack.
+  shows an **Edit buyer** button. It opens the edit form with only the empty
+  fields, so you can fill them in without leaving Slack.
 - Links in bot messages no longer expand into large previews, so cards
   stay short.
 - After a **Review & Save** from `/enrich-seller` or `/enrich-buyer` is saved,
