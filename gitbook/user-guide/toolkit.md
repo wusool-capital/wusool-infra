@@ -37,7 +37,8 @@ How your note is read:
   "check size", "investment", or "deal size".
 - Open-ended amounts such as "at least $2M" conflict only when they can't
   overlap the buyer's range.
-- Exclusions such as "no pharma" aren't checked.
+- This check doesn't flag exclusions such as "no pharma". The match itself
+  does apply them.
 - Geography uses the buyer's target regions and target countries together.
 
 `/find-match` runs the same check before every match.
@@ -63,6 +64,30 @@ buyer's stored details. Name the business you want and put the modifier first.
 ticket sizes ("ticket 5 to 10M") and exclusions ("not crypto") work too. If no
 CRM seller fits, the bot says so and searches Google Maps instead of showing
 sellers with no sector data.
+
+### What your note can control
+
+| You can set | Example | Effect |
+|---|---|---|
+| Business type | "AI asset managers" | Required sector. Modifiers such as AI only rank higher. |
+| Places | "Saudi Arabia only", "UAE and Egypt" | Required geography. |
+| Exclusions | "not crypto", "avoid real estate" | Removes sellers in that sector. |
+| Revenue or EBITDA floor | "revenue above 5M" | Removes sellers below it. Sellers with no figure stay. |
+| Ticket size | "ticket 5 to 10M" | Lowers the score of sellers outside the range. |
+| Enterprise value cap | "EV below 50M" | Removes sellers above it. |
+| Seller status | "Tier 1 sellers only" | Matches the seller's outreach tier, appetite signal or relationship status. |
+
+Qualities such as founder background, runway or profitability appear in the
+written explanation only. They don't change which sellers are shown or their
+order.
+
+The note can't change these:
+
+- The shortlist is always three sellers.
+- Google Maps search starts when no seller scores 50 or more.
+- Each search adds up to five new sellers.
+- Each buyer gets at most ten searches a day.
+- Sellers already rejected for this buyer and vertical stay out.
 
 **Approve Match** creates a Qualified Buy-side deal in Attio for that buyer
 and seller. If an Inbound deal already exists for the pair, the bot asks

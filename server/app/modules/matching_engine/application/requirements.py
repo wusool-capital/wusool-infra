@@ -18,6 +18,7 @@ boundary.
 import logging
 import re
 
+from app.modules.discovery.domain.geography import TARGET_REGION_OPTIONS
 from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
 from app.modules.matching_engine.application.errors import RequirementExtractionError
 from app.modules.matching_engine.application.ports.llm import (
@@ -27,9 +28,11 @@ from app.modules.matching_engine.application.ports.llm import (
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.overrides import apply_advisor_overrides
 from app.modules.matching_engine.domain.matching.scoring import (
+    canonical_criterion,
     describe_criteria,
     is_sector_criterion,
 )
+from app.modules.matching_engine.domain.matching.seller_options import SELLER_SELECT_OPTIONS
 from app.modules.matching_engine.domain.meetings import render_meeting_notes_section
 from app.modules.matching_engine.domain.requirements import (
     AdvisorLimits,
@@ -54,16 +57,58 @@ _RELATIONAL = re.compile(r"\b(for|serving|serve|helps?|helping|that|which|to)\b"
 _MODIFIER_SOFT_WEIGHT = 0.8
 
 
+_SELLER_OPTIONS_BY_LOWER: dict[str, dict[str, str]] = {
+    name: {o.lower(): o for o in options} for name, options in SELLER_SELECT_OPTIONS.items()
+}
+# Words the model might use for the AI / ML sector that don't share its tokens.
+_SELLER_VALUES = "; ".join(
+    f"{name}: {' | '.join(options)}" for name, options in SELLER_SELECT_OPTIONS.items()
+)
+_AI_ALIASES = ("artificial intelligence", "machine learning", "genai", "llm")
+
+
 def _checked_value(item: JsonObject) -> str | None:
-    """CRM-sourced rows pass through; advisor/LLM sectors must be CRM options."""
+    """Sectors from advisor/LLM and seller-field values must be real CRM options."""
     value = item["value"]
-    if value is None or item["source"] == "crm_field" or not is_sector_criterion(item["criterion"]):
+    if value is None:
+        return value
+    seller_options = _SELLER_OPTIONS_BY_LOWER.get(canonical_criterion(item["criterion"]) or "")
+    if seller_options is not None:
+        return seller_options.get(value.strip().lower())
+    if item["source"] == "crm_field" or not is_sector_criterion(item["criterion"]):
         return value
     return _SECTOR_BY_LOWER.get(value.strip().lower())
 
 
 def _is_dropped(item: JsonObject) -> bool:
     return item["value"] is not None and _checked_value(item) is None
+
+
+def _tokens(value: str) -> list[str]:
+    return [t for t in re.split(r"[^a-z0-9]+", value.lower()) if len(t) >= 2 and t != "and"]
+
+
+def _is_grounded(value: str, advisor_context: str) -> bool:
+    """Whether the advisor's words mention this sector; non-English text can't be judged."""
+    if not advisor_context.isascii():
+        return True
+    text = advisor_context.lower()
+    if value.lower() == "ai / ml" and any(alias in text for alias in _AI_ALIASES):
+        return True
+    return any(
+        re.search(rf"\b{re.escape(t[:5])}" + (r"\b" if len(t) < 4 else ""), text)
+        for t in _tokens(value)
+    )
+
+
+def _without_places(phrase: str | None, places: list[str]) -> str | None:
+    """Discovery appends the geography itself, so places in the phrase would repeat it."""
+    if not phrase:
+        return None
+    for place in sorted({*places, *TARGET_REGION_OPTIONS}, key=len, reverse=True):
+        phrase = re.sub(rf"\b{re.escape(place)}\b", " ", phrase, flags=re.IGNORECASE)
+    phrase = re.sub(r"(\b(in|across|within|of|and|or)\b|[,&])\s*$", "", " ".join(phrase.split()))
+    return phrase.strip(" ,&") or None
 
 
 def _demote_modifier_sectors(
@@ -142,8 +187,15 @@ class BuyerRequirementExtractionService:
                 "validation after one repair attempt"
             ) from exc
 
+        stored = frozenset(
+            s.lower() for s in [*buyer.org_sector_focus, buyer.target_vertical or ""] if s
+        )
         return self._to_domain(
-            extracted, next_version, self._model_id, advisor_context=advisor_context
+            extracted,
+            next_version,
+            self._model_id,
+            advisor_context=advisor_context,
+            stored_sectors=stored,
         )
 
     def _build_prompt(self, buyer: BuyerContext, advisor_context: str | None) -> str:
@@ -308,6 +360,12 @@ class BuyerRequirementExtractionService:
             "'Enterprise Software' + 'SaaS / Cloud'. If nothing is close, emit "
             "the hard row with the advisor's own words as value (it is checked afterwards). "
             "The advisor's words may be in any language.\n"
+            "Never copy `target_vertical` or the organization's sector interests into "
+            "soft_preferences unless the advisor's own words name that sector.\n"
+            "Qualities such as founders, runway, profitability or growth are never "
+            "`outreach_tier`, `appetite_signal` or `relationship_status` rows; fold them into "
+            "`strategic_thesis`. Those three criteria take only these exact values: "
+            f"{_SELLER_VALUES}\n"
             "7. Geography: when the advisor names places, emit only those as hard `geography` "
             "(source advisor_context) and none of the CRM target_region/target_country. Use "
             "full country names ('Saudi Arabia', 'United Arab Emirates') or region names "
@@ -355,7 +413,12 @@ class BuyerRequirementExtractionService:
 
     @staticmethod
     def _to_domain(
-        extracted: JsonObject, version: int, model_id: str, *, advisor_context: str | None
+        extracted: JsonObject,
+        version: int,
+        model_id: str,
+        *,
+        advisor_context: str | None,
+        stored_sectors: frozenset[str] = frozenset(),
     ) -> RequirementProfile:
         has_advisor_context = bool(advisor_context)
 
@@ -378,7 +441,23 @@ class BuyerRequirementExtractionService:
             and source_of(i) == "advisor_context"
             for i in raw_items
         )
-        search_phrase = extracted.get("search_phrase") if named_business_type else None
+        places = [
+            h["value"]
+            for h in extracted["hard_requirements"]
+            if canonical_criterion(h["criterion"]) == "geography" and h["value"]
+        ]
+        # Words of a stored sector the advisor never mentioned leak into the phrase too.
+        stray = [
+            t
+            for v in stored_sectors
+            if not _is_grounded(v, advisor_context or "")
+            for t in _tokens(v)
+        ]
+        search_phrase = (
+            _without_places(extracted.get("search_phrase"), [*places, *stray])
+            if named_business_type
+            else None
+        )
 
         hard, soft = _demote_modifier_sectors(
             [
@@ -402,6 +481,12 @@ class BuyerRequirementExtractionService:
                 )
                 for s in extracted["soft_preferences"]
                 if not _is_dropped(s)
+                # The model copies the stored vertical into soft rows the advisor never named.
+                and not (
+                    is_sector_criterion(s["criterion"])
+                    and (s["value"] or "").lower() in stored_sectors
+                    and not _is_grounded(s["value"], advisor_context or "")
+                )
             ],
             search_phrase or advisor_context,
         )

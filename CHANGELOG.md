@@ -18,7 +18,8 @@ for current production evidence and open handover items.
   result says so and starts a Google Maps search for the real request.
 - The **Anything specific about this search?** text now outranks the stored buyer
   sector and geography. The buyer organization's own sector interests no longer
-  count as requirements.
+  count as requirements. Words such as "regional founders" no longer count
+  against sellers, and the Google Maps search no longer repeats the region.
 - The `wusool-content` skill now talks to staff in plain words: no field
   names or jargon, problems first, and check details kept in `checks.md`.
   It still gives full answers when the content needs them.
