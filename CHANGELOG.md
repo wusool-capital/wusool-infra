@@ -15,6 +15,9 @@ for current production evidence and open handover items.
 - `/enrich-buyer` now asks for the organization first, then the vertical, the
   same way `/edit-buyer` does. The vertical step has an optional "Anything
   specific about this search?" box that steers the research.
+- When `/find-match` finds missing buyer details, its "Before we match" popup
+  shows an **Edit buyer** button. It opens the `/edit-buyer` field picker, so
+  you can fill the details in without leaving Slack.
 - After a **Review & Save** from `/enrich-seller` or `/enrich-buyer` is saved,
   the proposal's button becomes "✅ ADDED by" the person who saved it, like a
   website-check card.

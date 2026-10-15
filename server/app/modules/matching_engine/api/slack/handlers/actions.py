@@ -305,7 +305,9 @@ def register(app: AsyncApp) -> None:
 
 
 _CHECKING_TEXT = ":hourglass_flowing_sand: _Checking the buyer's profile…_"
-_FIX_FIRST_TEXT = "Fill in the missing fields first for a more accurate match, or click Run anyway."
+_FIX_FIRST_TEXT = (
+    "Fill in the missing fields first (Edit buyer) for a more accurate match, or click Run anyway."
+)
 _BUYER_GONE_TEXT = "This buyer could not be found. It may have been removed."
 _CHECK_FAILED_TEXT = (
     ":warning: Couldn't check this buyer's profile, so missing or conflicting "
@@ -321,6 +323,7 @@ async def _show_discrepancies(
     """Fills the popup with the check result. Never runs the match — only
     "Run anyway" does."""
     started = time.monotonic()
+    offer_edit = False
     try:
         result = await find_buyer_discrepancies(gate.buyer_role_id, gate.advisor_context)
     except Exception:
@@ -331,13 +334,16 @@ async def _show_discrepancies(
             text = _BUYER_GONE_TEXT
         elif result.report.has_missing:
             text = f"{result.message}\n\n{_FIX_FIRST_TEXT}"
+            offer_edit = True
         else:
             text = result.message
 
     # A fast check could otherwise land before the ack's "Checking…" view and be overwritten.
     await asyncio.sleep(max(0.0, _MIN_UPDATE_DELAY_S - (time.monotonic() - started)))
     try:
-        await client.views_update(view_id=view_id, view=build_discrepancy_gate_modal(gate, text))
+        await client.views_update(
+            view_id=view_id, view=build_discrepancy_gate_modal(gate, text, offer_edit=offer_edit)
+        )
     except SlackApiError as exc:
         if exc.response.get("error") == "not_found":
             # Closed, or already submitted via "Run anyway" — nothing left to show.

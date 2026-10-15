@@ -160,3 +160,13 @@ async def test_find_buyer_discrepancies_returns_none_for_a_missing_buyer(monkeyp
     monkeypatch.setattr(dependencies, "resolve_buyer_by_id", AsyncMock(return_value=None))
 
     assert await dependencies.find_buyer_discrepancies("buyer-1", None) is None
+
+
+def test_gate_modal_offers_edit_buyer_only_when_asked() -> None:
+    plain = build_discrepancy_gate_modal(_GATE, _MISSING.message).to_dict()
+    offered = build_discrepancy_gate_modal(_GATE, _MISSING.message, offer_edit=True).to_dict()
+
+    assert all(b["type"] != "actions" for b in plain["blocks"])
+    button = offered["blocks"][-1]["elements"][0]
+    assert button["action_id"] == "edit_buyer_from_gate"
+    assert button["value"] == "buyer-1"
