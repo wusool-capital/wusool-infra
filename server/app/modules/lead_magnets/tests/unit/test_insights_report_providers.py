@@ -431,6 +431,17 @@ async def test_source_downloads_the_html_file_when_nothing_is_pasted(monkeypatch
     assert hosts == ["p.api.sanity.io", "cdn.sanity.io"]
 
 
+async def test_whitespace_left_in_the_paste_box_still_uses_the_file(monkeypatch) -> None:
+    hosts, handler = _file_handler(
+        httpx.Response(200, content=b"<p>from file</p>"), html="\n ", htmlFileUrl=_FILE_URL
+    )
+    _use_transport(monkeypatch, handler)
+
+    source = await SanityReportSource(project_id="p", dataset="production").source("r")
+
+    assert source is not None and source.html == "<p>from file</p>"
+
+
 async def test_source_prefers_pasted_html_over_the_file(monkeypatch) -> None:
     hosts, handler = _file_handler(httpx.Response(500), html="<p>pasted</p>", htmlFileUrl=_FILE_URL)
     _use_transport(monkeypatch, handler)

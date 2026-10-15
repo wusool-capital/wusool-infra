@@ -192,7 +192,7 @@ class SanityReportSource:
         if doc.body_format == "rich":
             share = (100 - doc.locked_percent) / 100
             html = rich_report(doc.title, doc.body or [], share=share)
-        elif doc.html or not doc.html_file_url:
+        elif (doc.html and doc.html.strip()) or not doc.html_file_url:
             html = doc.html
         else:
             html = await self._download(doc.html_file_url)
