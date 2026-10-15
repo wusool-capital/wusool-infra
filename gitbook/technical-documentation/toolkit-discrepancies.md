@@ -13,6 +13,20 @@ It answers two questions:
 AI only reads the note. Every decision is made by deterministic rules, and
 the message is written from a fixed template.
 
+## What it doesn't check
+
+The [match](toolkit-matching.md#what-the-advisors-note-controls) applies more
+of the note than this check compares. These are never flagged as conflicts:
+
+- **EV ceiling.** The buyer profile stores one, but the check doesn't read it.
+- **Revenue floor.** The buyer profile has no field to compare it with.
+- **Exclusions** such as "not crypto".
+- **Seller status** such as "Tier 1 only" or "positive response".
+- **Modifiers** such as "AI" in "AI asset managers". Only the sector counts.
+
+A note that sets one of these still takes effect in the match. The popup's
+"Read your note as" list doesn't show it.
+
 ## Where it runs
 
 - **`/check-buyer <buyer>`:** the advisor confirms the buyer and can add a
