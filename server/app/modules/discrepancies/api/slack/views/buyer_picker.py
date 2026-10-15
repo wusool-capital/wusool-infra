@@ -46,7 +46,7 @@ def build_buyer_picker_modal(candidates: list[BuyerCriteria], *, channel_id: str
             ),
             InputBlock(
                 block_id="advisor_context",
-                label="Anything specific about this search? (optional)",
+                label="Anything specific about this search?",
                 optional=True,
                 element=PlainTextInputElement(
                     action_id="context_text",
