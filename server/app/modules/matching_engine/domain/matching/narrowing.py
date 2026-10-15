@@ -34,7 +34,8 @@ def _is_region(value: str) -> bool:
 
 @dataclass(frozen=True)
 class CandidateNarrowing:
-    vertical: str | None = None
+    # Lower-cased alternatives; a seller matching any one stays. Empty means unnarrowed.
+    verticals: frozenset[str] = frozenset()
     # Lower-cased. Both empty means geography is not narrowed at all.
     regions: frozenset[str] = frozenset()
     countries: frozenset[str] = frozenset()
@@ -51,10 +52,10 @@ class CandidateNarrowing:
         """Uses the buyer role's CRM fields, except a dimension the advisor
         restated in their own context — that value replaces the stored one."""
         stated = advisor_stated_values(profile) if profile else {}
-        vertical = buyer.target_vertical
+        verticals = [buyer.target_vertical] if buyer.target_vertical else []
         target_regions, target_countries = buyer.target_region, buyer.target_country
         if "sector" in stated:
-            vertical = stated["sector"][0]
+            verticals = list(stated["sector"])
         if "geography" in stated:
             target_regions = [v for v in stated["geography"] if _is_region(v)]
             target_countries = [v for v in stated["geography"] if not _is_region(v)]
@@ -65,7 +66,7 @@ class CandidateNarrowing:
 
         regions, countries = _accepted_geography(target_regions, target_countries)
         return cls(
-            vertical=vertical.strip().lower() if vertical else None,
+            verticals=frozenset(v.strip().lower() for v in verticals if v.strip()),
             regions=regions,
             countries=countries,
             ev_ceiling=ev_ceiling,

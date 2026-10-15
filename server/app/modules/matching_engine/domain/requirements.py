@@ -51,3 +51,5 @@ class RequirementProfile:
     generated_by_model: str
     version: int
     advisor_limits: AdvisorLimits = field(default_factory=AdvisorLimits)
+    # Full advisor phrase (modifiers kept) so discovery searches the real intent.
+    search_phrase: str | None = None

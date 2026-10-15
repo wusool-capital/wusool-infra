@@ -33,7 +33,10 @@ from app.modules.matching_engine.domain.matching.entities import (
     MatchAnalysisData,
 )
 from app.modules.matching_engine.domain.matching.overrides import unlabelled_amount_note
-from app.modules.matching_engine.domain.matching.scoring import select_top_n
+from app.modules.matching_engine.domain.matching.scoring import (
+    has_core_sector_evidence,
+    select_top_n,
+)
 from app.modules.matching_engine.domain.matching.ticket import TicketBand
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 
@@ -172,7 +175,9 @@ class MatchingMixin(ServiceBase):
             )
             for candidate in batch.passed
         ]
-        top_scores = select_top_n([s for _, s in scored], self._top_n)
+        # Before top-N so sector-less sellers can't take slots from real matches.
+        relevant = [s for _, s in scored if has_core_sector_evidence(profile, s)]
+        top_scores = select_top_n(relevant, self._top_n)
         by_seller_id = {c.seller_role_id: c for c, _ in scored}
         shortlist: list[tuple[SellerCandidate, CandidateScore]] = [
             (by_seller_id[s.seller_role_id], s) for s in top_scores
@@ -200,8 +205,17 @@ class MatchingMixin(ServiceBase):
                 filters_skipped=batch.filters_skipped,
             )
 
-        reasoning = await self._reasoning_service.reason(buyer, profile, shortlist)
-        reasoning_by_id = {c.seller_role_id: c for c in reasoning.candidates}
+        # Nothing relevant: skip the LLM call; the empty run triggers discovery.
+        reasoning_by_id = (
+            {
+                c.seller_role_id: c
+                for c in (
+                    await self._reasoning_service.reason(buyer, profile, shortlist)
+                ).candidates
+            }
+            if shortlist
+            else {}
+        )
 
         execution_duration_ms = int((datetime.now(UTC) - started_at).total_seconds() * 1000)
 

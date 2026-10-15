@@ -12,6 +12,10 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- `/find-match` now ranks on what the advisor typed. The core business ("asset
+  manager") is required and modifiers ("AI") only rank higher. Sellers with no
+  sector data are no longer shown as matches; when no CRM seller fits, the
+  result says so and starts a Google Maps search for the real request.
 - `/enrich-buyer` now asks for the organization first, then the vertical, the
   same way `/edit-buyer` does. The vertical step has an optional "Anything
   specific about this search?" box that steers the research.

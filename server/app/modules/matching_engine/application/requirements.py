@@ -15,8 +15,10 @@ vendor-response schema (`providers/bedrock/schemas.py`) never crosses this
 boundary.
 """
 
+import logging
 import re
 
+from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
 from app.modules.matching_engine.application.errors import RequirementExtractionError
 from app.modules.matching_engine.application.ports.llm import (
     BedrockClient,
@@ -24,7 +26,10 @@ from app.modules.matching_engine.application.ports.llm import (
 )
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.overrides import apply_advisor_overrides
-from app.modules.matching_engine.domain.matching.scoring import describe_criteria
+from app.modules.matching_engine.domain.matching.scoring import (
+    describe_criteria,
+    is_sector_criterion,
+)
 from app.modules.matching_engine.domain.meetings import render_meeting_notes_section
 from app.modules.matching_engine.domain.requirements import (
     AdvisorLimits,
@@ -36,6 +41,23 @@ from app.modules.matching_engine.domain.requirements import (
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.money import parse_usd_amount
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
+
+logger = logging.getLogger(__name__)
+
+_SECTOR_BY_LOWER: dict[str, str] = {s.lower(): str(s) for s in SECTOR_FOCUS_OPTIONS}
+_SECTOR_LIST = "; ".join(sorted(_SECTOR_BY_LOWER.values()))
+
+
+def _canonical_sector(criterion: str, value: str | None) -> str | None:
+    """Sector values must be CRM options: seller sectors are matched by exact
+    string, so a free-text sector could only ever score Fail or Unknown."""
+    if not is_sector_criterion(criterion) or value is None:
+        return value
+    canonical = _SECTOR_BY_LOWER.get(value.strip().lower())
+    if canonical is None:
+        logger.warning("extraction_sector_not_in_vocabulary value=%s", value)
+    return canonical
+
 
 # A limit is only trusted if the advisor's own words name what it measures. A
 # misread "up to 10M" as an EV cap would remove sellers in SQL, so the model's
@@ -181,7 +203,7 @@ class BuyerRequirementExtractionService:
             "human_confirmed}], soft_preferences: [{criterion, value, weight, "
             "source, confidence}], strategic_thesis, ideal_target_description, "
             "scoring_rubric: {criterion: weight}, data_confidence: 0-1, "
-            "advisor_limits: {ticket_min, ticket_max, ev_ceiling}}. "
+            "advisor_limits: {ticket_min, ticket_max, ev_ceiling}, search_phrase}. "
             "`source` must be one of crm_field/advisor_context/llm_extracted/"
             "llm_inferred/unavailable. `confidence` (on each hard_requirement/soft_preference "
             "item) must be exactly one of the strings high/medium/low — never a "
@@ -207,6 +229,21 @@ class BuyerRequirementExtractionService:
             f"{describe_criteria()}\n"
             "Revenue and EBITDA values must be written as `USD <amount>` "
             "(for example `USD 50M`); never emit bare numbers or another currency.\n"
+            "Every `sector` value must be copied exactly from this list of CRM sectors — "
+            "never free text: "
+            f"{_SECTOR_LIST}\n"
+            "Sector rule: the CORE BUSINESS (what the company is — the head noun) is the hard "
+            "`sector`; modifiers (AI, digital, tech-enabled, Sharia-compliant) only rank, so they "
+            "go in soft_preferences `sector` with weight >= 0.7. Emit one hard `sector` per "
+            "alternative when the core business maps to several sectors (they are OR-ed). "
+            "Example: advisor says 'AI asset or wealth managers' -> hard sector 'Asset "
+            "Management' and hard sector 'Family Office / Wealth Management', soft sector "
+            "'AI / ML' weight 0.8. 'X for Y' flips it: 'AI tools for asset managers' -> hard "
+            "sector 'AI / ML', soft sector 'Asset Management'. When the advisor context names "
+            "a sector, do not copy the buyer's own `sector_focus` into soft preferences. "
+            "Also set top-level `search_phrase`: a 2-6 word 'type of business' for a map "
+            "search that keeps the modifiers (e.g. 'AI wealth management'); null if the "
+            "advisor named no business type.\n"
             "If something in the free text below doesn't fit any of these "
             "names, do not invent a new criterion for it — fold it into "
             "`strategic_thesis` or `ideal_target_description` instead, both of "
@@ -253,26 +290,34 @@ class BuyerRequirementExtractionService:
                 return "llm_extracted"
             return item["source"]
 
+        def in_vocabulary(item: JsonObject) -> bool:
+            return (
+                item["value"] is None
+                or _canonical_sector(item["criterion"], item["value"]) is not None
+            )
+
         profile = RequirementProfile(
             hard_requirements=[
                 HardRequirement(
                     criterion=h["criterion"],
-                    value=h["value"],
+                    value=_canonical_sector(h["criterion"], h["value"]),
                     source=source_of(h),
                     confidence=h["confidence"],
                     human_confirmed=h["human_confirmed"] and source_of(h) == h["source"],
                 )
                 for h in extracted["hard_requirements"]
+                if in_vocabulary(h)
             ],
             soft_preferences=[
                 SoftPreference(
                     criterion=s["criterion"],
-                    value=s["value"],
+                    value=_canonical_sector(s["criterion"], s["value"]),
                     weight=s["weight"],
                     source=source_of(s),
                     confidence=s["confidence"],
                 )
                 for s in extracted["soft_preferences"]
+                if in_vocabulary(s)
             ],
             strategic_thesis=extracted["strategic_thesis"],
             ideal_target_description=extracted["ideal_target_description"],
@@ -281,5 +326,6 @@ class BuyerRequirementExtractionService:
             generated_by_model=model_id,
             version=version,
             advisor_limits=_advisor_limits(extracted, advisor_context),
+            search_phrase=extracted.get("search_phrase"),
         )
         return apply_advisor_overrides(profile)

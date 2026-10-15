@@ -95,7 +95,7 @@ def test_advisor_sector_replaces_the_stored_vertical_in_the_narrowing() -> None:
 
     narrowing = CandidateNarrowing.from_buyer(_buyer(target_vertical="Pharma Tech"), profile)
 
-    assert narrowing.vertical == "ai"
+    assert narrowing.verticals == frozenset({"ai"})
 
 
 def test_narrowing_ignores_unconfirmed_advisor_lookalikes() -> None:

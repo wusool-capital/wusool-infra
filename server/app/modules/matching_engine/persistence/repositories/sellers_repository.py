@@ -65,14 +65,14 @@ def _usd_amount(column: SQLColumnExpression[JsonObject | None]) -> ColumnElement
     )
 
 
-def _vertical_predicate(vertical: str) -> ColumnElement[bool]:
+def _vertical_predicate(verticals: frozenset[str]) -> ColumnElement[bool]:
     has_data = or_(
         func.coalesce(func.cardinality(SellerRole.sector), 0) > 0,
         func.coalesce(func.cardinality(Organization.sector_focus), 0) > 0,
     )
     matches = or_(
-        _lower_elements_in(SellerRole.sector, frozenset({vertical})),
-        _lower_elements_in(Organization.sector_focus, frozenset({vertical})),
+        _lower_elements_in(SellerRole.sector, verticals),
+        _lower_elements_in(Organization.sector_focus, verticals),
     )
     return or_(~has_data, matches)
 
@@ -140,8 +140,8 @@ class SellerRepository:
             SellerRole.removed_at.is_(None),
             Organization.removed_at.is_(None),
         ]
-        if narrowing.vertical:
-            conditions.append(_vertical_predicate(narrowing.vertical))
+        if narrowing.verticals:
+            conditions.append(_vertical_predicate(narrowing.verticals))
         if narrowing.narrows_geography:
             conditions.append(_geography_predicate(narrowing))
         if narrowing.ev_ceiling is not None:

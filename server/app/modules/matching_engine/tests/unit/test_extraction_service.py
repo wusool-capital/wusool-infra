@@ -452,3 +452,47 @@ async def test_prompt_tells_the_model_a_bare_amount_sets_no_limit() -> None:
     await service.extract(_buyer(), next_version=1, advisor_context="up to 10M")
 
     assert "sets NO limit" in fake.structured_calls[0]
+
+
+def _sector_item(value: str) -> dict:
+    return {
+        "criterion": "sector",
+        "value": value,
+        "source": "advisor_context",
+        "confidence": "high",
+        "human_confirmed": True,
+    }
+
+
+async def test_sector_values_are_canonicalised_and_off_vocabulary_ones_dropped() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            _sector_item("asset management"),
+            _sector_item("AI-native wealth platform"),
+        ],
+        "search_phrase": "AI wealth management",
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="AI asset managers")
+
+    assert [h.value for h in profile.hard_requirements] == ["Asset Management"]
+    assert profile.search_phrase == "AI wealth management"
+
+
+async def test_prompt_teaches_core_business_vs_modifier_rule() -> None:
+    fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    await service.extract(_buyer(), next_version=1, advisor_context="AI asset managers")
+
+    prompt = fake.structured_calls[0]
+    assert "CORE BUSINESS" in prompt
+    assert "AI tools for asset managers" in prompt
+    assert "Family Office / Wealth Management" in prompt

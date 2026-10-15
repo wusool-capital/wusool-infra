@@ -44,8 +44,8 @@ def test_empty_buyer_narrows_nothing() -> None:
 
 
 def test_vertical_is_lower_cased_and_trimmed() -> None:
-    assert CandidateNarrowing.from_buyer(_buyer(target_vertical=" Pharma Tech ")).vertical == (
-        "pharma tech"
+    assert CandidateNarrowing.from_buyer(_buyer(target_vertical=" Pharma Tech ")).verticals == (
+        frozenset({"pharma tech"})
     )
 
 

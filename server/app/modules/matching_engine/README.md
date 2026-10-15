@@ -120,7 +120,11 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    (Pass=100/Fail=0/Unknown=50 neutral), same evaluator used for filtering
    so they never disagree. `data_confidence` is a separate signal (how much
    of the score rests on real CRM data vs LLM inference), never folded into
-   ranking.
+   ranking. Hard sector values (like geography) are OR-ed alternatives: the
+   advisor's core business is hard, modifiers like "AI" are soft and only rank.
+   Before top-N, a relevance gate drops candidates with no sector `Pass`
+   whenever a hard sector exists; if none remain the run is empty and
+   Google Maps discovery starts, searching the profile's `search_phrase`.
 5. **Reasoning** (Bedrock, one call) — narrative only for the top-N
    shortlist; cannot change scores, cannot invent facts not given to it.
 6. **Persistence** — one atomic transaction: `match_scores` rows, linked
