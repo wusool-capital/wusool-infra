@@ -27,6 +27,9 @@ for current production evidence and open handover items.
   generic word, such as "Intelligence" or "GmbH". A lead with a similar name
   is now skipped and counted. It no longer gets an **Add as seller** button
   or uses up one of the five slots.
+- The "From your note" list now also shows an EV ceiling, revenue,
+  exclusions, seller status, and modifiers, because the match applies them. A
+  note is read even when the buyer has nothing that could conflict.
 - The echo of how a note was read now starts "From your note:". It lists
   each part on its own line, so sectors, countries, and ticket sizes are
   easy to tell apart.

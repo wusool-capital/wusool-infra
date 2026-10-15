@@ -72,3 +72,25 @@ def test_off_list_region_is_dropped_but_countries_survive() -> None:
     extracted = ExtractedContext(region="Gulf states", countries=["Qatar"])
 
     assert extracted.to_domain() == ParsedContext(countries=("Qatar",))
+
+
+def test_new_fields_keep_only_canonical_values_and_positive_amounts() -> None:
+    extracted = ExtractedContext(
+        modifier_verticals=["ai / ml", "made up sector"],
+        excluded_verticals=["Biotech / Longevity", "crypto-ish"],
+        seller_status=["tier 1", "Positive Response", "very keen"],
+        ev_ceiling_usd=50_000_000.0,
+        revenue_low_usd=2_000_000.0,
+    )
+
+    parsed = extracted.to_domain()
+
+    assert parsed.modifier_verticals == ("AI / ML",)
+    assert parsed.excluded_verticals == ("Biotech / Longevity",)
+    assert parsed.seller_status == ("Tier 1", "Positive Response")
+    assert parsed.ev_ceiling == 50_000_000.0
+    assert (parsed.revenue_low, parsed.revenue_high) == (2_000_000.0, None)
+
+
+def test_a_non_positive_ev_ceiling_is_dropped() -> None:
+    assert ExtractedContext(ev_ceiling_usd=0.0).to_domain().ev_ceiling is None

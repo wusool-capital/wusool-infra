@@ -149,9 +149,26 @@ def regions_disjoint(a: str, b: str) -> bool:
     return frozenset((a, b)) in _DISJOINT_REGIONS
 
 
-def region_can_conflict(region: str) -> bool:
-    return any(region in pair for pair in _DISJOINT_REGIONS)
-
+# The seller-status options a note can ask for (outreach tier, relationship status,
+# appetite signal), copied from `matching_engine`'s seller options, which this module
+# can't import. Drift is caught by `server/tests/test_discrepancies_seller_status.py`.
+SELLER_STATUS_OPTIONS: tuple[str, ...] = (
+    "Archive",
+    "Tier 1",
+    "Tier 2",
+    "Tier 3",
+    "Expressed Interest Directly / Inbound Deal",
+    "Listed on Business-for-Sale Platform",
+    "No Signal",
+    "Warm Introduction / Direct Outreach",
+    "Not Contacted",
+    "Outreach Sent",
+    "Positive Response",
+    "Not Now",
+    "No Response",
+    "Referred Out",
+    "Converted to Mandate",
+)
 
 # A generalist mandate covers every sector, so it never conflicts, like Global.
 GENERALIST_VERTICAL: str = SectorFocus.DIVERSIFIED_GENERALIST.value

@@ -13,7 +13,6 @@ from app.modules.discrepancies.domain.criteria import (
     ParsedContext,
 )
 from app.modules.discrepancies.domain.rules import (
-    can_conflict,
     find_conflicts,
     find_missing,
     ground,
@@ -65,38 +64,6 @@ def test_find_conflicts_no_vertical_conflict_when_stored_is_any_candidate() -> N
 def test_generalist_vertical_never_conflicts(stored: str, candidates: tuple[str, ...]) -> None:
     criteria = BuyerCriteria(buyer_role_id="role-9", org_name="Gen Capital", target_vertical=stored)
     assert find_conflicts(criteria, ParsedContext(verticals=candidates)) == ()
-
-
-@pytest.mark.parametrize(
-    ("criteria", "expected"),
-    [
-        (BuyerCriteria(buyer_role_id="r", org_name="Empty", target_vertical=None), False),
-        (
-            BuyerCriteria(
-                buyer_role_id="r",
-                org_name="Open",
-                target_vertical="Diversified / Generalist",
-                target_region=["Global"],
-            ),
-            False,
-        ),
-        (BuyerCriteria(buyer_role_id="r", org_name="V", target_vertical="Garage"), True),
-        (
-            BuyerCriteria(
-                buyer_role_id="r", org_name="R", target_vertical=None, target_region=["GCC"]
-            ),
-            True,
-        ),
-        (
-            BuyerCriteria(buyer_role_id="r", org_name="E", target_vertical=None, ebitda_floor=0.0),
-            True,
-        ),
-    ],
-)
-def test_can_conflict_only_when_a_stored_criterion_could_conflict(
-    criteria: BuyerCriteria, expected: bool
-) -> None:
-    assert can_conflict(criteria) is expected
 
 
 def test_vertical_conflict_names_the_most_likely_candidate() -> None:
@@ -418,10 +385,6 @@ def test_geography_conflict_lists_both_stored_fields() -> None:
     assert conflict.stated == "Germany"
 
 
-def test_country_only_buyer_can_conflict() -> None:
-    assert can_conflict(_geo_buyer([], ["Saudi Arabia"]))
-
-
 @pytest.mark.parametrize(
     ("regions", "countries", "missing"),
     [([], [], True), (["GCC"], [], False), ([], ["Egypt"], False), (["GCC"], ["Egypt"], False)],
@@ -480,3 +443,51 @@ def test_template_message_skips_the_echo_when_nothing_was_read(
     report = DiscrepancyReport(buyer_role_id="role-8")
     message = template_message(_CURSOR, report, context_checked=context_checked, context=context)
     assert "From your note" not in message
+
+
+def test_every_control_the_match_applies_is_listed_in_the_echo() -> None:
+    context = ParsedContext(
+        verticals=("Asset Management",),
+        modifier_verticals=("AI / ML",),
+        excluded_verticals=("Biotech / Longevity",),
+        ev_ceiling=50_000_000.0,
+        revenue_low=2_000_000.0,
+        seller_status=("Tier 1", "Positive Response"),
+    )
+    message = template_message(
+        _CURSOR, DiscrepancyReport(buyer_role_id="role-8"), context_checked=True, context=context
+    )
+    assert message.endswith(
+        "_From your note:_\n"
+        "• _Sector: Asset Management_\n"
+        "• _EV ceiling: up to USD 50,000,000_\n"
+        "• _Revenue: at least USD 2,000,000_\n"
+        "• _Excluding: Biotech / Longevity_\n"
+        "• _Seller status: Tier 1, Positive Response_\n"
+        "• _Ranks higher (not required): AI / ML_"
+    )
+
+
+def test_an_echo_only_field_is_never_an_empty_header() -> None:
+    context = ParsedContext(modifier_verticals=("AI / ML",))
+    message = template_message(
+        _CURSOR, DiscrepancyReport(buyer_role_id="role-8"), context_checked=True, context=context
+    )
+    assert message.endswith("_From your note:_\n• _Ranks higher (not required): AI / ML_")
+
+
+def test_ev_and_revenue_amounts_survive_only_when_the_note_labels_them() -> None:
+    context = ParsedContext(ev_ceiling=50_000_000.0, revenue_low=2_000_000.0)
+
+    assert ground(context, "valuation up to $50M, revenue over $2M") == context
+    unlabelled = ground(context, "up to $50M, over $2M")
+    assert (unlabelled.ev_ceiling, unlabelled.revenue_low) == (None, None)
+
+
+def test_a_modifier_sector_is_not_compared_with_the_stored_sector() -> None:
+    criteria = BuyerCriteria(
+        buyer_role_id="r", org_name="Asset Co", target_vertical="Asset Management"
+    )
+    context = ParsedContext(verticals=("Asset Management",), modifier_verticals=("AI / ML",))
+
+    assert run_checks(criteria, context).conflicts == ()
