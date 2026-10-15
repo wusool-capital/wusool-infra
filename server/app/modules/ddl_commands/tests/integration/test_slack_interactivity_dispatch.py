@@ -721,7 +721,10 @@ def test_gated_field_without_confirmation_requires_checkbox(monkeypatch) -> None
 # --------------------------------------------------------------------------
 
 
-def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_client) -> None:
+@pytest.mark.parametrize("card_token", [None, "card-1"])
+def test_buyer_edit_form_writes_attio_before_postgres(
+    monkeypatch, _mock_slack_web_client, card_token: str | None
+) -> None:
     buyer_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-2", name="Blue Horizon")
     role = _fake_buyer_role(buyer_id, org=org)
@@ -758,6 +761,13 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
         lambda: SimpleNamespace(update_buyer=fake_execute),
     )
 
+    marked: list[tuple[str, str]] = []
+
+    async def fake_mark(card_token: str, added_by: str) -> None:
+        marked.append((card_token, added_by))
+
+    monkeypatch.setattr(actions_module, "mark_review_card_added", fake_mark)
+
     payload = {
         "type": "view_submission",
         "user": {"id": "U_TEST"},
@@ -774,6 +784,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
                     "channel_id": "C_TEST",
                     "selected_org_fields": [],
                     "selected_role_fields": ["model"],
+                    "review_card_token": card_token,
                 }
             ),
             "state": {
@@ -787,6 +798,8 @@ def test_buyer_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_w
     assert response.status_code == 200
     assert len(postgres_use_case.calls) == 1
     assert patched_entries == ["entry-of-this-vertical"]
+    # Only an enrichment review carries a card; a plain edit leaves messages alone.
+    assert marked == ([(card_token, "U_TEST")] if card_token else [])
     text = _mock_slack_web_client.posted[0]["text"]
     assert "*Updated* buyer profile for *Blue Horizon*." in text
     # Every buyer save suggests re-running matching — a copy-pasteable
@@ -1480,3 +1493,51 @@ async def test_buyer_add_lock_is_released_once_no_add_is_waiting(monkeypatch) ->
     gc.collect()
 
     assert len(actions_module._buyer_add_locks) == 0
+
+
+def test_edit_buyer_from_find_match_gate_pushes_before_querying(monkeypatch) -> None:
+    """Stacks the `/edit-buyer` field picker on the "Before we match" popup;
+    the push must come first, since the lookup could outlast the trigger_id."""
+    role_id = str(uuid.uuid4())
+    role = _fake_buyer_role(role_id, org=_fake_org(attio_id="org-attio-9", name="Blue Horizon"))
+    calls: list[str] = []
+    updated: list[dict] = []
+
+    async def fake_resolve(_buyer_role_id: str):
+        calls.append("resolve")
+        return role
+
+    async def fake_views_push(self, **_kwargs):  # noqa: ANN001
+        calls.append("push")
+        return {"view": {"id": "V_PUSHED"}}
+
+    async def fake_views_update(self, **kwargs):  # noqa: ANN001
+        calls.append("update")
+        updated.append(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(actions_module, "resolve_buyer_by_id", fake_resolve)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_push", fake_views_push)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
+
+    payload = {
+        "type": "block_actions",
+        "user": {"id": "U_TEST"},
+        "trigger_id": "T1",
+        "view": {
+            "type": "modal",
+            "id": "V_GATE",
+            "private_metadata": json.dumps(
+                {"buyer_role_id": role_id, "channel_id": "C_TEST", "requested_by": "U_TEST"}
+            ),
+        },
+        "actions": [{"action_id": "edit_buyer_from_gate", "value": role_id}],
+    }
+
+    response = _post_interactivity(payload)
+
+    assert response.status_code == 200
+    assert calls == ["push", "resolve", "update"]
+    view = updated[0]["view"]
+    assert view.callback_id == "buyer_field_picker_modal"
+    assert json.loads(view.private_metadata)["buyer_role_id"] == role_id

@@ -128,3 +128,11 @@ def test_field_line_with_options_lists_every_label() -> None:
     for option in _TARGET_COUNTRY.options:
         assert option in line
     assert "ONLY from these exact labels" in line
+
+
+def test_guidance_is_flattened_and_capped() -> None:
+    from app.modules.enrichment.application.enrich import MAX_GUIDANCE_CHARS, _clean_guidance
+
+    assert _clean_guidance("  focus\non\n\nAUM  ") == "focus on AUM"
+    assert _clean_guidance(None) == ""
+    assert len(_clean_guidance("x" * (MAX_GUIDANCE_CHARS + 50))) == MAX_GUIDANCE_CHARS

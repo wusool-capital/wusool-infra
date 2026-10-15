@@ -34,5 +34,6 @@ class FakeReviewPort(EnrichmentReviewPort):
         values: tuple[ProposedFieldValue, ...],
         channel_id: str,
         requested_by: str,
+        card_token: str | None = None,
     ) -> None:
         self.calls.append((target, values))

@@ -47,6 +47,8 @@ class SlackInteractionBody(TypedDict, total=False):
     # Present only on a `block_actions` interaction fired from a channel
     # message (a button click) — never on a `view_submission`.
     message: SlackMessage
+    # The modal a `block_actions` click came from (or the submitted one).
+    view: "SlackViewSubmissionPayload"
 
 
 class SlackViewState(TypedDict):

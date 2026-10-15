@@ -31,3 +31,5 @@ class ResolvedOrgRole:
     org_name: str
     role_id: str
     kind: str  # "seller" | "buyer"
+    # Buyers hold one role per vertical, so the vertical is what tells them apart.
+    target_vertical: str | None = None

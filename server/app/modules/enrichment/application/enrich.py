@@ -118,18 +118,33 @@ def _field_line(field: EnrichableField) -> str:
     )
 
 
+# Enforced here too: the Slack modal's own cap isn't a trust boundary.
+MAX_GUIDANCE_CHARS = 900
+
+
+def _clean_guidance(guidance: str | None) -> str:
+    """Single line, capped — keeps operator text from reshaping the prompt."""
+    return " ".join((guidance or "").split())[:MAX_GUIDANCE_CHARS]
+
+
 def _build_prompt(
     org_name: str,
     missing: list[EnrichableField],
     sources: list[str],
     context: CompanyContext,
+    guidance: str | None = None,
 ) -> str:
     field_lines = "\n".join(_field_line(f) for f in missing)
     source_lines = "\n\n".join(sources) if sources else "(no source material found)"
     known_facts_block = build_known_facts_block(context)
+    cleaned = _clean_guidance(guidance)
+    guidance_block = (
+        f"The operator asked you to pay particular attention to: {cleaned}\n" if cleaned else ""
+    )
     return (
         f"You are researching the company '{org_name}' from public sources only.\n"
         f"{known_facts_block}"
+        f"{guidance_block}"
         "Propose a value for each of the following fields, ONLY when the source "
         "material below actually supports it. Never invent a value. Skip any source "
         "that is clearly about a different company than the one described above. "
@@ -150,7 +165,7 @@ def _repair_prompt(raw: JsonObject, error: str) -> str:
 
 class EnrichMixin(ServiceBase):
     async def propose(
-        self, target: EnrichmentTarget, *, research: bool = True
+        self, target: EnrichmentTarget, *, research: bool = True, guidance: str | None = None
     ) -> EnrichmentProposal:
         """`research=False` is the basic tier: structured providers only, no
         Firecrawl/LLM step."""
@@ -178,7 +193,9 @@ class EnrichMixin(ServiceBase):
             )
 
         proposed.extend(
-            await self._research_and_extract(target, still_missing, current_values, context)
+            await self._research_and_extract(
+                target, still_missing, current_values, context, guidance
+            )
         )
         return EnrichmentProposal(
             target=target, values=tuple(proposed), generated_by_model=self._model_id
@@ -282,6 +299,7 @@ class EnrichMixin(ServiceBase):
         missing: list[EnrichableField],
         current_values: JsonObject,
         context: CompanyContext,
+        guidance: str | None = None,
     ) -> list[ProposedFieldValue]:
         # Only ever called from `propose` after it's already confirmed
         # `self._research_client is not None` — asserted here since that
@@ -293,7 +311,7 @@ class EnrichMixin(ServiceBase):
 
         raw = await self._extraction_client.extract_fields(
             model_id=self._model_id,
-            prompt=_build_prompt(target.org_name, missing, sources, context),
+            prompt=_build_prompt(target.org_name, missing, sources, context, guidance),
             repair_prompt_builder=_repair_prompt,
             temperature=self._temperature,
             max_tokens=self._max_tokens,

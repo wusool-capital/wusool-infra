@@ -48,8 +48,9 @@ How your note is read:
 
 1. Run `/find-match <buyer name>`, for example `/find-match Raoof Capital`.
 2. If several buyers have similar names, select the intended record.
-3. In the **Before we match** popup, choose **Run anyway**, or **Cancel** to
-   fix the profile first.
+3. In the **Before we match** popup, choose **Run anyway**. If details are
+   missing, press **Edit buyer** to fill them in without leaving Slack, or
+   **Cancel** to stop.
 4. Use **View Full Analysis** to inspect a seller's reasoning, then choose
    **Approve Match** or **Reject Match**.
 
@@ -132,11 +133,14 @@ a role in Attio.
 ![Research missing details flowchart](../.gitbook/assets/toolkit-enrich.svg)
 
 1. Run `/enrich-seller <name>` or `/enrich-buyer <name>` and select the
-   intended record if asked.
+   intended record if asked. For a buyer, pick the organization, then the
+   vertical. You can add a note under **Anything specific about this
+   search?** to steer the research.
 2. The bot researches public company sources and lists proposed values with
    confidence levels.
 3. Press **Review & Save**, correct or clear anything you don't want, and
-   submit the normal edit form.
+   submit the normal edit form. Once saved, the button changes to
+   "✅ ADDED by" with your name.
 
 **Expected result:** only reviewed values are saved. Fields that already
 have a value are never overwritten.

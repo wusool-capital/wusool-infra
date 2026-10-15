@@ -144,6 +144,7 @@ async def resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
                         org_name=org.name,
                         role_id=str(role.id),
                         kind="buyer",
+                        target_vertical=role.target_vertical,
                     )
                 )
     return resolved
@@ -166,7 +167,9 @@ async def resolve_target(*, kind: str, role_id: uuid.UUID) -> EnrichmentTarget |
     return await reader.resolve_target(kind=EnrichmentTargetKind(kind), role_id=role_id)
 
 
-async def propose_and_post(target: EnrichmentTarget, *, channel_id: str) -> None:
+async def propose_and_post(
+    target: EnrichmentTarget, *, channel_id: str, guidance: str | None = None
+) -> None:
     """Background-task body — research + LLM extraction routinely runs
     past Slack's 3s ack budget, so this posts a placeholder immediately and
     updates it once the proposal is ready, the same pattern
@@ -179,7 +182,7 @@ async def propose_and_post(target: EnrichmentTarget, *, channel_id: str) -> None
         channel=channel_id, text=f"🔎 *_Researching {target.org_name}…_*"
     )
     try:
-        proposal = await enrichment_service().propose(target)
+        proposal = await enrichment_service().propose(target, guidance=guidance)
         await notifier.update_message(
             channel=channel_id,
             ts=placeholder_ts,

@@ -95,9 +95,25 @@ from app.modules.ddl_commands.providers.attio.write_payload import (
     build_postgres_values,
 )
 from app.modules.discovery import mark_review_card_added
-from app.modules.notifications import SlackInteractionBody, SlackViewSubmissionPayload
+from app.modules.notifications import (
+    SlackInteractionBody,
+    SlackViewSubmissionPayload,
+    build_loading_modal,
+    build_notice_modal,
+)
 
 logger = logging.getLogger(__name__)
+
+
+async def _mark_enrichment_card(metadata: dict[str, str | None], requested_by: str) -> None:
+    """A no-op for plain edits, which carry no card."""
+    if not (card_token := metadata.get("review_card_token")):
+        return
+    # The edit is already saved; a stale card must not read as a failed save.
+    try:
+        await mark_review_card_added(card_token, requested_by)
+    except Exception:
+        logger.exception("review_card_update_failed")
 
 
 def register(app: AsyncApp) -> None:
@@ -236,6 +252,42 @@ def register(app: AsyncApp) -> None:
                 prefill_name=metadata.org_name,
                 duplicate_candidates=decode_duplicates(metadata.duplicates_token),
                 target_vertical=choice.value,
+            ),
+        )
+
+    @app.action("edit_buyer_from_gate")
+    async def handle_edit_buyer_from_gate(
+        ack: AsyncAck, body: SlackInteractionBody, client: AsyncWebClient
+    ) -> None:
+        """ "Edit buyer" on `/find-match`'s "Before we match" popup: stacks the
+        `/edit-buyer` field picker on top of it, so the operator can fill the
+        missing fields without leaving Slack."""
+        await ack()
+        gate = json.loads(body["view"].get("private_metadata") or "{}")
+        channel_id = gate.get("channel_id")
+        user_id = body["user"]["id"]
+        # Push a placeholder before any query: the trigger_id is spent on it,
+        # and the lookup below can then take as long as it needs.
+        pushed = await client.views_push(
+            trigger_id=body["trigger_id"], view=build_loading_modal("Edit buyer")
+        )
+        view_id = str(pushed["view"]["id"])
+        role = await resolve_buyer_by_id(body["actions"][0].get("value", ""))
+        if role is None or not channel_id:
+            await client.views_update(
+                view_id=view_id,
+                view=build_notice_modal("Edit buyer", "This *buyer* could not be found."),
+            )
+            return
+        await client.views_update(
+            view_id=view_id,
+            view=build_field_picker_modal(
+                kind="buyer",
+                role_id=str(role.id),
+                org_name=role.organization.name,
+                requested_by=user_id,
+                channel_id=channel_id,
+                role_fields=BUYER_FORM_FIELDS,
             ),
         )
 
@@ -406,6 +458,7 @@ def register(app: AsyncApp) -> None:
             user=requested_by,
             text=f"*Updated* seller profile for *{org_name}*.",
         )
+        await _mark_enrichment_card(metadata, requested_by)
 
     @app.view("buyer_edit_form_modal")
     async def handle_buyer_edit_form_submission(
@@ -499,6 +552,7 @@ def register(app: AsyncApp) -> None:
                 f"Run `/find-match {org_name}` to see matches."
             ),
         )
+        await _mark_enrichment_card(metadata, requested_by)
 
     @app.view("organization_selection_modal")
     async def handle_organization_selection_submission(

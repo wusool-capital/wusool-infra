@@ -21,4 +21,5 @@ class EnrichmentReviewPort(Protocol):
         values: tuple[ProposedFieldValue, ...],
         channel_id: str,
         requested_by: str,
+        card_token: str | None = None,
     ) -> None: ...

@@ -30,6 +30,7 @@ def build_buyer_edit_form_modal(
     requested_by: str,
     channel_id: str,
     prefill: dict[str, PrefillValue] | None = None,
+    review_card_token: str | None = None,
 ) -> View:
     prefill = prefill or {}
     blocks: list[Block] = []
@@ -67,6 +68,7 @@ def build_buyer_edit_form_modal(
                 "channel_id": channel_id,
                 "selected_org_fields": selected_org_fields,
                 "selected_role_fields": selected_role_fields,
+                "review_card_token": review_card_token,
             }
         ),
         title="Edit buyer",
