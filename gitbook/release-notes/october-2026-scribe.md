@@ -1,6 +1,6 @@
 # October 2026: WusoolScribe
 
-Delivery period: 15 September – 14 October 2026. WusoolScribe went from
+Delivery period: 15 September – 15 October 2026. WusoolScribe went from
 version 0.4.9 to 0.7.7. Every version is listed in the
 [Scribe changelog](scribe-changelog.md).
 

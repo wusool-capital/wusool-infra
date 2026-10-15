@@ -1,6 +1,6 @@
 # October 2026: Platform, data, and documentation
 
-Delivery period: 15 September – 14 October 2026.
+Delivery period: 15 September – 15 October 2026.
 
 ## CRM data and sync
 
