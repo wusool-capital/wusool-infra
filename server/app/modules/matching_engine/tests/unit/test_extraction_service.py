@@ -588,3 +588,92 @@ async def test_crm_sourced_sector_outside_the_vocabulary_is_kept() -> None:
     profile = await service.extract(_buyer(), next_version=1)
 
     assert [h.value for h in profile.hard_requirements] == ["Legacy Vertical"]
+
+
+def _soft_sector(value: str) -> dict:
+    return {
+        "criterion": "sector",
+        "value": value,
+        "weight": 0.8,
+        "source": "advisor_context",
+        "confidence": "high",
+    }
+
+
+async def _extract_soft(soft: list[dict], context: str, **buyer_fields: object) -> list[str]:
+    response = {**VALID_RESPONSE, "soft_preferences": soft}
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+    buyer = replace(_buyer(), **buyer_fields)
+    profile = await service.extract(buyer, next_version=1, advisor_context=context)
+    return [f"{s.criterion}:{s.value}" for s in profile.soft_preferences]
+
+
+async def test_soft_sector_copied_from_the_stored_vertical_is_dropped() -> None:
+    soft = await _extract_soft(
+        [_soft_sector("AI / ML")], "food tech like Wonder", target_vertical="AI / ML"
+    )
+
+    assert soft == []
+
+
+async def test_soft_sector_the_advisor_names_is_kept_even_when_it_is_the_stored_vertical() -> None:
+    kept = await _extract_soft(
+        [_soft_sector("AI / ML")], "AI asset managers", target_vertical="AI / ML"
+    )
+    alias = await _extract_soft(
+        [_soft_sector("AI / ML")], "machine learning wealth firms", target_vertical="AI / ML"
+    )
+
+    assert kept == alias == ["sector:AI / ML"]
+
+
+async def test_free_text_in_seller_field_criteria_is_dropped() -> None:
+    soft = await _extract_soft(
+        [
+            {
+                "criterion": "appetite_signal",
+                "value": "regional founders",
+                "weight": 0.7,
+                "source": "advisor_context",
+                "confidence": "medium",
+            },
+            {
+                "criterion": "outreach_tier",
+                "value": "tier 1",
+                "weight": 0.5,
+                "source": "advisor_context",
+                "confidence": "high",
+            },
+        ],
+        "tier 1 sellers with regional founders",
+    )
+
+    assert soft == ["outreach_tier:Tier 1"]
+
+
+async def test_places_are_stripped_from_the_search_phrase() -> None:
+    response = {
+        **VALID_RESPONSE,
+        "hard_requirements": [
+            _sector_item("Asset Management"),
+            {
+                "criterion": "geography",
+                "value": "Saudi Arabia",
+                "source": "advisor_context",
+                "confidence": "high",
+                "human_confirmed": True,
+            },
+        ],
+        "search_phrase": "asset managers in Saudi Arabia GCC",
+    }
+    fake = FakeBedrockClient(structured_responses=[response])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1, advisor_context="asset managers")
+
+    assert profile.search_phrase == "asset managers"
