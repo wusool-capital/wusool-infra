@@ -14,7 +14,7 @@ for current production evidence and open handover items.
 
 - `/find-match` now ranks on what the advisor typed. The core business ("asset
   manager") is required and modifiers ("AI") only rank higher. Sellers with no
-  sector data are no longer shown as matches; when no CRM seller fits, the
+  sector data are no longer shown as matches. When no CRM seller fits, the
   result says so and starts a Google Maps search for the real request.
 - The **Anything specific about this search?** text now outranks the stored buyer
   sector and geography. The buyer organization's own sector interests no longer

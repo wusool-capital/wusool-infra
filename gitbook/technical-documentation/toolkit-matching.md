@@ -18,30 +18,57 @@ Qualified Buy-side deal in Attio.
    lets them fill missing details without leaving Slack.
 3. **Extract requirements.** One Bedrock call reads the buyer's CRM fields,
    free text, recent meeting notes, and the advisor's note. It returns hard
-   requirements and soft preferences. A criterion the advisor restates
-   replaces the stored one for this run. A ticket or EV limit counts only when
-   the note names what it measures. A bare "up to 10M" sets no limit, and the
-   result says so.
+   requirements and soft preferences. The advisor's note outranks every stored
+   value. A sector, geography, or limit it names replaces the stored one for
+   this run. The buyer organization's own sector interests never count as
+   requirements. A ticket or EV limit counts only when the note names what it
+   measures. A bare "up to 10M" sets no limit, and the result says so.
+
+   Sectors are always CRM sector options. The prompt splits the advisor's
+   phrase into the *core business* (the noun) and *modifiers* (AI, digital,
+   Sharia-compliant). The core becomes the hard sector, with one row per
+   alternative. Modifiers become soft preferences that only rank.
+
+   "AI asset managers" requires Asset Management or Family Office / Wealth
+   Management and ranks AI / ML higher. In "AI tools for asset managers" the
+   order flips. A sector outside the CRM list is dropped and logged.
+
+   Code also demotes a modifier sector (AI / ML, Technology, Sharia-Compliant)
+   kept next to a core sector, unless the phrase is relational ("for",
+   "serving"). The model also returns a short `search_phrase` for the Maps
+   search. It is kept only when the advisor named a business type.
 4. **Narrow and filter.** SQL narrows sellers by the buyer role's vertical,
-   target region and country, and EV ceiling. A seller with no data for a
-   dimension always passes. Seller organizations already rejected for this
+   target region and country, and EV ceiling. Hard sector values are OR-ed
+   alternatives, like geography. A seller with no data for a dimension passes
+   this step. Seller organizations already rejected for this
    buyer role are left out, even under a duplicate seller profile; other
    buyers and verticals still see them. If any target region can't be
    resolved, or is unrestricted (such as Europe or Global), geography narrowing is skipped. A seller is then dropped only on a confirmed hard
    requirement's failure; missing data never eliminates anyone. Ticket size
    never eliminates; it only affects the score.
 5. **Score.** Each criterion scores Pass 100, Unknown 50, or Fail 0, and the
-   weighted average ranks the sellers. Data confidence (how much of the score
-   rests on CRM data rather than AI inference) is reported separately and
+   weighted average ranks the sellers. Soft sectors are scored as alternatives
+   and use the weight of the one that matched. Data confidence (how much of the
+   score rests on CRM data rather than AI inference) is reported separately and
    never changes the ranking.
+
+   **Relevance gate.** Before the top three are picked, a seller with no
+   sector Pass is dropped whenever the run has a hard sector. Unknown scores
+   a neutral 50, which says nothing about relevance, so sellers with no sector
+   data can no longer fill the shortlist. If the advisor named a business type
+   that maps to no CRM sector, nothing in the CRM can verify it, so no sellers
+   are shown.
 6. **Explain.** The top three sellers form the shortlist. One Bedrock call
    writes reasoning for them. It can't change their scores, and its prompt
    tells it to use only the facts it was given.
 7. **Save.** Scores, candidates, and the completed run are committed in one
    transaction, then posted to Slack with **Approve**, **Reject**, **View Full
    Analysis**, and **Find more sellers**.
-8. **Discover.** If every candidate scores below the discovery threshold,
-   [seller discovery](toolkit-discovery.md) runs automatically. Otherwise
+8. **Discover.** If no candidate remains, or every candidate scores below the
+   discovery threshold, [seller discovery](toolkit-discovery.md) runs
+   automatically. It searches the `search_phrase` when there is one (for
+   example "AI wealth management") rather than only the first sector. An empty
+   run skips the reasoning call. Otherwise
    **Find more sellers** runs it on demand. Each run searches once.
 
 Meeting notes reach both Bedrock calls as labeled, unverified context: always
