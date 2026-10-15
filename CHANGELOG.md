@@ -8,6 +8,15 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-15
+
+### Added
+
+- A `wusool-content` Claude Code skill creates report and Insights drafts in
+  Sanity. It checks the content against what the site renders and leaves
+  publishing to the Studio. See
+  [Publish with Claude](gitbook/user-guide/publish-in-sanity.md#publish-with-claude).
+
 ## 2026-10-13
 
 ### Changed

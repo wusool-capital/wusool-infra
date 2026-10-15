@@ -57,3 +57,24 @@ Articles are not gated. Unticking the pin, or unpublishing the pinned
 article, leaves nothing pinned, and the newest article shows at the top
 instead. An existing
 hand-written Webflow article with the same slug is never overwritten.
+
+## Publish with Claude
+
+Claude Code can turn a report file or an article into a Sanity draft for you.
+It checks the content against what the site can show, and never publishes.
+
+1. Copy `.claude/skills/wusool-content/` from the `wusool-infra` repository
+   into `~/.claude/skills/` on your computer.
+2. Connect the Sanity MCP once:
+   `claude mcp add Sanity -t http https://mcp.sanity.io --scope user`.
+   Then restart Claude Code, run `/mcp`, and sign in to Sanity.
+3. Ask Claude, for example: "Create an insight in Sanity from
+   `article.md`". Claude asks whether it's a report or an insight, and
+   whether an insight promotes a report.
+4. Review the checks Claude shows, then confirm.
+
+**Expected result:** a draft in the Studio and a folder named
+`wusool-content/<date>-<slug>/` with the checks and fields Claude used.
+Open the Studio link Claude gives you, add the cover image, then publish.
+A large report HTML file can't be sent through the MCP; Claude tells you
+to paste it into **Report HTML** yourself.
