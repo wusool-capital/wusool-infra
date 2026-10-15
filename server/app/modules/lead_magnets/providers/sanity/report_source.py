@@ -36,6 +36,8 @@ API_VERSION = "v2025-02-19"
 _CACHE_TTL_S = 300
 # Unknown slugs are cached too, so the cache must be bounded against slug-scanning.
 _CACHE_MAX = 512
+# An exported report is about 1 MB; the cap only stops a runaway file filling memory.
+_HTML_FILE_MAX_BYTES = 20_000_000
 _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
     '_id, "slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
@@ -53,7 +55,8 @@ _PINNED_QUERY = (
 )
 _SOURCE_QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
-    '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, renderedFrom, '
+    '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, '
+    '"htmlFileUrl": htmlFile.asset->url, renderedFrom, '
     '"freePages": coalesce(freePages, 1), "lockedPercent": coalesce(lockedPercent, 75)}'
 )
 
@@ -94,6 +97,7 @@ class _SanitySource(BaseModel):
     body_format: Literal["rich", "html"] | None = Field(default=None, alias="bodyFormat")
     body: list[Block] | None = None
     html: str | None = None
+    html_file_url: str | None = Field(default=None, alias="htmlFileUrl")
     rendered_from: str | None = Field(default=None, alias="renderedFrom")
     free_pages: int = Field(default=1, ge=1, alias="freePages")
     locked_percent: int = Field(default=75, alias="lockedPercent")
@@ -164,6 +168,7 @@ class SanityReportSource:
         self._cdn_url = f"https://{project_id}.apicdn.sanity.io{path}"
         self._api_url = f"https://{project_id}.api.sanity.io{path}"
         self._mutate_url = f"https://{project_id}.api.sanity.io/{API_VERSION}/data/mutate/{dataset}"
+        self._files_url = f"https://cdn.sanity.io/files/{project_id}/{dataset}/"
         self._write_token = write_token
         self._timeout_s = timeout_s
         # ponytail: per-process cache; a webhook refreshes one worker, the TTL bounds the rest.
@@ -187,8 +192,10 @@ class SanityReportSource:
         if doc.body_format == "rich":
             share = (100 - doc.locked_percent) / 100
             html = rich_report(doc.title, doc.body or [], share=share)
-        else:
+        elif doc.html or not doc.html_file_url:
             html = doc.html
+        else:
+            html = await self._download(doc.html_file_url)
         if not html:
             return None
         return ReportSource(
@@ -238,6 +245,18 @@ class SanityReportSource:
             LostPins(slug=slug, pins=tuple(p for p in pins if p in lost))
             for slug, lost in sorted(by_slug.items())
         ]
+
+    async def _download(self, url: str) -> str:
+        """Raises, not None: a failed fetch stops the sync before it unpublishes."""
+        # Editors control the document, so only this dataset's own files are fetched.
+        if not url.startswith(self._files_url):
+            raise ValueError(f"report html file is not in {self._files_url}: {url}")
+        async with httpx.AsyncClient(timeout=self._timeout_s, follow_redirects=False) as client:
+            response = await client.get(url)
+        response.raise_for_status()
+        if len(response.content) > _HTML_FILE_MAX_BYTES:
+            raise ValueError(f"report html file is over {_HTML_FILE_MAX_BYTES} bytes: {url}")
+        return response.content.decode("utf-8", errors="replace")
 
     async def _mutate(self, body: _Mutations) -> httpx.Response:
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:

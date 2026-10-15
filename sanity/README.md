@@ -67,7 +67,7 @@ magick -density 300 favicon.svg -define icon:auto-resize=48,32,16 favicon.ico
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, excerpt, cover, silo, publishedAt, bannerPinned, cta, seoTitle, seoDescription, ogTitle, freePages, lockedPercent)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
+   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, htmlFile, excerpt, cover, silo, publishedAt, bannerPinned, cta, seoTitle, seoDescription, ogTitle, freePages, lockedPercent)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
    | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |

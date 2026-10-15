@@ -99,12 +99,26 @@ export const report = defineType({
       title: 'Report HTML',
       type: 'text',
       rows: 20,
-      description: 'Paste the full report HTML. Readers see the free pages, then the form.',
+      description:
+        'Paste the full report HTML, or upload it as a file below. Readers see the free pages, then the form.',
       hidden: isRich,
       validation: (rule) =>
-        rule.custom((value, context) =>
-          !isRich({document: context.document}) && !value?.trim() ? 'Required' : true,
-        ),
+        rule.custom((value, context) => {
+          if (isRich({document: context.document})) return true
+          const hasFile = Boolean(context.document?.htmlFile)
+          if (value?.trim() && hasFile) return 'Use the pasted HTML or the file, not both'
+          return value?.trim() || hasFile ? true : 'Required'
+        }),
+    }),
+    // Chat uploads can't carry a 1 MB paste; the server downloads this when `html` is empty.
+    defineField({
+      name: 'htmlFile',
+      group: 'content',
+      title: 'Report HTML file',
+      type: 'file',
+      options: {accept: '.html,text/html'},
+      description: 'Instead of pasting: the exported report as an .html file.',
+      hidden: isRich,
     }),
     defineField({
       name: 'freePages',
