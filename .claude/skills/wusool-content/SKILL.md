@@ -34,6 +34,22 @@ Stop at the first check that fails and help the person fix it.
 File uploads also need the code tool to reach `mcp.sanity.io`. That's checked at the
 first upload (see **Upload a file** in `reference.md`).
 
+## Required steps
+
+Do all of these, in order, every run, even when the request already says "create it" or
+"stop at the draft". A request to create a draft is not approval to skip them.
+
+1. Step 0 setup check, and say which Sanity account is signed in.
+2. Ask the Step 1 questions you don't already have answers to. Always ask question 3
+   for an insight.
+3. For an insight: run `blog-worthiness.md` and show the verdict before anything else.
+   On **Revise** or **Don't publish**, stop and ask whether to go ahead.
+4. Show the proposed fields and the checks, and wait for an explicit OK. Ask for any
+   required field you'd otherwise have to invent (such as `excerpt`); never write
+   placeholder content.
+5. Only then upload files and create the draft.
+6. Publish only after the person says "publish" for this document.
+
 ## Step 1: ask
 
 Ask these together, in one message:

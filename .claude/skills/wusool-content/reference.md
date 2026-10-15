@@ -73,7 +73,7 @@ The Studio's `initialValue`s don't apply. Always set these yourself:
   | Type | Field | Value |
   |---|---|---|
   | both | `bodyFormat` | `"rich"` or `"html"`. Unset reads as HTML on the server. |
-  | both | `publishedAt` | Today, as ISO 8601 (`2026-10-15T09:00:00.000Z`) |
+  | both | `publishedAt` | The current time in UTC, as ISO 8601, from the code tool (`date -u +%Y-%m-%dT%H:%M:%SZ`). Never a fixed or example time |
   | report | `bannerPinned` | `false`, unless the person asks to pin it |
   | insights | `contentType` | `"Article"` unless told otherwise |
   | insights | `featured` | `false`, unless the person asks to pin it |
