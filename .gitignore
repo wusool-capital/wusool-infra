@@ -68,4 +68,4 @@ outputs/
 .firecrawl/
 
 # Working folders from the wusool-content Claude skill (may hold ~1 MB report HTML).
-wusool-content/20*/
+**/wusool-content/20*/
