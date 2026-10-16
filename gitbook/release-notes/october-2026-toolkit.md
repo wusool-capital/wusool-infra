@@ -27,8 +27,10 @@ Delivery period: 15 September – 15 October 2026.
   - Open-ended amounts only conflict when they can't overlap.
   - Overlapping sectors such as "clinics" are handled.
   - Regions only conflict when they truly can't overlap.
-- **Shows its reading.** Every message ends with "Read your note as: …", so
-  a misread is easy to spot. If the note can't be read, it says so instead
+- **Shows its reading.** Every message ends with a "From your note" list.
+  It includes EV ceiling, revenue, exclusions, seller status, and modifiers,
+  which the match applies but the check doesn't compare. A misread is easy
+  to spot. If the note can't be read, it says so instead
   of reporting an all-clear. If the buyer search fails, the popup shows an
   error instead of loading forever.
 
