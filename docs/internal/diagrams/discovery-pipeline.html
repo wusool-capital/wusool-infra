@@ -24,7 +24,7 @@
     <div class="diagram-container">
       <svg viewBox="0 0 720 752" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="discovery-pipeline-title discovery-pipeline-desc">
         <title id="discovery-pipeline-title">How seller discovery handles each lead</title>
-        <desc id="discovery-pipeline-desc">Flowchart: build a search from the match requirements, search Google Maps, skip leads already known, send name look-alikes to a person, enrich the rest, and create sellers whose website checks out; the others go to a website check.</desc>
+        <desc id="discovery-pipeline-desc">Flowchart: build a search from the match requirements, search Google Maps, skip leads already known, skip and count name look-alikes, enrich the rest, and create sellers whose website checks out; the others are skipped and counted. It keeps going until five sellers are written.</desc>
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
           <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
@@ -61,7 +61,7 @@
 <text x="260" y="131" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">sector · geography · exclusions</text>
 <rect x="144" y="176" width="232" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
 <text x="260" y="197" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Search Google Maps</text>
-<text x="260" y="211" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">20 results · country filter</text>
+<text x="260" y="211" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">20 results · until 5 are written</text>
 <polygon points="260,248 364,288 260,328 156,288" fill="#ffffff" stroke="#000523" stroke-width="1"/>
 <text x="260" y="285" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Known or</text>
 <text x="260" y="299" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">awaiting review?</text>
@@ -71,23 +71,25 @@
 <text x="548" y="299" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">frees a slot</text>
 <polygon points="260,352 364,392 260,432 156,392" fill="#ffffff" stroke="#000523" stroke-width="1"/>
 <text x="260" y="389" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Name looks</text>
-<text x="260" y="403" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">like an org?</text>
-<rect x="440" y="368" width="216" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
-<text x="548" y="389" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Add as seller card</text>
-<text x="548" y="403" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">a person decides</text>
+<text x="260" y="403" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">like a CRM org?</text>
+<rect x="440" y="368" width="216" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="440" y="368" width="216" height="48" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="548" y="389" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Skip the lead</text>
+<text x="548" y="403" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">possible duplicate · frees a slot</text>
 <rect x="144" y="456" width="232" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
 <text x="260" y="477" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Basic enrichment</text>
 <text x="260" y="491" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Diffbot · People Data Labs</text>
 <polygon points="260,528 364,568 260,608 156,568" fill="#ffffff" stroke="#000523" stroke-width="1"/>
 <text x="260" y="565" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Website</text>
 <text x="260" y="579" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">matches Maps?</text>
-<rect x="440" y="544" width="216" height="48" rx="6" fill="#ffffff" stroke="#000523" stroke-width="1"/>
-<text x="548" y="565" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Website check card</text>
-<text x="548" y="579" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">Review &amp; Save</text>
+<rect x="440" y="544" width="216" height="48" rx="20" fill="#f7f5f0"/>
+<rect x="440" y="544" width="216" height="48" rx="20" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="548" y="565" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Skip the lead</text>
+<text x="548" y="579" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">nothing written · frees a slot</text>
 <rect x="140" y="632" width="240" height="48" rx="20" fill="#f7f5f0"/>
 <rect x="140" y="632" width="240" height="48" rx="20" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
 <text x="260" y="653" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Create the seller</text>
-<text x="260" y="667" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">then Approve or Reject</text>
+<text x="260" y="667" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">added to the match · Approve/Reject</text>
 <line x1="24" y1="696" x2="696" y2="696" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
 <text x="24" y="712" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
 <rect x="24" y="724" width="24" height="12" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>

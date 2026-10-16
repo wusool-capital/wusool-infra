@@ -18,6 +18,9 @@ for current production evidence and open handover items.
 - Enrichment no longer proposes a fraction, "nan", or "inf" for a
   whole-number field. The review form leaves such a value blank instead of
   rounding it.
+- The discovery, find-match, matching and enrich diagrams now match the
+  current Toolkit. Discovery skips look-alikes and website mismatches, and
+  the popup offers **Edit buyer**.
 
 ## 2026-10-15
 
