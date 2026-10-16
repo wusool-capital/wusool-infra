@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-16
+
+### Fixed
+
+- **Review & Save** on an enrichment proposal no longer fails with "Couldn't
+  open the review form". Whole-number fields such as years active were sent
+  to Slack as "12.0", which Slack rejects.
+
 ## 2026-10-15
 
 ### Changed

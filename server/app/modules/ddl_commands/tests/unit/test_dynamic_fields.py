@@ -143,6 +143,25 @@ def test_number_renders_without_decimals_allowed() -> None:
     assert block["element"]["initial_value"] == "42"
 
 
+def test_number_renders_an_enrichment_float_as_a_whole_number() -> None:
+    """Enrichment proposes every number as a float; Slack rejects "12.0" in an
+    integer input and refuses to open the whole review form.
+    """
+    block = render_field_block(_FOLLOWER_COUNT_SPEC, 12.0).to_dict()
+    assert block["element"]["initial_value"] == "12"
+
+
+def test_number_renders_a_non_finite_value_as_blank() -> None:
+    block = render_field_block(_FOLLOWER_COUNT_SPEC, float("nan")).to_dict()
+    assert "initial_value" not in block["element"]
+
+
+def test_currency_renders_a_large_amount_without_an_exponent() -> None:
+    spec = FieldSpec("estimated_aum", "Estimated AUM (USD)", "currency")
+    block = render_field_block(spec, {"amount": 1.5e16, "currency": "USD"}).to_dict()
+    assert block["element"]["initial_value"] == "15000000000000000"
+
+
 def test_number_extracts_a_real_int_not_a_float() -> None:
     values = {"twitter_follower_count": {"twitter_follower_count": {"value": "1200"}}}
     result = extract_field_value(_FOLLOWER_COUNT_SPEC, values)
