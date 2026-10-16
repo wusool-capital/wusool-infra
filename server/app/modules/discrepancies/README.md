@@ -19,8 +19,8 @@ hand-reviewed pairs in `domain/vocabulary.py::_DISJOINT_REGIONS`, and country
 spellings (UAE / United Arab Emirates) are matched as one. A fixed template
 writes the message and ends with how the note was read. The extraction rules sit in the Bedrock system prompt
 (`providers/bedrock/client.py`); the note is sent on its own. A "Diversified /
-Generalist" vertical never conflicts. An empty note, or a buyer with nothing
-stored that could conflict, skips Bedrock. If the note can't be read, the result still lists what's missing and
+Generalist" vertical never conflicts. Only an empty note skips Bedrock; any
+other note is read so the echo shows what the match will apply. If the note can't be read, the result still lists what's missing and
 sets `context_checked=False`, so the message never claims "no conflicts".
 
 Promoted out of `matching_engine` (AZM-92/WP3) so this check can also run

@@ -78,11 +78,16 @@ rules:
 - **Regions only when named.** "Gulf" becomes GCC, but named countries stay
   countries and are never turned into a region. Where the advisor's client is
   based doesn't count as a target.
-- **Exclusions are left out.** "No pharma" or "excluding UAE" is ignored.
+- **Core business and modifiers.** "AI asset managers" reads Asset
+  Management as the sector and AI / ML as a modifier. In "AI tools for asset
+  managers" the two swap.
+- **Exclusions are kept apart.** "No pharma" or "excluding UAE" never enters
+  the sector, region, or countries. An excluded sector is returned separately.
 - **USD only.** An amount in any other currency is dropped, never converted.
 - **Labelled amounts only.** A ticket must be called a ticket, check size,
-  investment, or deal size; EBITDA must be called EBITDA. Revenue, a fund
-  size, a valuation, or a margin is never treated as either.
+  investment, or deal size; EBITDA must be called EBITDA. An EV ceiling must
+  be called EV, enterprise value, or valuation. Revenue must be called
+  revenue, turnover, or sales. A fund size or a margin is never any of these.
 - **Bounds.** "At least" sets only the low bound, "up to" only the high one,
   and an exact figure sets both.
 
@@ -92,7 +97,8 @@ An invalid response gets one repair retry; after that the call fails closed.
 
 A second, code-level guard keeps an amount only if the note itself names
 what it measures. The words it looks for are ticket, cheque or check size,
-invest…, deal size, and EBITDA. It can only remove what the model found, never add.
+invest…, and deal size; EBITDA; EV, enterprise value, valuation, or valued;
+and revenue, turnover, or sales. It can only remove what the model found, never add.
 
 ### 4. Apply the rules
 

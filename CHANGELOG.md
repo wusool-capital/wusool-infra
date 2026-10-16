@@ -8,6 +8,20 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-16
+
+### Fixed
+
+- **Review & Save** on an enrichment proposal no longer fails with "Couldn't
+  open the review form". Whole-number fields such as years active were sent
+  to Slack as "12.0", which Slack rejects.
+- Enrichment no longer proposes a fraction, "nan", or "inf" for a
+  whole-number field. The review form leaves such a value blank instead of
+  rounding it.
+- The discovery, find-match, matching and enrich diagrams now match the
+  current Toolkit. Discovery skips look-alikes and website mismatches, and
+  the popup offers **Edit buyer**.
+
 ## 2026-10-15
 
 ### Changed
@@ -27,6 +41,8 @@ for current production evidence and open handover items.
   generic word, such as "Intelligence" or "GmbH". A lead with a similar name
   is now skipped and counted. It no longer gets an **Add as seller** button
   or uses up one of the five slots.
+- The discrepancy-check diagram and docs now match the current logic. Only
+  an empty note skips the AI, and EV and revenue amounts are grounded too.
 - The "From your note" list now also shows an EV ceiling, revenue,
   exclusions, seller status, and modifiers, because the match applies them. A
   note is read even when the buyer has nothing that could conflict.
