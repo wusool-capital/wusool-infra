@@ -15,6 +15,9 @@ for current production evidence and open handover items.
 - **Review & Save** on an enrichment proposal no longer fails with "Couldn't
   open the review form". Whole-number fields such as years active were sent
   to Slack as "12.0", which Slack rejects.
+- Enrichment no longer proposes a fraction, "nan", or "inf" for a
+  whole-number field. The review form leaves such a value blank instead of
+  rounding it.
 
 ## 2026-10-15
 

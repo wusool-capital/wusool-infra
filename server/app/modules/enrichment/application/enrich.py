@@ -6,6 +6,7 @@ Never writes anything — see `ReviewMixin` for that.
 """
 
 import json
+import math
 from datetime import date
 
 from app.modules.enrichment.application.base import ServiceBase
@@ -47,7 +48,16 @@ def _coerce_proposed_value(kind: str, raw_value: str) -> FieldValue:
     never a bare string.
     """
     if kind == "currency" or kind == "number" or kind == "percent":
-        return float(raw_value)
+        number = float(raw_value)
+        # float() accepts "nan"/"inf"; a ValueError here drops the value, like any unparseable one.
+        if not math.isfinite(number):
+            raise ValueError(f"Non-finite {kind}: {raw_value!r}")
+        if kind == "number":
+            # "number" columns are Integer, so a fraction is no valid proposal.
+            if not number.is_integer():
+                raise ValueError(f"Fractional number: {raw_value!r}")
+            return int(number)
+        return number
     if kind == "bool":
         return raw_value.strip().lower() in ("true", "yes", "1")
     if kind == "date":
