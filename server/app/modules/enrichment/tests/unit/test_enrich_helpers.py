@@ -27,6 +27,23 @@ def test_coerce_proposed_value_number() -> None:
     assert _coerce_proposed_value("number", "20") == 20.0
 
 
+def test_coerce_proposed_value_number_is_a_real_int() -> None:
+    result = _coerce_proposed_value("number", "12.0")
+    assert result == 12
+    assert isinstance(result, int)
+
+
+@pytest.mark.parametrize("raw", ["12.5", "nan", "inf"])
+def test_coerce_proposed_value_number_rejects_fraction_and_non_finite(raw: str) -> None:
+    with pytest.raises(ValueError):
+        _coerce_proposed_value("number", raw)
+
+
+def test_coerce_proposed_value_currency_rejects_non_finite() -> None:
+    with pytest.raises(ValueError):
+        _coerce_proposed_value("currency", "nan")
+
+
 def test_coerce_proposed_value_date() -> None:
     assert _coerce_proposed_value("date", "2020-01-15") == date(2020, 1, 15)
 

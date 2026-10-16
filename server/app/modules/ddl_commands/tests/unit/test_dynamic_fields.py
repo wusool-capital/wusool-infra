@@ -144,11 +144,14 @@ def test_number_renders_without_decimals_allowed() -> None:
 
 
 def test_number_renders_an_enrichment_float_as_a_whole_number() -> None:
-    """Enrichment proposes every number as a float; Slack rejects "12.0" in an
-    integer input and refuses to open the whole review form.
-    """
+    """Slack rejects "12.0" in an integer input and won't open the form."""
     block = render_field_block(_FOLLOWER_COUNT_SPEC, 12.0).to_dict()
     assert block["element"]["initial_value"] == "12"
+
+
+def test_number_renders_a_fraction_as_blank_not_rounded() -> None:
+    block = render_field_block(_FOLLOWER_COUNT_SPEC, 12.5).to_dict()
+    assert "initial_value" not in block["element"]
 
 
 def test_number_renders_a_non_finite_value_as_blank() -> None:
