@@ -41,17 +41,18 @@ def text_input_block(
     )
 
 
-def _number_initial_value(value: float | None, *, is_decimal_allowed: bool) -> str | None:
+def _number_initial_value(value: float | Decimal | None, *, is_decimal_allowed: bool) -> str | None:
     # Slack rejects the whole modal for "12.0" in an integer input, "1.5e+16", or "nan".
     if value is None or not math.isfinite(value):
         return None
     if not is_decimal_allowed:
-        return str(round(value))
+        # Blank rather than rounded, so the form never shows a number nobody proposed.
+        return str(int(value)) if float(value).is_integer() else None
     return format(Decimal(str(value)), "f")
 
 
 def number_input_block(
-    field: str, label: str, value: float | None, *, is_decimal_allowed: bool = True
+    field: str, label: str, value: float | Decimal | None, *, is_decimal_allowed: bool = True
 ) -> InputBlock:
     return InputBlock(
         block_id=field,
