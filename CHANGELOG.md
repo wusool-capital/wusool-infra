@@ -27,6 +27,8 @@ for current production evidence and open handover items.
   generic word, such as "Intelligence" or "GmbH". A lead with a similar name
   is now skipped and counted. It no longer gets an **Add as seller** button
   or uses up one of the five slots.
+- The discrepancy-check diagram and docs now match the current logic: only
+  an empty note skips the AI, and the EV and revenue labels are grounded too.
 - The "From your note" list now also shows an EV ceiling, revenue,
   exclusions, seller status, and modifiers, because the match applies them. A
   note is read even when the buyer has nothing that could conflict.
