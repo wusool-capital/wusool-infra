@@ -203,6 +203,43 @@ Verify AWS authentication before planning:
 aws sts get-caller-identity
 ```
 
+## AWS sign-in (IAM Identity Center)
+
+You sign in to AWS with IAM Identity Center. These steps assume you accepted
+the invite email and registered your MFA device. The profile must be named
+`wusool-sso`: `server/docker-compose.yml` and the docs use that name.
+
+1. Update to the latest AWS CLI v2. Older versions ignore the 7-day session.
+2. Add this to `~/.aws/config`, creating the file if it doesn't exist. Use
+   `WusoolDeveloper` as the role, or `WusoolAdmin` if you are an admin.
+
+   ```ini
+   [sso-session wusool]
+   sso_start_url = https://d-9967b18774.awsapps.com/start
+   sso_region = eu-central-1
+   sso_registration_scopes = sso:account:access
+
+   [profile wusool-sso]
+   sso_session = wusool
+   sso_account_id = 030179310793
+   sso_role_name = WusoolDeveloper
+   region = eu-central-1
+   ```
+
+3. Sign in. A browser window opens for your password and MFA:
+
+   ```bash
+   export AWS_PROFILE=wusool-sso
+   aws sso login
+   aws sts get-caller-identity   # shows assumed-role/AWSReservedSSO_<role>_...
+   ```
+
+Run `aws sso login` again about once a week, when the session expires. The
+Toolkit reads its secrets from AWS at startup, so an expired session stops you
+starting the app, not one that is already running. See `server/README.md`
+for running the app, and `docs/internal/dev/AWS_ACCESS.md` for how access is
+set up.
+
 ## Development workflow
 
 ```bash
