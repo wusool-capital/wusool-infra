@@ -241,8 +241,8 @@ locals {
   })
 
   # Keep deployment identity and the safe Attio default on one environment
-  # classification. ATTIO_IS_TEST remains operator-overridable at runtime;
-  # APP_ENV does not, because status must identify the deployment itself.
+  # classification. Both reach the container through runtime.env, and process
+  # env outranks the Secrets Manager secret, so neither can be overridden from it.
   is_production = var.environment == "prod"
   app_env       = local.is_production ? "production" : "development"
   attio_is_test = local.is_production ? "false" : "true"
@@ -289,6 +289,8 @@ resource "aws_launch_template" "wusool_toolkit" {
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
+    # Hop limit 2 lets bridge-networked containers fetch role credentials from IMDSv2.
+    http_put_response_hop_limit = 2
   }
 
   user_data = base64encode(local.user_data_rendered)

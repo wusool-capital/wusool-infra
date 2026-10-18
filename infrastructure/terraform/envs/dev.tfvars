@@ -57,3 +57,7 @@ image_digest = "sha256:ad9e212f7c868cda1dabd4bc1c41da068b6448b32c13219d4bf6198dc
 # 2026-09-14: bumped to match prod's size — same fix without reintroducing
 # the capacity risk t2.micro hit.
 toolkit_instance_type = "t3.small"
+
+# RDS-managed master secret for wusool-dev-postgres: the deploy migration step
+# reads it for DDL, because the app itself only has a data-only login.
+toolkit_db_master_secret_arn = "arn:aws:secretsmanager:eu-central-1:030179310793:secret:rds!db-e8bdd9d8-8f57-49c5-825a-6dc1f1416108-rF5A3x"

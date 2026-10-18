@@ -36,6 +36,9 @@ utilities/
   providers/bedrock/retry.py    # invoke_bedrock_with_retry — reached directly, not via __all__
                                    # (needs botocore; domain/bedrock.py stays framework-free)
   api/handlers.py               # register_exception_handlers — the one fastapi-dependent piece
+  secrets_manager.py            # SecretsManagerSettings: base for every module Settings;
+                                   # reads /wusool/<env>/toolkit once per process (root, not domain/)
+  db_roles.py                   # wusool_app provisioning + admin URL; run by the deploy step, not imported via __all__
 ```
 
 ## Public contract
@@ -46,7 +49,8 @@ utilities/
 `InMemoryIdempotencyStore`, `TaskRunner`, `InProcessTaskRunner`,
 `get_shared_idempotency_store`, `get_shared_task_runner`,
 `check_database_connectivity`, `find_schema_drift`, `get_engine`,
-`get_sessionmaker`, `import_all_models`.
+`get_sessionmaker`, `import_all_models`, `SecretsManagerSettings`,
+`SecretLoadError`, `fetch_toolkit_secret`.
 
 `get_shared_idempotency_store()`/`get_shared_task_runner()` are `lru_cache`d
 factories returning one process-wide instance — every Slack handler module

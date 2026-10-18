@@ -21,8 +21,9 @@ deploy anything; they have their own release steps below.
 5. **Toolkit**: apply with the new image digest, which only *registers* a new
    bootstrap document.
 6. **Migrate**: run `alembic upgrade head` on the Toolkit instance through
-   SSM, with two attempts. A failed migration stops the deploy before the new
-   version is rolled out.
+   SSM, with two attempts. Migrations use the database master login. The same
+   step then updates the app's data-only database role. A failure stops the
+   deploy before the new version is rolled out.
 7. **Roll out**: run the bootstrap document, which pulls the new image and
    restarts the container. It then removes old Docker images so they can't
    fill the disk.
@@ -53,6 +54,14 @@ are never cancelled midway.
 **If a deploy fails:** don't rerun a failed apply repeatedly. Read the first
 failing step, check whether infrastructure or a migration partly completed,
 and inspect the logs. See `docs/runbooks/deployment-failure-and-rollback.md`.
+
+## Change a secret
+
+The Toolkit reads its Secrets Manager secret when the container starts, so an
+edit needs no bootstrap run. Restart the container through Systems Manager, or
+let the next deploy do it. Secrets Manager keeps the previous version, so a bad
+edit can be moved back. The environment name and test-mode flag come from
+Terraform, so the secret can't override them.
 
 ## Roll back the Toolkit
 

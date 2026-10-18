@@ -32,6 +32,10 @@ $dbHost = (tofu -chdir=infrastructure/terraform/stacks/postgres output -raw endp
 $secretArn = tofu -chdir=infrastructure/terraform/stacks/postgres output -raw master_user_secret_arn
 ```
 
+> The RDS master secret is for admins (`WusoolAdmin`) only. Developers are
+> denied it and connect as `wusool_app`, which can't run DDL or `TRUNCATE`.
+> See `docs/internal/dev/DB_ROLES.md`.
+
 ## 2. Open the tunnel
 
 ```powershell

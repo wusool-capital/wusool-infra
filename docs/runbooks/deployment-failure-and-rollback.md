@@ -45,7 +45,13 @@ P1 — Treat destructive changes, data loss, or security impact as P0.
    Docker images have filled the root disk. Check with `df -h /` and
    `docker system df` over SSM, run `docker image prune -af` (it keeps
    images in use, and ECR keeps the rest), then rerun the failed workflow.
-6. If the first failure is service-specific, use
+6. The app reads its Secrets Manager secret at startup, so a container that
+   exits with `Cannot load secret` has a credentials problem, not a bad secret
+   file. Check the instance role's `GetSecretValue` grant and that
+   `/opt/toolkit/toolkit/runtime.env` holds the right
+   `AWS_SECRETS_MANAGER_SECRET_ID`. A secret edit needs only a container
+   restart, not a bootstrap re-run.
+7. If the first failure is service-specific, use
    [toolkit-outage.md](toolkit-outage.md) or
    [n8n-outage.md](n8n-outage.md).
 

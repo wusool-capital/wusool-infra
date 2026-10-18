@@ -5,10 +5,12 @@ criteria through `BuyerCriteriaReaderPort`, wired at startup by `server/main.py`
 
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
+
+from app.modules.utilities import SecretsManagerSettings
 
 
-class Settings(BaseSettings):
+class Settings(SecretsManagerSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = "development"
