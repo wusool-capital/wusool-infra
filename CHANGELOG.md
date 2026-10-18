@@ -8,6 +8,13 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-18
+
+### Fixed
+
+- The GitBook **Publish with Claude** steps now match the setup guide sent to
+  staff: each person connects Sanity and uploads the skill themselves.
+
 ## 2026-10-16
 
 ### Fixed
