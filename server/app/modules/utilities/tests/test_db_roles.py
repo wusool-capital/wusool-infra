@@ -6,7 +6,12 @@ from pydantic import ValidationError
 from sqlalchemy.engine import make_url
 
 from app.modules.utilities import db_roles, secrets_manager
-from app.modules.utilities.db_roles import MasterSecret, admin_database_url, fetch_master_secret
+from app.modules.utilities.db_roles import (
+    MasterSecret,
+    admin_database_url,
+    fetch_master_secret,
+    resolve_app_password,
+)
 from app.modules.utilities.secrets_manager import (
     SecretLoadError,
     ToolkitSecret,
@@ -65,12 +70,33 @@ def test_staged_app_password_is_never_an_env_var() -> None:
     assert "staged-pw" not in secret.as_env_vars().values()
 
 
+def test_staged_password_wins_over_the_one_in_the_url() -> None:
+    secret = ToolkitSecret(
+        app_db_password="staged", database_url="postgresql://wusool_app:in-url@h:5432/d"
+    )
+    assert resolve_app_password(secret) == "staged"
+
+
+def test_password_is_reused_from_the_app_url_in_steady_state() -> None:
+    secret = ToolkitSecret(
+        database_url="postgresql://wusool_app:p%40ss%23word@h:5432/d?ssl=require"
+    )
+    assert resolve_app_password(secret) == "p@ss#word"
+
+
+def test_master_url_without_a_staged_password_yields_nothing() -> None:
+    secret = ToolkitSecret(database_url="postgresql://wusool_admin:master@h:5432/d")
+    assert resolve_app_password(secret) == ""
+
+
 def test_main_skips_when_no_app_password_is_staged(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setenv("AWS_SECRETS_MANAGER_SECRET_ID", "/wusool/test/toolkit")
     monkeypatch.setattr(
-        secrets_manager.boto3, "client", lambda *_a, **_k: _FakeClient({"database_url": "x"})
+        secrets_manager.boto3,
+        "client",
+        lambda *_a, **_k: _FakeClient({"database_url": "postgresql://wusool_admin:pw@h:5432/d"}),
     )
     with caplog.at_level("WARNING"):
         db_roles.main()
