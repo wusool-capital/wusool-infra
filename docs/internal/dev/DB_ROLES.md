@@ -17,6 +17,9 @@ The master password lives only in the RDS-managed secret
 migration step reads it live through the instance role, so a rotation cannot
 strand migrations. The toolkit secret no longer needs a copy of it.
 
+Status: rolled out on dev and prod on 2026-10-18. Both apps connect as
+`wusool_app`, and migrations run as `wusool_admin`.
+
 ## How a deploy works
 
 `_deploy.yml` runs one container on the instance:
@@ -66,8 +69,11 @@ no restart can read a login that doesn't exist yet.
 
    Expect `wusool_app provisioned and login verified`. Any error leaves
    `database_url` untouched.
-4. **Switch the app over.** Set `database_url` in the same secret to
-   `postgresql://wusool_app:<PW>@<same host>:5432/wusool_crm`, then
+4. **Switch the app over.** Change only the user and password in the
+   secret's `database_url`; keep the host, database and query string. Prod's URL
+   ends in `?ssl=require` and its password contains `#`, so parse and rebuild it
+   with SQLAlchemy's `make_url(...).set(username=..., password=...)`, never by
+   splitting the string by hand. Then
    `sudo docker restart toolkit-toolkit-1` and check `/health`. Confirm the app's
    login with a one-off `docker exec` that selects `current_user`; expect
    `wusool_app`, and a `CREATE TABLE` from it must be denied. The nightly resync
