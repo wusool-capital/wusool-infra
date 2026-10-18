@@ -60,34 +60,44 @@ hand-written Webflow article with the same slug is never overwritten.
 
 ## Publish with Claude
 
-Claude can publish a report or an article for you from a normal Claude chat,
-without opening the Studio. It checks the content against what the site can
-show, saves a draft, and publishes only when you say so.
+Reports and Insights articles, straight from a Claude chat. No Sanity Studio
+needed.
 
-### One-time setup (Claude org owner)
+### One-time setup (about 5 minutes)
 
-1. In **Organization settings → Capabilities → Code execution**, turn on
-   network egress and add `mcp.sanity.io` under **Additional allowed
-   domains**. Claude uploads report files and images there.
-2. In the admin settings, add Sanity as a custom connector:
-   `https://mcp.sanity.io`. Add the Webflow connector too, so Claude can
-   check for duplicate articles.
-3. Zip the `.claude/skills/wusool-content/` folder from the `wusool-infra`
-   repository and add it as an organization skill. Staff without it can
-   upload the same zip under **Customize → Skills**.
+1. Make sure you have a **Sanity account** in the **Insights and Reports**
+   project. If you don't, ask the tech team (tech@wusoolcapital.com).
+2. In Claude, open **Settings → Connectors (Select Discover)**, connect
+   **Sanity** and sign in with that account.
+3. Save the **wusool-content.zip** file you were sent. In Claude, open
+   **Customize → Skills**, upload the zip as it is (don't unzip it), and turn
+   **wusool-content** on.
+4. Open **Settings → Capabilities** and turn on **Code execution and file
+   creation**.
 
 ### Publish a report or an article
 
-1. Start a new chat and connect your Sanity account when Claude asks.
-2. Ask Claude, for example: "Publish this insight" or "Publish this report",
-   and attach the file or paste the text.
-3. Answer Claude's questions and review the checks it shows. For an
-   insight, Claude first scores whether it's worth publishing as a blog
-   article and suggests fixes. You can go ahead anyway.
-4. Attach a cover image, then confirm the draft.
-5. Reply "publish" when Claude shows the summary.
+1. Start a **new chat**.
+2. Attach your file (Word, Markdown or the exported report HTML) or paste the
+   text. Then type **"Publish this insight"** or **"Publish this report"**.
+3. Answer Claude's questions. For an article, Claude first tells you whether
+   it's worth publishing.
+4. Fill in the details Claude lists: title, excerpt, SEO title and so on. For
+   anything you leave blank, Claude tells you what happens.
+5. Check the draft, then reply **"publish"**. **Nothing goes live until you
+   do.**
 
 **Expected result:** the page is live at `wusoolcapital.com/reports/<slug>`
-or `wusoolcapital.com/insights/<slug>`, and Claude confirms it reached
-Webflow. Claude also offers the checks and fields it used as files to
-download.
+or `wusoolcapital.com/insights/<slug>`.
+
+### Good to know
+
+- Claude confirms when the page is live and gives you the link.
+- If Claude says an upload was **blocked**, start a new chat. If it happens
+  again, tell the tech team.
+
+{% hint style="info" %}
+**For the tech team:** uploads need `mcp.sanity.io` under **Organization
+settings → Capabilities → Code execution → Additional allowed domains**, with
+network egress on.
+{% endhint %}
