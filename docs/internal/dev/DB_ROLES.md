@@ -68,8 +68,11 @@ no restart can read a login that doesn't exist yet.
    `database_url` untouched.
 4. **Switch the app over.** Set `database_url` in the same secret to
    `postgresql://wusool_app:<PW>@<same host>:5432/wusool_crm`, then
-   `sudo docker restart toolkit-toolkit-1` and check `/health`. Run the nightly
-   resync once by hand.
+   `sudo docker restart toolkit-toolkit-1` and check `/health`. Confirm the app's
+   login with a one-off `docker exec` that selects `current_user`; expect
+   `wusool_app`, and a `CREATE TABLE` from it must be denied. The nightly resync
+   refuses to run on dev (`ATTIO_IS_TEST=true`), so check it on prod only: run
+   the nightly workflow once after the prod switch.
 5. **Roll back if needed.** Restore the previous `database_url` (Secrets Manager
    keeps `AWSPREVIOUS`) and restart. The master is never changed.
 
