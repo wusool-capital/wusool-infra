@@ -2,6 +2,7 @@ import json
 from collections.abc import Iterator
 
 import pytest
+from pydantic import ValidationError
 
 from app.modules.attio.config import AttioSettings
 from app.modules.discovery.config import Settings as DiscoverySettings
@@ -65,6 +66,21 @@ def test_as_env_vars_stringifies_scalars_and_skips_null() -> None:
     )
     expected = {"A_FLAG": "true", "A_LIMIT": "5", "A_RATIO": "0.5", "A_NAME": "x"}
     assert secret.as_env_vars() == expected
+
+
+def test_validation_errors_do_not_echo_secret_values() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        ToolkitSecret.model_validate_json('{"env": {"K": ["hunter2-secret-value"]}}')
+    assert "hunter2" not in str(excinfo.value)
+
+
+def test_settings_errors_do_not_echo_secret_values(
+    fetch_calls: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ATTIO_IS_TEST", "hunter2-not-a-bool")
+    with pytest.raises(ValidationError) as excinfo:
+        AttioSettings(_env_file=None)  # type: ignore[call-arg]
+    assert "hunter2" not in str(excinfo.value)
 
 
 def test_secret_fills_prefixed_and_unprefixed_fields(fetch_calls: list[str]) -> None:

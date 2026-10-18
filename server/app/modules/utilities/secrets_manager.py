@@ -40,7 +40,8 @@ class SecretLoadError(RuntimeError):
 class ToolkitSecret(BaseModel):
     """Shape of `/wusool/<env>/toolkit`."""
 
-    model_config = ConfigDict(frozen=True, extra="ignore")
+    # Validation errors would otherwise echo the offending secret value into logs.
+    model_config = ConfigDict(frozen=True, extra="ignore", hide_input_in_errors=True)
 
     database_url: str = ""
     slack_bot_token: str = ""
@@ -119,6 +120,9 @@ class ToolkitSecretSource(EnvSettingsSource):
 
 class SecretsManagerSettings(BaseSettings):
     """Base for every module `Settings`; the toolkit secret is the lowest-priority source."""
+
+    # A bad value from the secret must not be echoed into a startup error log.
+    model_config = SettingsConfigDict(hide_input_in_errors=True)
 
     @classmethod
     def settings_customise_sources(
