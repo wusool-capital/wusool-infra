@@ -23,13 +23,18 @@ too: move such users out of `Developers` first.
 
 ## One-time admin steps (before `enable_identity_center = true`)
 
-None of these are in Terraform; the first needs the root or an admin user.
+None of these are in Terraform. Status as of 2026-10-18: steps 1 and 6 and the
+IAM deny are done; steps 2-4 are console-only and still open.
 
-1. **Create the AWS Organization** from this account. This account becomes the
+1. **Create the AWS Organization** from this account (done: `o-p22vgvr7jc`;
+   verify the management account's email address within 7 days, or AWS
+   suspends the account). This account becomes the
    management account, and service control policies never apply to a
    management account.
 2. **Enable IAM Identity Center** in `eu-central-1` (same region as the
-   provider in `stacks/account`). Identity Center and its portal are free.
+   provider in `stacks/account`), from the console: the `CreateInstance` API
+   is rejected in a management account. Identity Center and its portal are
+   free.
 3. **Set the session duration to 7 days** (Identity Center → Settings →
    Authentication → Session settings) and **require MFA**. Longer sessions
    leave a lost laptop signed in for longer, so the Identity Center admin
@@ -40,8 +45,8 @@ None of these are in Terraform; the first needs the root or an admin user.
    make `true` the variable's default in a follow-up commit so later plans do
    not try to destroy the resources. CI plans work either way because the
    instance lookup is skipped while the variable is `false`.
-6. **Move `abhay.krishna` out of `Developers`** (he is also in
-   `Administrators`).
+6. **Move `abhay.krishna` out of `Developers` and `PowerUsers`** (done; he stays
+   in `Administrators`). Both groups carry the deny.
 
 Retiring IAM users' console access is a follow-up once everyone has signed in
 through Identity Center.
