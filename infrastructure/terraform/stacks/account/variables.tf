@@ -33,3 +33,9 @@ variable "slack_channel_id" {
   type        = string
   default     = "C0C0E16U0HH"
 }
+
+variable "enable_identity_center" {
+  description = "Manage IAM Identity Center groups and permission sets. Leave false until an admin has created the AWS Organization and enabled Identity Center (docs/internal/dev/AWS_ACCESS.md); the instance lookup fails before that."
+  type        = bool
+  default     = false
+}
