@@ -38,6 +38,7 @@ utilities/
   api/handlers.py               # register_exception_handlers — the one fastapi-dependent piece
   secrets_manager.py            # SecretsManagerSettings: base for every module Settings;
                                    # reads /wusool/<env>/toolkit once per process (root, not domain/)
+  db_roles.py                   # wusool_app provisioning + admin URL; run by the deploy step, not imported via __all__
 ```
 
 ## Public contract

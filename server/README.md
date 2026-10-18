@@ -84,6 +84,26 @@ so it needs the SSO profile.
 - Tests and `./checks.sh` set `AWS_SECRETS_MANAGER_SECRET_ID=""`, so they never
   call AWS.
 - Devs can read the dev secret only; the prod secret is denied.
+- The database login in the secret (`wusool_app`) can read and change data but
+  not the schema: DDL, `TRUNCATE` and edits to `alembic_version` fail. Migrations
+  run only in the deploy pipeline. For schema work, test with `docker compose up`.
+  See `docs/internal/dev/DB_ROLES.md`.
+
+### Overriding a value for yourself
+
+A value from the secret loses to anything you set locally. Precedence, highest
+first: explicit arguments, your shell environment, `server/.env`, the dev secret.
+
+- **One run:** `ATTIO_IS_TEST=true uv run python main.py`, or `export KEY=value`
+  for the whole shell. `unset KEY` removes it; an empty `KEY=` blanks the value.
+- **Every run:** put `KEY=value` in `server/.env`. It is gitignored.
+- **Docker Compose:** Compose only passes the variables listed in
+  `docker-compose.yml`. Add others under `environment:` in a
+  `server/docker-compose.override.yml`, which is gitignored.
+- **Names:** the setting name in upper case, with its prefix. For example
+  `ATTIO_API_KEY` and `ATTIO_IS_TEST`; `.env.example` lists them.
+
+This changes only your machine. To change a value for everyone, edit the secret.
 
 ## Running
 

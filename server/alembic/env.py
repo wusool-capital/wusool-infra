@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.modules.utilities import fetch_toolkit_secret
+from app.modules.utilities.db_roles import admin_database_url, fetch_master_secret
 from app.modules.utilities.secrets_manager import SecretLocation
 
 # ---------------------------------------------------------------------------
@@ -61,10 +62,12 @@ target_metadata = Base.metadata
 def _database_url() -> str:
     """Resolve the database URL for migrations.
 
-    `DATABASE_URL` wins when set (CI, a local override). Otherwise the URL
-    comes from the same Secrets Manager blob (`database_url`) the app reads,
-    so no second credential exists; never hardcode one here. The secret is
-    read live, so an RDS password rotation needs only the secret updated.
+    `DATABASE_URL` wins when set (CI, a local override). Otherwise host and
+    database come from the Secrets Manager blob (`database_url`) the app reads.
+    Deployed, `DB_MASTER_SECRET_ARN` swaps in the RDS master login, read live,
+    because only the master may change the schema. Without it (a laptop) the
+    app's data-only login is used, so a stray `alembic upgrade` cannot do DDL.
+    Never hardcode a credential here.
 
     Mirrors matching-engine/app/config.py's own normalization: force the
     asyncpg driver regardless of input scheme, and never append `sslmode`
@@ -90,7 +93,10 @@ def _secret_database_url() -> str:
     ).database_url
     if not url:
         raise RuntimeError("The toolkit secret has no database_url; set DATABASE_URL instead")
-    return url
+    if not location.db_master_secret_arn:
+        return url
+    master = fetch_master_secret(location.db_master_secret_arn, location.aws_region)
+    return admin_database_url(url, master)
 
 
 # `set_main_option` stores into a ConfigParser-backed section, which treats

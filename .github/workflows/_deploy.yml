@@ -312,20 +312,22 @@ jobs:
             exit 0
           fi
           IMAGE="$REPO_URL@${{ inputs.image_digest }}"
+          DB_MASTER_SECRET_ARN=$(tofu output -raw db_master_secret_arn 2>/dev/null || echo "")
 
           # $REPO_URL/$IMAGE are expanded HERE (on the runner) into literal
           # values baked into the JSON below — the remote side needs no env
           # vars or secrets of its own beyond the already-deployed runtime.env
-          # (secret ID and region only; alembic reads DATABASE_URL from the
-          # same Secrets Manager secret the app itself reads, via the
-          # instance role).
+          # (secret ID and region only). Migrations need DDL rights the app
+          # does not have, so only this one-off container is given the RDS
+          # master secret's ARN; it reads the login live via the instance role,
+          # then provisions the app's data-only role from the toolkit secret.
           # Built via `jq -n` rather than a heredoc: a heredoc's closing
           # delimiter must match with zero leading whitespace, which a
           # YAML `run: |` block's indentation would silently break.
           COMMANDS_JSON=$(jq -n \
             --arg login "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin $REPO_URL" \
             --arg pull "docker pull $IMAGE" \
-            --arg migrate "docker run --rm --env-file /opt/toolkit/toolkit/runtime.env $IMAGE python -m alembic upgrade head" \
+            --arg migrate "docker run --rm --env-file /opt/toolkit/toolkit/runtime.env -e 'DB_MASTER_SECRET_ARN=$DB_MASTER_SECRET_ARN' $IMAGE sh -c 'python -m alembic upgrade head && python -m app.modules.utilities.db_roles'" \
             '["set -e", $login, $pull, $migrate]')
 
           # Retried at this outer level, same as the bootstrap-roll steps

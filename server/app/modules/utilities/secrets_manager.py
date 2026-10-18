@@ -46,6 +46,9 @@ class ToolkitSecret(BaseModel):
     database_url: str = ""
     slack_bot_token: str = ""
     slack_signing_secret: str = ""
+    # Staged password for the data-only `wusool_app` role. Never exposed as an
+    # env var: only `db_roles` reads it, before `database_url` is switched over.
+    app_db_password: str = ""
     # Opaque map of ready-made env var names (ATTIO_API_KEY, ...).
     env: dict[str, EnvScalar] = {}
 
@@ -72,6 +75,9 @@ class SecretLocation(BaseSettings):
     aws_secrets_manager_secret_id: str | None = None
     aws_region: str = "eu-central-1"
     app_env: str = "development"
+    # RDS-managed master secret. Set only for the deploy migration step, so
+    # the app and developers never hold DDL credentials.
+    db_master_secret_arn: str = ""
 
     @model_validator(mode="after")
     def default_to_dev_secret(self) -> "SecretLocation":

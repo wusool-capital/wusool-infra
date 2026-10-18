@@ -3,7 +3,8 @@
 # Developers read /wusool/dev/toolkit at app startup (see server/README.md), so
 # they must be able to read the dev secret and never the prod one. Dev and prod
 # share this account, so the only boundary available is an explicit Deny on the
-# prod secret ARNs. A Deny beats any Allow, including AdministratorAccess.
+# prod secret ARNs and the RDS master secrets. A Deny beats any Allow,
+# including AdministratorAccess.
 #
 # Residual risk (docs/internal/dev/AWS_ACCESS.md): PowerUser can still run SSM
 # commands on the prod instance, so this is defence in depth, not isolation.
@@ -16,7 +17,12 @@ data "aws_iam_policy_document" "deny_prod_secrets" {
       "secretsmanager:GetSecretValue",
       "secretsmanager:BatchGetSecretValue",
     ]
-    resources = ["arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:/${var.project}/prod/*"]
+    resources = [
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:/${var.project}/prod/*",
+      # RDS-managed master logins (dev and prod): only admins and the deploy
+      # migration step may hold DDL rights.
+      "arn:aws:secretsmanager:*:${data.aws_caller_identity.current.account_id}:secret:rds!db-*",
+    ]
   }
 }
 

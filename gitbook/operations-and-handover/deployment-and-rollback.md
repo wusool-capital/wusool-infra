@@ -21,8 +21,9 @@ deploy anything; they have their own release steps below.
 5. **Toolkit**: apply with the new image digest, which only *registers* a new
    bootstrap document.
 6. **Migrate**: run `alembic upgrade head` on the Toolkit instance through
-   SSM, with two attempts. A failed migration stops the deploy before the new
-   version is rolled out.
+   SSM, with two attempts. Migrations use the database master login. The same
+   step then updates the app's data-only database role. A failure stops the
+   deploy before the new version is rolled out.
 7. **Roll out**: run the bootstrap document, which pulls the new image and
    restarts the container. It then removes old Docker images so they can't
    fill the disk.

@@ -22,6 +22,8 @@
 Application secrets live in AWS Secrets Manager and are read by each
 instance's role at startup, so no secret file sits on the instance. Developers
 use the same path with their own AWS sign-in and can read the dev secret only.
+The app's database login can read and change data but not the schema. Only
+the deploy pipeline and admins hold the master login.
 Development and production share one AWS account, so an explicit deny, not a
 separate account, keeps developers away from the production secret.
 GitHub Actions uses AWS OIDC roles, never committed keys. Local `.env` files

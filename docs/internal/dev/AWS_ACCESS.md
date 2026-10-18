@@ -71,9 +71,11 @@ aws secretsmanager get-secret-value --secret-id /wusool/prod/toolkit --query Nam
 
 ## Residual risk
 
-The Deny is defence in depth, not isolation. `PowerUserAccess` can still read
-the RDS-managed master password secrets (`rds!db-*`), and can run
-`ssm:SendCommand` against the prod toolkit instance and act with its role.
+The Deny is defence in depth, not isolation. It also covers the RDS-managed
+master secrets (`rds!db-*`), so developers hold only the data-only database
+login (`docs/internal/dev/DB_ROLES.md`). `PowerUserAccess` can still run
+`ssm:SendCommand` against the prod toolkit instance and act with its role,
+which can read the master secret.
 Real isolation needs a separate prod account. `ATTIO_API_KEY` is also the same
 SOURCE key in both environments (separated only by `ATTIO_IS_TEST`), so every
 developer who can read the dev secret can read it. That is an accepted risk.
