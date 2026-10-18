@@ -54,6 +54,14 @@ are never cancelled midway.
 failing step, check whether infrastructure or a migration partly completed,
 and inspect the logs. See `docs/runbooks/deployment-failure-and-rollback.md`.
 
+## Change a secret
+
+The Toolkit reads its Secrets Manager secret when the container starts, so an
+edit needs no bootstrap run. Restart the container through Systems Manager, or
+let the next deploy do it. Secrets Manager keeps the previous version, so a bad
+edit can be moved back. The environment name and test-mode flag come from
+Terraform, so the secret can't override them.
+
 ## Roll back the Toolkit
 
 **Preferred:** revert the bad commit and push it to the branch. The normal
