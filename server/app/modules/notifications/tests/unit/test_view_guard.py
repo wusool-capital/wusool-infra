@@ -74,6 +74,19 @@ async def test_client_logs_slacks_reason_when_a_view_is_rejected(
     assert "bad /blocks/3" in caplog.text
 
 
+async def test_client_stays_quiet_when_slack_gives_no_reason(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    error = SlackApiError("not_found", {"ok": False, "error": "not_found"})
+    with (
+        patch.object(AsyncWebClient, "api_call", new_callable=AsyncMock, side_effect=error),
+        pytest.raises(SlackApiError),
+    ):
+        await NoUnfurlWebClient(token="x").api_call("views.update", json={"view": {}})
+
+    assert "Slack rejected" not in caplog.text
+
+
 async def test_guarded_ack_guards_response_action_view() -> None:
     ack = GuardedAck()
     await ack(response_action="update", view=_view("12.0", is_decimal_allowed=False))

@@ -18,8 +18,9 @@ from app.modules.notifications.providers.slack.client import NoUnfurlWebClient, 
 
 
 class GuardedAck(AsyncAck):
-    """`ack(response_action="update", view=...)` goes back in the HTTP
-    response, not through the client, so `guard_view` runs here too.
+    """A `response_action` view skips the client, so `guard_view` runs here too.
+
+    `Any`: forwards the vendor `AsyncAck` arguments unchanged.
     """
 
     async def __call__(

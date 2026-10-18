@@ -25,10 +25,9 @@ _DECIMAL = re.compile(r"-?\d+(\.\d+)?")
 
 
 def guard_view(view: dict[str, Any]) -> dict[str, Any]:
-    """Blanks any `number_input` initial value Slack would reject ("12.0" in
-    an integer box, "1.5e+16", "nan"): one bad value fails the whole modal
-    with `invalid_arguments`. Backstop for every module's forms, behind
-    `form_values._number_initial_value`. Returns a copy; never mutates.
+    """Blanks number inputs Slack would reject, since one fails the whole modal.
+
+    `Any`: raw vendor Block Kit JSON; it never leaves `providers/slack`.
     """
     if "blocks" not in view:
         return view
@@ -88,9 +87,9 @@ class NoUnfurlWebClient(AsyncWebClient):
             )
         except SlackApiError as e:
             # Slack's messages name the exact block it rejected; callers only log "failed".
-            if api_method in _VIEW_METHODS:
-                metadata = e.response.get("response_metadata") or {}
-                logger.error("Slack rejected %s: %s", api_method, metadata.get("messages"))
+            metadata = e.response.get("response_metadata") or {}
+            if api_method in _VIEW_METHODS and metadata.get("messages"):
+                logger.error("Slack rejected %s: %s", api_method, metadata["messages"])
             raise
 
 
