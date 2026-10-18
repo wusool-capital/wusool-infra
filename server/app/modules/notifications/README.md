@@ -33,11 +33,13 @@ notifications/
     email.py                           # EmailSenderPort Protocol
   providers/
     slack/
-      client.py                          # get_slack_client(bot_token) — one shared AsyncWebClient, lru_cached
+      client.py                          # get_slack_client(bot_token) — one shared AsyncWebClient, lru_cached;
+                                              # guard_view blanks number inputs Slack would reject
       notifier.py                          # SlackWebClientNotifier — implements SlackNotifierPort
       bolt_app.py                          # build_bolt_app(bot_token, signing_secret, register_fn) —
                                               # both modules' own api/slack/bolt_app.py call this instead
-                                              # of duplicating the same three lines
+                                              # of duplicating the same three lines; GuardedAck runs
+                                              # guard_view on ack(response_action=..., view=...) too
     ses/
       client.py                          # get_ses_client(region_name, ...) — one shared SES client, lru_cached
       mailer.py                            # SesMailer — implements EmailSenderPort

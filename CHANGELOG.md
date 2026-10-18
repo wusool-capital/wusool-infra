@@ -70,6 +70,10 @@ for current production evidence and open handover items.
   schema. Schema changes run with a separate admin login. Only the deploy
   pipeline and admins can use it. A stray command from a laptop can no longer
   alter or wipe the shared dev database.
+- Every Slack form, in every module, now goes through one shared check
+  before it opens. A number Slack would reject is left blank instead of
+  failing the whole form. When Slack does reject a form, the log now names
+  the exact field.
 
 ### Fixed
 
