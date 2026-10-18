@@ -26,9 +26,11 @@ from pydantic_settings import (
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
-from pydantic_settings.sources.utils import parse_env_vars
 
 DEV_SECRET_ID = "/wusool/dev/toolkit"
+
+# Operators may store numbers or booleans in the `env` map; the old bootstrap stringified them.
+EnvScalar = str | int | float | bool | None
 
 
 class SecretLoadError(RuntimeError):
@@ -44,7 +46,7 @@ class ToolkitSecret(BaseModel):
     slack_bot_token: str = ""
     slack_signing_secret: str = ""
     # Opaque map of ready-made env var names (ATTIO_API_KEY, ...).
-    env: dict[str, str] = {}
+    env: dict[str, EnvScalar] = {}
 
     def as_env_vars(self) -> dict[str, str]:
         """Flatten to env var names; `env` entries win, as in the old bootstrap."""
@@ -54,7 +56,10 @@ class ToolkitSecret(BaseModel):
             "SLACK_SIGNING_SECRET": self.slack_signing_secret,
         }
         merged = {name: value for name, value in top_level.items() if value}
-        merged.update(self.env)
+        for name, value in self.env.items():
+            if value is None:
+                continue
+            merged[name] = str(value).lower() if isinstance(value, bool) else str(value)
         return merged
 
 
@@ -87,8 +92,9 @@ def fetch_toolkit_secret(secret_id: str, region: str) -> ToolkitSecret:
         return ToolkitSecret.model_validate_json(response["SecretString"])
     except (BotoCoreError, ClientError, ValueError, KeyError) as exc:
         raise SecretLoadError(
-            f"Cannot load secret {secret_id!r} in {region}. Locally, run "
-            "`aws sso login --profile wusool-sso` and set AWS_PROFILE=wusool-sso."
+            f"Cannot load secret {secret_id!r} in {region} ({type(exc).__name__}). "
+            "Deployed: check the instance role and runtime.env. "
+            "Locally: run `aws sso login --profile wusool-sso` and set AWS_PROFILE=wusool-sso."
         ) from exc
 
 
@@ -105,9 +111,10 @@ class ToolkitSecretSource(EnvSettingsSource):
         if not secret_id:
             return {}
         flat = fetch_toolkit_secret(secret_id, self._location.aws_region).as_env_vars()
-        return parse_env_vars(
-            flat, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str
-        )
+        # Mirrors what the stock env source does to keys when matching is case-insensitive.
+        if self.case_sensitive:
+            return flat
+        return {name.lower(): value for name, value in flat.items()}
 
 
 class SecretsManagerSettings(BaseSettings):

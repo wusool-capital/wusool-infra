@@ -7,4 +7,5 @@ tests and CI never call AWS.
 
 import os
 
-os.environ.setdefault("AWS_SECRETS_MANAGER_SECRET_ID", "")
+# Forced, not defaulted: an exported real secret id must not make tests call AWS.
+os.environ["AWS_SECRETS_MANAGER_SECRET_ID"] = ""

@@ -59,6 +59,14 @@ def test_as_env_vars_lets_env_map_win() -> None:
     assert secret.as_env_vars() == {"DATABASE_URL": "b", "X": "1"}
 
 
+def test_as_env_vars_stringifies_scalars_and_skips_null() -> None:
+    secret = ToolkitSecret.model_validate_json(
+        '{"env": {"A_FLAG": true, "A_LIMIT": 5, "A_RATIO": 0.5, "GONE": null, "A_NAME": "x"}}'
+    )
+    expected = {"A_FLAG": "true", "A_LIMIT": "5", "A_RATIO": "0.5", "A_NAME": "x"}
+    assert secret.as_env_vars() == expected
+
+
 def test_secret_fills_prefixed_and_unprefixed_fields(fetch_calls: list[str]) -> None:
     assert AttioSettings(_env_file=None).api_key == "attio-secret"  # type: ignore[call-arg]
     assert DiscoverySettings(_env_file=None).slack_bot_token == "xoxb-secret"  # type: ignore[call-arg]

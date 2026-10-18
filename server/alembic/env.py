@@ -85,9 +85,12 @@ def _secret_database_url() -> str:
         raise RuntimeError(
             "Set DATABASE_URL, or AWS_SECRETS_MANAGER_SECRET_ID to read it from Secrets Manager"
         )
-    return fetch_toolkit_secret(
+    url = fetch_toolkit_secret(
         location.aws_secrets_manager_secret_id, location.aws_region
     ).database_url
+    if not url:
+        raise RuntimeError("The toolkit secret has no database_url; set DATABASE_URL instead")
+    return url
 
 
 # `set_main_option` stores into a ConfigParser-backed section, which treats

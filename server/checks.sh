@@ -13,7 +13,7 @@ setup() {
   export DATABASE_URL="${DATABASE_URL:-postgresql://user:pass@localhost:15432/wusool_crm}"
   export SLACK_BOT_TOKEN="${SLACK_BOT_TOKEN:-xoxb-test-token}"
   export SLACK_SIGNING_SECRET="${SLACK_SIGNING_SECRET:-test-signing-secret}"
-  export AWS_SECRETS_MANAGER_SECRET_ID="${AWS_SECRETS_MANAGER_SECRET_ID-}"
+  export AWS_SECRETS_MANAGER_SECRET_ID=""
 }
 
 require_database() {
