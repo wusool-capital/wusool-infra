@@ -17,17 +17,24 @@ The master password lives only in the RDS-managed secret
 migration step reads it live through the instance role, so a rotation cannot
 strand migrations. The toolkit secret no longer needs a copy of it.
 
+Status: rolled out on dev and prod on 2026-10-18. Both apps connect as
+`wusool_app`, and migrations run as `wusool_admin`.
+
 ## How a deploy works
 
 `_deploy.yml` runs one container on the instance:
 `alembic upgrade head && python -m app.modules.utilities.db_roles`, with
 `DB_MASTER_SECRET_ARN` set. Alembic connects as the master. Then `db_roles`
-creates or updates `wusool_app` from `app_db_password` in the toolkit secret,
+creates or updates `wusool_app` using one password (see below),
 re-applies the grants, and logs in as `wusool_app` to prove the password works
 and `CREATE TABLE` is denied. New tables are covered on the same deploy.
 
-Without `app_db_password` in the secret, `db_roles` does nothing, so deploying
-the code changes nothing until you stage the password.
+The password has a single source. In steady state it is the one already in the
+secret's `database_url` (once its user is `wusool_app`), so there is no second
+copy to drift. During a rollout or rotation you stage a new one as
+`app_db_password`, which wins while it is present; delete it afterwards. With
+neither a staged password nor a `wusool_app` URL, `db_roles` does nothing, so
+deploying the code changes nothing until you stage one.
 
 A laptop has no `DB_MASTER_SECRET_ARN`, so `alembic` falls back to the app
 login and a stray `alembic upgrade head` fails with a permission error.
@@ -66,16 +73,26 @@ no restart can read a login that doesn't exist yet.
 
    Expect `wusool_app provisioned and login verified`. Any error leaves
    `database_url` untouched.
-4. **Switch the app over.** Set `database_url` in the same secret to
-   `postgresql://wusool_app:<PW>@<same host>:5432/wusool_crm`, then
-   `sudo docker restart toolkit-toolkit-1` and check `/health`. Run the nightly
-   resync once by hand.
-5. **Roll back if needed.** Restore the previous `database_url` (Secrets Manager
+4. **Switch the app over.** Change only the user and password in the
+   secret's `database_url`; keep the host, database and query string. Prod's URL
+   ends in `?ssl=require` and its password contains `#`, so parse and rebuild it
+   with SQLAlchemy's `make_url(...).set(username=..., password=...)`, never by
+   splitting the string by hand. Then
+   `sudo docker restart toolkit-toolkit-1` and check `/health`. Confirm the app's
+   login with a one-off `docker exec` that selects `current_user`; expect
+   `wusool_app`, and a `CREATE TABLE` from it must be denied. The nightly resync
+   refuses to run on dev (`ATTIO_IS_TEST=true`), so check it on prod only: run
+   the nightly workflow once after the prod switch.
+5. **Delete the staged key.** Remove `app_db_password` from the secret. From
+   now on every deploy reuses the password in `database_url`, so the two can
+   never disagree.
+6. **Roll back if needed.** Restore the previous `database_url` (Secrets Manager
    keeps `AWSPREVIOUS`) and restart. The master is never changed.
 
 Rotate the app password the same way: stage a new `app_db_password`, run step 3
-(it updates the role), then update `database_url` and restart. Existing
-connections keep working; new ones fail until the restart, so do it in one go.
+(it updates the role), update `database_url`, restart, then delete
+`app_db_password`. Existing connections keep working; new ones fail until the
+restart, so do it in one go.
 
 ## Who needs the master now
 

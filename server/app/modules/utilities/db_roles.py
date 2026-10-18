@@ -7,14 +7,15 @@ password is read live from the RDS-managed secret rather than copied into the
 toolkit secret, so a password rotation cannot strand migrations.
 
 `python -m app.modules.utilities.db_roles` runs after `alembic upgrade head`
-in every deploy. It is idempotent: it creates or updates `wusool_app` from the
-password staged in the toolkit secret (`app_db_password`) and re-applies the
-grants, so new tables are covered without a manual step.
+in every deploy. It is idempotent: it creates or updates `wusool_app` and
+re-applies the grants, so new tables are covered without a manual step.
 
-Rollout is two-phase so no restart can read a URL whose role has no password:
-1. Stage `app_db_password`. This module creates the role and proves a login.
-2. Only then point the secret's `database_url` at `wusool_app`.
-Without `app_db_password` this module does nothing.
+The role's password has one source of truth. In steady state it is the one
+already in the secret's `database_url`. To roll out or rotate, stage a new one
+as `app_db_password` first, so no restart can read a URL whose role has no
+password: this module sets the role and proves a login, then you point
+`database_url` at it and delete `app_db_password`. With neither a staged
+password nor a `wusool_app` URL, this module does nothing.
 """
 
 import asyncio
@@ -31,6 +32,7 @@ from sqlalchemy.engine import URL, make_url
 from app.modules.utilities.secrets_manager import (
     SecretLoadError,
     SecretLocation,
+    ToolkitSecret,
     fetch_toolkit_secret,
 )
 
@@ -69,6 +71,17 @@ def admin_database_url(database_url: str, master: MasterSecret) -> str:
     """Keep host, port and database from the app URL; swap in the master login."""
     admin = make_url(database_url).set(username=master.username, password=master.password)
     return admin.render_as_string(hide_password=False)
+
+
+def resolve_app_password(toolkit: ToolkitSecret) -> str:
+    """A staged password wins (rollout, rotation); else reuse the one in the URL."""
+    if toolkit.app_db_password:
+        return toolkit.app_db_password
+    if toolkit.database_url:
+        url = make_url(toolkit.database_url)
+        if url.username == APP_ROLE and url.password:
+            return url.password
+    return ""
 
 
 def _require_identifier(name: str) -> str:
@@ -172,15 +185,18 @@ def main() -> None:
     if not secret_id:
         raise SystemExit("AWS_SECRETS_MANAGER_SECRET_ID is empty; nothing to provision from")
     toolkit = fetch_toolkit_secret(secret_id, location.aws_region)
-    if not toolkit.app_db_password:
-        logger.warning("app_db_password is not set in the toolkit secret; skipping %s", APP_ROLE)
+    password = resolve_app_password(toolkit)
+    if not password:
+        logger.warning(
+            "no staged app_db_password and database_url is not the %s login; skipping", APP_ROLE
+        )
         return
     if not location.db_master_secret_arn:
         raise SystemExit("DB_MASTER_SECRET_ARN is required to provision database roles")
     if not toolkit.database_url:
         raise SystemExit("The toolkit secret has no database_url to take the host from")
     master = fetch_master_secret(location.db_master_secret_arn, location.aws_region)
-    asyncio.run(_provision(make_url(toolkit.database_url), master, toolkit.app_db_password))
+    asyncio.run(_provision(make_url(toolkit.database_url), master, password))
     logger.info("%s provisioned and login verified", APP_ROLE)
 
 

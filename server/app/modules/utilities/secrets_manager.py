@@ -46,8 +46,8 @@ class ToolkitSecret(BaseModel):
     database_url: str = ""
     slack_bot_token: str = ""
     slack_signing_secret: str = ""
-    # Staged password for the data-only `wusool_app` role. Never exposed as an
-    # env var: only `db_roles` reads it, before `database_url` is switched over.
+    # Password staged for the data-only `wusool_app` role during rollout or
+    # rotation, then deleted. Never an env var: only `db_roles` reads it.
     app_db_password: str = ""
     # Opaque map of ready-made env var names (ATTIO_API_KEY, ...).
     env: dict[str, EnvScalar] = {}
