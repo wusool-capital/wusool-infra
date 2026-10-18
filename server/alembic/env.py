@@ -31,6 +31,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
+from app.modules.utilities import fetch_toolkit_secret
+from app.modules.utilities.secrets_manager import SecretLocation
 
 # ---------------------------------------------------------------------------
 # Config
@@ -57,33 +59,35 @@ target_metadata = Base.metadata
 # DATABASE_URL → sqlalchemy.url
 # ---------------------------------------------------------------------------
 def _database_url() -> str:
-    """Read DATABASE_URL from the environment — the exact same secret value
-    (/wusool/<env>/toolkit's `database_url`) the toolkit app itself already
-    reads via its own Settings class. No new credential exists for this;
-    never hardcode one here.
+    """Resolve the database URL for migrations.
+
+    `DATABASE_URL` wins when set (CI, a local override). Otherwise the URL
+    comes from the same Secrets Manager blob (`database_url`) the app reads,
+    so no second credential exists; never hardcode one here. The secret is
+    read live, so an RDS password rotation needs only the secret updated.
 
     Mirrors matching-engine/app/config.py's own normalization: force the
     asyncpg driver regardless of input scheme, and never append `sslmode`
     — asyncpg doesn't understand libpq's `sslmode` query parameter; adding
     it would likely break the connection outright.
-
-    Incident note (2026-08-23): this env var comes from the toolkit
-    instance's `.env.production`, which `user_data.sh.tpl`'s bootstrap
-    script writes ONCE by fetching this same secret -- it is not re-read
-    live. If the RDS master password ever changes (rotation, manual reset)
-    without a matching `/wusool/<env>/toolkit.database_url` update, this
-    migration step starts failing with `InvalidPasswordError` and updating
-    the secret alone will NOT fix it -- the toolkit instance's bootstrap
-    document must also be re-invoked (`aws ssm send-command
-    --document-name <project>-<env>-toolkit-bootstrap ...`) to refresh the
-    stale file before the next deploy's migration step will pick it up.
     """
-    url = os.environ["DATABASE_URL"]
+    url = os.environ.get("DATABASE_URL") or _secret_database_url()
     if url.startswith("postgresql+asyncpg://"):
         return url
     if url.startswith("postgresql://"):
         return url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url
+
+
+def _secret_database_url() -> str:
+    location = SecretLocation()
+    if not location.aws_secrets_manager_secret_id:
+        raise RuntimeError(
+            "Set DATABASE_URL, or AWS_SECRETS_MANAGER_SECRET_ID to read it from Secrets Manager"
+        )
+    return fetch_toolkit_secret(
+        location.aws_secrets_manager_secret_id, location.aws_region
+    ).database_url
 
 
 # `set_main_option` stores into a ConfigParser-backed section, which treats

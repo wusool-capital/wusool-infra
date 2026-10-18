@@ -3,10 +3,12 @@
 from functools import lru_cache
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
+
+from app.modules.utilities import SecretsManagerSettings
 
 
-class Settings(BaseSettings):
+class Settings(SecretsManagerSettings):
     """Root application settings. Instantiate via `get_settings()`."""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
