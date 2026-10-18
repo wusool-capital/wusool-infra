@@ -28,7 +28,7 @@ Give each operator the minimum role for the task.
 | System | Needed for |
 | --- | --- |
 | GitHub repository and Actions | Review changes, inspect checks, deploy, and rerun workflows. Environments: `dev`, `prod`, and `scribe-release`. |
-| AWS, through the approved sign-in | Logs, alarms, Systems Manager, RDS, Secrets Manager, and OpenTofu. Includes Bedrock model access and SES sending. |
+| AWS, through the approved sign-in | Logs, alarms, Systems Manager, RDS, Secrets Manager, and OpenTofu. Includes Bedrock model access and SES sending. Developers sign in with IAM Identity Center and can read the dev secret only. |
 | Slack administration | The Toolkit app, and the AWS Chatbot alerts channel |
 | Attio administration | CRM attributes, lists, webhooks, and users |
 | Sanity | The Reports & Insights Studio project: member invites, API tokens, and webhooks |

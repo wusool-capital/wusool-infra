@@ -20,8 +20,10 @@
 ## Credentials and access
 
 Application secrets live in AWS Secrets Manager and are read by each
-instance's role. GitHub Actions uses AWS OIDC roles, never committed keys.
-Local `.env` files are for development only and are never committed. n8n
+instance's role at startup, so no secret file sits on the instance. Developers
+use the same path with their own AWS sign-in and can read the dev secret only.
+GitHub Actions uses AWS OIDC roles, never committed keys. Local `.env` files
+hold only non-secret settings and are never committed. n8n
 keeps its own users and stored credentials.
 
 The Toolkit has no user allowlist: anyone who can use the bot in its Slack

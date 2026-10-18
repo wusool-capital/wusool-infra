@@ -10,6 +10,15 @@ for current production evidence and open handover items.
 
 ## 2026-10-18
 
+### Changed
+
+- The Toolkit now reads its secrets from AWS Secrets Manager each time it
+  starts, locally and on the servers. The servers no longer keep a secrets
+  file on disk, and developers no longer keep a `.env` file with secrets.
+  A secret edit now takes effect when the app restarts, with no bootstrap
+  re-run. Developers sign in with AWS and can read the dev secret only; the
+  production secret is blocked for them.
+
 ### Fixed
 
 - The GitBook **Publish with Claude** steps now match the setup guide sent to

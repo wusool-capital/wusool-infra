@@ -8,9 +8,8 @@
 # ATTIO_API_KEY and ATTIO_WEBHOOK_SECRET unconditionally (see
 # server/app/modules/ddl_commands/config.py) — omitting either fails Settings()
 # construction on the very first request that touches the database, for
-# every command, not just the Attio-writing ones (user_data.sh.tpl's
-# `env: {}` passthrough is the generic mechanism for this, already handles
-# any extra key without further templating). ATTIO_WEBHOOK_SECRET is the
+# every command, not just the Attio-writing ones (the app flattens `env: {}`
+# itself at startup, so any extra key needs no further templating). ATTIO_WEBHOOK_SECRET is the
 # value Attio returns exactly once, in the response to `POST /v2/webhooks` —
 # see the webhook-registration runbook handed over separately. Never put
 # real secrets in a .tf file or state diff.
@@ -18,8 +17,9 @@
 # ATTIO_API_KEY is the SOURCE workspace's key in BOTH environments now — one
 # workspace serves both, and ATTIO_IS_TEST separates them. That flag is
 # templated from var.environment in modules/toolkit-ec2 rather than living
-# here, so it cannot be forgotten; a key of the same name in `env: {}` still
-# overrides it, since the passthrough is appended after the templated block.
+# here, so it cannot be forgotten. It reaches the container as a process
+# env var, which outranks the secret, so a key of the same name in `env: {}`
+# no longer overrides it.
 # One SOURCE key serves both environments -- ATTIO_IS_TEST is the only thing
 # separating them, and a second credential would not change what gets written.
 # Blast radius is the one reason to revisit that: a leaked dev key is a leaked

@@ -39,10 +39,51 @@ cross-cutting infra).
 
 ## Setup
 
-```bash
-uv sync
-cp .env.example .env  # then fill in real values — one shared Slack token/secret for both modules
+Secrets are not kept in a `.env` file. Every module's `Settings` reads the
+toolkit secret from AWS Secrets Manager at startup (`/wusool/dev/toolkit`
+locally, `/wusool/<env>/toolkit` deployed) through boto3's default credential
+chain: your AWS profile locally, the instance role on EC2. The same code path
+runs everywhere.
+
+One-time, add the profile to `~/.aws/config` (AWS CLI v2; ask an admin for the
+start URL, see `docs/internal/dev/AWS_ACCESS.md`):
+
+```ini
+[sso-session wusool]
+sso_start_url = https://<your-portal>.awsapps.com/start
+sso_region = eu-central-1
+sso_registration_scopes = sso:account:access
+
+[profile wusool]
+sso_session = wusool
+sso_account_id = 030179310793
+sso_role_name = WusoolDeveloper
+region = eu-central-1
 ```
+
+Then, each week (the Identity Center session lasts 7 days):
+
+```bash
+export AWS_PROFILE=wusool
+aws sso login
+uv sync
+uv run python main.py
+```
+
+Until your Identity Center user exists, `aws login --profile wusool` with your
+IAM user works for `uv run` (the dev dependencies include the `botocore[crt]`
+that boto3 needs for it). Docker Compose cannot use `aws login` credentials,
+so it needs the SSO profile.
+
+- Secrets are read once at startup. A secret edit applies on the next restart
+  (including uvicorn auto-reload), not to a running process. An expired AWS
+  session blocks only starting the app, not a running one.
+- A local `.env` still outranks the secret, so delete any old `server/.env`
+  that holds secrets. Use `.env` or exported variables only for non-secret
+  overrides such as `LOG_LEVEL` or `ATTIO_IS_TEST`. `.env.example` lists them.
+- Tests and `./checks.sh` set `AWS_SECRETS_MANAGER_SECRET_ID=""`, so they never
+  call AWS.
+- Devs can read the dev secret only; the prod secret is denied.
 
 ## Running
 
@@ -58,6 +99,10 @@ throwaway local Postgres and a one-shot migration step —
 ```bash
 docker compose up --build
 ```
+
+Compose mounts `~/.aws` into the container and passes `AWS_PROFILE` (default
+`wusool`), so run `aws sso login` first. The bundled Postgres overrides
+`DATABASE_URL`; every other secret still comes from the dev secret.
 
 - `GET /health` — liveness, no database dependency.
 - `GET /readiness` (alias `GET /ready`) — confirms database connectivity.
