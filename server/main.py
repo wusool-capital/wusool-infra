@@ -65,7 +65,7 @@ from app.modules.enrichment.api.slack.handlers import (
 )
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.lead_magnets.api.static import ToolStatic, static_dir
-from app.modules.lead_magnets.bootstrap import run_sweeper_forever
+from app.modules.lead_magnets.bootstrap import run_sweeper_forever, shutdown_analytics
 from app.modules.matching_engine.api.slack.edit_gate import MatchingEngineEditGate
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
@@ -196,6 +196,7 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
         sweeper_task.cancel()
         with suppress(asyncio.CancelledError):
             await sweeper_task
+        await shutdown_analytics()
 
 
 app = FastAPI(title="Wusool Toolkit Bot", lifespan=_lifespan)

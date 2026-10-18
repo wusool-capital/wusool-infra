@@ -10,6 +10,12 @@ for current production evidence and open handover items.
 
 ## 2026-10-18
 
+### Added
+
+- Report form submits, unlocks and views now go to PostHog, so the team can
+  see who read which report and when without SQL. Nothing is sent until
+  `LEAD_MAGNET_POSTHOG_API_KEY` is set in the Toolkit secret.
+
 ### Fixed
 
 - The GitBook **Publish with Claude** steps now match the setup guide sent to

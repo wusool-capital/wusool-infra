@@ -9,7 +9,8 @@ budget (`rate_limit_reads`), so reading never uses up a reader's unlock.
 
 import logging
 from dataclasses import asdict
-from typing import Annotated
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import (
@@ -48,6 +49,7 @@ from app.modules.lead_magnets.application.insights_report.unlock import (
 )
 from app.modules.lead_magnets.application.shared.ports import ReportSourcePort
 from app.modules.lead_magnets.bootstrap import (
+    build_analytics,
     build_article_sync,
     build_report_renderer,
     build_report_source,
@@ -59,6 +61,10 @@ from app.modules.lead_magnets.bootstrap import (
 )
 from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, org_domain
+from app.modules.lead_magnets.domain.insights_report.report_event import (
+    ReportEvent,
+    ReportEventName,
+)
 from app.modules.lead_magnets.domain.insights_report.unlock import ReaderForm
 from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload
 
@@ -107,7 +113,7 @@ async def read_report(
     # The body depends on the cookie, so no shared cache may store it.
     response.headers["Cache-Control"] = "no-store"
 
-    if not await _record_read(session, background, report, wusool_reader):
+    if not await _record_read(session, background, report, wusool_reader, "html"):
         return ReportResponse(
             title=report.title, html=report.html[: report.preview_end], locked=True
         )
@@ -130,7 +136,7 @@ async def download_report_pdf(
     """The whole report as a PDF, for unlocked readers only. Printed on each
     download, on its own per-IP budget, because each one launches Chromium."""
     report = await _published(source, slug)
-    if not await _record_read(session, background, report, wusool_reader):
+    if not await _record_read(session, background, report, wusool_reader, "pdf"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "unlock the report first")
     try:
         pdf = await build_report_renderer().pdf(report.html)
@@ -152,6 +158,7 @@ async def _record_read(
     background: BackgroundTasks,
     report: ReportDocument,
     cookie: str | None,
+    format: Literal["html", "pdf"],
 ) -> bool:
     """Whether the cookie belongs to a reader who unlocked a report.
 
@@ -177,6 +184,16 @@ async def _record_read(
         )
         await session.commit()
         background.add_task(run_completion, run_id)
+    _track(
+        background,
+        "report_viewed",
+        report,
+        name=identity.name,
+        email=identity.email,
+        company=identity.company,
+        domain=identity.domain,
+        format=format,
+    )
     return True
 
 
@@ -208,6 +225,15 @@ async def unlock_report(
     except CodeNotSent:
         logger.exception("insights_report_code_email_failed slug=%s", slug)
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "could not send code") from None
+    _track(
+        background,
+        "report_code_requested",
+        report,
+        name=form.name,
+        email=form.email,
+        company=form.company,
+        domain=org_domain(form.email),
+    )
     return ReportCodeSent(challenge_id=challenge_id)
 
 
@@ -263,6 +289,15 @@ async def _open_report(
     )
     await session.commit()
     background.add_task(run_completion, run_id)
+    _track(
+        background,
+        "report_unlocked",
+        report,
+        name=form.name,
+        email=form.email,
+        company=form.company,
+        domain=domain,
+    )
 
     response.headers["Cache-Control"] = "no-store"
     response.set_cookie(
@@ -311,6 +346,34 @@ async def _sync(event: SanityWebhookBody) -> None:
             await build_report_sync().sync(slug=event.slug, previous_slug=event.previous_slug)
     except Exception:
         logger.exception("%s_sync_failed slug=%s", _SYNC_LOG[event.type], event.slug)
+
+
+def _track(
+    background: BackgroundTasks,
+    event: ReportEventName,
+    report: ReportDocument,
+    *,
+    name: str,
+    email: str,
+    company: str,
+    domain: str | None,
+    format: Literal["html", "pdf"] | None = None,
+) -> None:
+    """Sends a PostHog event after the response, so analytics never slows a reader."""
+    background.add_task(
+        build_analytics().capture,
+        ReportEvent(
+            event=event,
+            name=name,
+            email=email,
+            company=company,
+            domain=domain,
+            slug=report.slug,
+            report_title=report.title,
+            at=datetime.now(UTC),
+            format=format,
+        ),
+    )
 
 
 async def _known_reader(

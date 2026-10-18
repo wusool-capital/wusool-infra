@@ -302,6 +302,22 @@ SELECT started_at, payload->>'report_title' AS report, payload->>'slug' AS slug,
 FROM tool_runs WHERE tool = 'insights_report' ORDER BY started_at DESC;
 ```
 
+The same reads also go to PostHog, so the team can see them without SQL.
+`providers/posthog/client.py` sends three server-side events, keyed by the
+reader's lower-cased email:
+
+| Event | When | Person |
+|---|---|---|
+| `report_code_requested` | The form is sent and the code is emailed, even if never verified | Not created: `$process_person_profile` is off |
+| `report_unlocked` | The code is verified, or the form is sent with the email code off | `name`, `email`, `company` set |
+| `report_viewed` | A reader with the cookie opens the report (`format: html`) or the PDF (`format: pdf`), on every visit | Unchanged |
+
+Every event carries `slug`, `report_title`, `company`, `domain` and `is_test`.
+In PostHog, **Activity** lists the events, **Persons** shows each reader, and
+an insight broken down by `report_title` shows reads per report. A blank
+`LEAD_MAGNET_POSTHOG_API_KEY` sends nothing; an SDK error is logged
+(`posthog_capture_failed`) and never fails the request.
+
 ## Insights articles from Sanity
 
 The Studio's second type, `insights`, publishes ordinary (ungated) articles to

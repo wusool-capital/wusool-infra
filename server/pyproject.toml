@@ -28,6 +28,7 @@ dependencies = [
     # Flattens script-built report exports on publish; the browser is installed in the Dockerfile.
     "playwright>=1.49",
     "nh3>=0.3.7",
+    "posthog[async]>=7.45.0",
 ]
 
 [dependency-groups]

@@ -61,6 +61,20 @@ Every reader's first access to each report is one `tool_runs` row with the
 report in its payload. Repeat visits to the same report aren't recorded. The
 module README has a ready-made query.
 
+The Toolkit also sends three events to PostHog, so the team can see reads
+without SQL:
+
+- `report_code_requested`: the form was sent and a code emailed. It's sent
+  even if the code is never typed in, and creates no person in PostHog.
+- `report_unlocked`: the report opened. It sets the reader's name, email and
+  company on their PostHog person.
+- `report_viewed`: a returning reader opened the report or its PDF. It's sent
+  on every visit, with `format` set to `html` or `pdf`.
+
+Each event names the report (`slug`, `report_title`). Look under **Activity**
+for the events and **Persons** for each reader. Break an insight down by
+`report_title` to count reads per report.
+
 ## Code
 
 `server/app/modules/lead_magnets`: the `insights_report` folders under

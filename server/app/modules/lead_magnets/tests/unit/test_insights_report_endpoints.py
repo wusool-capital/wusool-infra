@@ -23,6 +23,7 @@ from app.modules.lead_magnets.api import dependencies as deps
 from app.modules.lead_magnets.api.insights_report import endpoints
 from app.modules.lead_magnets.application.insights_report.unlock import ReportUnlock
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument
+from app.modules.lead_magnets.domain.insights_report.report_event import ReportEvent
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.domain.shared.tool_run import ToolRunRecord
 from app.modules.lead_magnets.persistence.unlock_challenges import InMemoryUnlockChallenges
@@ -71,6 +72,7 @@ class _World:
     articles: list[tuple[str | None, str | None]] = field(default_factory=list)
     printed: list[str] = field(default_factory=list)
     emails: list[tuple[list[str], str, str]] = field(default_factory=list)
+    events: list[ReportEvent] = field(default_factory=list)
 
 
 class _Source:
@@ -119,6 +121,10 @@ def world(monkeypatch) -> _World:
         async def send(self, *, to, from_addr, subject, body, is_html=False):
             world.emails.append((to, subject, body))
 
+    class _Analytics:
+        async def capture(self, event: ReportEvent) -> None:
+            world.events.append(event)
+
     async def fake_completion(run_id: UUID) -> None:
         world.completed.append(run_id)
 
@@ -140,6 +146,7 @@ def world(monkeypatch) -> _World:
     monkeypatch.setattr(endpoints, "build_tool_runs", lambda session: _ToolRuns())
     monkeypatch.setattr(endpoints, "run_completion", fake_completion)
     monkeypatch.setattr(endpoints, "build_report_unlock", lambda: unlock)
+    monkeypatch.setattr(endpoints, "build_analytics", lambda: _Analytics())
     return world
 
 
@@ -484,3 +491,71 @@ def test_pdf_downloads_have_their_own_per_ip_limit_apart_from_the_unlock(client,
 
     assert downloads == [200, 429]
     assert unlock.status_code == 200, "downloading never uses up the unlock budget"
+
+
+def _sent(world: _World) -> list[tuple[str, str | None]]:
+    return [(e.event, e.format) for e in world.events]
+
+
+def test_unlock_and_verify_each_send_one_posthog_event(client, world) -> None:
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "Dana", "email": "Dana@Acme.ae", "company": "Acme"},
+    )
+    assert _sent(world) == [("report_code_requested", None)]
+
+    _unlock(client, world, name="Dana", email="dana@acme.ae", company="Acme")
+
+    requested, again, unlocked = world.events
+    assert again.event == "report_code_requested"
+    assert unlocked.event == "report_unlocked"
+    assert (unlocked.name, unlocked.email, unlocked.company) == ("Dana", "dana@acme.ae", "Acme")
+    assert (unlocked.slug, unlocked.report_title) == ("buyouts-in-the-gcc", "Buyouts in the GCC")
+    assert unlocked.domain == "acme.ae"
+    assert requested.at.tzinfo is not None
+
+
+def test_a_failed_code_email_sends_no_event(client, world, monkeypatch) -> None:
+    class _Down:
+        async def send(self, **kwargs):
+            raise RuntimeError("ses down")
+
+    monkeypatch.setattr(
+        endpoints,
+        "build_report_unlock",
+        lambda: ReportUnlock(
+            challenges=InMemoryUnlockChallenges(), mailer=_Down(), email_from="x@y.z", ttl_s=600
+        ),
+    )
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "D", "email": "dana@acme.ae"},
+    )
+    assert world.events == []
+
+
+def test_with_email_otp_off_only_the_unlock_is_sent(client, world) -> None:
+    world.settings.lead_magnet_report_email_otp = False
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "Dana", "email": "dana@acme.ae", "company": "Acme"},
+    )
+    assert _sent(world) == [("report_unlocked", None)]
+
+
+def test_a_known_reader_sends_a_view_for_each_page_and_pdf(client, world) -> None:
+    assert client.get("/reports/buyouts-in-the-gcc").json()["locked"] is True
+    assert world.events == [], "an anonymous preview is not a view"
+
+    client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
+    client.get("/reports/buyouts-in-the-gcc")
+    client.get("/reports/buyouts-in-the-gcc")
+    client.get("/reports/other-report/pdf")
+
+    assert _sent(world) == [
+        ("report_viewed", "html"),
+        ("report_viewed", "html"),
+        ("report_viewed", "pdf"),
+    ]
+    view = world.events[-1]
+    assert (view.email, view.slug, view.report_title) == ("dana@acme.ae", "other-report", "Other")

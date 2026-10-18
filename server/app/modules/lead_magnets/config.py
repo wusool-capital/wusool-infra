@@ -106,6 +106,11 @@ class Settings(BaseSettings):
     lead_magnet_webflow_reports_collection_id: str = "6ac64c92647fc1acb46497de"
     lead_magnet_webflow_insights_collection_id: str = "69aaa645fa60624091050e8e"
 
+    # Secrets Manager only. Blank sends no report events to PostHog.
+    lead_magnet_posthog_api_key: str = ""
+    # EU cloud, matching eu-central-1; change it if the PostHog project is on US.
+    lead_magnet_posthog_host: str = "https://eu.i.posthog.com"
+
     @field_validator("database_url")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:

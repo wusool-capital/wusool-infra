@@ -42,6 +42,7 @@ Confirm/add these keys under `env`:
 |---|---|---|
 | `FIRECRAWL_API_KEY` | Yes, for `/compare` | Without it, `/compare` still serves — comparables just come back empty (the search step is skipped, not the endpoint). |
 | `LEAD_MAGNET_FRAME_ANCESTORS` | No (has a default) | Defaults to `https://wusoolcapital.com https://www.wusoolcapital.com` in `config.py` — only set this if the embedding site's origin differs from that default. |
+| `LEAD_MAGNET_POSTHOG_API_KEY` | No | PostHog project API key for report events. Without it, no events are sent and reports work as before. The host defaults to EU (`LEAD_MAGNET_POSTHOG_HOST`). |
 
 No `CLAUDE_KEY` and no Bedrock access keys — Bedrock is reached through the
 EC2 instance's own IAM role (`modules/bedrock-access`), which is already
