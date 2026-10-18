@@ -13,7 +13,8 @@ was first run (2026-08-30): `lead_source`, `employee_range`,
 Read-only — every call here is a GET, nothing is ever written to Attio.
 
 Skips cleanly (like `db_session` does for an unreachable Postgres) unless
-`ATTIO_SCHEMA_CHECK_API_KEY` is set, so the default suite stays offline. Prod is the source of truth for the schema (this only ever
+`ATTIO_SCHEMA_CHECK_API_KEY` is set, so the default suite stays offline.
+Prod is the source of truth for the schema (this only ever
 issues GETs), and DEV lags it — a DEV key reports attributes the code already
 uses as missing. To run it, export the PROD key as `ATTIO_SCHEMA_CHECK_API_KEY` and:
 
