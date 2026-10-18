@@ -45,12 +45,12 @@ locally, `/wusool/<env>/toolkit` deployed) through boto3's default credential
 chain: your AWS profile locally, the instance role on EC2. The same code path
 runs everywhere.
 
-One-time, add the profile to `~/.aws/config` (AWS CLI v2; ask an admin for the
-start URL, see `docs/internal/dev/AWS_ACCESS.md`):
+One-time, add the profile to `~/.aws/config` (latest AWS CLI v2: older versions
+ignore the 7-day session; see `docs/internal/dev/AWS_ACCESS.md`):
 
 ```ini
 [sso-session wusool]
-sso_start_url = https://<your-portal>.awsapps.com/start
+sso_start_url = https://d-9967b18774.awsapps.com/start
 sso_region = eu-central-1
 sso_registration_scopes = sso:account:access
 
