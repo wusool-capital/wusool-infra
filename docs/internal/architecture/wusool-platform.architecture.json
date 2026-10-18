@@ -442,6 +442,13 @@
     },
     {
       "from": "toolkit",
+      "to": "operations",
+      "label": "secrets at startup (instance role)",
+      "labelDy": 60,
+      "variant": "dashed"
+    },
+    {
+      "from": "toolkit",
       "to": "postgres",
       "label": "SQL",
       "variant": "emphasis",
@@ -492,7 +499,8 @@
       "title": "Operational controls",
       "items": [
         "GitHub OIDC deploys through OpenTofu and SSM",
-        "Alarms and GuardDuty findings reach Slack via AWS Chatbot"
+        "Alarms and GuardDuty findings reach Slack via AWS Chatbot",
+        "App secrets are read from Secrets Manager at startup, with no secret files on the instance; devs read only the dev secret"
       ]
     }
   ]

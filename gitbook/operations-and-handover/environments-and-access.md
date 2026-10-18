@@ -28,7 +28,7 @@ Give each operator the minimum role for the task.
 | System | Needed for |
 | --- | --- |
 | GitHub repository and Actions | Review changes, inspect checks, deploy, and rerun workflows. Environments: `dev`, `prod`, and `scribe-release`. |
-| AWS, through the approved sign-in | Logs, alarms, Systems Manager, RDS, Secrets Manager, and OpenTofu. Includes Bedrock model access and SES sending. |
+| AWS, through the approved sign-in | Logs, alarms, Systems Manager, RDS, Secrets Manager, and OpenTofu. Includes Bedrock model access and SES sending. Developers sign in with IAM Identity Center, MFA, and a seven-day session. They can read the dev secret only. |
 | Slack administration | The Toolkit app, and the AWS Chatbot alerts channel |
 | Attio administration | CRM attributes, lists, webhooks, and users |
 | Sanity | The Reports & Insights Studio project: member invites, API tokens, and webhooks |
@@ -49,6 +49,16 @@ not managed in the repository; check them in the AWS console.
 Named owners and the access-request route are **not recorded here**. Never
 document account numbers, role identifiers, tokens, or personal credentials
 in these pages.
+
+## Add or remove a developer
+
+1. Create the user in IAM Identity Center and add them to the
+   `wusool-developers` group.
+2. They sign in with MFA and a seven-day session. The Developer role reads the
+   dev secret only.
+3. To remove someone, delete their Identity Center user. Also remove them from
+   GitHub, Slack, Attio, Sanity, Webflow, and Cloudflare.
+4. While legacy IAM users exist, delete the person's IAM user as well.
 
 ## Verify access before a change
 

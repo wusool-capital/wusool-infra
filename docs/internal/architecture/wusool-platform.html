@@ -5170,11 +5170,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <path data-edge-from="attio" data-edge-to="toolkit" data-edge-label="signed POST /webhooks/attio" data-edge-key="6" data-composition-points="606,84;606,220" d="M 606 84 L 606 220" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="toolkit" data-edge-to="attio" data-edge-label="writes" data-edge-key="7" data-composition-points="620,220;620,84" d="M 620 220 L 620 84" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
         <path data-edge-from="github" data-edge-to="toolkit" data-edge-label="deploy + nightly resync via SSM" data-edge-key="8" data-composition-points="980,52;956,52;956,196;634,196;634,220" d="M 980 52 L 964 52 Q 956 52 956 60 L 956 188 Q 956 196 948 196 L 642 196 Q 634 196 634 204 L 634 220" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="toolkit" data-edge-to="bedrock" data-edge-label="instance role" data-edge-key="9" data-composition-points="770,356;875,356;875,285;980,285" d="M 770 356 L 867 356 Q 875 356 875 348 L 875 293 Q 875 285 883 285 L 980 285" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="toolkit" data-edge-to="postgres" data-edge-label="SQL" data-edge-key="10" data-composition-points="770,370;980,370" d="M 770 370 L 980 370" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="toolkit" data-edge-to="ses" data-edge-label="lead + code emails" data-edge-key="11" data-composition-points="770,384;875,384;875,455;980,455" d="M 770 384 L 867 384 Q 875 384 875 392 L 875 447 Q 875 455 883 455 L 980 455" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="toolkit" data-edge-to="research" data-edge-label="enrichment + Places APIs" data-edge-key="12" data-composition-points="627,520;627,626;1125,626;1125,650" d="M 627 520 L 627 618 Q 627 626 635 626 L 1117 626 Q 1125 626 1125 634 L 1125 650" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="github" data-edge-to="n8n" data-edge-label="OpenTofu + SSM" data-edge-key="13" data-composition-points="1080,84;1080,130" d="M 1080 84 L 1080 130" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="toolkit" data-edge-to="bedrock" data-edge-label="instance role" data-edge-key="9" data-composition-points="770,349;875,349;875,285;980,285" d="M 770 349 L 867 349 Q 875 349 875 341 L 875 293 Q 875 285 883 285 L 980 285" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="toolkit" data-edge-to="operations" data-edge-label="secrets at startup (instance role)" data-edge-key="10" data-composition-points="770,391;875,391;875,552;980,552" d="M 770 391 L 867 391 Q 875 391 875 399 L 875 544 Q 875 552 883 552 L 980 552" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="toolkit" data-edge-to="postgres" data-edge-label="SQL" data-edge-key="11" data-composition-points="770,363;980,363" d="M 770 363 L 980 363" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="toolkit" data-edge-to="ses" data-edge-label="lead + code emails" data-edge-key="12" data-composition-points="770,377;875,377;875,455;980,455" d="M 770 377 L 867 377 Q 875 377 875 385 L 875 447 Q 875 455 883 455 L 980 455" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="toolkit" data-edge-to="research" data-edge-label="enrichment + Places APIs" data-edge-key="13" data-composition-points="627,520;627,626;1125,626;1125,650" d="M 627 520 L 627 618 Q 627 626 635 626 L 1117 626 Q 1125 626 1125 634 L 1125 650" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="github" data-edge-to="n8n" data-edge-label="OpenTofu + SSM" data-edge-key="14" data-composition-points="1080,84;1080,130" d="M 1080 84 L 1080 130" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Components -->
         <g id="node-slack" data-node-id="slack" data-node-label="Slack users" tabindex="0" role="button" aria-label="Focus Slack users, commands + interactions, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="commands + interactions" data-node-context="Architecture component">
@@ -5395,19 +5396,23 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="891.3" y="265" width="72.4" height="14" rx="3" class="c-mask"/>
           <text x="927.5" y="275" class="t-messagebus" font-size="8" text-anchor="middle">instance role</text>
         </g>
-        <g data-detail="context" data-edge-from="toolkit" data-edge-to="postgres" data-edge-label="SQL" data-edge-key="10">
-          <rect x="910" y="350" width="30" height="14" rx="3" class="c-mask"/>
-          <text x="925" y="360" class="t-backend" font-size="8" text-anchor="middle">SQL</text>
+        <g data-detail="context" data-edge-from="toolkit" data-edge-to="operations" data-edge-label="secrets at startup (instance role)" data-edge-key="10">
+          <rect x="788.4" y="511.5" width="173.2" height="14" rx="3" class="c-mask"/>
+          <text x="875" y="521.5" class="t-messagebus" font-size="8" text-anchor="middle">secrets at startup (instance role)</text>
         </g>
-        <g data-detail="context" data-edge-from="toolkit" data-edge-to="ses" data-edge-label="lead + code emails" data-edge-key="11">
+        <g data-detail="context" data-edge-from="toolkit" data-edge-to="postgres" data-edge-label="SQL" data-edge-key="11">
+          <rect x="910" y="343" width="30" height="14" rx="3" class="c-mask"/>
+          <text x="925" y="353" class="t-backend" font-size="8" text-anchor="middle">SQL</text>
+        </g>
+        <g data-detail="context" data-edge-from="toolkit" data-edge-to="ses" data-edge-label="lead + code emails" data-edge-key="12">
           <rect x="879.3" y="435" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
           <text x="927.5" y="445" class="t-messagebus" font-size="8" text-anchor="middle">lead + code emails</text>
         </g>
-        <g data-detail="context" data-edge-from="toolkit" data-edge-to="research" data-edge-label="enrichment + Places APIs" data-edge-key="12">
+        <g data-detail="context" data-edge-from="toolkit" data-edge-to="research" data-edge-label="enrichment + Places APIs" data-edge-key="13">
           <rect x="813.4" y="606" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
           <text x="876" y="616" class="t-messagebus" font-size="8" text-anchor="middle">enrichment + Places APIs</text>
         </g>
-        <g data-detail="context" data-edge-from="github" data-edge-to="n8n" data-edge-label="OpenTofu + SSM" data-edge-key="13">
+        <g data-detail="context" data-edge-from="github" data-edge-to="n8n" data-edge-label="OpenTofu + SSM" data-edge-key="14">
           <rect x="1041.4" y="88" width="77.2" height="14" rx="3" class="c-mask"/>
           <text x="1080" y="98" class="t-backend" font-size="8" text-anchor="middle">OpenTofu + SSM</text>
         </g>
@@ -5641,6 +5646,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <ul>
           <li>&bull; GitHub OIDC deploys through OpenTofu and SSM</li>
           <li>&bull; Alarms and GuardDuty findings reach Slack via AWS Chatbot</li>
+          <li>&bull; App secrets are read from Secrets Manager at startup, with no secret files on the instance; devs read only the dev secret</li>
         </ul>
       </div>
     </div>

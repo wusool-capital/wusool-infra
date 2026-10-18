@@ -112,3 +112,11 @@ variable "toolkit_ami_id" {
   description = "AMI to launch. Pinned explicitly (H1) — set to whatever AMI is currently running before changing anything else."
   type        = string
 }
+
+# Prefixed with "toolkit_" for the same reason as toolkit_ami_id: every stack
+# reads the same shared envs/<env>.tfvars file.
+variable "toolkit_db_master_secret_arn" {
+  description = "ARN of the RDS-managed master secret (stacks/postgres, `master_user_secret_arn`). The deploy migration step reads it through the instance role to run DDL; the app never uses it. Empty skips the grant, and migrations then fall back to the app's own database login."
+  type        = string
+  default     = ""
+}

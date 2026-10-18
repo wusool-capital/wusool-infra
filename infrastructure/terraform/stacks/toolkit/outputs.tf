@@ -54,3 +54,8 @@ output "ecr_repository_url" {
 output "bootstrap_document_name" {
   value = try(module.wusool_toolkit[0].bootstrap_document_name, "")
 }
+
+output "db_master_secret_arn" {
+  description = "RDS master secret the deploy migration step authenticates with. Not a secret value, only its ARN."
+  value       = var.toolkit_db_master_secret_arn
+}

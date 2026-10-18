@@ -12,28 +12,26 @@ was first run (2026-08-30): `lead_source`, `employee_range`,
 
 Read-only — every call here is a GET, nothing is ever written to Attio.
 
-Skips cleanly (like `db_session` does for an unreachable Postgres) unless a
-real `ATTIO_API_KEY` is present in this directory's `.env`, so the default
-suite stays offline. Prod is the source of truth for the schema (this only ever
+Skips cleanly (like `db_session` does for an unreachable Postgres) unless
+`ATTIO_SCHEMA_CHECK_API_KEY` is set, so the default suite stays offline.
+Prod is the source of truth for the schema (this only ever
 issues GETs), and DEV lags it — a DEV key reports attributes the code already
-uses as missing. To run it, put the PROD key in `.env` and:
+uses as missing. To run it, export the PROD key as `ATTIO_SCHEMA_CHECK_API_KEY` and:
 
     uv run pytest tests/integration/test_attio_schema_matches_field_specs.py -v
 
-The key is read from `.env` directly rather than via `get_settings()`:
-`conftest.py` sets a dummy `ATTIO_API_KEY` env var for the offline suite, and
-environment variables outrank the dotenv file in pydantic-settings.
+The key has its own variable rather than `ATTIO_API_KEY`: `conftest.py` sets
+a dummy `ATTIO_API_KEY` for the offline suite.
 """
 
+import os
+
 import pytest
-from dotenv import dotenv_values
 
 from app.modules.attio.providers.attio.client import AttioClient, AttioError
 from app.modules.ddl_commands.api.buyers import BUYER_ROLE_FIELDS
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS
-
-_CONFTEST_DUMMY_KEY = "test-attio-key"
 
 # `target_kind` is Attio's own namespace for the attribute endpoints:
 # "objects" for organizations, "lists" for the two role tables.
@@ -65,16 +63,15 @@ _EXPECTED_ATTIO_TYPE = {
 
 
 def _attio_key() -> str | None:
-    raw = (dotenv_values(".env") or {}).get("ATTIO_API_KEY")
-    key = (raw or "").strip()
-    return key if key and key != _CONFTEST_DUMMY_KEY else None
+    key = os.environ.get("ATTIO_SCHEMA_CHECK_API_KEY", "").strip()
+    return key or None
 
 
 @pytest.fixture(scope="session")
 async def attio_client():
     key = _attio_key()
     if key is None:
-        pytest.skip("no real ATTIO_API_KEY in .env — live Attio schema check skipped")
+        pytest.skip("ATTIO_SCHEMA_CHECK_API_KEY not set — live Attio schema check skipped")
     async with AttioClient(key) as client:
         try:
             await client.get("/objects/organizations/attributes?limit=1")

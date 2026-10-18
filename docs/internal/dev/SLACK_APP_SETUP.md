@@ -98,12 +98,12 @@ interactivity URL.
   messages after button clicks.
 
 **Install App to Workspace** → copy the **Bot User OAuth Token** (`xoxb-...`)
-into `SLACK_BOT_TOKEN` (one shared value, `server/.env`).
+into the `slack_bot_token` key of the Secrets Manager secret (`/wusool/<env>/toolkit`; one shared value). The app reads it at startup — there is no `.env` for it.
 
 ## 5. Signing secret
 
 **Settings → Basic Information → App Credentials** → copy **Signing Secret**
-into `SLACK_SIGNING_SECRET`. Bolt verifies every request against this
+into the `slack_signing_secret` key of the same secret. Bolt verifies every request against this
 (`v0:<timestamp>:<body>` HMAC-SHA256) — get it wrong and every command
 silently 401s.
 
@@ -112,15 +112,15 @@ silently 401s.
 `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer` write to SOURCE Attio
 before writing to Postgres — see
 `server/app/modules/ddl_commands/README.md` ("Why Attio-first") for
-the full reasoning. Set `ATTIO_API_KEY` to a write-capable SOURCE workspace
+the full reasoning. Set `env.ATTIO_API_KEY` in the Secrets Manager secret to a write-capable SOURCE workspace
 key (the same workspace `crm-sync`'s PowerShell scripts use via
 `SOURCE_ATTIO_API_KEY`). `/find-match` needs none of this.
 
 One SOURCE workspace serves both environments, so also set `ATTIO_IS_TEST`:
 `true` for anything that is not production. It defaults to `true`, and the
-deployed environments get it from Terraform — but a local `.env` that sets a
-real key and forgets this flag would write test records indistinguishable
-from real CRM data, so set it explicitly. There is one SOURCE key across both
+deployed environments get it from Terraform — but a local run that points at
+a real key and forgets this flag would write test records indistinguishable
+from real CRM data, so set it explicitly (export `ATTIO_IS_TEST=true`). There is one SOURCE key across both
 environments — `ATTIO_IS_TEST` is the only thing separating them.
 
 ## Before enabling for real users

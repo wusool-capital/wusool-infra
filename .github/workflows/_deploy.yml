@@ -312,24 +312,27 @@ jobs:
             exit 0
           fi
           IMAGE="$REPO_URL@${{ inputs.image_digest }}"
+          DB_MASTER_SECRET_ARN=$(tofu output -raw db_master_secret_arn 2>/dev/null || echo "")
 
           # $REPO_URL/$IMAGE are expanded HERE (on the runner) into literal
           # values baked into the JSON below — the remote side needs no env
-          # vars or secrets of its own beyond the app's already-deployed
-          # .env.production (which already has DATABASE_URL, written by the
-          # bootstrap script from the same secret the app itself reads).
+          # vars or secrets of its own beyond the already-deployed runtime.env
+          # (secret ID and region only). Migrations need DDL rights the app
+          # does not have, so only this one-off container is given the RDS
+          # master secret's ARN; it reads the login live via the instance role,
+          # then provisions the app's data-only role from the toolkit secret.
           # Built via `jq -n` rather than a heredoc: a heredoc's closing
           # delimiter must match with zero leading whitespace, which a
           # YAML `run: |` block's indentation would silently break.
           COMMANDS_JSON=$(jq -n \
             --arg login "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin $REPO_URL" \
             --arg pull "docker pull $IMAGE" \
-            --arg migrate "docker run --rm --env-file /opt/toolkit/toolkit/.env.production $IMAGE python -m alembic upgrade head" \
+            --arg migrate "docker run --rm --env-file /opt/toolkit/toolkit/runtime.env -e 'DB_MASTER_SECRET_ARN=$DB_MASTER_SECRET_ARN' $IMAGE sh -c 'python -m alembic upgrade head && python -m app.modules.utilities.db_roles'" \
             '["set -e", $login, $pull, $migrate]')
 
           # Retried at this outer level, same as the bootstrap-roll steps
           # below: a brand-new instance's automatic first-boot user_data is
-          # what writes /opt/toolkit/toolkit/.env.production in the first
+          # what writes /opt/toolkit/toolkit/runtime.env in the first
           # place, and this command can race that on a genuinely first-ever
           # instance creation (see the "Roll the toolkit app" step's own
           # comment for the precedent — observed 2026-08-17 standing up the
