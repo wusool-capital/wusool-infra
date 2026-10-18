@@ -54,7 +54,7 @@ sso_start_url = https://d-9967b18774.awsapps.com/start
 sso_region = eu-central-1
 sso_registration_scopes = sso:account:access
 
-[profile wusool]
+[profile wusool-sso]
 sso_session = wusool
 sso_account_id = 030179310793
 sso_role_name = WusoolDeveloper
@@ -64,7 +64,7 @@ region = eu-central-1
 Then, each week (the Identity Center session lasts 7 days):
 
 ```bash
-export AWS_PROFILE=wusool
+export AWS_PROFILE=wusool-sso
 aws sso login
 uv sync
 uv run python main.py
@@ -101,7 +101,7 @@ docker compose up --build
 ```
 
 Compose mounts `~/.aws` into the container and passes `AWS_PROFILE` (default
-`wusool`), so run `aws sso login` first. The bundled Postgres overrides
+`wusool-sso`, so name your profile that), so run `aws sso login` first. The bundled Postgres overrides
 `DATABASE_URL`; every other secret still comes from the dev secret.
 
 - `GET /health` — liveness, no database dependency.

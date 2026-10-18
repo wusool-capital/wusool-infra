@@ -64,7 +64,7 @@ the app, never a running one.
 ## Verify
 
 ```bash
-export AWS_PROFILE=wusool
+export AWS_PROFILE=wusool-sso
 aws secretsmanager get-secret-value --secret-id /wusool/dev/toolkit --query Name   # works
 aws secretsmanager get-secret-value --secret-id /wusool/prod/toolkit --query Name  # AccessDenied
 ```

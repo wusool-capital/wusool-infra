@@ -102,6 +102,6 @@ def test_fetch_failure_names_the_login_step(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(secrets_manager.boto3, "client", lambda *_a, **_k: _Boom())
     fetch_toolkit_secret.cache_clear()
-    with pytest.raises(SecretLoadError, match="aws login"):
+    with pytest.raises(SecretLoadError, match="aws sso login"):
         fetch_toolkit_secret("/x", "eu-central-1")
     fetch_toolkit_secret.cache_clear()

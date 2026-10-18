@@ -57,7 +57,7 @@ services:
       DATABASE_URL: postgresql://matching:matching@db:5432/wusool_crm
       # Every other secret (Slack, Attio, ...) is read from Secrets Manager at
       # startup, using the host's AWS profile mounted below.
-      AWS_PROFILE: ${AWS_PROFILE:-wusool}
+      AWS_PROFILE: ${AWS_PROFILE:-wusool-sso}
       AWS_SECRETS_MANAGER_SECRET_ID: ${AWS_SECRETS_MANAGER_SECRET_ID:-/wusool/dev/toolkit}
       HOME: /home/app
       ATTIO_IS_TEST: ${ATTIO_IS_TEST:-true}

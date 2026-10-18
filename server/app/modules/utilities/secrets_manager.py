@@ -88,7 +88,7 @@ def fetch_toolkit_secret(secret_id: str, region: str) -> ToolkitSecret:
     except (BotoCoreError, ClientError, ValueError, KeyError) as exc:
         raise SecretLoadError(
             f"Cannot load secret {secret_id!r} in {region}. Locally, run "
-            "`aws login --profile wusool` (or `aws sso login`) and set AWS_PROFILE."
+            "`aws sso login --profile wusool-sso` and set AWS_PROFILE=wusool-sso."
         ) from exc
 
 
