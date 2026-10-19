@@ -13,7 +13,10 @@ them is populated is `activities_subject_present`
 reproduced below as a `CheckConstraint` with its original name so a future
 `--autogenerate` sees no drift.
 
-Clean otherwise: not touched again after `004_machine_layer.sql`.
+Since AZM-150 this is the thin, append-only business-event index: one row per
+meaningful event (actor, `event_type`, subject, `ts`, `outcome`) plus a typed
+FK to the domain ledger holding the detail. `ts` is event time, `created_at`
+is insert time. See `docs/internal/dev/ACTIVITIES_AUDIT.md`.
 """
 
 import uuid as uuid_
@@ -37,9 +40,41 @@ class Activity(Base):
             "subject_attio_id IS NOT NULL OR subject_uuid IS NOT NULL",
             name="activities_subject_present",
         ),
+        CheckConstraint(
+            "actor_type IN ('attio_member','attio_api_token','attio_system','slack_user',"
+            "'scribe_install','website_visitor','system','unknown')",
+            name="activities_actor_type_check",
+        ),
+        CheckConstraint("event_type ~ '^[a-z_]+[.][a-z_]+$'", name="activities_event_type_format"),
+        # Added NOT VALID in the migration: older rows predate the closed list.
+        CheckConstraint(
+            "subject_type IN ('Organization','Person','Deal','BuyerRole','SellerRole','Note',"
+            "'Meeting')",
+            name="activities_subject_type_check",
+        ),
+        CheckConstraint(
+            "num_nonnulls(tool_run_id, match_result_id, meeting_id, command_run_id, "
+            "deal_stage_event_id, signal_id) <= 1",
+            name="activities_single_ledger_link",
+        ),
         Index("idx_activities_subject", "subject_type", "subject_attio_id"),
         Index("idx_activities_ts", literal_column("ts DESC")),
         Index("idx_activities_tool_run", "tool_run_id"),
+        # Partial indexes -- must match the migration exactly or `alembic check`
+        # reports drift.
+        Index(
+            "idx_activities_subject_uuid",
+            "subject_type",
+            "subject_uuid",
+            postgresql_where=text("subject_uuid IS NOT NULL"),
+        ),
+        Index("idx_activities_event_type_ts", "event_type", literal_column("ts DESC")),
+        Index(
+            "uq_activities_idempotency_key",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid_.UUID] = mapped_column(
@@ -64,6 +99,30 @@ class Activity(Base):
     # run behind them. See app/models/tool_run.py for why runs live in their
     # own table rather than here.
     tool_run_id: Mapped[uuid_.UUID | None] = mapped_column(UUID, ForeignKey("tool_runs.id"))
+    # `domain.verb`, e.g. `seller.added`. The closed list lives in
+    # `app.modules.activities.domain.vocabulary.EventType`.
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_type: Mapped[str] = mapped_column(Text, nullable=False)
+    # Raw actor id: Slack user, Attio member/token, Scribe install, process name.
+    actor_ref: Mapped[str | None] = mapped_column(Text)
+    idempotency_key: Mapped[str | None] = mapped_column(Text)
+    # Typed links to the ledger row holding the detail. At most one is set
+    # (`activities_single_ledger_link`); the index row never copies ledger data.
+    match_result_id: Mapped[uuid_.UUID | None] = mapped_column(
+        UUID, ForeignKey("match_results.id", ondelete="SET NULL")
+    )
+    meeting_id: Mapped[uuid_.UUID | None] = mapped_column(
+        UUID, ForeignKey("meetings.id", ondelete="SET NULL")
+    )
+    command_run_id: Mapped[uuid_.UUID | None] = mapped_column(
+        UUID, ForeignKey("command_runs.id", ondelete="SET NULL")
+    )
+    deal_stage_event_id: Mapped[uuid_.UUID | None] = mapped_column(
+        UUID, ForeignKey("deal_stage_events.id", ondelete="SET NULL")
+    )
+    signal_id: Mapped[uuid_.UUID | None] = mapped_column(
+        UUID, ForeignKey("signals.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

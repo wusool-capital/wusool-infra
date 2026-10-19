@@ -4,8 +4,7 @@
   [switch]$Apply
 )
 
-# Prod's equivalent of ../dev/backfill-activities.ps1. One-time
-# historical backfill of the `activities` table's boundary-interaction
+# One-time historical backfill of the `activities` table's boundary-interaction
 # timestamps, which only exist on SOURCE's NATIVE companies/people/
 # valuation_tool_leads (SOURCE's custom organizations/person/seller_role
 # already collapsed them down during their own native->custom migration).
@@ -204,8 +203,8 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     # column keeps the statement honest about the full activities schema
     # (added 2026-09-07) rather than silently relying on the default.
     c.executemany(
-        """INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, ts, channel, direction, outcome, source, tool_run_id)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NULL)""",
+        """INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, ts, channel, direction, outcome, source, tool_run_id, event_type, actor_type)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NULL,'legacy.interaction','unknown')""",
         rows,
     )
     inserted = len(rows)

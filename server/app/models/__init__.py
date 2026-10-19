@@ -27,6 +27,7 @@ from app.models.attio_raw_event import AttioRawEvent
 from app.models.attio_sync_state import AttioSyncState
 from app.models.buyer_intel import BuyerIntel
 from app.models.buyer_role import BuyerRole
+from app.models.command_run import CommandRun
 from app.models.deal import Deal
 from app.models.deal_stage_event import DealStageEvent
 from app.models.discovery_review import DiscoveryReview
@@ -54,6 +55,7 @@ __all__ = [
     "AttioSyncState",
     "BuyerIntel",
     "BuyerRole",
+    "CommandRun",
     "Deal",
     "DealStageEvent",
     "DiscoveryReview",

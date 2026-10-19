@@ -16,7 +16,7 @@ Clean otherwise: not touched again after `004_machine_layer.sql`.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Text, text
+from sqlalchemy import Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,8 @@ from app.models.base import Base
 
 class AttioRawEvent(Base):
     __tablename__ = "attio_raw_events"
+    # Backs the nightly 90-day prune.
+    __table_args__ = (Index("idx_attio_raw_events_received_at", "received_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")
