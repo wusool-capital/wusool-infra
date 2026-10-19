@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.modules.activities import ActivityEvent, ActorType, EventType, SubjectType
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
 from app.modules.meetings.domain.meeting_record import SKIP_ATTIO_METADATA_KEY, MeetingRecord
@@ -52,6 +53,19 @@ _DEFAULT_MEETING = MeetingRecord(
     note_id=None,
     removed_at=None,
 )
+
+
+_RECORDED: list[ActivityEvent] = []
+
+
+@pytest.fixture(autouse=True)
+def _clear_recorded_events() -> None:
+    _RECORDED.clear()
+
+
+class _FakeActivityRecorder:
+    async def record(self, event: ActivityEvent) -> None:
+        _RECORDED.append(event)
 
 
 def _meeting(**overrides: object) -> MeetingRecord:
@@ -231,6 +245,7 @@ def _service(
         summarization_service=_summarization_service(),
         note_writer=note_writer,
         summary_semaphore=asyncio.Semaphore(1),
+        activity_recorder=_FakeActivityRecorder(),
     )
     return service, meetings_repo, notes_repo, note_writer, role_lookup
 
@@ -378,6 +393,7 @@ async def test_writeback_failure_does_not_raise() -> None:
         summarization_service=_summarization_service(),
         note_writer=_FakeNoteWriter(),
         summary_semaphore=asyncio.Semaphore(1),
+        activity_recorder=_FakeActivityRecorder(),
     )
 
     await service.summarize_and_publish(_MEETING_ID)  # must not raise
@@ -439,3 +455,39 @@ async def test_ingest_stores_skip_attio_in_metadata(skip_attio: bool) -> None:
 
     metadata = meetings_repo.create_calls[0]["metadata_"]
     assert (metadata or {}).get(SKIP_ATTIO_METADATA_KEY) is (True if skip_attio else None)
+
+
+async def test_publish_records_one_event_on_the_org_with_the_scribe_actor() -> None:
+    meeting = _meeting(org_id=_ORG_ID)
+    service, _, _, _, _ = _service(
+        meeting=meeting, note_writer=_FakeNoteWriter(returned_id=uuid4())
+    )
+
+    await service.summarize_and_publish(_MEETING_ID)
+
+    (event,) = _RECORDED
+    assert event.event_type is EventType.MEETING_PUBLISHED
+    assert (event.subject_type, event.subject_attio_id) == (SubjectType.ORGANIZATION, _ORG_ID)
+    assert event.actor.type is ActorType.SCRIBE_INSTALL
+    assert event.actor.ref == "install-1"
+    assert event.meeting_id == _MEETING_ID
+    assert event.payload.pushed_to_attio is True
+    assert event.idempotency_key == f"meeting.published:{_MEETING_ID}"
+
+
+async def test_an_org_less_meeting_is_anchored_on_the_meeting_itself() -> None:
+    service, _, _, _, _ = _service(meeting=_meeting(org_id=None))
+
+    await service.summarize_and_publish(_MEETING_ID)
+
+    (event,) = _RECORDED
+    assert (event.subject_type, event.subject_uuid) == (SubjectType.MEETING, _MEETING_ID)
+    assert event.payload.pushed_to_attio is False  # the writer returned no Attio id
+
+
+async def test_a_missing_meeting_records_no_event() -> None:
+    service, _, _, _, _ = _service(meeting=None)
+
+    await service.summarize_and_publish(_MEETING_ID)
+
+    assert _RECORDED == []

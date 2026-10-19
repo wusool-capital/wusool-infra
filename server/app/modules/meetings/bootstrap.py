@@ -17,6 +17,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.activities import SqlAlchemyActivityRecorder
 from app.modules.attio import attio_is_test
 from app.modules.attio.providers.attio.notes import AttioNoteWriter
 from app.modules.meetings.application.corrections import CorrectionService
@@ -137,6 +138,8 @@ def build_meetings_service(session: AsyncSession) -> MeetingsService:
         summarization_service=build_summarization_service(),
         note_writer=build_note_writer(),
         summary_semaphore=_summary_semaphore(),
+        # Same session as the repositories, so the event commits with the meeting.
+        activity_recorder=SqlAlchemyActivityRecorder(session),
     )
 
 
