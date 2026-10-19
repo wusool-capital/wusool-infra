@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 
+from app.modules.enrichment.application.ports.linkedin import PostedLimit
 from app.modules.enrichment.application.service import EnrichmentService
 from app.modules.enrichment.domain.linkedin import (
     Contact,
@@ -61,10 +62,14 @@ def target() -> EnrichmentTarget:
     )
 
 
+# The tests below exercise the people path (`include_people=True`), which is
+# built and kept but not wired yet. Org-only tests are at the end of the file.
+
+
 async def test_scan_without_a_client_is_empty(target: EnrichmentTarget) -> None:
     service = _service(targets=LinkedInTargets(contacts=(_contact(),)), linkedin_client=None)
 
-    assert (await service.scan_linkedin(target)).is_empty
+    assert (await service.scan_linkedin(target, include_people=True)).is_empty
 
 
 async def test_scan_detects_job_change_and_returns_posts(target: EnrichmentTarget) -> None:
@@ -80,7 +85,7 @@ async def test_scan_detects_job_change_and_returns_posts(target: EnrichmentTarge
         linkedin_client=client,
     )
 
-    scan = await service.scan_linkedin(target)
+    scan = await service.scan_linkedin(target, include_people=True)
 
     assert [c.contact.person_attio_id for c in scan.job_changes] == ["p1"]
     assert scan.job_changes[0].company_changed
@@ -102,7 +107,7 @@ async def test_contact_without_url_is_skipped_and_reported(
     )
 
     with caplog.at_level("INFO"):
-        scan = await service.scan_linkedin(target)
+        scan = await service.scan_linkedin(target, include_people=True)
 
     assert client.profile_calls == [(_JANE_URL,)]
     assert scan.contacts_without_linkedin == (no_url,)
@@ -116,7 +121,7 @@ async def test_no_scrapable_contact_makes_no_vendor_call(target: EnrichmentTarge
     no_url = _contact("p2", url=None)
     service = _service(targets=LinkedInTargets(contacts=(no_url,)), linkedin_client=client)
 
-    scan = await service.scan_linkedin(target)
+    scan = await service.scan_linkedin(target, include_people=True)
 
     assert client.profile_calls == [] and client.post_calls == []
     assert scan.contacts_without_linkedin == (no_url,)
@@ -126,7 +131,7 @@ async def test_scan_failure_returns_empty_scan_without_raising(target: Enrichmen
     client = FakeLinkedInClient(error=RuntimeError("apify down"))
     service = _service(targets=LinkedInTargets(contacts=(_contact(),)), linkedin_client=client)
 
-    assert (await service.scan_linkedin(target)).job_changes == ()
+    assert (await service.scan_linkedin(target, include_people=True)).job_changes == ()
 
 
 async def test_scan_is_bounded_by_the_overall_timeout(
@@ -136,7 +141,7 @@ async def test_scan_is_bounded_by_the_overall_timeout(
     client = FakeLinkedInClient(delay_s=1.0)
     service = _service(targets=LinkedInTargets(contacts=(_contact(),)), linkedin_client=client)
 
-    scan = await service.scan_linkedin(target)
+    scan = await service.scan_linkedin(target, include_people=True)
 
     assert scan.job_changes == () and scan.posts == ()
 
@@ -183,8 +188,8 @@ async def test_history_makes_a_rerun_report_only_what_is_new(target: EnrichmentT
         linkedin_history=history,
     )
 
-    first = await service.scan_linkedin(target)
-    second = await service.scan_linkedin(target)
+    first = await service.scan_linkedin(target, include_people=True)
+    second = await service.scan_linkedin(target, include_people=True)
 
     assert len(first.posts) == 1 and len(first.job_changes) == 1
     assert second.posts == () and second.job_changes == ()
@@ -201,8 +206,8 @@ async def test_contacts_without_a_url_are_still_reported_on_a_quiet_rerun(
         linkedin_history=FakeLinkedInHistory(),
     )
 
-    await service.scan_linkedin(target)
-    second = await service.scan_linkedin(target)
+    await service.scan_linkedin(target, include_people=True)
+    second = await service.scan_linkedin(target, include_people=True)
 
     assert second.contacts_without_linkedin == (no_url,)
 
@@ -217,7 +222,7 @@ async def test_a_history_failure_falls_back_to_the_full_scan(
     )
 
     with caplog.at_level("WARNING"):
-        scan = await service.scan_linkedin(target)
+        scan = await service.scan_linkedin(target, include_people=True)
 
     assert len(scan.posts) == 1 and len(scan.job_changes) == 1
     assert "linkedin_history_failed" in caplog.text
@@ -233,6 +238,98 @@ async def test_no_history_is_recorded_when_nothing_was_scrapable(
         linkedin_history=history,
     )
 
-    await service.scan_linkedin(target)
+    await service.scan_linkedin(target, include_people=True)
 
     assert history.calls == 0
+
+
+# --- org-only scan: the default, and the only mode wired today ---
+
+
+def _org_service(
+    *,
+    contacts: tuple[Contact, ...] = (),
+    company_url: str | None = _COMPANY_URL,
+    client: FakeLinkedInClient | None = None,
+    history: FakeLinkedInHistory | None = None,
+) -> tuple[EnrichmentService, FakeRoleReader]:
+    reader = FakeRoleReader(
+        linkedin_targets=LinkedInTargets(contacts=contacts, company_url=company_url)
+    )
+    service = EnrichmentService(
+        research_client=FakeResearchClient(),
+        extraction_client=FakeExtractionClient({}),
+        role_reader=reader,
+        review_port=FakeReviewPort(),
+        model_id="test-model",
+        temperature=0.2,
+        max_tokens=1024,
+        min_confidence=0.5,
+        linkedin_client=client or FakeLinkedInClient(),
+        linkedin_history=history,
+    )
+    return service, reader
+
+
+async def test_org_only_scrapes_just_the_company_page(target: EnrichmentTarget) -> None:
+    post = LinkedInPost(external_id="1", url="https://linkedin.com/posts/1", text="hi")
+    client = FakeLinkedInClient(posts=(post,))
+    service, reader = _org_service(contacts=(_contact(),), client=client)
+
+    scan = await service.scan_linkedin(target)
+
+    assert scan.posts == (post,)
+    assert client.profile_calls == []
+    assert client.post_calls == [((_COMPANY_URL,), 10, "month")]
+    # Contacts are not even read from the database.
+    assert reader.include_contacts_calls == [False]
+    assert scan.job_changes == () and scan.contacts_without_linkedin == ()
+    assert scan.contacts_scanned == 0
+
+
+async def test_org_only_without_a_company_url_makes_no_vendor_call(
+    target: EnrichmentTarget,
+) -> None:
+    client = FakeLinkedInClient()
+    service, _ = _org_service(company_url=None, client=client)
+
+    scan = await service.scan_linkedin(target)
+
+    assert scan.is_empty
+    assert client.profile_calls == [] and client.post_calls == []
+
+
+async def test_org_only_failure_returns_an_empty_scan(target: EnrichmentTarget) -> None:
+    class _Failing(FakeLinkedInClient):
+        async def posts(
+            self, urls: tuple[str, ...], *, max_posts: int, posted_limit: PostedLimit
+        ) -> tuple[LinkedInPost, ...]:
+            raise RuntimeError("apify down")
+
+    service, _ = _org_service(client=_Failing())
+
+    assert (await service.scan_linkedin(target)).is_empty
+
+
+async def test_org_only_timeout_returns_an_empty_scan(
+    target: EnrichmentTarget, monkeypatch
+) -> None:
+    monkeypatch.setattr("app.modules.enrichment.application.linkedin._SCAN_TIMEOUT_S", 0.01)
+    service, _ = _org_service(client=FakeLinkedInClient(delay_s=1.0))
+
+    assert (await service.scan_linkedin(target)).is_empty
+
+
+async def test_org_only_history_reports_only_new_posts_on_a_rerun(
+    target: EnrichmentTarget,
+) -> None:
+    post = LinkedInPost(external_id="1", url="https://linkedin.com/posts/1", text="hi")
+    service, _ = _org_service(
+        client=FakeLinkedInClient(posts=(post,)), history=FakeLinkedInHistory()
+    )
+
+    first = await service.scan_linkedin(target)
+    second = await service.scan_linkedin(target)
+
+    assert first.posts == (post,)
+    assert second.is_empty

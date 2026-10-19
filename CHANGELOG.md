@@ -13,8 +13,8 @@ for current production evidence and open handover items.
 ### Added
 
 - Enrichment can now look at LinkedIn. After a proposal, the bot replies in
-  its thread with job changes and recent posts for the role's contacts. The
-  company's LinkedIn page can also fill missing company details. It uses
+  its thread with the organization's recent LinkedIn posts. The company's
+  LinkedIn page can also fill missing company details. People are not scraped. It uses
   Apify and is skipped without an `APIFY_API_TOKEN`. Each scan is saved as
   signals and one activity entry, so a re-run shows only what is new. The
   signals table's buyer column is now called `org_attio_id`, since it also

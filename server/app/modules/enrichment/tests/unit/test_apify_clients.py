@@ -61,36 +61,22 @@ async def test_token_is_only_sent_in_the_auth_header(monkeypatch) -> None:
 
     await ApifyLinkedInClient(_TOKEN).profiles((_URL,))
 
-    url, kwargs = session.post_calls[0]
-    assert _TOKEN not in url
-    assert _TOKEN not in str(kwargs["params"])
-    assert _TOKEN not in str(kwargs["data"])
-    assert kwargs["headers"]["Authorization"] == f"Bearer {_TOKEN}"
+    request = session.post_calls[0]
+    assert _TOKEN not in request.url
+    assert _TOKEN not in str(request.params)
+    assert _TOKEN not in (request.data or "")
+    assert request.headers["Authorization"] == f"Bearer {_TOKEN}"
 
 
 async def test_apify_run_timeout_is_below_the_http_timeout(monkeypatch) -> None:
-    captured: list[float] = []
-
-    def _fake_session(**kwargs):
-        captured.append(kwargs["timeout"].total)
-        return FakeAiohttpSession(post=FakeAiohttpResponse(201, []))
-
-    import aiohttp
-
-    monkeypatch.setattr(aiohttp, "ClientSession", _fake_session)
-    session_calls: list[dict[str, object]] = []
-    original = FakeAiohttpSession.post
-
-    def _spy(self, url, **kwargs):
-        session_calls.append(kwargs)
-        return original(self, url, **kwargs)
-
-    monkeypatch.setattr(FakeAiohttpSession, "post", _spy)
+    session = _session(monkeypatch, FakeAiohttpResponse(201, []))
 
     await ApifyLinkedInClient(_TOKEN).profiles((_URL,))
 
-    vendor_timeout = float(session_calls[0]["params"]["timeout"])
-    assert vendor_timeout < captured[0] < 60
+    vendor_timeout = float(session.post_calls[0].params["timeout"])
+    http_timeout = session.timeouts[0]
+    assert http_timeout is not None and http_timeout.total is not None
+    assert vendor_timeout < http_timeout.total < 60
 
 
 @pytest.mark.parametrize(

@@ -42,27 +42,22 @@ edit form is saved, the button becomes "✅ ADDED by" the person who saved it.
 
 ## LinkedIn activity
 
-After the proposal is posted, the bot replies in its thread with what it found
-on LinkedIn for the role's contacts. A buyer's contact is its key contact. A
-seller's contacts are the people on the organization, at most three, those
-with a LinkedIn URL first.
-
-- **Job changes:** the contact's current title or employer on LinkedIn differs
-  from the CRM. A title that is blank in the CRM is never flagged.
-- **Posts:** up to 10 per profile from the last month, including the
-  company's own page.
-- **No LinkedIn URL:** the contact is skipped, not searched by name, and named
-  in the reply.
+After the proposal is posted, the bot replies in its thread with the
+organization's recent LinkedIn posts: up to 10, from the last month. Only the
+organization's own LinkedIn page is scraped. People are not scraped, so there
+are no job changes yet. If the organization has no LinkedIn page saved, the
+scan is skipped. A company page's posts are mostly its reposts, so the author
+shown is the person who first posted.
 
 The reply comes after the proposal, so a slow or failing scrape never delays
 the proposal. Nothing is written to the CRM fields from it.
 
 Each scan is remembered. One run record is saved per scan, and each new post
-and job change is saved as a signal linked to it. When something is new, one
+is saved as a signal linked to it. When something is new, one
 "LinkedIn scan completed" entry is added to the activity history with counts
 only. A re-run shows only what is new, and says nothing if nothing is.
-Names, titles and post text live in the signals, so a removal request deletes
-them there; the activity history never holds them.
+Names and post text live in the signals, so a removal request deletes them
+there; the activity history never holds them.
 
 Without an `APIFY_API_TOKEN`, the whole LinkedIn source is skipped.
 
@@ -98,8 +93,8 @@ Current values from `seller_roles`, `buyer_roles`, `organizations`, and
   profile scraper's format hasn't been.
 - A company page's "posts" are its reposts of other people's posts, so the
   author shown is the original poster.
-- The free Apify plan limits the profile scraper to 50 runs in total. A pilot
-  beyond that needs a paid plan and a monthly spend cap.
+- The free Apify plan limits the profile scraper to 50 runs in total. Only the
+  unwired people path uses it. Set a monthly spend cap regardless.
 
 ## Code
 

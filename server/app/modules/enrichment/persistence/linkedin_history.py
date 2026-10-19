@@ -29,10 +29,11 @@ from app.modules.enrichment.domain.linkedin import LinkedInScan, job_change_key
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.enrichment.persistence.signal_payloads import (
     ScanRunPayload,
+    SignalInsert,
+    dump_payload,
     job_change_payload,
     post_payload,
 )
-from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
 
@@ -54,27 +55,27 @@ class SqlAlchemyLinkedInHistory:
         async with self._sessionmaker() as session, session.begin():
             run_id = await self._insert_run(session, target, scan, posts_n=len(posts), now=now)
 
-            rows: list[JsonObject] = [
-                {
-                    "org_attio_id": target.org_attio_id,
-                    "source": _SOURCE,
-                    "external_id": p.external_id,
-                    "payload": post_payload(p),
-                    "ts": p.posted_at or now,
-                    "source_cite": p.url,
-                    "tool_run_id": run_id,
-                }
+            rows: list[SignalInsert] = [
+                SignalInsert(
+                    org_attio_id=target.org_attio_id,
+                    source=_SOURCE,
+                    external_id=p.external_id,
+                    payload=dump_payload(post_payload(p)),
+                    ts=p.posted_at or now,
+                    source_cite=p.url,
+                    tool_run_id=run_id,
+                )
                 for p in posts
             ] + [
-                {
-                    "org_attio_id": target.org_attio_id,
-                    "source": _SOURCE,
-                    "external_id": job_change_key(c),
-                    "payload": job_change_payload(c),
-                    "ts": now,
-                    "source_cite": c.source_url,
-                    "tool_run_id": run_id,
-                }
+                SignalInsert(
+                    org_attio_id=target.org_attio_id,
+                    source=_SOURCE,
+                    external_id=job_change_key(c),
+                    payload=dump_payload(job_change_payload(c)),
+                    ts=now,
+                    source_cite=c.source_url,
+                    tool_run_id=run_id,
+                )
                 for c in changes
             ]
             new_ids: set[str] = set()
@@ -139,14 +140,14 @@ class SqlAlchemyLinkedInHistory:
             job_changes_found=len(scan.job_changes),
             contacts_scanned=scan.contacts_scanned,
             contacts_without_linkedin=len(scan.contacts_without_linkedin),
-        ).model_dump()
+        )
         is_buyer = target.kind is EnrichmentTargetKind.BUYER
         run = ToolRun(
             tool=TOOL_NAME,
             status="succeeded",
             started_at=now,
             finished_at=now,
-            payload=payload,
+            payload=dump_payload(payload),
             organization_attio_id=target.org_attio_id,
             buyer_role_id=target.role_id if is_buyer else None,
             seller_role_id=None if is_buyer else target.role_id,

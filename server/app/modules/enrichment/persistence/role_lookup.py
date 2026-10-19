@@ -108,10 +108,12 @@ class SqlAlchemyRoleReader:
 
         return values, context
 
-    async def load_linkedin_targets(self, target: EnrichmentTarget) -> LinkedInTargets:
+    async def load_linkedin_targets(
+        self, target: EnrichmentTarget, *, include_contacts: bool = True
+    ) -> LinkedInTargets:
         """Buyer: the role's key contact. Seller: the organization's people.
         Contacts with a LinkedIn URL sort first so the cap spends scrapes on
-        people we can actually look up."""
+        people we can actually look up. Off, only the company page is read."""
         role_model = _ROLE_MODEL[target.kind]
         async with self._sessionmaker() as session:
             role = (
@@ -124,6 +126,8 @@ class SqlAlchemyRoleReader:
             if role is None:
                 return LinkedInTargets()
             org = role.organization
+            if not include_contacts:
+                return LinkedInTargets(company_url=org.linkedin)
 
             people_query = select(Person).where(Person.removed_at.is_(None))
             if isinstance(role, BuyerRole):

@@ -11,8 +11,9 @@ import logging
 from collections.abc import Awaitable, Callable
 
 import aiohttp
+from pydantic import BaseModel, ValidationError
 
-from app.modules.utilities.domain.json_types import JsonArray, JsonObject
+from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
 
@@ -105,20 +106,22 @@ async def fetch_json(
     )
 
 
-async def post_json_array(
+async def post_json_items[M: BaseModel](
     *,
     url: str,
     params: dict[str, str],
     headers: dict[str, str],
     body: str,
+    item_type: type[M],
     timeout: aiohttp.ClientTimeout,
     log_prefix: str,
     org_name: str,
-) -> JsonArray | None:
-    """POSTs a JSON `body` and returns the JSON array the vendor answers with
-    — Apify's run-sync dataset endpoint answers 201, not 200. `None` on any
-    failure, including a body that isn't an array; same logging and 429
-    handling as `fetch_json`.
+) -> list[M] | None:
+    """POSTs a JSON `body` and returns the array the vendor answers with,
+    parsed into `item_type`s — Apify's run-sync dataset endpoint answers 201,
+    not 200. An item that doesn't parse is dropped and logged; the raw JSON
+    never leaves this function. `None` on any failure, including a body that
+    isn't an array; same logging and 429 handling as `fetch_json`.
     """
     parsed = await _request(
         method="POST",
@@ -137,4 +140,10 @@ async def post_json_array(
     if not isinstance(parsed, list):
         logger.warning("%s_unexpected_body org_name=%s", log_prefix, org_name)
         return None
-    return parsed
+    items: list[M] = []
+    for raw in parsed:
+        try:
+            items.append(item_type.model_validate(raw))
+        except ValidationError:
+            logger.warning("%s_item_unparseable org_name=%s", log_prefix, org_name)
+    return items

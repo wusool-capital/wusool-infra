@@ -5,9 +5,9 @@ Delivery period: 15 September – 15 October 2026.
 ## After 15 October
 
 - **LinkedIn activity in enrichment.** After an enrichment proposal, the bot
-  replies in its thread with job changes and recent posts for the role's
-  contacts. A contact without a LinkedIn URL is named, not guessed. Each scan
-  is saved, so a re-run shows only what is new.
+  replies in its thread with the organization's recent LinkedIn posts. Only
+  the organization's page is scraped, not its people. Each scan is saved, so
+  a re-run shows only what is new.
 
 ## Approved matches become deals
 

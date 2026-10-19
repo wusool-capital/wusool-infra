@@ -97,3 +97,26 @@ async def test_buyer_without_a_key_contact_has_no_contacts(
     )
 
     assert result.contacts == ()
+
+
+async def test_without_contacts_only_the_company_page_is_returned(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    org = Organization(
+        attio_id=f"test-org-{uuid.uuid4()}",
+        name="Acme Co",
+        linkedin="https://www.linkedin.com/company/acme-co",
+    )
+    db_session.add(org)
+    await db_session.flush()
+    role = SellerRole(id=uuid.uuid4(), org_attio_id=org.attio_id, is_active=True)
+    db_session.add_all([role, _person(org, "Bea", linkedin="https://www.linkedin.com/in/bea")])
+    await db_session.flush()
+
+    result = await SqlAlchemyRoleReader(db_sessionmaker).load_linkedin_targets(
+        EnrichmentTarget(EnrichmentTargetKind.SELLER, role.id, org.attio_id, org.name),
+        include_contacts=False,
+    )
+
+    assert result.contacts == ()
+    assert result.company_url == "https://www.linkedin.com/company/acme-co"

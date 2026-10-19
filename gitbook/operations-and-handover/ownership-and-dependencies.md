@@ -35,7 +35,7 @@ Billing owners and plans aren't recorded in the repository unless stated.
 | Firecrawl | Web search for enrichment and Valuation | Unknown |
 | Diffbot | Structured company data | Free tier, 10,000 credits a month |
 | People Data Labs | Structured company data | Free tier, 100 lookups a month |
-| Apify (HarvestAPI actors) | LinkedIn profiles, posts and company pages for enrichment | Pay per use, about $4 per 1,000 profiles. Free plan: $5 credit a month, 50 profile runs in total. Set a monthly spend cap |
+| Apify (HarvestAPI actors) | LinkedIn company pages and posts for enrichment (profiles built, not used) | Pay per use. Free plan: $5 credit a month. Set a monthly spend cap |
 | Slack | Toolkit bot and alerts | Unknown |
 | Cloudflare | DNS | Unknown |
 | GitHub | Source control and Actions | Unknown |

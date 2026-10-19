@@ -4,8 +4,11 @@ failures are swallowed.
 """
 
 import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 import pytest
+from slack_sdk.models.blocks import Block
 
 from app.modules.enrichment.api import dependencies
 from app.modules.enrichment.domain.linkedin import LinkedInPost, LinkedInScan
@@ -13,17 +16,40 @@ from app.modules.enrichment.domain.proposals import EnrichmentProposal
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 
 
+@dataclass(frozen=True)
+class _Message:
+    channel: str
+    text: str
+    thread_ts: str | None = None
+
+
+@dataclass(frozen=True)
+class _Update:
+    channel: str
+    ts: str
+    text: str
+
+
 class _Notifier:
     def __init__(self) -> None:
-        self.posts: list[dict[str, object]] = []
-        self.updates: list[dict[str, object]] = []
+        self.posts: list[_Message] = []
+        self.updates: list[_Update] = []
 
-    async def post_message(self, **kwargs: object) -> str:
-        self.posts.append(kwargs)
-        return "ts-placeholder" if "thread_ts" not in kwargs else "ts-reply"
+    async def post_message(
+        self,
+        *,
+        channel: str,
+        text: str,
+        blocks: Sequence[Block] | None = None,
+        thread_ts: str | None = None,
+    ) -> str:
+        self.posts.append(_Message(channel=channel, text=text, thread_ts=thread_ts))
+        return "ts-reply" if thread_ts else "ts-placeholder"
 
-    async def update_message(self, **kwargs: object) -> None:
-        self.updates.append(kwargs)
+    async def update_message(
+        self, *, channel: str, ts: str, text: str, blocks: Sequence[Block] | None = None
+    ) -> None:
+        self.updates.append(_Update(channel=channel, ts=ts, text=text))
 
 
 class _Service:
@@ -72,8 +98,8 @@ async def test_follow_up_is_a_reply_in_the_placeholders_thread(
     await dependencies.propose_and_post(target, channel_id="C1")
 
     assert len(notifier.updates) == 1  # the proposal itself
-    assert notifier.posts[1]["thread_ts"] == "ts-placeholder"
-    assert notifier.posts[1]["channel"] == "C1"
+    assert notifier.posts[1].thread_ts == "ts-placeholder"
+    assert notifier.posts[1].channel == "C1"
 
 
 async def test_empty_scan_posts_nothing(monkeypatch, target: EnrichmentTarget) -> None:
@@ -92,7 +118,7 @@ async def test_scan_failure_leaves_the_proposal_untouched(
     await dependencies.propose_and_post(target, channel_id="C1")
 
     assert len(notifier.updates) == 1
-    assert "failed" not in str(notifier.updates[0]["text"]).lower()
+    assert "failed" not in notifier.updates[0].text.lower()
 
 
 async def test_failed_proposal_skips_the_follow_up(monkeypatch, target: EnrichmentTarget) -> None:
@@ -102,4 +128,4 @@ async def test_failed_proposal_skips_the_follow_up(monkeypatch, target: Enrichme
     await dependencies.propose_and_post(target, channel_id="C1")
 
     assert service.scans == 0
-    assert notifier.updates[0]["text"] == "Enrichment failed unexpectedly."
+    assert notifier.updates[0].text == "Enrichment failed unexpectedly."

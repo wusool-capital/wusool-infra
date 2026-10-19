@@ -14,7 +14,7 @@ _New to this codebase's layering? See
 domain/            # EnrichmentTarget, ProposedFieldValue/EnrichmentProposal, field plans, employee_bands
 application/        # EnrichMixin (structured lookup + research+extract), ReviewMixin (hand-off), ports/
 providers/          # diffbot/ + people_data_labs/ (structured) — apify/ (LinkedIn company page + profiles/posts) — Firecrawl + Bedrock (fallback)
-persistence/        # SqlAlchemyRoleReader — reads current values, resolves a target by role id, loads a role's LinkedIn contacts
+persistence/        # SqlAlchemyRoleReader — reads current values, resolves a target by role id, loads the company page (and, unwired, a role's contacts); linkedin_history
 api/                # /enrich-seller, /enrich-buyer Slack commands + handlers, buyer org → vertical modals, "Review & Save" button
 ```
 
@@ -65,31 +65,32 @@ Diffbot's response shape has been verified against a live account (see
 published docs). People Data Labs has not — confirm its `schemas.py`
 against a real `PEOPLE_DATA_LABS_API_KEY` account before relying on it.
 
-### LinkedIn scan (contacts' job changes and posts)
+### LinkedIn scan (the company page's posts)
 
 After the proposal is posted, `api/dependencies.py::propose_and_post` runs
 `LinkedInMixin.scan_linkedin` and replies in the proposal's thread with the
 result — the scrape never holds up the proposal, and a failure only logs.
 
-- **Contacts** (`SqlAlchemyRoleReader.load_linkedin_targets`): a buyer's
-  `key_contact`, or a seller organization's people, capped at 3, those with a
-  `person.linkedin` first. A contact without a URL is skipped, never searched
-  by name, and listed in the reply.
-- **Apify** (`providers/apify/`): one batched profile run and one posts run per
-  role (the company page rides along with the posts), each capped at 40s
-  with Apify's own `timeout` below ours so the vendor stops billing when
-  we stop waiting. Posts: at most 10 per profile, last month only. Any error,
-  timeout or malformed item yields an empty result.
-- **Job change** (`domain/linkedin.py::detect_job_change`): the scraped current
-  title and employer against `person.job_title` and the organization name,
-  case, punctuation and containment ignored. A missing CRM value is
-  "unknown", not a change. `person.role` is not compared.
+Only the **organization** is scraped. The role's people are not: no profile
+scrape, no job changes, no contacts' posts, and contacts are not even read
+from the database. The people path is built and tested, but off — see
+"People path" below.
+
+- **Company page** (`SqlAlchemyRoleReader.load_linkedin_targets(...,
+  include_contacts=False)`): the organization's saved `linkedin` URL. Without
+  one the scan is skipped and logged, never searched by name.
+- **Apify** (`providers/apify/`): one posts run per scan, capped at 40s with
+  Apify's own `timeout` below ours so the vendor stops billing when we stop
+  waiting. At most 10 posts, last month only. Any error, timeout or malformed
+  item yields an empty result. A company page's "posts" are its reposts, so the
+  author is the original poster.
 - **Cost log:** every run logs `apify_run actor=… items=… duration_ms=…
   outcome=…`; the token only ever travels in the `Authorization` header.
 - **History** (`persistence/linkedin_history.py`, behind
   `LinkedInHistoryPort`): one transaction per scan writes a `tool_runs` row
   (`tool='linkedin_scan'`, the run ledger), one `signals` row per *new* post or
-  job change (`source='linkedin'`, typed payload, linked to the run), and one
+  job change (`source='linkedin'`, typed payload, linked to the run; job
+  changes only come from the people path), and one
   `linkedin.scan_completed` `activities` row when something was new, linked to
   the run (`ledger_type='tool_run'`). A signal is new if its (`source`,
   `external_id`) is not stored yet: the post id, or `job_change:{person}:{hash
@@ -100,8 +101,19 @@ result — the scrape never holds up the proposal, and a failure only logs.
   one organization is not stored again for another. History is committed
   before the Slack reply, so a failed reply leaves those items stored but unshown.
 
-`scan_linkedin_for_role(kind, role_id)` (public) runs the same scan on its own,
-for a caller that wants the data without a proposal.
+`scan_linkedin_for_role(kind, role_id)` (public) runs the same org-only scan on
+its own, for a caller that wants the data without a proposal.
+
+**People path (built, not wired).** `scan_linkedin(target, include_people=True)`
+also scrapes a role's contacts: a buyer's `key_contact`, or a seller
+organization's people (capped at 3, those with a `person.linkedin` first). It
+runs one batched profile scrape plus the contacts' own posts, and reports job
+changes (`domain/linkedin.py::detect_job_change`: the scraped title and employer
+against `person.job_title` and the organization name, case, punctuation and
+containment ignored; a missing CRM value is "unknown", not a change;
+`person.role` is not compared). A contact without a URL is skipped, never
+searched by name, and listed in the reply. Nothing sets `include_people` today.
+Its parsing of the profile scraper has never been run live.
 
 The company and posts schemas were verified against a live run (2026-10-19).
 The profile scraper has not been run yet. A company page's "posts" are its
@@ -158,8 +170,8 @@ migration this module needed.
 See `server/.env.example`'s `enrichment` section. `FIRECRAWL_API_KEY`,
 `DIFFBOT_API_KEY`, `PEOPLE_DATA_LABS_API_KEY`, and `APIFY_API_TOKEN` are all
 optional — missing any of them just skips that tier rather than requiring it
-to boot. Set a monthly spend cap in Apify: the free plan limits the profile
-actor to 50 runs in total.
+to boot. Set a monthly spend cap in Apify. The free plan limits the profile
+scraper to 50 runs in total, but only the unwired people path uses it.
 
 ## Testing
 

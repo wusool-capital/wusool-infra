@@ -5,8 +5,9 @@ is monkeypatched via the shared `tests.aiohttp_fakes` helper.
 """
 
 import aiohttp
+from pydantic import BaseModel
 
-from app.modules.enrichment.providers.http_json import fetch_json, post_json_array
+from app.modules.enrichment.providers.http_json import fetch_json, post_json_items
 from tests.aiohttp_fakes import FakeAiohttpResponse, FakeAiohttpSession, patch_aiohttp_session
 
 
@@ -97,34 +98,62 @@ async def test_fetch_json_gives_up_on_long_retry_after_and_logs_rate_limit(
     assert "test_rate_limited" in caplog.text
 
 
-async def test_post_json_array_accepts_201_and_returns_the_array(monkeypatch) -> None:
-    session = FakeAiohttpSession(post=FakeAiohttpResponse(201, [{"a": 1}]))
+class _Item(BaseModel):
+    a: int
+
+
+async def test_post_json_items_accepts_201_and_returns_typed_items(monkeypatch) -> None:
+    session = FakeAiohttpSession(post=FakeAiohttpResponse(201, [{"a": 1}, {"a": 2}]))
     patch_aiohttp_session(monkeypatch, session)
 
-    result = await post_json_array(
+    result = await post_json_items(
         url="https://example.com",
         params={"timeout": "10"},
         headers={"Authorization": "Bearer t"},
         body="{}",
+        item_type=_Item,
         timeout=aiohttp.ClientTimeout(total=5),
         log_prefix="test",
         org_name="Acme",
     )
 
-    assert result == [{"a": 1}]
-    assert session.post_calls[0][1]["headers"]["Content-Type"] == "application/json"
+    assert result == [_Item(a=1), _Item(a=2)]
+    assert session.post_calls[0].headers["Content-Type"] == "application/json"
+    assert session.post_calls[0].headers["Authorization"] == "Bearer t"
 
 
-async def test_post_json_array_returns_none_for_a_non_array_body(monkeypatch) -> None:
+async def test_post_json_items_drops_an_item_that_does_not_parse(monkeypatch, caplog) -> None:
+    patch_aiohttp_session(
+        monkeypatch, FakeAiohttpSession(post=FakeAiohttpResponse(201, [{"a": 1}, {"a": "x"}]))
+    )
+
+    with caplog.at_level("WARNING"):
+        result = await post_json_items(
+            url="https://example.com",
+            params={},
+            headers={},
+            body="{}",
+            item_type=_Item,
+            timeout=aiohttp.ClientTimeout(total=5),
+            log_prefix="test",
+            org_name="Acme",
+        )
+
+    assert result == [_Item(a=1)]
+    assert "test_item_unparseable" in caplog.text
+
+
+async def test_post_json_items_returns_none_for_a_non_array_body(monkeypatch) -> None:
     patch_aiohttp_session(
         monkeypatch, FakeAiohttpSession(post=FakeAiohttpResponse(200, {"error": "x"}))
     )
 
-    result = await post_json_array(
+    result = await post_json_items(
         url="https://example.com",
         params={},
         headers={},
         body="{}",
+        item_type=_Item,
         timeout=aiohttp.ClientTimeout(total=5),
         log_prefix="test",
         org_name="Acme",

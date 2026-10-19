@@ -17,6 +17,9 @@ from app.modules.utilities.domain.json_types import JsonObject
 class RoleReaderPort(Protocol):
     async def load(self, target: EnrichmentTarget) -> tuple[JsonObject, CompanyContext]: ...
 
-    async def load_linkedin_targets(self, target: EnrichmentTarget) -> LinkedInTargets:
-        """The role's contacts (capped) and company page, for a LinkedIn scan."""
+    async def load_linkedin_targets(
+        self, target: EnrichmentTarget, *, include_contacts: bool = True
+    ) -> LinkedInTargets:
+        """The company page, and the role's contacts (capped) unless
+        `include_contacts` is off, for a LinkedIn scan."""
         ...

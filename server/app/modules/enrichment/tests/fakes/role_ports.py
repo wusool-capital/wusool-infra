@@ -20,12 +20,18 @@ class FakeRoleReader(RoleReaderPort):
         self.values = values or {}
         self._context = context
         self._linkedin_targets = linkedin_targets or LinkedInTargets()
+        self.include_contacts_calls: list[bool] = []
 
     async def load(self, target: EnrichmentTarget) -> tuple[dict[str, Any], CompanyContext]:
         return dict(self.values), self._context or CompanyContext(org_name=target.org_name)
 
-    async def load_linkedin_targets(self, target: EnrichmentTarget) -> LinkedInTargets:
-        return self._linkedin_targets
+    async def load_linkedin_targets(
+        self, target: EnrichmentTarget, *, include_contacts: bool = True
+    ) -> LinkedInTargets:
+        self.include_contacts_calls.append(include_contacts)
+        if include_contacts:
+            return self._linkedin_targets
+        return LinkedInTargets(company_url=self._linkedin_targets.company_url)
 
 
 class FakeReviewPort(EnrichmentReviewPort):

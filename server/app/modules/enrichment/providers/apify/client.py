@@ -8,9 +8,9 @@ import time
 from typing import TypeVar
 
 import aiohttp
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
-from app.modules.enrichment.providers.http_json import post_json_array
+from app.modules.enrichment.providers.http_json import post_json_items
 
 logger = logging.getLogger(__name__)
 
@@ -35,26 +35,21 @@ class ApifyClient:
         run_timeout_s: int,
     ) -> list[_Item]:
         started = time.monotonic()
-        raw_items = await post_json_array(
+        items = await post_json_items(
             url=_RUN_SYNC_URL.format(actor=actor),
             params={"timeout": str(run_timeout_s)},
             headers={"Authorization": f"Bearer {self._token}"},
             body=actor_input.model_dump_json(),
+            item_type=item_type,
             timeout=aiohttp.ClientTimeout(total=run_timeout_s + _HTTP_HEADROOM_S),
             log_prefix="apify_run",
             org_name=actor,
         )
-        items: list[_Item] = []
-        for raw in raw_items or []:
-            try:
-                items.append(item_type.model_validate(raw))
-            except ValidationError:
-                logger.warning("apify_item_unparseable actor=%s", actor)
         logger.info(
             "apify_run actor=%s items=%d duration_ms=%d outcome=%s",
             actor,
-            len(items),
+            len(items or []),
             int((time.monotonic() - started) * 1000),
-            "ok" if raw_items is not None else "failed",
+            "ok" if items is not None else "failed",
         )
-        return items
+        return items or []
