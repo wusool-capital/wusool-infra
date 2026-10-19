@@ -108,8 +108,12 @@ class Activity(Base):
     tool_run_id: Mapped[uuid_.UUID | None] = mapped_column(UUID, ForeignKey("tool_runs.id"))
     # `domain.verb`, e.g. `seller.added`. The closed list lives in
     # `app.modules.activities.domain.vocabulary.EventType`.
-    event_type: Mapped[str] = mapped_column(Text, nullable=False)
-    actor_type: Mapped[str] = mapped_column(Text, nullable=False)
+    # The defaults only serve the previous release's writer during a rolling deploy;
+    # `SqlAlchemyActivityRecorder` always sets both explicitly.
+    event_type: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="legacy.record_synced"
+    )
+    actor_type: Mapped[str] = mapped_column(Text, nullable=False, server_default="unknown")
     # Raw actor id: Slack user, Attio member/token, Scribe install, process name.
     actor_ref: Mapped[str | None] = mapped_column(Text)
     idempotency_key: Mapped[str | None] = mapped_column(Text)

@@ -85,3 +85,24 @@ async def test_the_ledger_type_is_a_closed_list(db_session: AsyncSession) -> Non
                 "VALUES ('Person', 'p', 'seller.added', 'system', 'nonsense', gen_random_uuid())"
             )
         )
+
+
+async def test_the_previous_releases_insert_still_works(db_session: AsyncSession) -> None:
+    """Mid-deploy the old container writes without `event_type` or `actor_type`."""
+    subject = f"org-{uuid.uuid4()}"
+
+    await db_session.execute(
+        text(
+            "INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, source, "
+            "tool_run_id) VALUES ('Organization', :s, NULL, 'attio_webhook', NULL)"
+        ),
+        {"s": subject},
+    )
+
+    row = (
+        await db_session.execute(
+            text("SELECT event_type, actor_type FROM activities WHERE subject_attio_id = :s"),
+            {"s": subject},
+        )
+    ).one()
+    assert (row.event_type, row.actor_type) == ("legacy.record_synced", "unknown")

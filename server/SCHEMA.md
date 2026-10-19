@@ -461,8 +461,8 @@ UPDATE, DELETE and TRUNCATE, for every role including the owner. `ts` is event t
 | subject_type | text | no | | CHECK (`NOT VALID`): `Organization`, `Person`, `Deal`, `BuyerRole`, `SellerRole`, `Note`, `Meeting` |
 | subject_attio_id | text | yes | | polymorphic ref, no FK |
 | subject_uuid | uuid | yes | | polymorphic ref, no FK |
-| event_type | text | no | | `domain.verb`, e.g. `seller.added`; CHECK on the format only. The closed list is `activities.domain.vocabulary.EventType` |
-| actor_type | text | no | | CHECK: `attio_member`, `attio_api_token`, `attio_system`, `slack_user`, `scribe_install`, `website_visitor`, `system`, `unknown` |
+| event_type | text | no | `legacy.record_synced` | `domain.verb`, e.g. `seller.added`; CHECK on the format only. The closed list is `activities.domain.vocabulary.EventType` |
+| actor_type | text | no | `unknown` | CHECK: `attio_member`, `attio_api_token`, `attio_system`, `slack_user`, `scribe_install`, `website_visitor`, `system`, `unknown` |
 | actor_ref | text | yes | | raw actor id: Slack user, Attio member/token, Scribe install, process name |
 | actor_attio_id | text | yes | | FK → users.attio_id; set only for an Attio member that exists in `users` |
 | ts | timestamptz | no | `now()` | event time; indexed DESC |
@@ -490,6 +490,10 @@ Legacy rows were backfilled by the AZM-150 migration: `source='lead_magnet'`
 to `lead_magnet.submitted`, the one-off `SOURCE ... backfill` rows to
 `legacy.interaction`, everything else to `legacy.record_synced`. Existing
 `tool_run_id` values were copied into `ledger_type='tool_run'`/`ledger_id`.
+
+The two defaults exist only so the previous release's INSERT keeps working during a
+rolling deploy; the recorder always sets both explicitly, and a writer that forgets
+them would silently record `legacy.record_synced`.
 
 A deliberate admin change, such as the one-off `backfill-activities.ps1`, must run
 `ALTER TABLE activities DISABLE TRIGGER activities_append_only` first and enable it

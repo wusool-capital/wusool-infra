@@ -7,6 +7,9 @@ adds `event_type`, the actor columns, an idempotency key and a polymorphic
 `signals`). There is no FK: one pair serves every ledger. `tool_run_id` is kept,
 deprecated, and its values are copied into the pair.
 
+`event_type` and `actor_type` default to `legacy.record_synced` and `unknown`, so
+the previous release's INSERT keeps working until the new container is up.
+
 Legacy rows are backfilled: lead-magnet rows to `lead_magnet.submitted`, the
 one-off `SOURCE ...` backfill to `legacy.interaction`, everything else (the
 webhook "synced" rows) to `legacy.record_synced`. Existing lead-magnet
@@ -63,8 +66,12 @@ def upgrade() -> None:
         "UPDATE activities SET ledger_type = 'tool_run', ledger_id = tool_run_id "
         "WHERE tool_run_id IS NOT NULL"
     )
-    op.alter_column("activities", "event_type", nullable=False)
-    op.alter_column("activities", "actor_type", nullable=False)
+    # The defaults keep the previous release's INSERT working while the new container
+    # rolls out: its rows are exactly the `legacy.record_synced` ones backfilled above.
+    op.alter_column(
+        "activities", "event_type", nullable=False, server_default="legacy.record_synced"
+    )
+    op.alter_column("activities", "actor_type", nullable=False, server_default="unknown")
 
     op.create_check_constraint(
         "activities_actor_type_check",

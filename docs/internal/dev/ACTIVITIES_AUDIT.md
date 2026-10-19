@@ -197,7 +197,7 @@ actor, no change and no result.
 | Hard-deleted roles | `sync-source-to-prod.ps1` hard-deletes role rows, which orphans activities. Documented, not changed. |
 | Dangling ledger links | The polymorphic pointer has no FK, so a ledger row can be deleted and leave a stale id. `validate-postgres.ps1` reports them. |
 | Immutability scope | The trigger blocks row changes and TRUNCATE for every role. It does not stop `DROP TABLE`, or a superuser disabling the trigger, and it is not tamper-evident. It protects against accidents and application bugs, not a determined admin. |
-| Rolling deploy | The migration makes `event_type` and `actor_type` NOT NULL. Between the migration and the new container, the old code's `activities` insert fails; on the webhook path that rolls back that event's sync, which the nightly resync repairs. |
+| Rolling deploy | `event_type` and `actor_type` are NOT NULL but default to `legacy.record_synced` and `unknown`, so the previous release's INSERT keeps working until the new container is up; its rows are typed as legacy webhook rows. The cost: a new writer that bypasses the recorder and forgets both columns is recorded as `legacy.record_synced` instead of failing. |
 | Attio webhook actor | The event shape is unverified against a real delivery. If absent, rows get `actor_type='unknown'`. |
 | Deal stage changes in the nightly batch | The batch path does not write `deal_stage_events`. Gap documented. |
 | Prod volume | The migration backfills in one transaction and builds plain indexes. Confirm the table is small first. |
