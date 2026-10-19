@@ -5,9 +5,11 @@ public schema. Only the subset `linkedin.py`/`company.py` map is declared;
 every field is optional since a profile or page may omit any of them.
 
 Field names follow each actor's published output example on its Apify page
-(camelCase kept verbatim). Not yet verified against a live run — the
-recorded fixtures under `tests/fixtures/apify/` are hand-built from those
-examples, so replace them with a real capture once a token exists.
+(camelCase kept verbatim). The company and posts shapes were verified
+against a live run on 2026-10-19 (the Lokam.ai page). The profile scraper has
+not been run yet, so `ApifyProfileItem` is still unverified. The fixtures
+under `tests/fixtures/apify/` are trimmed to the declared fields with
+placeholder values.
 """
 
 from pydantic import BaseModel, Field
@@ -38,6 +40,9 @@ class ApifyDate(BaseModel):
 
 
 class ApifyParsedLocation(BaseModel):
+    # `country` is the short common name ("United States"); `countryFull` the
+    # formal one ("United States of America").
+    country: str | None = None
     countryFull: str | None = None
 
 

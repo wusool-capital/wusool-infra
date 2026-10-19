@@ -88,8 +88,10 @@ writes nothing.
 
 - The People Data Labs response format hasn't been verified against a live
   account yet. Diffbot's has.
-- The Apify output formats follow the actors' published examples and haven't
-  been verified against a live run either.
+- The company and posts formats were checked against a live Apify run. The
+  profile scraper's format hasn't been.
+- A company page's "posts" are its reposts of other people's posts, so the
+  author shown is the original poster.
 - The free Apify plan limits the profile scraper to 50 runs in total. A pilot
   beyond that needs a paid plan and a monthly spend cap.
 

@@ -9,8 +9,8 @@
     "foundedOn": {"year": 1997},
     "logo": "https://media.licdn.com/logo.png",
     "locations": [
-      {"country": "AE", "headquarter": false, "parsed": {"countryFull": "Oman"}},
-      {"country": "AE", "headquarter": true, "parsed": {"countryFull": "United Arab Emirates"}}
+      {"country": "OM", "headquarter": false, "parsed": {"country": "Oman", "countryFull": "Oman"}},
+      {"country": "US", "headquarter": true, "parsed": {"country": "United States", "countryFull": "United States of America"}}
     ]
   }
 ]

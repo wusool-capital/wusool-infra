@@ -92,9 +92,10 @@ result — the scrape never holds up the proposal, and a failure only logs.
 `scan_linkedin_for_role(kind, role_id)` (public) runs the same scan on its own,
 for a caller that wants the data without a proposal.
 
-The Apify actors' output schemas follow the actors' published examples and
-have not been verified against a live run — replace the fixtures in
-`tests/fixtures/apify/` with a real capture once a token exists.
+The company and posts schemas were verified against a live run (2026-10-19).
+The profile scraper has not been run yet. A company page's "posts" are its
+reposts of other people's posts: the author is the original poster, and
+`repostedBy` is the company.
 
 ### Basic tier
 

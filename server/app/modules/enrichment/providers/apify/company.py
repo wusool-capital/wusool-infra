@@ -48,9 +48,9 @@ def _map_company(
         _add("foundation_date", date(item.foundedOn.year, 1, 1))
     hq = next((loc for loc in item.locations if loc.headquarter), None)
     if hq and hq.parsed:
-        # The actor's bare `country` is an ISO code; only the full English
-        # name is a valid `hq_country` value, and we don't guess at the map.
-        _add("hq_country", hq.parsed.countryFull)
+        # The location's bare `country` is an ISO code. `parsed.country` is the
+        # short English name, matching what Diffbot proposes.
+        _add("hq_country", hq.parsed.country or hq.parsed.countryFull)
     if item.employeeCount is not None:
         _add("employee_range", bucket_employee_count(item.employeeCount))
     return resolved

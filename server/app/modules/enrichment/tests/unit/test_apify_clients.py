@@ -133,7 +133,8 @@ async def test_company_maps_requested_fields_from_fixture(monkeypatch) -> None:
     )
 
     by_name = {f.field_name: f.value for f in result.fields}
-    assert by_name["hq_country"] == "United Arab Emirates"
+    # The short name, not the formal "United States of America".
+    assert by_name["hq_country"] == "United States"
     assert by_name["employee_range"] == "251-1K"
     assert by_name["description"].startswith("Acme distributes")
     assert by_name["logo_url"] == "https://media.licdn.com/logo.png"
