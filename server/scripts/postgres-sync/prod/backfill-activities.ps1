@@ -4,8 +4,7 @@
   [switch]$Apply
 )
 
-# Prod's equivalent of ../dev/backfill-activities.ps1. One-time
-# historical backfill of the `activities` table's boundary-interaction
+# One-time historical backfill of the `activities` table's boundary-interaction
 # timestamps, which only exist on SOURCE's NATIVE companies/people/
 # valuation_tool_leads (SOURCE's custom organizations/person/seller_role
 # already collapsed them down during their own native->custom migration).
@@ -185,6 +184,8 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     by_key = defaultdict(list)
     for r in rows:
         by_key[(r[0], r[7])].append(r)
+    # activities is append-only. Disabled inside this transaction, so a failure rolls back and re-enables it.
+    c.execute("ALTER TABLE activities DISABLE TRIGGER activities_append_only")
     for (subject_type, source), grp in by_key.items():
         attio_ids = [r[1] for r in grp if r[1] is not None]
         uuids = [r[2] for r in grp if r[2] is not None]
@@ -204,10 +205,11 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     # column keeps the statement honest about the full activities schema
     # (added 2026-09-07) rather than silently relying on the default.
     c.executemany(
-        """INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, ts, channel, direction, outcome, source, tool_run_id)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NULL)""",
+        """INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, ts, channel, direction, outcome, source, tool_run_id, event_type, actor_type)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NULL,'legacy.interaction','unknown')""",
         rows,
     )
+    c.execute("ALTER TABLE activities ENABLE TRIGGER activities_append_only")
     inserted = len(rows)
     conn.commit()
     print(f"Backfilled {inserted} activity rows.")

@@ -20,6 +20,10 @@ the new Toolkit image from rolling out.
   one head, or a migration branch cannot be applied cleanly.
 - RDS connectivity, backup, or instance alarms indicate a database problem.
 
+- The `history-write-failed` alarm fires: a history row (`activities`,
+  `deal_stage_events` or `command_runs`) could not be written. The change it
+  describes still succeeded. See "History write failed" below.
+
 ## Severity
 
 P1 — Treat confirmed data loss or corruption as P0.
@@ -77,6 +81,21 @@ P1 — Treat confirmed data loss or corruption as P0.
    `gitbook/operations-and-handover/backups-and-recovery.md`. Restoring to a new isolated RDS
    instance and validating Attio reconciliation requires explicit human
    approval.
+
+## History write failed
+
+The alarm matches `activity_record_failed`, `deal_stage_record_failed`,
+`command_run_start_failed` and `command_run_finish_failed` in the Toolkit log
+group. Each line carries the event or command type and a sanitized error: the
+exception type, SQLSTATE and constraint name, never row values.
+
+1. Find the log lines in the alarm window and read the SQLSTATE and constraint.
+   A check-constraint code (`23514`) means a writer sent a value the schema
+   rejects: a bug to fix. A connection error means a database blip.
+2. The missed rows cannot be backfilled: `activities` rejects UPDATE and DELETE
+   by trigger, and the source event is gone. Note the window and event types in
+   the incident record.
+3. Fix the cause. Do not disable `activities_append_only` to repair history.
 
 ## Validation
 

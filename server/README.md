@@ -33,9 +33,9 @@ without something routing between them, so this bot runs as one process.
 Each module keeps its own independent SQLAlchemy repositories reading the
 same shared `app.models` package — see `/modular-monolith`'s module
 boundaries for how cross-module access is governed (`app.modules.organizations`
-for the shared `Organization` entity, `app.modules.attio` for the vendor
-integration, `app.modules.notifications`/`app.modules.utilities` for
-cross-cutting infra).
+for the shared `Organization` entity, `app.modules.activities` for the
+business-event history, `app.modules.attio` for the vendor integration,
+`app.modules.notifications`/`app.modules.utilities` for cross-cutting infra).
 
 ## Setup
 
@@ -172,6 +172,7 @@ server/
 │       ├── ddl_commands/        # /edit-seller, /edit-buyer, /add-seller, /add-buyer
 │       ├── meetings/              # /desktop/* — desktop-app transcript summarization
 │       ├── organizations/           # shared Organization persistence
+│       ├── activities/                # business-event history (activities index, vocabulary, recorder)
 │       ├── attio/                     # Attio vendor integration
 │       ├── notifications/               # cross-module Slack notifier Port
 │       └── utilities/                     # cross-cutting infra (logging, retry, Money, DB wiring)

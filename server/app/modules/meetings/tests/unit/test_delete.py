@@ -11,6 +11,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.modules.activities import (
+    ActivityEvent,
+    ActorType,
+    EventType,
+    LedgerType,
+    SubjectType,
+)
 from app.modules.meetings.application.errors import MeetingStillProcessingError
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
@@ -49,6 +56,19 @@ _DEFAULT_MEETING = MeetingRecord(
     note_id=None,
     removed_at=None,
 )
+
+
+_RECORDED: list[ActivityEvent] = []
+
+
+@pytest.fixture(autouse=True)
+def _clear_recorded_events() -> None:
+    _RECORDED.clear()
+
+
+class _FakeActivityRecorder:
+    async def record(self, event: ActivityEvent) -> None:
+        _RECORDED.append(event)
 
 
 def _meeting(**overrides: object) -> MeetingRecord:
@@ -167,6 +187,7 @@ def _service(
         summarization_service=_summarization_service(),
         note_writer=note_writer,
         summary_semaphore=asyncio.Semaphore(1),
+        activity_recorder=_FakeActivityRecorder(),
     )
     return service, meetings_repo, notes_repo, note_writer
 
@@ -260,3 +281,30 @@ async def test_soft_delete_returning_false_raises_409() -> None:
 
     with pytest.raises(MeetingStillProcessingError):
         await service.delete_meeting(_INSTALL_ID, _LOCAL_RECORDING_ID)
+
+
+async def test_delete_records_one_event_with_the_scribe_actor() -> None:
+    service, _, _, _ = _service(meeting=_meeting(org_id="org-1"))
+
+    await service.delete_meeting(_INSTALL_ID, _LOCAL_RECORDING_ID)
+
+    (event,) = _RECORDED
+    assert event.event_type is EventType.MEETING_DELETED
+    assert (event.subject_type, event.subject_attio_id) == (SubjectType.ORGANIZATION, "org-1")
+    assert event.actor.type is ActorType.SCRIBE_INSTALL
+    assert event.actor.ref == _INSTALL_ID
+    assert (event.ledger.type, event.ledger.id) == (LedgerType.MEETING, _MEETING_ID)
+    assert event.subject_uuid is None
+
+
+async def test_a_delete_that_does_nothing_records_no_event() -> None:
+    gone, _, _, _ = _service(meeting=_meeting(removed_at=datetime(2026, 9, 8, tzinfo=UTC)))
+    await gone.delete_meeting(_INSTALL_ID, _LOCAL_RECORDING_ID)
+
+    busy, _, _, _ = _service(
+        meeting=_meeting(status="summarizing", summary_started_at=datetime.now(UTC))
+    )
+    with pytest.raises(MeetingStillProcessingError):
+        await busy.delete_meeting(_INSTALL_ID, _LOCAL_RECORDING_ID)
+
+    assert _RECORDED == []

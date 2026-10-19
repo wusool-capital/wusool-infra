@@ -11,6 +11,8 @@ import logging
 from dataclasses import asdict
 from uuid import UUID
 
+from app.modules.activities import EventType
+from app.modules.meetings.application.activity_events import meeting_event
 from app.modules.meetings.application.base import ServiceBase
 from app.modules.meetings.domain.meeting_record import MeetingRecord
 from app.modules.meetings.domain.rendering import render_summary_text
@@ -86,14 +88,24 @@ class PublishMixin(ServiceBase):
         # nullable specifically for this case (see migration
         # e0c1e7522181), and `primary_role` now gives an org-less note a
         # way to be found/filtered that didn't exist before.
-        await self._write_note(org_id=meeting.org_id, content=rendered, meeting=meeting)
+        note_attio_id = await self._write_note(
+            org_id=meeting.org_id, content=rendered, meeting=meeting
+        )
+        await self._activity_recorder.record(
+            meeting_event(
+                EventType.MEETING_PUBLISHED,
+                meeting,
+                pushed_to_attio=note_attio_id is not None,
+            )
+        )
 
     async def _write_note(
         self, *, org_id: str | None, content: str, meeting: MeetingRecord
-    ) -> None:
+    ) -> UUID | None:
         """Best-effort side write — never lets a note-writer/notes-
         repository failure roll back the meeting row's mark_completed
-        above, which has already succeeded.
+        above, which has already succeeded. Returns the note's Attio id, or
+        None when nothing was pushed to Attio.
         """
         primary = meeting.primary_role
         role_ref = await self._resolve_role(org_id=org_id, primary=primary)
@@ -161,7 +173,7 @@ class PublishMixin(ServiceBase):
                 exc,
                 extra={"meeting_id": str(meeting.id), "error": str(exc)},
             )
-            return
+            return note_attio_id
 
         try:
             await self._meetings_repository.set_note_id(meeting.id, note_id=note_id)
@@ -172,6 +184,7 @@ class PublishMixin(ServiceBase):
                 exc,
                 extra={"meeting_id": str(meeting.id), "error": str(exc)},
             )
+        return note_attio_id
 
     async def _resolve_role(
         self, *, org_id: str | None, primary: MeetingRole | None

@@ -22,6 +22,15 @@ class WebhookEventId:
 
 
 @dataclass(frozen=True)
+class WebhookActor:
+    """Who Attio says made the change: `workspace-member`, `api-token` or `system`."""
+
+    type: str | None = None
+    id: str | None = None
+
+
+@dataclass(frozen=True)
 class WebhookEvent:
     event_type: str
     id: WebhookEventId = field(default_factory=WebhookEventId)
+    actor: WebhookActor | None = None

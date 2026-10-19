@@ -37,6 +37,11 @@ from app.modules.ddl_commands.api.buyers import (
     GATED_BUYER_ROLE_FIELDS,
     BuyerUpdate,
 )
+from app.modules.ddl_commands.api.command_tracking import (
+    CommandTracker,
+    track_command,
+    uuid_or_none,
+)
 from app.modules.ddl_commands.api.dependencies import (
     ddl_commands_service,
     edit_gate_port,
@@ -487,6 +492,7 @@ def register(app: AsyncApp) -> None:
                 org_attio_id=org_attio_id,
                 org_extracted=org_extracted,
                 role_extracted=role_extracted,
+                requested_by=requested_by,
             )
         except SellerNotFoundError:
             await client.chat_postEphemeral(
@@ -583,6 +589,7 @@ def register(app: AsyncApp) -> None:
                     org_attio_id=org_attio_id,
                     org_extracted=org_extracted,
                     role_extracted=role_extracted,
+                    requested_by=requested_by,
                 )
             except BuyerNotFoundError:
                 await client.chat_postEphemeral(
@@ -780,6 +787,8 @@ def register(app: AsyncApp) -> None:
                 org_name=org_name,
                 org_extracted=org_extracted,
                 role_extracted=role_extracted,
+                requested_by=requested_by,
+                invoked_via="slack",
                 source_place_id=metadata.get("source_place_id"),
             )
         except SellerAlreadyExistsError:
@@ -870,6 +879,7 @@ def register(app: AsyncApp) -> None:
                 org_name=org_name,
                 org_extracted=org_extracted,
                 role_extracted=role_extracted,
+                requested_by=requested_by,
             )
         except BuyerAlreadyExistsError:
             await client.chat_postEphemeral(
@@ -900,6 +910,31 @@ async def _write_seller_edit(
     org_attio_id: str,
     org_extracted: dict[str, Any],
     role_extracted: dict[str, Any],
+    requested_by: str | None,
+) -> None:
+    async with track_command(
+        "edit_seller",
+        invoked_via="slack",
+        requested_by=requested_by,
+        org_attio_id=org_attio_id,
+        seller_role_id=uuid_or_none(seller_role_id),
+    ) as run:
+        await _seller_edit(
+            seller_role_id=seller_role_id,
+            org_attio_id=org_attio_id,
+            org_extracted=org_extracted,
+            role_extracted=role_extracted,
+            run=run,
+        )
+
+
+async def _seller_edit(
+    *,
+    seller_role_id: str,
+    org_attio_id: str,
+    org_extracted: dict[str, Any],
+    role_extracted: dict[str, Any],
+    run: CommandTracker,
 ) -> None:
     """Attio first, then Postgres — see module docstring. Re-resolves the
     seller (and its organization) fresh rather than trusting anything from
@@ -912,6 +947,7 @@ async def _write_seller_edit(
         raise _OrgRemovedError(org_attio_id)
 
     landed: list[str] = []
+    run.landed = landed
     attio_client = get_attio_client()
     is_test = attio_is_test()
     try:
@@ -960,10 +996,12 @@ async def _write_seller_edit(
         if role_extracted
         else {}
     )
+    run.changed_fields = [*role_postgres_fields, *(org_postgres_fields or {})]
     try:
         await ddl_commands_service().update_seller(
             seller_role_id,
             role_postgres_fields,
+            context=run.context,
             org_attio_id=org_attio_id,
             org_fields=org_postgres_fields,
         )
@@ -977,6 +1015,31 @@ async def _write_buyer_edit(
     org_attio_id: str,
     org_extracted: dict[str, Any],
     role_extracted: dict[str, Any],
+    requested_by: str | None,
+) -> None:
+    async with track_command(
+        "edit_buyer",
+        invoked_via="slack",
+        requested_by=requested_by,
+        org_attio_id=org_attio_id,
+        buyer_role_id=uuid_or_none(buyer_role_id),
+    ) as run:
+        await _buyer_edit(
+            buyer_role_id=buyer_role_id,
+            org_attio_id=org_attio_id,
+            org_extracted=org_extracted,
+            role_extracted=role_extracted,
+            run=run,
+        )
+
+
+async def _buyer_edit(
+    *,
+    buyer_role_id: str,
+    org_attio_id: str,
+    org_extracted: dict[str, Any],
+    role_extracted: dict[str, Any],
+    run: CommandTracker,
 ) -> None:
     role = await resolve_buyer_by_id(buyer_role_id)
     if role is None:
@@ -985,6 +1048,7 @@ async def _write_buyer_edit(
         raise _OrgRemovedError(org_attio_id)
 
     landed: list[str] = []
+    run.landed = landed
     attio_client = get_attio_client()
     is_test = attio_is_test()
     try:
@@ -1039,10 +1103,12 @@ async def _write_buyer_edit(
         if role_extracted
         else {}
     )
+    run.changed_fields = [*role_postgres_fields, *(org_postgres_fields or {})]
     try:
         await ddl_commands_service().update_buyer(
             buyer_role_id,
             role_postgres_fields,
+            context=run.context,
             org_attio_id=org_attio_id,
             org_fields=org_postgres_fields,
         )
@@ -1063,6 +1129,7 @@ async def _write_buyer_add(
     org_name: str | None,
     org_extracted: dict[str, Any],
     role_extracted: dict[str, Any],
+    requested_by: str | None,
 ) -> None:
     """Serializes the duplicate check with the Attio create, so a second
     add for the same (org, vertical) sees the first one's role instead of
@@ -1076,13 +1143,22 @@ async def _write_buyer_add(
             (org_attio_id or "", role_extracted.get("target_vertical")), asyncio.Lock()
         )
     )
-    async with guard:
+    async with (
+        guard,
+        track_command(
+            "add_buyer",
+            invoked_via="slack",
+            requested_by=requested_by,
+            org_attio_id=None if is_new_org else org_attio_id,
+        ) as run,
+    ):
         await _write_buyer_add_locked(
             is_new_org=is_new_org,
             org_attio_id=org_attio_id,
             org_name=org_name,
             org_extracted=org_extracted,
             role_extracted=role_extracted,
+            run=run,
         )
 
 
@@ -1093,6 +1169,7 @@ async def _write_buyer_add_locked(
     org_name: str | None,
     org_extracted: dict[str, Any],
     role_extracted: dict[str, Any],
+    run: CommandTracker,
 ) -> None:
     """Mirrors `_write_seller_add`, buyer-typed."""
     if not is_new_org:
@@ -1105,6 +1182,7 @@ async def _write_buyer_add_locked(
             raise BuyerAlreadyExistsError(org_attio_id)
 
     landed: list[str] = []
+    run.landed = landed
     attio_client = get_attio_client()
     is_test = attio_is_test()
 
@@ -1167,11 +1245,13 @@ async def _write_buyer_add_locked(
     role_postgres_fields = build_postgres_values(
         table="buyer_role", fields=BUYER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
     )
+    run.changed_fields = [*role_postgres_fields, *(org_postgres_fields or {})]
     try:
-        await ddl_commands_service().create_buyer(
+        role = await ddl_commands_service().create_buyer(
             org_attio_id=org_attio_id,
             entry_id=entry_id,
             is_new_org=is_new_org,
+            context=run.context,
             org_name=org_name if is_new_org else None,
             org_fields=org_postgres_fields,
             role_fields=role_postgres_fields,
@@ -1180,3 +1260,5 @@ async def _write_buyer_add_locked(
         raise
     except Exception as exc:
         raise PartialWriteError(landed, exc) from exc
+    run.org_attio_id = org_attio_id
+    run.buyer_role_id = role.id

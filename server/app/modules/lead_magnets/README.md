@@ -353,8 +353,9 @@ The order is the whole point; it is what makes a lost lead impossible.
    builds the HTML, `notifications.EmailSenderPort` sends it).
 6. **Email the internal team** a notice, with links back to the Attio
    organisation/deal (`SubjectRefs.org_web_url`/`deal_web_url`).
-7. **`tool_runs.finish(...)`**, then one `activities` row joined by
-   `tool_run_id`.
+7. **`tool_runs.finish(...)`**, then one `activities` row
+   (`lead_magnet.submitted`, visitor actor) joined by `tool_run_id`. The row
+   holds no submission data; the answers stay on `tool_runs.payload`.
 8. A **sweeper** replays anything left unfinished.
 
 Steps 5 and 6 are tracked as two separate stages (`email_confirmation`,
@@ -375,8 +376,10 @@ benchmark column, so this module writes Attio and lets the mirror follow.
 (`persistence/tool_runs_repository.py`) never rejects a submission. A
 visitor can resubmit any number of times, for any tool, and each genuinely
 new attempt gets its own permanent `tool_runs` row and (once it resolves a
-subject) its own `activities` row with a full copy of that attempt's
-payload. Nothing is overwritten.
+subject) its own `activities` row linking back to that run. Nothing is
+overwritten. The activity's idempotency key includes the run's status, so a
+run that failed and later resumes to success records both outcomes, while a
+repeated `finish` with the same outcome records nothing.
 
 The one exception: an exact retried POST of the very same request (an
 identical `submission_id` already recorded for this client) reuses that
@@ -408,6 +411,10 @@ NOT NULL)`, so a submission that dies before its Attio write cannot be
 recorded there at all — exactly the lead-loss case this exists to catch.
 `tool_runs` has four nullable subject columns and no such constraint,
 deliberately.
+
+Since AZM-150, `activities` is a thin index over ledgers like this one: it
+links to a run through `tool_run_id` and never copies the payload, so the
+answers (and any PII in them) live in one place.
 
 ### The subject-FK ordering trap
 

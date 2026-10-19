@@ -24,6 +24,30 @@ for current production evidence and open handover items.
   summary keeps its start and its end, where next steps usually sit, and
   marks the cut in the middle. Buyers with short notes get the same prompt
   as before.
+- The activity log is now one history of what happens in the system. Each
+  entry records who did what, to which record, and when, and links to the
+  record that holds the detail. The audit and the reasoning are in
+  `docs/internal/dev/ACTIVITIES_AUDIT.md`.
+- Slack profile adds and edits, match runs and decisions, and deal stage changes
+  are now recorded. So are meeting publish and delete, lead submissions, and Attio
+  changes, including deletions.
+- Slack profile commands also keep a record of failed and partial saves.
+- New lead submissions no longer copy the visitor's answers onto the activity
+  entry. The answers stay on the lead run.
+- The activity log can no longer be edited or deleted: the database rejects any
+  change to an existing entry.
+- The database now keeps a log of incoming Attio events for 90 days, and the
+  nightly sync records how its last run went.
+- A new alarm fires when a history entry can't be written. History writes never
+  block the change they describe, so the alarm is the only signal of a lost entry.
+- Logs no longer include the details of a failed database write. Database errors
+  are logged by type and constraint name only.
+
+### Fixed
+
+- A buyer or seller profile event that arrived before Attio's list showed the
+  new entry no longer fails. It used to leave Attio and the database out of
+  step until the nightly sync.
 
 ## 2026-10-18
 

@@ -11,8 +11,9 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
+import app.modules.activities.persistence.recorder as recorder_module
 from app.models.activity import Activity
 from app.models.seller_role import SellerRole
 from app.models.tool_run import ToolRun
@@ -199,12 +200,17 @@ async def test_finish_with_a_resolved_org_writes_one_activity_row(db_session) ->
     )
 
     row = (
-        await db_session.execute(select(Activity).where(Activity.tool_run_id == run_id))
+        await db_session.execute(select(Activity).where(Activity.ledger_id == run_id))
     ).scalar_one()
     assert row.subject_type == "Organization"
     assert row.subject_attio_id == org_id
     assert row.source == "lead_magnet"
-    assert row.payload == {"submission_id": "abc"}
+    assert row.event_type == "lead_magnet.submitted"
+    assert (row.ledger_type, row.ledger_id) == ("tool_run", run_id)
+    assert row.actor_type == "website_visitor"
+    assert row.outcome == "succeeded"
+    # The submission stays on the tool run; the activity only links to it.
+    assert row.payload == {"kind": "none"}
 
 
 async def test_finish_without_a_subject_writes_no_activity_row(db_session) -> None:
@@ -216,27 +222,31 @@ async def test_finish_without_a_subject_writes_no_activity_row(db_session) -> No
     await repo.finish(run_id, "failed", error="boom")
 
     rows = (
-        (await db_session.execute(select(Activity).where(Activity.tool_run_id == run_id)))
+        (await db_session.execute(select(Activity).where(Activity.ledger_id == run_id)))
         .scalars()
         .all()
     )
     assert rows == []
 
 
-async def test_finish_succeeds_even_when_the_activity_log_fails(db_session) -> None:
-    """The activity row is best-effort bookkeeping, not the ledger: a
-    `run_id` with no matching `tool_runs` row FK-violates the activity
-    insert, but `finish()` must still complete rather than raise."""
+async def test_finish_succeeds_even_when_the_activity_log_fails(db_session, monkeypatch) -> None:
+    """The activity row is best-effort bookkeeping, not the ledger: a database
+    error in the activity insert must not stop `finish()` marking the run."""
     repo = ToolRunsRepository(db_session)
-    bogus_run_id = uuid4()  # never started via `start()`
-    org_id = f"org-{uuid4()}"
-
-    await repo.finish(  # must not raise
-        bogus_run_id, "succeeded", subjects=SubjectRefs(org_attio_id=org_id, org_name="Acme")
+    run_id = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    monkeypatch.setattr(
+        recorder_module, "_INSERT", text("INSERT INTO activities(no_such_column) VALUES (1)")
     )
 
+    await repo.finish(  # must not raise
+        run_id,
+        "succeeded",
+        subjects=SubjectRefs(org_attio_id=f"org-{uuid4()}", org_name="Acme"),
+    )
+
+    assert (await _row(db_session, run_id)).status == "succeeded"
     rows = (
-        (await db_session.execute(select(Activity).where(Activity.tool_run_id == bogus_run_id)))
+        (await db_session.execute(select(Activity).where(Activity.ledger_id == run_id)))
         .scalars()
         .all()
     )
@@ -373,3 +383,35 @@ async def test_ceilings_per_failure_class(db_session, tool, stage_completed, cla
         r.id for r in await repo.claim_stale(cutoff=datetime.now(UTC) + timedelta(seconds=1))
     ]
     assert (run_id in claimed) is claims
+
+
+async def test_a_repeated_finish_with_the_same_outcome_writes_one_activity(db_session) -> None:
+    repo = ToolRunsRepository(db_session)
+    run_id = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    subjects = SubjectRefs(org_attio_id=f"org-{uuid4()}", org_name="Acme")
+
+    await repo.finish(run_id, "succeeded", subjects=subjects)
+    await repo.finish(run_id, "succeeded", subjects=subjects)
+
+    rows = (
+        (await db_session.execute(select(Activity).where(Activity.ledger_id == run_id)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+
+
+async def test_a_failed_then_succeeded_run_records_both_outcomes(db_session) -> None:
+    repo = ToolRunsRepository(db_session)
+    run_id = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    subjects = SubjectRefs(org_attio_id=f"org-{uuid4()}", org_name="Acme")
+
+    await repo.finish(run_id, "failed", subjects=subjects, error="attio down")
+    await repo.finish(run_id, "succeeded", subjects=subjects)
+
+    outcomes = (
+        (await db_session.execute(select(Activity.outcome).where(Activity.ledger_id == run_id)))
+        .scalars()
+        .all()
+    )
+    assert sorted(outcomes) == ["failed", "succeeded"]
