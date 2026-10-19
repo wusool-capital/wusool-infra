@@ -72,7 +72,13 @@ Qualified Buy-side deal in Attio.
    **Find more sellers** runs it on demand. Each run searches once.
 
 Meeting notes reach both Bedrock calls as labeled, unverified context: always
-for the buyer, and by default for shortlisted sellers.
+for the buyer, and by default for shortlisted sellers. Each summary is capped
+at `MEETING_NOTES_MAX_CHARS` (default 3,000). A longer one keeps its first
+two thirds and its last third, with a `[middle truncated]` marker between
+them, so next steps at the end survive. Each prompt gets at most
+`MEETING_NOTES_MAX_TOTAL_CHARS` (default 12,000) of notes, newest first. The
+oldest note is always kept, and the prompt states how many older meetings
+were omitted.
 
 ## What the advisor's note controls
 

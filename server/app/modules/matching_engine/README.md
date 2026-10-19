@@ -153,7 +153,12 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
 Meeting notes (`meetings` table) are folded into both Bedrock prompts as
 labeled, unverified context — always on for the buyer side, on by default
 for shortlisted sellers (`ENABLE_SELLER_MEETING_NOTES=false` to restrict to
-the buyer side only).
+the buyer side only). Each summary is capped at `MEETING_NOTES_MAX_CHARS`
+(default 3,000): a longer one keeps its first two thirds and its last third,
+with a `[middle truncated]` marker between them, so next steps at the end
+survive. Each prompt gets at most `MEETING_NOTES_MAX_TOTAL_CHARS` (default
+12,000) of notes, newest first; the oldest note is always kept and the number
+of dropped older meetings is stated in the prompt.
 
 Not implemented, by design: pgvector/semantic retrieval, document
 ingestion, general-purpose web scraping beyond `discovery`'s lead search,

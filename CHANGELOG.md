@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-19
+
+### Changed
+
+- Matching now shows the AI much more of each meeting summary. The limit is
+  3,000 characters per meeting (was 600) and 12,000 per prompt (was 4,000). A long
+  summary keeps its start and its end, where next steps usually sit, and
+  marks the cut in the middle. Buyers with short notes get the same prompt
+  as before.
+
 ## 2026-10-18
 
 ### Changed
