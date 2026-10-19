@@ -1,7 +1,22 @@
+from types import SimpleNamespace
+
 import pytest
 
 from app.models import Organization
 from app.modules.ddl_commands.scripts import attio_sync_full_resync as full_resync
+
+
+@pytest.fixture(autouse=True)
+def recorded_runs(monkeypatch):
+    """`run()` records each pass in `attio_sync_state`, which would write to
+    whatever `DATABASE_URL` points at. Stub it and keep what it was told."""
+    runs = SimpleNamespace(calls=[])
+
+    async def record_run(summary, total_ok, total_failed, duration):
+        runs.calls.append((dict(summary), total_ok, total_failed))
+
+    monkeypatch.setattr(full_resync, "_record_run", record_run)
+    return runs
 
 
 def _entry(entry_id: str, org_id: str) -> dict:
@@ -695,3 +710,75 @@ async def test_notes_reconcile_ignores_locally_authored_rows(monkeypatch) -> Non
         assert "id = ANY" not in statement.replace("attio_id = ANY", ""), (
             "notes must not be matched on the primary key"
         )
+
+
+async def test_run_hands_its_totals_to_the_state_recorder(monkeypatch, recorded_runs) -> None:
+    await test_run_raises_systemexit_on_any_failure(monkeypatch)
+
+    ((summary, total_ok, total_failed),) = recorded_runs.calls
+    assert total_failed == 0
+    assert total_ok == sum(ok for ok, _ in summary.values())
+    assert set(summary) >= {"users", "organizations", "deals", "buyer_role", "seller_role", "note"}
+
+
+# Captured at import, before the autouse fixture above replaces it on the module.
+_real_record_run = full_resync._record_run
+
+
+def _fake_persistence(monkeypatch, *, prune_error=None, record_error=None) -> SimpleNamespace:
+    seen = SimpleNamespace(pruned_with=[], summaries=[])
+
+    async def prune(retention_days):
+        seen.pruned_with.append(retention_days)
+        if prune_error:
+            raise prune_error
+        return 7
+
+    async def record(summary):
+        if record_error:
+            raise record_error
+        seen.summaries.append(summary)
+
+    monkeypatch.setattr(full_resync, "prune_raw_events", prune)
+    monkeypatch.setattr(full_resync, "record_resync_state", record)
+    return seen
+
+
+async def test_record_run_prunes_then_records_a_succeeded_summary(monkeypatch) -> None:
+    seen = _fake_persistence(monkeypatch)
+
+    await _real_record_run({"organizations": (5, 0), "deals": (3, 0)}, 8, 0, 12.34)
+
+    assert seen.pruned_with == [90]
+    (summary,) = seen.summaries
+    assert (summary.status, summary.total_synced, summary.total_failed) == ("succeeded", 8, 0)
+    assert summary.raw_events_pruned == 7
+    assert summary.duration_seconds == 12.3
+    assert [(o.name, o.synced, o.failed) for o in summary.objects] == [
+        ("organizations", 5, 0),
+        ("deals", 3, 0),
+    ]
+
+
+async def test_record_run_marks_a_pass_with_failures_failed(monkeypatch) -> None:
+    seen = _fake_persistence(monkeypatch)
+
+    await _real_record_run({"person": (1, 2)}, 1, 2, 1.0)
+
+    assert seen.summaries[0].status == "failed"
+
+
+async def test_a_failing_prune_still_records_the_run_with_zero_pruned(monkeypatch) -> None:
+    seen = _fake_persistence(monkeypatch, prune_error=RuntimeError("db down"))
+
+    await _real_record_run({"person": (1, 0)}, 1, 0, 1.0)
+
+    assert seen.summaries[0].raw_events_pruned == 0
+
+
+async def test_record_run_never_raises(monkeypatch) -> None:
+    _fake_persistence(
+        monkeypatch, prune_error=RuntimeError("db down"), record_error=RuntimeError("db down")
+    )
+
+    await _real_record_run({"person": (1, 0)}, 1, 0, 1.0)  # must not raise

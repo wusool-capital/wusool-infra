@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.ddl_commands.persistence import attio_sync as upsert
+from app.modules.ddl_commands.persistence import raw_events, resync_state
 from app.modules.ddl_commands.scripts import attio_sync_full_resync as full_resync
 
 
@@ -88,6 +89,8 @@ async def test_full_resync_run_end_to_end(
 ) -> None:
     monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
     monkeypatch.setattr(full_resync, "get_sessionmaker", lambda: db_sessionmaker)
+    monkeypatch.setattr(raw_events, "get_sessionmaker", lambda: db_sessionmaker)
+    monkeypatch.setattr(resync_state, "get_sessionmaker", lambda: db_sessionmaker)
     monkeypatch.setattr(full_resync, "import_all_models", lambda: None)
     # `_run` refuses to proceed when `ATTIO_IS_TEST=true` (a real safety
     # guard — full resync only ever targets the real prod database, see
@@ -119,7 +122,44 @@ async def test_full_resync_run_end_to_end(
 
     monkeypatch.setattr(full_resync, "AttioClient", lambda api_key: client)
 
+    stale_type, recent_type = f"test.stale.{uuid.uuid4()}", f"test.recent.{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        await session.execute(
+            text(
+                "INSERT INTO attio_raw_events(event_type, payload, received_at) VALUES "
+                "(:stale, '{}', now() - interval '100 days'), "
+                "(:recent, '{}', now() - interval '1 day')"
+            ),
+            {"stale": stale_type, "recent": recent_type},
+        )
+        await session.commit()
+
     await full_resync.run()
+
+    async with db_sessionmaker() as session:
+        remaining = set(
+            (
+                await session.execute(
+                    text("SELECT event_type FROM attio_raw_events WHERE event_type = ANY(:t)"),
+                    {"t": [stale_type, recent_type]},
+                )
+            ).scalars()
+        )
+        state = (
+            await session.execute(
+                text(
+                    "SELECT last_synced_at, metadata FROM attio_sync_state "
+                    "WHERE sync_name = 'attio_full_resync'"
+                )
+            )
+        ).one()
+    # Only events past the 90-day retention are pruned.
+    assert remaining == {recent_type}
+    assert state.last_synced_at is not None
+    assert state.metadata["status"] == "succeeded"
+    assert state.metadata["total_failed"] == 0
+    assert state.metadata["raw_events_pruned"] >= 1
+    assert {o["name"] for o in state.metadata["objects"]} >= {"organizations", "deals"}
 
     async with db_sessionmaker() as session:
         org_names = {

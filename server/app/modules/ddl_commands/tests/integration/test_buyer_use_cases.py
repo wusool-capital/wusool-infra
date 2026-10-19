@@ -2,7 +2,7 @@ import asyncio
 import uuid
 
 import pytest
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import BuyerRole, Organization
@@ -297,6 +297,14 @@ async def test_concurrent_create_yields_one_active_role() -> None:
         assert active == 1
     finally:
         async with sessionmaker() as session:
+            # The writes record activities, which have no FK to clean up after them.
+            await session.execute(
+                text(
+                    "delete from activities where subject_uuid in "
+                    "(select id from buyer_roles where org_attio_id = :o)"
+                ),
+                {"o": attio_id},
+            )
             await session.execute(delete(BuyerRole).where(BuyerRole.org_attio_id == attio_id))
             await session.execute(delete(Organization).where(Organization.attio_id == attio_id))
             await session.commit()

@@ -35,7 +35,11 @@ from app.modules.attio import (
 )
 from app.modules.attio.providers.attio.signature import verify_attio_signature
 from app.modules.ddl_commands.application.attio_sync import dispatch_event
-from app.modules.ddl_commands.bootstrap import build_attio_registry, build_attio_sync_repository
+from app.modules.ddl_commands.bootstrap import (
+    build_attio_registry,
+    build_attio_sync_repository,
+    build_raw_event_log,
+)
 from app.modules.ddl_commands.config import get_settings
 
 
@@ -106,6 +110,12 @@ def _to_domain(event: AttioWebhookEvent) -> WebhookEvent:
 
 
 async def _process(event: AttioWebhookEvent) -> None:
+    # Logged here, not before the 200, so the ack never waits on the database.
+    # `processed_at` stays NULL for an event whose sync raised.
+    raw_event_log = build_raw_event_log()
+    raw_event_id = await raw_event_log.record(
+        event_type=event.event_type, payload_json=event.model_dump_json()
+    )
     try:
         await dispatch_event(
             build_attio_sync_repository(),
@@ -115,6 +125,9 @@ async def _process(event: AttioWebhookEvent) -> None:
         )
     except Exception:
         _logger.error("attio webhook sync failed for event %r", event, exc_info=True)
+        return
+    if raw_event_id is not None:
+        await raw_event_log.mark_processed(raw_event_id)
 
 
 @router.post("/webhooks/attio")

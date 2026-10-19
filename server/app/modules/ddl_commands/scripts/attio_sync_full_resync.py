@@ -45,12 +45,20 @@ from app.modules.attio.providers.attio.retry import post_with_retry
 from app.modules.ddl_commands.config import get_settings
 from app.modules.ddl_commands.persistence import attio_sync as upsert
 from app.modules.ddl_commands.persistence.database import get_sessionmaker, import_all_models
+from app.modules.ddl_commands.persistence.raw_events import prune_raw_events
+from app.modules.ddl_commands.persistence.resync_state import (
+    ObjectResult,
+    ResyncSummary,
+    record_resync_state,
+)
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.logging import configure_logging
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync.full_resync")
 
 _PAGE_SIZE: int = 500
+# Raw webhook events are for replay and debugging, so a quarter is plenty.
+_RAW_EVENT_RETENTION_DAYS: int = 90
 # Bounded well under the DB engine's default pool ceiling (pool_size=5 +
 # max_overflow=10 = 15, shared/database/session.py) -- each concurrent
 # batch/reconciliation task holds its own session.
@@ -734,16 +742,46 @@ async def _run(client: AttioClientProtocol) -> None:
     total_failed = sum(failed for _, failed in summary.values())
     for slug, (ok, failed) in summary.items():
         _logger.info("full resync: %-14s synced=%-5d failed=%d", slug, ok, failed)
+    duration = time.monotonic() - run_started
     _logger.info(
         "full resync complete: synced=%d failed=%d duration=%.1fs",
         total_ok,
         total_failed,
-        time.monotonic() - run_started,
+        duration,
     )
+    await _record_run(summary, total_ok, total_failed, duration)
 
     if total_failed:
         # Non-zero exit code — the SSM/GH Actions caller must see this as failed.
         raise SystemExit(1)
+
+
+async def _record_run(
+    summary: dict[str, tuple[int, int]], total_ok: int, total_failed: int, duration: float
+) -> None:
+    """Prunes old raw events and records this run in `attio_sync_state`. Neither
+    may change the run's exit code: the sync itself already finished."""
+    pruned = 0
+    try:
+        pruned = await prune_raw_events(_RAW_EVENT_RETENTION_DAYS)
+    except Exception:
+        _logger.error("full resync: failed to prune attio_raw_events", exc_info=True)
+    try:
+        await record_resync_state(
+            ResyncSummary(
+                status="failed" if total_failed else "succeeded",
+                duration_seconds=round(duration, 1),
+                total_synced=total_ok,
+                total_failed=total_failed,
+                objects=[
+                    ObjectResult(name=name, synced=ok, failed=failed)
+                    for name, (ok, failed) in summary.items()
+                ],
+                raw_events_pruned=pruned,
+            )
+        )
+    except Exception:
+        _logger.error("full resync: failed to record attio_sync_state", exc_info=True)
 
 
 def main() -> None:
