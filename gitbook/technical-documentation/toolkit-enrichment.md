@@ -20,7 +20,7 @@ final:
 2. **People Data Labs:** the same kind of data, as a second source for what
    Diffbot missed.
 3. **LinkedIn company page (Apify):** description, headquarters country,
-   headcount band and logo. It runs only when the organization already has a
+   headcount band, founding year and logo. It runs only when the organization already has a
    LinkedIn URL and fields are still missing, because each run is billed.
 4. **Firecrawl and Bedrock:** a public web search, with Bedrock extracting
    values from the results. This is the last resort.

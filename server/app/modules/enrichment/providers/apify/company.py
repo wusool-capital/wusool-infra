@@ -3,6 +3,8 @@ the last step of the structured waterfall, so Diffbot/PDL answer first.
 Needs the company's own LinkedIn URL: searching by name is unreliable.
 """
 
+from datetime import date
+
 from app.modules.enrichment.application.ports.company_data import (
     CompanyDataField,
     CompanyDataResult,
@@ -40,6 +42,10 @@ def _map_company(
 
     _add("description", item.description)
     _add("logo_url", item.logo)
+    if item.foundedOn and item.foundedOn.year:
+        # Year-only precision, stored as 1 January the way `foundation_date`
+        # expects a full date.
+        _add("foundation_date", date(item.foundedOn.year, 1, 1))
     hq = next((loc for loc in item.locations if loc.headquarter), None)
     if hq and hq.parsed:
         # The actor's bare `country` is an ISO code; only the full English

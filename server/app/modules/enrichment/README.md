@@ -32,7 +32,8 @@ only for whatever the previous tier didn't resolve:
    — thinner, so it's tried second, not called for anything Diffbot already
    resolved.
 3. **LinkedIn company page** (`providers/apify/company.py`) — description,
-   HQ country, employee range and logo, from the company's own LinkedIn page.
+   HQ country, employee range, founding date (the year, stored as 1 January)
+   and logo, from the company's own LinkedIn page.
    Only runs when the organization already has a `linkedin` URL and fields are
    still missing, because every Apify run is billed. Never part of
    `propose_basic`.

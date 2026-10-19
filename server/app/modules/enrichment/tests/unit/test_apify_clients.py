@@ -4,6 +4,7 @@ fail-soft behaviour. No real network: `aiohttp.ClientSession` is faked.
 """
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -136,6 +137,7 @@ async def test_company_maps_requested_fields_from_fixture(monkeypatch) -> None:
     assert by_name["employee_range"] == "251-1K"
     assert by_name["description"].startswith("Acme distributes")
     assert by_name["logo_url"] == "https://media.licdn.com/logo.png"
+    assert by_name["foundation_date"] == date(1997, 1, 1)
     assert result.website == "https://acme.example"
     assert {f.provider for f in result.fields} == {"LinkedIn (Apify)"}
 

@@ -88,11 +88,17 @@ class ApifyCompanyLocation(BaseModel):
     parsed: ApifyParsedLocation | None = None
 
 
+class ApifyFoundedOn(BaseModel):
+    # LinkedIn only exposes the year.
+    year: int | None = None
+
+
 class ApifyCompanyItem(BaseModel):
     name: str | None = None
     linkedinUrl: str | None = None
     website: str | None = None
     description: str | None = None
     employeeCount: int | None = None
+    foundedOn: ApifyFoundedOn | None = None
     logo: str | None = None
     locations: list[ApifyCompanyLocation] = Field(default_factory=list)
