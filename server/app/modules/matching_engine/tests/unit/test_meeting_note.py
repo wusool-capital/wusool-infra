@@ -123,3 +123,20 @@ def test_render_includes_more_notes_at_new_budget_and_keeps_oldest() -> None:
     assert new.count("\n- [") > old.count("\n- [")
     assert "[2026-01-08]" in old
     assert "[2026-01-08]" in new
+
+
+def test_truncate_summary_cuts_one_char_over_cap() -> None:
+    text = "a" * 2999 + "z" * 2
+
+    cut, truncated = truncate_summary(text, 3000)
+
+    assert truncated is True
+    assert cut.endswith("z")
+    assert MIDDLE_TRUNCATED_MARKER in cut
+
+
+def test_truncate_summary_tiny_cap_keeps_a_tail_character() -> None:
+    cut, truncated = truncate_summary("abcdef", 1)
+
+    assert truncated is True
+    assert cut == MIDDLE_TRUNCATED_MARKER + "f"
