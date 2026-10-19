@@ -28,7 +28,7 @@ class Signal(Base):
         CheckConstraint(
             "source IN ('transcript','news','linkedin','jobs')", name="signals_source_check"
         ),
-        Index("idx_signals_buyer_ts", "buyer_attio_id", literal_column("ts DESC")),
+        Index("idx_signals_org_ts", "org_attio_id", literal_column("ts DESC")),
         # Partial index -- must match the migration exactly or `alembic check`
         # reports drift.
         Index(
@@ -43,7 +43,9 @@ class Signal(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")
     )
-    buyer_attio_id: Mapped[str] = mapped_column(
+    # The organization the signal is about: a buyer or a seller. Renamed from
+    # `buyer_attio_id` (AZM-148), which only ever described half of the uses.
+    org_attio_id: Mapped[str] = mapped_column(
         Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False
     )
     source: Mapped[str] = mapped_column(Text, nullable=False)
@@ -62,4 +64,4 @@ class Signal(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
 
-    buyer_organization: Mapped["Organization"] = relationship(foreign_keys=[buyer_attio_id])
+    organization: Mapped["Organization"] = relationship(foreign_keys=[org_attio_id])

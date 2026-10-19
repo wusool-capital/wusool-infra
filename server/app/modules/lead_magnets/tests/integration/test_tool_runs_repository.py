@@ -415,3 +415,13 @@ async def test_a_failed_then_succeeded_run_records_both_outcomes(db_session) -> 
         .all()
     )
     assert sorted(outcomes) == ["failed", "succeeded"]
+
+
+async def test_get_returns_none_for_another_modules_run(db_session) -> None:
+    """Enrichment logs `linkedin_scan` runs in the same table; a lead-magnet
+    caller holding such an id must see "not found", not an unknown-tool error."""
+    run = ToolRun(tool="linkedin_scan", status="succeeded", payload={})
+    db_session.add(run)
+    await db_session.flush()
+
+    assert await ToolRunsRepository(db_session).get(run.id) is None

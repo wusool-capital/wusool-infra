@@ -25,8 +25,9 @@ _SCAN_TIMEOUT_S = 60
 
 class LinkedInMixin(ServiceBase):
     async def scan_linkedin(self, target: EnrichmentTarget) -> LinkedInScan:
-        """Empty when no LinkedIn client is configured. Never raises: a slow
-        or failing vendor must not take the caller down with it."""
+        """Only what is new since the last scan once history is configured,
+        everything otherwise. Empty when no LinkedIn client is configured.
+        Never raises: a slow or failing vendor must not take the caller down."""
         if self._linkedin_client is None:
             return LinkedInScan()
         client = self._linkedin_client
@@ -57,6 +58,17 @@ class LinkedInMixin(ServiceBase):
             profile = by_key.get(profile_key(contact.linkedin_url))
             if profile and (change := detect_job_change(contact, profile)):
                 changes.append(change)
-        return LinkedInScan(
-            job_changes=tuple(changes), posts=posts, contacts_without_linkedin=missing
+        scan = LinkedInScan(
+            job_changes=tuple(changes),
+            posts=posts,
+            contacts_without_linkedin=missing,
+            contacts_scanned=len(contacts),
         )
+        if self._linkedin_history is None:
+            return scan
+        try:
+            return await self._linkedin_history.record(target, scan)
+        except Exception:
+            # Showing a repeat is better than showing nothing.
+            logger.warning("linkedin_history_failed role=%s", target.role_id, exc_info=True)
+            return scan

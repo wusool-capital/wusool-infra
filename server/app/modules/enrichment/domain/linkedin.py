@@ -2,6 +2,7 @@
 rule. No vendor shape lives here — `providers/apify` maps into these types.
 """
 
+import hashlib
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -67,6 +68,7 @@ class LinkedInScan:
     # Skipped rather than scraped: a name-only lookup is expensive and
     # unreliable. Surfaced so an advisor can see who is missing.
     contacts_without_linkedin: tuple[Contact, ...] = ()
+    contacts_scanned: int = 0
 
     @property
     def is_empty(self) -> bool:
@@ -109,3 +111,13 @@ def detect_job_change(contact: Contact, profile: LinkedInProfile) -> JobChange |
         company_changed=company_changed,
         source_url=profile.url,
     )
+
+
+def job_change_key(change: JobChange) -> str:
+    """A stable id for one detected move, so a re-scan doesn't report it twice.
+    Stricter than `detect_job_change`, which also ignores containment."""
+    title = _normalise(change.profile.current_title or "")
+    company = _normalise(change.profile.current_company or "")
+    basis = f"{title}|{company}"
+    digest = hashlib.sha256(basis.encode()).hexdigest()[:16]
+    return f"job_change:{change.contact.person_attio_id}:{digest}"

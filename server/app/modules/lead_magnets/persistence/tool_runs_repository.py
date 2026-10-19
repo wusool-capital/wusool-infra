@@ -6,7 +6,7 @@ convention: `execute`/`flush` only, never `commit`/`rollback`.
 """
 
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, cast, get_args
 from uuid import UUID
 
 from sqlalchemy import (
@@ -330,6 +330,10 @@ class ToolRunsRepository:
 
     async def get(self, run_id: UUID) -> ToolRunRecord | None:
         row = (
-            await self._session.execute(select(ToolRun).where(ToolRun.id == run_id))
+            await self._session.execute(
+                # Other modules write their own runs here (enrichment's
+                # `linkedin_scan`); an id that isn't one of ours is "not found".
+                select(ToolRun).where(ToolRun.id == run_id, ToolRun.tool.in_(get_args(Tool)))
+            )
         ).scalar_one_or_none()
         return None if row is None else to_tool_run_record(row)

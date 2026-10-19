@@ -206,7 +206,8 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 
 ### `tool_runs` (`tool_run.py`) — new, 2026-09-06
 
-Postgres-only ledger of lead-magnet tool invocations. Complements
+Postgres-only ledger of tool invocations: the lead-magnet tools, and
+enrichment's `linkedin_scan` (one row per completed LinkedIn scan, AZM-148). Complements
 `activities` rather than replacing it: `activities` is the human-readable
 CRM timeline, `tool_runs` is the machine record of what an invocation did.
 
@@ -218,7 +219,7 @@ lead-loss case this table exists to catch.
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
-| tool | text | no | | `valuation` / `readiness` / `benchmark` / `buyer_network` / `get_started` / `attio_webhook` |
+| tool | text | no | | `valuation` / `readiness` / `benchmark` / `buyer_network` / `get_started` / `attio_webhook` / `linkedin_scan` |
 | status | text | no | | CHECK: `running`, `succeeded`, `failed`, `abandoned` |
 | idempotency_key | text | yes | | client tag (email\|domain); no longer unique — every attempt keeps its own row |
 | started_at | timestamptz | no | `now()` | |
@@ -519,18 +520,22 @@ batch resync does not write it. Linked from `activities` (`ledger_type='deal_sta
 
 Indexed on `(deal_attio_id, ts DESC)`.
 
-### `signals` (`signal.py`) — prepared for writers, AZM-150
+### `signals` (`signal.py`) — AZM-150, written by AZM-148
 
-Buyer signals (a cited outside event about a buyer). Nothing writes it yet; the
-producers (buyer meeting transcripts, AZM-148 LinkedIn) are follow-up work. It
-is a domain ledger linked from `activities` (`ledger_type='signal'`), not part of the
-timeline itself. Still a static-analysis draft: not yet checked against the
-live database.
+Signals: a cited outside fact about an organization, a buyer or a seller.
+Enrichment's LinkedIn scan writes one row per new post (`payload.kind='post'`)
+and per detected job change (`'job_change'`), each linked to its scan's
+`tool_runs` row. The producer for buyer meeting transcripts is follow-up work.
+It is a domain ledger linked from `activities` (`ledger_type='signal'`), not part
+of the timeline itself. It holds personal data (names, titles, post text), so a
+removal request deletes the rows here; `activities` keeps counts only. Still a
+static-analysis draft: not yet checked against the live database. The organization
+column was renamed from `buyer_attio_id` to `org_attio_id` in AZM-148.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
-| buyer_attio_id | text | no | | FK → organizations, CASCADE |
+| org_attio_id | text | no | | FK → organizations, CASCADE |
 | source | text | no | | |
 | payload | jsonb | no | `{}` | |
 | ts | timestamptz | no | `now()` | |
@@ -542,7 +547,7 @@ live database.
 | created_at | timestamptz | no | `now()` | |
 
 Constraint: `signals_source_check` (`NOT VALID`) — `transcript`, `news`, `linkedin`, `jobs`.
-Indexed on `(buyer_attio_id, ts DESC)` and `uq_signals_source_external_id` (unique,
+Indexed on `(org_attio_id, ts DESC)` and `uq_signals_source_external_id` (unique,
 partial: `(source, external_id)` where `external_id IS NOT NULL`).
 
 ### `buyer_intel` (`buyer_intel.py`)

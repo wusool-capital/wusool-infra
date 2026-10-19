@@ -86,9 +86,19 @@ result — the scrape never holds up the proposal, and a failure only logs.
   "unknown", not a change. `person.role` is not compared.
 - **Cost log:** every run logs `apify_run actor=… items=… duration_ms=…
   outcome=…`; the token only ever travels in the `Authorization` header.
-- **Not stored yet.** The result is posted, not saved: writing it to
-  `activities` waits on the activities audit (AZM-150), so a re-run repeats
-  last month's posts.
+- **History** (`persistence/linkedin_history.py`, behind
+  `LinkedInHistoryPort`): one transaction per scan writes a `tool_runs` row
+  (`tool='linkedin_scan'`, the run ledger), one `signals` row per *new* post or
+  job change (`source='linkedin'`, typed payload, linked to the run), and one
+  `linkedin.scan_completed` `activities` row when something was new, linked to
+  the run (`ledger_type='tool_run'`). A signal is new if its (`source`,
+  `external_id`) is not stored yet: the post id, or `job_change:{person}:{hash
+  of the new title and company}`. `scan_linkedin` returns only the new items, so
+  a re-run is quiet, and falls back to the full scan if the history write fails.
+  Names, titles and post text live only in `signals`; the append-only
+  `activities` row holds counts. The post key is global, so a post stored for
+  one organization is not stored again for another. History is committed
+  before the Slack reply, so a failed reply leaves those items stored but unshown.
 
 `scan_linkedin_for_role(kind, role_id)` (public) runs the same scan on its own,
 for a caller that wants the data without a proposal.
@@ -121,8 +131,9 @@ data", and retries once when `Retry-After` is at most 2 seconds.
 `scan_linkedin_for_role` and its result types (`LinkedInScan`, `JobChange`,
 `LinkedInPost`, `LinkedInProfile`, `Contact`) — see `__init__.py`.
 
-This module never writes to Attio or Postgres itself, and never renders a
-Slack edit form. `ddl_commands` implements `EnrichmentReviewPort`
+This module never writes to Attio and never renders a Slack edit form. Its only
+Postgres writes are the LinkedIn history rows above (`tool_runs`, `signals`,
+`activities`); CRM fields are written by `ddl_commands`. `ddl_commands` implements `EnrichmentReviewPort`
 (`providers/enrichment/review_adapter.py`) by opening its own real
 `/edit-seller`/`/edit-buyer` modal, prefilled with the proposed values —
 the submission then goes through that module's ordinary edit path
@@ -137,8 +148,10 @@ buyer "enrich first?" checkbox) never needs to look up org info on its own.
 
 ## Database
 
-Reads `seller_roles`/`buyer_roles`/`organizations` directly via `app.models`
-(no migration — every enrichable field already exists on those tables).
+Reads `seller_roles`/`buyer_roles`/`organizations`/`person` directly via
+`app.models`. Writes `tool_runs`, `signals` and `activities` for the LinkedIn
+scan; the `signals.org_attio_id` rename (was `buyer_attio_id`) is the only
+migration this module needed.
 
 ## Setup
 

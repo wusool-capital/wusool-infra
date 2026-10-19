@@ -17,6 +17,7 @@ from app.modules.activities.domain.event import ActivityActor, ActivityEvent, Le
 from app.modules.activities.domain.payloads import (
     ActivityPayload,
     CrmRecordPayload,
+    LinkedInScanPayload,
     MatchDecisionPayload,
     MatchRunPayload,
     MeetingPayload,
@@ -45,6 +46,7 @@ __all__ = [
     "EventType",
     "LedgerRef",
     "LedgerType",
+    "LinkedInScanPayload",
     "MatchDecisionPayload",
     "MatchRunPayload",
     "MeetingPayload",

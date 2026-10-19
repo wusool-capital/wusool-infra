@@ -13,6 +13,7 @@ from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTa
 from app.modules.enrichment.tests.fakes.company_data import FakeCompanyDataClient
 from app.modules.enrichment.tests.fakes.extraction import FakeExtractionClient
 from app.modules.enrichment.tests.fakes.linkedin import FakeLinkedInClient
+from app.modules.enrichment.tests.fakes.linkedin_history import FakeLinkedInHistory
 from app.modules.enrichment.tests.fakes.research import FakeResearchClient
 from app.modules.enrichment.tests.fakes.role_ports import FakeReviewPort, FakeRoleReader
 
@@ -31,7 +32,10 @@ def _contact(pid: str = "p1", url: str | None = _JANE_URL, title: str | None = "
 
 
 def _service(
-    *, targets: LinkedInTargets, linkedin_client: FakeLinkedInClient | None
+    *,
+    targets: LinkedInTargets,
+    linkedin_client: FakeLinkedInClient | None,
+    linkedin_history: FakeLinkedInHistory | None = None,
 ) -> EnrichmentService:
     return EnrichmentService(
         research_client=FakeResearchClient(),
@@ -43,6 +47,7 @@ def _service(
         max_tokens=1024,
         min_confidence=0.5,
         linkedin_client=linkedin_client,
+        linkedin_history=linkedin_history,
     )
 
 
@@ -160,3 +165,74 @@ async def test_propose_passes_company_linkedin_url_but_propose_basic_does_not(
     await service.propose_basic(org_name="Acme Co", domain=None, current_values={})
 
     assert fake.linkedin_urls == [_COMPANY_URL, None]
+
+
+def _moved_scan_client() -> FakeLinkedInClient:
+    post = LinkedInPost(external_id="1", url="https://linkedin.com/posts/1", text="hi")
+    return FakeLinkedInClient(
+        profiles=(LinkedInProfile(url=_JANE_URL, current_title="CFO", current_company="Globex"),),
+        posts=(post,),
+    )
+
+
+async def test_history_makes_a_rerun_report_only_what_is_new(target: EnrichmentTarget) -> None:
+    history = FakeLinkedInHistory()
+    service = _service(
+        targets=LinkedInTargets(contacts=(_contact(),)),
+        linkedin_client=_moved_scan_client(),
+        linkedin_history=history,
+    )
+
+    first = await service.scan_linkedin(target)
+    second = await service.scan_linkedin(target)
+
+    assert len(first.posts) == 1 and len(first.job_changes) == 1
+    assert second.posts == () and second.job_changes == ()
+    assert first.contacts_scanned == 1
+
+
+async def test_contacts_without_a_url_are_still_reported_on_a_quiet_rerun(
+    target: EnrichmentTarget,
+) -> None:
+    no_url = _contact("p2", url=None)
+    service = _service(
+        targets=LinkedInTargets(contacts=(_contact(), no_url)),
+        linkedin_client=_moved_scan_client(),
+        linkedin_history=FakeLinkedInHistory(),
+    )
+
+    await service.scan_linkedin(target)
+    second = await service.scan_linkedin(target)
+
+    assert second.contacts_without_linkedin == (no_url,)
+
+
+async def test_a_history_failure_falls_back_to_the_full_scan(
+    target: EnrichmentTarget, caplog
+) -> None:
+    service = _service(
+        targets=LinkedInTargets(contacts=(_contact(),)),
+        linkedin_client=_moved_scan_client(),
+        linkedin_history=FakeLinkedInHistory(error=RuntimeError("db down")),
+    )
+
+    with caplog.at_level("WARNING"):
+        scan = await service.scan_linkedin(target)
+
+    assert len(scan.posts) == 1 and len(scan.job_changes) == 1
+    assert "linkedin_history_failed" in caplog.text
+
+
+async def test_no_history_is_recorded_when_nothing_was_scrapable(
+    target: EnrichmentTarget,
+) -> None:
+    history = FakeLinkedInHistory()
+    service = _service(
+        targets=LinkedInTargets(contacts=(_contact(url=None),)),
+        linkedin_client=FakeLinkedInClient(),
+        linkedin_history=history,
+    )
+
+    await service.scan_linkedin(target)
+
+    assert history.calls == 0

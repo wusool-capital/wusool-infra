@@ -799,14 +799,15 @@ resync does not write it. Linked from `activities` (`ledger_type='deal_stage_eve
 
 ### signals
 
-Prepared for writers 2026-10-19 (AZM-150); nothing writes it yet. Buyer
-signals are cited outside events about a buyer, linked from
-`activities` (`ledger_type='signal'`). `external_id` plus `source` dedups a re-scrape.
+Prepared for writers 2026-10-19 (AZM-150). Enrichment's LinkedIn scan (AZM-148)
+writes one row per new post and per job change. Signals are cited outside facts
+about an organization, linked from `activities` (`ledger_type='signal'`).
+`external_id` plus `source` dedups a re-scrape.
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `buyer_attio_id` | `text` | No | - | `organizations.attio_id` | - |
+| `org_attio_id` | `text` | No | - | `organizations.attio_id` | - |
 | `source` | `text` | No | - | - | - |
 | `payload` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `ts` | `timestamptz` | No | - | - | `now()` |
@@ -821,7 +822,7 @@ signals are cited outside events about a buyer, linked from
 
 - `CONSTRAINT signals_source_check CHECK (source IN ('transcript','news','linkedin','jobs'))`, added `NOT VALID`
 
-**Indexes** — `(buyer_attio_id, ts DESC)`, `uq_signals_source_external_id` (unique, partial: `(source, external_id)` where `external_id IS NOT NULL`).
+**Indexes** — `(org_attio_id, ts DESC)`, `uq_signals_source_external_id` (unique, partial: `(source, external_id)` where `external_id IS NOT NULL`).
 
 ### buyer_intel
 
@@ -1091,7 +1092,7 @@ duplicated here.
 | `investor_lender_roles.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `activities.actor_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
 | `deal_stage_events.deal_attio_id` | `deals.attio_id` | Many-to-one unless constrained unique |
-| `signals.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
+| `signals.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `buyer_intel.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `seller_financials.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `match_scores.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |

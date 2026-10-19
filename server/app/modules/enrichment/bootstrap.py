@@ -18,6 +18,7 @@ from app.modules.enrichment.application.ports.linkedin import LinkedInClient
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
 from app.modules.enrichment.application.service import EnrichmentService
 from app.modules.enrichment.config import get_settings
+from app.modules.enrichment.persistence.linkedin_history import SqlAlchemyLinkedInHistory
 from app.modules.enrichment.persistence.role_lookup import SqlAlchemyRoleReader
 from app.modules.enrichment.providers.apify.company import ApifyLinkedInCompanyClient
 from app.modules.enrichment.providers.apify.linkedin import ApifyLinkedInClient
@@ -60,6 +61,12 @@ def build_role_reader(sessionmaker: async_sessionmaker[AsyncSession]) -> SqlAlch
     return SqlAlchemyRoleReader(sessionmaker)
 
 
+def build_linkedin_history(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> SqlAlchemyLinkedInHistory:
+    return SqlAlchemyLinkedInHistory(sessionmaker)
+
+
 def build_slack_notifier() -> SlackWebClientNotifier:
     return SlackWebClientNotifier(get_slack_client(get_settings().slack_bot_token))
 
@@ -85,6 +92,7 @@ def build_enrichment_service(
         min_confidence=settings.enrichment_min_confidence,
         company_data_clients=company_data_clients,
         linkedin_client=linkedin_client,
+        linkedin_history=build_linkedin_history(sessionmaker) if linkedin_client else None,
     )
 
 

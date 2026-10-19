@@ -21,7 +21,8 @@ by name).
    `ENRICHMENT_MIN_CONFIDENCE`.
    After the proposal is posted, `propose_and_post` runs `application/linkedin.py
    ::LinkedInMixin.scan_linkedin` (`providers/apify/`) and replies in the proposal's
-   thread (`api/slack/views/linkedin_message.py`); see the README's "LinkedIn scan".
+   thread (`api/slack/views/linkedin_message.py`); `persistence/linkedin_history.py`
+   stores the findings and reports only what is new. See the README's "LinkedIn scan".
 5. `api/slack/views/proposal_message.py` — renders every proposed field for review, with
    one "Review & Save" button (not per-field buttons — the whole point is to open the
    real edit form, not build a second write UI).

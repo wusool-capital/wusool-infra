@@ -36,6 +36,7 @@ class EventType(StrEnum):
     MEETING_PUBLISHED = "meeting.published"
     MEETING_DELETED = "meeting.deleted"
     LEAD_MAGNET_SUBMITTED = "lead_magnet.submitted"
+    LINKEDIN_SCAN_COMPLETED = "linkedin.scan_completed"
     # Written only by the AZM-150 migration and the one-off backfill script.
     LEGACY_RECORD_SYNCED = "legacy.record_synced"
     LEGACY_INTERACTION = "legacy.interaction"
@@ -70,3 +71,4 @@ class ActivitySource(StrEnum):
     MATCHING_ENGINE = "matching_engine"
     MEETINGS = "meetings"
     LEAD_MAGNET = "lead_magnet"
+    ENRICHMENT = "enrichment"

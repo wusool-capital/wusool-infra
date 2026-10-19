@@ -55,9 +55,14 @@ with a LinkedIn URL first.
   in the reply.
 
 The reply comes after the proposal, so a slow or failing scrape never delays
-the proposal. Nothing is written to the CRM from it. Nothing is stored yet
-either. Storing it waits on the activities audit (AZM-150), so a re-run shows
-last month's posts again.
+the proposal. Nothing is written to the CRM fields from it.
+
+Each scan is remembered. One run record is saved per scan, and each new post
+and job change is saved as a signal linked to it. When something is new, one
+"LinkedIn scan completed" entry is added to the activity history with counts
+only. A re-run shows only what is new, and says nothing if nothing is.
+Names, titles and post text live in the signals, so a removal request deletes
+them there; the activity history never holds them.
 
 Without an `APIFY_API_TOKEN`, the whole LinkedIn source is skipped.
 
@@ -82,8 +87,8 @@ matched; discovery compares that with Google Maps before saving a lead.
 
 ## Data it reads
 
-Current values from `seller_roles`, `buyer_roles`, and `organizations`. It
-writes nothing.
+Current values from `seller_roles`, `buyer_roles`, `organizations`, and
+`person`. Apart from the LinkedIn history above, it writes nothing.
 
 ## Known gaps
 

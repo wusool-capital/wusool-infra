@@ -4,6 +4,7 @@ from app.modules.enrichment.domain.linkedin import (
     Contact,
     LinkedInProfile,
     detect_job_change,
+    job_change_key,
     profile_key,
 )
 
@@ -82,3 +83,14 @@ def test_profile_key_ignores_scheme_case_and_trailing_parts(url: str) -> None:
 def test_profile_key_is_none_for_a_non_profile_url() -> None:
     assert profile_key("https://www.linkedin.com/company/acme") is None
     assert profile_key(None) is None
+
+
+def test_job_change_key_is_stable_for_the_same_move_and_differs_for_a_new_one() -> None:
+    moved = detect_job_change(_contact(), _profile("CFO", "Globex"))
+    same_move = detect_job_change(_contact(), _profile(" cfo ", "GLOBEX."))
+    another = detect_job_change(_contact(), _profile("CEO", "Initech"))
+    assert moved and same_move and another
+
+    assert job_change_key(moved) == job_change_key(same_move)
+    assert job_change_key(moved) != job_change_key(another)
+    assert job_change_key(moved).startswith("job_change:p1:")

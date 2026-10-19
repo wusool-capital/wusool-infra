@@ -294,7 +294,7 @@
         {"slug": "actor_attio_id", "type": "record-reference", "ownership": "postgres", "target": "User", "nullable": true, "purpose": "Set only for an Attio workspace member present in users."},
         {"slug": "ts", "type": "timestamptz", "ownership": "postgres", "purpose": "When the event happened. created_at is when the row was written."},
         {"slug": "outcome", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Result of the event, e.g. succeeded, approved, GENERATED."},
-        {"slug": "source", "type": "text", "ownership": "postgres", "purpose": "Writer: attio_webhook, slack, discovery, matching_engine, meetings, lead_magnet; legacy backfill rows keep their 'SOURCE ... backfill' citation."},
+        {"slug": "source", "type": "text", "ownership": "postgres", "purpose": "Writer: attio_webhook, slack, discovery, matching_engine, meetings, lead_magnet, enrichment; legacy backfill rows keep their 'SOURCE ... backfill' citation."},
         {"slug": "payload", "type": "jsonb", "ownership": "postgres", "purpose": "Only the event's own facts (typed models), field names not values."},
         {"slug": "idempotency_key", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Unique where not null; a repeat write is dropped."},
         {"slug": "ledger_type", "type": "enum", "ownership": "postgres", "nullable": true, "options": ["tool_run", "command_run", "match_result", "meeting", "deal_stage_event", "signal"], "purpose": "Which domain ledger holds the detail. Set together with ledger_id."},
@@ -347,7 +347,7 @@
       "purpose": "Ledger of lead-magnet tool invocations. Complements Activities rather than replacing it: Activities is the human-readable CRM timeline, ToolRuns is the machine record of what an invocation did. Every subject reference is nullable and there is deliberately no CHECK requiring one - activities_subject_present makes it impossible to record a submission that failed before its Attio write, which is the lead-loss case this table exists to catch. Joined to Activities by activities.tool_run_id.",
       "fields": [
         {"slug": "id", "type": "uuid", "ownership": "postgres"},
-        {"slug": "tool", "type": "text", "ownership": "postgres", "purpose": "valuation | readiness | benchmark | buyer_network | attio_webhook"},
+        {"slug": "tool", "type": "text", "ownership": "postgres", "purpose": "valuation | readiness | benchmark | buyer_network | attio_webhook | linkedin_scan"},
         {"slug": "status", "type": "text", "ownership": "postgres", "options": ["running", "succeeded", "failed", "abandoned"], "purpose": "CHECK-constrained"},
         {"slug": "idempotency_key", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "UNIQUE. Dedups a retried submission or a replayed Attio webhook."},
         {"slug": "started_at", "type": "timestamptz", "ownership": "postgres"},

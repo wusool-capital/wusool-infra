@@ -105,6 +105,10 @@ UPDATE tool_runs t SET buyer_role_id = NULL
 UPDATE tool_runs t SET seller_role_id = NULL
   FROM seller_roles sr WHERE sr.id = t.seller_role_id AND sr.removed_at IS NOT NULL;
 
+-- Enrichment's LinkedIn scans (AZM-148) log a run per organization.
+UPDATE tool_runs t SET organization_attio_id = NULL
+  FROM organizations o WHERE o.attio_id = t.organization_attio_id AND o.removed_at IS NOT NULL;
+
 -- Children before parents. organizations last: it cascades the widest.
 DELETE FROM notes        WHERE removed_at IS NOT NULL;
 DELETE FROM deals        WHERE removed_at IS NOT NULL;
