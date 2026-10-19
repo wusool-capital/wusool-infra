@@ -79,7 +79,7 @@ ledger.
   `unknown`. `actor_ref` holds the raw id. `actor_attio_id` is set only for an
   Attio member that exists in `users`. There is no Slack-to-`users` mapping.
 - **Idempotency.** Writers with a stable id set `idempotency_key`
-  (`lead_magnet.submitted:{run_id}`, `match.approved:{match_result_id}`).
+  (`lead_magnet.submitted:{run_id}:{status}`, `match.approved:{match_result_id}`).
   Webhook rows have no stable event id, so they have none.
 - **Failure isolation.** The recorder writes inside a savepoint and swallows
   errors. An activity failure never aborts the business write.

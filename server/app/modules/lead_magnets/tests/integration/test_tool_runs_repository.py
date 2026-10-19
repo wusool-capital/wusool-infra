@@ -204,7 +204,11 @@ async def test_finish_with_a_resolved_org_writes_one_activity_row(db_session) ->
     assert row.subject_type == "Organization"
     assert row.subject_attio_id == org_id
     assert row.source == "lead_magnet"
-    assert row.payload == {"submission_id": "abc"}
+    assert row.event_type == "lead_magnet.submitted"
+    assert row.actor_type == "website_visitor"
+    assert row.outcome == "succeeded"
+    # The submission stays on the tool run; the activity only links to it.
+    assert row.payload == {"kind": "none"}
 
 
 async def test_finish_without_a_subject_writes_no_activity_row(db_session) -> None:
@@ -373,3 +377,35 @@ async def test_ceilings_per_failure_class(db_session, tool, stage_completed, cla
         r.id for r in await repo.claim_stale(cutoff=datetime.now(UTC) + timedelta(seconds=1))
     ]
     assert (run_id in claimed) is claims
+
+
+async def test_a_repeated_finish_with_the_same_outcome_writes_one_activity(db_session) -> None:
+    repo = ToolRunsRepository(db_session)
+    run_id = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    subjects = SubjectRefs(org_attio_id=f"org-{uuid4()}", org_name="Acme")
+
+    await repo.finish(run_id, "succeeded", subjects=subjects)
+    await repo.finish(run_id, "succeeded", subjects=subjects)
+
+    rows = (
+        (await db_session.execute(select(Activity).where(Activity.tool_run_id == run_id)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+
+
+async def test_a_failed_then_succeeded_run_records_both_outcomes(db_session) -> None:
+    repo = ToolRunsRepository(db_session)
+    run_id = await repo.start(tool="valuation", payload={}, idempotency_key=_key())
+    subjects = SubjectRefs(org_attio_id=f"org-{uuid4()}", org_name="Acme")
+
+    await repo.finish(run_id, "failed", subjects=subjects, error="attio down")
+    await repo.finish(run_id, "succeeded", subjects=subjects)
+
+    outcomes = (
+        (await db_session.execute(select(Activity.outcome).where(Activity.tool_run_id == run_id)))
+        .scalars()
+        .all()
+    )
+    assert sorted(outcomes) == ["failed", "succeeded"]
