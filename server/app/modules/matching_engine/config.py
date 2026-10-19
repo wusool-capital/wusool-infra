@@ -80,8 +80,8 @@ class Settings(SecretsManagerSettings):
 
     # Meeting-notes enrichment: free-text call/meeting notes (`meetings`
     # table) appended to the buyer/reasoning prompts as unverified context.
-    meeting_notes_max_chars: int = 600
-    meeting_notes_max_total_chars: int = 4000
+    meeting_notes_max_chars: int = 3000
+    meeting_notes_max_total_chars: int = 12000
     enable_seller_meeting_notes: bool = True
 
     # Attio workspace member who owns the Qualified deal an approval creates.

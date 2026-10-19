@@ -29,7 +29,7 @@ class SqlAlchemyMatchingUnitOfWork:
     deals: DealRepository
 
     def __init__(
-        self, sessionmaker: async_sessionmaker[AsyncSession], *, meeting_notes_max_chars: int = 600
+        self, sessionmaker: async_sessionmaker[AsyncSession], *, meeting_notes_max_chars: int = 3000
     ) -> None:
         self._sessionmaker = sessionmaker
         self._meeting_notes_max_chars = meeting_notes_max_chars

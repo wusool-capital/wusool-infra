@@ -5,9 +5,11 @@ No DB, no Bedrock — pure functions only.
 from datetime import UTC, datetime
 
 from app.modules.matching_engine.domain.meetings import (
+    MIDDLE_TRUNCATED_MARKER,
     MeetingNote,
     render_meeting_notes_section,
     select_notes_within_budget,
+    truncate_summary,
 )
 
 
@@ -57,3 +59,67 @@ def test_render_states_omission_count_explicitly() -> None:
     section = render_meeting_notes_section(notes, total_char_budget=250, subject_name="Acme")
 
     assert "(1 older meetings omitted)" in section
+
+
+def test_select_within_budget_keeps_all_when_fewer_notes_than_budget() -> None:
+    notes = [_note(30, "a" * 100), _note(20, "b" * 100), _note(10, "c" * 100)]
+
+    selected, omitted = select_notes_within_budget(notes, total_char_budget=12000)
+
+    assert selected == notes
+    assert omitted == 0
+
+
+def test_select_within_budget_single_note_longer_than_budget_still_returned() -> None:
+    notes = [_note(10, "z" * 500)]
+
+    selected, omitted = select_notes_within_budget(notes, total_char_budget=100)
+
+    assert selected == notes
+    assert omitted == 0
+
+
+def test_select_within_budget_oldest_longer_than_budget_drops_all_newer() -> None:
+    notes = [_note(30, "a" * 50), _note(20, "b" * 50), _note(10, "c" * 500)]
+
+    selected, omitted = select_notes_within_budget(notes, total_char_budget=100)
+
+    assert [n.summary[0] for n in selected] == ["c"]
+    assert omitted == 2
+
+
+def test_truncate_summary_returns_short_text_unchanged() -> None:
+    assert truncate_summary("short", 3000) == ("short", False)
+    assert truncate_summary("x" * 3000, 3000) == ("x" * 3000, False)
+
+
+def test_truncate_summary_keeps_head_and_tail_with_marker() -> None:
+    text = "H" * 2500 + "M" * 2000 + "T" * 1500
+
+    cut, truncated = truncate_summary(text, 3000)
+
+    assert truncated is True
+    assert cut == "H" * 2000 + MIDDLE_TRUNCATED_MARKER + "T" * 1000
+    assert len(cut) == 3000 + len(MIDDLE_TRUNCATED_MARKER)
+
+
+def test_render_is_identical_at_old_and_new_budgets_when_notes_fit_old_limits() -> None:
+    notes = [_note(30, "a" * 590), _note(20, "b" * 400), _note(10, "c" * 300)]
+
+    old = render_meeting_notes_section(notes, total_char_budget=4000, subject_name="Acme")
+    new = render_meeting_notes_section(notes, total_char_budget=12000, subject_name="Acme")
+
+    assert old == new
+    assert all(truncate_summary(n.summary, 3000) == (n.summary, False) for n in notes)
+
+
+def test_render_includes_more_notes_at_new_budget_and_keeps_oldest() -> None:
+    notes = [_note(d, str(d) * 1500) for d in (28, 24, 20, 16, 12, 8)]
+
+    old = render_meeting_notes_section(notes, total_char_budget=4000, subject_name="Acme")
+    new = render_meeting_notes_section(notes, total_char_budget=12000, subject_name="Acme")
+
+    assert "older meetings omitted" in old
+    assert new.count("\n- [") > old.count("\n- [")
+    assert "[2026-01-08]" in old
+    assert "[2026-01-08]" in new

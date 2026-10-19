@@ -3,8 +3,14 @@ shared `meetings` table (Attio migration + in-house Scribe recorder). No
 SQLAlchemy import here — see mappers.py for the ORM->domain boundary.
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+# Marks the cut so the model doesn't read a shortened summary as complete.
+MIDDLE_TRUNCATED_MARKER = " ... [middle truncated] ... "
 
 
 @dataclass(frozen=True)
@@ -13,6 +19,18 @@ class MeetingNote:
     title: str | None
     summary: str
     truncated: bool
+
+
+def truncate_summary(summary: str, max_chars: int) -> tuple[str, bool]:
+    """Returns (text, was_truncated). Over-cap summaries keep their start
+    (context) and end (next steps, terms) — the middle is what gets cut.
+    """
+    if len(summary) <= max_chars:
+        return summary, False
+    head_chars = max_chars * 2 // 3
+    tail_chars = max_chars - head_chars
+    tail = summary[-tail_chars:] if tail_chars else ""
+    return f"{summary[:head_chars]}{MIDDLE_TRUNCATED_MARKER}{tail}", True
 
 
 def select_notes_within_budget(
@@ -64,4 +82,11 @@ def render_meeting_notes_section(
     lines.extend(f"- [{note.occurred_at.date().isoformat()}] {note.summary}" for note in selected)
     if omitted:
         lines.append(f"({omitted} older meetings omitted)")
+    logger.debug(
+        "meeting_notes_section subject=%s included=%d truncated=%d omitted=%d",
+        subject_name,
+        len(selected),
+        sum(note.truncated for note in selected),
+        omitted,
+    )
     return "\n".join(lines)
