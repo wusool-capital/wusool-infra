@@ -53,6 +53,19 @@ Adding an `EventType` needs no migration (the database checks only the
 `domain.verb` format). Adding an `ActorType` or `SubjectType` needs a CHECK
 migration; a unit test fails if the enums and the model's CHECKs drift.
 
+## Boundary notes
+
+- Not a full-access module, yet it exports its concrete recorders through
+  `__all__` and has no `bootstrap.py`: consumers' persistence layers (and
+  `meetings/bootstrap.py`) construct them on their own session, as they do
+  `organizations.OrganizationRepository`.
+- It reads two tables it does not own, by design: `users` (so an unknown Attio
+  member becomes NULL instead of an FK error) and `deals.stage` (the locked read
+  behind `SqlAlchemyDealStageRecorder`, shared by the webhook and approvals).
+  It owns `activities` and writes `deal_stage_events`.
+- Payload serialization uses a Pydantic `TypeAdapter` in `persistence/`; the
+  payload models themselves are framework-free dataclasses in `domain/`.
+
 ## Testing
 
 `tests/unit` covers the vocabulary, payload round-trips and event validation.
