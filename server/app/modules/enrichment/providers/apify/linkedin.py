@@ -57,6 +57,11 @@ def _parse_posted_at(raw: str | None) -> datetime | None:
         return None
 
 
+def _strip_query(url: str | None) -> str | None:
+    """The actor appends tracking params (`?miniProfileUrn=…`) to profile URLs."""
+    return url.split("?", 1)[0] if url else None
+
+
 def _map_post(item: ApifyPostItem) -> LinkedInPost | None:
     if not item.id or not item.linkedinUrl:
         return None
@@ -65,7 +70,7 @@ def _map_post(item: ApifyPostItem) -> LinkedInPost | None:
         url=item.linkedinUrl,
         text=item.content or "",
         author_name=item.author.name if item.author else None,
-        author_url=item.author.linkedinUrl if item.author else None,
+        author_url=_strip_query(item.author.linkedinUrl) if item.author else None,
         posted_at=_parse_posted_at(item.postedAt.date if item.postedAt else None),
     )
 

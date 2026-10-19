@@ -51,6 +51,7 @@ async def test_posts_parse_recorded_fixture(monkeypatch) -> None:
     assert len(posts) == 1  # the item without an id is dropped
     assert posts[0].external_id == "7300000000000000001"
     assert posts[0].author_name == "Jane Doe"
+    assert posts[0].author_url == "https://www.linkedin.com/in/jane-doe"  # tracking query dropped
     assert posts[0].posted_at is not None
     assert posts[0].posted_at.year == 2026
 
@@ -137,7 +138,9 @@ async def test_company_maps_requested_fields_from_fixture(monkeypatch) -> None:
     assert by_name["hq_country"] == "United States"
     assert by_name["employee_range"] == "251-1K"
     assert by_name["description"].startswith("Acme distributes")
-    assert by_name["logo_url"] == "https://media.licdn.com/logo.png"
+    # Trailing newline stripped; the expiring logo URL is never proposed.
+    assert by_name["description"] == "Acme distributes food and beverage products across the GCC."
+    assert "logo_url" not in by_name
     assert by_name["foundation_date"] == date(1997, 1, 1)
     assert result.website == "https://acme.example"
     assert {f.provider for f in result.fields} == {"LinkedIn (Apify)"}
@@ -145,13 +148,24 @@ async def test_company_maps_requested_fields_from_fixture(monkeypatch) -> None:
 
 async def test_company_only_returns_requested_fields(monkeypatch) -> None:
     _session(monkeypatch, FakeAiohttpResponse(201, _fixture("company")))
+    only_hq = tuple(f for f in ORGANIZATION_ENRICHABLE_FIELDS if f.name == "hq_country")
+
+    result = await ApifyLinkedInCompanyClient(_TOKEN).lookup(
+        org_name="Acme Co", fields=only_hq, linkedin_url="https://www.linkedin.com/company/acme"
+    )
+
+    assert [f.field_name for f in result.fields] == ["hq_country"]
+
+
+async def test_logo_is_never_proposed_even_when_requested(monkeypatch) -> None:
+    _session(monkeypatch, FakeAiohttpResponse(201, _fixture("company")))
     only_logo = tuple(f for f in ORGANIZATION_ENRICHABLE_FIELDS if f.name == "logo_url")
 
     result = await ApifyLinkedInCompanyClient(_TOKEN).lookup(
         org_name="Acme Co", fields=only_logo, linkedin_url="https://www.linkedin.com/company/acme"
     )
 
-    assert [f.field_name for f in result.fields] == ["logo_url"]
+    assert result.fields == []
 
 
 async def test_company_without_a_linkedin_url_makes_no_request(monkeypatch) -> None:

@@ -4,7 +4,7 @@
     "universalName": "acme-co",
     "linkedinUrl": "https://www.linkedin.com/company/acme-co",
     "website": "https://acme.example",
-    "description": "Acme distributes food and beverage products across the GCC.",
+    "description": "Acme distributes food and beverage products across the GCC.\n",
     "employeeCount": 320,
     "foundedOn": {"year": 1997},
     "logo": "https://media.licdn.com/logo.png",

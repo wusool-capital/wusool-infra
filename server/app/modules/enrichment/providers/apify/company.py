@@ -40,8 +40,9 @@ def _map_company(
                 )
             )
 
-    _add("description", item.description)
-    _add("logo_url", item.logo)
+    _add("description", (item.description or "").strip() or None)
+    # `logo` is deliberately not mapped: it is a signed LinkedIn CDN URL that
+    # expires within weeks, so saving it would leave a broken logo in the CRM.
     if item.foundedOn and item.foundedOn.year:
         # Year-only precision, stored as 1 January the way `foundation_date`
         # expects a full date.
