@@ -38,10 +38,8 @@ class ServiceBase:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._min_confidence = min_confidence
-        # Structured company-data tier of the research waterfall (Diffbot,
-        # People Data Labs, then the LinkedIn company page) — tried in order,
-        # before the free-text `ResearchClient` + LLM extraction path. Buyer
-        # targets are asked only about organization fields.
+        # Structured company-data tier, tried in order before the free-text
+        # research path: Diffbot, PDL, then the LinkedIn page.
         self._company_data_clients = company_data_clients
         # Optional: unset (no Apify token) skips the LinkedIn scan entirely.
         self._linkedin_client = linkedin_client

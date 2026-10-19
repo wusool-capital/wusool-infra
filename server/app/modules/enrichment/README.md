@@ -141,8 +141,9 @@ posts a proposal for review and writes nothing. Providers also receive the
 company's domain when known, so a name shared by several companies still
 resolves to the right one.
 
-`fetch_json` (and `post_json_array`, used by Apify) logs a 429 as `*_rate_limited` rather than treating it like "no
-data", and retries once when `Retry-After` is at most 2 seconds.
+`fetch_json` (and `post_json_items`, used by Apify) logs a 429 as `*_rate_limited`
+rather than treating it like "no data". A GET is retried once when `Retry-After`
+is at most 2 seconds; a POST is never resent, since it can start a billed run.
 
 ## Public contract
 

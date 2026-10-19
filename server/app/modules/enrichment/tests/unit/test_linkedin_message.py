@@ -62,3 +62,22 @@ def test_long_post_is_truncated_to_fit_a_slack_section() -> None:
     for block in build_linkedin_blocks(LinkedInScan(posts=posts), "Acme Co"):
         if isinstance(block, SectionBlock):
             assert len(block.text.text) <= 3000
+
+
+def test_a_long_section_drops_whole_lines_and_never_cuts_a_link() -> None:
+    posts = tuple(
+        LinkedInPost(
+            external_id=str(i),
+            url="https://www.linkedin.com/posts/" + "x" * 300 + str(i),
+            text="y" * 400,
+            author_name="Jane Doe",
+        )
+        for i in range(10)
+    )
+
+    blocks = [b for b in build_linkedin_blocks(LinkedInScan(posts=posts), "Acme Co")]
+    text = next(b.text.text for b in blocks if "Posts from the past month" in str(b.to_dict()))
+
+    assert len(text) <= 3000
+    assert text.count("<") == text.count(">")
+    assert "…and" in text and "more_" in text

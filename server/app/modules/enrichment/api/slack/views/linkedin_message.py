@@ -10,6 +10,8 @@ from app.modules.notifications import sanitize_mrkdwn
 _SNIPPET_CHARS = 200
 # Slack caps a section's text at 3000 characters.
 _SECTION_CHARS = 2900
+# Room kept free for the "…and N more" line.
+_MORE_RESERVE = 40
 
 
 def _job_change_line(change: JobChange) -> str:
@@ -38,8 +40,17 @@ def _post_line(post: LinkedInPost) -> str:
 
 
 def _section(title: str, lines: list[str]) -> SectionBlock:
-    text = f"*{title}*\n" + "\n".join(lines)
-    return SectionBlock(text=text[:_SECTION_CHARS])
+    """Drops whole lines that don't fit: slicing text could cut a link in half."""
+    text = f"*{title}*"
+    shown = 0
+    for line in lines:
+        if len(text) + 1 + len(line) > _SECTION_CHARS - _MORE_RESERVE:
+            break
+        text += f"\n{line}"
+        shown += 1
+    if shown < len(lines):
+        text += f"\n_…and {len(lines) - shown} more_"
+    return SectionBlock(text=text)
 
 
 def build_linkedin_blocks(scan: LinkedInScan, org_name: str) -> list[Block]:

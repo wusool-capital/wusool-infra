@@ -62,8 +62,8 @@ def target() -> EnrichmentTarget:
     )
 
 
-# The tests below exercise the people path (`include_people=True`), which is
-# built and kept but not wired yet. Org-only tests are at the end of the file.
+# These tests cover the people path (`include_people=True`), kept but not
+# wired. Org-only tests are at the end.
 
 
 async def test_scan_without_a_client_is_empty(target: EnrichmentTarget) -> None:

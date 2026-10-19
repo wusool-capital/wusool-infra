@@ -160,3 +160,22 @@ async def test_post_json_items_returns_none_for_a_non_array_body(monkeypatch) ->
     )
 
     assert result is None
+
+
+async def test_a_post_is_never_resent_after_a_429(monkeypatch) -> None:
+    session = FakeAiohttpSession(post=FakeAiohttpResponse(429, {}, headers={"Retry-After": "0"}))
+    patch_aiohttp_session(monkeypatch, session)
+
+    result = await post_json_items(
+        url="https://example.com",
+        params={},
+        headers={},
+        body="{}",
+        item_type=_Item,
+        timeout=aiohttp.ClientTimeout(total=5),
+        log_prefix="test",
+        org_name="Acme",
+    )
+
+    assert result is None
+    assert len(session.post_calls) == 1

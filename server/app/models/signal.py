@@ -43,8 +43,8 @@ class Signal(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID, primary_key=True, server_default=text("gen_random_uuid()")
     )
-    # The organization the signal is about: a buyer or a seller. Renamed from
-    # `buyer_attio_id` (AZM-148), which only ever described half of the uses.
+    # The organization the signal is about, buyer or seller. Renamed from
+    # `buyer_attio_id` (AZM-148).
     org_attio_id: Mapped[str] = mapped_column(
         Text, ForeignKey("organizations.attio_id", ondelete="CASCADE"), nullable=False
     )

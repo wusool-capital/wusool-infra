@@ -186,3 +186,20 @@ async def test_run_logs_cost_signal_without_token(monkeypatch, caplog) -> None:
     assert "apify_run actor=harvestapi~linkedin-profile-scraper items=2" in caplog.text
     assert "outcome=ok" in caplog.text
     assert _TOKEN not in caplog.text
+
+
+async def test_company_run_is_skipped_when_it_cannot_fill_any_requested_field(
+    monkeypatch,
+) -> None:
+    session = _session(monkeypatch, FakeAiohttpResponse(201, _fixture("company")))
+    unfillable = tuple(
+        f for f in ORGANIZATION_ENRICHABLE_FIELDS if f.name in {"linkedin", "estimated_arr"}
+    )
+    assert unfillable  # the guard is only meaningful if these exist
+
+    result = await ApifyLinkedInCompanyClient(_TOKEN).lookup(
+        org_name="Acme Co", fields=unfillable, linkedin_url="https://www.linkedin.com/company/a"
+    )
+
+    assert result.fields == []
+    assert session.post_calls == []

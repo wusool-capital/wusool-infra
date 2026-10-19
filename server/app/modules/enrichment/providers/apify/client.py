@@ -15,8 +15,8 @@ from app.modules.enrichment.providers.http_json import post_json_items
 logger = logging.getLogger(__name__)
 
 _RUN_SYNC_URL = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
-# Headroom over Apify's own run timeout so the vendor aborts (and stops
-# billing) before our client gives up on the connection.
+# Headroom so Apify's own timeout aborts the run, and stops billing, before
+# our client gives up.
 _HTTP_HEADROOM_S = 5
 
 _Item = TypeVar("_Item", bound=BaseModel)

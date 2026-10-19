@@ -115,9 +115,8 @@ def _apify_company_client() -> ApifyLinkedInCompanyClient | None:
 
 
 def _company_data_clients() -> tuple[CompanyDataClient, ...]:
-    # Order matters: Diffbot's free tier is far larger (10k/mo vs. PDL's
-    # 100/mo), so it's tried first and PDL only fills whatever it misses.
-    # Apify is last: each run is billed, so it only fills what both missed.
+    # Order matters: Diffbot's free tier is largest, PDL fills its gaps, and
+    # Apify runs are billed so it goes last.
     return tuple(
         c
         for c in (

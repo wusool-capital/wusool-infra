@@ -47,9 +47,11 @@ async def _request[T](
     log_prefix: str,
     org_name: str,
 ) -> T | None:
+    # A POST can start a billed vendor run, so it is never resent after a 429.
+    max_attempts = _MAX_ATTEMPTS if method == "GET" else 1
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(_MAX_ATTEMPTS):
+            for attempt in range(max_attempts):
                 if method == "POST":
                     request = session.post(url, params=params, headers=headers, data=body)
                 else:
@@ -70,7 +72,7 @@ async def _request[T](
                         delay,
                         attempt + 1,
                     )
-                if delay is None or attempt + 1 == _MAX_ATTEMPTS:
+                if delay is None or attempt + 1 == max_attempts:
                     return None
                 await asyncio.sleep(delay)
     except Exception:

@@ -425,3 +425,40 @@ async def test_get_returns_none_for_another_modules_run(db_session) -> None:
     await db_session.flush()
 
     assert await ToolRunsRepository(db_session).get(run.id) is None
+
+
+async def _linkedin_run(db_session, *, attempt_count: int) -> ToolRun:
+    run = ToolRun(
+        tool="linkedin_scan",
+        status="failed",
+        attempt_count=attempt_count,
+        started_at=datetime.now(UTC) - timedelta(days=1),
+        payload={},
+    )
+    db_session.add(run)
+    await db_session.flush()
+    return run
+
+
+async def test_claim_stale_ignores_another_modules_failed_run(db_session) -> None:
+    """A failed `linkedin_scan` row must not be claimed and replayed as a
+    lead-magnet submission, nor crash the sweep on an unknown tool."""
+    run = await _linkedin_run(db_session, attempt_count=1)
+
+    claimed = await ToolRunsRepository(db_session).claim_stale(
+        cutoff=datetime.now(UTC) + timedelta(seconds=1)
+    )
+
+    assert run.id not in [r.id for r in claimed]
+    assert (await _row(db_session, run.id)).attempt_count == 1
+
+
+async def test_abandon_past_ceiling_ignores_another_modules_failed_run(db_session) -> None:
+    run = await _linkedin_run(db_session, attempt_count=99)
+
+    abandoned = await ToolRunsRepository(db_session).abandon_past_ceiling(
+        cutoff=datetime.now(UTC) + timedelta(seconds=1)
+    )
+
+    assert run.id not in [r.id for r in abandoned]
+    assert (await _row(db_session, run.id)).status == "failed"

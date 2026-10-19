@@ -24,6 +24,10 @@ from app.modules.enrichment.providers.apify.schemas import (
 _RUN_TIMEOUT_S = 20
 
 
+# The only fields `_map_company` can fill; a run is billed, so skip it otherwise.
+_FILLABLE_FIELDS = frozenset({"description", "foundation_date", "hq_country", "employee_range"})
+
+
 def _map_company(
     item: ApifyCompanyItem, requested: set[str], source_url: str
 ) -> list[CompanyDataField]:
@@ -41,8 +45,8 @@ def _map_company(
             )
 
     _add("description", (item.description or "").strip() or None)
-    # `logo` is deliberately not mapped: it is a signed LinkedIn CDN URL that
-    # expires within weeks, so saving it would leave a broken logo in the CRM.
+    # `logo` is not mapped: LinkedIn's signed logo URL expires within weeks,
+    # leaving a broken CRM logo.
     if item.foundedOn and item.foundedOn.year:
         # Year-only precision, stored as 1 January the way `foundation_date`
         # expects a full date.
@@ -69,7 +73,7 @@ class ApifyLinkedInCompanyClient:
         domain: str | None = None,
         linkedin_url: str | None = None,
     ) -> CompanyDataResult:
-        if not linkedin_url:
+        if not linkedin_url or not _FILLABLE_FIELDS & {f.name for f in fields}:
             return CompanyDataResult(fields=[])
         items = await self._client.run(
             actor=COMPANY_ACTOR,
