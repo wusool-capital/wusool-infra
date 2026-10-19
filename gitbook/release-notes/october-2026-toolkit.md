@@ -62,6 +62,10 @@ Delivery period: 15 September – 15 October 2026.
   pool with a lower score, because a cheque can buy a partial stake.
 - **Rejections stick.** A seller rejected for a buyer and sector isn't
   suggested again for that buyer. Other buyers still see it.
+- **More meeting history.** Matching now reads up to 3,000 characters of
+  each meeting summary (was 600) and 12,000 per prompt (was 4,000). A long
+  summary keeps its start and its end, where next steps sit, and marks the
+  cut in the middle. Buyers with short notes get the same prompt as before.
 - **Clean-up.** A scoring criterion that never matched anything was retired,
   and discovered sellers are numbered in their own message.
 

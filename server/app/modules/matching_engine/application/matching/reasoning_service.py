@@ -40,7 +40,7 @@ class MatchReasoningService:
         *,
         model_id: str,
         inference_config: InferenceConfig,
-        meeting_notes_char_budget: int = 4000,
+        meeting_notes_char_budget: int = 12000,
     ) -> None:
         self._client = bedrock_client
         self._model_id = model_id
