@@ -26,6 +26,7 @@ from fastapi import APIRouter, BackgroundTasks, Request, Response
 from pydantic import BaseModel, Field, ValidationError
 
 from app.modules.attio import (
+    WebhookActor,
     WebhookEvent,
     WebhookEventId,
     attio_is_test,
@@ -54,6 +55,15 @@ class AttioWebhookEventId(BaseModel):
     entry_id: str | None = None
 
 
+class AttioWebhookActor(BaseModel):
+    """Who made the change, when Attio reports it: `workspace-member`,
+    `api-token` or `system`. The shape is unconfirmed against a real
+    delivery, so every field is optional and a missing actor is tolerated."""
+
+    type: str | None = None
+    id: str | None = None
+
+
 class AttioWebhookEvent(BaseModel):
     """One event within a delivery's `events` array. `event_type` is the
     only field guaranteed present across every Attio webhook event category —
@@ -61,6 +71,7 @@ class AttioWebhookEvent(BaseModel):
 
     event_type: str
     id: AttioWebhookEventId = Field(default_factory=AttioWebhookEventId)
+    actor: AttioWebhookActor | None = None
 
 
 class AttioWebhookEnvelope(BaseModel):
@@ -90,6 +101,7 @@ def _to_domain(event: AttioWebhookEvent) -> WebhookEvent:
             list_id=event.id.list_id,
             entry_id=event.id.entry_id,
         ),
+        actor=WebhookActor(type=event.actor.type, id=event.actor.id) if event.actor else None,
     )
 
 

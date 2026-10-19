@@ -4,7 +4,7 @@ import hmac
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.modules.attio import WebhookEvent, WebhookEventId
+from app.modules.attio import WebhookActor, WebhookEvent, WebhookEventId
 from app.modules.ddl_commands.api import attio_sync as router_module
 
 _SECRET = "test-webhook-secret"  # matches conftest.py's ATTIO_WEBHOOK_SECRET default
@@ -45,6 +45,27 @@ def test_valid_signature_acks_200_and_dispatches(monkeypatch) -> None:
             id=WebhookEventId(object_id="o1", record_id="r1"),
         )
     ]
+
+
+def test_the_actor_is_parsed_and_forwarded(monkeypatch) -> None:
+    calls = []
+
+    async def fake_dispatch(upsert, registry, client, event):
+        calls.append(event)
+
+    monkeypatch.setattr(router_module, "dispatch_event", fake_dispatch)
+    body = (
+        b'{"webhook_id": "wh-1", "events": [{"event_type": "record.updated", '
+        b'"id": {"object_id": "o1", "record_id": "r1"}, '
+        b'"actor": {"type": "workspace-member", "id": "member-1"}}]}'
+    )
+
+    response = _make_client().post(
+        "/webhooks/attio", content=body, headers={"Attio-Signature": _signed(body)}
+    )
+
+    assert response.status_code == 200
+    assert calls[0].actor == WebhookActor(type="workspace-member", id="member-1")
 
 
 def test_multiple_events_in_one_envelope_all_dispatch(monkeypatch) -> None:
