@@ -6,15 +6,19 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import BuyerRole, Organization
+from app.modules.activities import ActivityActor, ActivitySource
 from app.modules.ddl_commands.application.buyers import (
     BuyerAlreadyExistsError,
     BuyerNotFoundError,
     BuyerService,
 )
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
+from app.modules.ddl_commands.application.write_context import WriteContext
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
 from app.modules.ddl_commands.persistence.unit_of_work import SqlAlchemyDdlCommandsUnitOfWork
 from app.modules.organizations import OrganizationRepository
+
+_CONTEXT = WriteContext(ActivityActor.slack("U_TEST"), ActivitySource.SLACK)
 
 
 def _uow_factory(
@@ -41,7 +45,7 @@ async def test_update_not_found_raises(
 ) -> None:
     service = BuyerService(_uow_factory(db_sessionmaker))
     with pytest.raises(BuyerNotFoundError):
-        await service.update_buyer(str(uuid.uuid4()), {"model": "Roll-up"})
+        await service.update_buyer(str(uuid.uuid4()), {"model": "Roll-up"}, context=_CONTEXT)
 
 
 async def test_update_applies_fields(
@@ -50,7 +54,7 @@ async def test_update_applies_fields(
     buyer_id = await _seed_buyer(db_sessionmaker)
 
     updated = await BuyerService(_uow_factory(db_sessionmaker)).update_buyer(
-        buyer_id, {"model": "Roll-up"}
+        buyer_id, {"model": "Roll-up"}, context=_CONTEXT
     )
 
     assert updated.model == "Roll-up"
@@ -62,6 +66,7 @@ async def test_create_with_new_org_inserts_org_and_role(
     attio_id = f"test-org-{uuid.uuid4()}"
 
     role = await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-1",
         is_new_org=True,
@@ -94,6 +99,7 @@ async def test_create_attaches_to_existing_org(
         attio_id = org.attio_id
 
     role = await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-2",
         is_new_org=False,
@@ -122,6 +128,7 @@ async def test_create_raises_when_role_already_exists(
 
     with pytest.raises(BuyerAlreadyExistsError):
         await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
+            context=_CONTEXT,
             org_attio_id=attio_id,
             entry_id="entry-3",
             is_new_org=False,
@@ -144,6 +151,7 @@ async def test_create_allows_a_second_vertical_for_the_same_org(
 
     service = BuyerService(_uow_factory(db_sessionmaker))
     role = await service.create_buyer(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-fintech",
         is_new_org=False,
@@ -170,6 +178,7 @@ async def test_create_raises_when_the_vertical_already_has_a_role(
 
     with pytest.raises(BuyerAlreadyExistsError):
         await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
+            context=_CONTEXT,
             org_attio_id=attio_id,
             entry_id="entry-dup",
             is_new_org=False,
@@ -195,6 +204,7 @@ async def test_create_succeeds_when_existing_role_is_inactive(
         attio_id = org.attio_id
 
     role = await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-5",
         is_new_org=False,
@@ -225,6 +235,7 @@ async def test_create_does_not_raise_when_webhook_already_wrote_this_same_entry(
         attio_id = org.attio_id
 
     role = await BuyerService(_uow_factory(db_sessionmaker)).create_buyer(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-4",
         is_new_org=False,
@@ -257,6 +268,7 @@ async def test_concurrent_create_yields_one_active_role() -> None:
 
     async def _create(entry_id: str) -> BuyerRole:
         return await BuyerService(_uow_factory(sessionmaker)).create_buyer(
+            context=_CONTEXT,
             org_attio_id=attio_id,
             entry_id=entry_id,
             is_new_org=False,

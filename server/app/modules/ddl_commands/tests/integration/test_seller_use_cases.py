@@ -6,15 +6,19 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import Organization, SellerRole
+from app.modules.activities import ActivityActor, ActivitySource
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
 from app.modules.ddl_commands.application.sellers import (
     SellerAlreadyExistsError,
     SellerNotFoundError,
     SellerService,
 )
+from app.modules.ddl_commands.application.write_context import WriteContext
 from app.modules.ddl_commands.persistence.database import get_sessionmaker
 from app.modules.ddl_commands.persistence.unit_of_work import SqlAlchemyDdlCommandsUnitOfWork
 from app.modules.organizations import OrganizationRepository
+
+_CONTEXT = WriteContext(ActivityActor.slack("U_TEST"), ActivitySource.SLACK)
 
 
 def _uow_factory(
@@ -41,7 +45,7 @@ async def test_update_not_found_raises(
 ) -> None:
     service = SellerService(_uow_factory(db_sessionmaker))
     with pytest.raises(SellerNotFoundError):
-        await service.update_seller(str(uuid.uuid4()), {"outreach_tier": "warm"})
+        await service.update_seller(str(uuid.uuid4()), {"outreach_tier": "warm"}, context=_CONTEXT)
 
 
 async def test_update_applies_fields(
@@ -50,7 +54,7 @@ async def test_update_applies_fields(
     seller_id = await _seed_seller(db_sessionmaker)
 
     updated = await SellerService(_uow_factory(db_sessionmaker)).update_seller(
-        seller_id, {"outreach_tier": "warm"}
+        seller_id, {"outreach_tier": "warm"}, context=_CONTEXT
     )
 
     assert updated.outreach_tier == "warm"
@@ -62,6 +66,7 @@ async def test_create_with_new_org_inserts_org_and_role(
     attio_id = f"test-org-{uuid.uuid4()}"
 
     role = await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-1",
         is_new_org=True,
@@ -94,6 +99,7 @@ async def test_create_attaches_to_existing_org(
         attio_id = org.attio_id
 
     role = await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-2",
         is_new_org=False,
@@ -122,6 +128,7 @@ async def test_create_raises_when_role_already_exists(
 
     with pytest.raises(SellerAlreadyExistsError):
         await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+            context=_CONTEXT,
             org_attio_id=attio_id,
             entry_id="entry-3",
             is_new_org=False,
@@ -148,6 +155,7 @@ async def test_create_succeeds_when_existing_role_is_inactive(
         attio_id = org.attio_id
 
     role = await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-5",
         is_new_org=False,
@@ -178,6 +186,7 @@ async def test_create_does_not_raise_when_webhook_already_wrote_this_same_entry(
         attio_id = org.attio_id
 
     role = await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-4",
         is_new_org=False,
@@ -210,6 +219,7 @@ async def test_concurrent_create_yields_one_active_role() -> None:
 
     async def _create(entry_id: str) -> SellerRole:
         return await SellerService(_uow_factory(sessionmaker)).create_seller(
+            context=_CONTEXT,
             org_attio_id=attio_id,
             entry_id=entry_id,
             is_new_org=False,
@@ -255,6 +265,7 @@ async def test_create_persists_source_place_id_even_when_org_row_already_exists(
         await session.commit()
 
     await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-place",
         is_new_org=True,
@@ -279,6 +290,7 @@ async def test_create_never_overwrites_an_existing_orgs_place_id(
         await session.commit()
 
     await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-keep",
         is_new_org=False,
@@ -305,6 +317,7 @@ async def test_create_skips_a_place_id_another_org_already_holds(
         await session.commit()
 
     await SellerService(_uow_factory(db_sessionmaker)).create_seller(
+        context=_CONTEXT,
         org_attio_id=attio_id,
         entry_id="entry-held",
         is_new_org=False,
