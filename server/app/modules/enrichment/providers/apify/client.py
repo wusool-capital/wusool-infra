@@ -33,7 +33,8 @@ class ApifyClient:
         actor_input: BaseModel,
         item_type: type[_Item],
         run_timeout_s: int,
-    ) -> list[_Item]:
+    ) -> list[_Item] | None:
+        """`None` when the run failed, so a caller can tell that from an empty dataset."""
         started = time.monotonic()
         items = await post_json_items(
             url=_RUN_SYNC_URL.format(actor=actor),
@@ -52,4 +53,4 @@ class ApifyClient:
             int((time.monotonic() - started) * 1000),
             "ok" if items is not None else "failed",
         )
-        return items or []
+        return items

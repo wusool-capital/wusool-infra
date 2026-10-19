@@ -188,5 +188,6 @@ have a value are never overwritten.
 
 If LinkedIn is switched on, a reply appears in the proposal's thread with the
 organization's recent LinkedIn posts. It is information only; no CRM field is
-changed. A re-run shows only what is new. The organization needs a LinkedIn
-page saved in the CRM, or nothing is scraped.
+changed. A re-run shows only what is new. The reply always says how the scan
+went: new posts, no new posts, skipped, or failed. The organization needs a
+LinkedIn page saved in the CRM, or the scan is skipped.

@@ -6,6 +6,7 @@ is what keeps a re-run quiet.
 
 import logging
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from sqlalchemy import text
@@ -135,12 +136,7 @@ class SqlAlchemyLinkedInHistory:
             len(new_posts),
             len(new_changes),
         )
-        return LinkedInScan(
-            job_changes=new_changes,
-            posts=new_posts,
-            contacts_without_linkedin=scan.contacts_without_linkedin,
-            contacts_scanned=scan.contacts_scanned,
-        )
+        return replace(scan, job_changes=new_changes, posts=new_posts)
 
     @staticmethod
     async def _insert_run(

@@ -69,7 +69,12 @@ against a real `PEOPLE_DATA_LABS_API_KEY` account before relying on it.
 
 After the proposal is posted, `api/dependencies.py::propose_and_post` runs
 `LinkedInMixin.scan_linkedin` and replies in the proposal's thread with the
-result — the scrape never holds up the proposal, and a failure only logs.
+result — the scrape never holds up the proposal, and a failure only logs. The
+reply is posted for every outcome, so a quiet scan is never mistaken for one
+that didn't run: the posts, "No new posts in the past month", "skipped: no
+LinkedIn page is saved", or "the scan failed" (no error detail). Only a
+missing Apify token posts nothing. `LinkedInScan.outcome` (`ScanOutcome`)
+carries which one it was.
 
 Only the **organization** is scraped. The role's people are not: no profile
 scrape, no job changes, no contacts' posts, and contacts are not even read
@@ -82,9 +87,11 @@ from the database. The people path is built and tested, but off — see
 - **Apify** (`providers/apify/`): one posts run per scan, capped at 40s with
   Apify's own `timeout` below ours so the vendor stops billing when we stop
   waiting. At most 10 posts from the past month (Apify's rolling `postedLimit="month"`, so
-  this month's posts are included). Any error, timeout or malformed
-  item yields an empty result. A company page's "posts" are its reposts, so the
-  author is the original poster.
+  this month's posts are included). A failed run (auth, rate limit, 5xx, timeout,
+  non-array body) raises `LinkedInUnavailableError` and the scan is `FAILED`,
+  so a vendor outage is never read as "no posts". An item that doesn't parse
+  is dropped. A company page's "posts" are its reposts, so the author is the
+  original poster. The company-page waterfall step still fails soft.
 - **Cost log:** every run logs `apify_run actor=… items=… duration_ms=…
   outcome=…`; the token only ever travels in the `Authorization` header.
 - **History** (`persistence/linkedin_history.py`, behind
@@ -97,8 +104,9 @@ from the database. The people path is built and tested, but off — see
   who ran `/enrich-seller` or `/enrich-buyer` (or approved the match), else
   `system('enrichment')`. A scan that raises or times out is stored too: the run
   is `failed` with the error type name (never its message), and the activity's
-  outcome is `failed`. A scan skipped for no company LinkedIn URL or no Apify
-  token is not recorded, since nothing ran. A signal is new if its (`source`,
+  outcome is `failed`, including a database error loading the targets. A scan
+  skipped for no company LinkedIn URL or no Apify token is not recorded, since
+  nothing ran. A signal is new if its (`source`,
   `external_id`) is not stored yet: the post id, or `job_change:{person}:{hash
   of the new title and company}`. `scan_linkedin` returns only the new items, so
   a re-run is quiet, and falls back to the full scan if the history write fails.
@@ -109,9 +117,8 @@ from the database. The people path is built and tested, but off — see
 
 `scan_linkedin_for_role(kind, role_id, requested_by=None)` (public) runs the same
 org-only scan on its own, for a caller that wants the data without a proposal.
-Two gaps: a vendor error that returns an empty result looks like "no posts"
-(only a raise or timeout is recorded as failed), and a run's `started_at` equals
-its `finished_at`, since it is written once the scan ends.
+One gap: a run's `started_at` equals its `finished_at`, since it is written once
+the scan ends.
 
 **People path (built, not wired).** `scan_linkedin(target, include_people=True)`
 also scrapes a role's contacts: a buyer's `key_contact`, or a seller

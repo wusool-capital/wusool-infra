@@ -8,12 +8,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import pytest
-from slack_sdk.models.blocks import Block
+from slack_sdk.models.blocks import Block, SectionBlock
 
 from app.modules.enrichment.api import dependencies
-from app.modules.enrichment.domain.linkedin import LinkedInPost, LinkedInScan
+from app.modules.enrichment.domain.linkedin import LinkedInPost, LinkedInScan, ScanOutcome
 from app.modules.enrichment.domain.proposals import EnrichmentProposal
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
+from app.modules.enrichment.tests.fakes.linkedin import FakeLinkedInClient
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class _Message:
     channel: str
     text: str
     thread_ts: str | None = None
+    body: str = ""
 
 
 @dataclass(frozen=True)
@@ -43,7 +45,8 @@ class _Notifier:
         blocks: Sequence[Block] | None = None,
         thread_ts: str | None = None,
     ) -> str:
-        self.posts.append(_Message(channel=channel, text=text, thread_ts=thread_ts))
+        body = "\n".join(b.text.text for b in blocks or () if isinstance(b, SectionBlock))
+        self.posts.append(_Message(channel=channel, text=text, thread_ts=thread_ts, body=body))
         return "ts-reply" if thread_ts else "ts-placeholder"
 
     async def update_message(
@@ -84,10 +87,15 @@ def target() -> EnrichmentTarget:
     )
 
 
-def _wire(monkeypatch, service: _Service) -> _Notifier:
+def _wire(monkeypatch, service: _Service, *, linkedin_configured: bool = True) -> _Notifier:
     notifier = _Notifier()
     monkeypatch.setattr(dependencies, "slack_notifier", lambda: notifier)
     monkeypatch.setattr(dependencies, "enrichment_service", lambda: service)
+    monkeypatch.setattr(
+        dependencies,
+        "_linkedin_client",
+        lambda: FakeLinkedInClient() if linkedin_configured else None,
+    )
     return notifier
 
 
@@ -106,11 +114,45 @@ async def test_follow_up_is_a_reply_in_the_placeholders_thread(
     assert notifier.posts[1].channel == "C1"
 
 
-async def test_empty_scan_posts_nothing(monkeypatch, target: EnrichmentTarget) -> None:
+async def test_a_scan_with_nothing_new_says_so(monkeypatch, target: EnrichmentTarget) -> None:
     notifier = _wire(monkeypatch, _Service(LinkedInScan()))
 
     await dependencies.propose_and_post(target, channel_id="C1")
 
+    assert len(notifier.posts) == 2
+    assert "No new posts" in notifier.posts[1].body
+
+
+async def test_a_skipped_scan_says_no_linkedin_page_is_saved(
+    monkeypatch, target: EnrichmentTarget
+) -> None:
+    notifier = _wire(monkeypatch, _Service(LinkedInScan(outcome=ScanOutcome.SKIPPED)))
+
+    await dependencies.propose_and_post(target, channel_id="C1")
+
+    assert "no LinkedIn page is saved for Acme Co" in notifier.posts[1].body
+
+
+async def test_a_failed_scan_says_so_without_error_detail(
+    monkeypatch, target: EnrichmentTarget
+) -> None:
+    notifier = _wire(monkeypatch, _Service(LinkedInScan(outcome=ScanOutcome.FAILED)))
+
+    await dependencies.propose_and_post(target, channel_id="C1")
+
+    assert "scan failed" in notifier.posts[1].body
+    assert "Traceback" not in notifier.posts[1].body
+
+
+async def test_without_a_linkedin_client_nothing_is_scanned_or_posted(
+    monkeypatch, target: EnrichmentTarget
+) -> None:
+    service = _Service(LinkedInScan())
+    notifier = _wire(monkeypatch, service, linkedin_configured=False)
+
+    await dependencies.propose_and_post(target, channel_id="C1")
+
+    assert service.scans == 0
     assert len(notifier.posts) == 1  # only the placeholder
 
 

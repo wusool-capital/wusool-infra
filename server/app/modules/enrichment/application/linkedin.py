@@ -13,9 +13,11 @@ import logging
 from app.modules.enrichment.application.base import ServiceBase
 from app.modules.enrichment.application.ports.linkedin import PostedLimit
 from app.modules.enrichment.domain.linkedin import (
+    Contact,
     JobChange,
     LinkedInProfile,
     LinkedInScan,
+    ScanOutcome,
     detect_job_change,
     profile_key,
 )
@@ -41,28 +43,32 @@ class LinkedInMixin(ServiceBase):
         requested_by: str | None = None,
     ) -> LinkedInScan:
         """Only what is new since the last scan once history is configured,
-        everything otherwise. Empty when no LinkedIn client is configured, or
-        the organization has no LinkedIn page saved. Never raises: a slow or
-        failing vendor must not take the caller down. `requested_by` is the
-        Slack user who triggered the scan, recorded as the activity's actor."""
+        everything otherwise. `outcome` says why a scan has no results:
+        `SKIPPED` (no client, or no LinkedIn page saved) or `FAILED`. Never
+        raises: a slow or failing vendor must not take the caller down.
+        `requested_by` is the Slack user who triggered the scan, recorded as
+        the activity's actor."""
         if self._linkedin_client is None:
-            return LinkedInScan()
+            return LinkedInScan(outcome=ScanOutcome.SKIPPED)
         client = self._linkedin_client
-        targets = await self._role_reader.load_linkedin_targets(
-            target, include_contacts=include_people
-        )
-
-        contacts = [c for c in targets.contacts if c.linkedin_url]
-        missing = tuple(c for c in targets.contacts if not c.linkedin_url)
-        for contact in missing:
-            logger.info("linkedin_contact_skipped_no_url person=%s", contact.person_attio_id)
-        profile_urls = tuple(c.linkedin_url for c in contacts if c.linkedin_url)
-        post_urls = (*profile_urls, targets.company_url) if targets.company_url else profile_urls
-        if not post_urls:
-            logger.info("linkedin_scan_skipped_no_urls role=%s", target.role_id)
-            return LinkedInScan(contacts_without_linkedin=missing)
-
+        contacts: list[Contact] = []
+        missing: tuple[Contact, ...] = ()
         try:
+            targets = await self._role_reader.load_linkedin_targets(
+                target, include_contacts=include_people
+            )
+            contacts = [c for c in targets.contacts if c.linkedin_url]
+            missing = tuple(c for c in targets.contacts if not c.linkedin_url)
+            for contact in missing:
+                logger.info("linkedin_contact_skipped_no_url person=%s", contact.person_attio_id)
+            profile_urls = tuple(c.linkedin_url for c in contacts if c.linkedin_url)
+            post_urls = (
+                (*profile_urls, targets.company_url) if targets.company_url else profile_urls
+            )
+            if not post_urls:
+                logger.info("linkedin_scan_skipped_no_urls role=%s", target.role_id)
+                return LinkedInScan(contacts_without_linkedin=missing, outcome=ScanOutcome.SKIPPED)
+
             async with asyncio.timeout(_SCAN_TIMEOUT_S):
                 profiles, posts = await asyncio.gather(
                     client.profiles(profile_urls) if profile_urls else _no_profiles(),
@@ -70,7 +76,7 @@ class LinkedInMixin(ServiceBase):
                 )
         except Exception as exc:
             logger.warning("linkedin_scan_failed role=%s", target.role_id, exc_info=True)
-            failed = LinkedInScan(contacts_without_linkedin=missing)
+            failed = LinkedInScan(contacts_without_linkedin=missing, outcome=ScanOutcome.FAILED)
             await self._record_failure(target, failed, requested_by, type(exc).__name__)
             return failed
 

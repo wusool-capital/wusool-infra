@@ -45,9 +45,12 @@ edit form is saved, the button becomes "✅ ADDED by" the person who saved it.
 After the proposal is posted, the bot replies in its thread with the
 organization's recent LinkedIn posts: up to 10, from the past month. Only the
 organization's own LinkedIn page is scraped. People are not scraped, so there
-are no job changes yet. If the organization has no LinkedIn page saved, the
-scan is skipped. A company page's posts are mostly its reposts, so the author
-shown is the person who first posted.
+are no job changes yet. A company page's posts are mostly its reposts, so the
+author shown is the person who first posted.
+
+The reply always says how the scan went. It lists the new posts, or says
+there are none. It says if the scan was skipped for a missing LinkedIn page,
+or if it failed. Only a missing `APIFY_API_TOKEN` posts nothing.
 
 The reply comes after the proposal, so a slow or failing scrape never delays
 the proposal. Nothing is written to the CRM fields from it.
@@ -58,8 +61,8 @@ completed" entry to the activity history, with counts only, even when nothing
 was found. It names the person who ran the command, or the system. A scan
 that fails is stored as failed.
 
-A re-run shows only what is new, and says nothing if nothing is. A scan
-skipped for a missing LinkedIn page is not recorded.
+A re-run shows only what is new. A scan skipped for a missing LinkedIn page
+is not recorded.
 Names and post text live in the signals, so a removal request deletes them
 there; the activity history never holds them.
 
@@ -97,8 +100,6 @@ Current values from `seller_roles`, `buyer_roles`, `organizations`, and
   profile scraper's format hasn't been.
 - A company page's "posts" are its reposts of other people's posts, so the
   author shown is the original poster.
-- A vendor error that returns nothing looks like "no posts". Only a crash or a
-  timeout is recorded as failed.
 - The free Apify plan limits the profile scraper to 50 runs in total. Only the
   unwired people path uses it. Set a monthly spend cap regardless.
 

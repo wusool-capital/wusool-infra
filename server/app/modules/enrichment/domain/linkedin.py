@@ -6,6 +6,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
 LINKEDIN_PROVIDER_NAME = "LinkedIn (Apify)"
 
@@ -61,6 +62,13 @@ class JobChange:
     provider: str = LINKEDIN_PROVIDER_NAME
 
 
+class ScanOutcome(StrEnum):
+    COMPLETED = "completed"
+    # Nothing was scraped: no client, or no LinkedIn page saved for the org.
+    SKIPPED = "skipped"
+    FAILED = "failed"
+
+
 @dataclass(frozen=True)
 class LinkedInScan:
     job_changes: tuple[JobChange, ...] = ()
@@ -69,6 +77,7 @@ class LinkedInScan:
     # unreliable. Surfaced so an advisor can see who is missing.
     contacts_without_linkedin: tuple[Contact, ...] = ()
     contacts_scanned: int = 0
+    outcome: ScanOutcome = ScanOutcome.COMPLETED
 
     @property
     def is_empty(self) -> bool:

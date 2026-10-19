@@ -4,7 +4,10 @@ HarvestAPI, mapped into the domain's `LinkedInProfile`/`LinkedInPost`.
 
 from datetime import datetime
 
-from app.modules.enrichment.application.ports.linkedin import PostedLimit
+from app.modules.enrichment.application.ports.linkedin import (
+    LinkedInUnavailableError,
+    PostedLimit,
+)
 from app.modules.enrichment.domain.linkedin import LinkedInPost, LinkedInProfile
 from app.modules.enrichment.providers.apify.client import ApifyClient
 from app.modules.enrichment.providers.apify.schemas import (
@@ -88,6 +91,8 @@ class ApifyLinkedInClient:
             item_type=ApifyProfileItem,
             run_timeout_s=_RUN_TIMEOUT_S,
         )
+        if items is None:
+            raise LinkedInUnavailableError("the Apify profile run failed")
         return tuple(p for p in (_map_profile(i) for i in items) if p is not None)
 
     async def posts(
@@ -103,4 +108,6 @@ class ApifyLinkedInClient:
             item_type=ApifyPostItem,
             run_timeout_s=_RUN_TIMEOUT_S,
         )
+        if items is None:
+            raise LinkedInUnavailableError("the Apify posts run failed")
         return tuple(p for p in (_map_post(i) for i in items) if p is not None)

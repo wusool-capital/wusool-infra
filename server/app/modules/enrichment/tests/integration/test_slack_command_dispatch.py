@@ -10,6 +10,7 @@ from app.modules.enrichment.api.slack.handlers import commands as commands_modul
 from app.modules.enrichment.bootstrap import create_app
 from app.modules.enrichment.config import get_settings
 from app.modules.enrichment.domain.targets import ResolvedOrgRole
+from app.modules.enrichment.tests.fakes.enrichment_calls import record_enrichment_calls
 from tests.slack_test_helpers import mock_slack_auth, mock_slack_ephemeral, post_slack_command
 
 app = create_app()
@@ -139,3 +140,60 @@ def test_enrich_buyer_ignores_a_seller_only_match(monkeypatch) -> None:
     assert posted == []
     assert len(updated) == 1
     assert "No active buyer found for *Acme Rollup*" in str(updated[0]["view"].blocks[0].text.text)
+
+
+def _single_role(kind: str) -> list[ResolvedOrgRole]:
+    return [
+        ResolvedOrgRole(
+            org_attio_id="org-1",
+            org_name="Blue Horizon",
+            role_id="fae6496c-63bf-42d1-873b-e432ad2bcd39",
+            kind=kind,
+        )
+    ]
+
+
+def _enrich_single_match(monkeypatch, *, command: str, kind: str, user_id: str):
+    mock_slack_ephemeral(monkeypatch)
+    mock_slack_auth(monkeypatch)
+    calls = record_enrichment_calls(monkeypatch, commands_module)
+
+    async def fake_resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
+        return _single_role(kind)
+
+    async def fake_views_open(self, **kwargs):  # noqa: ANN001
+        return {"view": {"id": "V_TEST"}}
+
+    async def fake_views_update(self, **kwargs):  # noqa: ANN001
+        return {"ok": True}
+
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_update", fake_views_update)
+    monkeypatch.setattr(commands_module, "resolve_org_roles", fake_resolve_org_roles)
+
+    response = post_slack_command(
+        app,
+        get_settings().slack_signing_secret,
+        command=command,
+        text="Blue Horizon",
+        user_id=user_id,
+        trigger_id=f"trigger.{command}.{user_id}",
+    )
+    assert response.status_code == 200
+    return calls
+
+
+def test_enrich_seller_passes_the_commands_user_to_the_enrichment(monkeypatch) -> None:
+    calls = _enrich_single_match(
+        monkeypatch, command="/enrich-seller", kind="seller", user_id="U_ADVISOR"
+    )
+
+    assert [(c.channel_id, c.requested_by) for c in calls] == [("C_TEST", "U_ADVISOR")]
+
+
+def test_enrich_buyer_passes_the_commands_user_to_the_enrichment(monkeypatch) -> None:
+    calls = _enrich_single_match(
+        monkeypatch, command="/enrich-buyer", kind="buyer", user_id="U_OTHER"
+    )
+
+    assert [c.requested_by for c in calls] == ["U_OTHER"]

@@ -12,7 +12,7 @@ from app.modules.enrichment.api.dependencies import (
     propose_and_post,
     resolve_target,
 )
-from app.modules.enrichment.domain.linkedin import LinkedInScan
+from app.modules.enrichment.domain.linkedin import LinkedInScan, ScanOutcome
 from app.modules.enrichment.domain.proposals import BasicEnrichment
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -39,7 +39,7 @@ async def scan_linkedin_for_role(
     target = await resolve_target(kind=kind, role_id=uuid.UUID(role_id))
     if target is None:
         logger.warning("scan_linkedin_target_not_found", extra={"kind": kind, "role_id": role_id})
-        return LinkedInScan()
+        return LinkedInScan(outcome=ScanOutcome.SKIPPED)
     return await enrichment_service().scan_linkedin(target, requested_by=requested_by)
 
 

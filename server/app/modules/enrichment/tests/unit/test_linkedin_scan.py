@@ -2,13 +2,17 @@ import uuid
 
 import pytest
 
-from app.modules.enrichment.application.ports.linkedin import PostedLimit
+from app.modules.enrichment.application.ports.linkedin import (
+    LinkedInUnavailableError,
+    PostedLimit,
+)
 from app.modules.enrichment.application.service import EnrichmentService
 from app.modules.enrichment.domain.linkedin import (
     Contact,
     LinkedInPost,
     LinkedInProfile,
     LinkedInTargets,
+    ScanOutcome,
 )
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.enrichment.tests.fakes.company_data import FakeCompanyDataClient
@@ -295,7 +299,7 @@ async def test_org_only_without_a_company_url_makes_no_vendor_call(
 
     scan = await service.scan_linkedin(target)
 
-    assert scan.is_empty
+    assert scan.is_empty and scan.outcome is ScanOutcome.SKIPPED
     assert client.profile_calls == [] and client.post_calls == []
 
 
@@ -308,7 +312,9 @@ async def test_org_only_failure_returns_an_empty_scan(target: EnrichmentTarget) 
 
     service, _ = _org_service(client=_Failing())
 
-    assert (await service.scan_linkedin(target)).is_empty
+    scan = await service.scan_linkedin(target)
+
+    assert scan.is_empty and scan.outcome is ScanOutcome.FAILED
 
 
 async def test_org_only_timeout_returns_an_empty_scan(
@@ -317,7 +323,7 @@ async def test_org_only_timeout_returns_an_empty_scan(
     monkeypatch.setattr("app.modules.enrichment.application.linkedin._SCAN_TIMEOUT_S", 0.01)
     service, _ = _org_service(client=FakeLinkedInClient(delay_s=1.0))
 
-    assert (await service.scan_linkedin(target)).is_empty
+    assert (await service.scan_linkedin(target)).outcome is ScanOutcome.FAILED
 
 
 async def test_org_only_history_reports_only_new_posts_on_a_rerun(
@@ -394,3 +400,65 @@ async def test_a_skipped_scan_records_nothing(target: EnrichmentTarget) -> None:
     await service.scan_linkedin(target, requested_by="U123")
 
     assert history.calls == 0
+
+
+async def test_a_scan_without_a_client_is_skipped(target: EnrichmentTarget) -> None:
+    service = _service(targets=LinkedInTargets(), linkedin_client=None)
+
+    assert (await service.scan_linkedin(target)).outcome is ScanOutcome.SKIPPED
+
+
+async def test_a_completed_scan_has_a_completed_outcome(target: EnrichmentTarget) -> None:
+    service, _ = _org_service(history=FakeLinkedInHistory())
+
+    scan = await service.scan_linkedin(target)
+
+    # Preserved through the history port, which builds a new scan.
+    assert scan.outcome is ScanOutcome.COMPLETED
+
+
+async def test_a_vendor_failure_is_a_failed_scan_not_an_empty_one(
+    target: EnrichmentTarget,
+) -> None:
+    class _Unavailable(FakeLinkedInClient):
+        async def posts(
+            self, urls: tuple[str, ...], *, max_posts: int, posted_limit: PostedLimit
+        ) -> tuple[LinkedInPost, ...]:
+            raise LinkedInUnavailableError("the Apify posts run failed")
+
+    history = FakeLinkedInHistory()
+    service, _ = _org_service(client=_Unavailable(), history=history)
+
+    scan = await service.scan_linkedin(target)
+
+    assert scan.outcome is ScanOutcome.FAILED
+    assert history.failures == ["LinkedInUnavailableError"]
+
+
+async def test_a_database_error_loading_targets_is_a_failed_scan(
+    target: EnrichmentTarget,
+) -> None:
+    class _BrokenReader(FakeRoleReader):
+        async def load_linkedin_targets(
+            self, target: EnrichmentTarget, *, include_contacts: bool = True
+        ) -> LinkedInTargets:
+            raise RuntimeError("connection lost")
+
+    history = FakeLinkedInHistory()
+    service = EnrichmentService(
+        research_client=FakeResearchClient(),
+        extraction_client=FakeExtractionClient({}),
+        role_reader=_BrokenReader(),
+        review_port=FakeReviewPort(),
+        model_id="test-model",
+        temperature=0.2,
+        max_tokens=1024,
+        min_confidence=0.5,
+        linkedin_client=FakeLinkedInClient(),
+        linkedin_history=history,
+    )
+
+    scan = await service.scan_linkedin(target, requested_by="U1")
+
+    assert scan.outcome is ScanOutcome.FAILED
+    assert history.failures == ["RuntimeError"] and history.requested_by == ["U1"]

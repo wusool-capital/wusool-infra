@@ -9,6 +9,7 @@ from app.modules.enrichment.domain.linkedin import (
     LinkedInPost,
     LinkedInProfile,
     LinkedInScan,
+    ScanOutcome,
 )
 
 
@@ -81,3 +82,20 @@ def test_a_long_section_drops_whole_lines_and_never_cuts_a_link() -> None:
     assert len(text) <= 3000
     assert text.count("<") == text.count(">")
     assert "…and" in text and "more_" in text
+
+
+def test_a_completed_scan_with_nothing_new_says_so() -> None:
+    assert "No new posts in the past month" in _texts(LinkedInScan())
+
+
+def test_a_skipped_scan_names_the_missing_linkedin_page() -> None:
+    text = _texts(LinkedInScan(outcome=ScanOutcome.SKIPPED))
+
+    assert "no LinkedIn page is saved for Acme Co" in text
+    assert "No new posts" not in text
+
+
+def test_a_failed_scan_says_so_without_detail() -> None:
+    text = _texts(LinkedInScan(outcome=ScanOutcome.FAILED))
+
+    assert "scan failed" in text and "Try again later" in text

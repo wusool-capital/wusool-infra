@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from app.modules.enrichment.application.ports.linkedin import LinkedInUnavailableError
 from app.modules.enrichment.domain.field_plans import ORGANIZATION_ENRICHABLE_FIELDS
 from app.modules.enrichment.providers.apify.company import ApifyLinkedInCompanyClient
 from app.modules.enrichment.providers.apify.linkedin import ApifyLinkedInClient
@@ -88,10 +89,23 @@ async def test_apify_run_timeout_is_below_the_http_timeout(monkeypatch) -> None:
         ConnectionError("boom"),
     ],
 )
-async def test_failures_return_empty_without_raising(monkeypatch, response) -> None:
+async def test_failures_raise_unavailable_not_an_empty_result(monkeypatch, response) -> None:
+    """A failed run must not read as "nothing found"."""
     _session(monkeypatch, response)
+    client = ApifyLinkedInClient(_TOKEN)
 
-    assert await ApifyLinkedInClient(_TOKEN).profiles((_URL,)) == ()
+    with pytest.raises(LinkedInUnavailableError):
+        await client.profiles((_URL,))
+    with pytest.raises(LinkedInUnavailableError):
+        await client.posts((_URL,), max_posts=10, posted_limit="month")
+
+
+async def test_an_empty_dataset_is_not_a_failure(monkeypatch) -> None:
+    _session(monkeypatch, FakeAiohttpResponse(201, []))
+
+    assert (
+        await ApifyLinkedInClient(_TOKEN).posts((_URL,), max_posts=10, posted_limit="month") == ()
+    )
 
 
 async def test_a_malformed_item_is_skipped_not_fatal(monkeypatch) -> None:

@@ -4,7 +4,12 @@ a separate message so the slower scrape never holds up the proposal itself.
 
 from slack_sdk.models.blocks import Block, DividerBlock, SectionBlock
 
-from app.modules.enrichment.domain.linkedin import JobChange, LinkedInPost, LinkedInScan
+from app.modules.enrichment.domain.linkedin import (
+    JobChange,
+    LinkedInPost,
+    LinkedInScan,
+    ScanOutcome,
+)
 from app.modules.notifications import sanitize_mrkdwn
 
 _SNIPPET_CHARS = 200
@@ -54,10 +59,14 @@ def _section(title: str, lines: list[str]) -> SectionBlock:
 
 
 def build_linkedin_blocks(scan: LinkedInScan, org_name: str) -> list[Block]:
-    blocks: list[Block] = [
-        SectionBlock(text=f"*LinkedIn activity for {sanitize_mrkdwn(org_name)}*"),
-        DividerBlock(),
-    ]
+    org = sanitize_mrkdwn(org_name)
+    blocks: list[Block] = [SectionBlock(text=f"*LinkedIn activity for {org}*"), DividerBlock()]
+    if scan.outcome is ScanOutcome.FAILED:
+        blocks.append(SectionBlock(text="_The LinkedIn scan failed. Try again later._"))
+        return blocks
+    if scan.outcome is ScanOutcome.SKIPPED:
+        blocks.append(SectionBlock(text=f"_Skipped: no LinkedIn page is saved for {org}._"))
+        return blocks
     if scan.job_changes:
         blocks.append(_section("Job changes", [_job_change_line(c) for c in scan.job_changes]))
     if scan.posts:
@@ -65,4 +74,6 @@ def build_linkedin_blocks(scan: LinkedInScan, org_name: str) -> list[Block]:
     if scan.contacts_without_linkedin:
         names = ", ".join(sanitize_mrkdwn(c.name) for c in scan.contacts_without_linkedin)
         blocks.append(SectionBlock(text=f"_No LinkedIn URL on file, not scraped:_ {names}"))
+    if len(blocks) == 2:
+        blocks.append(SectionBlock(text="_No new posts in the past month._"))
     return blocks

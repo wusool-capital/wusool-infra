@@ -244,10 +244,10 @@ async def _post_linkedin_followup(
     can only ever cost the follow-up, never the proposal."""
     from app.modules.enrichment.api.slack.views.linkedin_message import build_linkedin_blocks
 
+    if _linkedin_client() is None:
+        return
     try:
         scan = await enrichment_service().scan_linkedin(target, requested_by=requested_by)
-        if scan.is_empty:
-            return
         await notifier.post_message(
             channel=channel_id,
             text=f"LinkedIn activity for {target.org_name}",

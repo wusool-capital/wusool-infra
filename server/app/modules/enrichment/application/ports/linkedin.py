@@ -1,7 +1,8 @@
 """The provider-agnostic seam `LinkedInMixin` depends on for scraping
 LinkedIn profiles and posts. Both calls take a batch so a role costs one
-vendor run each, not one per contact. Fails soft: an empty result on any
-provider error.
+vendor run each, not one per contact. A provider failure raises
+`LinkedInUnavailableError`, so "the vendor failed" is never mistaken for
+"nothing found"; `LinkedInMixin` catches it and the flow continues.
 """
 
 from typing import Literal, Protocol
@@ -9,6 +10,10 @@ from typing import Literal, Protocol
 from app.modules.enrichment.domain.linkedin import LinkedInPost, LinkedInProfile
 
 PostedLimit = Literal["24h", "week", "month"]
+
+
+class LinkedInUnavailableError(Exception):
+    """The LinkedIn provider run failed (auth, rate limit, timeout, bad body)."""
 
 
 class LinkedInClient(Protocol):
