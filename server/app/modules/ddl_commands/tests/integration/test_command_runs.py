@@ -34,7 +34,8 @@ async def _activities(db_sessionmaker: async_sessionmaker[AsyncSession], where: 
             await session.execute(
                 text(
                     "SELECT event_type, actor_type, actor_ref, source, outcome, payload, "
-                    f"command_run_id, subject_uuid, subject_attio_id FROM activities WHERE {where}"
+                    "ledger_type, ledger_id, subject_uuid, subject_attio_id "
+                    f"FROM activities WHERE {where}"
                 ),
                 params,
             )
@@ -139,8 +140,9 @@ async def test_create_seller_records_one_added_activity_linked_to_the_run(
     role = await create()
     await create()  # an exact retry must not add a second row
 
-    (row,) = await _activities(db_sessionmaker, "command_run_id = :id", id=run_id)
+    (row,) = await _activities(db_sessionmaker, "ledger_id = :id", id=run_id)
     assert row.event_type == "seller.added"
+    assert (row.ledger_type, row.ledger_id) == ("command_run", run_id)
     assert (row.actor_type, row.actor_ref, row.source) == ("slack_user", "U123", "slack")
     assert row.outcome == "succeeded"
     assert row.subject_uuid == role.id
@@ -181,7 +183,7 @@ async def test_update_buyer_records_the_changed_field_names_not_their_values(
         "is_new_org": False,
     }
     assert "secret" not in str(row.payload)
-    assert row.command_run_id is None
+    assert (row.ledger_type, row.ledger_id) == (None, None)
 
 
 async def test_an_edit_that_changes_nothing_records_no_event(

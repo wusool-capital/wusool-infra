@@ -7,6 +7,8 @@ from uuid import UUID
 from app.modules.activities import (
     ActivityEvent,
     EventType,
+    LedgerRef,
+    LedgerType,
     ProfileWritePayload,
     SubjectType,
 )
@@ -36,5 +38,9 @@ def profile_write_event(
         subject_uuid=role_id,
         outcome="succeeded",
         idempotency_key=idempotency_key,
-        command_run_id=context.command_run_id,
+        ledger=(
+            LedgerRef(LedgerType.COMMAND_RUN, context.command_run_id)
+            if context.command_run_id
+            else None
+        ),
     )

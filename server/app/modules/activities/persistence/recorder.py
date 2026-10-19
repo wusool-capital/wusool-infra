@@ -23,17 +23,14 @@ _INSERT = text(
     INSERT INTO activities(
         subject_type, subject_attio_id, subject_uuid, event_type, source,
         actor_type, actor_ref, actor_attio_id, outcome, ts, payload, idempotency_key,
-        tool_run_id, match_result_id, meeting_id, command_run_id,
-        deal_stage_event_id, signal_id
+        ledger_type, ledger_id
     ) VALUES (
         :subject_type, :subject_attio_id, CAST(:subject_uuid AS uuid), :event_type, :source,
         :actor_type, :actor_ref,
         (SELECT attio_id FROM users WHERE attio_id = :actor_attio_id),
         :outcome, COALESCE(CAST(:ts AS timestamptz), now()), CAST(:payload AS jsonb),
         :idempotency_key,
-        CAST(:tool_run_id AS uuid), CAST(:match_result_id AS uuid), CAST(:meeting_id AS uuid),
-        CAST(:command_run_id AS uuid), CAST(:deal_stage_event_id AS uuid),
-        CAST(:signal_id AS uuid)
+        :ledger_type, CAST(:ledger_id AS uuid)
     )
     ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
     """
@@ -53,12 +50,8 @@ class _InsertParams(TypedDict):
     ts: datetime | None
     payload: str
     idempotency_key: str | None
-    tool_run_id: str | None
-    match_result_id: str | None
-    meeting_id: str | None
-    command_run_id: str | None
-    deal_stage_event_id: str | None
-    signal_id: str | None
+    ledger_type: str | None
+    ledger_id: str | None
 
 
 def _uuid_text(value: UUID | None) -> str | None:
@@ -79,12 +72,8 @@ def _params(event: ActivityEvent) -> _InsertParams:
         "ts": event.occurred_at,
         "payload": _PAYLOAD.dump_json(event.payload, warnings="error").decode(),
         "idempotency_key": event.idempotency_key,
-        "tool_run_id": _uuid_text(event.tool_run_id),
-        "match_result_id": _uuid_text(event.match_result_id),
-        "meeting_id": _uuid_text(event.meeting_id),
-        "command_run_id": _uuid_text(event.command_run_id),
-        "deal_stage_event_id": _uuid_text(event.deal_stage_event_id),
-        "signal_id": _uuid_text(event.signal_id),
+        "ledger_type": event.ledger.type.value if event.ledger else None,
+        "ledger_id": _uuid_text(event.ledger.id if event.ledger else None),
     }
 
 

@@ -2,7 +2,7 @@
 
 1. `domain/vocabulary.py` — the closed lists of event types, actors, subjects and sources.
 2. `domain/event.py` — `ActivityEvent`, the one object a writer builds, and the
-   two checks it enforces (a subject, at most one ledger link).
+   the one check it enforces (a subject).
 3. `domain/payloads.py` — the typed payload for each event shape.
 4. `persistence/recorder.py` — the single INSERT, the savepoint, and the
    idempotency `ON CONFLICT`.

@@ -9,16 +9,8 @@ from app.modules.activities.domain.vocabulary import (
     ActivitySource,
     ActorType,
     EventType,
+    LedgerType,
     SubjectType,
-)
-
-_LEDGER_LINKS = (
-    "tool_run_id",
-    "match_result_id",
-    "meeting_id",
-    "command_run_id",
-    "deal_stage_event_id",
-    "signal_id",
 )
 
 
@@ -63,6 +55,14 @@ class ActivityActor:
 
 
 @dataclass(frozen=True)
+class LedgerRef:
+    """Points at the ledger row holding an event's detail."""
+
+    type: LedgerType
+    id: UUID
+
+
+@dataclass(frozen=True)
 class ActivityEvent:
     subject_type: SubjectType
     event_type: EventType
@@ -75,19 +75,9 @@ class ActivityEvent:
     # Event time. None means "now"; set it when the event happened earlier.
     occurred_at: datetime | None = None
     idempotency_key: str | None = None
-    # Typed links to the ledger row holding the detail; at most one.
-    tool_run_id: UUID | None = None
-    match_result_id: UUID | None = None
-    meeting_id: UUID | None = None
-    command_run_id: UUID | None = None
-    deal_stage_event_id: UUID | None = None
-    signal_id: UUID | None = None
+    ledger: LedgerRef | None = None
 
     def __post_init__(self) -> None:
-        # Mirrors `activities_subject_present` and `activities_single_ledger_link`
-        # so a bad event fails in the writer, not in the database.
+        # Mirrors `activities_subject_present` so a bad event fails in the writer.
         if self.subject_attio_id is None and self.subject_uuid is None:
             raise ValueError("an activity needs subject_attio_id or subject_uuid")
-        linked = [name for name in _LEDGER_LINKS if getattr(self, name) is not None]
-        if len(linked) > 1:
-            raise ValueError(f"an activity links at most one ledger row, got {linked}")

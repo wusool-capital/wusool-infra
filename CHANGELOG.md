@@ -26,6 +26,8 @@ for current production evidence and open handover items.
   submissions no longer copy the visitor's answers onto the activity entry;
   the answers stay on the lead run. The audit and the reasoning are in
   `docs/internal/dev/ACTIVITIES_AUDIT.md`.
+- The activity log can no longer be edited or deleted: the database rejects any
+  change to an existing entry.
 - The database now keeps a log of incoming Attio events for 90 days, and the
   nightly sync records how its last run went.
 

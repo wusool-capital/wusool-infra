@@ -13,7 +13,7 @@ imports no other business module, so the module graph stays acyclic.
 """
 
 from app.modules.activities.application.ports.recorder import ActivityRecorderPort
-from app.modules.activities.domain.event import ActivityActor, ActivityEvent
+from app.modules.activities.domain.event import ActivityActor, ActivityEvent, LedgerRef
 from app.modules.activities.domain.payloads import (
     ActivityPayload,
     CrmRecordPayload,
@@ -28,6 +28,7 @@ from app.modules.activities.domain.vocabulary import (
     ActivitySource,
     ActorType,
     EventType,
+    LedgerType,
     SubjectType,
 )
 from app.modules.activities.persistence.deal_stages import SqlAlchemyDealStageRecorder
@@ -42,6 +43,8 @@ __all__ = [
     "ActorType",
     "CrmRecordPayload",
     "EventType",
+    "LedgerRef",
+    "LedgerType",
     "MatchDecisionPayload",
     "MatchRunPayload",
     "MeetingPayload",

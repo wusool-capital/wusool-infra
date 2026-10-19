@@ -20,9 +20,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import DealStageEvent
-from app.modules.activities.domain.event import ActivityActor, ActivityEvent
+from app.modules.activities.domain.event import ActivityActor, ActivityEvent, LedgerRef
 from app.modules.activities.domain.payloads import StageChangePayload
-from app.modules.activities.domain.vocabulary import ActivitySource, EventType, SubjectType
+from app.modules.activities.domain.vocabulary import (
+    ActivitySource,
+    EventType,
+    LedgerType,
+    SubjectType,
+)
 from app.modules.activities.persistence.recorder import SqlAlchemyActivityRecorder
 
 _logger = logging.getLogger(__name__)
@@ -95,7 +100,7 @@ class SqlAlchemyDealStageRecorder:
                 payload=StageChangePayload(from_stage=previous_stage, to_stage=new_stage),
                 subject_attio_id=deal_attio_id,
                 occurred_at=occurred_at,
-                deal_stage_event_id=event_id,
+                ledger=LedgerRef(LedgerType.DEAL_STAGE_EVENT, event_id),
             )
         )
         return event_id

@@ -109,7 +109,7 @@ Attio has no meeting object). `meetings.removed_at` (migration
 `notes.removed_at`.
 
 Publishing a meeting records a `meeting.published` activity, and deleting one
-records `meeting.deleted`, each linked by `meeting_id` and attributed to the
+records `meeting.deleted`, each linked to the `meetings` row and attributed to the
 Scribe install (a device, not a person). They are anchored on
 the meeting's organization, or on the meeting itself when it has none, and are
 written through `app.modules.activities` on the same session as the meeting.

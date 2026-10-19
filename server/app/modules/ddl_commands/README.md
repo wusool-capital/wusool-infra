@@ -139,7 +139,7 @@ needs a subject. The ledger is best-effort: `api/command_tracking.py` logs a
 failed ledger write and the command carries on.
 
 A successful write also records a `seller|buyer.added|edited` activity in the
-same transaction as the Postgres write, linked by `command_run_id` and
+same transaction as the Postgres write, linked to the `command_runs` row and
 attributed to the Slack user (`system/discovery` for discovery). The payload
 holds changed field names, never values.
 

@@ -282,7 +282,7 @@
       "status": "live",
       "postgres_table": "activities",
       "postgres_only": true,
-      "purpose": "Thin, append-only business-event index (AZM-150): one row per meaningful event (who did what, to which record, when, with what result) plus a typed FK to the domain ledger that holds the detail (tool_runs, match_results, meetings, command_runs, deal_stage_events, signals). It never copies ledger data. Written only through the activities module's recorder. Originally a CRM touch log; the legacy touch rows are kept as event_type legacy.interaction.",
+      "purpose": "Thin, append-only business-event index (AZM-150): one row per meaningful event (who did what, to which record, when, with what result) plus a polymorphic ledger_type/ledger_id pointer to the domain ledger that holds the detail (tool_runs, match_results, meetings, command_runs, deal_stage_events, signals). It never copies ledger data. Written only through the activities module's recorder, and append-only: a trigger rejects every UPDATE, DELETE and TRUNCATE. Originally a CRM touch log; the legacy touch rows are kept as event_type legacy.interaction.",
       "fields": [
         {"slug": "id", "type": "uuid", "ownership": "postgres"},
         {"slug": "subject_type", "type": "enum", "ownership": "postgres", "options": ["Organization", "Person", "Deal", "BuyerRole", "SellerRole", "Note", "Meeting"], "purpose": "Discriminator for the polymorphic subject columns below. CHECK added NOT VALID."},
@@ -297,7 +297,9 @@
         {"slug": "source", "type": "text", "ownership": "postgres", "purpose": "Writer: attio_webhook, slack, discovery, matching_engine, meetings, lead_magnet; legacy backfill rows keep their 'SOURCE ... backfill' citation."},
         {"slug": "payload", "type": "jsonb", "ownership": "postgres", "purpose": "Only the event's own facts (typed models), field names not values."},
         {"slug": "idempotency_key", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Unique where not null; a repeat write is dropped."},
-        {"slug": "tool_run_id / match_result_id / meeting_id / command_run_id / deal_stage_event_id / signal_id", "type": "uuid", "ownership": "postgres", "nullable": true, "purpose": "Typed FKs to the ledger row holding the detail. At most one is set per row."},
+        {"slug": "ledger_type", "type": "enum", "ownership": "postgres", "nullable": true, "options": ["tool_run", "command_run", "match_result", "meeting", "deal_stage_event", "signal"], "purpose": "Which domain ledger holds the detail. Set together with ledger_id."},
+        {"slug": "ledger_id", "type": "uuid", "ownership": "postgres", "nullable": true, "purpose": "The ledger row id. No foreign key, so a ledger row can be removed without touching history."},
+        {"slug": "tool_run_id", "type": "uuid", "ownership": "postgres", "nullable": true, "purpose": "Deprecated, replaced by ledger_type/ledger_id and no longer written."},
         {"slug": "channel", "type": "enum", "ownership": "postgres", "options": ["Calendar", "Email", "Call", "Outreach", "DataRoom", "Nudge", "Other"], "nullable": true, "options_status": "needs_approval", "purpose": "Legacy touch-log column; only the one-off SOURCE backfill sets it."},
         {"slug": "direction", "type": "enum", "ownership": "postgres", "options": ["In", "Out"], "nullable": true, "purpose": "Legacy touch-log column; only the one-off SOURCE backfill sets it."}
       ],
@@ -321,7 +323,7 @@
       "status": "live",
       "postgres_table": "command_runs",
       "postgres_only": true,
-      "purpose": "Ledger of Slack and discovery seller/buyer add and edit commands (AZM-150). A command writes Attio first and Postgres second, so it can fail or land halfway; this records every attempt, including failed and partial ones, which Activities cannot because it requires a subject. Successful runs are linked from activities.command_run_id.",
+      "purpose": "Ledger of Slack and discovery seller/buyer add and edit commands (AZM-150). A command writes Attio first and Postgres second, so it can fail or land halfway; this records every attempt, including failed and partial ones, which Activities cannot because it requires a subject. Successful runs are linked from Activities (ledger_type command_run).",
       "fields": [
         {"slug": "id", "type": "uuid", "ownership": "postgres"},
         {"slug": "command", "type": "text", "ownership": "postgres", "options": ["add_seller", "add_buyer", "edit_seller", "edit_buyer"], "purpose": "CHECK-constrained"},

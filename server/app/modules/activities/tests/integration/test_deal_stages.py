@@ -58,7 +58,7 @@ async def test_a_stage_change_writes_the_event_and_a_linked_activity(
         await db_session.execute(
             text(
                 "SELECT event_type, subject_type, subject_attio_id, actor_type, payload "
-                "FROM activities WHERE deal_stage_event_id = :id"
+                "FROM activities WHERE ledger_type = 'deal_stage_event' AND ledger_id = :id"
             ),
             {"id": event_id},
         )

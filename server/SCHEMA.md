@@ -244,7 +244,7 @@ Postgres-only ledger of Slack and discovery seller/buyer add and edit commands
 (`ddl_commands`). A command writes Attio first and Postgres second, so it can
 fail or land halfway; this records every attempt, including `failed` and
 `partial`, which `activities` cannot (it requires a subject). Successful runs
-are linked from `activities.command_run_id`.
+are linked from `activities` (`ledger_type='command_run'`).
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
@@ -449,8 +449,9 @@ Derived from `database/sql/00*.sql` end-to-end, not a live reflection — see
 ### `activities` (`activity.py`) — typed event index, AZM-150
 
 The thin, append-only index of business events: one row per meaningful event,
-linking to the domain ledger that holds the detail. It never copies ledger
-data. `ts` is event time (`created_at` is insert time). Written only through
+pointing at the domain ledger that holds the detail. It never copies ledger
+data. A trigger (`activities_append_only`, `activities_no_truncate`) rejects every
+UPDATE, DELETE and TRUNCATE, for every role including the owner. `ts` is event time (`created_at` is insert time). Written only through
 `app.modules.activities` (`SqlAlchemyActivityRecorder`); see
 `docs/internal/dev/ACTIVITIES_AUDIT.md` and `app/modules/activities/README.md`.
 
@@ -468,27 +469,31 @@ data. `ts` is event time (`created_at` is insert time). Written only through
 | channel / direction / outcome / source | text | yes | | `channel`/`direction` only on legacy backfill rows |
 | payload | jsonb | no | `{}` | only the event's own facts (typed models in `activities.domain.payloads`), field names not values |
 | idempotency_key | text | yes | | unique where not null; a repeat write is dropped |
-| tool_run_id | uuid | yes | | FK → tool_runs.id |
-| match_result_id | uuid | yes | | FK → match_results.id, SET NULL |
-| meeting_id | uuid | yes | | FK → meetings.id, SET NULL |
-| command_run_id | uuid | yes | | FK → command_runs.id, SET NULL |
-| deal_stage_event_id | uuid | yes | | FK → deal_stage_events.id, SET NULL |
-| signal_id | uuid | yes | | FK → signals.id, SET NULL |
+| ledger_type | text | yes | | which ledger: `tool_run`, `command_run`, `match_result`, `meeting`, `deal_stage_event`, `signal`; CHECK. Set together with `ledger_id` |
+| ledger_id | uuid | yes | | the ledger row's id. **No FK**: one pair serves every ledger, and an FK action would be an UPDATE, which the trigger forbids. `validate-postgres.ps1` checks for dangling ids |
+| tool_run_id | uuid | yes | | **deprecated**, FK → tool_runs.id. Replaced by the pair above and backfilled into it; no longer written. Drop in a follow-up |
 | created_at | timestamptz | no | `now()` | insert time |
 
 Constraints: `activities_subject_present` (`subject_attio_id IS NOT NULL OR
-subject_uuid IS NOT NULL`), `activities_single_ledger_link` (at most one of the
-six ledger FKs is set), `activities_event_type_format`,
-`activities_actor_type_check`, `activities_subject_type_check` (`NOT VALID`:
-rows older than the closed list are not re-checked).
+subject_uuid IS NOT NULL`), `activities_ledger_pair` (`ledger_type` and `ledger_id`
+are both set or both NULL), `activities_ledger_type_check`,
+`activities_event_type_format`, `activities_actor_type_check`,
+`activities_subject_type_check` (`NOT VALID`: rows older than the closed list are
+not re-checked).
 
 Indexes: `(subject_type, subject_attio_id)`, `ts DESC`, `tool_run_id`,
 `(subject_type, subject_uuid)` where `subject_uuid IS NOT NULL`,
-`(event_type, ts DESC)`, and `uq_activities_idempotency_key` (unique, partial).
+`(event_type, ts DESC)`, `(ledger_type, ledger_id)` where `ledger_id IS NOT NULL`,
+and `uq_activities_idempotency_key` (unique, partial).
 
 Legacy rows were backfilled by the AZM-150 migration: `source='lead_magnet'`
 to `lead_magnet.submitted`, the one-off `SOURCE ... backfill` rows to
-`legacy.interaction`, everything else to `legacy.record_synced`.
+`legacy.interaction`, everything else to `legacy.record_synced`. Existing
+`tool_run_id` values were copied into `ledger_type='tool_run'`/`ledger_id`.
+
+A deliberate admin change, such as the one-off `backfill-activities.ps1`, must run
+`ALTER TABLE activities DISABLE TRIGGER activities_append_only` first and enable it
+again in the same transaction. Dropping the table is not covered.
 
 ### `deal_stage_events` (`deal_stage_event.py`) — written since AZM-150
 
@@ -496,7 +501,7 @@ Written by `SqlAlchemyDealStageRecorder` (`app.modules.activities`) from the
 Attio webhook (`sync_deal`, `source='attio_webhook'`, `ts` = Attio's
 `stage_changed_at`) and a match approval (`source='matching_engine'`). Both read
 the stored stage under a row lock and record only a real change. The nightly
-batch resync does not write it. Linked from `activities.deal_stage_event_id`.
+batch resync does not write it. Linked from `activities` (`ledger_type='deal_stage_event'`).
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
@@ -514,7 +519,7 @@ Indexed on `(deal_attio_id, ts DESC)`.
 
 Buyer signals (a cited outside event about a buyer). Nothing writes it yet; the
 producers (buyer meeting transcripts, AZM-148 LinkedIn) are follow-up work. It
-is a domain ledger linked from `activities.signal_id`, not part of the
+is a domain ledger linked from `activities` (`ledger_type='signal'`), not part of the
 timeline itself. Still a static-analysis draft: not yet checked against the
 live database.
 

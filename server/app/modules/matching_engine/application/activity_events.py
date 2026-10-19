@@ -7,6 +7,8 @@ from app.modules.activities import (
     ActivityEvent,
     ActivitySource,
     EventType,
+    LedgerRef,
+    LedgerType,
     MatchDecisionPayload,
     MatchRunPayload,
     SubjectType,
@@ -37,7 +39,7 @@ def run_completed_event(
         payload=MatchRunPayload(candidate_count=candidate_count),
         subject_uuid=buyer_role_id,
         outcome=status,
-        match_result_id=uuid.UUID(header_row_id),
+        ledger=LedgerRef(LedgerType.MATCH_RESULT, uuid.UUID(header_row_id)),
         idempotency_key=f"{EventType.MATCH_RUN_COMPLETED}:{run_id}",
     )
 
@@ -59,6 +61,6 @@ def decision_event(
         payload=MatchDecisionPayload(deal_attio_id=deal_attio_id),
         subject_uuid=uuid.UUID(match.buyer_role_id),
         outcome=outcome,
-        match_result_id=match_result_id,
+        ledger=LedgerRef(LedgerType.MATCH_RESULT, match_result_id),
         idempotency_key=f"{event_type}:{match_result_id}",
     )

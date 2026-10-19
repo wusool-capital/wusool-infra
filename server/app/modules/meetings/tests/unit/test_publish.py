@@ -15,7 +15,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.modules.activities import ActivityEvent, ActorType, EventType, SubjectType
+from app.modules.activities import (
+    ActivityEvent,
+    ActorType,
+    EventType,
+    LedgerType,
+    SubjectType,
+)
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
 from app.modules.meetings.domain.meeting_record import SKIP_ATTIO_METADATA_KEY, MeetingRecord
@@ -470,7 +476,7 @@ async def test_publish_records_one_event_on_the_org_with_the_scribe_actor() -> N
     assert (event.subject_type, event.subject_attio_id) == (SubjectType.ORGANIZATION, _ORG_ID)
     assert event.actor.type is ActorType.SCRIBE_INSTALL
     assert event.actor.ref == "install-1"
-    assert event.meeting_id == _MEETING_ID
+    assert (event.ledger.type, event.ledger.id) == (LedgerType.MEETING, _MEETING_ID)
     # The meeting id lives in `meeting_id`; `subject_uuid` is not another id domain here.
     assert event.subject_uuid is None
     assert event.payload.pushed_to_attio is True

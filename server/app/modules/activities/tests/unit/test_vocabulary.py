@@ -1,5 +1,4 @@
 import re
-from dataclasses import fields
 
 import pytest
 
@@ -10,9 +9,9 @@ from app.modules.activities import (
     ActivitySource,
     ActorType,
     EventType,
+    LedgerType,
     SubjectType,
 )
-from app.modules.activities.domain.event import _LEDGER_LINKS
 
 _EVENT_TYPE_FORMAT = re.compile(r"^[a-z_]+[.][a-z_]+$")
 
@@ -36,19 +35,8 @@ def test_subject_types_match_the_model_check() -> None:
     assert {s.value for s in SubjectType} == _check_values("activities_subject_type_check")
 
 
-def test_ledger_links_match_activity_columns_and_check() -> None:
-    event_fields = {f.name for f in fields(ActivityEvent)}
-    columns = {c.name for c in Activity.__table__.columns}
-    assert set(_LEDGER_LINKS) <= event_fields
-    assert set(_LEDGER_LINKS) <= columns
-    check = str(
-        next(
-            c.sqltext
-            for c in Activity.__table__.constraints
-            if c.name == "activities_single_ledger_link"
-        )
-    )
-    assert all(name in check for name in _LEDGER_LINKS)
+def test_ledger_types_match_the_model_check() -> None:
+    assert {t.value for t in LedgerType} == _check_values("activities_ledger_type_check")
 
 
 def test_event_needs_a_subject() -> None:
@@ -58,21 +46,6 @@ def test_event_needs_a_subject() -> None:
             event_type=EventType.CRM_RECORD_UPDATED,
             source=ActivitySource.ATTIO_WEBHOOK,
             actor=ActivityActor.system("test"),
-        )
-
-
-def test_event_links_at_most_one_ledger_row() -> None:
-    from uuid import uuid4
-
-    with pytest.raises(ValueError, match="at most one"):
-        ActivityEvent(
-            subject_type=SubjectType.PERSON,
-            event_type=EventType.CRM_RECORD_UPDATED,
-            source=ActivitySource.ATTIO_WEBHOOK,
-            actor=ActivityActor.system("test"),
-            subject_attio_id="p-1",
-            tool_run_id=uuid4(),
-            meeting_id=uuid4(),
         )
 
 

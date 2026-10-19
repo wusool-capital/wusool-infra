@@ -184,6 +184,8 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
     by_key = defaultdict(list)
     for r in rows:
         by_key[(r[0], r[7])].append(r)
+    # activities is append-only. Disabled inside this transaction, so a failure rolls back and re-enables it.
+    c.execute("ALTER TABLE activities DISABLE TRIGGER activities_append_only")
     for (subject_type, source), grp in by_key.items():
         attio_ids = [r[1] for r in grp if r[1] is not None]
         uuids = [r[2] for r in grp if r[2] is not None]
@@ -207,6 +209,7 @@ with psycopg.connect(os.environ["WUSOOL_DATABASE_URL"], connect_timeout=10) as c
            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NULL,'legacy.interaction','unknown')""",
         rows,
     )
+    c.execute("ALTER TABLE activities ENABLE TRIGGER activities_append_only")
     inserted = len(rows)
     conn.commit()
     print(f"Backfilled {inserted} activity rows.")

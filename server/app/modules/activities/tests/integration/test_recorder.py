@@ -7,12 +7,15 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.modules.activities.persistence.recorder as recorder_module
 from app.modules.activities import (
     ActivityActor,
     ActivityEvent,
     ActivitySource,
     ActorType,
     EventType,
+    LedgerRef,
+    LedgerType,
     MatchDecisionPayload,
     SqlAlchemyActivityRecorder,
     SubjectType,
@@ -99,15 +102,17 @@ async def test_known_attio_member_is_linked(db_session: AsyncSession) -> None:
     assert row.actor_attio_id == member
 
 
-async def test_failed_insert_is_swallowed_and_keeps_the_transaction(
-    db_session: AsyncSession,
+async def test_a_database_error_is_swallowed_and_keeps_the_transaction(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     org_id = f"org-{uuid.uuid4()}"
     await _seed_org(db_session, org_id)
     recorder = SqlAlchemyActivityRecorder(db_session)
 
-    # A command_run_id with no matching ledger row violates the FK.
-    await recorder.record(_event(command_run_id=uuid.uuid4()))
+    # An INSERT into a column that does not exist is a database error.
+    monkeypatch.setattr(recorder_module, "_INSERT", text("INSERT INTO activities(nope) VALUES (1)"))
+    await recorder.record(_event())
+    monkeypatch.undo()
 
     # The caller's transaction is still usable and its earlier work survives.
     await recorder.record(_event(subject_attio_id=org_id))
@@ -118,6 +123,35 @@ async def test_failed_insert_is_swallowed_and_keeps_the_transaction(
     ).scalar_one()
     assert org_count == 1
     assert await _count(db_session, "subject_attio_id = :id", id=org_id) == 1
+
+
+async def test_a_ledger_reference_is_stored_as_a_type_and_id(db_session: AsyncSession) -> None:
+    run_id = uuid.uuid4()
+    event = _event(ledger=LedgerRef(LedgerType.COMMAND_RUN, run_id))
+
+    await SqlAlchemyActivityRecorder(db_session).record(event)
+
+    row = (
+        await db_session.execute(
+            text("SELECT ledger_type, ledger_id FROM activities WHERE subject_attio_id = :id"),
+            {"id": event.subject_attio_id},
+        )
+    ).one()
+    assert (row.ledger_type, row.ledger_id) == ("command_run", run_id)
+
+
+async def test_an_event_without_a_ledger_stores_nulls(db_session: AsyncSession) -> None:
+    event = _event()
+
+    await SqlAlchemyActivityRecorder(db_session).record(event)
+
+    row = (
+        await db_session.execute(
+            text("SELECT ledger_type, ledger_id FROM activities WHERE subject_attio_id = :id"),
+            {"id": event.subject_attio_id},
+        )
+    ).one()
+    assert (row.ledger_type, row.ledger_id) == (None, None)
 
 
 async def test_occurred_at_sets_the_event_time_otherwise_it_defaults_to_now(

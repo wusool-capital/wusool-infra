@@ -33,6 +33,8 @@ from app.modules.activities import (
     ActivityEvent,
     ActivitySource,
     EventType,
+    LedgerRef,
+    LedgerType,
     SqlAlchemyActivityRecorder,
     SubjectType,
 )
@@ -220,7 +222,7 @@ class ToolRunsRepository:
                 actor=ActivityActor.visitor(),
                 subject_attio_id=subject_attio_id,
                 outcome=status,
-                tool_run_id=run_id,
+                ledger=LedgerRef(LedgerType.TOOL_RUN, run_id),
                 idempotency_key=f"{EventType.LEAD_MAGNET_SUBMITTED}:{run_id}:{status}",
             )
         )

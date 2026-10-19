@@ -11,7 +11,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.modules.activities import ActivityEvent, ActorType, EventType, SubjectType
+from app.modules.activities import (
+    ActivityEvent,
+    ActorType,
+    EventType,
+    LedgerType,
+    SubjectType,
+)
 from app.modules.meetings.application.errors import MeetingStillProcessingError
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
@@ -287,7 +293,7 @@ async def test_delete_records_one_event_with_the_scribe_actor() -> None:
     assert (event.subject_type, event.subject_attio_id) == (SubjectType.ORGANIZATION, "org-1")
     assert event.actor.type is ActorType.SCRIBE_INSTALL
     assert event.actor.ref == _INSTALL_ID
-    assert event.meeting_id == _MEETING_ID
+    assert (event.ledger.type, event.ledger.id) == (LedgerType.MEETING, _MEETING_ID)
     assert event.subject_uuid is None
 
 

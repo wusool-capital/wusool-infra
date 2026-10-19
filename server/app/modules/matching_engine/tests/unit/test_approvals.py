@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.modules.activities import ActorType, EventType
+from app.modules.activities import ActorType, EventType, LedgerType
 from app.modules.matching_engine.application.approvals import (
     ApprovalsMixin,
     InvalidTransitionError,
@@ -248,7 +248,7 @@ async def test_approval_records_one_event_linked_to_the_match_and_stamps_the_dea
     assert event.event_type is EventType.MATCH_APPROVED
     assert event.actor.type is ActorType.SLACK_USER
     assert event.actor.ref == "U_APPROVER"
-    assert str(event.match_result_id) == updated.id
+    assert (event.ledger.type, str(event.ledger.id)) == (LedgerType.MATCH_RESULT, updated.id)
     assert str(event.subject_uuid) == updated.buyer_role_id
     assert event.payload.deal_attio_id == "deal-new"
     assert event.idempotency_key == f"match.approved:{updated.id}"
@@ -277,7 +277,7 @@ async def test_rejection_records_one_event_linked_to_the_match() -> None:
     event = call.args[0]
     assert event.event_type is EventType.MATCH_REJECTED
     assert event.actor.ref == "U_REVIEWER"
-    assert str(event.match_result_id) == updated.id
+    assert (event.ledger.type, str(event.ledger.id)) == (LedgerType.MATCH_RESULT, updated.id)
     assert event.payload.deal_attio_id is None
 
 

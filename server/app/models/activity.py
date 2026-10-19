@@ -14,9 +14,10 @@ reproduced below as a `CheckConstraint` with its original name so a future
 `--autogenerate` sees no drift.
 
 Since AZM-150 this is the thin, append-only business-event index: one row per
-meaningful event (actor, `event_type`, subject, `ts`, `outcome`) plus a typed
-FK to the domain ledger holding the detail. `ts` is event time, `created_at`
-is insert time. See `docs/internal/dev/ACTIVITIES_AUDIT.md`.
+meaningful event (actor, `event_type`, subject, `ts`, `outcome`) plus a
+polymorphic `ledger_type`/`ledger_id` pointer to the domain ledger holding the
+detail. `ts` is event time, `created_at` is insert time. A trigger rejects every
+UPDATE, DELETE and TRUNCATE. See `docs/internal/dev/ACTIVITIES_AUDIT.md`.
 """
 
 import uuid as uuid_
@@ -53,9 +54,12 @@ class Activity(Base):
             name="activities_subject_type_check",
         ),
         CheckConstraint(
-            "num_nonnulls(tool_run_id, match_result_id, meeting_id, command_run_id, "
-            "deal_stage_event_id, signal_id) <= 1",
-            name="activities_single_ledger_link",
+            "ledger_type IS NULL OR ledger_type IN ('tool_run','command_run','match_result',"
+            "'meeting','deal_stage_event','signal')",
+            name="activities_ledger_type_check",
+        ),
+        CheckConstraint(
+            "(ledger_type IS NULL) = (ledger_id IS NULL)", name="activities_ledger_pair"
         ),
         Index("idx_activities_subject", "subject_type", "subject_attio_id"),
         Index("idx_activities_ts", literal_column("ts DESC")),
@@ -69,6 +73,12 @@ class Activity(Base):
             postgresql_where=text("subject_uuid IS NOT NULL"),
         ),
         Index("idx_activities_event_type_ts", "event_type", literal_column("ts DESC")),
+        Index(
+            "idx_activities_ledger",
+            "ledger_type",
+            "ledger_id",
+            postgresql_where=text("ledger_id IS NOT NULL"),
+        ),
         Index(
             "uq_activities_idempotency_key",
             "idempotency_key",
@@ -94,10 +104,7 @@ class Activity(Base):
     outcome: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
-    # Links a timeline row back to the tool invocation that produced it
-    # (2026-09-06). Nullable: most activities are human interactions with no
-    # run behind them. See app/models/tool_run.py for why runs live in their
-    # own table rather than here.
+    # Deprecated: replaced by `ledger_type`/`ledger_id`, backfilled from this column.
     tool_run_id: Mapped[uuid_.UUID | None] = mapped_column(UUID, ForeignKey("tool_runs.id"))
     # `domain.verb`, e.g. `seller.added`. The closed list lives in
     # `app.modules.activities.domain.vocabulary.EventType`.
@@ -106,22 +113,11 @@ class Activity(Base):
     # Raw actor id: Slack user, Attio member/token, Scribe install, process name.
     actor_ref: Mapped[str | None] = mapped_column(Text)
     idempotency_key: Mapped[str | None] = mapped_column(Text)
-    # Typed link to the ledger row holding the detail; at most one is set per row.
-    match_result_id: Mapped[uuid_.UUID | None] = mapped_column(
-        UUID, ForeignKey("match_results.id", ondelete="SET NULL")
-    )
-    meeting_id: Mapped[uuid_.UUID | None] = mapped_column(
-        UUID, ForeignKey("meetings.id", ondelete="SET NULL")
-    )
-    command_run_id: Mapped[uuid_.UUID | None] = mapped_column(
-        UUID, ForeignKey("command_runs.id", ondelete="SET NULL")
-    )
-    deal_stage_event_id: Mapped[uuid_.UUID | None] = mapped_column(
-        UUID, ForeignKey("deal_stage_events.id", ondelete="SET NULL")
-    )
-    signal_id: Mapped[uuid_.UUID | None] = mapped_column(
-        UUID, ForeignKey("signals.id", ondelete="SET NULL")
-    )
+    # Polymorphic link to the ledger row holding the detail; `LedgerType` names the
+    # table. No FK: an FK action would be an UPDATE, which the append-only trigger
+    # forbids. `validate-postgres.ps1` checks for dangling ids.
+    ledger_type: Mapped[str | None] = mapped_column(Text)
+    ledger_id: Mapped[uuid_.UUID | None] = mapped_column(UUID)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

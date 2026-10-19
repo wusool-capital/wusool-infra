@@ -1,10 +1,11 @@
 """extend activities into a typed event index (2026-10-19)
 
 `activities` becomes the thin, append-only business-event index (AZM-150):
-adds `event_type`, the actor columns, an idempotency key and typed FKs to the
-domain ledgers (`match_results`, `meetings`, `command_runs`,
-`deal_stage_events`, `signals`; `tool_run_id` already exists). A CHECK allows
-at most one ledger link per row.
+adds `event_type`, the actor columns, an idempotency key and a polymorphic
+`ledger_type`/`ledger_id` pointer to the domain ledger holding the detail
+(`tool_runs`, `command_runs`, `match_results`, `meetings`, `deal_stage_events`,
+`signals`). There is no FK: one pair serves every ledger. `tool_run_id` is kept,
+deprecated, and its values are copied into the pair.
 
 Legacy rows are backfilled: lead-magnet rows to `lead_magnet.submitted`, the
 one-off `SOURCE ...` backfill to `legacy.interaction`, everything else (the
@@ -36,14 +37,6 @@ down_revision: str | Sequence[str] | None = "c7f1a9d3e820"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_LINKS = (
-    ("match_result_id", "match_results"),
-    ("meeting_id", "meetings"),
-    ("command_run_id", "command_runs"),
-    ("deal_stage_event_id", "deal_stage_events"),
-    ("signal_id", "signals"),
-)
-
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -51,16 +44,8 @@ def upgrade() -> None:
     op.add_column("activities", sa.Column("actor_type", sa.Text(), nullable=True))
     op.add_column("activities", sa.Column("actor_ref", sa.Text(), nullable=True))
     op.add_column("activities", sa.Column("idempotency_key", sa.Text(), nullable=True))
-    for column, table in _LINKS:
-        op.add_column("activities", sa.Column(column, postgresql.UUID(), nullable=True))
-        op.create_foreign_key(
-            f"activities_{column}_fkey",
-            "activities",
-            table,
-            [column],
-            ["id"],
-            ondelete="SET NULL",
-        )
+    op.add_column("activities", sa.Column("ledger_type", sa.Text(), nullable=True))
+    op.add_column("activities", sa.Column("ledger_id", postgresql.UUID(), nullable=True))
 
     op.execute(
         "UPDATE activities SET event_type = 'lead_magnet.submitted', "
@@ -73,6 +58,10 @@ def upgrade() -> None:
     op.execute(
         "UPDATE activities SET event_type = 'legacy.record_synced', actor_type = 'unknown' "
         "WHERE event_type IS NULL"
+    )
+    op.execute(
+        "UPDATE activities SET ledger_type = 'tool_run', ledger_id = tool_run_id "
+        "WHERE tool_run_id IS NOT NULL"
     )
     op.alter_column("activities", "event_type", nullable=False)
     op.alter_column("activities", "actor_type", nullable=False)
@@ -92,10 +81,13 @@ def upgrade() -> None:
         "'Meeting')) NOT VALID"
     )
     op.create_check_constraint(
-        "activities_single_ledger_link",
+        "activities_ledger_type_check",
         "activities",
-        "num_nonnulls(tool_run_id, match_result_id, meeting_id, command_run_id, "
-        "deal_stage_event_id, signal_id) <= 1",
+        "ledger_type IS NULL OR ledger_type IN ('tool_run','command_run','match_result',"
+        "'meeting','deal_stage_event','signal')",
+    )
+    op.create_check_constraint(
+        "activities_ledger_pair", "activities", "(ledger_type IS NULL) = (ledger_id IS NULL)"
     )
 
     op.create_index(
@@ -106,6 +98,12 @@ def upgrade() -> None:
     )
     op.create_index(
         "idx_activities_event_type_ts", "activities", ["event_type", sa.text("ts DESC")]
+    )
+    op.create_index(
+        "idx_activities_ledger",
+        "activities",
+        ["ledger_type", "ledger_id"],
+        postgresql_where=sa.text("ledger_id IS NOT NULL"),
     )
     op.create_index(
         "uq_activities_idempotency_key",
@@ -119,17 +117,18 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_index("uq_activities_idempotency_key", table_name="activities")
+    op.drop_index("idx_activities_ledger", table_name="activities")
     op.drop_index("idx_activities_event_type_ts", table_name="activities")
     op.drop_index("idx_activities_subject_uuid", table_name="activities")
 
-    op.drop_constraint("activities_single_ledger_link", "activities", type_="check")
+    op.drop_constraint("activities_ledger_pair", "activities", type_="check")
+    op.drop_constraint("activities_ledger_type_check", "activities", type_="check")
     op.drop_constraint("activities_subject_type_check", "activities", type_="check")
     op.drop_constraint("activities_event_type_format", "activities", type_="check")
     op.drop_constraint("activities_actor_type_check", "activities", type_="check")
 
-    for column, _table in reversed(_LINKS):
-        op.drop_constraint(f"activities_{column}_fkey", "activities", type_="foreignkey")
-        op.drop_column("activities", column)
+    op.drop_column("activities", "ledger_id")
+    op.drop_column("activities", "ledger_type")
     op.drop_column("activities", "idempotency_key")
     op.drop_column("activities", "actor_ref")
     op.drop_column("activities", "actor_type")

@@ -5,6 +5,8 @@ from app.modules.activities import (
     ActivityEvent,
     ActivitySource,
     EventType,
+    LedgerRef,
+    LedgerType,
     MeetingPayload,
     SubjectType,
 )
@@ -32,6 +34,6 @@ def meeting_event(
         payload=MeetingPayload(pushed_to_attio=pushed_to_attio),
         subject_attio_id=subject_attio_id,
         subject_uuid=subject_uuid,
-        meeting_id=meeting.id,
+        ledger=LedgerRef(LedgerType.MEETING, meeting.id),
         idempotency_key=f"{event_type}:{meeting.id}",
     )

@@ -672,25 +672,30 @@ aborts that change.
 | `source` | `text` | Yes | - | - | - |
 | `payload` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `idempotency_key` | `text` | Yes | unique (partial) | - | - |
+| `ledger_type` | `text` | Yes | - | - | - |
+| `ledger_id` | `uuid` | Yes | - | - | - |
 | `tool_run_id` | `uuid` | Yes | - | `tool_runs.id` | - |
-| `match_result_id` | `uuid` | Yes | - | `match_results.id` | - |
-| `meeting_id` | `uuid` | Yes | - | `meetings.id` | - |
-| `command_run_id` | `uuid` | Yes | - | `command_runs.id` | - |
-| `deal_stage_event_id` | `uuid` | Yes | - | `deal_stage_events.id` | - |
-| `signal_id` | `uuid` | Yes | - | `signals.id` | - |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 
 **Table constraints**
 
 - `CONSTRAINT activities_subject_present CHECK (subject_attio_id IS NOT NULL OR subject_uuid IS NOT NULL)`
-- `CONSTRAINT activities_single_ledger_link CHECK (num_nonnulls(tool_run_id, match_result_id, meeting_id, command_run_id, deal_stage_event_id, signal_id) <= 1)`
+- `CONSTRAINT activities_ledger_pair CHECK ((ledger_type IS NULL) = (ledger_id IS NULL))`
+- `CONSTRAINT activities_ledger_type_check CHECK (ledger_type IS NULL OR ledger_type IN ('tool_run','command_run','match_result','meeting','deal_stage_event','signal'))`
 - `CONSTRAINT activities_event_type_format CHECK (event_type ~ '^[a-z_]+[.][a-z_]+$')`
 - `CONSTRAINT activities_actor_type_check CHECK (actor_type IN ('attio_member','attio_api_token','attio_system','slack_user','scribe_install','website_visitor','system','unknown'))`
 - `CONSTRAINT activities_subject_type_check CHECK (subject_type IN ('Organization','Person','Deal','BuyerRole','SellerRole','Note','Meeting'))`, added `NOT VALID` so rows that predate the list are not re-checked
 
 **Indexes** — `(subject_type, subject_attio_id)`, `ts DESC`, `tool_run_id`,
 `(subject_type, subject_uuid)` where `subject_uuid IS NOT NULL`,
-`(event_type, ts DESC)`, `uq_activities_idempotency_key` (unique, partial).
+`(event_type, ts DESC)`, `(ledger_type, ledger_id)` where `ledger_id IS NOT NULL`,
+`uq_activities_idempotency_key` (unique, partial).
+
+**Append-only.** A trigger rejects every UPDATE, DELETE and TRUNCATE, for every role
+including the owner. `ledger_type`/`ledger_id` point at the ledger holding the detail
+with no foreign key, so a ledger row can be removed without touching history;
+`validate-postgres.ps1` reports ids that no longer resolve. `tool_run_id` is
+deprecated and no longer written; its values were copied into the pair.
 
 `event_type` is `domain.verb`: `crm.record_created|updated|deleted`,
 `deal.stage_changed`, `seller.added|edited`, `buyer.added|edited`,
@@ -706,7 +711,7 @@ seller/buyer add and edit commands, never written to Attio. A command writes
 Attio first and Postgres second, so it can fail or land halfway; this records
 every attempt, including `failed` and `partial`, which `activities` cannot
 because it requires a subject. Successful runs are linked from
-`activities.command_run_id`. Written best-effort: a failed ledger write is
+`activities` (`ledger_type='command_run'`). Written best-effort: a failed ledger write is
 logged and never fails the command.
 
 | Column | Type | Nullable | Key | References | Default |
@@ -780,7 +785,7 @@ Written since 2026-10-19 (AZM-150) by the Attio webhook (`source='attio_webhook'
 timed by Attio's `stage_changed_at`) and by a match approval
 (`source='matching_engine'`). Both record only a real stage change, so the
 webhook echo of an approval does not add a second row. The nightly batch
-resync does not write it. Linked from `activities.deal_stage_event_id`.
+resync does not write it. Linked from `activities` (`ledger_type='deal_stage_event'`).
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
@@ -796,7 +801,7 @@ resync does not write it. Linked from `activities.deal_stage_event_id`.
 
 Prepared for writers 2026-10-19 (AZM-150); nothing writes it yet. Buyer
 signals are cited outside events about a buyer, linked from
-`activities.signal_id`. `external_id` plus `source` dedups a re-scrape.
+`activities` (`ledger_type='signal'`). `external_id` plus `source` dedups a re-scrape.
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|

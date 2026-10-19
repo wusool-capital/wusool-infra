@@ -23,10 +23,14 @@ activities/
 
 ## Rules
 
-- **Link, don't copy.** `ActivityEvent` takes at most one ledger link
-  (`tool_run_id`, `match_result_id`, `meeting_id`, `command_run_id`,
-  `deal_stage_event_id`, `signal_id`). `payload` holds only the event's own
-  facts, and field names rather than values for anything that can hold PII.
+- **Link, don't copy.** `ActivityEvent` takes one optional `LedgerRef` (a
+  `LedgerType` plus the row id), stored as `ledger_type`/`ledger_id` with no
+  foreign key. `payload` holds only the event's own facts, and field names rather
+  than values for anything that can hold PII.
+- **Append-only, enforced.** A database trigger rejects every UPDATE, DELETE and
+  TRUNCATE on `activities`, for every role including the owner. A deliberate
+  admin change must disable `activities_append_only` first and re-enable it in
+  the same transaction, as `backfill-activities.ps1` does.
 - **`ts` is event time**, `created_at` is insert time. Leave `occurred_at`
   unset unless the event happened earlier than the write.
 - **Actor.** `actor_type` is always set. `actor_ref` is the raw id (Slack user,

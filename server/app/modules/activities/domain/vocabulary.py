@@ -2,8 +2,9 @@
 
 `EventType` is `domain.verb`; the database enforces only that format
 (`activities_event_type_format`), so adding an event type needs no migration.
-`ActorType` and `SubjectType` are also closed in the database
-(`activities_actor_type_check`, `activities_subject_type_check`), so a new value
+`ActorType`, `SubjectType` and `LedgerType` are also closed in the database
+(`activities_actor_type_check`, `activities_subject_type_check`,
+`activities_ledger_type_check`), so a new value
 there needs a migration; a unit test keeps the enums and the model's CHECKs in step.
 """
 
@@ -49,6 +50,17 @@ class ActorType(StrEnum):
     WEBSITE_VISITOR = "website_visitor"
     SYSTEM = "system"
     UNKNOWN = "unknown"
+
+
+class LedgerType(StrEnum):
+    """The domain ledger a row points at; the id lives in `ledger_id`."""
+
+    TOOL_RUN = "tool_run"
+    COMMAND_RUN = "command_run"
+    MATCH_RESULT = "match_result"
+    MEETING = "meeting"
+    DEAL_STAGE_EVENT = "deal_stage_event"
+    SIGNAL = "signal"
 
 
 class ActivitySource(StrEnum):

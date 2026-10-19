@@ -50,15 +50,6 @@ async def test_double_approval_creates_one_deal() -> None:
 
     async def cleanup() -> None:
         async with sessionmaker() as s:
-            # The approval records activities; they have no FK to clean up after them.
-            await s.execute(
-                text(
-                    "delete from activities where match_result_id = :m "
-                    "or (subject_type = 'Deal' and subject_attio_id in "
-                    "(select attio_id from deals where name like :n))"
-                ),
-                {"m": match_id, "n": f"%{tag}%"},
-            )
             await s.execute(text("delete from match_results where run_id = :r"), {"r": run_id})
             await s.execute(text("delete from deals where name like :n"), {"n": f"%{tag}%"})
             await s.execute(text("delete from buyer_roles where id = :i"), {"i": buyer_role_id})
