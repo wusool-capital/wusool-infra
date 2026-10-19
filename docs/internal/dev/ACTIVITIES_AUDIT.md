@@ -99,7 +99,8 @@ ledger.
   (`lead_magnet.submitted:{run_id}:{status}`, `match.approved:{match_result_id}`).
   Webhook rows have no stable event id, so they have none.
 - **Failure isolation.** The recorder writes inside a savepoint and swallows
-  errors. An activity failure never aborts the business write.
+  database errors, so a failed insert never aborts the business write. A
+  serialization or validation bug is not swallowed; it fails loudly in tests.
 - **Vocabulary.** `event_type` is `domain.verb`, enforced by a CHECK on format.
   The closed list lives in a Python `StrEnum`. `actor_type` and `subject_type`
   have closed CHECKs.
@@ -189,7 +190,10 @@ actor, no change and no result.
 | Attio webhook actor | The event shape is unverified against a real delivery. If absent, rows get `actor_type='unknown'`. |
 | Deal stage changes in the nightly batch | The batch path does not write `deal_stage_events`. Gap documented. |
 | Prod volume | The migration backfills in one transaction and builds plain indexes. Confirm the table is small first. |
-| Recorder swallows errors | By design, so a history failure cannot abort a business write. A bug there is silent apart from an `activity_record_failed` log line: one such bug (an ISO string where asyncpg wants a `datetime`) was found by a test during this change. Alert on that log line. |
+| Recorder swallows database errors | By design, so a history failure cannot abort a business write. Such a failure is silent apart from an `activity_record_failed` log line: one bug of this kind (an ISO string where asyncpg wants a `datetime`) was found by a test during this change. Alert on that log line. |
+| Cleared deal stage | `deal_stage_events.to_stage` is NOT NULL, so a stage cleared in Attio records no event, and the next stage reads as a first-ever one. Fixing it needs a schema change; a pipeline stage is rarely cleared. |
+| Sessions per webhook | Each event opens up to three short sessions (log, sync, mark processed). Webhook volume is a few requests a minute, so this is accepted; folding them together would thread the raw event id through the sync transaction. |
+| Cancelled Slack write | A cancelled handler is recorded as `failed` with no `landed` list, because the cancel arrives before the write reports what landed. |
 | Webhook echoes | A Slack seller add also produces a `crm.record_created` row from the webhook echo, with `actor_type` `attio_api_token`. Readers wanting only human actions filter on `actor_type`. |
 | Raw event growth | `attio_raw_events` gets a row per webhook event until the nightly prune. Volume is unmeasured. |
 | `signals` schema | A static-analysis draft, never checked against the live database. |

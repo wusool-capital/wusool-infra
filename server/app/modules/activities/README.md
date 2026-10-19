@@ -37,8 +37,8 @@ activities/
   `match.approved:{match_result_id}`; a repeat is dropped by the partial unique
   index. Webhook rows have no stable event id and set none.
 - **Never aborts the caller.** `SqlAlchemyActivityRecorder.record` writes inside
-  a savepoint and swallows and logs any error. Pass it the same session as the
-  business write.
+  a savepoint and swallows and logs database errors. A serialization bug is not
+  swallowed. Pass it the same session as the business write.
 - **Not a raw audit log.** Raw Attio deliveries go to `attio_raw_events`.
 
 ## Public contract

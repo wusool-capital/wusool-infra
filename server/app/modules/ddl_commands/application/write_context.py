@@ -11,6 +11,5 @@ from app.modules.activities import ActivityActor, ActivitySource
 class WriteContext:
     actor: ActivityActor
     source: ActivitySource
-    # The `command_runs` row this write belongs to; None when the ledger
-    # write failed (it is best-effort) so the activity still records.
+    # None when the best-effort ledger write failed, so the activity still records.
     command_run_id: UUID | None = None

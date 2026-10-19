@@ -106,8 +106,7 @@ class Activity(Base):
     # Raw actor id: Slack user, Attio member/token, Scribe install, process name.
     actor_ref: Mapped[str | None] = mapped_column(Text)
     idempotency_key: Mapped[str | None] = mapped_column(Text)
-    # Typed links to the ledger row holding the detail. At most one is set
-    # (`activities_single_ledger_link`); the index row never copies ledger data.
+    # Typed link to the ledger row holding the detail; at most one is set per row.
     match_result_id: Mapped[uuid_.UUID | None] = mapped_column(
         UUID, ForeignKey("match_results.id", ondelete="SET NULL")
     )

@@ -23,7 +23,7 @@ public and shares a process with the Slack bot (`/slack/events`):
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Request, Response
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.modules.attio import (
     WebhookActor,
@@ -51,6 +51,8 @@ class AttioWebhookEventId(BaseModel):
     a fixed split across every event category (`comment.*`, `task.*`, ...),
     and those are outside this sync's scope anyway (see `dispatch.py`)."""
 
+    model_config = ConfigDict(extra="allow")
+
     workspace_id: str | None = None
     object_id: str | None = None
     record_id: str | None = None
@@ -64,6 +66,8 @@ class AttioWebhookActor(BaseModel):
     `api-token` or `system`. The shape is unconfirmed against a real
     delivery, so every field is optional and a missing actor is tolerated."""
 
+    model_config = ConfigDict(extra="allow")
+
     type: str | None = None
     id: str | None = None
 
@@ -72,6 +76,9 @@ class AttioWebhookEvent(BaseModel):
     """One event within a delivery's `events` array. `event_type` is the
     only field guaranteed present across every Attio webhook event category —
     see `dispatch.py` for which ones this sync actually acts on."""
+
+    # Unmodelled fields are kept so the raw event log holds what Attio sent.
+    model_config = ConfigDict(extra="allow")
 
     event_type: str
     id: AttioWebhookEventId = Field(default_factory=AttioWebhookEventId)
@@ -110,8 +117,7 @@ def _to_domain(event: AttioWebhookEvent) -> WebhookEvent:
 
 
 async def _process(event: AttioWebhookEvent) -> None:
-    # Logged here, not before the 200, so the ack never waits on the database.
-    # `processed_at` stays NULL for an event whose sync raised.
+    # Logged after the ack so the 200 never waits on the database.
     raw_event_log = build_raw_event_log()
     raw_event_id = await raw_event_log.record(
         event_type=event.event_type, payload_json=event.model_dump_json()

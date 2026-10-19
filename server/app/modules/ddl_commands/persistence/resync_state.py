@@ -24,10 +24,10 @@ class ResyncSummary(BaseModel):
     total_failed: int
     objects: list[ObjectResult]
     raw_events_pruned: int
+    error: str | None = None
 
 
-# `last_synced_at` moves only on a clean run, so it always means "the last time
-# everything synced"; `metadata` always holds the latest attempt.
+# `last_synced_at` moves only on a clean run; `metadata` holds the latest attempt.
 _UPSERT = text(
     """
     INSERT INTO attio_sync_state(sync_name, last_synced_at, metadata, updated_at)

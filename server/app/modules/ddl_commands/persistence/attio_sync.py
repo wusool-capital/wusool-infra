@@ -109,9 +109,7 @@ def in_scope(record: AttioRecord) -> bool:
 #
 # Webhook path only -- a nightly full resync touching thousands of unchanged
 # records would flood this table if it logged one row per sync too.
-# Roles carry both ids: subject_attio_id (the list entry id) so the row is
-# findable by Attio id, and subject_uuid (the Postgres row id) to match
-# backfill-activities.ps1's existing convention for those two tables.
+# Roles carry the entry id for Attio lookups and the row uuid, as the backfill script does.
 
 
 def _crm_event_type(webhook_event_type: str) -> EventType:
@@ -611,8 +609,7 @@ async def sync_deal(client: AttioClientProtocol, record_id: str, event: WebhookE
     params = _deal_params(fetched["data"])
     async with get_sessionmaker()() as session:
         stages = SqlAlchemyDealStageRecorder(session)
-        # Read under a row lock before the upsert overwrites the stage, so the
-        # old value is known and a concurrent approval cannot double-record.
+        # Locked read of the old stage, so a concurrent approval cannot double-record.
         previous_stage = await stages.current_stage(params["attio_id"])
         await session.execute(_DEAL_UPSERT, _for_text_sql("deals", params))
         await stages.record_change(
@@ -863,9 +860,7 @@ async def sync_buyer_role(client: AttioClientProtocol, entry_id: str, event: Web
     # `is_active=False` in Attio -- corrupting the exact flag
     # `resolve_role_entry_id` and the matching engine read.
     siblings = [e for e in await _fetch_siblings(client, "buyer_role", org_id) if in_scope(e)]
-    # The list query can lag a just-created entry. Without the triggering entry in
-    # `siblings` it is never upserted, `triggering_row_id` stays None and the
-    # activity insert aborts every sibling upsert (AZM-150).
+    # Attio's list query can lag; without this the triggering entry is never upserted.
     if not any(v.entry_id(e) == entry_id for e in siblings):
         siblings.append(fetched["data"])
     reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
@@ -1098,9 +1093,7 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str, event: We
     # `is_active=False` in Attio -- corrupting the exact flag
     # `resolve_role_entry_id` and the matching engine read.
     siblings = [e for e in await _fetch_siblings(client, "seller_role", org_id) if in_scope(e)]
-    # The list query can lag a just-created entry. Without the triggering entry in
-    # `siblings` it is never upserted, `triggering_row_id` stays None and the
-    # activity insert aborts every sibling upsert (AZM-150).
+    # Attio's list query can lag; without this the triggering entry is never upserted.
     if not any(v.entry_id(e) == entry_id for e in siblings):
         siblings.append(fetched["data"])
     reconciled = await _reconcile_active_entry(client, "seller_role", siblings)

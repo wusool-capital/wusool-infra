@@ -596,8 +596,12 @@ async def run() -> None:
     # Its own client rather than the shared `get_attio_client()`: that one is
     # `lru_cache`d process-wide and this script closes what it opens.
     client = AttioClient(get_attio_settings().api_key)
+    started = time.monotonic()
     try:
         await _run(client)
+    except Exception as exc:
+        await _record_crash(exc, time.monotonic() - started)
+        raise
     finally:
         await client.aclose()
 
@@ -782,6 +786,25 @@ async def _record_run(
         )
     except Exception:
         _logger.error("full resync: failed to record attio_sync_state", exc_info=True)
+
+
+async def _record_crash(exc: Exception, duration: float) -> None:
+    """A run that raised before `_record_run` would otherwise leave the last
+    success looking current. Best-effort: the original error must still surface."""
+    try:
+        await record_resync_state(
+            ResyncSummary(
+                status="failed",
+                duration_seconds=round(duration, 1),
+                total_synced=0,
+                total_failed=0,
+                objects=[],
+                raw_events_pruned=0,
+                error=f"{type(exc).__name__}: {exc}"[:500],
+            )
+        )
+    except Exception:
+        _logger.error("full resync: failed to record the crash in attio_sync_state", exc_info=True)
 
 
 def main() -> None:

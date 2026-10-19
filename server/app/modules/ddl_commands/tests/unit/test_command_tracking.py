@@ -1,5 +1,6 @@
 """`track_command` records how a write ended, and never fails the write itself."""
 
+import asyncio
 import uuid
 from types import SimpleNamespace
 
@@ -99,6 +100,16 @@ async def test_a_failing_ledger_never_fails_the_write(service) -> None:
     assert run.run_id is None
     assert run.context.command_run_id is None
     assert service.finished == []
+
+
+async def test_a_cancelled_write_is_recorded_failed_and_still_cancels(service) -> None:
+    with pytest.raises(asyncio.CancelledError):
+        async with tracking.track_command("edit_buyer", invoked_via="slack", requested_by="U1"):
+            raise asyncio.CancelledError
+
+    (finished,) = service.finished
+    assert finished["status"] == "failed"
+    assert "cancelled" in finished["error"]
 
 
 def test_uuid_or_none() -> None:

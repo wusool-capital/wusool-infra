@@ -27,8 +27,7 @@ class ActivityActor:
     type: ActorType
     # Raw actor id: Slack user, Attio member/token, Scribe install, process name.
     ref: str | None = None
-    # Set only for an Attio workspace member; the recorder drops it when the
-    # member is not in `users`, so the FK can never fail a write.
+    # Set only for an Attio member; the recorder nulls it if absent from `users`.
     attio_member_id: str | None = None
 
     @classmethod

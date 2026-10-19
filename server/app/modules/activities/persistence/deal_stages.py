@@ -15,7 +15,8 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import insert, text
+from sqlalchemy import func, insert, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import DealStageEvent
@@ -60,7 +61,7 @@ class SqlAlchemyDealStageRecorder:
                 return await self._insert(
                     deal_attio_id, previous_stage, new_stage, actor, source, occurred_at
                 )
-        except Exception:
+        except SQLAlchemyError:
             _logger.exception("deal_stage_record_failed deal=%s", deal_attio_id)
             return None
 
@@ -73,16 +74,16 @@ class SqlAlchemyDealStageRecorder:
         source: ActivitySource,
         occurred_at: datetime | None,
     ) -> UUID:
-        values: dict[str, object] = {
-            "deal_attio_id": deal_attio_id,
-            "from_stage": previous_stage,
-            "to_stage": new_stage,
-            "source": source.value,
-        }
-        if occurred_at is not None:
-            values["ts"] = occurred_at
         result = await self._session.execute(
-            insert(DealStageEvent).values(**values).returning(DealStageEvent.id)
+            insert(DealStageEvent)
+            .values(
+                deal_attio_id=deal_attio_id,
+                from_stage=previous_stage,
+                to_stage=new_stage,
+                source=source.value,
+                ts=occurred_at if occurred_at is not None else func.now(),
+            )
+            .returning(DealStageEvent.id)
         )
         event_id = result.scalar_one()
         await self._activities.record(

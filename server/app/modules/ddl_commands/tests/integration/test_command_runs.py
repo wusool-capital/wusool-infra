@@ -182,3 +182,27 @@ async def test_update_buyer_records_the_changed_field_names_not_their_values(
     }
     assert "secret" not in str(row.payload)
     assert row.command_run_id is None
+
+
+async def test_an_edit_that_changes_nothing_records_no_event(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    org_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="No-op Co"))
+        await session.flush()
+        role = SellerRole(org_attio_id=org_id, legacy_entry_id="entry-s1")
+        session.add(role)
+        await session.flush()
+        role_id = role.id
+        await session.commit()
+
+    await SellerService(_uow_factory(db_sessionmaker)).update_seller(
+        str(role_id),
+        {},
+        context=WriteContext(ActivityActor.slack("U9"), ActivitySource.SLACK),
+        org_attio_id=org_id,
+        org_fields={},
+    )
+
+    assert await _activities(db_sessionmaker, "subject_uuid = :id", id=role_id) == []

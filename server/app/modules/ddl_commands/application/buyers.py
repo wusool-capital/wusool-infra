@@ -97,18 +97,22 @@ class BuyerService(ServiceBase):
             if role is None:
                 raise BuyerNotFoundError(buyer_role_id)
             updated = await uow.buyers.update(buyer_role_id, **fields) if fields else role
-            if org_fields and org_attio_id:
-                await uow.organizations.update(org_attio_id, **org_fields)
-            await uow.activities.record(
-                profile_write_event(
-                    subject_type=SubjectType.BUYER_ROLE,
-                    event_type=EventType.BUYER_EDITED,
-                    role_id=role.id,
-                    entry_id=role.legacy_entry_id,
-                    context=context,
-                    changed_fields=[*fields, *(org_fields or {})],
+            applied_org_fields = org_fields if org_fields and org_attio_id else {}
+            if applied_org_fields and org_attio_id:
+                await uow.organizations.update(org_attio_id, **applied_org_fields)
+            changed_fields = [*fields, *applied_org_fields]
+            # An edit that changed nothing is not an event.
+            if changed_fields:
+                await uow.activities.record(
+                    profile_write_event(
+                        subject_type=SubjectType.BUYER_ROLE,
+                        event_type=EventType.BUYER_EDITED,
+                        role_id=role.id,
+                        entry_id=role.legacy_entry_id,
+                        context=context,
+                        changed_fields=changed_fields,
+                    )
                 )
-            )
         assert updated is not None
         return updated
 

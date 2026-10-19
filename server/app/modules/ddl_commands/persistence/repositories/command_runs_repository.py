@@ -74,21 +74,23 @@ class CommandRunRepository:
         seller_role_id: UUID | None = None,
         buyer_role_id: UUID | None = None,
     ) -> None:
-        values: dict[str, object] = {
-            "status": status,
-            "finished_at": func.now(),
-            "landed": list(landed),
-            "changed_fields": list(changed_fields),
-            "error": error,
-        }
+        stmt = (
+            update(CommandRun)
+            .where(CommandRun.id == run_id)
+            .values(
+                status=status,
+                finished_at=func.now(),
+                landed=list(landed),
+                changed_fields=list(changed_fields),
+                error=error,
+            )
+        )
         # Only overwrite a subject the caller actually resolved; an edit already
         # set its subjects at `start`.
         if org_attio_id is not None:
-            values["org_attio_id"] = _org(org_attio_id)
+            stmt = stmt.values(org_attio_id=_org(org_attio_id))
         if seller_role_id is not None:
-            values["seller_role_id"] = _role(SellerRole, seller_role_id)
+            stmt = stmt.values(seller_role_id=_role(SellerRole, seller_role_id))
         if buyer_role_id is not None:
-            values["buyer_role_id"] = _role(BuyerRole, buyer_role_id)
-        await self._session.execute(
-            update(CommandRun).where(CommandRun.id == run_id).values(**values)
-        )
+            stmt = stmt.values(buyer_role_id=_role(BuyerRole, buyer_role_id))
+        await self._session.execute(stmt)

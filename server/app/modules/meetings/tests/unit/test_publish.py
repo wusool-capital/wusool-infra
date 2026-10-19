@@ -471,6 +471,8 @@ async def test_publish_records_one_event_on_the_org_with_the_scribe_actor() -> N
     assert event.actor.type is ActorType.SCRIBE_INSTALL
     assert event.actor.ref == "install-1"
     assert event.meeting_id == _MEETING_ID
+    # The meeting id lives in `meeting_id`; `subject_uuid` is not another id domain here.
+    assert event.subject_uuid is None
     assert event.payload.pushed_to_attio is True
     assert event.idempotency_key == f"meeting.published:{_MEETING_ID}"
 

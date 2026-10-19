@@ -20,8 +20,7 @@ class DealRepository:
         self._stages = SqlAlchemyDealStageRecorder(session)
 
     async def upsert(self, deal: DealRecord, *, actor: ActivityActor) -> None:
-        # Read under a row lock before the upsert, so the stage change is recorded
-        # exactly once whether this or the webhook echo commits first.
+        # Locked read so the change records once, whichever of this or the webhook commits first.
         previous_stage = await self._stages.current_stage(deal.attio_id)
         # ON CONFLICT: the inbound Attio webhook may have synced this deal
         # before the approval commits.

@@ -5,6 +5,7 @@ it must never be the reason a command fails: a failed start or finish is
 logged and the write carries on.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
@@ -112,6 +113,12 @@ async def track_command(
     except PartialWriteError as exc:
         status: CommandStatus = "partial" if exc.landed else "failed"
         await _finish(service, tracker, status, landed=exc.landed, error=_error_text(exc.cause))
+        raise
+    except asyncio.CancelledError:
+        # Shielded so a second cancel cannot strand the row at "running".
+        await asyncio.shield(
+            _finish(service, tracker, "failed", error="cancelled before the write finished")
+        )
         raise
     except Exception as exc:
         await _finish(service, tracker, "failed", error=_error_text(exc))

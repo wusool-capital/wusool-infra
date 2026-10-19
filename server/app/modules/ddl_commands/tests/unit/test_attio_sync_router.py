@@ -348,3 +348,25 @@ def test_an_event_still_syncs_when_the_log_could_not_be_written(monkeypatch, raw
 
     assert calls == ["r1"]
     assert raw_event_log.processed == []
+
+
+def test_the_raw_log_keeps_fields_the_sync_does_not_model(monkeypatch, raw_event_log) -> None:
+    async def dispatch(upsert, registry, client, event):
+        return None
+
+    monkeypatch.setattr(router_module, "dispatch_event", dispatch)
+    body = (
+        b'{"webhook_id": "wh-1", "events": [{"event_type": "record.updated", '
+        b'"id": {"object_id": "o1", "record_id": "r1", "future_id": "f1"}, '
+        b'"actor": {"type": "workspace-member", "id": "m1", "extra": "x"}, '
+        b'"occurred_at": "2026-10-19T00:00:00Z"}]}'
+    )
+
+    response = _make_client().post(
+        "/webhooks/attio", content=body, headers={"Attio-Signature": _signed(body)}
+    )
+
+    assert response.status_code == 200
+    ((_, payload_json),) = raw_event_log.recorded
+    for kept in ('"future_id":"f1"', '"extra":"x"', '"occurred_at":"2026-10-19T00:00:00Z"'):
+        assert kept in payload_json

@@ -2,10 +2,12 @@
 
 import logging
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, TypedDict
+from uuid import UUID
 
 from pydantic import Field, TypeAdapter
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.activities.domain.event import ActivityEvent
@@ -15,9 +17,7 @@ _logger = logging.getLogger(__name__)
 
 _PAYLOAD = TypeAdapter(Annotated[ActivityPayload, Field(discriminator="kind")])
 
-# actor_attio_id is resolved through `users` so an unknown member becomes NULL
-# instead of an FK failure. The ON CONFLICT target must match the partial
-# unique index `uq_activities_idempotency_key`.
+# Unknown actors become NULL, not FK errors. ON CONFLICT must match `uq_activities_idempotency_key`.
 _INSERT = text(
     """
     INSERT INTO activities(
@@ -40,8 +40,52 @@ _INSERT = text(
 )
 
 
-def _text_or_none(value: object) -> str | None:
+class _InsertParams(TypedDict):
+    subject_type: str
+    subject_attio_id: str | None
+    subject_uuid: str | None
+    event_type: str
+    source: str
+    actor_type: str
+    actor_ref: str | None
+    actor_attio_id: str | None
+    outcome: str | None
+    ts: datetime | None
+    payload: str
+    idempotency_key: str | None
+    tool_run_id: str | None
+    match_result_id: str | None
+    meeting_id: str | None
+    command_run_id: str | None
+    deal_stage_event_id: str | None
+    signal_id: str | None
+
+
+def _uuid_text(value: UUID | None) -> str | None:
     return None if value is None else str(value)
+
+
+def _params(event: ActivityEvent) -> _InsertParams:
+    return {
+        "subject_type": event.subject_type.value,
+        "subject_attio_id": event.subject_attio_id,
+        "subject_uuid": _uuid_text(event.subject_uuid),
+        "event_type": event.event_type.value,
+        "source": event.source.value,
+        "actor_type": event.actor.type.value,
+        "actor_ref": event.actor.ref,
+        "actor_attio_id": event.actor.attio_member_id,
+        "outcome": event.outcome,
+        "ts": event.occurred_at,
+        "payload": _PAYLOAD.dump_json(event.payload, warnings="error").decode(),
+        "idempotency_key": event.idempotency_key,
+        "tool_run_id": _uuid_text(event.tool_run_id),
+        "match_result_id": _uuid_text(event.match_result_id),
+        "meeting_id": _uuid_text(event.meeting_id),
+        "command_run_id": _uuid_text(event.command_run_id),
+        "deal_stage_event_id": _uuid_text(event.deal_stage_event_id),
+        "signal_id": _uuid_text(event.signal_id),
+    }
 
 
 class SqlAlchemyActivityRecorder:
@@ -49,36 +93,16 @@ class SqlAlchemyActivityRecorder:
         self._session = session
 
     async def record(self, event: ActivityEvent) -> None:
+        # Built outside the try: a serialization bug is a programming error and
+        # must fail loudly in tests, not vanish as a missing history row.
+        params = _params(event)
         try:
             # Savepoint: a failed insert must not poison the caller's transaction.
             async with self._session.begin_nested():
-                await self._session.execute(_INSERT, self._params(event))
-        except Exception:
+                await self._session.execute(_INSERT, params)
+        except SQLAlchemyError:
             _logger.exception(
                 "activity_record_failed event_type=%s subject_type=%s",
                 event.event_type,
                 event.subject_type,
             )
-
-    @staticmethod
-    def _params(event: ActivityEvent) -> dict[str, str | datetime | None]:
-        return {
-            "subject_type": event.subject_type.value,
-            "subject_attio_id": event.subject_attio_id,
-            "subject_uuid": _text_or_none(event.subject_uuid),
-            "event_type": event.event_type.value,
-            "source": event.source.value,
-            "actor_type": event.actor.type.value,
-            "actor_ref": event.actor.ref,
-            "actor_attio_id": event.actor.attio_member_id,
-            "outcome": event.outcome,
-            "ts": event.occurred_at,
-            "payload": _PAYLOAD.dump_json(event.payload).decode(),
-            "idempotency_key": event.idempotency_key,
-            "tool_run_id": _text_or_none(event.tool_run_id),
-            "match_result_id": _text_or_none(event.match_result_id),
-            "meeting_id": _text_or_none(event.meeting_id),
-            "command_run_id": _text_or_none(event.command_run_id),
-            "deal_stage_event_id": _text_or_none(event.deal_stage_event_id),
-            "signal_id": _text_or_none(event.signal_id),
-        }

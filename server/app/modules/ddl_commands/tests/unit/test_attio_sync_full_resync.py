@@ -10,12 +10,16 @@ from app.modules.ddl_commands.scripts import attio_sync_full_resync as full_resy
 def recorded_runs(monkeypatch):
     """`run()` records each pass in `attio_sync_state`, which would write to
     whatever `DATABASE_URL` points at. Stub it and keep what it was told."""
-    runs = SimpleNamespace(calls=[])
+    runs = SimpleNamespace(calls=[], crashes=[])
 
     async def record_run(summary, total_ok, total_failed, duration):
         runs.calls.append((dict(summary), total_ok, total_failed))
 
+    async def record_crash(exc, duration):
+        runs.crashes.append(exc)
+
     monkeypatch.setattr(full_resync, "_record_run", record_run)
+    monkeypatch.setattr(full_resync, "_record_crash", record_crash)
     return runs
 
 
@@ -721,8 +725,9 @@ async def test_run_hands_its_totals_to_the_state_recorder(monkeypatch, recorded_
     assert set(summary) >= {"users", "organizations", "deals", "buyer_role", "seller_role", "note"}
 
 
-# Captured at import, before the autouse fixture above replaces it on the module.
+# Captured at import, before the autouse fixture above replaces them on the module.
 _real_record_run = full_resync._record_run
+_real_record_crash = full_resync._record_crash
 
 
 def _fake_persistence(monkeypatch, *, prune_error=None, record_error=None) -> SimpleNamespace:
@@ -782,3 +787,37 @@ async def test_record_run_never_raises(monkeypatch) -> None:
     )
 
     await _real_record_run({"person": (1, 0)}, 1, 0, 1.0)  # must not raise
+
+
+async def test_a_crashed_run_is_recorded_as_failed_and_still_raises(
+    monkeypatch, recorded_runs
+) -> None:
+    monkeypatch.setattr(full_resync, "import_all_models", lambda: None)
+    monkeypatch.setattr(full_resync, "AttioClient", lambda api_key: _FakeAttioClient())
+
+    async def boom(client):
+        raise RuntimeError("attio down")
+
+    monkeypatch.setattr(full_resync, "_run", boom)
+
+    with pytest.raises(RuntimeError, match="attio down"):
+        await full_resync.run()
+
+    assert [str(e) for e in recorded_runs.crashes] == ["attio down"]
+
+
+async def test_record_crash_writes_a_failed_summary_with_the_error(monkeypatch) -> None:
+    seen = _fake_persistence(monkeypatch)
+
+    await _real_record_crash(RuntimeError("attio down"), 3.21)
+
+    (summary,) = seen.summaries
+    assert (summary.status, summary.total_failed, summary.objects) == ("failed", 0, [])
+    assert summary.error == "RuntimeError: attio down"
+    assert summary.duration_seconds == 3.2
+
+
+async def test_record_crash_never_raises(monkeypatch) -> None:
+    _fake_persistence(monkeypatch, record_error=RuntimeError("db down"))
+
+    await _real_record_crash(RuntimeError("attio down"), 1.0)  # must not raise

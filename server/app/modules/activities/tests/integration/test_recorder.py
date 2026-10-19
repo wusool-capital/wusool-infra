@@ -1,7 +1,9 @@
 import uuid
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -141,3 +143,16 @@ async def test_occurred_at_sets_the_event_time_otherwise_it_defaults_to_now(
     }
     assert rows[dated.subject_attio_id] == earlier
     assert rows[undated.subject_attio_id] > earlier
+
+
+@dataclass(frozen=True)
+class _UnknownPayload:
+    kind: str = "not-in-the-union"
+
+
+async def test_a_serialization_bug_is_not_swallowed(db_session: AsyncSession) -> None:
+    """Only database errors are swallowed; a programming error must surface in tests."""
+    event = _event(payload=_UnknownPayload())  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError):
+        await SqlAlchemyActivityRecorder(db_session).record(event)

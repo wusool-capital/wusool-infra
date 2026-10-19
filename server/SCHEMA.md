@@ -596,7 +596,9 @@ One row, `sync_name='attio_full_resync'`, upserted by the nightly resync
 (`ddl_commands/persistence/resync_state.py`). State, not history: `last_synced_at`
 moves only on a clean run; `metadata` always holds the latest attempt
 (`ResyncSummary`: status, duration, per-object synced/failed counts, raw events
-pruned). `last_cursor` is unused: the resync is a full page-through.
+pruned). A run that crashes before finishing records `status='failed'` with an
+`error`, so a stale success never looks current. `last_cursor` is unused: the
+resync is a full page-through.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|

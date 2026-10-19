@@ -17,9 +17,13 @@ def meeting_event(
     """Anchored on the organization when the meeting has one, else on the
     meeting itself, so an internal meeting still lands on the timeline."""
     if meeting.org_id is not None:
-        subject_type, subject_attio_id = SubjectType.ORGANIZATION, meeting.org_id
+        subject_type, subject_attio_id, subject_uuid = (
+            SubjectType.ORGANIZATION,
+            meeting.org_id,
+            None,
+        )
     else:
-        subject_type, subject_attio_id = SubjectType.MEETING, None
+        subject_type, subject_attio_id, subject_uuid = SubjectType.MEETING, None, meeting.id
     return ActivityEvent(
         subject_type=subject_type,
         event_type=event_type,
@@ -27,7 +31,7 @@ def meeting_event(
         actor=ActivityActor.scribe(meeting.install_id),
         payload=MeetingPayload(pushed_to_attio=pushed_to_attio),
         subject_attio_id=subject_attio_id,
-        subject_uuid=meeting.id,
+        subject_uuid=subject_uuid,
         meeting_id=meeting.id,
         idempotency_key=f"{event_type}:{meeting.id}",
     )
