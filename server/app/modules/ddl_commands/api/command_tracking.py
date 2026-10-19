@@ -22,6 +22,7 @@ from app.modules.ddl_commands.application.ports.command_runs import (
 )
 from app.modules.ddl_commands.application.service import DdlCommandsService
 from app.modules.ddl_commands.application.write_context import WriteContext
+from app.modules.utilities.domain.safe_errors import describe_error
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,9 @@ def uuid_or_none(value: str | None) -> UUID | None:
         return None
 
 
+# Type, never the message: a database or Attio error can quote row values.
 def _error_text(exc: BaseException) -> str:
-    return f"{type(exc).__name__}: {exc}"[:_MAX_ERROR_CHARS]
+    return describe_error(exc)[:_MAX_ERROR_CHARS]
 
 
 async def _finish(
@@ -65,6 +67,14 @@ async def _finish(
 ) -> None:
     if tracker.run_id is None:
         return
+    if status != "succeeded":
+        logger.warning(
+            "command_run_%s run_id=%s landed=%d error=%s",
+            status,
+            tracker.run_id,
+            len(landed),
+            error,
+        )
     try:
         await service.finish_command_run(
             tracker.run_id,

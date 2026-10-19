@@ -100,6 +100,10 @@ the production infrastructure topic.
   empty or partial page was accepted before retrying.
 - The notes backfill script is dry-run by default and must never guess an
   Attio ID from a local UUID.
+- History writes (`activities`, `deal_stage_events`, `command_runs`) never block
+  the change they describe. A failed one is logged and raises the
+  `history-write-failed` alarm. The history is append-only, so a missed row
+  can't be backfilled; see the database runbook.
 
 Runbooks in the repository: `docs/runbooks/attio-sync-failure.md`,
 `docs/runbooks/database-and-migration-failure.md`, and

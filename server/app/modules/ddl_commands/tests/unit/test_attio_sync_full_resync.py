@@ -813,7 +813,7 @@ async def test_record_crash_writes_a_failed_summary_with_the_error(monkeypatch) 
 
     (summary,) = seen.summaries
     assert (summary.status, summary.total_failed, summary.objects) == ("failed", 0, [])
-    assert summary.error == "RuntimeError: attio down"
+    assert summary.error == "RuntimeError"
     assert summary.duration_seconds == 3.2
 
 

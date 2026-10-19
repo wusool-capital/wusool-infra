@@ -30,6 +30,10 @@ for current production evidence and open handover items.
   change to an existing entry.
 - The database now keeps a log of incoming Attio events for 90 days, and the
   nightly sync records how its last run went.
+- A new alarm fires when a history entry can't be written. History writes never
+  block the change they describe, so the alarm is the only signal of a lost entry.
+- Logs no longer include the details of a failed database write. Database errors
+  are logged by type and constraint name only.
 
 ### Fixed
 

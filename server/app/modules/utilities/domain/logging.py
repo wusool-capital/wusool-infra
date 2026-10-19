@@ -15,7 +15,9 @@ lines never reach this formatter. See the executable entrypoint in `main.py`.
 import contextvars
 import json
 import logging
-from typing import Any
+from typing import Any, cast
+
+from app.modules.utilities.domain.safe_errors import ExcInfo, format_exception_safely
 
 # Every module logger is named `app.modules.<module>.*` since the repo
 # restructure merged what used to be two separate top-level packages
@@ -71,7 +73,8 @@ class JsonFormatter(logging.Formatter):
         }
         payload.update(getattr(record, "context", None) or {})
         if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+            # A database error's message quotes row values, so it is not logged verbatim.
+            payload["exception"] = format_exception_safely(cast(ExcInfo, record.exc_info))
         return json.dumps(payload, default=str)
 
 

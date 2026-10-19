@@ -24,7 +24,8 @@ from sqlalchemy.ext.asyncio import (
 @lru_cache
 def get_engine(database_url: str) -> AsyncEngine:
     """Return a cached, process-wide async engine. Does not connect eagerly."""
-    return create_async_engine(database_url, pool_pre_ping=True)
+    # Bound parameters are hidden so an error message cannot carry row values.
+    return create_async_engine(database_url, pool_pre_ping=True, hide_parameters=True)
 
 
 @lru_cache

@@ -59,7 +59,7 @@ async def test_a_partial_write_is_recorded_with_what_landed_and_reraised(service
     (finished,) = service.finished
     assert finished["status"] == "partial"
     assert finished["landed"] == ["organization fields (Attio)"]
-    assert finished["error"] == "RuntimeError: db down"
+    assert finished["error"] == "RuntimeError"
 
 
 async def test_a_write_that_fails_before_anything_landed_is_failed_not_partial(service) -> None:
@@ -76,7 +76,7 @@ async def test_an_expected_error_is_recorded_failed_and_reraised(service) -> Non
             raise LookupError("already exists")
 
     assert service.finished[0]["status"] == "failed"
-    assert service.finished[0]["error"] == "LookupError: already exists"
+    assert service.finished[0]["error"] == "LookupError"
 
 
 async def test_a_discovery_run_has_a_system_actor_and_no_requester(service) -> None:
@@ -135,6 +135,25 @@ async def test_a_cancel_after_an_attio_write_landed_is_partial(service) -> None:
             raise asyncio.CancelledError
 
     assert service.finished[0]["status"] == "partial"
+
+
+async def test_a_failure_is_logged_without_the_exception_message(service, caplog) -> None:
+    secret = "jane.doe@example.com"
+    with caplog.at_level("WARNING"), pytest.raises(LookupError):
+        async with tracking.track_command("add_buyer", invoked_via="slack", requested_by="U1"):
+            raise LookupError(f"no buyer for {secret}")
+
+    assert "command_run_failed" in caplog.text
+    assert secret not in caplog.text
+    assert secret not in service.finished[0]["error"]
+
+
+async def test_a_successful_command_logs_nothing_at_warning(service, caplog) -> None:
+    with caplog.at_level("WARNING"):
+        async with tracking.track_command("add_buyer", invoked_via="slack", requested_by="U1"):
+            pass
+
+    assert "command_run_" not in caplog.text
 
 
 def test_uuid_or_none() -> None:

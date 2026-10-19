@@ -53,6 +53,7 @@ from app.modules.ddl_commands.persistence.resync_state import (
 )
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.logging import configure_logging
+from app.modules.utilities.domain.safe_errors import describe_error
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync.full_resync")
 
@@ -800,7 +801,7 @@ async def _record_crash(exc: Exception, duration: float) -> None:
                 total_failed=0,
                 objects=[],
                 raw_events_pruned=0,
-                error=f"{type(exc).__name__}: {exc}"[:500],
+                error=describe_error(exc)[:500],
             )
         )
     except Exception:

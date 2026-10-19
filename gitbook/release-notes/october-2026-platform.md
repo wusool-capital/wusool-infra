@@ -61,7 +61,9 @@ images after rollout.
 - **Report security.** A signed Sanity webhook, a code-gated reader flow, and
   per-visitor rate limits.
 - **Alerts.** An alarm for failed lead emails, alongside the nightly sync
-  alert.
+  alert. A new alarm fires when a history entry can't be written.
+- **Safer logs.** Database errors are logged by type and constraint only, so a
+  failed write can't put a customer's details in the logs.
 - **Architecture viewer.** The interactive architecture diagram was rebuilt
   with the services added this period: email, the Scribe update feed, Google
   Maps, and the security monitoring.
