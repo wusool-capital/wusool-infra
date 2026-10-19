@@ -333,3 +333,64 @@ async def test_org_only_history_reports_only_new_posts_on_a_rerun(
 
     assert first.posts == (post,)
     assert second.is_empty
+
+
+async def test_the_triggering_user_reaches_the_history(target: EnrichmentTarget) -> None:
+    history = FakeLinkedInHistory()
+    service, _ = _org_service(history=history)
+
+    await service.scan_linkedin(target, requested_by="U123")
+
+    assert history.requested_by == ["U123"]
+    assert history.failures == [None]
+
+
+async def test_a_failed_scan_is_recorded_with_the_error_type(target: EnrichmentTarget) -> None:
+    class _Failing(FakeLinkedInClient):
+        async def posts(
+            self, urls: tuple[str, ...], *, max_posts: int, posted_limit: PostedLimit
+        ) -> tuple[LinkedInPost, ...]:
+            raise RuntimeError("apify down: secret detail")
+
+    history = FakeLinkedInHistory()
+    service, _ = _org_service(client=_Failing(), history=history)
+
+    scan = await service.scan_linkedin(target, requested_by="U123")
+
+    assert scan.is_empty
+    # The type name only: a message can quote data.
+    assert history.failures == ["RuntimeError"]
+    assert history.requested_by == ["U123"]
+
+
+async def test_a_timed_out_scan_is_recorded_as_a_timeout(
+    target: EnrichmentTarget, monkeypatch
+) -> None:
+    monkeypatch.setattr("app.modules.enrichment.application.linkedin._SCAN_TIMEOUT_S", 0.01)
+    history = FakeLinkedInHistory()
+    service, _ = _org_service(client=FakeLinkedInClient(delay_s=1.0), history=history)
+
+    await service.scan_linkedin(target)
+
+    assert history.failures == ["TimeoutError"]
+
+
+async def test_a_history_error_while_recording_a_failure_is_swallowed(
+    target: EnrichmentTarget, monkeypatch
+) -> None:
+    monkeypatch.setattr("app.modules.enrichment.application.linkedin._SCAN_TIMEOUT_S", 0.01)
+    history = FakeLinkedInHistory(error=RuntimeError("db down"))
+    service, _ = _org_service(client=FakeLinkedInClient(delay_s=1.0), history=history)
+
+    scan = await service.scan_linkedin(target)
+
+    assert scan.is_empty and history.calls == 1
+
+
+async def test_a_skipped_scan_records_nothing(target: EnrichmentTarget) -> None:
+    history = FakeLinkedInHistory()
+    service, _ = _org_service(company_url=None, history=history)
+
+    await service.scan_linkedin(target, requested_by="U123")
+
+    assert history.calls == 0

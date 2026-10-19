@@ -57,14 +57,18 @@ class _Service:
         self._scan = scan
         self._propose_error = propose_error
         self.scans = 0
+        self.requested_by: list[str | None] = []
 
     async def propose(self, target: EnrichmentTarget) -> EnrichmentProposal:
         if self._propose_error:
             raise RuntimeError("boom")
         return EnrichmentProposal(target=target, values=(), generated_by_model="m")
 
-    async def scan_linkedin(self, target: EnrichmentTarget) -> LinkedInScan:
+    async def scan_linkedin(
+        self, target: EnrichmentTarget, *, requested_by: str | None = None
+    ) -> LinkedInScan:
         self.scans += 1
+        self.requested_by.append(requested_by)
         if isinstance(self._scan, Exception):
             raise self._scan
         return self._scan
@@ -129,3 +133,25 @@ async def test_failed_proposal_skips_the_follow_up(monkeypatch, target: Enrichme
 
     assert service.scans == 0
     assert notifier.updates[0].text == "Enrichment failed unexpectedly."
+
+
+async def test_the_triggering_user_is_passed_to_the_scan(
+    monkeypatch, target: EnrichmentTarget
+) -> None:
+    service = _Service(LinkedInScan())
+    _wire(monkeypatch, service)
+
+    await dependencies.propose_and_post(target, channel_id="C1", requested_by="U123")
+
+    assert service.requested_by == ["U123"]
+
+
+async def test_no_triggering_user_means_none_is_passed(
+    monkeypatch, target: EnrichmentTarget
+) -> None:
+    service = _Service(LinkedInScan())
+    _wire(monkeypatch, service)
+
+    await dependencies.propose_and_post(target, channel_id="C1")
+
+    assert service.requested_by == [None]

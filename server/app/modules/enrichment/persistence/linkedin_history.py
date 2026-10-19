@@ -42,18 +42,33 @@ _SOURCE = "linkedin"
 _ACTOR = "enrichment"
 
 
+def _actor(requested_by: str | None) -> ActivityActor:
+    if requested_by:
+        return ActivityActor.slack(requested_by)
+    return ActivityActor.system(_ACTOR)
+
+
 class SqlAlchemyLinkedInHistory:
     def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
         self._sessionmaker = sessionmaker
 
-    async def record(self, target: EnrichmentTarget, scan: LinkedInScan) -> LinkedInScan:
+    async def record(
+        self,
+        target: EnrichmentTarget,
+        scan: LinkedInScan,
+        *,
+        requested_by: str | None = None,
+        failure: str | None = None,
+    ) -> LinkedInScan:
         now = datetime.now(UTC)
         # The company feed and a contact's feed overlap, so one post can repeat.
         posts = list({p.external_id: p for p in scan.posts}.values())
         changes = list({job_change_key(c): c for c in scan.job_changes}.values())
 
         async with self._sessionmaker() as session, session.begin():
-            run_id = await self._insert_run(session, target, scan, posts_n=len(posts), now=now)
+            run_id = await self._insert_run(
+                session, target, scan, posts_n=len(posts), now=now, failure=failure
+            )
 
             rows: list[SignalInsert] = [
                 SignalInsert(
@@ -94,25 +109,26 @@ class SqlAlchemyLinkedInHistory:
             new_posts = tuple(p for p in posts if p.external_id in new_ids)
             new_changes = tuple(c for c in changes if job_change_key(c) in new_ids)
 
-            if new_posts or new_changes:
-                await SqlAlchemyActivityRecorder(session).record(
-                    ActivityEvent(
-                        subject_type=SubjectType.ORGANIZATION,
-                        subject_attio_id=target.org_attio_id,
-                        event_type=EventType.LINKEDIN_SCAN_COMPLETED,
-                        source=ActivitySource.ENRICHMENT,
-                        actor=ActivityActor.system(_ACTOR),
-                        payload=LinkedInScanPayload(
-                            new_posts=len(new_posts),
-                            new_job_changes=len(new_changes),
-                            contacts_scanned=scan.contacts_scanned,
-                            contacts_without_linkedin=len(scan.contacts_without_linkedin),
-                        ),
-                        outcome="succeeded",
-                        ledger=LedgerRef(LedgerType.TOOL_RUN, run_id),
-                        idempotency_key=f"{EventType.LINKEDIN_SCAN_COMPLETED}:{run_id}",
-                    )
+            # Every run is history: who triggered it and what it found, even
+            # when that is nothing, or when it failed.
+            await SqlAlchemyActivityRecorder(session).record(
+                ActivityEvent(
+                    subject_type=SubjectType.ORGANIZATION,
+                    subject_attio_id=target.org_attio_id,
+                    event_type=EventType.LINKEDIN_SCAN_COMPLETED,
+                    source=ActivitySource.ENRICHMENT,
+                    actor=_actor(requested_by),
+                    payload=LinkedInScanPayload(
+                        new_posts=len(new_posts),
+                        new_job_changes=len(new_changes),
+                        contacts_scanned=scan.contacts_scanned,
+                        contacts_without_linkedin=len(scan.contacts_without_linkedin),
+                    ),
+                    outcome="failed" if failure else "succeeded",
+                    ledger=LedgerRef(LedgerType.TOOL_RUN, run_id),
+                    idempotency_key=f"{EventType.LINKEDIN_SCAN_COMPLETED}:{run_id}",
                 )
+            )
         logger.info(
             "linkedin_history_recorded role=%s new_posts=%d new_job_changes=%d",
             target.role_id,
@@ -134,6 +150,7 @@ class SqlAlchemyLinkedInHistory:
         *,
         posts_n: int,
         now: datetime,
+        failure: str | None,
     ) -> uuid.UUID:
         payload = ScanRunPayload(
             posts_found=posts_n,
@@ -144,7 +161,9 @@ class SqlAlchemyLinkedInHistory:
         is_buyer = target.kind is EnrichmentTargetKind.BUYER
         run = ToolRun(
             tool=TOOL_NAME,
-            status="succeeded",
+            status="failed" if failure else "succeeded",
+            # The error type only, never its message: it can quote row values.
+            error=failure,
             started_at=now,
             finished_at=now,
             payload=dump_payload(payload),

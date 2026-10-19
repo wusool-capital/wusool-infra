@@ -196,7 +196,9 @@ async def resolve_target(*, kind: str, role_id: uuid.UUID) -> EnrichmentTarget |
     return await reader.resolve_target(kind=EnrichmentTargetKind(kind), role_id=role_id)
 
 
-async def propose_and_post(target: EnrichmentTarget, *, channel_id: str) -> None:
+async def propose_and_post(
+    target: EnrichmentTarget, *, channel_id: str, requested_by: str | None = None
+) -> None:
     """Background-task body — research + LLM extraction routinely runs
     past Slack's 3s ack budget, so this posts a placeholder immediately and
     updates it once the proposal is ready, the same pattern
@@ -223,7 +225,11 @@ async def propose_and_post(target: EnrichmentTarget, *, channel_id: str) -> None
         )
         return
     await _post_linkedin_followup(
-        target, channel_id=channel_id, thread_ts=placeholder_ts, notifier=notifier
+        target,
+        channel_id=channel_id,
+        thread_ts=placeholder_ts,
+        notifier=notifier,
+        requested_by=requested_by,
     )
 
 
@@ -233,13 +239,14 @@ async def _post_linkedin_followup(
     channel_id: str,
     thread_ts: str,
     notifier: SlackWebClientNotifier,
+    requested_by: str | None,
 ) -> None:
     """Runs after the proposal is already posted, so a slow or failing scrape
     can only ever cost the follow-up, never the proposal."""
     from app.modules.enrichment.api.slack.views.linkedin_message import build_linkedin_blocks
 
     try:
-        scan = await enrichment_service().scan_linkedin(target)
+        scan = await enrichment_service().scan_linkedin(target, requested_by=requested_by)
         if scan.is_empty:
             return
         await notifier.post_message(

@@ -207,7 +207,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 ### `tool_runs` (`tool_run.py`) — new, 2026-09-06
 
 Postgres-only ledger of tool invocations: the lead-magnet tools, and
-enrichment's `linkedin_scan` (one row per completed LinkedIn scan, AZM-148). Complements
+enrichment's `linkedin_scan` (one row per attempted LinkedIn scan, succeeded or failed, AZM-148). Complements
 `activities` rather than replacing it: `activities` is the human-readable
 CRM timeline, `tool_runs` is the machine record of what an invocation did.
 

@@ -150,9 +150,11 @@ async def test_a_second_identical_scan_stores_nothing_new(
 
     assert again.posts == () and again.job_changes == ()
     assert len(await _signals(db_session, target.org_attio_id)) == 2
-    # The run is still logged (it was billed); the event only when there is news.
+    # Every run is history, new items or not: a run row and an activity each time.
     assert len(await _runs(db_session, target.org_attio_id)) == 2
-    assert len(await _activities(db_session, target.org_attio_id)) == 1
+    activities = await _activities(db_session, target.org_attio_id)
+    assert len(activities) == 2
+    assert sorted(a.payload["new_posts"] for a in activities) == [0, 1]
 
 
 async def test_a_post_seen_twice_in_one_scan_is_stored_once(
@@ -183,7 +185,7 @@ async def test_a_post_without_a_date_is_stored_with_the_write_time(
     assert (datetime.now(UTC) - signal.ts).total_seconds() < 60
 
 
-async def test_a_scan_with_nothing_found_logs_the_run_but_no_activity(
+async def test_a_scan_with_nothing_found_still_logs_the_run_and_an_activity(
     db_session: AsyncSession, db_sessionmaker
 ) -> None:
     target = await _seller_target(db_session)
@@ -192,8 +194,54 @@ async def test_a_scan_with_nothing_found_logs_the_run_but_no_activity(
         target, LinkedInScan(contacts_scanned=2)
     )
 
-    assert len(await _runs(db_session, target.org_attio_id)) == 1
-    assert await _activities(db_session, target.org_attio_id) == []
+    (run,) = await _runs(db_session, target.org_attio_id)
+    (activity,) = await _activities(db_session, target.org_attio_id)
+    assert (activity.ledger_type, activity.ledger_id) == ("tool_run", run.id)
+    assert activity.outcome == "succeeded"
+    assert activity.payload["new_posts"] == 0 and activity.payload["contacts_scanned"] == 2
+    assert await _signals(db_session, target.org_attio_id) == []
+
+
+async def test_the_slack_user_who_triggered_the_scan_is_the_actor(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    target = await _seller_target(db_session)
+
+    await SqlAlchemyLinkedInHistory(db_sessionmaker).record(
+        target, LinkedInScan(), requested_by="U123"
+    )
+
+    (activity,) = await _activities(db_session, target.org_attio_id)
+    assert activity.actor_type == "slack_user" and activity.actor_ref == "U123"
+
+
+async def test_no_triggering_user_falls_back_to_the_system_actor(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    target = await _seller_target(db_session)
+
+    await SqlAlchemyLinkedInHistory(db_sessionmaker).record(target, LinkedInScan())
+
+    (activity,) = await _activities(db_session, target.org_attio_id)
+    assert activity.actor_type == "system" and activity.actor_ref == "enrichment"
+
+
+async def test_a_failed_scan_is_stored_as_a_failed_run_and_activity(
+    db_session: AsyncSession, db_sessionmaker
+) -> None:
+    target = await _seller_target(db_session)
+
+    result = await SqlAlchemyLinkedInHistory(db_sessionmaker).record(
+        target, LinkedInScan(), requested_by="U123", failure="TimeoutError"
+    )
+
+    assert result.is_empty
+    (run,) = await _runs(db_session, target.org_attio_id)
+    assert run.status == "failed" and run.error == "TimeoutError"
+    (activity,) = await _activities(db_session, target.org_attio_id)
+    assert activity.outcome == "failed"
+    assert (activity.ledger_type, activity.ledger_id) == ("tool_run", run.id)
+    assert activity.actor_ref == "U123"
     assert await _signals(db_session, target.org_attio_id) == []
 
 

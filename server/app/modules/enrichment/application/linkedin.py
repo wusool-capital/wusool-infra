@@ -34,12 +34,17 @@ async def _no_profiles() -> tuple[LinkedInProfile, ...]:
 
 class LinkedInMixin(ServiceBase):
     async def scan_linkedin(
-        self, target: EnrichmentTarget, *, include_people: bool = False
+        self,
+        target: EnrichmentTarget,
+        *,
+        include_people: bool = False,
+        requested_by: str | None = None,
     ) -> LinkedInScan:
         """Only what is new since the last scan once history is configured,
         everything otherwise. Empty when no LinkedIn client is configured, or
         the organization has no LinkedIn page saved. Never raises: a slow or
-        failing vendor must not take the caller down."""
+        failing vendor must not take the caller down. `requested_by` is the
+        Slack user who triggered the scan, recorded as the activity's actor."""
         if self._linkedin_client is None:
             return LinkedInScan()
         client = self._linkedin_client
@@ -63,9 +68,11 @@ class LinkedInMixin(ServiceBase):
                     client.profiles(profile_urls) if profile_urls else _no_profiles(),
                     client.posts(post_urls, max_posts=_MAX_POSTS, posted_limit=_POSTED_LIMIT),
                 )
-        except Exception:
+        except Exception as exc:
             logger.warning("linkedin_scan_failed role=%s", target.role_id, exc_info=True)
-            return LinkedInScan(contacts_without_linkedin=missing)
+            failed = LinkedInScan(contacts_without_linkedin=missing)
+            await self._record_failure(target, failed, requested_by, type(exc).__name__)
+            return failed
 
         by_key = {profile_key(p.url): p for p in profiles}
         changes: list[JobChange] = []
@@ -82,8 +89,24 @@ class LinkedInMixin(ServiceBase):
         if self._linkedin_history is None:
             return scan
         try:
-            return await self._linkedin_history.record(target, scan)
+            return await self._linkedin_history.record(target, scan, requested_by=requested_by)
         except Exception:
             # Showing a repeat is better than showing nothing.
             logger.warning("linkedin_history_failed role=%s", target.role_id, exc_info=True)
             return scan
+
+    async def _record_failure(
+        self,
+        target: EnrichmentTarget,
+        scan: LinkedInScan,
+        requested_by: str | None,
+        failure: str,
+    ) -> None:
+        if self._linkedin_history is None:
+            return
+        try:
+            await self._linkedin_history.record(
+                target, scan, requested_by=requested_by, failure=failure
+            )
+        except Exception:
+            logger.warning("linkedin_history_failed role=%s", target.role_id, exc_info=True)

@@ -92,8 +92,13 @@ from the database. The people path is built and tested, but off — see
   (`tool='linkedin_scan'`, the run ledger), one `signals` row per *new* post or
   job change (`source='linkedin'`, typed payload, linked to the run; job
   changes only come from the people path), and one
-  `linkedin.scan_completed` `activities` row when something was new, linked to
-  the run (`ledger_type='tool_run'`). A signal is new if its (`source`,
+  `linkedin.scan_completed` `activities` row for **every** scan, new items or
+  not, linked to the run (`ledger_type='tool_run'`). Its actor is the Slack user
+  who ran `/enrich-seller` or `/enrich-buyer` (or approved the match), else
+  `system('enrichment')`. A scan that raises or times out is stored too: the run
+  is `failed` with the error type name (never its message), and the activity's
+  outcome is `failed`. A scan skipped for no company LinkedIn URL or no Apify
+  token is not recorded, since nothing ran. A signal is new if its (`source`,
   `external_id`) is not stored yet: the post id, or `job_change:{person}:{hash
   of the new title and company}`. `scan_linkedin` returns only the new items, so
   a re-run is quiet, and falls back to the full scan if the history write fails.
@@ -102,8 +107,11 @@ from the database. The people path is built and tested, but off — see
   one organization is not stored again for another. History is committed
   before the Slack reply, so a failed reply leaves those items stored but unshown.
 
-`scan_linkedin_for_role(kind, role_id)` (public) runs the same org-only scan on
-its own, for a caller that wants the data without a proposal.
+`scan_linkedin_for_role(kind, role_id, requested_by=None)` (public) runs the same
+org-only scan on its own, for a caller that wants the data without a proposal.
+Two gaps: a vendor error that returns an empty result looks like "no posts"
+(only a raise or timeout is recorded as failed), and a run's `started_at` equals
+its `finished_at`, since it is written once the scan ends.
 
 **People path (built, not wired).** `scan_linkedin(target, include_people=True)`
 also scrapes a role's contacts: a buyer's `key_contact`, or a seller
