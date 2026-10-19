@@ -1,0 +1,51 @@
+"""The business-event index (`activities`) — one thin, append-only row per
+meaningful event: who (actor) did what (`event_type`) to which record
+(subject), when (`ts`), with what result (`outcome`), plus a typed FK to the
+domain ledger (`tool_runs`, `match_results`, `meetings`, `command_runs`,
+`deal_stage_events`, `signals`) that holds the detail. See
+`docs/internal/dev/ACTIVITIES_AUDIT.md`.
+
+A peer module, not a full-access one: consumers import this root's `__all__`
+(the vocabulary, payloads, `ActivityEvent`, `ActivityRecorderPort` and the
+concrete `SqlAlchemyActivityRecorder` their persistence layer constructs). It
+imports no other business module, so the module graph stays acyclic.
+"""
+
+from app.modules.activities.application.ports.recorder import ActivityRecorderPort
+from app.modules.activities.domain.event import ActivityActor, ActivityEvent
+from app.modules.activities.domain.payloads import (
+    ActivityPayload,
+    CrmRecordPayload,
+    MatchDecisionPayload,
+    MatchRunPayload,
+    MeetingPayload,
+    NoPayload,
+    ProfileWritePayload,
+    StageChangePayload,
+)
+from app.modules.activities.domain.vocabulary import (
+    ActivitySource,
+    ActorType,
+    EventType,
+    SubjectType,
+)
+from app.modules.activities.persistence.recorder import SqlAlchemyActivityRecorder
+
+__all__ = [
+    "ActivityActor",
+    "ActivityEvent",
+    "ActivityPayload",
+    "ActivityRecorderPort",
+    "ActivitySource",
+    "ActorType",
+    "CrmRecordPayload",
+    "EventType",
+    "MatchDecisionPayload",
+    "MatchRunPayload",
+    "MeetingPayload",
+    "NoPayload",
+    "ProfileWritePayload",
+    "SqlAlchemyActivityRecorder",
+    "StageChangePayload",
+    "SubjectType",
+]
