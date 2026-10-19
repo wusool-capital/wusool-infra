@@ -164,6 +164,11 @@ stack. PowerShell changes: `Invoke-ScriptAnalyzer` (Warning + Error) clean.
 
 ### After the change
 
+- **Hard rule: always keep GitBook up to date.** Any user-visible,
+  behavioural, configuration, or architecture change must update the
+  matching page under `gitbook/` (technical docs, user guide, and the
+  current release notes) in the same PR. Never merge a change that leaves
+  GitBook describing old behaviour.
 - Update the affected README, `CHANGELOG.md`, and the relevant `docs/` page
   in the same PR — run `$sync-terraform-docs` / `$sync-project-docs` /
   `$sync-crm-schema-docs` for the area you touched.
