@@ -50,7 +50,7 @@ def build_linkedin_blocks(scan: LinkedInScan, org_name: str) -> list[Block]:
     if scan.job_changes:
         blocks.append(_section("Job changes", [_job_change_line(c) for c in scan.job_changes]))
     if scan.posts:
-        blocks.append(_section("Posts in the last month", [_post_line(p) for p in scan.posts]))
+        blocks.append(_section("Posts from the past month", [_post_line(p) for p in scan.posts]))
     if scan.contacts_without_linkedin:
         names = ", ".join(sanitize_mrkdwn(c.name) for c in scan.contacts_without_linkedin)
         blocks.append(SectionBlock(text=f"_No LinkedIn URL on file, not scraped:_ {names}"))

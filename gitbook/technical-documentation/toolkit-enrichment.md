@@ -43,7 +43,7 @@ edit form is saved, the button becomes "✅ ADDED by" the person who saved it.
 ## LinkedIn activity
 
 After the proposal is posted, the bot replies in its thread with the
-organization's recent LinkedIn posts: up to 10, from the last month. Only the
+organization's recent LinkedIn posts: up to 10, from the past month. Only the
 organization's own LinkedIn page is scraped. People are not scraped, so there
 are no job changes yet. If the organization has no LinkedIn page saved, the
 scan is skipped. A company page's posts are mostly its reposts, so the author

@@ -81,7 +81,8 @@ from the database. The people path is built and tested, but off — see
   one the scan is skipped and logged, never searched by name.
 - **Apify** (`providers/apify/`): one posts run per scan, capped at 40s with
   Apify's own `timeout` below ours so the vendor stops billing when we stop
-  waiting. At most 10 posts, last month only. Any error, timeout or malformed
+  waiting. At most 10 posts from the past month (Apify's rolling `postedLimit="month"`, so
+  this month's posts are included). Any error, timeout or malformed
   item yields an empty result. A company page's "posts" are its reposts, so the
   author is the original poster.
 - **Cost log:** every run logs `apify_run actor=… items=… duration_ms=…
