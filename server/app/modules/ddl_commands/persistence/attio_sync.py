@@ -33,6 +33,7 @@ import logging
 from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any, cast
+from uuid import UUID
 
 from sqlalchemy import TextClause, func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -40,7 +41,17 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BuyerRole, Deal, Organization, Person, SellerRole
-from app.modules.attio import AttioClientProtocol, owns_record
+from app.modules.activities import (
+    ActivityActor,
+    ActivityEvent,
+    ActivitySource,
+    CrmRecordPayload,
+    EventType,
+    SqlAlchemyActivityRecorder,
+    SqlAlchemyDealStageRecorder,
+    SubjectType,
+)
+from app.modules.attio import AttioClientProtocol, WebhookEvent, owns_record
 from app.modules.attio.domain.records import AttioRecord
 from app.modules.attio.providers.attio import values as v
 from app.modules.attio.providers.attio.retry import (
@@ -93,42 +104,46 @@ def in_scope(record: AttioRecord) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# activities — generic change log, one row per real-time webhook sync
+# activities — one typed row per real-time webhook sync or delete
 # ---------------------------------------------------------------------------
 #
 # Webhook path only -- a nightly full resync touching thousands of unchanged
 # records would flood this table if it logged one row per sync too.
-# subject_uuid (not subject_attio_id) is used for buyer_role/seller_role, to
-# match backfill-activities.ps1's existing convention for those two tables.
+# Roles carry the entry id for Attio lookups and the row uuid, as the backfill script does.
 
-# tool_run_id is named explicitly and written as a literal NULL: this row is
-# the webhook change-log, not a tool invocation, so there is no run behind it
-# (added 2026-09-07). Naming it keeps the statement honest about the full
-# activities schema rather than silently relying on the column default.
-_ACTIVITY_INSERT = text(
-    """
-    INSERT INTO activities(subject_type, subject_attio_id, subject_uuid, source, tool_run_id)
-    VALUES (:subject_type, :subject_attio_id, :subject_uuid, :source, NULL)
-    """
-)
+
+def _crm_event_type(webhook_event_type: str) -> EventType:
+    if webhook_event_type.endswith(".created"):
+        return EventType.CRM_RECORD_CREATED
+    if webhook_event_type.endswith(".deleted"):
+        return EventType.CRM_RECORD_DELETED
+    return EventType.CRM_RECORD_UPDATED
+
+
+def _actor(event: WebhookEvent) -> ActivityActor:
+    actor = event.actor
+    return ActivityActor.attio(actor.type if actor else None, actor.id if actor else None)
 
 
 async def _log_activity(
     session: AsyncSession,
-    subject_type: str,
+    event: WebhookEvent,
+    subject_type: SubjectType,
     *,
+    object_slug: str,
     subject_attio_id: str | None = None,
-    subject_uuid: str | None = None,
-    source: str = "attio_webhook",
+    subject_uuid: UUID | None = None,
 ) -> None:
-    await session.execute(
-        _ACTIVITY_INSERT,
-        {
-            "subject_type": subject_type,
-            "subject_attio_id": subject_attio_id,
-            "subject_uuid": subject_uuid,
-            "source": source,
-        },
+    await SqlAlchemyActivityRecorder(session).record(
+        ActivityEvent(
+            subject_type=subject_type,
+            event_type=_crm_event_type(event.event_type),
+            source=ActivitySource.ATTIO_WEBHOOK,
+            actor=_actor(event),
+            payload=CrmRecordPayload(attio_event_type=event.event_type, attio_object=object_slug),
+            subject_attio_id=subject_attio_id,
+            subject_uuid=subject_uuid,
+        )
     )
 
 
@@ -299,7 +314,9 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
     }
 
 
-async def sync_organization(client: AttioClientProtocol, record_id: str) -> None:
+async def sync_organization(
+    client: AttioClientProtocol, record_id: str, event: WebhookEvent
+) -> None:
     fetched = await get_with_retry(client, f"/objects/organizations/records/{record_id}")
     if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope organization %s", record_id)
@@ -307,16 +324,35 @@ async def sync_organization(client: AttioClientProtocol, record_id: str) -> None
     params = _organization_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_ORG_UPSERT, _for_text_sql("organizations", params))
-        await _log_activity(session, "Organization", subject_attio_id=params["attio_id"])
+        await _log_activity(
+            session,
+            event,
+            SubjectType.ORGANIZATION,
+            object_slug="organizations",
+            subject_attio_id=params["attio_id"],
+        )
         await session.commit()
 
 
-async def delete_organization(record_id: str) -> None:
+async def delete_organization(record_id: str, event: WebhookEvent) -> None:
     async with get_sessionmaker()() as session:
-        await session.execute(
-            text("UPDATE organizations SET removed_at = now() WHERE attio_id = :attio_id"),
-            {"attio_id": record_id},
-        )
+        removed = (
+            await session.execute(
+                text(
+                    "UPDATE organizations SET removed_at = now() "
+                    "WHERE attio_id = :attio_id RETURNING attio_id"
+                ),
+                {"attio_id": record_id},
+            )
+        ).scalar_one_or_none()
+        if removed is not None:
+            await _log_activity(
+                session,
+                event,
+                SubjectType.ORGANIZATION,
+                object_slug="organizations",
+                subject_attio_id=removed,
+            )
         await session.commit()
 
 
@@ -389,7 +425,7 @@ def _person_params(data: AttioRecord) -> PersonParams:
     }
 
 
-async def sync_person(client: AttioClientProtocol, record_id: str) -> None:
+async def sync_person(client: AttioClientProtocol, record_id: str, event: WebhookEvent) -> None:
     fetched = await get_with_retry(client, f"/objects/person/records/{record_id}")
     if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope person %s", record_id)
@@ -397,16 +433,35 @@ async def sync_person(client: AttioClientProtocol, record_id: str) -> None:
     params = _person_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_PERSON_UPSERT, _for_text_sql("person", params))
-        await _log_activity(session, "Person", subject_attio_id=params["attio_id"])
+        await _log_activity(
+            session,
+            event,
+            SubjectType.PERSON,
+            object_slug="person",
+            subject_attio_id=params["attio_id"],
+        )
         await session.commit()
 
 
-async def delete_person(record_id: str) -> None:
+async def delete_person(record_id: str, event: WebhookEvent) -> None:
     async with get_sessionmaker()() as session:
-        await session.execute(
-            text("UPDATE person SET removed_at = now() WHERE attio_id = :attio_id"),
-            {"attio_id": record_id},
-        )
+        removed = (
+            await session.execute(
+                text(
+                    "UPDATE person SET removed_at = now() "
+                    "WHERE attio_id = :attio_id RETURNING attio_id"
+                ),
+                {"attio_id": record_id},
+            )
+        ).scalar_one_or_none()
+        if removed is not None:
+            await _log_activity(
+                session,
+                event,
+                SubjectType.PERSON,
+                object_slug="person",
+                subject_attio_id=removed,
+            )
         await session.commit()
 
 
@@ -541,7 +596,7 @@ def _deal_params(data: AttioRecord) -> DealParams:
     }
 
 
-async def sync_deal(client: AttioClientProtocol, record_id: str) -> None:
+async def sync_deal(client: AttioClientProtocol, record_id: str, event: WebhookEvent) -> None:
     """Fetches from SOURCE's custom Deal_V2 object, api_slug "deal"
     (singular). The standard plural "deals" object also exists in SOURCE but
     is legacy and out of scope -- it carries no `is_test` attribute, so it
@@ -553,17 +608,47 @@ async def sync_deal(client: AttioClientProtocol, record_id: str) -> None:
         return
     params = _deal_params(fetched["data"])
     async with get_sessionmaker()() as session:
+        stages = SqlAlchemyDealStageRecorder(session)
+        # Locked read of the old stage, so a concurrent approval cannot double-record.
+        previous_stage = await stages.current_stage(params["attio_id"])
         await session.execute(_DEAL_UPSERT, _for_text_sql("deals", params))
-        await _log_activity(session, "Deal", subject_attio_id=params["attio_id"])
+        await stages.record_change(
+            deal_attio_id=params["attio_id"],
+            previous_stage=previous_stage,
+            new_stage=params["stage"],
+            actor=_actor(event),
+            source=ActivitySource.ATTIO_WEBHOOK,
+            occurred_at=params["stage_changed_at"],
+        )
+        await _log_activity(
+            session,
+            event,
+            SubjectType.DEAL,
+            object_slug="deal",
+            subject_attio_id=params["attio_id"],
+        )
         await session.commit()
 
 
-async def delete_deal(record_id: str) -> None:
+async def delete_deal(record_id: str, event: WebhookEvent) -> None:
     async with get_sessionmaker()() as session:
-        await session.execute(
-            text("UPDATE deals SET removed_at = now() WHERE attio_id = :attio_id"),
-            {"attio_id": record_id},
-        )
+        removed = (
+            await session.execute(
+                text(
+                    "UPDATE deals SET removed_at = now() "
+                    "WHERE attio_id = :attio_id RETURNING attio_id"
+                ),
+                {"attio_id": record_id},
+            )
+        ).scalar_one_or_none()
+        if removed is not None:
+            await _log_activity(
+                session,
+                event,
+                SubjectType.DEAL,
+                object_slug="deal",
+                subject_attio_id=removed,
+            )
         await session.commit()
 
 
@@ -760,7 +845,7 @@ def _buyer_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Buye
     }
 
 
-async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
+async def sync_buyer_role(client: AttioClientProtocol, entry_id: str, event: WebhookEvent) -> None:
     fetched = await get_with_retry(client, f"/lists/buyer_role/entries/{entry_id}")
     # Before `_fetch_siblings`, not after: `_reconcile_active_entry` PATCHes
     # `is_active` back to Attio, and a process must never write to the other
@@ -775,6 +860,9 @@ async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
     # `is_active=False` in Attio -- corrupting the exact flag
     # `resolve_role_entry_id` and the matching engine read.
     siblings = [e for e in await _fetch_siblings(client, "buyer_role", org_id) if in_scope(e)]
+    # Attio's list query can lag; without this the triggering entry is never upserted.
+    if not any(v.entry_id(e) == entry_id for e in siblings):
+        siblings.append(fetched["data"])
     reconciled = await _reconcile_active_entry(client, "buyer_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
@@ -784,11 +872,18 @@ async def sync_buyer_role(client: AttioClientProtocol, entry_id: str) -> None:
             row_id = result.scalar_one()
             if v.entry_id(entry) == entry_id:
                 triggering_row_id = row_id
-        await _log_activity(session, "BuyerRole", subject_uuid=triggering_row_id)
+        await _log_activity(
+            session,
+            event,
+            SubjectType.BUYER_ROLE,
+            object_slug="buyer_role",
+            subject_attio_id=entry_id,
+            subject_uuid=triggering_row_id,
+        )
         await session.commit()
 
 
-async def delete_buyer_role(entry_id: str) -> None:
+async def delete_buyer_role(entry_id: str, event: WebhookEvent) -> None:
     """Keyed on `legacy_entry_id`, which despite its name holds the entry's own
     live V2 `entry_id` (see `_buyer_role_params`) -- the same value the webhook
     reports. Not `id`, which is a local `gen_random_uuid()` no Attio id can
@@ -800,12 +895,24 @@ async def delete_buyer_role(entry_id: str) -> None:
     gone. The nightly resync re-reconciles the org.
     """
     async with get_sessionmaker()() as session:
-        await session.execute(
-            text(
-                "UPDATE buyer_roles SET removed_at = now() WHERE legacy_entry_id = :legacy_entry_id"
-            ),
-            {"legacy_entry_id": entry_id},
-        )
+        removed_id = (
+            await session.execute(
+                text(
+                    "UPDATE buyer_roles SET removed_at = now() "
+                    "WHERE legacy_entry_id = :legacy_entry_id RETURNING id"
+                ),
+                {"legacy_entry_id": entry_id},
+            )
+        ).scalar_one_or_none()
+        if removed_id is not None:
+            await _log_activity(
+                session,
+                event,
+                SubjectType.BUYER_ROLE,
+                object_slug="buyer_role",
+                subject_attio_id=entry_id,
+                subject_uuid=removed_id,
+            )
         await session.commit()
 
 
@@ -971,7 +1078,7 @@ def _seller_role_params(org_id: str, entry: AttioRecord, is_active: bool) -> Sel
     }
 
 
-async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
+async def sync_seller_role(client: AttioClientProtocol, entry_id: str, event: WebhookEvent) -> None:
     fetched = await get_with_retry(client, f"/lists/seller_role/entries/{entry_id}")
     # Before `_fetch_siblings`, not after: `_reconcile_active_entry` PATCHes
     # `is_active` back to Attio, and a process must never write to the other
@@ -986,6 +1093,9 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
     # `is_active=False` in Attio -- corrupting the exact flag
     # `resolve_role_entry_id` and the matching engine read.
     siblings = [e for e in await _fetch_siblings(client, "seller_role", org_id) if in_scope(e)]
+    # Attio's list query can lag; without this the triggering entry is never upserted.
+    if not any(v.entry_id(e) == entry_id for e in siblings):
+        siblings.append(fetched["data"])
     reconciled = await _reconcile_active_entry(client, "seller_role", siblings)
     async with get_sessionmaker()() as session:
         triggering_row_id = None
@@ -997,22 +1107,40 @@ async def sync_seller_role(client: AttioClientProtocol, entry_id: str) -> None:
             row_id = result.scalar_one()
             if v.entry_id(entry) == entry_id:
                 triggering_row_id = row_id
-        await _log_activity(session, "SellerRole", subject_uuid=triggering_row_id)
+        await _log_activity(
+            session,
+            event,
+            SubjectType.SELLER_ROLE,
+            object_slug="seller_role",
+            subject_attio_id=entry_id,
+            subject_uuid=triggering_row_id,
+        )
         await session.commit()
 
 
-async def delete_seller_role(entry_id: str) -> None:
+async def delete_seller_role(entry_id: str, event: WebhookEvent) -> None:
     """Keyed on `legacy_entry_id` for the same reasons as `delete_buyer_role`
     -- see that docstring.
     """
     async with get_sessionmaker()() as session:
-        await session.execute(
-            text(
-                "UPDATE seller_roles SET removed_at = now() "
-                "WHERE legacy_entry_id = :legacy_entry_id"
-            ),
-            {"legacy_entry_id": entry_id},
-        )
+        removed_id = (
+            await session.execute(
+                text(
+                    "UPDATE seller_roles SET removed_at = now() "
+                    "WHERE legacy_entry_id = :legacy_entry_id RETURNING id"
+                ),
+                {"legacy_entry_id": entry_id},
+            )
+        ).scalar_one_or_none()
+        if removed_id is not None:
+            await _log_activity(
+                session,
+                event,
+                SubjectType.SELLER_ROLE,
+                object_slug="seller_role",
+                subject_attio_id=entry_id,
+                subject_uuid=removed_id,
+            )
         await session.commit()
 
 
@@ -1080,7 +1208,7 @@ def _note_params(data: AttioRecord) -> NoteParams:
     }
 
 
-async def sync_note(client: AttioClientProtocol, record_id: str) -> None:
+async def sync_note(client: AttioClientProtocol, record_id: str, event: WebhookEvent) -> None:
     fetched = await get_with_retry(client, f"/objects/note/records/{record_id}")
     if not in_scope(fetched["data"]):
         _logger.info("skipping out-of-scope note %s", record_id)
@@ -1088,11 +1216,17 @@ async def sync_note(client: AttioClientProtocol, record_id: str) -> None:
     params = _note_params(fetched["data"])
     async with get_sessionmaker()() as session:
         await session.execute(_NOTE_UPSERT, params)
-        await _log_activity(session, "Note", subject_attio_id=params["id"])
+        await _log_activity(
+            session,
+            event,
+            SubjectType.NOTE,
+            object_slug="note",
+            subject_attio_id=params["id"],
+        )
         await session.commit()
 
 
-async def delete_note(record_id: str) -> None:
+async def delete_note(record_id: str, event: WebhookEvent) -> None:
     """`notes.id` is the Attio record id verbatim (see `_NOTE_UPSERT`), so the
     webhook's record id addresses the row directly.
 
@@ -1102,10 +1236,20 @@ async def delete_note(record_id: str) -> None:
     since Attio never held it.
     """
     async with get_sessionmaker()() as session:
-        await session.execute(
-            text("UPDATE notes SET removed_at = now() WHERE id = :id"),
-            {"id": record_id},
-        )
+        removed = (
+            await session.execute(
+                text("UPDATE notes SET removed_at = now() WHERE id = :id RETURNING id"),
+                {"id": record_id},
+            )
+        ).scalar_one_or_none()
+        if removed is not None:
+            await _log_activity(
+                session,
+                event,
+                SubjectType.NOTE,
+                object_slug="note",
+                subject_attio_id=str(removed),
+            )
         await session.commit()
 
 
@@ -1363,38 +1507,50 @@ class AttioSyncRepository:
     page-through, not per-record dispatch) are unaffected.
     """
 
-    async def sync_organization(self, client: AttioClientProtocol, record_id: str) -> None:
-        await sync_organization(client, record_id)
+    async def sync_organization(
+        self, client: AttioClientProtocol, record_id: str, event: WebhookEvent
+    ) -> None:
+        await sync_organization(client, record_id, event)
 
-    async def sync_person(self, client: AttioClientProtocol, record_id: str) -> None:
-        await sync_person(client, record_id)
+    async def sync_person(
+        self, client: AttioClientProtocol, record_id: str, event: WebhookEvent
+    ) -> None:
+        await sync_person(client, record_id, event)
 
-    async def sync_deal(self, client: AttioClientProtocol, record_id: str) -> None:
-        await sync_deal(client, record_id)
+    async def sync_deal(
+        self, client: AttioClientProtocol, record_id: str, event: WebhookEvent
+    ) -> None:
+        await sync_deal(client, record_id, event)
 
-    async def sync_note(self, client: AttioClientProtocol, record_id: str) -> None:
-        await sync_note(client, record_id)
+    async def sync_note(
+        self, client: AttioClientProtocol, record_id: str, event: WebhookEvent
+    ) -> None:
+        await sync_note(client, record_id, event)
 
-    async def sync_buyer_role(self, client: AttioClientProtocol, entry_id: str) -> None:
-        await sync_buyer_role(client, entry_id)
+    async def sync_buyer_role(
+        self, client: AttioClientProtocol, entry_id: str, event: WebhookEvent
+    ) -> None:
+        await sync_buyer_role(client, entry_id, event)
 
-    async def sync_seller_role(self, client: AttioClientProtocol, entry_id: str) -> None:
-        await sync_seller_role(client, entry_id)
+    async def sync_seller_role(
+        self, client: AttioClientProtocol, entry_id: str, event: WebhookEvent
+    ) -> None:
+        await sync_seller_role(client, entry_id, event)
 
-    async def delete_organization(self, record_id: str) -> None:
-        await delete_organization(record_id)
+    async def delete_organization(self, record_id: str, event: WebhookEvent) -> None:
+        await delete_organization(record_id, event)
 
-    async def delete_person(self, record_id: str) -> None:
-        await delete_person(record_id)
+    async def delete_person(self, record_id: str, event: WebhookEvent) -> None:
+        await delete_person(record_id, event)
 
-    async def delete_deal(self, record_id: str) -> None:
-        await delete_deal(record_id)
+    async def delete_deal(self, record_id: str, event: WebhookEvent) -> None:
+        await delete_deal(record_id, event)
 
-    async def delete_note(self, record_id: str) -> None:
-        await delete_note(record_id)
+    async def delete_note(self, record_id: str, event: WebhookEvent) -> None:
+        await delete_note(record_id, event)
 
-    async def delete_buyer_role(self, entry_id: str) -> None:
-        await delete_buyer_role(entry_id)
+    async def delete_buyer_role(self, entry_id: str, event: WebhookEvent) -> None:
+        await delete_buyer_role(entry_id, event)
 
-    async def delete_seller_role(self, entry_id: str) -> None:
-        await delete_seller_role(entry_id)
+    async def delete_seller_role(self, entry_id: str, event: WebhookEvent) -> None:
+        await delete_seller_role(entry_id, event)

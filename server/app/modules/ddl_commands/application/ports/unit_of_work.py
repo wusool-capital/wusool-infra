@@ -9,7 +9,9 @@ in one transaction (`DdlCommandsService`'s `update_buyer`/`create_buyer`,
 from types import TracebackType
 from typing import Protocol
 
+from app.modules.activities import ActivityRecorderPort
 from app.modules.ddl_commands.application.ports.buyers import BuyerRepositoryPort
+from app.modules.ddl_commands.application.ports.command_runs import CommandRunRepositoryPort
 from app.modules.ddl_commands.application.ports.sellers import SellerRepositoryPort
 from app.modules.organizations import OrganizationRepositoryPort
 
@@ -23,6 +25,10 @@ class DdlCommandsUnitOfWork(Protocol):
     def sellers(self) -> SellerRepositoryPort: ...
     @property
     def organizations(self) -> OrganizationRepositoryPort: ...
+    @property
+    def command_runs(self) -> CommandRunRepositoryPort: ...
+    @property
+    def activities(self) -> ActivityRecorderPort: ...
 
     async def __aenter__(self) -> "DdlCommandsUnitOfWork": ...
     async def __aexit__(

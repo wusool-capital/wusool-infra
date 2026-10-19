@@ -101,6 +101,12 @@ logs must never contain bearer tokens, provider keys, transcript bodies, or
 personal or financial payloads. n8n's bootstrap turns off shell tracing before
 reading its secret, so values never reach SSM history or CloudWatch.
 
+A database error's message can quote the row that failed, such as an email in
+a duplicate-key error. The Toolkit's log formatter therefore writes database
+errors as their type, SQLSTATE, and constraint name only. It drops every message
+in an exception chain that contains one. The database engine also hides bound
+parameters, and stored error fields follow the same rule.
+
 Documentation, tests, screenshots, and support messages use synthetic or
 redacted people, companies, credentials, transcripts, and figures.
 

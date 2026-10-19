@@ -47,6 +47,13 @@ Reads/writes `buyer_roles`, `seller_roles`, `organizations`, `meetings`,
 a match also upserts the `deals` row for the Qualified deal it creates in
 Attio, and stamps `match_results.deal_attio_id`.
 
+Each run and review decision also records an `activities` event
+(`match.run_completed`, `match.approved`, `match.rejected`) linked to the
+`match_results` row, on the same transaction. An approval that moves a deal's
+stage records it in `deal_stage_events` too, comparing under a row lock so the
+webhook echo of the same change records nothing. Writes go through
+`app.modules.activities`; this module never inserts `activities` itself.
+
 ## Setup
 
 Config comes from the repo-root `server/.env` (see `.env.example` there —

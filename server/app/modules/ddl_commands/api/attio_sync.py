@@ -23,9 +23,10 @@ public and shares a process with the Slack bot (`/slack/events`):
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Request, Response
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.modules.attio import (
+    WebhookActor,
     WebhookEvent,
     WebhookEventId,
     attio_is_test,
@@ -34,7 +35,11 @@ from app.modules.attio import (
 )
 from app.modules.attio.providers.attio.signature import verify_attio_signature
 from app.modules.ddl_commands.application.attio_sync import dispatch_event
-from app.modules.ddl_commands.bootstrap import build_attio_registry, build_attio_sync_repository
+from app.modules.ddl_commands.bootstrap import (
+    build_attio_registry,
+    build_attio_sync_repository,
+    build_raw_event_log,
+)
 from app.modules.ddl_commands.config import get_settings
 
 
@@ -46,6 +51,8 @@ class AttioWebhookEventId(BaseModel):
     a fixed split across every event category (`comment.*`, `task.*`, ...),
     and those are outside this sync's scope anyway (see `dispatch.py`)."""
 
+    model_config = ConfigDict(extra="allow")
+
     workspace_id: str | None = None
     object_id: str | None = None
     record_id: str | None = None
@@ -54,13 +61,28 @@ class AttioWebhookEventId(BaseModel):
     entry_id: str | None = None
 
 
+class AttioWebhookActor(BaseModel):
+    """Who made the change, when Attio reports it: `workspace-member`,
+    `api-token` or `system`. The shape is unconfirmed against a real
+    delivery, so every field is optional and a missing actor is tolerated."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str | None = None
+    id: str | None = None
+
+
 class AttioWebhookEvent(BaseModel):
     """One event within a delivery's `events` array. `event_type` is the
     only field guaranteed present across every Attio webhook event category —
     see `dispatch.py` for which ones this sync actually acts on."""
 
+    # Unmodelled fields are kept so the raw event log holds what Attio sent.
+    model_config = ConfigDict(extra="allow")
+
     event_type: str
     id: AttioWebhookEventId = Field(default_factory=AttioWebhookEventId)
+    actor: AttioWebhookActor | None = None
 
 
 class AttioWebhookEnvelope(BaseModel):
@@ -76,6 +98,8 @@ class AttioWebhookEnvelope(BaseModel):
 
 
 router = APIRouter()
+# The families `dispatch_event` acts on; comments, tasks and the rest are not logged.
+_LOGGED_EVENT_PREFIXES = ("record.", "list-entry.")
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync")
 
 
@@ -90,10 +114,20 @@ def _to_domain(event: AttioWebhookEvent) -> WebhookEvent:
             list_id=event.id.list_id,
             entry_id=event.id.entry_id,
         ),
+        actor=WebhookActor(type=event.actor.type, id=event.actor.id) if event.actor else None,
     )
 
 
 async def _process(event: AttioWebhookEvent) -> None:
+    # Logged after the ack so the 200 never waits on the database.
+    raw_event_log = build_raw_event_log()
+    raw_event_id = (
+        await raw_event_log.record(
+            event_type=event.event_type, payload_json=event.model_dump_json()
+        )
+        if event.event_type.startswith(_LOGGED_EVENT_PREFIXES)
+        else None
+    )
     try:
         await dispatch_event(
             build_attio_sync_repository(),
@@ -103,6 +137,9 @@ async def _process(event: AttioWebhookEvent) -> None:
         )
     except Exception:
         _logger.error("attio webhook sync failed for event %r", event, exc_info=True)
+        return
+    if raw_event_id is not None:
+        await raw_event_log.mark_processed(raw_event_id)
 
 
 @router.post("/webhooks/attio")

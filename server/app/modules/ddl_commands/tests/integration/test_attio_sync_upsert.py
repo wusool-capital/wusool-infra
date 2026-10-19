@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import BuyerRole, Deal, Note, Organization, Person, SellerRole
+from app.modules.attio import WebhookActor, WebhookEvent
 from app.modules.ddl_commands.persistence import attio_sync as upsert
 
 
@@ -27,6 +28,10 @@ async def _activity_count(
                 {"t": subject_type, "id": subject_id},
             )
         ).scalar_one()
+
+
+def _event(event_type: str = "record.updated", actor: WebhookActor | None = None) -> WebhookEvent:
+    return WebhookEvent(event_type=event_type, actor=actor)
 
 
 def _item(**kwargs) -> dict:
@@ -80,7 +85,7 @@ async def test_sync_organization_inserts_a_new_row(
         }
     )
 
-    await upsert.sync_organization(client, attio_id)
+    await upsert.sync_organization(client, attio_id, _event())
 
     async with db_sessionmaker() as session:
         row = (
@@ -110,8 +115,8 @@ async def test_sync_organization_is_idempotent(
         }
     )
 
-    await upsert.sync_organization(client, attio_id)
-    await upsert.sync_organization(client, attio_id)  # must not raise or duplicate
+    await upsert.sync_organization(client, attio_id, _event())
+    await upsert.sync_organization(client, attio_id, _event())  # must not raise or duplicate
 
     async with db_sessionmaker() as session:
         count = (
@@ -131,7 +136,7 @@ async def test_delete_person_sets_removed_at(
         session.add(Person(attio_id=person_id, name="Test Person"))
         await session.commit()
 
-    await upsert.delete_person(person_id)
+    await upsert.delete_person(person_id, _event("record.deleted"))
 
     async with db_sessionmaker() as session:
         removed_at = (
@@ -241,7 +246,7 @@ async def test_upsert_batch_still_clears_removed_at_when_content_is_unchanged(
         {"id": {"record_id": oid}, "values": {"name": [_item(value="Reappearing Org")]}}
     )
     await upsert.upsert_batch_with_retry(Organization, [dict(row)])
-    await upsert.delete_organization(oid)
+    await upsert.delete_organization(oid, _event("record.deleted"))
     async with db_sessionmaker() as session:
         removed_at = (
             await session.execute(
@@ -335,7 +340,7 @@ async def test_sync_buyer_role_reconciles_and_upserts(
     client = _FakeClient({"/lists/buyer_role/entries/entry-new": {"data": newer_entry}})
     client.add_entry_pages("buyer_role", [[older_entry, newer_entry]])
 
-    await upsert.sync_buyer_role(client, "entry-new")
+    await upsert.sync_buyer_role(client, "entry-new", _event())
 
     # Both entries land in Postgres now, one row each keyed by
     # legacy_entry_id (2026-08-28 pluralization: org_attio_id is no longer
@@ -407,7 +412,7 @@ async def test_sync_deal_fetches_from_source_object_slug(
         }
     )
 
-    await upsert.sync_deal(client, attio_id)
+    await upsert.sync_deal(client, attio_id, _event())
 
     async with db_sessionmaker() as session:
         row = (
@@ -448,7 +453,7 @@ async def test_sync_note_resolves_org_and_role_references(
         }
     )
 
-    await upsert.sync_note(client, note_id)
+    await upsert.sync_note(client, note_id, _event())
 
     async with db_sessionmaker() as session:
         row = (
@@ -487,8 +492,8 @@ async def test_sync_note_is_idempotent(
         }
     )
 
-    await upsert.sync_note(client, note_id)
-    await upsert.sync_note(client, note_id)  # must not raise or duplicate
+    await upsert.sync_note(client, note_id, _event())
+    await upsert.sync_note(client, note_id, _event())  # must not raise or duplicate
 
     async with db_sessionmaker() as session:
         count = (
@@ -520,7 +525,7 @@ async def test_delete_organization_sets_removed_at(
         session.add(Organization(attio_id=org_id, name="Doomed Org"))
         await session.commit()
 
-    await upsert.delete_organization(org_id)
+    await upsert.delete_organization(org_id, _event("record.deleted"))
 
     assert await _removed_at(db_sessionmaker, "organizations", "attio_id", org_id) is not None
 
@@ -534,7 +539,7 @@ async def test_delete_deal_sets_removed_at(
         session.add(Deal(attio_id=deal_id, name="Doomed Deal"))
         await session.commit()
 
-    await upsert.delete_deal(deal_id)
+    await upsert.delete_deal(deal_id, _event("record.deleted"))
 
     assert await _removed_at(db_sessionmaker, "deals", "attio_id", deal_id) is not None
 
@@ -550,7 +555,7 @@ async def test_delete_note_sets_removed_at(
         session.add(Note(id=uuid.UUID(note_id), note_type="Manual", content="Doomed note"))
         await session.commit()
 
-    await upsert.delete_note(note_id)
+    await upsert.delete_note(note_id, _event("record.deleted"))
 
     assert await _removed_at(db_sessionmaker, "notes", "id", note_id) is not None
 
@@ -569,7 +574,7 @@ async def test_delete_note_leaves_a_locally_minted_note_alone(
         session.add(Note(id=local_only, note_type="Meeting", content="Unpushed summary"))
         await session.commit()
 
-    await upsert.delete_note(deleted_in_attio)
+    await upsert.delete_note(deleted_in_attio, _event("record.deleted"))
 
     assert await _removed_at(db_sessionmaker, "notes", "id", str(local_only)) is None
 
@@ -587,7 +592,7 @@ async def test_delete_buyer_role_sets_removed_at(
         session.add(BuyerRole(org_attio_id=org_id, legacy_entry_id="entry-survivor"))
         await session.commit()
 
-    await upsert.delete_buyer_role("entry-doomed")
+    await upsert.delete_buyer_role("entry-doomed", _event("record.deleted"))
 
     assert (
         await _removed_at(db_sessionmaker, "buyer_roles", "legacy_entry_id", "entry-doomed")
@@ -612,7 +617,7 @@ async def test_delete_seller_role_sets_removed_at(
         session.add(SellerRole(org_attio_id=org_id, legacy_entry_id="entry-survivor"))
         await session.commit()
 
-    await upsert.delete_seller_role("entry-doomed")
+    await upsert.delete_seller_role("entry-doomed", _event("record.deleted"))
 
     assert (
         await _removed_at(db_sessionmaker, "seller_roles", "legacy_entry_id", "entry-doomed")
@@ -642,11 +647,11 @@ async def test_sync_organization_clears_removed_at(
             }
         }
     )
-    await upsert.sync_organization(client, org_id)
-    await upsert.delete_organization(org_id)
+    await upsert.sync_organization(client, org_id, _event())
+    await upsert.delete_organization(org_id, _event("record.deleted"))
     assert await _removed_at(db_sessionmaker, "organizations", "attio_id", org_id) is not None
 
-    await upsert.sync_organization(client, org_id)
+    await upsert.sync_organization(client, org_id, _event())
 
     assert await _removed_at(db_sessionmaker, "organizations", "attio_id", org_id) is None
 
@@ -663,11 +668,11 @@ async def test_sync_person_clears_removed_at(
             }
         }
     )
-    await upsert.sync_person(client, person_id)
-    await upsert.delete_person(person_id)
+    await upsert.sync_person(client, person_id, _event())
+    await upsert.delete_person(person_id, _event("record.deleted"))
     assert await _removed_at(db_sessionmaker, "person", "attio_id", person_id) is not None
 
-    await upsert.sync_person(client, person_id)
+    await upsert.sync_person(client, person_id, _event())
 
     assert await _removed_at(db_sessionmaker, "person", "attio_id", person_id) is None
 
@@ -687,11 +692,11 @@ async def test_sync_deal_clears_removed_at(
             }
         }
     )
-    await upsert.sync_deal(client, deal_id)
-    await upsert.delete_deal(deal_id)
+    await upsert.sync_deal(client, deal_id, _event())
+    await upsert.delete_deal(deal_id, _event("record.deleted"))
     assert await _removed_at(db_sessionmaker, "deals", "attio_id", deal_id) is not None
 
-    await upsert.sync_deal(client, deal_id)
+    await upsert.sync_deal(client, deal_id, _event())
 
     assert await _removed_at(db_sessionmaker, "deals", "attio_id", deal_id) is None
 
@@ -714,11 +719,11 @@ async def test_sync_note_clears_removed_at(
             }
         }
     )
-    await upsert.sync_note(client, note_id)
-    await upsert.delete_note(note_id)
+    await upsert.sync_note(client, note_id, _event())
+    await upsert.delete_note(note_id, _event("record.deleted"))
     assert await _removed_at(db_sessionmaker, "notes", "id", note_id) is not None
 
-    await upsert.sync_note(client, note_id)
+    await upsert.sync_note(client, note_id, _event())
 
     assert await _removed_at(db_sessionmaker, "notes", "id", note_id) is None
 
@@ -741,14 +746,14 @@ async def test_sync_buyer_role_clears_removed_at(
     client = _FakeClient({"/lists/buyer_role/entries/entry-reborn": {"data": entry}})
     client.add_entry_pages("buyer_role", [[entry]])
 
-    await upsert.sync_buyer_role(client, "entry-reborn")
-    await upsert.delete_buyer_role("entry-reborn")
+    await upsert.sync_buyer_role(client, "entry-reborn", _event())
+    await upsert.delete_buyer_role("entry-reborn", _event("record.deleted"))
     assert (
         await _removed_at(db_sessionmaker, "buyer_roles", "legacy_entry_id", "entry-reborn")
         is not None
     )
 
-    await upsert.sync_buyer_role(client, "entry-reborn")
+    await upsert.sync_buyer_role(client, "entry-reborn", _event())
 
     assert (
         await _removed_at(db_sessionmaker, "buyer_roles", "legacy_entry_id", "entry-reborn") is None
@@ -773,16 +778,271 @@ async def test_sync_seller_role_clears_removed_at(
     client = _FakeClient({"/lists/seller_role/entries/entry-reborn": {"data": entry}})
     client.add_entry_pages("seller_role", [[entry]])
 
-    await upsert.sync_seller_role(client, "entry-reborn")
-    await upsert.delete_seller_role("entry-reborn")
+    await upsert.sync_seller_role(client, "entry-reborn", _event())
+    await upsert.delete_seller_role("entry-reborn", _event("record.deleted"))
     assert (
         await _removed_at(db_sessionmaker, "seller_roles", "legacy_entry_id", "entry-reborn")
         is not None
     )
 
-    await upsert.sync_seller_role(client, "entry-reborn")
+    await upsert.sync_seller_role(client, "entry-reborn", _event())
 
     assert (
         await _removed_at(db_sessionmaker, "seller_roles", "legacy_entry_id", "entry-reborn")
         is None
     )
+
+
+async def _assert_triggering_entry_missing_from_siblings_still_syncs(
+    db_sessionmaker: async_sessionmaker[AsyncSession], list_slug: str, table: str, subject_type: str
+) -> None:
+    """The list query can lag a just-created entry. The webhook's own entry must
+    still be upserted, reconciled and logged -- the activity must never carry a
+    NULL subject, which used to roll back every sibling upsert (AZM-150)."""
+    org_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="Test Org"))
+        await session.commit()
+
+    older_entry = {
+        "id": {"entry_id": "entry-old"},
+        "parent_record_id": {"record_id": org_id},
+        "created_at": "2024-01-01T00:00:00Z",
+        "entry_values": {"is_active": [_item(value=True)]},
+    }
+    newer_entry = {
+        "id": {"entry_id": "entry-new"},
+        "parent_record_id": {"record_id": org_id},
+        "created_at": "2024-01-03T00:00:00Z",
+        "entry_values": {},
+    }
+    client = _FakeClient({f"/lists/{list_slug}/entries/entry-new": {"data": newer_entry}})
+    client.add_entry_pages(list_slug, [[older_entry]])  # the list query lags: no entry-new
+
+    sync = upsert.sync_buyer_role if list_slug == "buyer_role" else upsert.sync_seller_role
+    await sync(client, "entry-new", _event())
+
+    async with db_sessionmaker() as session:
+        rows = (
+            await session.execute(
+                text(
+                    f"SELECT id, legacy_entry_id, is_active FROM {table} WHERE org_attio_id = :id"
+                ),
+                {"id": org_id},
+            )
+        ).all()
+    assert {r.legacy_entry_id: r.is_active for r in rows} == {
+        "entry-new": True,
+        "entry-old": False,
+    }
+    new_row_id = next(r.id for r in rows if r.legacy_entry_id == "entry-new")
+    assert await _activity_count(db_sessionmaker, subject_type, str(new_row_id)) == 1
+
+
+async def test_sync_buyer_role_survives_triggering_entry_missing_from_siblings(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    await _assert_triggering_entry_missing_from_siblings_still_syncs(
+        db_sessionmaker, "buyer_role", "buyer_roles", "BuyerRole"
+    )
+
+
+async def test_sync_seller_role_survives_triggering_entry_missing_from_siblings(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    await _assert_triggering_entry_missing_from_siblings_still_syncs(
+        db_sessionmaker, "seller_role", "seller_roles", "SellerRole"
+    )
+
+
+async def _activity_rows(
+    db_sessionmaker: async_sessionmaker[AsyncSession], subject_type: str, subject_id: str
+) -> list:
+    async with db_sessionmaker() as session:
+        return list(
+            (
+                await session.execute(
+                    text(
+                        "SELECT event_type, actor_type, actor_ref, actor_attio_id, source, payload "
+                        "FROM activities WHERE subject_type = :t "
+                        "AND (subject_attio_id = :id OR subject_uuid::text = :id) "
+                        "ORDER BY created_at"
+                    ),
+                    {"t": subject_type, "id": subject_id},
+                )
+            ).all()
+        )
+
+
+async def test_webhook_sync_logs_a_typed_event_with_the_attio_actor(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-org-{uuid.uuid4()}"
+    member = f"member-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        await session.execute(
+            text("INSERT INTO users(attio_id, name) VALUES (:id, 'Ada')"), {"id": member}
+        )
+        await session.commit()
+    client = _FakeClient(
+        {
+            f"/objects/organizations/records/{attio_id}": {
+                "data": {"id": {"record_id": attio_id}, "values": {"name": [_item(value="Acme")]}}
+            }
+        }
+    )
+
+    await upsert.sync_organization(
+        client,
+        attio_id,
+        _event("record.created", WebhookActor(type="workspace-member", id=member)),
+    )
+
+    (row,) = await _activity_rows(db_sessionmaker, "Organization", attio_id)
+    assert row.event_type == "crm.record_created"
+    assert row.actor_type == "attio_member"
+    assert row.actor_ref == member
+    assert row.actor_attio_id == member
+    assert row.source == "attio_webhook"
+    assert row.payload == {
+        "kind": "crm_record",
+        "attio_event_type": "record.created",
+        "attio_object": "organizations",
+    }
+
+
+async def test_webhook_sync_without_an_actor_is_unknown(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-org-{uuid.uuid4()}"
+    client = _FakeClient(
+        {
+            f"/objects/organizations/records/{attio_id}": {
+                "data": {"id": {"record_id": attio_id}, "values": {"name": [_item(value="Acme")]}}
+            }
+        }
+    )
+
+    await upsert.sync_organization(client, attio_id, _event("record.updated"))
+
+    (row,) = await _activity_rows(db_sessionmaker, "Organization", attio_id)
+    assert (row.event_type, row.actor_type) == ("crm.record_updated", "unknown")
+
+
+async def test_delete_records_a_crm_record_deleted_event(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-org-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=attio_id, name="Doomed"))
+        await session.commit()
+
+    await upsert.delete_organization(attio_id, _event("record.deleted"))
+
+    (row,) = await _activity_rows(db_sessionmaker, "Organization", attio_id)
+    assert row.event_type == "crm.record_deleted"
+
+
+async def test_delete_of_an_unknown_record_records_nothing(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-org-{uuid.uuid4()}"
+
+    await upsert.delete_organization(attio_id, _event("record.deleted"))
+
+    assert await _activity_rows(db_sessionmaker, "Organization", attio_id) == []
+
+
+async def test_delete_role_entry_records_an_event_keyed_by_both_ids(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    org_id = f"test-org-{uuid.uuid4()}"
+    entry_id = f"entry-{uuid.uuid4()}"
+    async with db_sessionmaker() as session:
+        session.add(Organization(attio_id=org_id, name="Test Org"))
+        await session.commit()
+    entry = {
+        "id": {"entry_id": entry_id},
+        "parent_record_id": {"record_id": org_id},
+        "created_at": "2024-01-01T00:00:00Z",
+        "entry_values": {},
+    }
+    client = _FakeClient({f"/lists/seller_role/entries/{entry_id}": {"data": entry}})
+    client.add_entry_pages("seller_role", [[entry]])
+    await upsert.sync_seller_role(client, entry_id, _event("list-entry.created"))
+
+    await upsert.delete_seller_role(entry_id, _event("list-entry.deleted"))
+
+    rows = await _activity_rows(db_sessionmaker, "SellerRole", entry_id)
+    assert [r.event_type for r in rows] == ["crm.record_created", "crm.record_deleted"]
+
+
+def _deal_client(attio_id: str, stage: str | None, changed_at: str | None = None) -> _FakeClient:
+    values: dict[str, list[dict]] = {"deal_name": [_item(value="Deal X")]}
+    if stage is not None:
+        values["deal_stage"] = [_item(status={"title": stage})]
+    if changed_at is not None:
+        values["stage_changed_at"] = [_item(value=changed_at)]
+    return _FakeClient(
+        {
+            f"/objects/deal/records/{attio_id}": {
+                "data": {"id": {"record_id": attio_id}, "values": values}
+            }
+        }
+    )
+
+
+async def _stage_events(db_sessionmaker: async_sessionmaker[AsyncSession], deal_id: str) -> list:
+    async with db_sessionmaker() as session:
+        return list(
+            (
+                await session.execute(
+                    text(
+                        "SELECT from_stage, to_stage, source, ts FROM deal_stage_events "
+                        "WHERE deal_attio_id = :id ORDER BY created_at"
+                    ),
+                    {"id": deal_id},
+                )
+            ).all()
+        )
+
+
+async def test_sync_deal_records_each_stage_change_once(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-deal-{uuid.uuid4()}"
+
+    await upsert.sync_deal(_deal_client(attio_id, "Inbound"), attio_id, _event("record.created"))
+    await upsert.sync_deal(_deal_client(attio_id, "Inbound"), attio_id, _event())  # no change
+    await upsert.sync_deal(
+        _deal_client(attio_id, "Qualified", "2026-10-01T09:30:00+00:00"), attio_id, _event()
+    )
+
+    events = await _stage_events(db_sessionmaker, attio_id)
+    assert [(e.from_stage, e.to_stage, e.source) for e in events] == [
+        (None, "Inbound", "attio_webhook"),
+        ("Inbound", "Qualified", "attio_webhook"),
+    ]
+    # The event is timed by Attio's own stage_changed_at, not the sync time.
+    assert events[1].ts.isoformat() == "2026-10-01T09:30:00+00:00"
+    rows = await _activity_rows(db_sessionmaker, "Deal", attio_id)
+    assert [r.event_type for r in rows].count("deal.stage_changed") == 2
+
+
+async def test_sync_deal_without_a_stage_records_no_stage_event(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-deal-{uuid.uuid4()}"
+
+    await upsert.sync_deal(_deal_client(attio_id, None), attio_id, _event())
+
+    assert await _stage_events(db_sessionmaker, attio_id) == []

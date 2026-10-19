@@ -18,11 +18,13 @@ from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.ddl_commands.application.ports.attio_sync import AttioRegistryPort
+from app.modules.ddl_commands.application.ports.raw_events import RawEventLogPort
 from app.modules.ddl_commands.application.ports.unit_of_work import DdlCommandsUnitOfWorkFactory
 from app.modules.ddl_commands.application.service import DdlCommandsService
 from app.modules.ddl_commands.config import get_settings
 from app.modules.ddl_commands.persistence.attio_sync import AttioSyncRepository
 from app.modules.ddl_commands.persistence.database import import_all_models
+from app.modules.ddl_commands.persistence.raw_events import RawEventLog
 from app.modules.ddl_commands.persistence.repositories.buyers_repository import BuyerRepository
 from app.modules.ddl_commands.persistence.repositories.sellers_repository import SellerRepository
 from app.modules.ddl_commands.persistence.unit_of_work import SqlAlchemyDdlCommandsUnitOfWork
@@ -65,6 +67,10 @@ def build_attio_sync_repository() -> AttioSyncRepository:
 
 def build_attio_registry() -> AttioRegistryPort:
     return AttioRegistry()
+
+
+def build_raw_event_log() -> RawEventLogPort:
+    return RawEventLog()
 
 
 def create_app() -> FastAPI:

@@ -496,6 +496,36 @@ resource "aws_cloudwatch_metric_alarm" "lead_magnet_email_send_failed" {
   ok_actions          = local.alarm_actions
 }
 
+# History writes fail open, and the table is append-only, so this alarm is the only signal of a lost row.
+resource "aws_cloudwatch_log_metric_filter" "history_write_failed" {
+  name           = "${var.project}-${var.environment}-toolkit-history-write-failed"
+  log_group_name = aws_cloudwatch_log_group.wusool_toolkit.name
+  pattern        = "{ $.message = \"*activity_record_failed*\" || $.message = \"*deal_stage_record_failed*\" || $.message = \"*command_run_start_failed*\" || $.message = \"*command_run_finish_failed*\" }"
+
+  metric_transformation {
+    name          = "HistoryWriteFailed"
+    namespace     = "${var.project}/${var.environment}/toolkit"
+    value         = "1"
+    default_value = 0
+  }
+}
+
+# One lost row is already final, so one period suffices; no data means no failures.
+resource "aws_cloudwatch_metric_alarm" "history_write_failed" {
+  alarm_name          = "${var.project}-${var.environment}-toolkit-history-write-failed"
+  alarm_description   = "A history row (activity, deal stage event or command run) could not be written. The business action still succeeded; the row is lost and the history cannot be backfilled."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = aws_cloudwatch_log_metric_filter.history_write_failed.metric_transformation[0].name
+  namespace           = aws_cloudwatch_log_metric_filter.history_write_failed.metric_transformation[0].namespace
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+}
+
 # External reachability check, run from outside AWS's network — the layer
 # that catches a network-path blip while the instance itself stays healthy
 # (confirmed against a real incident: 2026-09-09 prod, CPU flat, zero

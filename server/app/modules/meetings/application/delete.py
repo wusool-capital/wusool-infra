@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from app.modules.activities import EventType
+from app.modules.meetings.application.activity_events import meeting_event
 from app.modules.meetings.application.base import ServiceBase
 from app.modules.meetings.application.errors import MeetingStillProcessingError
 
@@ -57,3 +59,4 @@ class DeleteMixin(ServiceBase):
             raise MeetingStillProcessingError(
                 f"Meeting {meeting.id} changed state during delete; retry shortly."
             )
+        await self._activity_recorder.record(meeting_event(EventType.MEETING_DELETED, meeting))
