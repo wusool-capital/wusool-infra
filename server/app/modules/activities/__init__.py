@@ -7,7 +7,8 @@ domain ledger (`tool_runs`, `match_results`, `meetings`, `command_runs`,
 
 A peer module, not a full-access one: consumers import this root's `__all__`
 (the vocabulary, payloads, `ActivityEvent`, `ActivityRecorderPort` and the
-concrete `SqlAlchemyActivityRecorder` their persistence layer constructs). It
+concrete `SqlAlchemyActivityRecorder` and `SqlAlchemyDealStageRecorder` their
+persistence layers construct). It
 imports no other business module, so the module graph stays acyclic.
 """
 
@@ -29,6 +30,7 @@ from app.modules.activities.domain.vocabulary import (
     EventType,
     SubjectType,
 )
+from app.modules.activities.persistence.deal_stages import SqlAlchemyDealStageRecorder
 from app.modules.activities.persistence.recorder import SqlAlchemyActivityRecorder
 
 __all__ = [
@@ -46,6 +48,7 @@ __all__ = [
     "NoPayload",
     "ProfileWritePayload",
     "SqlAlchemyActivityRecorder",
+    "SqlAlchemyDealStageRecorder",
     "StageChangePayload",
     "SubjectType",
 ]

@@ -48,6 +48,7 @@ from app.modules.activities import (
     CrmRecordPayload,
     EventType,
     SqlAlchemyActivityRecorder,
+    SqlAlchemyDealStageRecorder,
     SubjectType,
 )
 from app.modules.attio import AttioClientProtocol, WebhookEvent, owns_record
@@ -121,6 +122,11 @@ def _crm_event_type(webhook_event_type: str) -> EventType:
     return EventType.CRM_RECORD_UPDATED
 
 
+def _actor(event: WebhookEvent) -> ActivityActor:
+    actor = event.actor
+    return ActivityActor.attio(actor.type if actor else None, actor.id if actor else None)
+
+
 async def _log_activity(
     session: AsyncSession,
     event: WebhookEvent,
@@ -130,13 +136,12 @@ async def _log_activity(
     subject_attio_id: str | None = None,
     subject_uuid: UUID | None = None,
 ) -> None:
-    actor = event.actor
     await SqlAlchemyActivityRecorder(session).record(
         ActivityEvent(
             subject_type=subject_type,
             event_type=_crm_event_type(event.event_type),
             source=ActivitySource.ATTIO_WEBHOOK,
-            actor=ActivityActor.attio(actor.type if actor else None, actor.id if actor else None),
+            actor=_actor(event),
             payload=CrmRecordPayload(attio_event_type=event.event_type, attio_object=object_slug),
             subject_attio_id=subject_attio_id,
             subject_uuid=subject_uuid,
@@ -605,7 +610,19 @@ async def sync_deal(client: AttioClientProtocol, record_id: str, event: WebhookE
         return
     params = _deal_params(fetched["data"])
     async with get_sessionmaker()() as session:
+        stages = SqlAlchemyDealStageRecorder(session)
+        # Read under a row lock before the upsert overwrites the stage, so the
+        # old value is known and a concurrent approval cannot double-record.
+        previous_stage = await stages.current_stage(params["attio_id"])
         await session.execute(_DEAL_UPSERT, _for_text_sql("deals", params))
+        await stages.record_change(
+            deal_attio_id=params["attio_id"],
+            previous_stage=previous_stage,
+            new_stage=params["stage"],
+            actor=_actor(event),
+            source=ActivitySource.ATTIO_WEBHOOK,
+            occurred_at=params["stage_changed_at"],
+        )
         await _log_activity(
             session,
             event,

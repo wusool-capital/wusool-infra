@@ -1,6 +1,7 @@
 """`SqlAlchemyActivityRecorder` — the single writer of `activities` rows."""
 
 import logging
+from datetime import datetime
 from typing import Annotated
 
 from pydantic import Field, TypeAdapter
@@ -60,7 +61,7 @@ class SqlAlchemyActivityRecorder:
             )
 
     @staticmethod
-    def _params(event: ActivityEvent) -> dict[str, str | None]:
+    def _params(event: ActivityEvent) -> dict[str, str | datetime | None]:
         return {
             "subject_type": event.subject_type.value,
             "subject_attio_id": event.subject_attio_id,
@@ -71,7 +72,7 @@ class SqlAlchemyActivityRecorder:
             "actor_ref": event.actor.ref,
             "actor_attio_id": event.actor.attio_member_id,
             "outcome": event.outcome,
-            "ts": None if event.occurred_at is None else event.occurred_at.isoformat(),
+            "ts": event.occurred_at,
             "payload": _PAYLOAD.dump_json(event.payload).decode(),
             "idempotency_key": event.idempotency_key,
             "tool_run_id": _text_or_none(event.tool_run_id),

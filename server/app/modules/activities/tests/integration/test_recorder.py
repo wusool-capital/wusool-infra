@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Mapping
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -115,3 +116,28 @@ async def test_failed_insert_is_swallowed_and_keeps_the_transaction(
     ).scalar_one()
     assert org_count == 1
     assert await _count(db_session, "subject_attio_id = :id", id=org_id) == 1
+
+
+async def test_occurred_at_sets_the_event_time_otherwise_it_defaults_to_now(
+    db_session: AsyncSession,
+) -> None:
+    earlier = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    dated = _event(occurred_at=earlier)
+    undated = _event()
+    recorder = SqlAlchemyActivityRecorder(db_session)
+    await recorder.record(dated)
+    await recorder.record(undated)
+
+    rows = {
+        r.subject_attio_id: r.ts
+        for r in (
+            await db_session.execute(
+                text(
+                    "SELECT subject_attio_id, ts FROM activities WHERE subject_attio_id = ANY(:ids)"
+                ),
+                {"ids": [dated.subject_attio_id, undated.subject_attio_id]},
+            )
+        ).all()
+    }
+    assert rows[dated.subject_attio_id] == earlier
+    assert rows[undated.subject_attio_id] > earlier

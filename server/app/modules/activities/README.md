@@ -18,6 +18,7 @@ activities/
   domain/event.py                   # ActivityActor, ActivityEvent
   application/ports/recorder.py     # ActivityRecorderPort Protocol
   persistence/recorder.py           # SqlAlchemyActivityRecorder
+  persistence/deal_stages.py        # SqlAlchemyDealStageRecorder (deal_stage_events + deal.stage_changed)
 ```
 
 ## Rules

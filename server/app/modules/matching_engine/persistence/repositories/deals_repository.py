@@ -6,14 +6,23 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.deal import Deal
+from app.modules.activities import (
+    ActivityActor,
+    ActivitySource,
+    SqlAlchemyDealStageRecorder,
+)
 from app.modules.matching_engine.domain.matching.deals import DealRecord
 
 
 class DealRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        self._stages = SqlAlchemyDealStageRecorder(session)
 
-    async def upsert(self, deal: DealRecord) -> None:
+    async def upsert(self, deal: DealRecord, *, actor: ActivityActor) -> None:
+        # Read under a row lock before the upsert, so the stage change is recorded
+        # exactly once whether this or the webhook echo commits first.
+        previous_stage = await self._stages.current_stage(deal.attio_id)
         # ON CONFLICT: the inbound Attio webhook may have synced this deal
         # before the approval commits.
         stmt = insert(Deal).values(
@@ -33,4 +42,11 @@ class DealRepository:
             },
         )
         await self._session.execute(stmt)
+        await self._stages.record_change(
+            deal_attio_id=deal.attio_id,
+            previous_stage=previous_stage,
+            new_stage=deal.stage,
+            actor=actor,
+            source=ActivitySource.MATCHING_ENGINE,
+        )
         await self._session.flush()

@@ -982,3 +982,67 @@ async def test_delete_role_entry_records_an_event_keyed_by_both_ids(
 
     rows = await _activity_rows(db_sessionmaker, "SellerRole", entry_id)
     assert [r.event_type for r in rows] == ["crm.record_created", "crm.record_deleted"]
+
+
+def _deal_client(attio_id: str, stage: str | None, changed_at: str | None = None) -> _FakeClient:
+    values: dict[str, list[dict]] = {"deal_name": [_item(value="Deal X")]}
+    if stage is not None:
+        values["deal_stage"] = [_item(status={"title": stage})]
+    if changed_at is not None:
+        values["stage_changed_at"] = [_item(value=changed_at)]
+    return _FakeClient(
+        {
+            f"/objects/deal/records/{attio_id}": {
+                "data": {"id": {"record_id": attio_id}, "values": values}
+            }
+        }
+    )
+
+
+async def _stage_events(db_sessionmaker: async_sessionmaker[AsyncSession], deal_id: str) -> list:
+    async with db_sessionmaker() as session:
+        return list(
+            (
+                await session.execute(
+                    text(
+                        "SELECT from_stage, to_stage, source, ts FROM deal_stage_events "
+                        "WHERE deal_attio_id = :id ORDER BY created_at"
+                    ),
+                    {"id": deal_id},
+                )
+            ).all()
+        )
+
+
+async def test_sync_deal_records_each_stage_change_once(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-deal-{uuid.uuid4()}"
+
+    await upsert.sync_deal(_deal_client(attio_id, "Inbound"), attio_id, _event("record.created"))
+    await upsert.sync_deal(_deal_client(attio_id, "Inbound"), attio_id, _event())  # no change
+    await upsert.sync_deal(
+        _deal_client(attio_id, "Qualified", "2026-10-01T09:30:00+00:00"), attio_id, _event()
+    )
+
+    events = await _stage_events(db_sessionmaker, attio_id)
+    assert [(e.from_stage, e.to_stage, e.source) for e in events] == [
+        (None, "Inbound", "attio_webhook"),
+        ("Inbound", "Qualified", "attio_webhook"),
+    ]
+    # The event is timed by Attio's own stage_changed_at, not the sync time.
+    assert events[1].ts.isoformat() == "2026-10-01T09:30:00+00:00"
+    rows = await _activity_rows(db_sessionmaker, "Deal", attio_id)
+    assert [r.event_type for r in rows].count("deal.stage_changed") == 2
+
+
+async def test_sync_deal_without_a_stage_records_no_stage_event(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-deal-{uuid.uuid4()}"
+
+    await upsert.sync_deal(_deal_client(attio_id, None), attio_id, _event())
+
+    assert await _stage_events(db_sessionmaker, attio_id) == []

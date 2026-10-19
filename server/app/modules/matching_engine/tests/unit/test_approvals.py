@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.modules.activities import ActorType, EventType
 from app.modules.matching_engine.application.approvals import (
     ApprovalsMixin,
     InvalidTransitionError,
@@ -40,8 +41,8 @@ def _candidate(**overrides):
 
 def _updated():
     return SimpleNamespace(
-        id="m1", run_id="r1", seller_org_name="Seller Co", seller_attio_id="seller-1",
-        status="APPROVED",
+        id=str(uuid4()), run_id="r1", seller_org_name="Seller Co", seller_attio_id="seller-1",
+        buyer_role_id=str(uuid4()), status="APPROVED",
     )  # fmt: skip
 
 
@@ -51,7 +52,8 @@ def _service(*, update_result=None, upsert_error=None, gateway=None, candidate=N
         update_status=AsyncMock(return_value=update_result),
     )
     deals = SimpleNamespace(upsert=AsyncMock(side_effect=upsert_error))
-    uow = SimpleNamespace(match_results=repo, deals=deals)
+    activities = SimpleNamespace(record=AsyncMock())
+    uow = SimpleNamespace(match_results=repo, deals=deals, activities=activities)
     # Only the approval dependencies are exercised; the rest are stand-ins.
     service = ApprovalsMixin(
         lambda: _AsyncContextManager(uow),
@@ -63,7 +65,7 @@ def _service(*, update_result=None, upsert_error=None, gateway=None, candidate=N
         top_n=0,
         deal_gateway=gateway or _gateway(),
     )
-    return service, repo, deals
+    return service, repo, deals, activities
 
 
 def _gateway(*, existing=None, create_error=None):
@@ -80,7 +82,7 @@ def _gateway(*, existing=None, create_error=None):
 @pytest.mark.asyncio
 async def test_approve_creates_deal_then_stamps_match() -> None:
     gateway = _gateway()
-    service, repo, deals = _service(update_result=_updated(), gateway=gateway)
+    service, repo, deals, _ = _service(update_result=_updated(), gateway=gateway)
 
     result = await service.approve_match(uuid4(), "U_TEST")
 
@@ -94,7 +96,7 @@ async def test_approve_creates_deal_then_stamps_match() -> None:
 async def test_existing_deals_require_a_choice() -> None:
     existing = [ExistingDeal("deal-1", "Old", "Inbound", None)]
     gateway = _gateway(existing=existing)
-    service, _, _ = _service(update_result=_updated(), gateway=gateway)
+    service, _, _, _ = _service(update_result=_updated(), gateway=gateway)
 
     with pytest.raises(ExistingDealsFoundError) as raised:
         await service.approve_match(uuid4(), "U_TEST")
@@ -106,7 +108,7 @@ async def test_existing_deals_require_a_choice() -> None:
 @pytest.mark.asyncio
 async def test_promote_moves_inbound_deal_to_qualified() -> None:
     gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Inbound", None)])
-    service, repo, deals = _service(update_result=_updated(), gateway=gateway)
+    service, repo, deals, _ = _service(update_result=_updated(), gateway=gateway)
 
     await service.approve_match(
         uuid4(), "U_TEST", resolution="promote_existing", existing_deal_id="deal-1"
@@ -121,7 +123,7 @@ async def test_promote_moves_inbound_deal_to_qualified() -> None:
 @pytest.mark.asyncio
 async def test_promote_does_not_regress_a_later_stage() -> None:
     gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Diligence", None)])
-    service, _, deals = _service(update_result=_updated(), gateway=gateway)
+    service, _, deals, _ = _service(update_result=_updated(), gateway=gateway)
 
     await service.approve_match(
         uuid4(), "U_TEST", resolution="promote_existing", existing_deal_id="deal-1"
@@ -134,7 +136,7 @@ async def test_promote_does_not_regress_a_later_stage() -> None:
 @pytest.mark.asyncio
 async def test_create_new_skips_lookup() -> None:
     gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Inbound", None)])
-    service, _, _ = _service(update_result=_updated(), gateway=gateway)
+    service, _, _, _ = _service(update_result=_updated(), gateway=gateway)
 
     await service.approve_match(uuid4(), "U_TEST", resolution="create_new")
 
@@ -145,7 +147,7 @@ async def test_create_new_skips_lookup() -> None:
 @pytest.mark.asyncio
 async def test_attio_failure_saves_nothing() -> None:
     gateway = _gateway(create_error=DealGatewayError("boom"))
-    service, repo, deals = _service(update_result=_updated(), gateway=gateway)
+    service, repo, deals, _ = _service(update_result=_updated(), gateway=gateway)
 
     with pytest.raises(PartialWriteError) as raised:
         await service.approve_match(uuid4(), "U_TEST")
@@ -157,7 +159,7 @@ async def test_attio_failure_saves_nothing() -> None:
 
 @pytest.mark.asyncio
 async def test_postgres_failure_reports_the_landed_deal() -> None:
-    service, _, _ = _service(upsert_error=RuntimeError("db down"))
+    service, _, _, _ = _service(upsert_error=RuntimeError("db down"))
 
     with pytest.raises(PartialWriteError) as raised:
         await service.approve_match(uuid4(), "U_TEST")
@@ -167,7 +169,7 @@ async def test_postgres_failure_reports_the_landed_deal() -> None:
 
 @pytest.mark.asyncio
 async def test_approval_race_loser_reports_the_landed_deal() -> None:
-    service, _, _ = _service(update_result=None)
+    service, _, _, _ = _service(update_result=None)
 
     with pytest.raises(PartialWriteError) as raised:
         await service.approve_match(uuid4(), "U_TEST")
@@ -179,7 +181,7 @@ async def test_approval_race_loser_reports_the_landed_deal() -> None:
 @pytest.mark.asyncio
 async def test_terminal_match_is_rejected_before_any_attio_write() -> None:
     gateway = _gateway()
-    service, _, _ = _service(gateway=gateway, candidate=_candidate(status="APPROVED"))
+    service, _, _, _ = _service(gateway=gateway, candidate=_candidate(status="APPROVED"))
 
     with pytest.raises(InvalidTransitionError):
         await service.approve_match(uuid4(), "U_TEST")
@@ -190,7 +192,7 @@ async def test_terminal_match_is_rejected_before_any_attio_write() -> None:
 @pytest.mark.asyncio
 async def test_promote_of_a_vanished_deal_reprompts_instead_of_creating() -> None:
     gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Inbound", None)])
-    service, _, _ = _service(update_result=_updated(), gateway=gateway)
+    service, _, _, _ = _service(update_result=_updated(), gateway=gateway)
 
     with pytest.raises(ExistingDealsFoundError):
         await service.approve_match(
@@ -203,7 +205,7 @@ async def test_promote_of_a_vanished_deal_reprompts_instead_of_creating() -> Non
 @pytest.mark.asyncio
 async def test_unstaged_existing_deal_keeps_its_missing_stage() -> None:
     gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", None, None)])
-    service, _, deals = _service(update_result=_updated(), gateway=gateway)
+    service, _, deals, _ = _service(update_result=_updated(), gateway=gateway)
 
     await service.approve_match(
         uuid4(), "U_TEST", resolution="promote_existing", existing_deal_id="deal-1"
@@ -225,10 +227,66 @@ async def test_slow_attio_times_out_and_warns_the_deal_may_exist(monkeypatch) ->
 
     gateway = _gateway()
     gateway.create_qualified = slow
-    service, _, deals = _service(update_result=_updated(), gateway=gateway)
+    service, _, deals, _ = _service(update_result=_updated(), gateway=gateway)
 
     with pytest.raises(PartialWriteError) as raised:
         await service.approve_match(uuid4(), "U_TEST")
 
     assert "may still have been created" in raised.value.landed[0]
     deals.upsert.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_approval_records_one_event_linked_to_the_match_and_stamps_the_deal_actor() -> None:
+    updated = _updated()
+    service, _, deals, activities = _service(update_result=updated)
+
+    await service.approve_match(uuid4(), "U_APPROVER")
+
+    (call,) = activities.record.await_args_list
+    event = call.args[0]
+    assert event.event_type is EventType.MATCH_APPROVED
+    assert event.actor.type is ActorType.SLACK_USER
+    assert event.actor.ref == "U_APPROVER"
+    assert str(event.match_result_id) == updated.id
+    assert str(event.subject_uuid) == updated.buyer_role_id
+    assert event.payload.deal_attio_id == "deal-new"
+    assert event.idempotency_key == f"match.approved:{updated.id}"
+    assert deals.upsert.await_args.kwargs["actor"].ref == "U_APPROVER"
+
+
+@pytest.mark.asyncio
+async def test_a_lost_approval_race_records_no_event() -> None:
+    service, _, _, activities = _service(update_result=None)
+
+    with pytest.raises(PartialWriteError):
+        await service.approve_match(uuid4(), "U_TEST")
+
+    activities.record.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_rejection_records_one_event_linked_to_the_match() -> None:
+    updated = _updated()
+    service, repo, _, activities = _service(update_result=updated)
+    repo.get_by_id = AsyncMock(return_value=_candidate())
+
+    await service.reject_match(uuid4(), "U_REVIEWER")
+
+    (call,) = activities.record.await_args_list
+    event = call.args[0]
+    assert event.event_type is EventType.MATCH_REJECTED
+    assert event.actor.ref == "U_REVIEWER"
+    assert str(event.match_result_id) == updated.id
+    assert event.payload.deal_attio_id is None
+
+
+@pytest.mark.asyncio
+async def test_a_lost_rejection_race_records_no_event() -> None:
+    service, repo, _, activities = _service(update_result=None)
+    repo.get_by_id = AsyncMock(return_value=_candidate())
+
+    with pytest.raises(InvalidTransitionError):
+        await service.reject_match(uuid4(), "U_REVIEWER")
+
+    activities.record.assert_not_awaited()
