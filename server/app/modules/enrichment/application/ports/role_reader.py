@@ -8,6 +8,7 @@ avoids a second database round trip — see `SqlAlchemyRoleReader.load`.
 
 from typing import Protocol
 
+from app.modules.enrichment.domain.linkedin import LinkedInTargets
 from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget
 from app.modules.utilities.domain.json_types import JsonObject
@@ -15,3 +16,7 @@ from app.modules.utilities.domain.json_types import JsonObject
 
 class RoleReaderPort(Protocol):
     async def load(self, target: EnrichmentTarget) -> tuple[JsonObject, CompanyContext]: ...
+
+    async def load_linkedin_targets(self, target: EnrichmentTarget) -> LinkedInTargets:
+        """The role's contacts (capped) and company page, for a LinkedIn scan."""
+        ...

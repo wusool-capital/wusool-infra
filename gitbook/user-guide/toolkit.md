@@ -185,3 +185,8 @@ a role in Attio.
 
 **Expected result:** only reviewed values are saved. Fields that already
 have a value are never overwritten.
+
+If LinkedIn is switched on, a reply appears in the proposal's thread with job
+changes and recent posts for the role's contacts. It is information only;
+nothing is saved from it. Contacts without a LinkedIn URL are listed so you
+can add one.

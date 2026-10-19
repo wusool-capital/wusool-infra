@@ -6,9 +6,9 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/Users/sinanshamsudheen/orca/workspaces/wusool-infra/searobin/docs/internal/architecture/wusool-platform.html",
-    "sha256": "f39c604ab50416e2f0ec5695cf0d65484b7e495e5f498942c83ce119dff69d7a",
-    "bytes": 825143
+    "path": "/Users/sinanshamsudheen/orca/workspaces/wusool-infra/sinan-azm-148-enrichment-linkedin-profile-company-activity-source-apify/docs/internal/architecture/wusool-platform.html",
+    "sha256": "8a67802290e5e96c36cf626fa9bfa5fda082cc71b473f0ebedff990758fbb118",
+    "bytes": 825151
   },
   "state": {
     "detail": "read",

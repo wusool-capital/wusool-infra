@@ -16,11 +16,18 @@ class FakeCompanyDataClient(CompanyDataClient):
         self.website = website
         self.calls: list[tuple[str, tuple[str, ...]]] = []
         self.domains: list[str | None] = []
+        self.linkedin_urls: list[str | None] = []
 
     async def lookup(
-        self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
+        self,
+        *,
+        org_name: str,
+        fields: tuple[EnrichableField, ...],
+        domain: str | None = None,
+        linkedin_url: str | None = None,
     ) -> CompanyDataResult:
         self.domains.append(domain)
+        self.linkedin_urls.append(linkedin_url)
         self.calls.append((org_name, tuple(f.name for f in fields)))
         requested = {f.name for f in fields}
         return CompanyDataResult(

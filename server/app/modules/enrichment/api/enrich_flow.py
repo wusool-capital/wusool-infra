@@ -12,6 +12,7 @@ from app.modules.enrichment.api.dependencies import (
     propose_and_post,
     resolve_target,
 )
+from app.modules.enrichment.domain.linkedin import LinkedInScan
 from app.modules.enrichment.domain.proposals import BasicEnrichment
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -24,6 +25,16 @@ async def enrich_and_post(*, kind: str, role_id: str, channel_id: str) -> None:
         logger.warning("enrich_and_post_target_not_found", extra={"kind": kind, "role_id": role_id})
         return
     await propose_and_post(target, channel_id=channel_id)
+
+
+async def scan_linkedin_for_role(*, kind: str, role_id: str) -> LinkedInScan:
+    """LinkedIn job changes and recent posts for a role's contacts. Empty when
+    the role is unknown or the Apify source is not configured. Never writes."""
+    target = await resolve_target(kind=kind, role_id=uuid.UUID(role_id))
+    if target is None:
+        logger.warning("scan_linkedin_target_not_found", extra={"kind": kind, "role_id": role_id})
+        return LinkedInScan()
+    return await enrichment_service().scan_linkedin(target)
 
 
 async def propose_basic_seller_fields(

@@ -34,12 +34,15 @@ class Settings(SecretsManagerSettings):
     # requiring a key to boot.
     firecrawl_api_key: str | None = None
 
-    # Structured company-data waterfall (seller targets only — see
-    # EnrichMixin._structured_lookup), tried in this order before the
-    # Firecrawl+LLM fallback. Both optional: missing either key just skips
-    # that tier rather than requiring it to boot.
+    # Structured company-data waterfall (see EnrichMixin._structured_lookup),
+    # tried in this order before the Firecrawl+LLM fallback. Both optional:
+    # missing either key just skips that tier rather than requiring it to boot.
     diffbot_api_key: str | None = None
     people_data_labs_api_key: str | None = None
+
+    # LinkedIn profile/post/company scrapes (Apify). Optional: unset skips
+    # the LinkedIn source and leaves the rest of enrichment unchanged.
+    apify_api_token: str | None = None
 
     # Values below this confidence are dropped before ever reaching the
     # operator's confirmation dialog — not a scoring input, a proposal gate.

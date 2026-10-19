@@ -1,0 +1,162 @@
+import uuid
+
+import pytest
+
+from app.modules.enrichment.application.service import EnrichmentService
+from app.modules.enrichment.domain.linkedin import (
+    Contact,
+    LinkedInPost,
+    LinkedInProfile,
+    LinkedInTargets,
+)
+from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
+from app.modules.enrichment.tests.fakes.company_data import FakeCompanyDataClient
+from app.modules.enrichment.tests.fakes.extraction import FakeExtractionClient
+from app.modules.enrichment.tests.fakes.linkedin import FakeLinkedInClient
+from app.modules.enrichment.tests.fakes.research import FakeResearchClient
+from app.modules.enrichment.tests.fakes.role_ports import FakeReviewPort, FakeRoleReader
+
+_JANE_URL = "https://www.linkedin.com/in/jane-doe"
+_COMPANY_URL = "https://www.linkedin.com/company/acme-co"
+
+
+def _contact(pid: str = "p1", url: str | None = _JANE_URL, title: str | None = "CFO") -> Contact:
+    return Contact(
+        person_attio_id=pid,
+        name=f"Person {pid}",
+        company_name="Acme Co",
+        linkedin_url=url,
+        job_title=title,
+    )
+
+
+def _service(
+    *, targets: LinkedInTargets, linkedin_client: FakeLinkedInClient | None
+) -> EnrichmentService:
+    return EnrichmentService(
+        research_client=FakeResearchClient(),
+        extraction_client=FakeExtractionClient({}),
+        role_reader=FakeRoleReader(linkedin_targets=targets),
+        review_port=FakeReviewPort(),
+        model_id="test-model",
+        temperature=0.2,
+        max_tokens=1024,
+        min_confidence=0.5,
+        linkedin_client=linkedin_client,
+    )
+
+
+@pytest.fixture
+def target() -> EnrichmentTarget:
+    return EnrichmentTarget(
+        kind=EnrichmentTargetKind.SELLER,
+        role_id=uuid.uuid4(),
+        org_attio_id="test-org",
+        org_name="Acme Co",
+    )
+
+
+async def test_scan_without_a_client_is_empty(target: EnrichmentTarget) -> None:
+    service = _service(targets=LinkedInTargets(contacts=(_contact(),)), linkedin_client=None)
+
+    assert (await service.scan_linkedin(target)).is_empty
+
+
+async def test_scan_detects_job_change_and_returns_posts(target: EnrichmentTarget) -> None:
+    post = LinkedInPost(external_id="1", url="https://linkedin.com/posts/1", text="hi")
+    client = FakeLinkedInClient(
+        profiles=(
+            LinkedInProfile(url=f"{_JANE_URL}/", current_title="CFO", current_company="Globex"),
+        ),
+        posts=(post,),
+    )
+    service = _service(
+        targets=LinkedInTargets(contacts=(_contact(),), company_url=_COMPANY_URL),
+        linkedin_client=client,
+    )
+
+    scan = await service.scan_linkedin(target)
+
+    assert [c.contact.person_attio_id for c in scan.job_changes] == ["p1"]
+    assert scan.job_changes[0].company_changed
+    assert scan.posts == (post,)
+    # One batched run each; the company page rides along with the posts run.
+    assert client.profile_calls == [(_JANE_URL,)]
+    assert client.post_calls == [((_JANE_URL, _COMPANY_URL), 10, "month")]
+
+
+async def test_contact_without_url_is_skipped_and_reported(
+    target: EnrichmentTarget, caplog
+) -> None:
+    client = FakeLinkedInClient(
+        profiles=(LinkedInProfile(url=_JANE_URL, current_title="CFO", current_company="Acme Co"),)
+    )
+    no_url = _contact("p2", url=None)
+    service = _service(
+        targets=LinkedInTargets(contacts=(_contact(), no_url)), linkedin_client=client
+    )
+
+    with caplog.at_level("INFO"):
+        scan = await service.scan_linkedin(target)
+
+    assert client.profile_calls == [(_JANE_URL,)]
+    assert scan.contacts_without_linkedin == (no_url,)
+    # The log identifies the person by id only, never name or URL.
+    assert "p2" in caplog.text
+    assert "Person p2" not in caplog.text
+
+
+async def test_no_scrapable_contact_makes_no_vendor_call(target: EnrichmentTarget) -> None:
+    client = FakeLinkedInClient()
+    no_url = _contact("p2", url=None)
+    service = _service(targets=LinkedInTargets(contacts=(no_url,)), linkedin_client=client)
+
+    scan = await service.scan_linkedin(target)
+
+    assert client.profile_calls == [] and client.post_calls == []
+    assert scan.contacts_without_linkedin == (no_url,)
+
+
+async def test_scan_failure_returns_empty_scan_without_raising(target: EnrichmentTarget) -> None:
+    client = FakeLinkedInClient(error=RuntimeError("apify down"))
+    service = _service(targets=LinkedInTargets(contacts=(_contact(),)), linkedin_client=client)
+
+    assert (await service.scan_linkedin(target)).job_changes == ()
+
+
+async def test_scan_is_bounded_by_the_overall_timeout(
+    target: EnrichmentTarget, monkeypatch
+) -> None:
+    monkeypatch.setattr("app.modules.enrichment.application.linkedin._SCAN_TIMEOUT_S", 0.01)
+    client = FakeLinkedInClient(delay_s=1.0)
+    service = _service(targets=LinkedInTargets(contacts=(_contact(),)), linkedin_client=client)
+
+    scan = await service.scan_linkedin(target)
+
+    assert scan.job_changes == () and scan.posts == ()
+
+
+async def test_propose_passes_company_linkedin_url_but_propose_basic_does_not(
+    target: EnrichmentTarget,
+) -> None:
+    from app.modules.enrichment.domain.research_context import CompanyContext
+
+    fake = FakeCompanyDataClient()
+    service = EnrichmentService(
+        research_client=None,
+        extraction_client=FakeExtractionClient({}),
+        role_reader=FakeRoleReader(
+            context=CompanyContext(org_name="Acme Co", linkedin=_COMPANY_URL)
+        ),
+        review_port=FakeReviewPort(),
+        model_id="test-model",
+        temperature=0.2,
+        max_tokens=1024,
+        min_confidence=0.5,
+        company_data_clients=(fake,),
+    )
+
+    await service.propose(target)
+    await service.propose_basic(org_name="Acme Co", domain=None, current_values={})
+
+    assert fake.linkedin_urls == [_COMPANY_URL, None]

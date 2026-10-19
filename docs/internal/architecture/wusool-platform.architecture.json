@@ -163,7 +163,7 @@
       "id": "research",
       "type": "external",
       "label": "Research providers",
-      "sublabel": "Firecrawl · Diffbot · PDL · Google Places",
+      "sublabel": "Firecrawl · Diffbot · PDL · Apify · Places",
       "pos": [
         1000,
         650

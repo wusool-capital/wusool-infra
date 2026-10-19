@@ -14,12 +14,14 @@ import aiohttp
 
 
 class FakeAiohttpResponse:
-    def __init__(self, status: int, body: dict, headers: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, status: int, body: dict | list, headers: dict[str, str] | None = None
+    ) -> None:
         self.status = status
         self._body = body
         self.headers = headers or {}
 
-    async def json(self) -> dict:
+    async def json(self) -> dict | list:
         return self._body
 
     async def __aenter__(self) -> "FakeAiohttpResponse":
@@ -44,6 +46,7 @@ class FakeAiohttpSession:
         self._get = get
         self._post = post
         self.get_calls = 0
+        self.post_calls: list[tuple[str, dict[str, object]]] = []
 
     def get(self, url: str, **kwargs: object) -> FakeAiohttpResponse:
         self.get_calls += 1
@@ -53,6 +56,7 @@ class FakeAiohttpSession:
         return self._resolve(self._get, "get")
 
     def post(self, url: str, **kwargs: object) -> FakeAiohttpResponse:
+        self.post_calls.append((url, kwargs))
         return self._resolve(self._post, "post")
 
     @staticmethod

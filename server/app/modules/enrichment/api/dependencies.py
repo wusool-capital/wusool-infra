@@ -16,6 +16,8 @@ from app.modules.enrichment.application.ports.company_data import CompanyDataCli
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
 from app.modules.enrichment.application.service import EnrichmentService
 from app.modules.enrichment.bootstrap import (
+    build_apify_company_client,
+    build_apify_linkedin_client,
     build_bedrock_client,
     build_diffbot_client,
     build_enrichment_service,
@@ -31,6 +33,8 @@ from app.modules.enrichment.domain.targets import (
 )
 from app.modules.enrichment.persistence.database import get_sessionmaker
 from app.modules.enrichment.persistence.role_lookup import SqlAlchemyRoleReader
+from app.modules.enrichment.providers.apify.company import ApifyLinkedInCompanyClient
+from app.modules.enrichment.providers.apify.linkedin import ApifyLinkedInClient
 from app.modules.enrichment.providers.bedrock.client import BedrockConverseClient
 from app.modules.enrichment.providers.diffbot.client import DiffbotCompanyDataClient
 from app.modules.enrichment.providers.firecrawl.client import FirecrawlResearchClient
@@ -95,10 +99,34 @@ def _people_data_labs_client() -> PeopleDataLabsCompanyDataClient | None:
     return build_people_data_labs_client(api_key)
 
 
+@lru_cache
+def _linkedin_client() -> ApifyLinkedInClient | None:
+    token = get_settings().apify_api_token
+    if not token:
+        logger.warning("apify_api_token_unset — LinkedIn enrichment is disabled")
+        return None
+    return build_apify_linkedin_client(token)
+
+
+@lru_cache
+def _apify_company_client() -> ApifyLinkedInCompanyClient | None:
+    token = get_settings().apify_api_token
+    return build_apify_company_client(token) if token else None
+
+
 def _company_data_clients() -> tuple[CompanyDataClient, ...]:
     # Order matters: Diffbot's free tier is far larger (10k/mo vs. PDL's
     # 100/mo), so it's tried first and PDL only fills whatever it misses.
-    return tuple(c for c in (_diffbot_client(), _people_data_labs_client()) if c is not None)
+    # Apify is last: each run is billed, so it only fills what both missed.
+    return tuple(
+        c
+        for c in (
+            _diffbot_client(),
+            _people_data_labs_client(),
+            _apify_company_client(),
+        )
+        if c is not None
+    )
 
 
 def enrichment_service() -> EnrichmentService:
@@ -108,6 +136,7 @@ def enrichment_service() -> EnrichmentService:
         research_client=_research_client(),
         review_port=_review_port(),
         company_data_clients=_company_data_clients(),
+        linkedin_client=_linkedin_client(),
     )
 
 
@@ -192,3 +221,32 @@ async def propose_and_post(target: EnrichmentTarget, *, channel_id: str) -> None
         await notifier.update_message(
             channel=channel_id, ts=placeholder_ts, text="Enrichment failed unexpectedly."
         )
+        return
+    await _post_linkedin_followup(
+        target, channel_id=channel_id, thread_ts=placeholder_ts, notifier=notifier
+    )
+
+
+async def _post_linkedin_followup(
+    target: EnrichmentTarget,
+    *,
+    channel_id: str,
+    thread_ts: str,
+    notifier: SlackWebClientNotifier,
+) -> None:
+    """Runs after the proposal is already posted, so a slow or failing scrape
+    can only ever cost the follow-up, never the proposal."""
+    from app.modules.enrichment.api.slack.views.linkedin_message import build_linkedin_blocks
+
+    try:
+        scan = await enrichment_service().scan_linkedin(target)
+        if scan.is_empty:
+            return
+        await notifier.post_message(
+            channel=channel_id,
+            text=f"LinkedIn activity for {target.org_name}",
+            blocks=build_linkedin_blocks(scan, target.org_name),
+            thread_ts=thread_ts,
+        )
+    except Exception:
+        logger.exception("linkedin_followup_failed", extra={"org_name": target.org_name})

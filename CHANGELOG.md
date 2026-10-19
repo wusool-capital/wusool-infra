@@ -10,6 +10,13 @@ for current production evidence and open handover items.
 
 ## 2026-10-19
 
+### Added
+
+- Enrichment can now look at LinkedIn. After a proposal, the bot replies in
+  its thread with job changes and recent posts for the role's contacts. The
+  company's LinkedIn page can also fill missing company details. It uses
+  Apify and is skipped without an `APIFY_API_TOKEN`. Nothing is saved yet.
+
 ### Changed
 
 - Matching now shows the AI much more of each meeting summary. The limit is

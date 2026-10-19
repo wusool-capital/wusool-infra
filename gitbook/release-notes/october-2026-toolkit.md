@@ -2,6 +2,13 @@
 
 Delivery period: 15 September – 15 October 2026.
 
+## After 15 October
+
+- **LinkedIn activity in enrichment.** After an enrichment proposal, the bot
+  replies in its thread with job changes and recent posts for the role's
+  contacts. A contact without a LinkedIn URL is named, not guessed. Nothing is
+  saved from it yet.
+
 ## Approved matches become deals
 
 - **Approve Match** now creates a Qualified Buy-side deal in Attio and links

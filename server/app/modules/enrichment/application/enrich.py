@@ -177,6 +177,7 @@ class EnrichMixin(ServiceBase):
             domain=context.domains[0] if context.domains else None,
             missing=missing,
             current_values=current_values,
+            linkedin_url=context.linkedin,
         )
         proposed: list[ProposedFieldValue] = list(structured)
         resolved_names = {v.field_name for v in proposed}
@@ -223,6 +224,7 @@ class EnrichMixin(ServiceBase):
         domain: str | None,
         missing: list[EnrichableField],
         current_values: JsonObject,
+        linkedin_url: str | None = None,
     ) -> tuple[list[ProposedFieldValue], list[ProviderEvidence]]:
         """A company-data provider's schema is firmographic — revenue,
         employee count, HQ country, socials, years active, location count
@@ -245,7 +247,12 @@ class EnrichMixin(ServiceBase):
         for client in self._company_data_clients:
             if not remaining:
                 break
-            result = await client.lookup(org_name=org_name, fields=tuple(remaining), domain=domain)
+            result = await client.lookup(
+                org_name=org_name,
+                fields=tuple(remaining),
+                domain=domain,
+                linkedin_url=linkedin_url,
+            )
             fields = result.fields
             used_before = len(proposed)
             for field in fields:
