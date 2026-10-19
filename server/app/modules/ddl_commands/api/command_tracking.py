@@ -38,6 +38,8 @@ class CommandTracker:
     seller_role_id: UUID | None = None
     buyer_role_id: UUID | None = None
     changed_fields: list[str] = field(default_factory=list)
+    # Shared with the write body, which appends as each Attio write lands.
+    landed: list[str] = field(default_factory=list)
 
 
 def uuid_or_none(value: str | None) -> UUID | None:
@@ -111,17 +113,28 @@ async def track_command(
     try:
         yield tracker
     except PartialWriteError as exc:
-        status: CommandStatus = "partial" if exc.landed else "failed"
-        await _finish(service, tracker, status, landed=exc.landed, error=_error_text(exc.cause))
+        partial_status: CommandStatus = "partial" if exc.landed else "failed"
+        await _finish(
+            service, tracker, partial_status, landed=exc.landed, error=_error_text(exc.cause)
+        )
         raise
     except asyncio.CancelledError:
         # Shielded so a second cancel cannot strand the row at "running".
+        status = "partial" if tracker.landed else "failed"
         await asyncio.shield(
-            _finish(service, tracker, "failed", error="cancelled before the write finished")
+            _finish(
+                service,
+                tracker,
+                status,
+                landed=tracker.landed,
+                error="cancelled before the write finished",
+            )
         )
         raise
     except Exception as exc:
-        await _finish(service, tracker, "failed", error=_error_text(exc))
+        # Not a PartialWriteError, yet earlier Attio writes may have landed.
+        status = "partial" if tracker.landed else "failed"
+        await _finish(service, tracker, status, landed=tracker.landed, error=_error_text(exc))
         raise
     else:
         await _finish(service, tracker, "succeeded")

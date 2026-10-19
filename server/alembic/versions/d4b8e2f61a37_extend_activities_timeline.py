@@ -66,8 +66,7 @@ def upgrade() -> None:
         "UPDATE activities SET ledger_type = 'tool_run', ledger_id = tool_run_id "
         "WHERE tool_run_id IS NOT NULL"
     )
-    # The defaults keep the previous release's INSERT working while the new container
-    # rolls out: its rows are exactly the `legacy.record_synced` ones backfilled above.
+    # Defaults keep the previous release's INSERT working during rollout.
     op.alter_column(
         "activities", "event_type", nullable=False, server_default="legacy.record_synced"
     )

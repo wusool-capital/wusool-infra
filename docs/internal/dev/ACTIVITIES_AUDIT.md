@@ -197,7 +197,8 @@ actor, no change and no result.
 | Hard-deleted roles | `sync-source-to-prod.ps1` hard-deletes role rows, which orphans activities. Documented, not changed. |
 | Dangling ledger links | The polymorphic pointer has no FK, so a ledger row can be deleted and leave a stale id. `validate-postgres.ps1` reports them. |
 | Immutability scope | The trigger blocks row changes and TRUNCATE for every role. It does not stop `DROP TABLE`, or a superuser disabling the trigger, and it is not tamper-evident. It protects against accidents and application bugs, not a determined admin. |
-| Rolling deploy | `event_type` and `actor_type` are NOT NULL but default to `legacy.record_synced` and `unknown`, so the previous release's INSERT keeps working until the new container is up; its rows are typed as legacy webhook rows. The cost: a new writer that bypasses the recorder and forgets both columns is recorded as `legacy.record_synced` instead of failing. |
+| Rolling deploy | `event_type` and `actor_type` are NOT NULL but default to `legacy.record_synced` and `unknown`, so the previous release's INSERT keeps working until the new container is up. Its webhook rows are typed correctly. Its lead-magnet rows keep `source='lead_magnet'` and the deprecated `tool_run_id`, but get the legacy type and no ledger pair, and the append-only trigger stops them being corrected: read `COALESCE(ledger_id, tool_run_id)` for those. A new writer that bypasses the recorder and forgets both columns is recorded as `legacy.record_synced` instead of failing. |
+| Stale `running` command | A process killed mid-command (deploy, OOM) leaves its `command_runs` row at `running` with no `landed` list. Nothing sweeps these; treat a `running` row older than a few minutes as crashed. |
 | Attio webhook actor | The event shape is unverified against a real delivery. If absent, rows get `actor_type='unknown'`. |
 | Deal stage changes in the nightly batch | The batch path does not write `deal_stage_events`. Gap documented. |
 | Prod volume | The migration backfills in one transaction and builds plain indexes. Confirm the table is small first. |
@@ -222,4 +223,5 @@ merge. Not done here: counting queries on real data, and a check of the live
 - Fix `sync-source-to-prod.ps1` hard-deleting role rows, which orphans activities.
 - Add a write path for deal stage changes found only by the nightly batch resync.
 - Decide retention for `activities` once the volume queries have run.
+- A sweeper that marks `command_runs` rows stuck at `running` as crashed.
 - A timeline read path (API or Slack view); nothing reads `activities` yet.

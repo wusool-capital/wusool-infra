@@ -106,10 +106,7 @@ class Activity(Base):
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     # Deprecated: replaced by `ledger_type`/`ledger_id`, backfilled from this column.
     tool_run_id: Mapped[uuid_.UUID | None] = mapped_column(UUID, ForeignKey("tool_runs.id"))
-    # `domain.verb`, e.g. `seller.added`. The closed list lives in
-    # `app.modules.activities.domain.vocabulary.EventType`.
-    # The defaults only serve the previous release's writer during a rolling deploy;
-    # `SqlAlchemyActivityRecorder` always sets both explicitly.
+    # Defaults only serve the previous release's writer during rollout; the recorder sets both.
     event_type: Mapped[str] = mapped_column(
         Text, nullable=False, server_default="legacy.record_synced"
     )
@@ -117,9 +114,7 @@ class Activity(Base):
     # Raw actor id: Slack user, Attio member/token, Scribe install, process name.
     actor_ref: Mapped[str | None] = mapped_column(Text)
     idempotency_key: Mapped[str | None] = mapped_column(Text)
-    # Polymorphic link to the ledger row holding the detail; `LedgerType` names the
-    # table. No FK: an FK action would be an UPDATE, which the append-only trigger
-    # forbids. `validate-postgres.ps1` checks for dangling ids.
+    # Polymorphic ledger pointer, no FK: an FK action is an UPDATE, which the trigger forbids.
     ledger_type: Mapped[str | None] = mapped_column(Text)
     ledger_id: Mapped[uuid_.UUID | None] = mapped_column(UUID)
     created_at: Mapped[datetime] = mapped_column(

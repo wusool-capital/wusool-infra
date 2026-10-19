@@ -75,6 +75,7 @@ async def _write_seller_add(
     `ddl-commands/README.md`, "Why Attio-first").
     """
     landed: list[str] = []
+    run.landed = landed
     attio_client = get_attio_client()
     is_test = attio_is_test()
 

@@ -947,6 +947,7 @@ async def _seller_edit(
         raise _OrgRemovedError(org_attio_id)
 
     landed: list[str] = []
+    run.landed = landed
     attio_client = get_attio_client()
     is_test = attio_is_test()
     try:
@@ -1047,6 +1048,7 @@ async def _buyer_edit(
         raise _OrgRemovedError(org_attio_id)
 
     landed: list[str] = []
+    run.landed = landed
     attio_client = get_attio_client()
     is_test = attio_is_test()
     try:
@@ -1180,6 +1182,7 @@ async def _write_buyer_add_locked(
             raise BuyerAlreadyExistsError(org_attio_id)
 
     landed: list[str] = []
+    run.landed = landed
     attio_client = get_attio_client()
     is_test = attio_is_test()
 

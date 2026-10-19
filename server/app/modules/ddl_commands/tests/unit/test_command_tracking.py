@@ -112,6 +112,31 @@ async def test_a_cancelled_write_is_recorded_failed_and_still_cancels(service) -
     assert "cancelled" in finished["error"]
 
 
+async def test_an_expected_error_after_an_attio_write_landed_is_partial(service) -> None:
+    """e.g. "already exists" raised after the org and role entry were created in Attio."""
+    with pytest.raises(LookupError):
+        async with tracking.track_command(
+            "add_seller", invoked_via="slack", requested_by="U1"
+        ) as run:
+            run.landed.append("seller role entry (Attio)")
+            raise LookupError("already exists")
+
+    (finished,) = service.finished
+    assert finished["status"] == "partial"
+    assert finished["landed"] == ["seller role entry (Attio)"]
+
+
+async def test_a_cancel_after_an_attio_write_landed_is_partial(service) -> None:
+    with pytest.raises(asyncio.CancelledError):
+        async with tracking.track_command(
+            "add_seller", invoked_via="slack", requested_by="U1"
+        ) as run:
+            run.landed.append("organization created in Attio")
+            raise asyncio.CancelledError
+
+    assert service.finished[0]["status"] == "partial"
+
+
 def test_uuid_or_none() -> None:
     value = uuid.uuid4()
     assert tracking.uuid_or_none(str(value)) == value

@@ -98,6 +98,8 @@ class AttioWebhookEnvelope(BaseModel):
 
 
 router = APIRouter()
+# The families `dispatch_event` acts on; comments, tasks and the rest are not logged.
+_LOGGED_EVENT_PREFIXES = ("record.", "list-entry.")
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync")
 
 
@@ -119,8 +121,12 @@ def _to_domain(event: AttioWebhookEvent) -> WebhookEvent:
 async def _process(event: AttioWebhookEvent) -> None:
     # Logged after the ack so the 200 never waits on the database.
     raw_event_log = build_raw_event_log()
-    raw_event_id = await raw_event_log.record(
-        event_type=event.event_type, payload_json=event.model_dump_json()
+    raw_event_id = (
+        await raw_event_log.record(
+            event_type=event.event_type, payload_json=event.model_dump_json()
+        )
+        if event.event_type.startswith(_LOGGED_EVENT_PREFIXES)
+        else None
     )
     try:
         await dispatch_event(

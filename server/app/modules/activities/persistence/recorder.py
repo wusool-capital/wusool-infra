@@ -82,8 +82,7 @@ class SqlAlchemyActivityRecorder:
         self._session = session
 
     async def record(self, event: ActivityEvent) -> None:
-        # Built outside the try: a serialization bug is a programming error and
-        # must fail loudly in tests, not vanish as a missing history row.
+        # Built outside the try so a serialization bug fails loudly instead of losing the row.
         params = _params(event)
         try:
             # Savepoint: a failed insert must not poison the caller's transaction.

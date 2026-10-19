@@ -40,7 +40,8 @@ def run_completed_event(
         subject_uuid=buyer_role_id,
         outcome=status,
         ledger=LedgerRef(LedgerType.MATCH_RESULT, uuid.UUID(header_row_id)),
-        idempotency_key=f"{EventType.MATCH_RUN_COMPLETED}:{run_id}",
+        # Status in the key so a FAILED fallback is not dropped after a GENERATED write.
+        idempotency_key=f"{EventType.MATCH_RUN_COMPLETED}:{run_id}:{status}",
     )
 
 
