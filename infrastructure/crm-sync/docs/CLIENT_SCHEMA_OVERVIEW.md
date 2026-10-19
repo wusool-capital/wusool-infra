@@ -409,7 +409,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 |---|---|---|
 | CRM mirror | `users`, `organizations`, `person`, `deals` | Structured copies of core CRM records |
 | Business roles | `buyer_roles`, `seller_roles`, `investor_lender_roles` | Buyer, seller, investor, and lender-specific information |
-| Activity and pipeline | `activities`, `deal_stage_events`, `signals` | Interactions, deal movements, and market or buyer signals |
+| Activity and pipeline | `activities`, `command_runs`, `deal_stage_events`, `signals` | The business-event index, the Slack command ledger, deal movements, and buyer signals |
 | Intelligence and matching | `buyer_intel`, `seller_financials`, `match_scores`, `match_results` | Research, financial normalization, targeting, scoring, and shortlisted match runs |
 | Notes | `notes` | Unified notes on organizations, people, and buyer/seller roles, replacing fields formerly scattered across those tables |
 | Knowledge and documents | `documents`, `vertical_kb`, `graph_edges`, `scorecards` | Generated files, sector research, relationship networks, and reporting |
@@ -647,12 +647,23 @@ matching still reads it there.
 
 ### activities
 
+Reworked 2026-10-19 (AZM-150). The thin, append-only index of business events:
+one row per meaningful event (who did what to which record, when, with what
+result), linking to the domain ledger that holds the detail. It never copies
+ledger data. `ts` is when the event happened; `created_at` is when the row was
+written. Rows are written only through the `activities` module's recorder, in
+the same transaction as the change they describe, and a failed write never
+aborts that change.
+
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
 | `subject_type` | `text` | No | - | - | - |
 | `subject_attio_id` | `text` | Yes | - | - | - |
 | `subject_uuid` | `uuid` | Yes | - | - | - |
+| `event_type` | `text` | No | - | - | - |
+| `actor_type` | `text` | No | - | - | - |
+| `actor_ref` | `text` | Yes | - | - | - |
 | `actor_attio_id` | `text` | Yes | - | `users.attio_id` | - |
 | `ts` | `timestamptz` | No | - | - | `now()` |
 | `channel` | `text` | Yes | - | - | - |
@@ -660,12 +671,68 @@ matching still reads it there.
 | `outcome` | `text` | Yes | - | - | - |
 | `source` | `text` | Yes | - | - | - |
 | `payload` | `jsonb` | No | - | - | `'{}'::jsonb` |
+| `idempotency_key` | `text` | Yes | unique (partial) | - | - |
 | `tool_run_id` | `uuid` | Yes | - | `tool_runs.id` | - |
+| `match_result_id` | `uuid` | Yes | - | `match_results.id` | - |
+| `meeting_id` | `uuid` | Yes | - | `meetings.id` | - |
+| `command_run_id` | `uuid` | Yes | - | `command_runs.id` | - |
+| `deal_stage_event_id` | `uuid` | Yes | - | `deal_stage_events.id` | - |
+| `signal_id` | `uuid` | Yes | - | `signals.id` | - |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 
 **Table constraints**
 
-- `CONSTRAINT activities_subject_present CHECK (`
+- `CONSTRAINT activities_subject_present CHECK (subject_attio_id IS NOT NULL OR subject_uuid IS NOT NULL)`
+- `CONSTRAINT activities_single_ledger_link CHECK (num_nonnulls(tool_run_id, match_result_id, meeting_id, command_run_id, deal_stage_event_id, signal_id) <= 1)`
+- `CONSTRAINT activities_event_type_format CHECK (event_type ~ '^[a-z_]+[.][a-z_]+$')`
+- `CONSTRAINT activities_actor_type_check CHECK (actor_type IN ('attio_member','attio_api_token','attio_system','slack_user','scribe_install','website_visitor','system','unknown'))`
+- `CONSTRAINT activities_subject_type_check CHECK (subject_type IN ('Organization','Person','Deal','BuyerRole','SellerRole','Note','Meeting'))`, added `NOT VALID` so rows that predate the list are not re-checked
+
+**Indexes** — `(subject_type, subject_attio_id)`, `ts DESC`, `tool_run_id`,
+`(subject_type, subject_uuid)` where `subject_uuid IS NOT NULL`,
+`(event_type, ts DESC)`, `uq_activities_idempotency_key` (unique, partial).
+
+`event_type` is `domain.verb`: `crm.record_created|updated|deleted`,
+`deal.stage_changed`, `seller.added|edited`, `buyer.added|edited`,
+`match.run_completed`, `match.approved|rejected`, `meeting.published|deleted`,
+`lead_magnet.submitted`, and the legacy `legacy.record_synced` and
+`legacy.interaction`. The database checks only the format; the closed list is
+the `EventType` enum in `server/app/modules/activities`.
+
+### command_runs
+
+Added 2026-10-19 (AZM-150). Postgres-only ledger of Slack and discovery
+seller/buyer add and edit commands, never written to Attio. A command writes
+Attio first and Postgres second, so it can fail or land halfway; this records
+every attempt, including `failed` and `partial`, which `activities` cannot
+because it requires a subject. Successful runs are linked from
+`activities.command_run_id`. Written best-effort: a failed ledger write is
+logged and never fails the command.
+
+| Column | Type | Nullable | Key | References | Default |
+|---|---|---:|---|---|---|
+| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
+| `command` | `text` | No | - | - | - |
+| `invoked_via` | `text` | No | - | - | - |
+| `requested_by` | `text` | Yes | - | - | - |
+| `status` | `text` | No | - | - | - |
+| `org_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
+| `seller_role_id` | `uuid` | Yes | - | `seller_roles.id` | - |
+| `buyer_role_id` | `uuid` | Yes | - | `buyer_roles.id` | - |
+| `landed` | `text[]` | No | - | - | `'{}'` |
+| `changed_fields` | `text[]` | No | - | - | `'{}'` |
+| `error` | `text` | Yes | - | - | - |
+| `started_at` | `timestamptz` | No | - | - | `now()` |
+| `finished_at` | `timestamptz` | Yes | - | - | - |
+| `created_at` | `timestamptz` | No | - | - | `now()` |
+
+**Table constraints**
+
+- `CONSTRAINT command_runs_command_check CHECK (command IN ('add_seller','add_buyer','edit_seller','edit_buyer'))`
+- `CONSTRAINT command_runs_invoked_via_check CHECK (invoked_via IN ('slack','discovery'))`
+- `CONSTRAINT command_runs_status_check CHECK (status IN ('running','succeeded','failed','partial'))`
+
+**Indexes** — `idx_command_runs_started_at` (DESC), `idx_command_runs_organization`.
 
 ### tool_runs
 
@@ -709,6 +776,12 @@ case this table exists to catch.
 
 ### deal_stage_events
 
+Written since 2026-10-19 (AZM-150) by the Attio webhook (`source='attio_webhook'`,
+timed by Attio's `stage_changed_at`) and by a match approval
+(`source='matching_engine'`). Both record only a real stage change, so the
+webhook echo of an approval does not add a second row. The nightly batch
+resync does not write it. Linked from `activities.deal_stage_event_id`.
+
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
@@ -721,6 +794,10 @@ case this table exists to catch.
 
 ### signals
 
+Prepared for writers 2026-10-19 (AZM-150); nothing writes it yet. Buyer
+signals are cited outside events about a buyer, linked from
+`activities.signal_id`. `external_id` plus `source` dedups a re-scrape.
+
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
@@ -730,7 +807,16 @@ case this table exists to catch.
 | `ts` | `timestamptz` | No | - | - | `now()` |
 | `rank` | `integer` | Yes | - | - | - |
 | `source_cite` | `text` | Yes | - | - | - |
+| `external_id` | `text` | Yes | - | - | - |
+| `tool_run_id` | `uuid` | Yes | - | `tool_runs.id` | - |
+| `meeting_id` | `uuid` | Yes | - | `meetings.id` | - |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
+
+**Table constraints**
+
+- `CONSTRAINT signals_source_check CHECK (source IN ('transcript','news','linkedin','jobs'))`, added `NOT VALID`
+
+**Indexes** — `(buyer_attio_id, ts DESC)`, `uq_signals_source_external_id` (unique, partial: `(source, external_id)` where `external_id IS NOT NULL`).
 
 ### buyer_intel
 
@@ -899,6 +985,10 @@ columns meaningful); `rank IS NOT NULL` is a shortlisted candidate row
 
 ### attio_sync_state
 
+Written since 2026-10-19 (AZM-150): one row, `attio_full_resync`, upserted by the
+nightly resync. `last_synced_at` moves only on a clean run; `metadata` holds the
+latest attempt (status, duration, per-object counts, raw events pruned).
+
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
 | `sync_name` | `text` | No | PK | - | - |
@@ -908,6 +998,11 @@ columns meaningful); `rank IS NOT NULL` is a shortlisted candidate row
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
 
 ### attio_raw_events
+
+Written since 2026-10-19 (AZM-150): one row per webhook event, for replay and
+debugging. `processed_at` stays empty for an event whose sync failed;
+`idempotency_key` is left empty because events carry only ids. Rows older than
+90 days are deleted by the nightly resync.
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|

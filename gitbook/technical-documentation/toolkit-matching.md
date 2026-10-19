@@ -117,7 +117,9 @@ people deciding the same candidate. Approve locks the candidate
 row, so a double click can't create two deals.
 
 Approve writes the Qualified Buy-side deal to Attio first, then records it in
-the database in one transaction. If Attio already has a deal for that buyer
+the database in one transaction, with a `match.approved` activity for the
+approver. If the deal's stage changed, it is also recorded in
+`deal_stage_events`. If Attio already has a deal for that buyer
 and seller, the approver chooses to promote it or create a new one. Only an
 Inbound deal is promoted; later stages are left alone.
 
@@ -128,6 +130,7 @@ Inbound deal is promoted; later stages are left alone.
 | `buyer_roles`, `seller_roles`, `organizations` | Read: buyer criteria and the seller pool. |
 | `meetings` | Read: recent meeting notes as context. |
 | `match_scores`, `match_results` | Written: one run and its candidates. |
+| `activities`, `deal_stage_events` | Written: a `match.run_completed`, `match.approved`, or `match.rejected` event, and any stage change. |
 | `deals` and the Attio deal | Written on approval. |
 
 ## Failure behavior

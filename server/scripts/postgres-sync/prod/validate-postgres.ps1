@@ -91,6 +91,9 @@ with psycopg.connect(os.environ["WUSOOL_VALIDATE_DATABASE_URL"],connect_timeout=
       "activities missing organization": "select count(*) from activities a where a.subject_type='Organization' and not exists(select 1 from organizations o where o.attio_id=a.subject_attio_id)",
       "activities missing person": "select count(*) from activities a where a.subject_type='Person' and not exists(select 1 from person p where p.attio_id=a.subject_attio_id)",
       "activities missing seller role": "select count(*) from activities a where a.subject_type='SellerRole' and not exists(select 1 from seller_roles s where s.id=a.subject_uuid)",
+      "activities missing buyer role": "select count(*) from activities a where a.subject_type='BuyerRole' and not exists(select 1 from buyer_roles b where b.id=a.subject_uuid)",
+      "activities missing deal": "select count(*) from activities a where a.subject_type='Deal' and not exists(select 1 from deals d where d.attio_id=a.subject_attio_id)",
+      "activities missing note": "select count(*) from activities a where a.subject_type='Note' and not exists(select 1 from notes n where n.id::text=a.subject_attio_id)",
     }
     print("\nRelationship integrity")
     print("-"*67)

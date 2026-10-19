@@ -41,7 +41,11 @@ before the flag existed have none.
 | `record.*` for notes | `notes` |
 | `list-entry.*` for buyer and seller roles | `buyer_roles`, `seller_roles` |
 
-Webhook updates also write `activities`. Every other event is ignored.
+Each synced event also writes a typed `activities` row
+(`crm.record_created`, `crm.record_updated`, or `crm.record_deleted`) that
+names the Attio actor when Attio sends one. A deal's stage changes go to
+`deal_stage_events`, and each event is logged to `attio_raw_events` for 90
+days. Every other event is ignored.
 
 ## Deletions
 
@@ -69,6 +73,8 @@ deletion reconciliation.
 - **Guards:** an empty listing from Attio is never treated as "delete
   everything", and the final count check runs after deletion
   reconciliation.
+- **Bookkeeping:** it deletes raw events older than 90 days and records
+  its counts in `attio_sync_state`. It writes no `activities` rows.
 
 If no Toolkit instance is running, the job warns and skips. A failure alerts
 the production infrastructure topic.
@@ -76,7 +82,8 @@ the production infrastructure topic.
 ## Writes from the Toolkit
 
 - Profile commands write Attio first, then PostgreSQL, so the next sync agrees
-  with what was stored.
+  with what was stored. Each attempt is also recorded in `command_runs`,
+  including failed and partial writes.
 - Lead tools write Attio only and let the mirror follow.
 - Scribe meetings create an Attio note, with or without an organization.
 

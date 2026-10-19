@@ -129,6 +129,28 @@ protection would get silently overwritten by the next sync cycle. Writing
 to Attio first means the sync's source of truth already agrees with what
 Postgres is about to store — the next sync converges instead of clobbering.
 
+## Command runs and activities
+
+Every add and edit (Slack, and discovery's auto-created sellers) writes a
+`command_runs` row before its Attio writes start, and finishes it as
+`succeeded`, `failed` or `partial` (with the Attio writes that landed). That is
+the only trace of a command that fails or lands halfway, because `activities`
+needs a subject. The ledger is best-effort: `api/command_tracking.py` logs a
+failed ledger write and the command carries on.
+
+A successful write also records a `seller|buyer.added|edited` activity in the
+same transaction as the Postgres write, linked by `command_run_id` and
+attributed to the Slack user (`system/discovery` for discovery). The payload
+holds changed field names, never values.
+
+The Attio webhook sync records `crm.record_created|updated|deleted` activities
+with Attio's own actor (`workspace-member`, `api-token` or `system`; the shape
+is unverified against a real delivery, so a missing actor is `unknown`). Deletes
+now record an event too, only when a row matched. Every event is also logged to
+`attio_raw_events` (pruned after 90 days) for replay, and the webhook's deal
+sync writes `deal_stage_events` when the stage really changed. The nightly full
+resync records none of these, and records its own run in `attio_sync_state`.
+
 ## Deletions: Attio is the only place a record can be deleted
 
 Postgres is a mirror of Attio for six tables — `organizations`, `person`,

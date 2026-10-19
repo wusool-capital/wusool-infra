@@ -238,6 +238,34 @@ Indexes: `idx_tool_runs_tool`, `idx_tool_runs_status`,
 payload->>'submission_id')` where that expression is not null — makes an
 exact retry of the same request an atomic no-op instead of a second row).
 
+### `command_runs` (`command_run.py`) — new, AZM-150
+
+Postgres-only ledger of Slack and discovery seller/buyer add and edit commands
+(`ddl_commands`). A command writes Attio first and Postgres second, so it can
+fail or land halfway; this records every attempt, including `failed` and
+`partial`, which `activities` cannot (it requires a subject). Successful runs
+are linked from `activities.command_run_id`.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| command | text | no | | CHECK: `add_seller`, `add_buyer`, `edit_seller`, `edit_buyer` |
+| invoked_via | text | no | | CHECK: `slack`, `discovery` |
+| requested_by | text | yes | | Slack user id; NULL for discovery |
+| status | text | no | | CHECK: `running`, `succeeded`, `failed`, `partial` |
+| org_attio_id | text | yes | | FK → organizations.attio_id; indexed. NULL when the org has no Postgres row yet |
+| seller_role_id | uuid | yes | | FK → seller_roles.id |
+| buyer_role_id | uuid | yes | | FK → buyer_roles.id |
+| landed | text[] | no | `{}` | Attio writes that landed before a failure |
+| changed_fields | text[] | no | `{}` | field names only, never values |
+| error | text | yes | | `ExceptionType: message`, capped at 500 chars |
+| started_at | timestamptz | no | `now()` | indexed DESC |
+| finished_at | timestamptz | yes | | |
+| created_at | timestamptz | no | `now()` | |
+
+Written best-effort by `ddl_commands/api/command_tracking.py`: a failed ledger
+write is logged and never fails the command.
+
 ### `notes` (`note.py`) — new, 2026-08-28/29
 
 | Column | Type | Nullable | Default | Notes |
@@ -418,24 +446,57 @@ Derived from `database/sql/00*.sql` end-to-end, not a live reflection — see
 | raw_attio | jsonb | no | `{}` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
 
-### `activities` (`activity.py`)
+### `activities` (`activity.py`) — typed event index, AZM-150
+
+The thin, append-only index of business events: one row per meaningful event,
+linking to the domain ledger that holds the detail. It never copies ledger
+data. `ts` is event time (`created_at` is insert time). Written only through
+`app.modules.activities` (`SqlAlchemyActivityRecorder`); see
+`docs/internal/dev/ACTIVITIES_AUDIT.md` and `app/modules/activities/README.md`.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
-| subject_type | text | no | | |
+| subject_type | text | no | | CHECK (`NOT VALID`): `Organization`, `Person`, `Deal`, `BuyerRole`, `SellerRole`, `Note`, `Meeting` |
 | subject_attio_id | text | yes | | polymorphic ref, no FK |
 | subject_uuid | uuid | yes | | polymorphic ref, no FK |
-| actor_attio_id | text | yes | | FK → users.attio_id |
-| ts | timestamptz | no | `now()` | indexed DESC |
-| channel / direction / outcome / source | text | yes | | |
-| payload | jsonb | no | `{}` | |
-| tool_run_id | uuid | yes | | FK → tool_runs.id; indexed. Links a timeline row to the invocation that produced it (2026-09-06). Nullable — most activities are human interactions with no run behind them |
-| created_at | timestamptz | no | `now()` | |
+| event_type | text | no | | `domain.verb`, e.g. `seller.added`; CHECK on the format only. The closed list is `activities.domain.vocabulary.EventType` |
+| actor_type | text | no | | CHECK: `attio_member`, `attio_api_token`, `attio_system`, `slack_user`, `scribe_install`, `website_visitor`, `system`, `unknown` |
+| actor_ref | text | yes | | raw actor id: Slack user, Attio member/token, Scribe install, process name |
+| actor_attio_id | text | yes | | FK → users.attio_id; set only for an Attio member that exists in `users` |
+| ts | timestamptz | no | `now()` | event time; indexed DESC |
+| channel / direction / outcome / source | text | yes | | `channel`/`direction` only on legacy backfill rows |
+| payload | jsonb | no | `{}` | only the event's own facts (typed models in `activities.domain.payloads`), field names not values |
+| idempotency_key | text | yes | | unique where not null; a repeat write is dropped |
+| tool_run_id | uuid | yes | | FK → tool_runs.id |
+| match_result_id | uuid | yes | | FK → match_results.id, SET NULL |
+| meeting_id | uuid | yes | | FK → meetings.id, SET NULL |
+| command_run_id | uuid | yes | | FK → command_runs.id, SET NULL |
+| deal_stage_event_id | uuid | yes | | FK → deal_stage_events.id, SET NULL |
+| signal_id | uuid | yes | | FK → signals.id, SET NULL |
+| created_at | timestamptz | no | `now()` | insert time |
 
-Constraint: `activities_subject_present` — `subject_attio_id IS NOT NULL OR subject_uuid IS NOT NULL`. Indexed on `(subject_type, subject_attio_id)`.
+Constraints: `activities_subject_present` (`subject_attio_id IS NOT NULL OR
+subject_uuid IS NOT NULL`), `activities_single_ledger_link` (at most one of the
+six ledger FKs is set), `activities_event_type_format`,
+`activities_actor_type_check`, `activities_subject_type_check` (`NOT VALID`:
+rows older than the closed list are not re-checked).
 
-### `deal_stage_events` (`deal_stage_event.py`)
+Indexes: `(subject_type, subject_attio_id)`, `ts DESC`, `tool_run_id`,
+`(subject_type, subject_uuid)` where `subject_uuid IS NOT NULL`,
+`(event_type, ts DESC)`, and `uq_activities_idempotency_key` (unique, partial).
+
+Legacy rows were backfilled by the AZM-150 migration: `source='lead_magnet'`
+to `lead_magnet.submitted`, the one-off `SOURCE ... backfill` rows to
+`legacy.interaction`, everything else to `legacy.record_synced`.
+
+### `deal_stage_events` (`deal_stage_event.py`) — written since AZM-150
+
+Written by `SqlAlchemyDealStageRecorder` (`app.modules.activities`) from the
+Attio webhook (`sync_deal`, `source='attio_webhook'`, `ts` = Attio's
+`stage_changed_at`) and a match approval (`source='matching_engine'`). Both read
+the stored stage under a row lock and record only a real change. The nightly
+batch resync does not write it. Linked from `activities.deal_stage_event_id`.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
@@ -444,12 +505,18 @@ Constraint: `activities_subject_present` — `subject_attio_id IS NOT NULL OR su
 | from_stage | text | yes | | |
 | to_stage | text | no | | |
 | ts | timestamptz | no | `now()` | |
-| source | text | yes | | |
+| source | text | yes | | `attio_webhook` or `matching_engine` |
 | created_at | timestamptz | no | `now()` | |
 
 Indexed on `(deal_attio_id, ts DESC)`.
 
-### `signals` (`signal.py`)
+### `signals` (`signal.py`) — prepared for writers, AZM-150
+
+Buyer signals (a cited outside event about a buyer). Nothing writes it yet; the
+producers (buyer meeting transcripts, AZM-148 LinkedIn) are follow-up work. It
+is a domain ledger linked from `activities.signal_id`, not part of the
+timeline itself. Still a static-analysis draft: not yet checked against the
+live database.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
@@ -460,9 +527,14 @@ Indexed on `(deal_attio_id, ts DESC)`.
 | ts | timestamptz | no | `now()` | |
 | rank | integer | yes | | |
 | source_cite | text | yes | | |
+| external_id | text | yes | | stable id in the upstream source, so a re-scrape cannot insert twice |
+| tool_run_id | uuid | yes | | FK → tool_runs.id |
+| meeting_id | uuid | yes | | FK → meetings.id |
 | created_at | timestamptz | no | `now()` | |
 
-Indexed on `(buyer_attio_id, ts DESC)`.
+Constraint: `signals_source_check` (`NOT VALID`) — `transcript`, `news`, `linkedin`, `jobs`.
+Indexed on `(buyer_attio_id, ts DESC)` and `uq_signals_source_external_id` (unique,
+partial: `(source, external_id)` where `external_id IS NOT NULL`).
 
 ### `buyer_intel` (`buyer_intel.py`)
 
@@ -518,7 +590,13 @@ Indexed on `(buyer_attio_id, generated_at DESC)`.
 
 Constraint: `graph_edges_not_self` — `person_a_attio_id <> person_b_attio_id`.
 
-### `attio_sync_state` (`attio_sync_state.py`)
+### `attio_sync_state` (`attio_sync_state.py`) — written since AZM-150
+
+One row, `sync_name='attio_full_resync'`, upserted by the nightly resync
+(`ddl_commands/persistence/resync_state.py`). State, not history: `last_synced_at`
+moves only on a clean run; `metadata` always holds the latest attempt
+(`ResyncSummary`: status, duration, per-object synced/failed counts, raw events
+pruned). `last_cursor` is unused: the resync is a full page-through.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
@@ -528,7 +606,15 @@ Constraint: `graph_edges_not_self` — `person_a_attio_id <> person_b_attio_id`.
 | metadata (attr: `metadata_`) | jsonb | no | `{}` | |
 | updated_at | timestamptz | no | `now()` | **no `created_at` column at all** |
 
-### `attio_raw_events` (`attio_raw_event.py`)
+### `attio_raw_events` (`attio_raw_event.py`) — written since AZM-150
+
+One row per Attio webhook event, for replay and debugging; not part of the
+business timeline. Written at the start of background processing
+(`ddl_commands/api/attio_sync.py`), so the 200 ack never waits on it;
+`processed_at` is set only when the sync succeeded, so a NULL on an old row
+marks an event whose sync failed. `idempotency_key` is left NULL: events carry
+only ids, so two real updates to one record look identical. Rows older than 90
+days are deleted by the nightly resync. Indexed on `received_at`.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|

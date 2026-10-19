@@ -282,21 +282,28 @@
       "status": "live",
       "postgres_table": "activities",
       "postgres_only": true,
-      "purpose": "Append-only touch/interaction log. Replaces the scattered first/last/next_*_interaction summary fields on Organization and Person, with real per-event rows - those become computed queries (MIN/MAX(occurred_at)) against this table instead of separately-maintained columns.",
+      "purpose": "Thin, append-only business-event index (AZM-150): one row per meaningful event (who did what, to which record, when, with what result) plus a typed FK to the domain ledger that holds the detail (tool_runs, match_results, meetings, command_runs, deal_stage_events, signals). It never copies ledger data. Written only through the activities module's recorder. Originally a CRM touch log; the legacy touch rows are kept as event_type legacy.interaction.",
       "fields": [
         {"slug": "id", "type": "uuid", "ownership": "postgres"},
-        {"slug": "subject_type", "type": "enum", "ownership": "postgres", "options": ["Organization", "Person", "BuyerRole", "SellerRole", "Deal"], "purpose": "Discriminator for the polymorphic subject_id reference below."},
-        {"slug": "subject_id", "type": "uuid", "ownership": "postgres", "purpose": "References whichever table subject_type names. Whether an org/person is on the buy or sell side is captured by pointing subject_id at their BuyerRole or SellerRole entry, not by a separate flag."},
-        {"slug": "actor_id", "type": "record-reference", "ownership": "postgres", "target": "User", "nullable": true, "purpose": "Null for system-generated activities (e.g. data room created) with no human actor."},
-        {"slug": "occurred_at", "type": "timestamptz", "ownership": "postgres"},
-        {"slug": "channel", "type": "enum", "ownership": "postgres", "options": ["Calendar", "Email", "Call", "Outreach", "DataRoom", "Nudge", "Other"], "options_status": "needs_approval", "purpose": "Calendar/Email/Other map to SOURCE's existing interaction tracking; Outreach/DataRoom/Nudge are net-new, not backfilled from SOURCE."},
-        {"slug": "direction", "type": "enum", "ownership": "postgres", "options": ["In", "Out"], "nullable": true, "purpose": "Null for non-directional system events (e.g. data room created)."},
-        {"slug": "outcome", "type": "text", "ownership": "postgres", "nullable": true},
-        {"slug": "source", "type": "text", "ownership": "postgres", "purpose": "Citation of where this row came from, e.g. 'SOURCE Attio first_email_interaction backfill' or 'DEV data room service'."}
+        {"slug": "subject_type", "type": "enum", "ownership": "postgres", "options": ["Organization", "Person", "Deal", "BuyerRole", "SellerRole", "Note", "Meeting"], "purpose": "Discriminator for the polymorphic subject columns below. CHECK added NOT VALID."},
+        {"slug": "subject_attio_id", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Attio id of the subject (organization, person, deal, note, or a role's list entry id)."},
+        {"slug": "subject_uuid", "type": "uuid", "ownership": "postgres", "nullable": true, "purpose": "Postgres row id for BuyerRole/SellerRole/Meeting subjects. At least one of subject_attio_id/subject_uuid is set."},
+        {"slug": "event_type", "type": "text", "ownership": "postgres", "purpose": "domain.verb, e.g. seller.added, match.approved, deal.stage_changed. The database checks only the format; the closed list is a Python StrEnum."},
+        {"slug": "actor_type", "type": "enum", "ownership": "postgres", "options": ["attio_member", "attio_api_token", "attio_system", "slack_user", "scribe_install", "website_visitor", "system", "unknown"]},
+        {"slug": "actor_ref", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Raw actor id: Slack user, Attio member/token, Scribe install, process name."},
+        {"slug": "actor_attio_id", "type": "record-reference", "ownership": "postgres", "target": "User", "nullable": true, "purpose": "Set only for an Attio workspace member present in users."},
+        {"slug": "ts", "type": "timestamptz", "ownership": "postgres", "purpose": "When the event happened. created_at is when the row was written."},
+        {"slug": "outcome", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Result of the event, e.g. succeeded, approved, GENERATED."},
+        {"slug": "source", "type": "text", "ownership": "postgres", "purpose": "Writer: attio_webhook, slack, discovery, matching_engine, meetings, lead_magnet; legacy backfill rows keep their 'SOURCE ... backfill' citation."},
+        {"slug": "payload", "type": "jsonb", "ownership": "postgres", "purpose": "Only the event's own facts (typed models), field names not values."},
+        {"slug": "idempotency_key", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Unique where not null; a repeat write is dropped."},
+        {"slug": "tool_run_id / match_result_id / meeting_id / command_run_id / deal_stage_event_id / signal_id", "type": "uuid", "ownership": "postgres", "nullable": true, "purpose": "Typed FKs to the ledger row holding the detail. At most one is set per row."},
+        {"slug": "channel", "type": "enum", "ownership": "postgres", "options": ["Calendar", "Email", "Call", "Outreach", "DataRoom", "Nudge", "Other"], "nullable": true, "options_status": "needs_approval", "purpose": "Legacy touch-log column; only the one-off SOURCE backfill sets it."},
+        {"slug": "direction", "type": "enum", "ownership": "postgres", "options": ["In", "Out"], "nullable": true, "purpose": "Legacy touch-log column; only the one-off SOURCE backfill sets it."}
       ],
       "population": {
-        "historical_backfill": "One row per available boundary timestamp from Organization/Person first_calendar_interaction (channel=Calendar), last_calendar_interaction (channel=Calendar), next_calendar_interaction (channel=Calendar), first_email_interaction/last_email_interaction (channel=Email), first_interaction/next_interaction (channel=Other). These are only the boundary points SOURCE happened to track, not a full history - the backfill can't reconstruct touches SOURCE never recorded.",
-        "ongoing": "Every real touch going forward (email sent/received, call, meeting, data room created, nudge sent) is inserted as its own row at the moment it happens. Organization/Person last_interaction_at keeps being written directly for now (unchanged) but should eventually be derivable as MAX(occurred_at) from this table instead."
+        "historical_backfill": "One row per available boundary timestamp from Organization/Person first_calendar_interaction (channel=Calendar), last_calendar_interaction (channel=Calendar), next_calendar_interaction (channel=Calendar), first_email_interaction/last_email_interaction (channel=Email), first_interaction/next_interaction (channel=Other), stored as event_type legacy.interaction. These are only the boundary points SOURCE happened to track, not a full history - the backfill can't reconstruct touches SOURCE never recorded.",
+        "ongoing": "One row per real event, written by the owning module in the same transaction as the change: Attio webhook syncs and deletes (crm.record_*), Slack seller/buyer add and edit, match runs and approve/reject, deal stage changes, meeting publish/delete, lead-magnet submissions. The nightly full resync writes none. Organization/Person last_interaction_at keeps being written directly for now (unchanged)."
       },
       "left_out_on_purpose": [
         "strongest_connection_strength_legacy - a legacy categorical value, not a timestamped touch",
@@ -306,7 +313,28 @@
       ],
       "open_questions": [
         "Seller Role's attempt_1/2/3 date+channel+outcome already tracks per-touch data but only keeps the latest as flat columns (last_attempt_date/channel/outcome) - worth feeding into Activities too so that history isn't lost, but not changed here since it's an already-confirmed mapping.",
-        "channel/outcome option lists need real approval, not just the placeholder values listed here."
+        "Outreach, data-room and nudge events have no writer yet; add their event types when those features write to Postgres."
+      ]
+    },
+    {
+      "name": "CommandRuns",
+      "status": "live",
+      "postgres_table": "command_runs",
+      "postgres_only": true,
+      "purpose": "Ledger of Slack and discovery seller/buyer add and edit commands (AZM-150). A command writes Attio first and Postgres second, so it can fail or land halfway; this records every attempt, including failed and partial ones, which Activities cannot because it requires a subject. Successful runs are linked from activities.command_run_id.",
+      "fields": [
+        {"slug": "id", "type": "uuid", "ownership": "postgres"},
+        {"slug": "command", "type": "text", "ownership": "postgres", "options": ["add_seller", "add_buyer", "edit_seller", "edit_buyer"], "purpose": "CHECK-constrained"},
+        {"slug": "invoked_via", "type": "text", "ownership": "postgres", "options": ["slack", "discovery"], "purpose": "CHECK-constrained"},
+        {"slug": "requested_by", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Slack user id; null for discovery."},
+        {"slug": "status", "type": "text", "ownership": "postgres", "options": ["running", "succeeded", "failed", "partial"], "purpose": "CHECK-constrained. partial = an Attio write landed before the failure."},
+        {"slug": "org_attio_id", "type": "record-reference", "ownership": "postgres", "target": "Organization", "nullable": true},
+        {"slug": "seller_role_id", "type": "uuid", "ownership": "postgres", "nullable": true},
+        {"slug": "buyer_role_id", "type": "uuid", "ownership": "postgres", "nullable": true},
+        {"slug": "landed", "type": "text[]", "ownership": "postgres", "purpose": "Attio writes that landed before a failure."},
+        {"slug": "changed_fields", "type": "text[]", "ownership": "postgres", "purpose": "Field names only, never values."},
+        {"slug": "error", "type": "text", "ownership": "postgres", "nullable": true},
+        {"slug": "started_at / finished_at / created_at", "type": "timestamptz", "ownership": "postgres"}
       ]
     },
     {

@@ -16,6 +16,19 @@ Delivery period: 15 September – 15 October 2026.
   profile per sector, migrated from existing data. Buyer geography was split
   into target regions and target countries. Every production buyer was
   converted.
+- **One history for every action.** The activity log now records who did what
+  and when. It covers profile adds and edits from Slack, match runs and
+  decisions, deal stage changes, and published and deleted meetings. It
+  also covers lead submissions and Attio changes, including deletions.
+  Each entry links to its detail record. Slack profile commands also keep
+  a record of failed and partial saves.
+- **Lead answers stay on the run.** New lead submissions no longer copy
+  the visitor's answers onto the activity entry. The activity links to the
+  run, which still holds the answers. Entries written before this change
+  keep their copy.
+- **Role sync fix.** A buyer or seller profile event could arrive before
+  Attio's list showed the new entry. It used to fail, leaving Attio and the
+  database out of step until the nightly sync. It now syncs straight away.
 - **Each seller's own sector.** Sellers now carry their sector on their own
   profile.
 - **Lead source detail.** Organizations record which lead tool brought them

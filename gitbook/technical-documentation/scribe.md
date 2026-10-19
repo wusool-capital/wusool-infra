@@ -101,7 +101,8 @@ Internal Tauri commands aren't a public integration API.
 Deleting from the server is idempotent. It returns 409 while the meeting is
 still being summarized, unless it has stalled. It deletes the Attio note
 first, then marks the server's note and meeting rows as removed; nothing is
-hard-deleted.
+hard-deleted. Publishing and deleting a meeting each record an activity
+(`meeting.published`, `meeting.deleted`) attributed to the Scribe install.
 
 ## Feedback
 

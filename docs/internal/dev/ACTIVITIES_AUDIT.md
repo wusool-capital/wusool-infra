@@ -17,9 +17,26 @@ holds the detail. It never copies ledger data.
 
 This is not a raw audit log. Raw Attio deliveries go to `attio_raw_events`.
 
+## What changed
+
+This change implements the recommendation in one PR, with no data-engineer
+sign-off yet (see [Review](#review)).
+
+- **Schema** (three Alembic migrations): `activities` gains `event_type`,
+  `actor_type`, `actor_ref`, `idempotency_key` and six typed ledger FKs;
+  `command_runs` is new; `signals` gets a dedup key and run/meeting links;
+  `attio_raw_events` gets a `received_at` index.
+- **Code**: a new `app/modules/activities` module owns the vocabulary, the typed
+  payloads, one recorder (`SqlAlchemyActivityRecorder`) and the deal-stage
+  recorder. Writers in `ddl_commands`, `matching_engine`, `meetings` and
+  `lead_magnets` call it on their own session. `attio_raw_events`,
+  `attio_sync_state` and `deal_stage_events` are now written.
+- **Bug fix**: the role-sync bug is fixed and covered by tests.
+
 ## How it is used today
 
-Read from code. Numbers are not verified, see [Volume and quality](#volume-and-quality).
+This section describes the code **before** this change. Read from code; numbers
+are not verified, see [Volume and quality](#volume-and-quality).
 
 | Item | Finding |
 | --- | --- |
@@ -94,11 +111,11 @@ ledger.
 | `tool_runs` | Lead-magnet ledger. `activities.tool_run_id` links to it. |
 | `match_results` | Matching ledger. Linked by `match_result_id`. |
 | `meetings`, `notes` | `meetings` is the Scribe ledger, linked by `meeting_id`. `notes` is an Attio mirror and stays separate. |
-| `command_runs` (new) | Ledger for Slack and discovery add and edit commands, including failed and partial writes. |
-| `deal_stage_events` | Now written. Linked by `deal_stage_event_id`. |
-| `signals` | Schema prepared only. Buyer signals with `source` in transcript, news, linkedin, jobs. |
-| `attio_raw_events` | Now written, pruned after 90 days. Not part of the timeline. |
-| `attio_sync_state` | Now written by the nightly resync. State, not history. |
+| `command_runs` (new) | Ledger for Slack and discovery add and edit commands, including failed and partial writes. Linked by `command_run_id`. |
+| `deal_stage_events` | Now written by the webhook and by a match approval, each comparing the stored stage under a row lock so the webhook echo of an approval adds nothing. Linked by `deal_stage_event_id`. |
+| `signals` | Schema prepared only (dedup key, run and meeting links, closed `source` list); nothing writes it yet. Linked by `signal_id`. |
+| `attio_raw_events` | Now written once per webhook event, pruned after 90 days by the nightly resync. No idempotency key: events carry only ids, so two real updates look identical. Not part of the timeline. |
+| `attio_sync_state` | Now written by the nightly resync (`attio_full_resync`). `last_synced_at` moves only on a clean run. State, not history. |
 
 AZM-148 plans to write LinkedIn activity into `activities`. Those rows are
 cited outside events about a buyer, so they belong in `signals`. AZM-148 is
@@ -165,15 +182,29 @@ actor, no change and no result.
 
 | Risk | Status |
 | --- | --- |
-| Role-sync bug | Confirmed in code. `sync_buyer_role` and `sync_seller_role` log `subject_uuid=None` when the webhook entry is missing from the sibling list query. That violates `activities_subject_present` and rolls back the whole role upsert, after Attio `is_active` PATCHes have landed. The error is swallowed by the webhook handler. Fixed in this change with a regression test. |
+| Role-sync bug | **Reproduced and fixed.** `sync_buyer_role` and `sync_seller_role` logged `subject_uuid=None` when the webhook entry was missing from the sibling list query. That violated `activities_subject_present` and rolled back the whole role upsert, after Attio `is_active` PATCHes had landed. The webhook handler swallowed the error. The regression tests fail with that exact CHECK violation against the original schema and pass with the fix, which adds the fetched entry to the sibling list. |
 | Raw submission data in `payload` | Lead-magnet rows copy answers and PII. Fixed for new rows: they link `tool_run_id` instead. Existing rows are left as they are. |
 | Unbounded webhook append | Every delivery adds a row. Not changed. The volume query decides whether retention is needed. |
 | Hard-deleted roles | `sync-source-to-prod.ps1` hard-deletes role rows, which orphans activities. Documented, not changed. |
 | Attio webhook actor | The event shape is unverified against a real delivery. If absent, rows get `actor_type='unknown'`. |
 | Deal stage changes in the nightly batch | The batch path does not write `deal_stage_events`. Gap documented. |
 | Prod volume | The migration backfills in one transaction and builds plain indexes. Confirm the table is small first. |
+| Recorder swallows errors | By design, so a history failure cannot abort a business write. A bug there is silent apart from an `activity_record_failed` log line: one such bug (an ISO string where asyncpg wants a `datetime`) was found by a test during this change. Alert on that log line. |
+| Webhook echoes | A Slack seller add also produces a `crm.record_created` row from the webhook echo, with `actor_type` `attio_api_token`. Readers wanting only human actions filter on `actor_type`. |
+| Raw event growth | `attio_raw_events` gets a row per webhook event until the nightly prune. Volume is unmeasured. |
 | `signals` schema | A static-analysis draft, never checked against the live database. |
 
 ## Review
 
-The recommendation needs data-engineer sign-off before the migrations merge.
+The recommendation and the three migrations need data-engineer sign-off before
+merge. Not done here: counting queries on real data, and a check of the live
+`signals` table against its draft model.
+
+## Follow-ups
+
+- Write `signals` from buyer meeting transcripts, and move AZM-148's LinkedIn
+  activity to `signals`.
+- Fix `sync-source-to-prod.ps1` hard-deleting role rows, which orphans activities.
+- Add a write path for deal stage changes found only by the nightly batch resync.
+- Decide retention for `activities` once the volume queries have run.
+- A timeline read path (API or Slack view); nothing reads `activities` yet.
