@@ -10,7 +10,6 @@ to a block_id with no lookup table — `("est_revenue", "currency")` becomes
 `"est_revenue_currency"` automatically.
 """
 
-import math
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -41,16 +40,6 @@ def text_input_block(
     )
 
 
-def _number_initial_value(value: float | Decimal | None, *, is_decimal_allowed: bool) -> str | None:
-    # Slack rejects the whole modal for "12.0" in an integer input, "1.5e+16", or "nan".
-    if value is None or not math.isfinite(value):
-        return None
-    if not is_decimal_allowed:
-        # Blank rather than rounded, so the form never shows a number nobody proposed.
-        return str(int(value)) if float(value).is_integer() else None
-    return format(Decimal(str(value)), "f")
-
-
 def number_input_block(
     field: str, label: str, value: float | Decimal | None, *, is_decimal_allowed: bool = True
 ) -> InputBlock:
@@ -61,7 +50,8 @@ def number_input_block(
         element=NumberInputElement(
             action_id=field,
             is_decimal_allowed=is_decimal_allowed,
-            initial_value=_number_initial_value(value, is_decimal_allowed=is_decimal_allowed),
+            # Raw on purpose: notifications' `guard_view` formats it for Slack on every send.
+            initial_value=None if value is None else str(value),
         ),
     )
 

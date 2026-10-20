@@ -8,6 +8,22 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-20
+
+### Changed
+
+- Every Slack form, in every module, now goes through one shared check
+  before it opens. Numbers are written the way Slack accepts: "12.0"
+  becomes "12". A number that can't be fixed is left blank instead of
+  failing the whole form. This replaces the per-form fix from 2026-10-16.
+  When Slack does reject a form, the log now names the exact field.
+
+### Fixed
+
+- Messages the bot sends while handling a command or button no longer
+  expand link previews. Only messages sent outside a Slack request had
+  previews turned off before.
+
 ## 2026-10-19
 
 ### Added
