@@ -6,7 +6,7 @@ convention: `execute`/`flush` only, never `commit`/`rollback`.
 """
 
 from datetime import datetime
-from typing import Any, cast, get_args
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import (
@@ -67,10 +67,6 @@ _STAGE_DONE = func.coalesce(ToolRun.payload["stage"].astext, "")
 # would have to re-call Bedrock for a report the visitor has already been
 # shown an error for. Ceiling 1 means the original attempt and nothing more.
 _NO_SUBJECTS = SubjectRefs()
-
-# Other modules log their own runs here (enrichment's `linkedin_scan`). The
-# sweeper and `get` handle lead-magnet tools only.
-_OWN_TOOLS = get_args(Tool)
 
 _CEILING = case(
     (and_(_STAGE_DONE == "", ToolRun.tool == "readiness"), 1),
@@ -266,7 +262,6 @@ class ToolRunsRepository:
             update(ToolRun)
             .where(
                 and_(
-                    ToolRun.tool.in_(_OWN_TOOLS),
                     ToolRun.status.in_(("running", "failed")),
                     ToolRun.attempt_count < _CEILING,
                     last_attempt < cutoff,
@@ -291,7 +286,6 @@ class ToolRunsRepository:
             update(ToolRun)
             .where(
                 and_(
-                    ToolRun.tool.in_(_OWN_TOOLS),
                     ToolRun.status.in_(("running", "failed")),
                     ToolRun.attempt_count >= _CEILING,
                     ToolRun.started_at < cutoff,
@@ -336,8 +330,6 @@ class ToolRunsRepository:
 
     async def get(self, run_id: UUID) -> ToolRunRecord | None:
         row = (
-            await self._session.execute(
-                select(ToolRun).where(ToolRun.id == run_id, ToolRun.tool.in_(_OWN_TOOLS))
-            )
+            await self._session.execute(select(ToolRun).where(ToolRun.id == run_id))
         ).scalar_one_or_none()
         return None if row is None else to_tool_run_record(row)

@@ -409,7 +409,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 |---|---|---|
 | CRM mirror | `users`, `organizations`, `person`, `deals` | Structured copies of core CRM records |
 | Business roles | `buyer_roles`, `seller_roles`, `investor_lender_roles` | Buyer, seller, investor, and lender-specific information |
-| Activity and pipeline | `activities`, `command_runs`, `deal_stage_events`, `signals` | The business-event index, the Slack command ledger, deal movements, and buyer signals |
+| Activity and pipeline | `activities`, `command_runs`, `linkedin_scans`, `deal_stage_events`, `signals` | The business-event index, the Slack command ledger, the LinkedIn scan ledger, deal movements, and buyer signals |
 | Intelligence and matching | `buyer_intel`, `seller_financials`, `match_scores`, `match_results` | Research, financial normalization, targeting, scoring, and shortlisted match runs |
 | Notes | `notes` | Unified notes on organizations, people, and buyer/seller roles, replacing fields formerly scattered across those tables |
 | Knowledge and documents | `documents`, `vertical_kb`, `graph_edges`, `scorecards` | Generated files, sector research, relationship networks, and reporting |
@@ -681,7 +681,7 @@ aborts that change.
 
 - `CONSTRAINT activities_subject_present CHECK (subject_attio_id IS NOT NULL OR subject_uuid IS NOT NULL)`
 - `CONSTRAINT activities_ledger_pair CHECK ((ledger_type IS NULL) = (ledger_id IS NULL))`
-- `CONSTRAINT activities_ledger_type_check CHECK (ledger_type IS NULL OR ledger_type IN ('tool_run','command_run','match_result','meeting','deal_stage_event','signal'))`
+- `CONSTRAINT activities_ledger_type_check CHECK (ledger_type IS NULL OR ledger_type IN ('tool_run','command_run','match_result','meeting','deal_stage_event','signal','linkedin_scan'))`
 - `CONSTRAINT activities_event_type_format CHECK (event_type ~ '^[a-z_]+[.][a-z_]+$')`
 - `CONSTRAINT activities_actor_type_check CHECK (actor_type IN ('attio_member','attio_api_token','attio_system','slack_user','scribe_install','website_visitor','system','unknown'))`
 - `CONSTRAINT activities_subject_type_check CHECK (subject_type IN ('Organization','Person','Deal','BuyerRole','SellerRole','Note','Meeting'))`, added `NOT VALID` so rows that predate the list are not re-checked
@@ -797,6 +797,31 @@ resync does not write it. Linked from `activities` (`ledger_type='deal_stage_eve
 | `source` | `text` | Yes | - | - | - |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 
+### linkedin_scans
+
+Added 2026-10-20 (AZM-148). Postgres-only run ledger of enrichment's LinkedIn
+scans, never written to Attio. Written only by the `enrichment` module; each
+module owns its own ledger. One row per attempted scan, succeeded or failed.
+Linked from `activities` (`ledger_type='linkedin_scan'`), and its `signals`
+point back at it. The row leaves with its organization.
+
+| Column | Type | Nullable | Key | References | Default |
+|---|---|---:|---|---|---|
+| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
+| `org_attio_id` | `text` | No | - | `organizations.attio_id` | - |
+| `seller_role_id` | `uuid` | Yes | - | `seller_roles.id` | - |
+| `buyer_role_id` | `uuid` | Yes | - | `buyer_roles.id` | - |
+| `requested_by` | `text` | Yes | - | - | - |
+| `status` | `text` | No | - | - | - |
+| `error` | `text` | Yes | - | - | - |
+| `posts_found` | `integer` | No | - | - | `0` |
+| `job_changes_found` | `integer` | No | - | - | `0` |
+| `contacts_scanned` | `integer` | No | - | - | `0` |
+| `contacts_without_linkedin` | `integer` | No | - | - | `0` |
+| `started_at` | `timestamptz` | No | - | - | - |
+| `finished_at` | `timestamptz` | No | - | - | - |
+| `created_at` | `timestamptz` | No | - | - | `now()` |
+
 ### signals
 
 Prepared for writers 2026-10-19 (AZM-150). Enrichment's LinkedIn scan (AZM-148)
@@ -816,6 +841,7 @@ about an organization, linked from `activities` (`ledger_type='signal'`).
 | `external_id` | `text` | Yes | - | - | - |
 | `tool_run_id` | `uuid` | Yes | - | `tool_runs.id` | - |
 | `meeting_id` | `uuid` | Yes | - | `meetings.id` | - |
+| `linkedin_scan_id` | `uuid` | Yes | - | `linkedin_scans.id` | - |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 
 **Table constraints**
@@ -1093,6 +1119,8 @@ duplicated here.
 | `activities.actor_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
 | `deal_stage_events.deal_attio_id` | `deals.attio_id` | Many-to-one unless constrained unique |
 | `signals.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
+| `signals.linkedin_scan_id` | `linkedin_scans.id` | Many-to-one unless constrained unique |
+| `linkedin_scans.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `buyer_intel.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `seller_financials.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `match_scores.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |

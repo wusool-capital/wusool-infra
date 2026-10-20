@@ -18,7 +18,7 @@ from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTa
 from app.modules.enrichment.tests.fakes.company_data import FakeCompanyDataClient
 from app.modules.enrichment.tests.fakes.extraction import FakeExtractionClient
 from app.modules.enrichment.tests.fakes.linkedin import FakeLinkedInClient
-from app.modules.enrichment.tests.fakes.linkedin_history import FakeLinkedInHistory
+from app.modules.enrichment.tests.fakes.linkedin_history import FakeLinkedInHistoryStore
 from app.modules.enrichment.tests.fakes.research import FakeResearchClient
 from app.modules.enrichment.tests.fakes.role_ports import FakeReviewPort, FakeRoleReader
 
@@ -40,7 +40,7 @@ def _service(
     *,
     targets: LinkedInTargets,
     linkedin_client: FakeLinkedInClient | None,
-    linkedin_history: FakeLinkedInHistory | None = None,
+    linkedin_history: FakeLinkedInHistoryStore | None = None,
 ) -> EnrichmentService:
     return EnrichmentService(
         research_client=FakeResearchClient(),
@@ -52,7 +52,7 @@ def _service(
         max_tokens=1024,
         min_confidence=0.5,
         linkedin_client=linkedin_client,
-        linkedin_history=linkedin_history,
+        linkedin_history_uow_factory=linkedin_history.factory() if linkedin_history else None,
     )
 
 
@@ -185,7 +185,7 @@ def _moved_scan_client() -> FakeLinkedInClient:
 
 
 async def test_history_makes_a_rerun_report_only_what_is_new(target: EnrichmentTarget) -> None:
-    history = FakeLinkedInHistory()
+    history = FakeLinkedInHistoryStore()
     service = _service(
         targets=LinkedInTargets(contacts=(_contact(),)),
         linkedin_client=_moved_scan_client(),
@@ -207,7 +207,7 @@ async def test_contacts_without_a_url_are_still_reported_on_a_quiet_rerun(
     service = _service(
         targets=LinkedInTargets(contacts=(_contact(), no_url)),
         linkedin_client=_moved_scan_client(),
-        linkedin_history=FakeLinkedInHistory(),
+        linkedin_history=FakeLinkedInHistoryStore(),
     )
 
     await service.scan_linkedin(target, include_people=True)
@@ -222,7 +222,7 @@ async def test_a_history_failure_falls_back_to_the_full_scan(
     service = _service(
         targets=LinkedInTargets(contacts=(_contact(),)),
         linkedin_client=_moved_scan_client(),
-        linkedin_history=FakeLinkedInHistory(error=RuntimeError("db down")),
+        linkedin_history=FakeLinkedInHistoryStore(error=RuntimeError("db down")),
     )
 
     with caplog.at_level("WARNING"):
@@ -235,7 +235,7 @@ async def test_a_history_failure_falls_back_to_the_full_scan(
 async def test_no_history_is_recorded_when_nothing_was_scrapable(
     target: EnrichmentTarget,
 ) -> None:
-    history = FakeLinkedInHistory()
+    history = FakeLinkedInHistoryStore()
     service = _service(
         targets=LinkedInTargets(contacts=(_contact(url=None),)),
         linkedin_client=FakeLinkedInClient(),
@@ -244,7 +244,7 @@ async def test_no_history_is_recorded_when_nothing_was_scrapable(
 
     await service.scan_linkedin(target, include_people=True)
 
-    assert history.calls == 0
+    assert history.enter_attempts == 0
 
 
 # --- org-only scan: the default, and the only mode wired today ---
@@ -255,7 +255,7 @@ def _org_service(
     contacts: tuple[Contact, ...] = (),
     company_url: str | None = _COMPANY_URL,
     client: FakeLinkedInClient | None = None,
-    history: FakeLinkedInHistory | None = None,
+    history: FakeLinkedInHistoryStore | None = None,
 ) -> tuple[EnrichmentService, FakeRoleReader]:
     reader = FakeRoleReader(
         linkedin_targets=LinkedInTargets(contacts=contacts, company_url=company_url)
@@ -270,7 +270,7 @@ def _org_service(
         max_tokens=1024,
         min_confidence=0.5,
         linkedin_client=client or FakeLinkedInClient(),
-        linkedin_history=history,
+        linkedin_history_uow_factory=history.factory() if history else None,
     )
     return service, reader
 
@@ -331,7 +331,7 @@ async def test_org_only_history_reports_only_new_posts_on_a_rerun(
 ) -> None:
     post = LinkedInPost(external_id="1", url="https://linkedin.com/posts/1", text="hi")
     service, _ = _org_service(
-        client=FakeLinkedInClient(posts=(post,)), history=FakeLinkedInHistory()
+        client=FakeLinkedInClient(posts=(post,)), history=FakeLinkedInHistoryStore()
     )
 
     first = await service.scan_linkedin(target)
@@ -342,13 +342,13 @@ async def test_org_only_history_reports_only_new_posts_on_a_rerun(
 
 
 async def test_the_triggering_user_reaches_the_history(target: EnrichmentTarget) -> None:
-    history = FakeLinkedInHistory()
+    history = FakeLinkedInHistoryStore()
     service, _ = _org_service(history=history)
 
     await service.scan_linkedin(target, requested_by="U123")
 
-    assert history.requested_by == ["U123"]
-    assert history.failures == [None]
+    assert [r.requested_by for r in history.scans] == ["U123"]
+    assert [r.failure for r in history.scans] == [None]
 
 
 async def test_a_failed_scan_is_recorded_with_the_error_type(target: EnrichmentTarget) -> None:
@@ -358,48 +358,48 @@ async def test_a_failed_scan_is_recorded_with_the_error_type(target: EnrichmentT
         ) -> tuple[LinkedInPost, ...]:
             raise RuntimeError("apify down: secret detail")
 
-    history = FakeLinkedInHistory()
+    history = FakeLinkedInHistoryStore()
     service, _ = _org_service(client=_Failing(), history=history)
 
     scan = await service.scan_linkedin(target, requested_by="U123")
 
     assert scan.is_empty
     # The type name only: a message can quote data.
-    assert history.failures == ["RuntimeError"]
-    assert history.requested_by == ["U123"]
+    assert [r.failure for r in history.scans] == ["RuntimeError"]
+    assert [r.requested_by for r in history.scans] == ["U123"]
 
 
 async def test_a_timed_out_scan_is_recorded_as_a_timeout(
     target: EnrichmentTarget, monkeypatch
 ) -> None:
     monkeypatch.setattr("app.modules.enrichment.application.linkedin._SCAN_TIMEOUT_S", 0.01)
-    history = FakeLinkedInHistory()
+    history = FakeLinkedInHistoryStore()
     service, _ = _org_service(client=FakeLinkedInClient(delay_s=1.0), history=history)
 
     await service.scan_linkedin(target)
 
-    assert history.failures == ["TimeoutError"]
+    assert [r.failure for r in history.scans] == ["TimeoutError"]
 
 
 async def test_a_history_error_while_recording_a_failure_is_swallowed(
     target: EnrichmentTarget, monkeypatch
 ) -> None:
     monkeypatch.setattr("app.modules.enrichment.application.linkedin._SCAN_TIMEOUT_S", 0.01)
-    history = FakeLinkedInHistory(error=RuntimeError("db down"))
+    history = FakeLinkedInHistoryStore(error=RuntimeError("db down"))
     service, _ = _org_service(client=FakeLinkedInClient(delay_s=1.0), history=history)
 
     scan = await service.scan_linkedin(target)
 
-    assert scan.is_empty and history.calls == 1
+    assert scan.is_empty and history.enter_attempts == 1
 
 
 async def test_a_skipped_scan_records_nothing(target: EnrichmentTarget) -> None:
-    history = FakeLinkedInHistory()
+    history = FakeLinkedInHistoryStore()
     service, _ = _org_service(company_url=None, history=history)
 
     await service.scan_linkedin(target, requested_by="U123")
 
-    assert history.calls == 0
+    assert history.enter_attempts == 0
 
 
 async def test_a_scan_without_a_client_is_skipped(target: EnrichmentTarget) -> None:
@@ -409,7 +409,7 @@ async def test_a_scan_without_a_client_is_skipped(target: EnrichmentTarget) -> N
 
 
 async def test_a_completed_scan_has_a_completed_outcome(target: EnrichmentTarget) -> None:
-    service, _ = _org_service(history=FakeLinkedInHistory())
+    service, _ = _org_service(history=FakeLinkedInHistoryStore())
 
     scan = await service.scan_linkedin(target)
 
@@ -426,13 +426,13 @@ async def test_a_vendor_failure_is_a_failed_scan_not_an_empty_one(
         ) -> tuple[LinkedInPost, ...]:
             raise LinkedInUnavailableError("the Apify posts run failed")
 
-    history = FakeLinkedInHistory()
+    history = FakeLinkedInHistoryStore()
     service, _ = _org_service(client=_Unavailable(), history=history)
 
     scan = await service.scan_linkedin(target)
 
     assert scan.outcome is ScanOutcome.FAILED
-    assert history.failures == ["LinkedInUnavailableError"]
+    assert [r.failure for r in history.scans] == ["LinkedInUnavailableError"]
 
 
 async def test_a_database_error_loading_targets_is_a_failed_scan(
@@ -444,7 +444,7 @@ async def test_a_database_error_loading_targets_is_a_failed_scan(
         ) -> LinkedInTargets:
             raise RuntimeError("connection lost")
 
-    history = FakeLinkedInHistory()
+    history = FakeLinkedInHistoryStore()
     service = EnrichmentService(
         research_client=FakeResearchClient(),
         extraction_client=FakeExtractionClient({}),
@@ -455,10 +455,12 @@ async def test_a_database_error_loading_targets_is_a_failed_scan(
         max_tokens=1024,
         min_confidence=0.5,
         linkedin_client=FakeLinkedInClient(),
-        linkedin_history=history,
+        linkedin_history_uow_factory=history.factory() if history else None,
     )
 
     scan = await service.scan_linkedin(target, requested_by="U1")
 
     assert scan.outcome is ScanOutcome.FAILED
-    assert history.failures == ["RuntimeError"] and history.requested_by == ["U1"]
+    assert [r.failure for r in history.scans] == ["RuntimeError"] and [
+        r.requested_by for r in history.scans
+    ] == ["U1"]

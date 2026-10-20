@@ -7,7 +7,9 @@ matter how many mixins it combines. Mirrors `matching_engine`'s own
 
 from app.modules.enrichment.application.ports.company_data import CompanyDataClient
 from app.modules.enrichment.application.ports.linkedin import LinkedInClient
-from app.modules.enrichment.application.ports.linkedin_history import LinkedInHistoryPort
+from app.modules.enrichment.application.ports.linkedin_unit_of_work import (
+    LinkedInHistoryUnitOfWorkFactory,
+)
 from app.modules.enrichment.application.ports.llm import ExtractionClient
 from app.modules.enrichment.application.ports.research import ResearchClient
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
@@ -28,7 +30,7 @@ class ServiceBase:
         min_confidence: float,
         company_data_clients: tuple[CompanyDataClient, ...] = (),
         linkedin_client: LinkedInClient | None = None,
-        linkedin_history: LinkedInHistoryPort | None = None,
+        linkedin_history_uow_factory: LinkedInHistoryUnitOfWorkFactory | None = None,
     ) -> None:
         self._research_client = research_client
         self._extraction_client = extraction_client
@@ -44,4 +46,4 @@ class ServiceBase:
         # Optional: unset (no Apify token) skips the LinkedIn scan entirely.
         self._linkedin_client = linkedin_client
         # Optional: without it every scan reports everything it finds.
-        self._linkedin_history = linkedin_history
+        self._linkedin_history_uow_factory = linkedin_history_uow_factory

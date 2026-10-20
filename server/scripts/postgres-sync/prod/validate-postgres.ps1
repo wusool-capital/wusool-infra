@@ -94,7 +94,7 @@ with psycopg.connect(os.environ["WUSOOL_VALIDATE_DATABASE_URL"],connect_timeout=
       "activities missing buyer role": "select count(*) from activities a where a.subject_type='BuyerRole' and not exists(select 1 from buyer_roles b where b.id=a.subject_uuid)",
       "activities missing deal": "select count(*) from activities a where a.subject_type='Deal' and not exists(select 1 from deals d where d.attio_id=a.subject_attio_id)",
       "activities missing note": "select count(*) from activities a where a.subject_type='Note' and not exists(select 1 from notes n where n.id::text=a.subject_attio_id)",
-      "activities with a dangling ledger link": "select count(*) from activities a where a.ledger_id is not null and not exists(select 1 from (select id,'tool_run' t from tool_runs union all select id,'command_run' from command_runs union all select id,'match_result' from match_results union all select id,'meeting' from meetings union all select id,'deal_stage_event' from deal_stage_events union all select id,'signal' from signals) l where l.id=a.ledger_id and l.t=a.ledger_type)",
+      "activities with a dangling ledger link": "select count(*) from activities a where a.ledger_id is not null and not exists(select 1 from (select id,'tool_run' t from tool_runs union all select id,'command_run' from command_runs union all select id,'match_result' from match_results union all select id,'meeting' from meetings union all select id,'deal_stage_event' from deal_stage_events union all select id,'signal' from signals union all select id,'linkedin_scan' from linkedin_scans) l where l.id=a.ledger_id and l.t=a.ledger_type)",
     }
     print("\nRelationship integrity")
     print("-"*67)

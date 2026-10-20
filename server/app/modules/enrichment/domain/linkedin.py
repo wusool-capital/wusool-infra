@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from app.modules.enrichment.domain.targets import EnrichmentTarget
+
 LINKEDIN_PROVIDER_NAME = "LinkedIn (Apify)"
 
 _INTRA_WORD = re.compile(r"[.'’]")
@@ -82,6 +84,20 @@ class LinkedInScan:
     @property
     def is_empty(self) -> bool:
         return not (self.job_changes or self.posts or self.contacts_without_linkedin)
+
+
+@dataclass(frozen=True)
+class ScanRecord:
+    """Everything the history stores about one attempted scan."""
+
+    target: EnrichmentTarget
+    scan: LinkedInScan
+    started_at: datetime
+    finished_at: datetime
+    # Slack user who triggered it; None when the system did.
+    requested_by: str | None = None
+    # The error type name of a scan that did not complete; None when it did.
+    failure: str | None = None
 
 
 def profile_key(url: str | None) -> str | None:

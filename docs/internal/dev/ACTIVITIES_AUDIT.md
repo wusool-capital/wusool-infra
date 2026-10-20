@@ -223,8 +223,8 @@ model.
 ## Follow-ups
 
 - Write `signals` from buyer meeting transcripts. AZM-148's LinkedIn scan now
-  writes `signals` (one row per new post or job change), a `tool_runs` row per
-  scan, and one `linkedin.scan_completed` activity.
+  writes `signals` (one row per new post or job change), a `linkedin_scans` row
+  per scan (enrichment's own ledger), and one `linkedin.scan_completed` activity.
 - Fix `sync-source-to-prod.ps1` hard-deleting role rows, which orphans activities.
 - Add a write path for deal stage changes found only by the nightly batch resync.
 - Decide retention for `activities` once the volume queries have run.

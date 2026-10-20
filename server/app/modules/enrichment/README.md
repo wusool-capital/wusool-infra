@@ -94,9 +94,10 @@ from the database. The people path is built and tested, but off — see
   original poster. The company-page waterfall step still fails soft.
 - **Cost log:** every run logs `apify_run actor=… items=… duration_ms=…
   outcome=…`; the token only ever travels in the `Authorization` header.
-- **History** (`persistence/linkedin_history.py`, behind
-  `LinkedInHistoryPort`): one transaction per scan writes a `tool_runs` row
-  (`tool='linkedin_scan'`, the run ledger), one `signals` row per *new* post or
+- **History** (`application/linkedin_history.py::record_scan`, through the
+  `LinkedInHistoryUnitOfWork` port; persistence in `persistence/linkedin_unit_of_work.py`
+  and `repositories/`): one transaction per scan writes a `linkedin_scans` row
+  (this module's own run ledger, with real `started_at` and `finished_at`), one `signals` row per *new* post or
   job change (`source='linkedin'`, typed payload, linked to the run; job
   changes only come from the people path), and one
   `linkedin.scan_completed` `activities` row for **every** scan, new items or
@@ -161,7 +162,7 @@ is at most 2 seconds; a POST is never resent, since it can start a billed run.
 `LinkedInPost`, `LinkedInProfile`, `Contact`) — see `__init__.py`.
 
 This module never writes to Attio and never renders a Slack edit form. Its only
-Postgres writes are the LinkedIn history rows above (`tool_runs`, `signals`,
+Postgres writes are the LinkedIn history rows above (`linkedin_scans`, `signals`,
 `activities`); CRM fields are written by `ddl_commands`. `ddl_commands` implements `EnrichmentReviewPort`
 (`providers/enrichment/review_adapter.py`) by opening its own real
 `/edit-seller`/`/edit-buyer` modal, prefilled with the proposed values —
@@ -178,9 +179,9 @@ buyer "enrich first?" checkbox) never needs to look up org info on its own.
 ## Database
 
 Reads `seller_roles`/`buyer_roles`/`organizations`/`person` directly via
-`app.models`. Writes `tool_runs`, `signals` and `activities` for the LinkedIn
-scan; the `signals.org_attio_id` rename (was `buyer_attio_id`) is the only
-migration this module needed.
+`app.models`. Writes `linkedin_scans` (its own ledger), `signals` and
+`activities` for the LinkedIn scan. Migrations: the `signals.org_attio_id` rename
+(was `buyer_attio_id`), and `linkedin_scans` with `signals.linkedin_scan_id`.
 
 ## Setup
 

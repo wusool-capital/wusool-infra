@@ -6,6 +6,9 @@ monkeypatched — no network calls leave the process. Mirrors
 `ddl_commands`'/`matching_engine`'s own `test_slack_command_dispatch.py`.
 """
 
+from slack_sdk.models.views import View
+from slack_sdk.web.async_client import AsyncWebClient
+
 from app.modules.enrichment.api.slack.handlers import commands as commands_module
 from app.modules.enrichment.bootstrap import create_app
 from app.modules.enrichment.config import get_settings
@@ -161,10 +164,14 @@ def _enrich_single_match(monkeypatch, *, command: str, kind: str, user_id: str):
     async def fake_resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
         return _single_role(kind)
 
-    async def fake_views_open(self, **kwargs):  # noqa: ANN001
+    async def fake_views_open(
+        self: AsyncWebClient, *, trigger_id: str, view: View
+    ) -> dict[str, dict[str, str]]:
         return {"view": {"id": "V_TEST"}}
 
-    async def fake_views_update(self, **kwargs):  # noqa: ANN001
+    async def fake_views_update(
+        self: AsyncWebClient, *, view_id: str, view: View
+    ) -> dict[str, bool]:
         return {"ok": True}
 
     monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", fake_views_open)

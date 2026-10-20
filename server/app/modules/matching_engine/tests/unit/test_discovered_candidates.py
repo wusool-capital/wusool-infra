@@ -2,6 +2,7 @@
 rendered as their own message, and posted by `trigger_seller_discovery`."""
 
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -428,7 +429,7 @@ async def test_trigger_says_sellers_were_created_when_the_run_view_is_missing(
 
 
 class _CallingRunner(_RecordingRunner):
-    def run(self, coro_factory, *, name: str) -> None:  # noqa: ANN001
+    def run(self, coro_factory: Callable[[], Awaitable[None]], *, name: str) -> None:
         super().run(coro_factory, name=name)
         coro_factory()
 

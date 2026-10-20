@@ -1,7 +1,8 @@
 """Buyer/seller field enrichment: research an existing role's missing
 fields from public sources, propose values, and hand the proposal off for
-review. Writes are delegated through `EnrichmentReviewPort` — this module
-never talks to Attio or Postgres directly; `ddl_commands` implements the
+review. CRM writes are delegated through `EnrichmentReviewPort` — this module
+never writes Attio, and its only Postgres writes are the LinkedIn scan history
+(its own `linkedin_scans`, `signals`, `activities`); `ddl_commands` implements the
 adapter (opening its own real `/edit-seller`/`/edit-buyer` modal, prefilled)
 and `server/main.py` wires it (see that module's
 `providers/enrichment/review_adapter.py`).

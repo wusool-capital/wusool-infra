@@ -206,8 +206,7 @@ Constraint: `deals_one_buyer` — `buyer_organization_attio_id IS NULL OR buyer_
 
 ### `tool_runs` (`tool_run.py`) — new, 2026-09-06
 
-Postgres-only ledger of tool invocations: the lead-magnet tools, and
-enrichment's `linkedin_scan` (one row per attempted LinkedIn scan, succeeded or failed, AZM-148). Complements
+Postgres-only ledger of lead-magnet tool invocations. Complements
 `activities` rather than replacing it: `activities` is the human-readable
 CRM timeline, `tool_runs` is the machine record of what an invocation did.
 
@@ -219,7 +218,7 @@ lead-loss case this table exists to catch.
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
-| tool | text | no | | `valuation` / `readiness` / `benchmark` / `buyer_network` / `get_started` / `attio_webhook` / `linkedin_scan` |
+| tool | text | no | | `valuation` / `readiness` / `benchmark` / `buyer_network` / `get_started` / `attio_webhook` |
 | status | text | no | | CHECK: `running`, `succeeded`, `failed`, `abandoned` |
 | idempotency_key | text | yes | | client tag (email\|domain); no longer unique — every attempt keeps its own row |
 | started_at | timestamptz | no | `now()` | |
@@ -470,7 +469,7 @@ UPDATE, DELETE and TRUNCATE, for every role including the owner. `ts` is event t
 | channel / direction / outcome / source | text | yes | | `channel`/`direction` only on legacy backfill rows |
 | payload | jsonb | no | `{}` | only the event's own facts (typed models in `activities.domain.payloads`), field names not values |
 | idempotency_key | text | yes | | unique where not null; a repeat write is dropped |
-| ledger_type | text | yes | | which ledger: `tool_run`, `command_run`, `match_result`, `meeting`, `deal_stage_event`, `signal`; CHECK. Set together with `ledger_id` |
+| ledger_type | text | yes | | which ledger: `tool_run`, `command_run`, `match_result`, `meeting`, `deal_stage_event`, `signal`, `linkedin_scan`; CHECK. Set together with `ledger_id` |
 | ledger_id | uuid | yes | | the ledger row's id. **No FK**: one pair serves every ledger, and an FK action would be an UPDATE, which the trigger forbids. `validate-postgres.ps1` checks for dangling ids |
 | tool_run_id | uuid | yes | | **deprecated**, FK → tool_runs.id. Replaced by the pair above and backfilled into it; no longer written. Drop in a follow-up |
 | created_at | timestamptz | no | `now()` | insert time |
@@ -520,12 +519,39 @@ batch resync does not write it. Linked from `activities` (`ledger_type='deal_sta
 
 Indexed on `(deal_attio_id, ts DESC)`.
 
+### `linkedin_scans` (`linkedin_scan.py`) — new, AZM-148
+
+Postgres-only run ledger of enrichment's LinkedIn scans, written only by the
+`enrichment` module (each module owns its own ledger, as `command_runs` is
+`ddl_commands`'). One row per attempted scan, succeeded or failed. Each scan is
+linked from `activities` (`ledger_type='linkedin_scan'`), and its `signals` point
+back at it. The row leaves with its organization.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| org_attio_id | text | no | | FK → organizations.attio_id, CASCADE |
+| seller_role_id | uuid | yes | | FK → seller_roles.id, SET NULL |
+| buyer_role_id | uuid | yes | | FK → buyer_roles.id, SET NULL |
+| requested_by | text | yes | | Slack user id; NULL when the system triggered it |
+| status | text | no | | CHECK: `succeeded`, `failed` |
+| error | text | yes | | the exception type only, never its message |
+| posts_found | integer | no | `0` | after removing repeats within the scan |
+| job_changes_found | integer | no | `0` | |
+| contacts_scanned | integer | no | `0` | |
+| contacts_without_linkedin | integer | no | `0` | |
+| started_at | timestamptz | no | | |
+| finished_at | timestamptz | no | | |
+| created_at | timestamptz | no | `now()` | |
+
+Indexed on `(org_attio_id, started_at DESC)`.
+
 ### `signals` (`signal.py`) — AZM-150, written by AZM-148
 
 Signals: a cited outside fact about an organization, a buyer or a seller.
 Enrichment's LinkedIn scan writes one row per new post (`payload.kind='post'`)
 and per detected job change (`'job_change'`), each linked to its scan's
-`tool_runs` row. The producer for buyer meeting transcripts is follow-up work.
+`linkedin_scans` row. The producer for buyer meeting transcripts is follow-up work.
 It is a domain ledger linked from `activities` (`ledger_type='signal'`), not part
 of the timeline itself. It holds personal data (names, titles, post text), so a
 removal request deletes the rows here; `activities` keeps counts only. Still a
@@ -544,6 +570,7 @@ column was renamed from `buyer_attio_id` to `org_attio_id` in AZM-148.
 | external_id | text | yes | | stable id in the upstream source, so a re-scrape cannot insert twice |
 | tool_run_id | uuid | yes | | FK → tool_runs.id |
 | meeting_id | uuid | yes | | FK → meetings.id |
+| linkedin_scan_id | uuid | yes | | FK → linkedin_scans.id, SET NULL; indexed. The scan that stored it |
 | created_at | timestamptz | no | `now()` | |
 
 Constraint: `signals_source_check` (`NOT VALID`) — `transcript`, `news`, `linkedin`, `jobs`.

@@ -9,8 +9,10 @@ caller sets it yet.
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 
 from app.modules.enrichment.application.base import ServiceBase
+from app.modules.enrichment.application.linkedin_history import record_scan
 from app.modules.enrichment.application.ports.linkedin import PostedLimit
 from app.modules.enrichment.domain.linkedin import (
     Contact,
@@ -18,6 +20,7 @@ from app.modules.enrichment.domain.linkedin import (
     LinkedInProfile,
     LinkedInScan,
     ScanOutcome,
+    ScanRecord,
     detect_job_change,
     profile_key,
 )
@@ -51,6 +54,7 @@ class LinkedInMixin(ServiceBase):
         if self._linkedin_client is None:
             return LinkedInScan(outcome=ScanOutcome.SKIPPED)
         client = self._linkedin_client
+        started_at = datetime.now(UTC)
         contacts: list[Contact] = []
         missing: tuple[Contact, ...] = ()
         try:
@@ -77,7 +81,16 @@ class LinkedInMixin(ServiceBase):
         except Exception as exc:
             logger.warning("linkedin_scan_failed role=%s", target.role_id, exc_info=True)
             failed = LinkedInScan(contacts_without_linkedin=missing, outcome=ScanOutcome.FAILED)
-            await self._record_failure(target, failed, requested_by, type(exc).__name__)
+            await self._record_failure(
+                ScanRecord(
+                    target=target,
+                    scan=failed,
+                    started_at=started_at,
+                    finished_at=datetime.now(UTC),
+                    requested_by=requested_by,
+                    failure=type(exc).__name__,
+                )
+            )
             return failed
 
         by_key = {profile_key(p.url): p for p in profiles}
@@ -92,27 +105,26 @@ class LinkedInMixin(ServiceBase):
             contacts_without_linkedin=missing,
             contacts_scanned=len(contacts),
         )
-        if self._linkedin_history is None:
+        if self._linkedin_history_uow_factory is None:
             return scan
+        record = ScanRecord(
+            target=target,
+            scan=scan,
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            requested_by=requested_by,
+        )
         try:
-            return await self._linkedin_history.record(target, scan, requested_by=requested_by)
+            return await record_scan(self._linkedin_history_uow_factory, record)
         except Exception:
             # Showing a repeat is better than showing nothing.
             logger.warning("linkedin_history_failed role=%s", target.role_id, exc_info=True)
             return scan
 
-    async def _record_failure(
-        self,
-        target: EnrichmentTarget,
-        scan: LinkedInScan,
-        requested_by: str | None,
-        failure: str,
-    ) -> None:
-        if self._linkedin_history is None:
+    async def _record_failure(self, record: ScanRecord) -> None:
+        if self._linkedin_history_uow_factory is None:
             return
         try:
-            await self._linkedin_history.record(
-                target, scan, requested_by=requested_by, failure=failure
-            )
+            await record_scan(self._linkedin_history_uow_factory, record)
         except Exception:
-            logger.warning("linkedin_history_failed role=%s", target.role_id, exc_info=True)
+            logger.warning("linkedin_history_failed role=%s", record.target.role_id, exc_info=True)

@@ -15,13 +15,12 @@ for current production evidence and open handover items.
 - Enrichment can now look at LinkedIn. After a proposal, the bot replies in
   its thread with the organization's recent LinkedIn posts. The company's
   LinkedIn page can also fill missing company details. People are not scraped. It uses
-  Apify and is skipped without an `APIFY_API_TOKEN`. Each scan is saved as
-  signals plus one activity entry, even when nothing is new or the scan fails.
-  The entry names who ran it. A re-run shows only what is new. The thread
-  reply always says how the scan went, including when it was skipped or
-  failed. The
-  signals table's buyer column is now called `org_attio_id`, since it also
-  holds sellers.
+  Apify and is skipped without an `APIFY_API_TOKEN`. Each scan is saved in its
+  own `linkedin_scans` table, plus signals and one activity entry, even when
+  nothing is new or the scan fails. The entry names who ran it. A re-run shows
+  only what is new. The thread reply always says how the scan went, including
+  when it was skipped or failed. The signals table's buyer column is now called
+  `org_attio_id`, since it also holds sellers.
 
 ### Changed
 

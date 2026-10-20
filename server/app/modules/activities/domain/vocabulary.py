@@ -62,6 +62,7 @@ class LedgerType(StrEnum):
     MEETING = "meeting"
     DEAL_STAGE_EVENT = "deal_stage_event"
     SIGNAL = "signal"
+    LINKEDIN_SCAN = "linkedin_scan"
 
 
 class ActivitySource(StrEnum):

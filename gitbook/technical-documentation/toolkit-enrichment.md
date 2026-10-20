@@ -55,7 +55,7 @@ or if it failed. Only a missing `APIFY_API_TOKEN` posts nothing.
 The reply comes after the proposal, so a slow or failing scrape never delays
 the proposal. Nothing is written to the CRM fields from it.
 
-Each scan is remembered. One run record is saved per scan, and each new post
+Each scan is remembered. One scan record is saved per scan, and each new post
 is saved as a signal linked to it. Every scan also adds one "LinkedIn scan
 completed" entry to the activity history, with counts only, even when nothing
 was found. It names the person who ran the command, or the system. A scan

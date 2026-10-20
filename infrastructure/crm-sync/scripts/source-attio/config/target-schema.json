@@ -282,7 +282,7 @@
       "status": "live",
       "postgres_table": "activities",
       "postgres_only": true,
-      "purpose": "Thin, append-only business-event index (AZM-150): one row per meaningful event (who did what, to which record, when, with what result) plus a polymorphic ledger_type/ledger_id pointer to the domain ledger that holds the detail (tool_runs, match_results, meetings, command_runs, deal_stage_events, signals). It never copies ledger data. Written only through the activities module's recorder, and append-only: a trigger rejects every UPDATE, DELETE and TRUNCATE. Originally a CRM touch log; the legacy touch rows are kept as event_type legacy.interaction.",
+      "purpose": "Thin, append-only business-event index (AZM-150): one row per meaningful event (who did what, to which record, when, with what result) plus a polymorphic ledger_type/ledger_id pointer to the domain ledger that holds the detail (tool_runs, match_results, meetings, command_runs, linkedin_scans, deal_stage_events, signals). It never copies ledger data. Written only through the activities module's recorder, and append-only: a trigger rejects every UPDATE, DELETE and TRUNCATE. Originally a CRM touch log; the legacy touch rows are kept as event_type legacy.interaction.",
       "fields": [
         {"slug": "id", "type": "uuid", "ownership": "postgres"},
         {"slug": "subject_type", "type": "enum", "ownership": "postgres", "options": ["Organization", "Person", "Deal", "BuyerRole", "SellerRole", "Note", "Meeting"], "purpose": "Discriminator for the polymorphic subject columns below. CHECK added NOT VALID."},
@@ -297,7 +297,7 @@
         {"slug": "source", "type": "text", "ownership": "postgres", "purpose": "Writer: attio_webhook, slack, discovery, matching_engine, meetings, lead_magnet, enrichment; legacy backfill rows keep their 'SOURCE ... backfill' citation."},
         {"slug": "payload", "type": "jsonb", "ownership": "postgres", "purpose": "Only the event's own facts (typed models), field names not values."},
         {"slug": "idempotency_key", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Unique where not null; a repeat write is dropped."},
-        {"slug": "ledger_type", "type": "enum", "ownership": "postgres", "nullable": true, "options": ["tool_run", "command_run", "match_result", "meeting", "deal_stage_event", "signal"], "purpose": "Which domain ledger holds the detail. Set together with ledger_id."},
+        {"slug": "ledger_type", "type": "enum", "ownership": "postgres", "nullable": true, "options": ["tool_run", "command_run", "match_result", "meeting", "deal_stage_event", "signal", "linkedin_scan"], "purpose": "Which domain ledger holds the detail. Set together with ledger_id."},
         {"slug": "ledger_id", "type": "uuid", "ownership": "postgres", "nullable": true, "purpose": "The ledger row id. No foreign key, so a ledger row can be removed without touching history."},
         {"slug": "tool_run_id", "type": "uuid", "ownership": "postgres", "nullable": true, "purpose": "Deprecated, replaced by ledger_type/ledger_id and no longer written."},
         {"slug": "channel", "type": "enum", "ownership": "postgres", "options": ["Calendar", "Email", "Call", "Outreach", "DataRoom", "Nudge", "Other"], "nullable": true, "options_status": "needs_approval", "purpose": "Legacy touch-log column; only the one-off SOURCE backfill sets it."},
@@ -340,6 +340,24 @@
       ]
     },
     {
+      "name": "LinkedInScans",
+      "status": "live",
+      "postgres_table": "linkedin_scans",
+      "postgres_only": true,
+      "purpose": "Run ledger of enrichment's LinkedIn scans (AZM-148), written only by the enrichment module. One row per attempted scan, succeeded or failed. Linked from Activities (ledger_type linkedin_scan) and from the scan's Signals. The row leaves with its organization.",
+      "fields": [
+        {"slug": "id", "type": "uuid", "ownership": "postgres"},
+        {"slug": "org_attio_id", "type": "record-reference", "ownership": "postgres", "target": "Organization"},
+        {"slug": "seller_role_id", "type": "uuid", "ownership": "postgres", "nullable": true},
+        {"slug": "buyer_role_id", "type": "uuid", "ownership": "postgres", "nullable": true},
+        {"slug": "requested_by", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "Slack user id; null when the system triggered it."},
+        {"slug": "status", "type": "text", "ownership": "postgres", "options": ["succeeded", "failed"], "purpose": "CHECK-constrained."},
+        {"slug": "error", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "The exception type only, never its message."},
+        {"slug": "posts_found / job_changes_found / contacts_scanned / contacts_without_linkedin", "type": "integer", "ownership": "postgres"},
+        {"slug": "started_at / finished_at / created_at", "type": "timestamptz", "ownership": "postgres"}
+      ]
+    },
+    {
       "name": "ToolRuns",
       "status": "migration_written_not_yet_applied",
       "postgres_table": "tool_runs",
@@ -347,7 +365,7 @@
       "purpose": "Ledger of lead-magnet tool invocations. Complements Activities rather than replacing it: Activities is the human-readable CRM timeline, ToolRuns is the machine record of what an invocation did. Every subject reference is nullable and there is deliberately no CHECK requiring one - activities_subject_present makes it impossible to record a submission that failed before its Attio write, which is the lead-loss case this table exists to catch. Joined to Activities by activities.tool_run_id.",
       "fields": [
         {"slug": "id", "type": "uuid", "ownership": "postgres"},
-        {"slug": "tool", "type": "text", "ownership": "postgres", "purpose": "valuation | readiness | benchmark | buyer_network | attio_webhook | linkedin_scan"},
+        {"slug": "tool", "type": "text", "ownership": "postgres", "purpose": "valuation | readiness | benchmark | buyer_network | attio_webhook"},
         {"slug": "status", "type": "text", "ownership": "postgres", "options": ["running", "succeeded", "failed", "abandoned"], "purpose": "CHECK-constrained"},
         {"slug": "idempotency_key", "type": "text", "ownership": "postgres", "nullable": true, "purpose": "UNIQUE. Dedups a retried submission or a replayed Attio webhook."},
         {"slug": "started_at", "type": "timestamptz", "ownership": "postgres"},

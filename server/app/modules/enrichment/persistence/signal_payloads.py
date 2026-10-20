@@ -1,6 +1,5 @@
-"""Typed `signals.payload` models for LinkedIn, and the `tool_runs.payload`
-for a scan. These hold the personal data (names, titles, post text) so the
-append-only `activities` row never has to.
+"""Typed `signals.payload` models for LinkedIn. These hold the personal data
+(names, titles, post text) so the append-only `activities` row never has to.
 """
 
 import uuid
@@ -35,17 +34,8 @@ class JobChangeSignalPayload(BaseModel):
 
 SignalPayload = PostSignalPayload | JobChangeSignalPayload
 
-# A `signals.payload` / `tool_runs.payload` value as the JSONB column takes it.
+# A `signals.payload` value as the JSONB column takes it.
 JsonPayload = dict[str, JsonValue]
-
-
-class ScanRunPayload(BaseModel):
-    """Counts for the `tool_runs` row: what the scan found, new or not."""
-
-    posts_found: int
-    job_changes_found: int
-    contacts_scanned: int
-    contacts_without_linkedin: int
 
 
 class SignalInsert(TypedDict):
@@ -57,10 +47,10 @@ class SignalInsert(TypedDict):
     payload: JsonPayload
     ts: datetime
     source_cite: str
-    tool_run_id: uuid.UUID
+    linkedin_scan_id: uuid.UUID
 
 
-def dump_payload(payload: SignalPayload | ScanRunPayload) -> JsonPayload:
+def dump_payload(payload: SignalPayload) -> JsonPayload:
     return payload.model_dump(mode="json")
 
 

@@ -29,6 +29,7 @@ class Signal(Base):
             "source IN ('transcript','news','linkedin','jobs')", name="signals_source_check"
         ),
         Index("idx_signals_org_ts", "org_attio_id", literal_column("ts DESC")),
+        Index("idx_signals_linkedin_scan", "linkedin_scan_id"),
         # Partial index -- must match the migration exactly or `alembic check`
         # reports drift.
         Index(
@@ -60,6 +61,9 @@ class Signal(Base):
     external_id: Mapped[str | None] = mapped_column(Text)
     tool_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("tool_runs.id"))
     meeting_id: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("meetings.id"))
+    linkedin_scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID, ForeignKey("linkedin_scans.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

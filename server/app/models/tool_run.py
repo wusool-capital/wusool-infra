@@ -1,5 +1,4 @@
-"""`tool_runs` — the machine ledger for tool invocations: the lead-magnet tools,
-plus enrichment's `linkedin_scan` (AZM-148).
+"""`tool_runs` — the machine ledger for lead-magnet tool invocations.
 
 Complements `activities` rather than replacing it. `activities` answers "what
 happened with this counterparty" and is what a human reads on a CRM timeline;

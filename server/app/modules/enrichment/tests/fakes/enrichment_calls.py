@@ -1,6 +1,7 @@
 """Records what a Slack handler hands to `propose_and_post`, without running
 the real background task or any research."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from types import ModuleType
 
@@ -28,7 +29,7 @@ def record_enrichment_calls(
     ) -> None:
         calls.append(EnrichmentCall(str(target.role_id), channel_id, requested_by))
 
-    def fake_run(coro_factory, *, name: str) -> None:  # noqa: ANN001
+    def fake_run(coro_factory: Callable[[], Awaitable[None]], *, name: str) -> None:
         coro_factory()
 
     monkeypatch.setattr(handler_module, "propose_and_post", fake_propose)
