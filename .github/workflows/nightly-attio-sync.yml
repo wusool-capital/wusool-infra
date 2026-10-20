@@ -60,7 +60,7 @@ jobs:
 
       - uses: ./.github/actions/aws-oidc
         with:
-          role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-attio-resync-prod
 
       - name: Find the current toolkit instance
         id: toolkit
@@ -76,9 +76,27 @@ jobs:
           ./.github/scripts/nightly-attio-resync.sh \
             "$IID" "${{ github.run_id }}" "/wusool/prod/toolkit"
 
+      # Feeds the attio-resync-heartbeat alarm (modules/toolkit-ec2), which
+      # catches nights this workflow never runs at all.
+      - name: Publish heartbeat metric
+        if: steps.toolkit.outputs.instance_id != ''
+        run: |
+          aws cloudwatch put-metric-data \
+            --namespace wusool/prod/toolkit \
+            --metric-name AttioNightlyResyncSuccess \
+            --value 1
+
+      # A green skip once hid a missing instance. Only a deliberate
+      # create_instance = false in prod.tfvars may skip.
       - name: No toolkit instance in prod
         if: steps.toolkit.outputs.instance_id == ''
-        run: echo "::warning::No running toolkit instance found in prod (create_instance=false, or the ASG is mid-replacement) — skipping nightly resync. If this wasn't a deliberate create_instance=false, re-run this workflow."
+        run: |
+          if grep -Eq '^create_instance[[:space:]]*=[[:space:]]*false' infrastructure/terraform/envs/prod.tfvars; then
+            echo "::notice::create_instance = false in prod.tfvars — skipping nightly resync."
+            exit 0
+          fi
+          echo "::error::No running toolkit instance found in prod (ASG mid-replacement, or the role cannot describe instances) — nightly resync did not run. Re-run this workflow once the instance is back."
+          exit 1
 
       # A failed run used to be visible only in the Actions tab, which is how
       # ten consecutive failures (2026-09-03 to 2026-09-12) went unnoticed.

@@ -330,13 +330,9 @@ resource "aws_iam_role" "gha_apply" {
   description        = "GitHub Actions: terraform apply for the ${each.key} environment."
   assume_role_policy = data.aws_iam_policy_document.gha_apply_trust[each.key].json
 
-  # The nightly Attio resync polls SSM for up to 90 minutes
-  # (.github/workflows/nightly-attio-sync.yml), but AWS caps a session at
-  # this value regardless of what `role-duration-seconds` asks for - so the
-  # AWS/Terraform default of 3600 made that 90-minute cap unreachable: the
-  # 2026-08-29 run's credentials died at 60 minutes mid-poll and the job
-  # reported ExpiredTokenException instead of the resync's own result.
-  # prod stays at the default - its deploy polls cap at 15 minutes.
+  # Raised for the nightly Attio resync's former 90-minute SSM poll; that job
+  # now uses gha_attio_resync below. prod stays at the default - its deploy
+  # polls cap at 15 minutes.
   max_session_duration = each.key == "dev" ? 10800 : 3600
 }
 
@@ -442,12 +438,108 @@ resource "aws_iam_role_policy" "gha_apply_iam" {
   })
 }
 
+# Nightly Attio resync only. A data job has no business holding the apply
+# role's PowerUserAccess. Matches the gha-* Deny above, so apply can't edit it.
+data "aws_iam_policy_document" "gha_attio_resync_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${local.github_repo}:environment:prod"]
+    }
+
+    # Schedules run from dev (the default branch); manual re-runs have used prod.
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:job_workflow_ref"
+      values = [
+        for branch in ["dev", "prod"] :
+        "${local.github_repo}/.github/workflows/nightly-attio-sync.yml@refs/heads/${branch}"
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "gha_attio_resync" {
+  name               = "${var.project}-gha-attio-resync-prod"
+  description        = "GitHub Actions: nightly Attio resync on the prod toolkit instance."
+  assume_role_policy = data.aws_iam_policy_document.gha_attio_resync_trust.json
+}
+
+resource "aws_iam_role_policy" "gha_attio_resync" {
+  name = "${var.project}-gha-attio-resync"
+  role = aws_iam_role.gha_attio_resync.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # None of these support resource-level permissions.
+        Sid    = "DescribeAndPoll"
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeInstances",
+          "ssm:DescribeInstanceInformation",
+          "ssm:GetCommandInvocation",
+          "ssm:CancelCommand",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "RunShellScriptDocument"
+        Effect   = "Allow"
+        Action   = ["ssm:SendCommand"]
+        Resource = "arn:aws:ssm:eu-central-1::document/AWS-RunShellScript"
+      },
+      {
+        Sid      = "OnProdToolkitInstanceOnly"
+        Effect   = "Allow"
+        Action   = ["ssm:SendCommand"]
+        Resource = "arn:aws:ec2:eu-central-1:${data.aws_caller_identity.current.account_id}:instance/*"
+        Condition = {
+          StringEquals = { "ssm:resourceTag/Name" = "${var.project}-prod-toolkit" }
+        }
+      },
+      {
+        Sid      = "FailureAlert"
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
+        Resource = "arn:aws:sns:eu-central-1:${data.aws_caller_identity.current.account_id}:${var.project}-prod-infrastructure-alerts"
+      },
+      {
+        Sid      = "HeartbeatMetric"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:PutMetricData"]
+        Resource = "*"
+        Condition = {
+          StringEquals = { "cloudwatch:namespace" = "${var.project}/prod/toolkit" }
+        }
+      },
+    ]
+  })
+}
+
 output "gha_role_arns" {
   description = "Role ARNs for GitHub Actions OIDC. Not secret - safe to reference directly in workflow YAML."
   value = {
-    plan       = aws_iam_role.gha_plan.arn
-    apply_dev  = aws_iam_role.gha_apply["dev"].arn
-    apply_prod = aws_iam_role.gha_apply["prod"].arn
+    plan         = aws_iam_role.gha_plan.arn
+    apply_dev    = aws_iam_role.gha_apply["dev"].arn
+    apply_prod   = aws_iam_role.gha_apply["prod"].arn
+    attio_resync = aws_iam_role.gha_attio_resync.arn
   }
 }
 
