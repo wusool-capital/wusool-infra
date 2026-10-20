@@ -310,8 +310,7 @@ def build_analytics() -> PostHogAnalytics:
 
 async def shutdown_analytics() -> None:
     """Called by `main.py`'s lifespan, so queued events are sent before exit."""
-    if build_analytics.cache_info().currsize:
-        await build_analytics().shutdown()
+    await build_analytics().shutdown()
 
 
 def build_report_sync() -> ReportSync:

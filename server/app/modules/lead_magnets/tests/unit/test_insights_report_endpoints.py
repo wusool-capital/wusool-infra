@@ -512,6 +512,7 @@ def test_unlock_and_verify_each_send_one_posthog_event(client, world) -> None:
     assert (unlocked.name, unlocked.email, unlocked.company) == ("Dana", "dana@acme.ae", "Acme")
     assert (unlocked.slug, unlocked.report_title) == ("buyouts-in-the-gcc", "Buyouts in the GCC")
     assert unlocked.domain == "acme.ae"
+    assert unlocked.email_verified is True
     assert requested.at.tzinfo is not None
 
 
@@ -541,6 +542,24 @@ def test_with_email_otp_off_only_the_unlock_is_sent(client, world) -> None:
         json={"submission_id": "s", "name": "Dana", "email": "dana@acme.ae", "company": "Acme"},
     )
     assert _sent(world) == [("report_unlocked", None)]
+    assert world.events[0].email_verified is False, "nobody proved the address is theirs"
+
+
+def test_a_broken_analytics_client_never_fails_the_reader(client, world, monkeypatch) -> None:
+    def broken() -> None:
+        raise RuntimeError("analytics down")
+
+    monkeypatch.setattr(endpoints, "build_analytics", broken)
+    world.settings.lead_magnet_report_email_otp = False
+
+    response = client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "Dana", "email": "dana@acme.ae", "company": "Acme"},
+    )
+
+    assert response.status_code == 200
+    assert "wusool_reader=" in response.headers["set-cookie"]
+    assert len(world.recorded) == 1 and len(world.completed) == 1
 
 
 def test_a_known_reader_sends_a_view_for_each_page_and_pdf(client, world) -> None:

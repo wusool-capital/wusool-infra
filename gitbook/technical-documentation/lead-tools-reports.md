@@ -75,6 +75,10 @@ Each event names the report (`slug`, `report_title`). Look under **Activity**
 for the events and **Persons** for each reader. Break an insight down by
 `report_title` to count reads per report.
 
+When the email code is off, nobody has proved the address, so no person is
+created or edited. A deletion request also needs the reader deleted in
+PostHog, not only in Attio and Postgres.
+
 ## Code
 
 `server/app/modules/lead_magnets`: the `insights_report` folders under

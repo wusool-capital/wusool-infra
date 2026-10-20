@@ -309,7 +309,7 @@ reader's lower-cased email:
 | Event | When | Person |
 |---|---|---|
 | `report_code_requested` | The form is sent and the code is emailed, even if never verified | Not created: `$process_person_profile` is off |
-| `report_unlocked` | The code is verified, or the form is sent with the email code off | `name`, `email`, `company` set |
+| `report_unlocked` | The code is verified, or the form is sent with the email code off | With a verified code: `name`, `email`, `company` set. With the email code off: not created, since nobody proved the address |
 | `report_viewed` | A reader with the cookie opens the report (`format: html`) or the PDF (`format: pdf`), on every visit | Unchanged |
 
 Every event carries `slug`, `report_title`, `company`, `domain` and `is_test`.
@@ -317,6 +317,13 @@ In PostHog, **Activity** lists the events, **Persons** shows each reader, and
 an insight broken down by `report_title` shows reads per report. A blank
 `LEAD_MAGNET_POSTHOG_API_KEY` sends nothing; an SDK error is logged
 (`posthog_capture_failed`) and never fails the request.
+
+Events are sent in the background and queued in memory. A deploy flushes the
+queue (capped at 5 s), but a crash or kill can lose the events still queued.
+
+PostHog holds a reader's name, email and company, so a deletion request must
+also delete that person in PostHog, not only in Attio and Postgres. The email
+is the person's `distinct_id`, so a person can't be renamed.
 
 ## Insights articles from Sanity
 

@@ -46,6 +46,8 @@ class PostHogProperties(BaseModel):
     @classmethod
     def of(cls, event: ReportEvent, *, is_test: bool) -> "PostHogProperties":
         unlocked = event.event == "report_unlocked"
+        proven = unlocked and event.email_verified
+        no_person = event.event == "report_code_requested" or (unlocked and not proven)
         return cls(
             slug=event.slug,
             report_title=event.report_title,
@@ -54,11 +56,11 @@ class PostHogProperties(BaseModel):
             is_test=is_test,
             format=event.format,
             person_set=(
-                PersonSet(name=event.name, email=event.email, company=event.company)
-                if unlocked
+                PersonSet(name=event.name, email=event.email.lower(), company=event.company)
+                if proven
                 else None
             ),
-            process_person_profile=(False if event.event == "report_code_requested" else None),
+            process_person_profile=False if no_person else None,
         )
 
 
@@ -66,10 +68,11 @@ class PostHogAnalytics:
     def __init__(self, api_key: str, *, host: str, is_test: bool) -> None:
         self._client = AsyncPosthog(api_key, host=host) if api_key else None
         self._is_test = is_test
+        if self._client is None:
+            logger.info("posthog_capture_skipped reason=no_api_key")
 
     async def capture(self, event: ReportEvent) -> None:
         if self._client is None:
-            logger.info("posthog_capture_skipped reason=no_api_key event=%s", event.event)
             return
         properties = PostHogProperties.of(event, is_test=self._is_test)
         try:

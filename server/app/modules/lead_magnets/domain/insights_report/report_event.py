@@ -20,3 +20,5 @@ class ReportEvent:
     report_title: str
     at: datetime
     format: Literal["html", "pdf"] | None = None
+    # False when the email code is off: nobody has proven the address is theirs.
+    email_verified: bool = True

@@ -215,7 +215,7 @@ async def unlock_report(
     report = await _published(source, slug)
     form = ReaderForm(**request.model_dump())
     if not get_settings().lead_magnet_report_email_otp:
-        return await _open_report(session, background, response, report, form)
+        return await _open_report(session, background, response, report, form, verified=False)
     try:
         challenge_id = await build_report_unlock().send_code(
             slug=slug, report_title=report.title, form=form
@@ -261,7 +261,7 @@ async def verify_report_unlock(
     except ChallengeGone:
         raise HTTPException(status.HTTP_410_GONE, "code expired") from None
 
-    opened = await _open_report(session, background, response, report, form)
+    opened = await _open_report(session, background, response, report, form, verified=True)
     unlock.spend(request.challenge_id)
     return opened
 
@@ -272,6 +272,8 @@ async def _open_report(
     response: Response,
     report: ReportDocument,
     form: ReaderForm,
+    *,
+    verified: bool,
 ) -> ReportResponse:
     """Records the lead, as `/get-started` does, and sets the reader cookie.
     Attio is written in the background."""
@@ -297,6 +299,7 @@ async def _open_report(
         email=form.email,
         company=form.company,
         domain=domain,
+        email_verified=verified,
     )
 
     response.headers["Cache-Control"] = "no-store"
@@ -358,10 +361,11 @@ def _track(
     company: str,
     domain: str | None,
     format: Literal["html", "pdf"] | None = None,
+    email_verified: bool = True,
 ) -> None:
     """Sends a PostHog event after the response, so analytics never slows a reader."""
     background.add_task(
-        build_analytics().capture,
+        _capture,
         ReportEvent(
             event=event,
             name=name,
@@ -372,8 +376,17 @@ def _track(
             report_title=report.title,
             at=datetime.now(UTC),
             format=format,
+            email_verified=email_verified,
         ),
     )
+
+
+async def _capture(event: ReportEvent) -> None:
+    # Built here, not in the request, so a failure can never turn a saved lead into a 500.
+    try:
+        await build_analytics().capture(event)
+    except Exception:
+        logger.exception("posthog_capture_failed event=%s", event.event)
 
 
 async def _known_reader(
