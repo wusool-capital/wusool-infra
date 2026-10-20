@@ -7,7 +7,7 @@ never imported from one specific module's config.
 """
 
 import logging
-import re
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from typing import Any
 
@@ -20,12 +20,24 @@ logger = logging.getLogger(__name__)
 
 _MESSAGE_METHODS = frozenset({"chat.postMessage", "chat.update", "chat.postEphemeral"})
 _VIEW_METHODS = frozenset({"views.open", "views.update", "views.push", "views.publish"})
-_INTEGER = re.compile(r"-?\d+")
-_DECIMAL = re.compile(r"-?\d+(\.\d+)?")
+
+
+def _slack_number(value: str, *, is_decimal_allowed: bool) -> str | None:
+    """Slack rejects the whole modal for "12.0" in an integer input, "1.5e+16", or "nan"."""
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        return None
+    if not number.is_finite():
+        return None
+    if not is_decimal_allowed:
+        # Blank rather than rounded, so the form never shows a number nobody proposed.
+        return str(int(number)) if number == number.to_integral_value() else None
+    return format(number, "f")
 
 
 def guard_view(view: dict[str, Any]) -> dict[str, Any]:
-    """Blanks number inputs Slack would reject, since one fails the whole modal.
+    """Rewrites number inputs into a form Slack accepts; blanks any it can't.
 
     `Any`: raw vendor Block Kit JSON; it never leaves `providers/slack`.
     """
@@ -36,13 +48,17 @@ def guard_view(view: dict[str, Any]) -> dict[str, Any]:
         element = block.get("element") or {}
         value = element.get("initial_value")
         if element.get("type") == "number_input" and value is not None:
-            pattern = _DECIMAL if element.get("is_decimal_allowed") else _INTEGER
-            if not pattern.fullmatch(str(value)):
+            fixed = _slack_number(
+                str(value), is_decimal_allowed=bool(element.get("is_decimal_allowed"))
+            )
+            if fixed is None:
                 logger.warning(
                     "Blanked invalid Slack number %r in block %s", value, block.get("block_id")
                 )
                 element = {k: v for k, v in element.items() if k != "initial_value"}
-                block = {**block, "element": element}
+            else:
+                element = {**element, "initial_value": fixed}
+            block = {**block, "element": element}
         blocks.append(block)
     return {**view, "blocks": blocks}
 

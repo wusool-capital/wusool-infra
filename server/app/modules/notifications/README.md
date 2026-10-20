@@ -34,7 +34,7 @@ notifications/
   providers/
     slack/
       client.py                          # get_slack_client(bot_token) — one shared AsyncWebClient, lru_cached;
-                                              # guard_view blanks number inputs Slack would reject
+                                              # guard_view formats number inputs for Slack, blanks any it cannot
       notifier.py                          # SlackWebClientNotifier — implements SlackNotifierPort
       bolt_app.py                          # build_bolt_app(bot_token, signing_secret, register_fn) —
                                               # both modules' own api/slack/bolt_app.py call this instead

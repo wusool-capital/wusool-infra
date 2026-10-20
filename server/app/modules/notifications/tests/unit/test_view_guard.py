@@ -1,4 +1,4 @@
-"""A number Slack would reject must never stop a form opening, on any path."""
+"""Every Slack form number is sent in a form Slack accepts, on any path."""
 
 import json
 import time
@@ -33,21 +33,34 @@ def _initial(view: dict[str, Any]) -> str | None:
 
 
 @pytest.mark.parametrize(
-    ("value", "is_decimal_allowed"),
-    [("12.0", False), ("1.5e+16", True), ("1.5e+16", False), ("nan", True), ("inf", True)],
+    ("value", "is_decimal_allowed", "expected"),
+    [
+        ("12.0", False, "12"),  # enrichment float in a whole-number box
+        ("1.5e+16", True, "15000000000000000"),
+        ("1.5E+16", False, "15000000000000000"),  # str(Decimal) form
+        ("12", False, "12"),
+        ("-3", False, "-3"),
+        ("12.5", True, "12.5"),
+        ("5000000.0", True, "5000000.0"),
+    ],
 )
-def test_invalid_number_is_blanked(value: str, is_decimal_allowed: bool) -> None:
+def test_number_is_rewritten_into_a_form_slack_accepts(
+    value: str, is_decimal_allowed: bool, expected: str
+) -> None:
     view = _view(value, is_decimal_allowed=is_decimal_allowed)
 
-    assert _initial(guard_view(view)) is None
+    assert _initial(guard_view(view)) == expected
     assert _initial(view) == value  # caller's view is not mutated
 
 
 @pytest.mark.parametrize(
-    ("value", "is_decimal_allowed"), [("12", False), ("-3", False), ("12.5", True), ("12", True)]
+    ("value", "is_decimal_allowed"),
+    [("12.5", False), ("nan", True), ("inf", True), ("abc", True)],
 )
-def test_valid_number_is_kept(value: str, is_decimal_allowed: bool) -> None:
-    assert _initial(guard_view(_view(value, is_decimal_allowed=is_decimal_allowed))) == value
+def test_number_that_cannot_be_fixed_is_blanked_not_rounded(
+    value: str, is_decimal_allowed: bool
+) -> None:
+    assert _initial(guard_view(_view(value, is_decimal_allowed=is_decimal_allowed))) is None
 
 
 @pytest.mark.parametrize("method", ["views.open", "views.update", "views.push"])
@@ -57,7 +70,7 @@ async def test_client_guards_every_view_call(method: str) -> None:
             method, json={"view": _view("12.0", is_decimal_allowed=False)}
         )
 
-    assert _initial(base.call_args.kwargs["json"]["view"]) is None
+    assert _initial(base.call_args.kwargs["json"]["view"]) == "12"
 
 
 async def test_client_logs_slacks_reason_when_a_view_is_rejected(
@@ -92,7 +105,7 @@ async def test_guarded_ack_guards_response_action_view() -> None:
     await ack(response_action="update", view=_view("12.0", is_decimal_allowed=False))
 
     assert ack.response is not None
-    assert _initial(json.loads(ack.response.body)["view"]) is None
+    assert _initial(json.loads(ack.response.body)["view"]) == "12"
 
 
 async def test_every_bolt_app_acks_through_the_guard() -> None:
@@ -128,4 +141,4 @@ async def test_every_bolt_app_acks_through_the_guard() -> None:
         response = await app.async_dispatch(AsyncBoltRequest(body=body, headers=headers))
 
     assert isinstance(seen[0], GuardedAck)
-    assert _initial(json.loads(response.body)["view"]) is None
+    assert _initial(json.loads(response.body)["view"]) == "12"
