@@ -76,7 +76,7 @@ def _tool_dirs() -> list[Path]:
 
 @pytest.mark.parametrize("tool_dir", _tool_dirs(), ids=lambda p: p.name)
 def test_every_script_and_stylesheet_ref_resolves(tool_dir: Path) -> None:
-    html = (tool_dir / "index.html").read_text()
+    html = (tool_dir / "index.html").read_text(encoding="utf-8")
     for ref in _local_refs(html):
         # Strip the release cache-buster (`?v=N`) before resolving to disk.
         path = ref.split("?", 1)[0]
@@ -90,7 +90,8 @@ def test_no_committed_html_carries_inline_base64_images() -> None:
     offenders = [
         html_file
         for html_file in static_dir().rglob("*.html")
-        if "data:image/" in html_file.read_text() and html_file.parent.name != "architecture"
+        if "data:image/" in html_file.read_text(encoding="utf-8")
+        and html_file.parent.name != "architecture"
     ]
     assert not offenders, offenders
 
@@ -98,13 +99,13 @@ def test_no_committed_html_carries_inline_base64_images() -> None:
 def test_benchmark_payload_field_names_match_the_request_schema() -> None:
     """`BenchmarkRequest` is `extra="forbid"` — a page field renamed on one
     side and not the other 422s silently in prod, not at review time."""
-    js = (static_dir() / "benchmark" / "60-render.js").read_text()
+    js = (static_dir() / "benchmark" / "60-render.js").read_text(encoding="utf-8")
     keys = _payload_keys(js, "const payload = {")
     assert keys == set(BenchmarkRequest.model_fields)
 
 
 def test_readiness_payload_field_names_match_the_request_schema() -> None:
-    js = (static_dir() / "readiness" / "30-submit.js").read_text()
+    js = (static_dir() / "readiness" / "30-submit.js").read_text(encoding="utf-8")
     keys = _payload_keys(js, "const payload={")
     assert keys == set(ReadinessRequest.model_fields)
 
@@ -113,12 +114,12 @@ def test_valuation_payload_field_names_match_their_request_schemas() -> None:
     """Valuation has four call sites across two files, each posting to its
     own endpoint — checked independently since a shared helper would hide
     which one drifted."""
-    components = (static_dir() / "valuation" / "30-components.js").read_text()
+    components = (static_dir() / "valuation" / "30-components.js").read_text(encoding="utf-8")
     enrich_start = components.index('fetch("/enrich"')
     enrich_keys = _payload_keys(components[enrich_start:], "body:JSON.stringify({")
     assert enrich_keys == set(EnrichRequest.model_fields)
 
-    main = (static_dir() / "valuation" / "40-main.js").read_text()
+    main = (static_dir() / "valuation" / "40-main.js").read_text(encoding="utf-8")
     analyze_start = main.index('fetch("/analyze"')
     analyze_keys = _payload_keys(main[analyze_start:], "body:JSON.stringify({")
     # website_text is the one deliberate omission: the client-side scraping
@@ -145,7 +146,7 @@ def test_valuation_payload_field_names_match_their_request_schemas() -> None:
 
 
 def test_buyers_payload_field_names_match_the_request_schema() -> None:
-    js = (static_dir() / "buyers" / "10-main.js").read_text()
+    js = (static_dir() / "buyers" / "10-main.js").read_text(encoding="utf-8")
     keys = _payload_keys(js, "const payload={")
     assert keys == set(BuyerApplyRequest.model_fields)
 
@@ -161,7 +162,7 @@ def test_buyers_select_options_match_the_live_validation_sets() -> None:
     )
     from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_OPTIONS
 
-    html = (static_dir() / "buyers" / "index.html").read_text()
+    html = (static_dir() / "buyers" / "index.html").read_text(encoding="utf-8")
 
     def multiselect_options_for(field_id: str) -> set[str]:
         # The widget is `<div class="ms" id="{field_id}">...</div>`, with
@@ -206,7 +207,7 @@ def test_readiness_results_escapes_model_generated_text_before_innerhtml() -> No
     `innerHTML` — unescaped, the prompt embedding the visitor's own
     free-text answers makes this a live XSS vector if the model ever echoes
     injected markup back."""
-    js = (static_dir() / "readiness" / "40-results.js").read_text()
+    js = (static_dir() / "readiness" / "40-results.js").read_text(encoding="utf-8")
     assert "function esc(" in js
     for field in ("dim.name", "dim.insight", "rec.title", "rec.detail"):
         assert f"esc({field})" in js, f"{field} is interpolated into innerHTML unescaped"
@@ -217,10 +218,10 @@ def test_valuation_dcf_module_defaults_to_the_server_dlom() -> None:
     (`_DEFAULT_DLOM_PCT`), so the unlocked DCF matches Attio until the visitor
     edits it. The locked summary's pre-calc is undiscounted on purpose: the
     AZM-129 design does that."""
-    helpers = (static_dir() / "valuation" / "20-helpers.js").read_text()
+    helpers = (static_dir() / "valuation" / "20-helpers.js").read_text(encoding="utf-8")
     assert "const DLOM_PCT=30;" in helpers
 
-    components = (static_dir() / "valuation" / "30-components.js").read_text()
+    components = (static_dir() / "valuation" / "30-components.js").read_text(encoding="utf-8")
     assert "const [dlom,setDlom]=useState(DLOM_PCT);" in components
     assert "eqPre*(1-(dlom||0)/100)" in components
 
@@ -229,12 +230,12 @@ def test_benchmark_percent_validation_rejects_non_numeric_input() -> None:
     """`num(v)` returns `null` for non-numeric text, and JS coerces
     `null<0`/`null>100` to `false` — without an explicit `n===null` check,
     garbage input passed the 0-100 range check silently."""
-    js = (static_dir() / "benchmark" / "30-helpers.js").read_text()
+    js = (static_dir() / "benchmark" / "30-helpers.js").read_text(encoding="utf-8")
     assert "if(n===null||n<0||n>100)" in js
 
 
 def test_get_started_payload_field_names_match_the_request_schema() -> None:
-    js = (static_dir() / "get-started" / "10-main.js").read_text()
+    js = (static_dir() / "get-started" / "10-main.js").read_text(encoding="utf-8")
     keys = _payload_keys(js, "const payload={")
     assert keys == set(GetStartedRequest.model_fields)
 
@@ -251,7 +252,7 @@ def test_get_started_select_options_match_the_live_validation_sets() -> None:
     from app.modules.lead_magnets.domain.get_started.get_started import SELL_TIMELINE_OPTIONS
     from app.modules.lead_magnets.domain.shared.sector_mapping import GET_STARTED_SECTORS
 
-    html = (static_dir() / "get-started" / "index.html").read_text()
+    html = (static_dir() / "get-started" / "index.html").read_text(encoding="utf-8")
 
     def select_options_for(field_id: str) -> set[str]:
         marker = f'id="{field_id}"'
@@ -274,26 +275,26 @@ def test_no_page_mints_its_own_submission_id(tool_dir: Path) -> None:
     apart by `payload.submission_id`). Pinned across every tool so the next
     page added cannot reintroduce it.
     """
-    html = (tool_dir / "index.html").read_text()
-    if "submission_id" not in "".join(f.read_text() for f in tool_dir.glob("*.js")):
+    html = (tool_dir / "index.html").read_text(encoding="utf-8")
+    if "submission_id" not in "".join(f.read_text(encoding="utf-8") for f in tool_dir.glob("*.js")):
         pytest.skip(f"{tool_dir.name} posts no submission_id")
 
     assert "../shared/submission-id.js" in html, (
         f"{tool_dir.name}/index.html must load shared/submission-id.js"
     )
     for js in tool_dir.glob("*.js"):
-        assert "crypto.randomUUID" not in js.read_text(), (
+        assert "crypto.randomUUID" not in js.read_text(encoding="utf-8"), (
             f"{js.name} mints its own submission id; use window.WUSOOL_SUBMISSION_ID"
         )
 
 
 def test_report_gate_payload_field_names_match_the_request_schema() -> None:
-    js = (static_dir() / "report" / "10-main.js").read_text()
+    js = (static_dir() / "report" / "10-main.js").read_text(encoding="utf-8")
     assert _payload_keys(js, "const payload={") == set(ReportUnlockRequest.model_fields)
 
 
 def test_report_gate_asks_for_a_work_email_and_only_accepts_emails() -> None:
-    html = (static_dir() / "report" / "index.html").read_text()
+    html = (static_dir() / "report" / "index.html").read_text(encoding="utf-8")
     field = re.search(r'<input[^>]*id="email"[^>]*>', html).group(0)
     assert 'type="email"' in field and "required" in field
     assert r'pattern="[^@\s]+@[^@\s]+\.[^@\s]+"' in field, "a dot in the domain is required"

@@ -30,7 +30,7 @@ agree while both are wrong — see the plan doc for that known gap.
 
 import asyncio
 import logging
-import resource
+import sys
 import time
 from collections.abc import AsyncIterator, Callable
 
@@ -54,6 +54,10 @@ from app.modules.ddl_commands.persistence.resync_state import (
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.logging import configure_logging
 from app.modules.utilities.domain.safe_errors import describe_error
+
+# Unix-only; guarded so the unit tests also collect on Windows dev machines.
+if sys.platform != "win32":
+    import resource
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync.full_resync")
 
@@ -82,6 +86,8 @@ _ID_QUERY = {
 
 def _rss_mb() -> float:
     """Return the process's maximum resident set size in MiB on Linux."""
+    if sys.platform == "win32":
+        return 0.0
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
 
