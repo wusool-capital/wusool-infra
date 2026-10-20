@@ -20,7 +20,6 @@ the source of truth and never infer deployed state that the code cannot prove.
 3. Compare the inventory with:
    - `README.md`
    - environment README files
-   - `workflows/n8n/docs/*architecture*.md`, `workflows/n8n/docs/infrastructure-overview.md`
    - architecture SVG files referenced by those documents
 4. Correct stale statements, diagrams, commands, paths, regions, CIDRs,
    instance types, ports, services, and state-management details.
@@ -55,7 +54,7 @@ the source of truth and never infer deployed state that the code cannot prove.
 - Distinguish code-defined architecture from confirmed deployed state.
 - Do not claim CI, staging, production, NAT, databases, Kubernetes, or DNS
   resources exist unless present in the repository.
-- Derive runtime components such as Caddy, Docker, n8n, ports, and volumes from
+- Derive runtime components such as Caddy, Docker, ports, and volumes from
   user-data/templates as well as Terraform resources.
 - Preserve unrelated user edits and existing documentation style.
 - Never delete a document merely because it is stale; reconcile it.

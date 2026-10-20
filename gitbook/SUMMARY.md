@@ -11,7 +11,6 @@
 * [Attio CRM](user-guide/attio.md)
 * [Website lead tools](user-guide/lead-tools.md)
   * [Publish reports and articles in Sanity](user-guide/publish-in-sanity.md)
-* [n8n](user-guide/n8n.md)
 * [Troubleshooting and support](user-guide/troubleshooting.md)
 * [Glossary](user-guide/glossary.md)
 
@@ -35,7 +34,6 @@
   * [Get Started](technical-documentation/lead-tools-get-started.md)
   * [Gated reports](technical-documentation/lead-tools-reports.md)
   * [Sanity and Webflow publishing](technical-documentation/lead-tools-publishing.md)
-* [n8n](technical-documentation/n8n.md)
 * [Security and data handling](technical-documentation/security.md)
 
 ## Operations and Handover

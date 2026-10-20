@@ -16,7 +16,6 @@ and keep them current in the client's operations register.
 | Slack | Toolkit app, workspace access, alerts channel | Unassigned |
 | Sanity Reports & Insights Studio | Report and article content, editors, webhooks | Unassigned |
 | Webflow | The website and its CMS collections | Unassigned |
-| n8n | Users, workflows, credentials, execution history | Unassigned |
 | Cloudflare | Public DNS for service hostnames | Unassigned |
 | WusoolScribe | Desktop releases, update feed, signing key, CRM submission | Unassigned |
 

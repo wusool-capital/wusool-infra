@@ -16,7 +16,7 @@ stack:
    `embed.js` are included — `pyproject.toml`'s hatchling `packages =
    ["app"]` ships every non-Python file under `app/`, so no Dockerfile
    change was needed).
-2. `tofu apply` the `toolkit` stack (dependency order: base → n8n → toolkit
+2. `tofu apply` the `toolkit` stack (dependency order: base → toolkit
    → postgres).
 3. Run any pending Alembic migration — none is expected for this module,
    `tool_runs` and the `seller_roles` columns already exist.

@@ -29,7 +29,7 @@ param(
 # native-argument quoting entirely.
 
 if ([string]::IsNullOrWhiteSpace($RoleName)) {
-  $RoleName = "$Project-$Environment-n8n-ec2"
+  $RoleName = "$Project-$Environment-toolkit-ec2"
 }
 
 $models = @(
