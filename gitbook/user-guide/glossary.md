@@ -44,12 +44,3 @@ Terms used across this guide, in plain words.
 | **Silo** | The website topic a report or article is filed under, such as Business Valuation or Exit Strategy. |
 | **Pin** | Feature a report in the home page banner, or an article at the top of `/insights`. |
 | **Publish / unpublish** | Make a Sanity document live on the website, or take it down. |
-
-## n8n
-
-| Term | Meaning |
-| --- | --- |
-| **Workflow** | An automation made of connected steps. |
-| **Node** | One step in a workflow. |
-| **Execution** | One run of a workflow, with each node's input and output. |
-| **Environment** | Development (for testing) or production (live). They are separate. |

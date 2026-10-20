@@ -26,6 +26,8 @@ for current production evidence and open handover items.
 - A Toolkit deploy that finds the server mid-replacement now fails instead of
   skipping database migrations and the app rollout while reporting success.
   Rerun it once the replacement finishes.
+- The n8n dev and prod servers are retired and removed from the
+  infrastructure. Deploys no longer apply or health-check n8n.
 
 ### Fixed
 

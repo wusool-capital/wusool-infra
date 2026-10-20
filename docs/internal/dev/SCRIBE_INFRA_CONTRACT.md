@@ -156,7 +156,7 @@ Set `default_tags` in the provider — `Project`, `Environment`, `ManagedBy =
 which is why it doesn't show up in environment-filtered queries and cost reports.
 
 **7. Rename the secret.** `/wusool-scribe` → `/wusool/<env>/scribe`, matching
-`/wusool/dev/n8n`, `/wusool/prod/n8n`, `/wusool/dev/matching-engine`. Scribe prod
+`/wusool/dev/toolkit`, `/wusool/prod/toolkit`, `/wusool/dev/matching-engine`. Scribe prod
 needs its own secret; **do not share the dev secret across environments.**
 
 **8. Never bake a script into an SSM document and re-run the stale copy.**

@@ -14,19 +14,15 @@ Each service that owns a deployable app or a long-lived EC2 instance gets one
 dev instance and one prod instance, built from the same OpenTofu code and
 parameterized by environment — not two hand-maintained copies. Today that's:
 
-- **n8n** — Amazon Linux EC2, Docker Compose running Caddy + n8n, HTTPS
-  termination in Caddy proxying to n8n on port `5678`, pinned n8n/runners/Caddy
-  image digests, an explicitly pinned AMI (no more `most_recent` drift).
 - **wusool-toolkit** — one EC2 instance running the Slack bot (see `server/`)
   as a Docker container, deployed by immutable ECR digest (built once in CI,
   never `git clone`+build on the instance). Prod's instance is optional
   (`create_instance` flag) until a real prod rollout is deliberately switched
   on.
 - **postgres** — RDS PostgreSQL, dev live, prod provisioned (seeded from a dev
-  snapshot, credentials rotated afterward) but not yet the system of record
-  for n8n's data plane.
+  snapshot, credentials rotated afterward).
 
-All three sit behind Systems Manager for administration (no SSH by default),
+Both sit behind Systems Manager for administration (no SSH by default),
 Secrets Manager for environment-specific secrets, CloudWatch logs and alarms,
 SNS email notifications, multi-region CloudTrail, and account-wide GuardDuty +
 Security Hub.
@@ -43,7 +39,6 @@ See:
 - [Changelog](CHANGELOG.md)
 - [Terraform stacks/modules/envs layout](infrastructure/terraform/README.md)
 - [Slack bot (`server/`) overview](server/README.md)
-- [Infrastructure overview](infrastructure/n8n/docs/infrastructure-overview.md)
 - [Client schema overview](infrastructure/crm-sync/docs/CLIENT_SCHEMA_OVERVIEW.md) — Attio
   and PostgreSQL overview
 - [Contribution and pull-request workflow](CONTRIBUTING.md)
@@ -61,20 +56,17 @@ wusool-infra/
 |   |   |-- .opentofu-version  # pinned OpenTofu version — this repo uses OpenTofu, not Terraform
 |   |   |-- modules/           # HOW each resource is built (reusable, environment-agnostic)
 |   |   |   |-- network/           # VPC, subnets, route tables and IGW
-|   |   |   |-- n8n-ec2/           # n8n EC2, Caddy, IAM, SSM and monitoring
 |   |   |   |-- toolkit-ec2/       # wusool-toolkit EC2 host, Caddy, IAM, SSM and monitoring
 |   |   |   |-- bedrock-access/    # IAM policy granting scoped Bedrock model access
 |   |   |   `-- postgres-rds/      # RDS PostgreSQL instance
 |   |   |-- stacks/            # WHAT to build per service — the roots actually applied
 |   |   |   |-- account/           # Account-wide singletons: GuardDuty, Security Hub, OIDC, state bucket
 |   |   |   |-- base/              # Per-env VPC, CloudTrail, alerts SNS topic
-|   |   |   |-- n8n/               # Per-env n8n stack
 |   |   |   |-- toolkit/           # Per-env wusool-toolkit stack + its ECR repo
 |   |   |   |-- postgres/          # Per-env RDS stack
 |   |   |   |-- peering/           # VPC peering (scribe dev VPC -> wusool-prod-postgres)
 |   |   |   `-- scribe-updates/    # S3 + CloudFront update feed for the WusoolScribe desktop app
 |   |   `-- envs/              # dev.tfvars / prod.tfvars — committed, non-secret per-env config
-|   |-- n8n/                   # n8n scripts and infrastructure/architecture docs
 |   |-- bedrock-ai/            # AWS Bedrock model access scripts (operator PowerShell, no deploy)
 |   `-- crm-sync/              # Attio <-> PostgreSQL schema, sync scripts, and docs (operator PowerShell, no deploy)
 |-- server/                    # The one deployed Slack bot — modular monolith (FastAPI + Slack Bolt)
@@ -243,10 +235,10 @@ set up.
 ## Development workflow
 
 ```bash
-cd infrastructure/terraform/stacks/n8n   # or toolkit / postgres / base
+cd infrastructure/terraform/stacks/toolkit   # or postgres / base
 tofu init -backend-config="bucket=wusool-tfstate" \
   -backend-config="region=me-central-1" \
-  -backend-config="key=wusool/dev/n8n/terraform.tfstate" \
+  -backend-config="key=wusool/dev/toolkit/terraform.tfstate" \
   -backend-config="use_lockfile=true" -backend-config="encrypt=true"
 tofu fmt -check
 tofu validate
@@ -257,24 +249,15 @@ tofu apply tfplan
 Always review the plan before applying manually. In normal operation you
 don't apply by hand at all — merging to `dev` or `prod` triggers the matching
 GitHub Actions workflow, which applies whichever stacks actually changed in
-dependency order (`base` → `n8n`/`toolkit` → `postgres`) and health-checks
-the n8n and toolkit apps before declaring success. See **Continuous
+dependency order (`base` → `toolkit` → `postgres`) and health-checks
+the toolkit app before declaring success. See **Continuous
 deployment** below.
 
 After deployment:
 
 ```bash
-tofu output n8n_url
-tofu output ssm_command
+tofu output ssm_instance_id
 ```
-
-The configured security group allows HTTP and HTTPS. Port `5678` is closed
-when `expose_n8n_port = false`, and SSH ingress is omitted when
-`ssh_cidr_blocks` is empty. Prefer Systems Manager for shell access.
-
-Dev n8n serves `https://n8n-dev.wusoolcapital.com/`; prod serves
-`https://n8n.wusoolcapital.com/`. Cloudflare should keep the matching DNS
-record pointed at each environment's EC2 Elastic IP.
 
 ## Continuous deployment
 
@@ -283,10 +266,9 @@ record pointed at each environment's EC2 Elastic IP.
 and `server/**`). Each builds the toolkit Docker image and
 pushes it to that environment's own ECR repository by immutable digest, then
 `_deploy.yml` decides **per stack** whether it actually needs to redeploy:
-each of `base`/`n8n`/`toolkit`/`postgres` tracks its own last-deployed commit
-in SSM, and only applies (and, for `n8n`/`toolkit`, rolls and health-checks
-the app) when a path relevant to that stack changed since then — a
-toolkit-only change no longer touches n8n at all. A `base` change, a
+each of `base`/`toolkit`/`postgres` tracks its own last-deployed commit
+in SSM, and only applies (and, for `toolkit`, rolls and health-checks
+the app) when a path relevant to that stack changed since then. A `base` change, a
 workflow/composite-action change, or an `envs/*.tfvars` edit forces every
 stack to redeploy regardless, since those can affect (or can't be cheaply
 attributed to) more than one stack. See `infrastructure/terraform/README.md`
@@ -294,10 +276,9 @@ and the path filters in `.github/workflows/_deploy.yml` for the exact
 path-to-stack mapping.
 
 A successful `tofu apply` only proves the bootstrap document was
-*registered*, not that the app actually deployed, so neither n8n's nor
-toolkit's rollout trusts apply's exit code alone — each re-invokes its SSM
-bootstrap document and polls until the app is confirmed serving `/healthz`
-(n8n) or `/health` (toolkit) with a `200`. Authentication is GitHub OIDC role
+*registered*, not that the app actually deployed, so toolkit's rollout does
+not trust apply's exit code alone. It re-invokes its SSM bootstrap document
+and polls until the app is confirmed serving `/health` with a `200`. Authentication is GitHub OIDC role
 assumption (`wusool-gha-apply-dev` / `wusool-gha-apply-prod`, scoped by
 branch in their trust policy) — no static AWS keys. The nightly Attio resync
 uses its own narrow `wusool-gha-attio-resync-prod` role, trusted for that
@@ -327,37 +308,10 @@ Alembic's baseline migrations fully reproduce what they created.
 `server/scripts/postgres-sync/prod/sync-source-to-prod.ps1` (Attio data sync, a
 separate concern from schema) is unaffected.
 
-## n8n SMTP email
-
-Each environment creates a Secrets Manager secret at
-`/${project}/${environment}/n8n`. Add SMTP keys and other sensitive runtime
-environment variables to that secret after `tofu apply`; do not put API
-keys, webhooks, or SMTP passwords in `terraform.tfvars`.
-
-```powershell
-aws secretsmanager put-secret-value `
-  --secret-id /wusool/dev/n8n `
-  --secret-string '{"smtp_host":"smtp.example.com","smtp_port":587,"smtp_user":"user@example.com","smtp_password":"replace-me","smtp_sender":"Wusool <no-reply@example.com>","smtp_ssl":false,"env":{"GEMINI_API_KEY":"replace-me","SLACK_WEBHOOK_CI":"https://hooks.slack.com/services/replace-me","SLACK_WEBHOOK_ALERTS":"https://hooks.slack.com/services/replace-me"}}'
-```
-
-Use `/wusool/prod/n8n` for production. The bootstrap reads the secret and
-creates an n8n Docker env file from SMTP settings and any key/value pairs under
-the `env` object.
-
-## n8n users
-
-Invite users from n8n's own admin UI (Settings → Users). No repo script does
-this today.
-
-Forgot-password works when n8n can send email. Configure the SMTP secret for
-the environment, let the SSM bootstrap association rerun, and confirm the n8n
-container has `N8N_EMAIL_MODE=smtp` plus the `N8N_SMTP_*` variables.
-
 ## Production
 
 Prod is a real, deployed environment — a `10.20.0.0/16` VPC in
-`eu-central-1`, its own n8n instance at `https://n8n.wusoolcapital.com/`, and
-its own RDS instance seeded from a dev snapshot (credentials rotated off the
+`eu-central-1`, and its own RDS instance seeded from a dev snapshot (credentials rotated off the
 snapshot's inherited secret afterward — restoring from a snapshot silently
 keeps the source's master credentials otherwise). It is applied exactly the
 same way as dev: merge to `prod` deploys it, via

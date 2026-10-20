@@ -37,7 +37,7 @@ Run in this order (each step depends on the ones before it):
 - Python with `psycopg[binary]`.
 - Active AWS SSM port-forwarding tunnel to prod's private RDS (see
   `../rds-tunnel-runbook.md` -- same mechanism, pointed at
-  `wusool-prod-postgres` / the prod n8n instance / `eu-central-1`).
+  `wusool-prod-postgres` / the prod Toolkit instance / `eu-central-1`).
 - `DATABASE_URL` for prod's `wusool_crm` through the tunnel.
 - `SOURCE_ATTIO_API_KEY`.
 

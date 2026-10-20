@@ -23,7 +23,6 @@ instance. Its modules follow inward-only `domain → application → persistence
   **Webflow**, which hosts wusoolcapital.com.
 - **WusoolScribe** is a separately distributed Mac app, updated from an S3
   and CloudFront feed.
-- **n8n** is a separate, self-hosted vendor application on its own instance.
 
 ## Detailed architecture
 
@@ -47,13 +46,12 @@ repository. The diagram's source is
 | Desktop recording, transcription, summaries, and CRM push | [WusoolScribe](scribe.md) |
 | Attio ↔ PostgreSQL synchronization | [Attio and database sync](attio-sync.md) |
 | Valuation, Readiness, Benchmark, Buyer Network, Get Started, and gated reports | [Website lead tools](lead-tools.md) |
-| Workflow automation runtime | [n8n](n8n.md) |
 | Trust boundaries, credentials, and data handling | [Security and data handling](security.md) |
 
 ## Shared deployment model
 
 Infrastructure is split into OpenTofu stacks: `account`, `base`, `toolkit`,
-`n8n`, `postgres`, `peering`, and `scribe-updates`. Environment stacks keep
+`postgres`, `peering`, and `scribe-updates`. Environment stacks keep
 separate remote state for development and production. `account`, `peering`,
 and `scribe-updates` span environments, so they are applied separately from
 the normal deploy. Runtime
@@ -62,8 +60,7 @@ non-secret settings.
 
 The Toolkit's Auto Scaling Group is fixed at one instance. Several features
 rely on that: report codes, rate limits, and duplicate-delivery protection
-are held in memory. n8n runs with Caddy and external task runners on its own
-instance. Administrative access uses AWS Systems Manager, never SSH, and
+are held in memory. Administrative access uses AWS Systems Manager, never SSH, and
 public traffic terminates on HTTPS.
 
 For deployment, recovery, access, and incident procedures, see

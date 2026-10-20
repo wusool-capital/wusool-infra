@@ -6,10 +6,10 @@ but have separate networks, databases, secrets, container repositories, and
 deployment roles. Attio's test flag separates development records from
 production ones.
 
-| Environment | Change path | n8n | Toolkit and lead tools |
+| Environment | Change path | Toolkit and lead tools |
 | --- | --- | --- | --- |
-| Development | Merge to `dev`, or run `Deploy dev` | `https://n8n-dev.wusoolcapital.com/` | A fixed `sslip.io` hostname set in the development `tfvars`; no tools hostname |
-| Production | Merge to `prod`, or run `Deploy prod` | `https://n8n.wusoolcapital.com/` | `https://tools.wusoolcapital.com/` |
+| Development | Merge to `dev`, or run `Deploy dev` | A fixed `sslip.io` hostname set in the development `tfvars`; no tools hostname |
+| Production | Merge to `prod`, or run `Deploy prod` | `https://tools.wusoolcapital.com/` |
 
 DNS is managed in Cloudflare, outside the repository.
 
@@ -34,7 +34,6 @@ Give each operator the minimum role for the task.
 | Sanity | The Reports & Insights Studio project: member invites, API tokens, and webhooks |
 | Webflow | The site, and a CMS read/write API token |
 | Cloudflare | Service DNS records |
-| n8n owner or administrator | Users, credentials, workflows, and execution history |
 | Google Cloud | The Places and Geocoding API key used by seller discovery |
 | Firecrawl, Diffbot, People Data Labs | API keys for enrichment and the lead tools |
 

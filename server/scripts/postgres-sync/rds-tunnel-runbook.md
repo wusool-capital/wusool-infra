@@ -1,7 +1,7 @@
 # RDS Connection Runbook
 
 The `wusool_crm` database is private inside its VPC. Connect through the
-environment's n8n EC2 instance with Systems Manager port forwarding.
+environment's Toolkit EC2 instance with Systems Manager port forwarding.
 
 Works for either environment — substitute `dev` or `prod` for `<env>`
 throughout. Everything below is read-only against Terraform state.
@@ -14,13 +14,13 @@ Each stack uses a partial backend, so `init` needs the environment's state key
 ```powershell
 $env:AWS_REGION = "eu-central-1"
 
-# n8n stack -> the instance that has a network path to RDS
-tofu -chdir=infrastructure/terraform/stacks/n8n init -reconfigure `
+# toolkit stack -> the instance that has a network path to RDS
+tofu -chdir=infrastructure/terraform/stacks/toolkit init -reconfigure `
   -backend-config=bucket=wusool-tfstate `
   -backend-config=region=me-central-1 `
-  -backend-config="key=wusool/<env>/n8n/terraform.tfstate" `
+  -backend-config="key=wusool/<env>/toolkit/terraform.tfstate" `
   -backend-config=use_lockfile=true -backend-config=encrypt=true
-$n8nInstanceId = tofu -chdir=infrastructure/terraform/stacks/n8n output -raw instance_id
+$toolkitInstanceId = tofu -chdir=infrastructure/terraform/stacks/toolkit output -raw ssm_instance_id
 
 # postgres stack -> the database itself
 tofu -chdir=infrastructure/terraform/stacks/postgres init -reconfigure `
@@ -40,7 +40,7 @@ $secretArn = tofu -chdir=infrastructure/terraform/stacks/postgres output -raw ma
 
 ```powershell
 aws ssm start-session `
-  --target $n8nInstanceId `
+  --target $toolkitInstanceId `
   --document-name AWS-StartPortForwardingSessionToRemoteHost `
   --parameters "host=$dbHost,portNumber=5432,localPortNumber=15432" `
   --region eu-central-1

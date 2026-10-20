@@ -17,7 +17,7 @@
 # to it" pattern _deploy.yml already uses for `alembic upgrade head`. No new
 # infrastructure, no new dependencies, and never a separate build: this reads
 # back and reuses whatever digest-pinned image is already running — this
-# repo never runs images by a mutable tag (see infrastructure/terraform/modules/n8n-ec2/
+# repo never runs images by a mutable tag (see infrastructure/terraform/modules/toolkit-ec2/
 # variables.tf's image-pinning validation for why), so the container's own
 # image ID (via `docker inspect`, not `docker ps`'s `.Image` column — that
 # column silently drops the digest for a container started by digest

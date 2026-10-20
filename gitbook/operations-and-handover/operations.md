@@ -14,7 +14,7 @@ procedure for the task or incident at hand.
 | Check what is delivered or still open | [Delivery status and open items](delivery-status.md) |
 
 Step-by-step incident runbooks live in the repository under `docs/runbooks/`.
-They cover a Toolkit outage, an n8n outage, Attio sync failure, database and
+They cover a Toolkit outage, Attio sync failure, database and
 migration failure, and deployment failure. After an incident, follow
 `docs/postmortems/README.md`.
 
@@ -32,5 +32,5 @@ migration failure, and deployment failure. After an incident, follow
   workflow, deployment run, alarms, and the relevant log window.
 
 This documentation describes what the repository defines. It can't prove the
-live state of AWS, GitHub, Slack, Attio, Sanity, Webflow, SES, Cloudflare, or
-n8n. Confirm live state before a production change.
+live state of AWS, GitHub, Slack, Attio, Sanity, Webflow, SES, or Cloudflare.
+Confirm live state before a production change.
