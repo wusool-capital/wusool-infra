@@ -87,20 +87,10 @@ jobs:
             --metric-name AttioNightlyResyncSuccess \
             --value 1
 
-      # A green skip once hid a missing instance. Only a deliberately absent
-      # ASG (create_instance = false) may skip.
+      # Empty only when no ASG exists; an ASG without an instance already failed above.
       - name: No toolkit instance in prod
         if: steps.toolkit.outputs.instance_id == ''
-        run: |
-          ASG=$(aws autoscaling describe-auto-scaling-groups \
-            --query "AutoScalingGroups[?starts_with(AutoScalingGroupName, 'wusool-prod-toolkit-')].AutoScalingGroupName" \
-            --output text)
-          if [ -z "$ASG" ]; then
-            echo "::notice::No prod toolkit ASG exists (create_instance = false) — skipping nightly resync."
-            exit 0
-          fi
-          echo "::error::Toolkit ASG $ASG has no running instance (likely mid-replacement) — nightly resync did not run. Re-run this workflow once the instance is back."
-          exit 1
+        run: echo "::notice::No prod toolkit ASG exists (create_instance = false) — skipping nightly resync."
 
       # A failed run used to be visible only in the Actions tab, which is how
       # ten consecutive failures (2026-09-03 to 2026-09-12) went unnoticed.

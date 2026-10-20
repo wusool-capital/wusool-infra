@@ -23,6 +23,9 @@ for current production evidence and open handover items.
   succeeded for 30 hours, which catches a disabled workflow or a schedule
   that never fires. The job now uses its own narrow AWS role instead of the
   deploy role.
+- A Toolkit deploy that finds the server mid-replacement now fails instead of
+  skipping database migrations and the app rollout while reporting success.
+  Rerun it once the replacement finishes.
 
 ### Fixed
 

@@ -73,6 +73,7 @@ integration() {
 
 shell() {
   bash ../.github/scripts/tests/test-nightly-attio-resync.sh
+  bash ../.github/scripts/tests/test-find-toolkit-instance.sh
 }
 
 main() {
