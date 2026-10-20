@@ -18,9 +18,15 @@ from typing import Any, Protocol
 
 class SlackNotifierPort(Protocol):
     async def post_message(
-        self, *, channel: str, text: str, blocks: Sequence[dict[str, Any]] | None = None
+        self,
+        *,
+        channel: str,
+        text: str,
+        blocks: Sequence[dict[str, Any]] | None = None,
+        thread_ts: str | None = None,
     ) -> str:
-        """Returns the posted message's `ts`, so a caller can `update_message` it later."""
+        """Returns the posted message's `ts`, so a caller can `update_message` it later.
+        `thread_ts` posts it as a reply in that message's thread."""
         ...
 
     async def update_message(

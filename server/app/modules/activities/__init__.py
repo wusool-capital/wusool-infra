@@ -2,7 +2,7 @@
 meaningful event: who (actor) did what (`event_type`) to which record
 (subject), when (`ts`), with what result (`outcome`), plus a typed FK to the
 domain ledger (`tool_runs`, `match_results`, `meetings`, `command_runs`,
-`deal_stage_events`, `signals`) that holds the detail. See
+`linkedin_scans`, `deal_stage_events`, `signals`) that holds the detail. See
 `docs/internal/dev/ACTIVITIES_AUDIT.md`.
 
 A peer module, not a full-access one: consumers import this root's `__all__`
@@ -17,6 +17,7 @@ from app.modules.activities.domain.event import ActivityActor, ActivityEvent, Le
 from app.modules.activities.domain.payloads import (
     ActivityPayload,
     CrmRecordPayload,
+    LinkedInScanPayload,
     MatchDecisionPayload,
     MatchRunPayload,
     MeetingPayload,
@@ -45,6 +46,7 @@ __all__ = [
     "EventType",
     "LedgerRef",
     "LedgerType",
+    "LinkedInScanPayload",
     "MatchDecisionPayload",
     "MatchRunPayload",
     "MeetingPayload",

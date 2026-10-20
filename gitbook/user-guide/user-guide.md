@@ -7,7 +7,7 @@ infrastructure.
 | I want to… | Go to |
 | --- | --- |
 | Check a buyer's profile before matching | [Wusool Toolkit](toolkit.md#check-a-buyer-before-matching) |
-| Find and review buyer–seller matches | [Wusool Toolkit](toolkit.md#find-matches) |
+| Find and review buyer–seller matches | [Find matches](toolkit-find-match.md) |
 | Add, edit, or research a buyer or seller | [Wusool Toolkit](toolkit.md#maintain-buyer-and-seller-records) |
 | Record and transcribe a meeting | [WusoolScribe](scribe.md#record-a-meeting) |
 | Send a meeting note to the CRM | [WusoolScribe](scribe.md#send-a-meeting-to-attio) |

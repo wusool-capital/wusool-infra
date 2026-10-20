@@ -1,0 +1,11 @@
+[
+  {
+    "type": "post",
+    "id": "7300000000000000001",
+    "linkedinUrl": "https://www.linkedin.com/posts/jane-doe_acquisition-activity-7300000000000000001",
+    "content": "Thrilled to announce our acquisition of a logistics business in Riyadh.",
+    "author": {"name": "Jane Doe", "linkedinUrl": "https://www.linkedin.com/in/jane-doe?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAXXX"},
+    "postedAt": {"timestamp": 1760000000000, "date": "2026-10-09T08:53:20.000Z"}
+  },
+  {"type": "post", "content": "no id so it is dropped"}
+]

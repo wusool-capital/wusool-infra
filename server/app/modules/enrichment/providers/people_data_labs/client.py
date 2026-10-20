@@ -84,7 +84,12 @@ class PeopleDataLabsCompanyDataClient:
         self._api_key = api_key
 
     async def lookup(
-        self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
+        self,
+        *,
+        org_name: str,
+        fields: tuple[EnrichableField, ...],
+        domain: str | None = None,
+        linkedin_url: str | None = None,
     ) -> CompanyDataResult:
         requested = {f.name for f in fields}
         params = {"api_key": self._api_key, "name": org_name}

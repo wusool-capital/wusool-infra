@@ -55,7 +55,7 @@ class Activity(Base):
         ),
         CheckConstraint(
             "ledger_type IS NULL OR ledger_type IN ('tool_run','command_run','match_result',"
-            "'meeting','deal_stage_event','signal')",
+            "'meeting','deal_stage_event','signal','linkedin_scan')",
             name="activities_ledger_type_check",
         ),
         CheckConstraint(

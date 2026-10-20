@@ -33,10 +33,17 @@ class CompanyDataResult:
 
 class CompanyDataClient(Protocol):
     async def lookup(
-        self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
+        self,
+        *,
+        org_name: str,
+        fields: tuple[EnrichableField, ...],
+        domain: str | None = None,
+        linkedin_url: str | None = None,
     ) -> CompanyDataResult:
         """`domain` (a bare hostname) anchors the match to the right company
-        when a provider would otherwise resolve by name alone.
+        when a provider would otherwise resolve by name alone. `linkedin_url`
+        is the company's own page, for the one provider that needs it; the
+        rest ignore it.
 
         Returns an entry only for a field this provider actually
         resolved for `org_name` — never a guess, never an entry for a field

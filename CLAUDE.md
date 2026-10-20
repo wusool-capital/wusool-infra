@@ -169,6 +169,10 @@ stack. PowerShell changes: `Invoke-ScriptAnalyzer` (Warning + Error) clean.
   matching page under `gitbook/` (technical docs, user guide, and the
   current release notes) in the same PR. Never merge a change that leaves
   GitBook describing old behaviour.
+- **Never edit the release notes of a release that has already ended.** A
+  release note's delivery period is closed once it ends, so a later change
+  goes into the next release's note, which is written when that release is
+  prepared. If no open release note exists yet, skip it and say so in the PR.
 - Update the affected README, `CHANGELOG.md`, and the relevant `docs/` page
   in the same PR — run `$sync-terraform-docs` / `$sync-project-docs` /
   `$sync-crm-schema-docs` for the area you touched.

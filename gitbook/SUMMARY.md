@@ -6,6 +6,7 @@
 
 * [Choose a tool](user-guide/user-guide.md)
 * [Wusool Toolkit](user-guide/toolkit.md)
+  * [Find matches](user-guide/toolkit-find-match.md)
 * [WusoolScribe](user-guide/scribe.md)
 * [Attio CRM](user-guide/attio.md)
 * [Website lead tools](user-guide/lead-tools.md)
@@ -19,6 +20,7 @@
 * [Platform architecture](technical-documentation/technical.md)
 * [Wusool Toolkit](technical-documentation/toolkit.md)
   * [Matching engine](technical-documentation/toolkit-matching.md)
+  * [Advisor's note in a match](technical-documentation/toolkit-matching-note.md)
   * [Discrepancy check](technical-documentation/toolkit-discrepancies.md)
   * [Profile commands](technical-documentation/toolkit-profile-commands.md)
   * [Enrichment](technical-documentation/toolkit-enrichment.md)

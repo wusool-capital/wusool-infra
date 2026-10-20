@@ -58,6 +58,17 @@ class StageChangePayload:
     to_stage: str
 
 
+@dataclass(frozen=True, kw_only=True)
+class LinkedInScanPayload:
+    """Counts only: the posts and job changes themselves live in `signals`."""
+
+    kind: Literal["linkedin_scan"] = "linkedin_scan"
+    new_posts: int = 0
+    new_job_changes: int = 0
+    contacts_scanned: int = 0
+    contacts_without_linkedin: int = 0
+
+
 ActivityPayload = (
     NoPayload
     | CrmRecordPayload
@@ -66,4 +77,5 @@ ActivityPayload = (
     | MatchDecisionPayload
     | MeetingPayload
     | StageChangePayload
+    | LinkedInScanPayload
 )
