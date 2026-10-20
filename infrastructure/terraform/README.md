@@ -21,8 +21,8 @@ how to install it. Do not run `terraform` against this repo.
   call, which cross-stack values to read, which backend key to write state to.
   Stacks are the roots you actually `init`/`plan`/`apply`.
 
-Multiple stacks share the same module — e.g. `stacks/n8n` and `stacks/toolkit`
-both call `modules/bedrock-access`. Fix a bug in a module once, and every stack
+Multiple stacks can share the same module — e.g. `stacks/toolkit` calls
+`modules/bedrock-access`. Fix a bug in a module once, and every stack
 that uses it picks up the fix on its next apply. This is also why you cannot
 delete `modules/` and inline everything into `stacks/`: every stack's
 `source = "../../modules/..."` line depends on it, and dev/prod would drift
@@ -34,17 +34,16 @@ out of sync with each other without it.
 |---|---|---|
 | `account` | GuardDuty, Security Hub, security-alert routing, GitHub OIDC provider + roles, the `wusool-tfstate` state bucket itself | **No** — applied once, no `-var-file` |
 | `base` | VPC, subnets, CloudTrail, the infrastructure-alerts SNS topic | Yes |
-| `n8n` | The n8n EC2 instance, its secret, optional Bedrock access | Yes |
 | `toolkit` | The wusool-toolkit EC2 instance (an Auto Scaling Group of size 1, not a standalone `aws_instance` — self-heals on termination/hardware failure and keeps its Elastic IP across replacement), its secret, its own ECR repo | Yes |
 | `postgres` | The RDS instance, seeded from a snapshot if `snapshot_identifier` is set | Yes |
 | `peering` | The dev↔prod VPC peering connection and its routes | **No** — spans both environments |
 | `scribe-updates` | S3 + CloudFront update feed for the WusoolScribe desktop app, and the GitHub OIDC role that publishes to it | **No** — one public feed, not per-environment (see [`docs/internal/dev/SCRIBE_UPDATE_FEED.md`](../../docs/internal/dev/SCRIBE_UPDATE_FEED.md)) |
 
 Every per-environment stack reads `stacks/base`'s network/alarm outputs via
-`terraform_remote_state`; `postgres` also reads `n8n` and `toolkit`'s security
-group IDs the same way. Apply order for a **new** environment:
-`base` → `n8n` and `toolkit` → `postgres` (postgres needs the others' security
-groups to already exist in state).
+`terraform_remote_state`; `postgres` also reads `toolkit`'s security
+group ID the same way. Apply order for a **new** environment:
+`base` → `toolkit` → `postgres` (postgres needs toolkit's security
+group to already exist in state).
 
 **`stacks/toolkit` has a `create_instance` variable.** It gates the EC2
 instance separately from the ECR repo and secret, so those can exist ahead of
@@ -80,11 +79,11 @@ Each stack uses a **partial backend** — no bucket/key hardcoded in the repo �
 so the same directory serves every environment:
 
 ```bash
-cd terraform/stacks/n8n
+cd terraform/stacks/toolkit
 tofu init -reconfigure \
   -backend-config=bucket=wusool-tfstate \
   -backend-config=region=me-central-1 \
-  -backend-config=key=wusool/<env>/n8n/terraform.tfstate \
+  -backend-config=key=wusool/<env>/toolkit/terraform.tfstate \
   -backend-config=use_lockfile=true \
   -backend-config=encrypt=true
 
@@ -92,8 +91,8 @@ tofu plan  -var-file=../../envs/<env>.tfvars
 tofu apply -var-file=../../envs/<env>.tfvars
 ```
 
-Replace `<env>` with `dev` or `prod`, and `n8n` with any stack name (`base`,
-`toolkit`, `postgres`). `stacks/account` takes no `-var-file` — it isn't
+Replace `<env>` with `dev` or `prod`, and `toolkit` with any stack name (`base`,
+`postgres`). `stacks/account` takes no `-var-file` — it isn't
 per-environment.
 
 In CI, `.github/workflows/_deploy.yml` does exactly this for every per-env
@@ -110,7 +109,7 @@ matter**:
    different intended value** will silently take whichever value the shared
    file has — OpenTofu does not error on unrecognized `-var-file` keys, only a
    suppressible warning. (This bit us once already: `instance_type` collided
-   between `stacks/n8n` and `stacks/toolkit` until the toolkit one was renamed
+   between two stacks (the since-removed `stacks/n8n` and `stacks/toolkit`) until the toolkit one was renamed
    `toolkit_instance_type`.) Before adding a variable to a stack, check
    whether another stack already uses that name for something else.
 2. A **duplicate key** across two sections of the same `.tfvars` file is a
@@ -126,7 +125,7 @@ by ARN and fetched at runtime by the instance's own IAM role.
 1. Install the pinned OpenTofu version (`.opentofu-version`) — see
    [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 2. Never run a stack without first checking whether `terraform_remote_state`
-   dependencies (`base`, and for `postgres`, also `n8n`/`toolkit`) already
+   dependencies (`base`, and for `postgres`, also `toolkit`) already
    exist for that environment. A `plan` will fail loudly with "Unsupported
    attribute" if a dependency's outputs haven't been populated yet — that
    just means run `apply` on the dependency first.

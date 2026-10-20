@@ -3,7 +3,7 @@
 #
 # stacks/toolkit's create_instance defaults per envs/prod.tfvars (currently
 # false — no prod toolkit instance exists yet). Until that is deliberately
-# flipped to true, this deploy applies prod's other stacks (base, n8n,
+# flipped to true, this deploy applies prod's other stacks (base,
 # postgres, and toolkit's ECR + secret) and skips the app-rollout/health-check
 # steps, which detect "no instance" and exit cleanly rather than failing.
 name: Deploy prod

@@ -1,5 +1,5 @@
 # PostgreSQL — one stack, per environment via envs/*.tfvars. Reads stacks/base
-# for network, and stacks/n8n + stacks/toolkit for consumer security groups.
+# for network, and stacks/toolkit for its consumer security group.
 # Migrated via `state mv` (Phase D).
 #
 # toolkit's security_group_id is null when that stack has create_instance =
@@ -8,7 +8,6 @@
 
 locals {
   allowed_security_group_ids = concat(
-    [data.terraform_remote_state.n8n.outputs.security_group_id],
     compact([data.terraform_remote_state.toolkit.outputs.security_group_id]),
     var.extra_allowed_security_group_ids,
   )
