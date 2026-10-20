@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Recover a failed GitHub Actions deployment for Toolkit, n8n, or OpenTofu-managed
+Recover a failed GitHub Actions deployment for Toolkit or OpenTofu-managed
 infrastructure.
 
 ## Impact
@@ -14,7 +14,7 @@ without rolling the app, fail before migration, or serve an unhealthy service.
 
 - `Deploy prod` fails in build, OpenTofu apply, migration, bootstrap, or health
   verification.
-- OpenTofu reports success but Toolkit `/health` or n8n `/healthz` is not 200.
+- OpenTofu reports success but Toolkit `/health` is not 200.
 - A migration fails before the Toolkit rollout.
 - The plan proposes replacement, deletion, or unexpected IAM/network/database
   changes.
@@ -37,17 +37,25 @@ P1 — Treat destructive changes, data loss, or security impact as P0.
    OpenTofu apply, database migration, SSM bootstrap/rollout, and health checks.
 2. A successful OpenTofu apply only registers the SSM bootstrap document; it
    does not prove the app rolled out. Require the explicit health check.
-3. For Toolkit, verify `/health`, `/readiness`, and `/embed.js`; for n8n,
-   verify `/healthz` at the environment URL.
+3. For Toolkit, verify `/health`, `/readiness`, and `/embed.js`.
 4. If the first failure is database-related, use
    [database-and-migration-failure.md](database-and-migration-failure.md).
 5. If the migration or bootstrap step logs `no space left on device`, old
    Docker images have filled the root disk. Check with `df -h /` and
    `docker system df` over SSM, run `docker image prune -af` (it keeps
    images in use, and ECR keeps the rest), then rerun the failed workflow.
-6. If the first failure is service-specific, use
-   [toolkit-outage.md](toolkit-outage.md) or
-   [n8n-outage.md](n8n-outage.md).
+6. The app reads its Secrets Manager secret at startup, so a container that
+   exits with `Cannot load secret` has a credentials problem, not a bad secret
+   file. Check the instance role's `GetSecretValue` grant and that
+   `/opt/toolkit/toolkit/runtime.env` holds the right
+   `AWS_SECRETS_MANAGER_SECRET_ID`. A secret edit needs only a container
+   restart, not a bootstrap re-run.
+7. If `Find the current toolkit instance` fails with "Toolkit ASG ... has no
+   running instance", the ASG is replacing its instance. Earlier deploys
+   skipped migrations and the rollout here and still passed. Wait until the
+   ASG shows one `InService` instance, then rerun the deploy.
+8. If the first failure is service-specific, use
+   [toolkit-outage.md](toolkit-outage.md).
 
 ## Recovery
 
@@ -59,9 +67,8 @@ P1 — Treat destructive changes, data loss, or security impact as P0.
    backend using the repository's documented backend key, create a reviewed
    OpenTofu plan with the known-good `image_digest`, and apply that plan only
    after human review.
-4. For n8n or infrastructure, revert the responsible source change and deploy
-   the reviewed OpenTofu plan through the matching branch/workflow. Restore a
-   previously verified n8n image digest where applicable.
+4. For infrastructure, revert the responsible source change and deploy
+   the reviewed OpenTofu plan through the matching branch/workflow.
 5. After recovery, fix or revert the source change so the next deployment does
    not reintroduce the incident.
 
@@ -70,12 +77,11 @@ P1 — Treat destructive changes, data loss, or security impact as P0.
 - The workflow completes through rollout and health verification.
 - Toolkit `/health` and `/readiness` return HTTP 200; `/embed.js` returns 200
   when lead tools are in scope.
-- n8n `/healthz` returns HTTP 200 when n8n is in scope.
 - The intended user flow succeeds and no unrelated resource changed.
 
 ## Rollback
 
-Toolkit rollback is by reviewed known-good ECR digest. n8n/infrastructure
+Toolkit rollback is by reviewed known-good ECR digest. Infrastructure
 rollback is by source revert and reviewed OpenTofu plan. There is no verified
 generic database rollback; see the database runbook before reverting an app
 that depends on a changed schema.

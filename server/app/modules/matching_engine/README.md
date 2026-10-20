@@ -47,6 +47,13 @@ Reads/writes `buyer_roles`, `seller_roles`, `organizations`, `meetings`,
 a match also upserts the `deals` row for the Qualified deal it creates in
 Attio, and stamps `match_results.deal_attio_id`.
 
+Each run and review decision also records an `activities` event
+(`match.run_completed`, `match.approved`, `match.rejected`) linked to the
+`match_results` row, on the same transaction. An approval that moves a deal's
+stage records it in `deal_stage_events` too, comparing under a row lock so the
+webhook echo of the same change records nothing. Writes go through
+`app.modules.activities`; this module never inserts `activities` itself.
+
 ## Setup
 
 Config comes from the repo-root `server/.env` (see `.env.example` there —
@@ -153,7 +160,12 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
 Meeting notes (`meetings` table) are folded into both Bedrock prompts as
 labeled, unverified context — always on for the buyer side, on by default
 for shortlisted sellers (`ENABLE_SELLER_MEETING_NOTES=false` to restrict to
-the buyer side only).
+the buyer side only). Each summary is capped at `MEETING_NOTES_MAX_CHARS`
+(default 3,000): a longer one keeps its first two thirds and its last third,
+with a `[middle truncated]` marker between them, so next steps at the end
+survive. Each prompt gets at most `MEETING_NOTES_MAX_TOTAL_CHARS` (default
+12,000) of notes, newest first; the oldest note is always kept and the number
+of dropped older meetings is stated in the prompt.
 
 Not implemented, by design: pgvector/semantic retrieval, document
 ingestion, general-purpose web scraping beyond `discovery`'s lead search,

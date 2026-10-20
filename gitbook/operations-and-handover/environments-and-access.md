@@ -6,10 +6,10 @@ but have separate networks, databases, secrets, container repositories, and
 deployment roles. Attio's test flag separates development records from
 production ones.
 
-| Environment | Change path | n8n | Toolkit and lead tools |
+| Environment | Change path | Toolkit and lead tools |
 | --- | --- | --- | --- |
-| Development | Merge to `dev`, or run `Deploy dev` | `https://n8n-dev.wusoolcapital.com/` | A fixed `sslip.io` hostname set in the development `tfvars`; no tools hostname |
-| Production | Merge to `prod`, or run `Deploy prod` | `https://n8n.wusoolcapital.com/` | `https://tools.wusoolcapital.com/` |
+| Development | Merge to `dev`, or run `Deploy dev` | A fixed `sslip.io` hostname set in the development `tfvars`; no tools hostname |
+| Production | Merge to `prod`, or run `Deploy prod` | `https://tools.wusoolcapital.com/` |
 
 DNS is managed in Cloudflare, outside the repository.
 
@@ -28,13 +28,12 @@ Give each operator the minimum role for the task.
 | System | Needed for |
 | --- | --- |
 | GitHub repository and Actions | Review changes, inspect checks, deploy, and rerun workflows. Environments: `dev`, `prod`, and `scribe-release`. |
-| AWS, through the approved sign-in | Logs, alarms, Systems Manager, RDS, Secrets Manager, and OpenTofu. Includes Bedrock model access and SES sending. |
+| AWS, through the approved sign-in | Logs, alarms, Systems Manager, RDS, Secrets Manager, and OpenTofu. Includes Bedrock model access and SES sending. Developers sign in with IAM Identity Center, MFA, and a seven-day session. They can read the dev secret only. |
 | Slack administration | The Toolkit app, and the AWS Chatbot alerts channel |
 | Attio administration | CRM attributes, lists, webhooks, and users |
 | Sanity | The Reports & Insights Studio project: member invites, API tokens, and webhooks |
 | Webflow | The site, and a CMS read/write API token |
 | Cloudflare | Service DNS records |
-| n8n owner or administrator | Users, credentials, workflows, and execution history |
 | Google Cloud | The Places and Geocoding API key used by seller discovery |
 | Firecrawl, Diffbot, People Data Labs | API keys for enrichment and the lead tools |
 
@@ -49,6 +48,16 @@ not managed in the repository; check them in the AWS console.
 Named owners and the access-request route are **not recorded here**. Never
 document account numbers, role identifiers, tokens, or personal credentials
 in these pages.
+
+## Add or remove a developer
+
+1. Create the user in IAM Identity Center and add them to the
+   `wusool-developers` group.
+2. They sign in with MFA and a seven-day session. The Developer role reads the
+   dev secret only.
+3. To remove someone, delete their Identity Center user. Also remove them from
+   GitHub, Slack, Attio, Sanity, Webflow, and Cloudflare.
+4. While legacy IAM users exist, delete the person's IAM user as well.
 
 ## Verify access before a change
 

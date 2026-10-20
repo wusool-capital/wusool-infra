@@ -1,6 +1,6 @@
 # Reusable deploy: detect which stacks actually need it, apply only those
-# (base -> n8n -> toolkit -> postgres, in dependency order), then roll and
-# ACTUALLY VERIFY the n8n and toolkit apps that were applied.
+# (base -> toolkit -> postgres, in dependency order), then roll and
+# ACTUALLY VERIFY the toolkit app that was applied.
 #
 # Called by deploy-dev.yml and deploy-prod.yml. Never triggered directly, so
 # the environment is always explicit at the call site rather than inferred
@@ -92,7 +92,6 @@ jobs:
           }
 
           CHANGED_BASE=$(changed_since "$(get_deployed_sha base)")
-          CHANGED_N8N=$(changed_since "$(get_deployed_sha n8n)")
           CHANGED_TOOLKIT=$(changed_since "$(get_deployed_sha toolkit)")
           CHANGED_POSTGRES=$(changed_since "$(get_deployed_sha postgres)")
 
@@ -106,9 +105,6 @@ jobs:
           deploy_base=false
           matches "$CHANGED_BASE" "$FORCE_ALL|^infrastructure/terraform/stacks/base/|^infrastructure/terraform/modules/network/" && deploy_base=true
 
-          deploy_n8n=false
-          matches "$CHANGED_N8N" "$FORCE_ALL|^infrastructure/terraform/stacks/n8n/|^infrastructure/terraform/modules/n8n-ec2/|^infrastructure/terraform/modules/bedrock-access/" && deploy_n8n=true
-
           deploy_toolkit=false
           # server/ is the single project now (models, migrations, and app
           # code all live under it) — no separate database/ path dependency
@@ -119,20 +115,18 @@ jobs:
           matches "$CHANGED_POSTGRES" "$FORCE_ALL|^infrastructure/terraform/stacks/postgres/|^infrastructure/terraform/modules/postgres-rds/" && deploy_postgres=true
 
           # base owns the VPC/subnets/SNS topic every other stack reads via
-          # terraform_remote_state. If base's outputs changed, n8n/toolkit/
+          # terraform_remote_state. If base's outputs changed, toolkit/
           # postgres must re-apply too, or they keep acting on a stale base
           # output until something unrelated happens to redeploy them.
           if [ "$deploy_base" = "true" ]; then
-            deploy_n8n=true
             deploy_toolkit=true
             deploy_postgres=true
           fi
 
           echo "deploy_base=$deploy_base" >> "$GITHUB_OUTPUT"
-          echo "deploy_n8n=$deploy_n8n" >> "$GITHUB_OUTPUT"
           echo "deploy_toolkit=$deploy_toolkit" >> "$GITHUB_OUTPUT"
           echo "deploy_postgres=$deploy_postgres" >> "$GITHUB_OUTPUT"
-          echo "::notice::deploy plan for $ENV — base=$deploy_base n8n=$deploy_n8n toolkit=$deploy_toolkit postgres=$deploy_postgres"
+          echo "::notice::deploy plan for $ENV — base=$deploy_base toolkit=$deploy_toolkit postgres=$deploy_postgres"
 
       # stacks/account is intentionally NOT applied here — it is account-wide,
       # not per-environment, and is applied out of band (no -var-file, no
@@ -164,112 +158,6 @@ jobs:
         if: steps.detect.outputs.deploy_base == 'true'
         run: |
           aws ssm put-parameter --name "/wusool/$ENV/base/deployed_sha" \
-            --value "${{ github.sha }}" --type String --overwrite
-
-      - name: Apply stacks/n8n
-        if: steps.detect.outputs.deploy_n8n == 'true'
-        uses: ./.github/actions/tofu-apply-stack
-        with:
-          stack: n8n
-          environment: ${{ env.ENV }}
-
-      # -----------------------------------------------------------------
-      # Same lesson as toolkit's rollout below, applied here for the first
-      # time (code review 2026-08-16): a `tofu apply` on stacks/n8n only
-      # registers a new bootstrap document — n8n's EC2 instance does not
-      # rerun user_data on an existing instance, and nothing was re-invoking
-      # the SSM association to actually push a user_data/Caddyfile/pinned-
-      # image change to the running container. A merge changing any of
-      # those would previously apply cleanly in Terraform while silently
-      # never reaching the live n8n instance. `/healthz` confirmed live
-      # (200) on both dev and prod before wiring this in.
-      # -----------------------------------------------------------------
-
-      - name: Roll the n8n app and wait for it
-        if: steps.detect.outputs.deploy_n8n == 'true'
-        id: n8n_bootstrap
-        working-directory: infrastructure/terraform/stacks/n8n
-        run: |
-          set -uo pipefail
-          DOC=$(tofu output -raw bootstrap_document_name 2>/dev/null || echo "")
-          IID=$(tofu output -raw instance_id 2>/dev/null || echo "")
-          if [ -z "$DOC" ] || [ -z "$IID" ]; then
-            echo "::error::No n8n bootstrap_document_name/instance_id output — n8n should always have an instance"
-            exit 1
-          fi
-
-          # Retried at this outer level, not just inside the bootstrap
-          # script's own docker-compose retry: a brand-new instance's
-          # automatic first-boot user_data execution can race with this
-          # pipeline's explicit SSM re-invocation of the same script
-          # (observed 2026-08-17 standing up the first prod toolkit
-          # instance — a dnf package-cache collision, exit code from the
-          # OS package layer entirely, before docker/app deployment even
-          # starts). Retrying the whole send+poll cycle covers that and any
-          # other transient bootstrap failure, not just docker compose's.
-          for attempt in 1 2; do
-            CMD=$(aws ssm send-command \
-              --document-name "$DOC" --instance-ids "$IID" \
-              --comment "deploy ${{ github.sha }} (attempt $attempt)" \
-              --query Command.CommandId --output text)
-            echo "command: $CMD (attempt $attempt/2)"
-
-            STATUS=""
-            ERRS=0
-            for _ in $(seq 1 60); do
-              # Tolerate the InvocationDoesNotExist window right after
-              # send-command, but never swallow a persistent API error as
-              # "Pending" -- that misreports a throttle or an expired token
-              # as a bootstrap timeout (see nightly-attio-sync.yml's poll
-              # loop for the run that made this concrete).
-              if OUT=$(aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-                    --query Status --output text 2>&1); then
-                ERRS=0
-                STATUS=$OUT
-              else
-                ERRS=$((ERRS + 1))
-                [ "$ERRS" -ge 8 ] && { echo "::error::SSM poll failed 8x in a row: $OUT"; exit 1; }
-                STATUS=Pending
-              fi
-              case "$STATUS" in
-                Success) echo "bootstrap succeeded"; exit 0 ;;
-                Failed|Cancelled|TimedOut) break ;;
-              esac
-              sleep 15
-            done
-
-            case "$STATUS" in
-              Failed|Cancelled|TimedOut) ;;
-              *) echo "::error::Bootstrap did not finish within 15 minutes"; exit 1 ;;
-            esac
-
-            echo "::warning::Bootstrap $STATUS on attempt $attempt/2"
-            aws ssm get-command-invocation --command-id "$CMD" --instance-id "$IID" \
-              --query StandardErrorContent --output text | tail -40
-            [ "$attempt" -eq 2 ] && { echo "::error::Bootstrap failed after 2 attempts"; exit 1; }
-            sleep 20
-          done
-
-      - name: Verify n8n actually serves
-        if: steps.detect.outputs.deploy_n8n == 'true'
-        working-directory: infrastructure/terraform/stacks/n8n
-        run: |
-          set -euo pipefail
-          URL=$(tofu output -raw n8n_url 2>/dev/null || echo "")
-          [ -n "$URL" ] || { echo "::error::No n8n_url output"; exit 1; }
-
-          for i in $(seq 1 20); do
-            C=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$URL/healthz" || echo 000)
-            echo "attempt $i: HTTP $C"
-            [ "$C" = "200" ] && { echo "healthy"; exit 0; }
-            sleep 15
-          done
-          echo "::error::$URL/healthz never returned 200 — deploy is NOT healthy"; exit 1
-
-      - name: Record n8n deployed SHA
-        if: steps.detect.outputs.deploy_n8n == 'true'
-        run: |
-          aws ssm put-parameter --name "/wusool/$ENV/n8n/deployed_sha" \
             --value "${{ github.sha }}" --type String --overwrite
 
       - name: Apply stacks/toolkit
@@ -312,24 +200,27 @@ jobs:
             exit 0
           fi
           IMAGE="$REPO_URL@${{ inputs.image_digest }}"
+          DB_MASTER_SECRET_ARN=$(tofu output -raw db_master_secret_arn 2>/dev/null || echo "")
 
           # $REPO_URL/$IMAGE are expanded HERE (on the runner) into literal
           # values baked into the JSON below — the remote side needs no env
-          # vars or secrets of its own beyond the app's already-deployed
-          # .env.production (which already has DATABASE_URL, written by the
-          # bootstrap script from the same secret the app itself reads).
+          # vars or secrets of its own beyond the already-deployed runtime.env
+          # (secret ID and region only). Migrations need DDL rights the app
+          # does not have, so only this one-off container is given the RDS
+          # master secret's ARN; it reads the login live via the instance role,
+          # then provisions the app's data-only role from the toolkit secret.
           # Built via `jq -n` rather than a heredoc: a heredoc's closing
           # delimiter must match with zero leading whitespace, which a
           # YAML `run: |` block's indentation would silently break.
           COMMANDS_JSON=$(jq -n \
             --arg login "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin $REPO_URL" \
             --arg pull "docker pull $IMAGE" \
-            --arg migrate "docker run --rm --env-file /opt/toolkit/toolkit/.env.production $IMAGE python -m alembic upgrade head" \
+            --arg migrate "docker run --rm --env-file /opt/toolkit/toolkit/runtime.env -e 'DB_MASTER_SECRET_ARN=$DB_MASTER_SECRET_ARN' $IMAGE sh -c 'python -m alembic upgrade head && python -m app.modules.utilities.db_roles'" \
             '["set -e", $login, $pull, $migrate]')
 
           # Retried at this outer level, same as the bootstrap-roll steps
           # below: a brand-new instance's automatic first-boot user_data is
-          # what writes /opt/toolkit/toolkit/.env.production in the first
+          # what writes /opt/toolkit/toolkit/runtime.env in the first
           # place, and this command can race that on a genuinely first-ever
           # instance creation (see the "Roll the toolkit app" step's own
           # comment for the precedent — observed 2026-08-17 standing up the

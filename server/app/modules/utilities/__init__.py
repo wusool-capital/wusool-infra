@@ -40,6 +40,11 @@ from app.modules.utilities.persistence.task_runner import (
     InProcessTaskRunner,
     get_shared_task_runner,
 )
+from app.modules.utilities.secrets_manager import (
+    SecretLoadError,
+    SecretsManagerSettings,
+    fetch_toolkit_secret,
+)
 
 __all__ = [
     "AppError",
@@ -52,10 +57,13 @@ __all__ = [
     "InProcessTaskRunner",
     "Money",
     "NotFoundError",
+    "SecretLoadError",
+    "SecretsManagerSettings",
     "TaskRunner",
     "ValidationFailedError",
     "check_database_connectivity",
     "configure_logging",
+    "fetch_toolkit_secret",
     "find_schema_drift",
     "get_engine",
     "get_sessionmaker",

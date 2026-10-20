@@ -10,10 +10,11 @@ actually have.
 """
 
 from app.modules.ddl_commands.application.buyers import BuyerService
+from app.modules.ddl_commands.application.command_runs import CommandRunService
 from app.modules.ddl_commands.application.sellers import SellerService
 
 
-class DdlCommandsService(BuyerService, SellerService):
+class DdlCommandsService(BuyerService, SellerService, CommandRunService):
     """No business logic of its own — combines every concern mixin above
     into one composed class. Add a new use-case area as its own
     `ServiceBase` mixin and list it here, rather than growing this class or

@@ -35,7 +35,8 @@ persists the run, and posts an Approve/Reject message to Slack.
    b. Stage 0: requirement extraction (Bedrock, ONE call)
       -> application/requirements.py's BuyerRequirementExtractionService
          - builds the prompt from the buyer's investment_strategy/notes
-           plus recent meeting notes (domain/meetings.py)
+           plus recent meeting notes (domain/meetings.py: per-note
+           head+tail cut, then newest-first total budget, oldest kept)
          - the Bedrock call itself, including the validate-repair-retry-
            then-fail-closed policy, lives behind a Port
            (application/ports/llm.py) — this service only owns prompt

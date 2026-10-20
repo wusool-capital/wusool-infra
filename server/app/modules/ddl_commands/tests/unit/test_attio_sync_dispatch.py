@@ -57,42 +57,55 @@ class _FakeUpsert:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []
+        self.events: list[WebhookEvent] = []
 
-    async def sync_organization(self, client, record_id: str) -> None:
+    async def sync_organization(self, client, record_id: str, event: WebhookEvent) -> None:
         self.calls.append(("sync_organization", record_id))
+        self.events.append(event)
 
-    async def sync_person(self, client, record_id: str) -> None:
+    async def sync_person(self, client, record_id: str, event: WebhookEvent) -> None:
         self.calls.append(("sync_person", record_id))
+        self.events.append(event)
 
-    async def sync_deal(self, client, record_id: str) -> None:
+    async def sync_deal(self, client, record_id: str, event: WebhookEvent) -> None:
         self.calls.append(("sync_deal", record_id))
+        self.events.append(event)
 
-    async def sync_note(self, client, record_id: str) -> None:
+    async def sync_note(self, client, record_id: str, event: WebhookEvent) -> None:
         self.calls.append(("sync_note", record_id))
+        self.events.append(event)
 
-    async def sync_buyer_role(self, client, entry_id: str) -> None:
+    async def sync_buyer_role(self, client, entry_id: str, event: WebhookEvent) -> None:
         self.calls.append(("sync_buyer_role", entry_id))
+        self.events.append(event)
 
-    async def sync_seller_role(self, client, entry_id: str) -> None:
+    async def sync_seller_role(self, client, entry_id: str, event: WebhookEvent) -> None:
         self.calls.append(("sync_seller_role", entry_id))
+        self.events.append(event)
 
-    async def delete_organization(self, record_id: str) -> None:
+    async def delete_organization(self, record_id: str, event: WebhookEvent) -> None:
         self.calls.append(("delete_organization", record_id))
+        self.events.append(event)
 
-    async def delete_person(self, record_id: str) -> None:
+    async def delete_person(self, record_id: str, event: WebhookEvent) -> None:
         self.calls.append(("delete_person", record_id))
+        self.events.append(event)
 
-    async def delete_deal(self, record_id: str) -> None:
+    async def delete_deal(self, record_id: str, event: WebhookEvent) -> None:
         self.calls.append(("delete_deal", record_id))
+        self.events.append(event)
 
-    async def delete_note(self, record_id: str) -> None:
+    async def delete_note(self, record_id: str, event: WebhookEvent) -> None:
         self.calls.append(("delete_note", record_id))
+        self.events.append(event)
 
-    async def delete_buyer_role(self, entry_id: str) -> None:
+    async def delete_buyer_role(self, entry_id: str, event: WebhookEvent) -> None:
         self.calls.append(("delete_buyer_role", entry_id))
+        self.events.append(event)
 
-    async def delete_seller_role(self, entry_id: str) -> None:
+    async def delete_seller_role(self, entry_id: str, event: WebhookEvent) -> None:
         self.calls.append(("delete_seller_role", entry_id))
+        self.events.append(event)
 
 
 async def test_record_created_dispatches_to_matching_sync_fn() -> None:
@@ -299,3 +312,15 @@ async def test_missing_ids_are_ignored() -> None:
     upsert = _FakeUpsert()
     await dispatch.dispatch_event(upsert, _FakeRegistry(), _FakeClient(), _event("record.created"))
     assert upsert.calls == []
+
+
+async def test_the_event_is_passed_to_the_sync_and_delete_functions() -> None:
+    """The persistence layer reads the event's type and actor to log the activity."""
+    upsert = _FakeUpsert()
+    created = _event("record.created", object_id="org-object-uuid", record_id="org-1")
+    deleted = _event("list-entry.deleted", list_id="buyer-role-list-uuid", entry_id="entry-1")
+
+    await dispatch.dispatch_event(upsert, _FakeRegistry(), _FakeClient(), created)
+    await dispatch.dispatch_event(upsert, _FakeRegistry(), _FakeClient(), deleted)
+
+    assert upsert.events == [created, deleted]

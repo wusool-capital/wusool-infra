@@ -2,6 +2,7 @@
 
 from typing import Protocol
 
+from app.modules.activities import ActivityActor
 from app.modules.matching_engine.domain.matching.deals import (
     DealRecord,
     ExistingDeal,
@@ -18,4 +19,4 @@ class DealGatewayPort(Protocol):
 
 
 class DealRepositoryPort(Protocol):
-    async def upsert(self, deal: DealRecord) -> None: ...
+    async def upsert(self, deal: DealRecord, *, actor: ActivityActor) -> None: ...

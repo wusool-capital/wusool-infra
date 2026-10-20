@@ -33,16 +33,77 @@ without something routing between them, so this bot runs as one process.
 Each module keeps its own independent SQLAlchemy repositories reading the
 same shared `app.models` package — see `/modular-monolith`'s module
 boundaries for how cross-module access is governed (`app.modules.organizations`
-for the shared `Organization` entity, `app.modules.attio` for the vendor
-integration, `app.modules.notifications`/`app.modules.utilities` for
-cross-cutting infra).
+for the shared `Organization` entity, `app.modules.activities` for the
+business-event history, `app.modules.attio` for the vendor integration,
+`app.modules.notifications`/`app.modules.utilities` for cross-cutting infra).
 
 ## Setup
 
-```bash
-uv sync
-cp .env.example .env  # then fill in real values — one shared Slack token/secret for both modules
+Secrets are not kept in a `.env` file. Every module's `Settings` reads the
+toolkit secret from AWS Secrets Manager at startup (`/wusool/dev/toolkit`
+locally, `/wusool/<env>/toolkit` deployed) through boto3's default credential
+chain: your AWS profile locally, the instance role on EC2. The same code path
+runs everywhere.
+
+One-time, add the profile to `~/.aws/config` (latest AWS CLI v2: older versions
+ignore the 7-day session; see `docs/internal/dev/AWS_ACCESS.md`):
+
+```ini
+[sso-session wusool]
+sso_start_url = https://d-9967b18774.awsapps.com/start
+sso_region = eu-central-1
+sso_registration_scopes = sso:account:access
+
+[profile wusool-sso]
+sso_session = wusool
+sso_account_id = 030179310793
+sso_role_name = WusoolDeveloper
+region = eu-central-1
 ```
+
+Then, each week (the Identity Center session lasts 7 days):
+
+```bash
+export AWS_PROFILE=wusool-sso
+aws sso login
+uv sync
+uv run python main.py
+```
+
+Until your Identity Center user exists, `aws login --profile wusool` with your
+IAM user works for `uv run` (the dev dependencies include the `botocore[crt]`
+that boto3 needs for it). Docker Compose cannot use `aws login` credentials,
+so it needs the SSO profile.
+
+- Secrets are read once at startup. A secret edit applies on the next restart
+  (including uvicorn auto-reload), not to a running process. An expired AWS
+  session blocks only starting the app, not a running one.
+- A local `.env` still outranks the secret, so delete any old `server/.env`
+  that holds secrets. Use `.env` or exported variables only for non-secret
+  overrides such as `LOG_LEVEL` or `ATTIO_IS_TEST`. `.env.example` lists them.
+- Tests and `./checks.sh` set `AWS_SECRETS_MANAGER_SECRET_ID=""`, so they never
+  call AWS.
+- Devs can read the dev secret only; the prod secret is denied.
+- The database login in the secret (`wusool_app`) can read and change data but
+  not the schema: DDL, `TRUNCATE` and edits to `alembic_version` fail. Migrations
+  run only in the deploy pipeline. For schema work, test with `docker compose up`.
+  See `docs/internal/dev/DB_ROLES.md`.
+
+### Overriding a value for yourself
+
+A value from the secret loses to anything you set locally. Precedence, highest
+first: explicit arguments, your shell environment, `server/.env`, the dev secret.
+
+- **One run:** `ATTIO_IS_TEST=true uv run python main.py`, or `export KEY=value`
+  for the whole shell. `unset KEY` removes it; an empty `KEY=` blanks the value.
+- **Every run:** put `KEY=value` in `server/.env`. It is gitignored.
+- **Docker Compose:** Compose only passes the variables listed in
+  `docker-compose.yml`. Add others under `environment:` in a
+  `server/docker-compose.override.yml`, which is gitignored.
+- **Names:** the setting name in upper case, with its prefix. For example
+  `ATTIO_API_KEY` and `ATTIO_IS_TEST`; `.env.example` lists them.
+
+This changes only your machine. To change a value for everyone, edit the secret.
 
 ## Running
 
@@ -58,6 +119,10 @@ throwaway local Postgres and a one-shot migration step —
 ```bash
 docker compose up --build
 ```
+
+Compose mounts `~/.aws` into the container and passes `AWS_PROFILE` (default
+`wusool-sso`, so name your profile that), so run `aws sso login` first. The bundled Postgres overrides
+`DATABASE_URL`; every other secret still comes from the dev secret.
 
 - `GET /health` — liveness, no database dependency.
 - `GET /readiness` (alias `GET /ready`) — confirms database connectivity.
@@ -107,6 +172,7 @@ server/
 │       ├── ddl_commands/        # /edit-seller, /edit-buyer, /add-seller, /add-buyer
 │       ├── meetings/              # /desktop/* — desktop-app transcript summarization
 │       ├── organizations/           # shared Organization persistence
+│       ├── activities/                # business-event history (activities index, vocabulary, recorder)
 │       ├── attio/                     # Attio vendor integration
 │       ├── notifications/               # cross-module Slack notifier Port
 │       └── utilities/                     # cross-cutting infra (logging, retry, Money, DB wiring)

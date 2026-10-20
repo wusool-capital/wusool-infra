@@ -11,6 +11,7 @@ from types import TracebackType
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.modules.activities import SqlAlchemyActivityRecorder
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWork
 from app.modules.matching_engine.persistence.repositories.deals_repository import DealRepository
 from app.modules.matching_engine.persistence.repositories.matching_repository import (
@@ -27,9 +28,10 @@ class SqlAlchemyMatchingUnitOfWork:
     match_scores: MatchScoreRepository
     meetings: MeetingRepository
     deals: DealRepository
+    activities: SqlAlchemyActivityRecorder
 
     def __init__(
-        self, sessionmaker: async_sessionmaker[AsyncSession], *, meeting_notes_max_chars: int = 600
+        self, sessionmaker: async_sessionmaker[AsyncSession], *, meeting_notes_max_chars: int = 3000
     ) -> None:
         self._sessionmaker = sessionmaker
         self._meeting_notes_max_chars = meeting_notes_max_chars
@@ -42,6 +44,7 @@ class SqlAlchemyMatchingUnitOfWork:
         self.match_scores = MatchScoreRepository(self._session)
         self.meetings = MeetingRepository(self._session, max_chars=self._meeting_notes_max_chars)
         self.deals = DealRepository(self._session)
+        self.activities = SqlAlchemyActivityRecorder(self._session)
         return self
 
     async def __aexit__(

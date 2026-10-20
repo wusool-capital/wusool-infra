@@ -42,10 +42,12 @@ Qualified Buy-side deal in Attio.
    alternatives, like geography. A seller with no data for a dimension passes
    this step. Seller organizations already rejected for this
    buyer role are left out, even under a duplicate seller profile; other
-   buyers and verticals still see them. If any target region can't be
-   resolved, or is unrestricted (such as Europe or Global), geography narrowing is skipped. A seller is then dropped only on a confirmed hard
-   requirement's failure; missing data never eliminates anyone. Ticket size
-   never eliminates; it only affects the score.
+   buyers and verticals still see them.
+
+   If any target region can't be resolved, or is unrestricted (such as Europe
+   or Global), geography narrowing is skipped. A seller is then dropped only
+   on a confirmed hard requirement's failure; missing data never eliminates
+   anyone. Ticket size never eliminates; it only affects the score.
 5. **Score.** Each criterion scores Pass 100, Unknown 50, or Fail 0, and the
    weighted average ranks the sellers. Soft sectors are scored as alternatives
    and use the weight of the one that matched. Data confidence (how much of the
@@ -55,9 +57,9 @@ Qualified Buy-side deal in Attio.
    **Relevance gate.** Before the top three are picked, a seller with no
    sector Pass is dropped whenever the run has a hard sector. Unknown scores
    a neutral 50, which says nothing about relevance, so sellers with no sector
-   data can no longer fill the shortlist. If the advisor named a business type
-   that maps to no CRM sector, nothing in the CRM can verify it, so no sellers
-   are shown.
+   data can't fill the shortlist. If the advisor named a business type that
+   maps to no CRM sector, nothing in the CRM can verify it, so no sellers are
+   shown.
 6. **Explain.** The top three sellers form the shortlist. One Bedrock call
    writes reasoning for them. It can't change their scores, and its prompt
    tells it to use only the facts it was given.
@@ -72,34 +74,20 @@ Qualified Buy-side deal in Attio.
    **Find more sellers** runs it on demand. Each run searches once.
 
 Meeting notes reach both Bedrock calls as labeled, unverified context: always
-for the buyer, and by default for shortlisted sellers.
+for the buyer, and by default for shortlisted sellers. Each summary is capped
+at `MEETING_NOTES_MAX_CHARS` (default 3,000). A longer one keeps its first
+two thirds and its last third, with a `[middle truncated]` marker, so next
+steps at the end survive. Each prompt gets at most
+`MEETING_NOTES_MAX_TOTAL_CHARS` (default 12,000) of notes, newest first. The
+oldest is always kept, and the prompt says how many older meetings were
+omitted.
 
 ## What the advisor's note controls
 
-Only criteria in the engine's registry reach scoring: revenue, EBITDA,
-geography, sector, sector exclusion, outreach tier, relationship status, and
-appetite signal. A confirmed advisor row for any of them replaces the stored
-value and eliminates on a populated field that contradicts it.
-
-- **Narrowing in SQL:** sector, geography, and EV ceiling.
-- **Score only:** ticket size, through the advisor limits.
-- **Explanation only:** anything else, such as founder background or runway.
-  It is folded into the buyer summary that the reasoning call reads.
-- **Not controllable:** the shortlist size, the discovery threshold, the five
-  leads per search, the daily search cap, and sellers already rejected.
-
-The [discrepancy check](toolkit-discrepancies.md#what-it-doesnt-check)
-compares only four of these with the buyer profile: sector, geography,
-ticket size, and EBITDA.
-
-The seller-field criteria accept only the exact CRM options. The code copies
-those options, and `tests/test_seller_select_vocabulary.py` checks the copy.
-A row whose value isn't an option is dropped, so free text such as "regional
-founders" never scores against them.
-
-The code also drops a soft sector that only repeats the buyer's stored sector
-without the advisor naming it. It strips place names and unmentioned stored
-sector words from the Maps search phrase.
+The note can replace stored values and change the shortlist, but only through
+the engine's registered criteria. See
+[the advisor's note in a match](toolkit-matching-note.md) for what it controls
+and what it can't.
 
 ## Approving a match
 
@@ -107,13 +95,14 @@ sector words from the Maps search phrase.
 
 Approve and Reject re-read the candidate from the database rather than
 trusting the Slack payload. A compare-and-set on its pending status stops two
-people deciding the same candidate. Approve locks the candidate
-row, so a double click can't create two deals.
+people deciding the same candidate. Approve also locks the row, so a double
+click can't create two deals.
 
 Approve writes the Qualified Buy-side deal to Attio first, then records it in
-the database in one transaction. If Attio already has a deal for that buyer
-and seller, the approver chooses to promote it or create a new one. Only an
-Inbound deal is promoted; later stages are left alone.
+the database in one transaction, with a `match.approved` activity for the
+approver. A changed deal stage is also recorded in `deal_stage_events`. If
+Attio already has a deal for that buyer and seller, the approver chooses to
+promote it or create a new one. Only an Inbound deal is promoted.
 
 ## Data it reads and writes
 
@@ -122,6 +111,7 @@ Inbound deal is promoted; later stages are left alone.
 | `buyer_roles`, `seller_roles`, `organizations` | Read: buyer criteria and the seller pool. |
 | `meetings` | Read: recent meeting notes as context. |
 | `match_scores`, `match_results` | Written: one run and its candidates. |
+| `activities`, `deal_stage_events` | Written: a `match.run_completed`, `match.approved`, or `match.rejected` event, and any stage change. |
 | `deals` and the Attio deal | Written on approval. |
 
 ## Failure behavior

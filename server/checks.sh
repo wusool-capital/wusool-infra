@@ -13,6 +13,7 @@ setup() {
   export DATABASE_URL="${DATABASE_URL:-postgresql://user:pass@localhost:15432/wusool_crm}"
   export SLACK_BOT_TOKEN="${SLACK_BOT_TOKEN:-xoxb-test-token}"
   export SLACK_SIGNING_SECRET="${SLACK_SIGNING_SECRET:-test-signing-secret}"
+  export AWS_SECRETS_MANAGER_SECRET_ID=""
 }
 
 require_database() {
@@ -59,6 +60,7 @@ integration() {
   require_database
   uv run alembic upgrade head
   uv run pytest \
+    app/modules/activities/tests/integration \
     app/modules/ddl_commands/tests/integration \
     app/modules/lead_magnets/tests/integration \
     app/modules/matching_engine/tests/integration \
@@ -71,6 +73,7 @@ integration() {
 
 shell() {
   bash ../.github/scripts/tests/test-nightly-attio-resync.sh
+  bash ../.github/scripts/tests/test-find-toolkit-instance.sh
 }
 
 main() {

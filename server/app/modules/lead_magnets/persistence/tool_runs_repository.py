@@ -5,7 +5,6 @@ Transaction boundaries belong to the caller, per this repo's repository
 convention: `execute`/`flush` only, never `commit`/`rollback`.
 """
 
-import logging
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
@@ -16,7 +15,6 @@ from sqlalchemy import (
     and_,
     case,
     func,
-    insert,
     literal,
     select,
     text,
@@ -26,11 +24,20 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.activity import Activity
 from app.models.buyer_role import BuyerRole
 from app.models.person import Person
 from app.models.seller_role import SellerRole
 from app.models.tool_run import ToolRun
+from app.modules.activities import (
+    ActivityActor,
+    ActivityEvent,
+    ActivitySource,
+    EventType,
+    LedgerRef,
+    LedgerType,
+    SqlAlchemyActivityRecorder,
+    SubjectType,
+)
 from app.modules.lead_magnets.domain.shared.tool_run import (
     Stage,
     SubjectRefs,
@@ -41,8 +48,6 @@ from app.modules.lead_magnets.domain.shared.tool_run import (
 from app.modules.lead_magnets.persistence.mappers import to_tool_run_record
 from app.modules.organizations import OrganizationRepository
 from app.modules.utilities.domain.json_types import JsonObject
-
-logger = logging.getLogger(__name__)
 
 # `payload.stage` records the last step that **completed**, so its absence
 # is what identifies a run that failed at the AI step. Reading it as "where
@@ -82,6 +87,7 @@ class ToolRunsRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._organizations = OrganizationRepository(session)
+        self._activities = SqlAlchemyActivityRecorder(session)
 
     async def start(self, *, tool: Tool, payload: JsonObject, idempotency_key: str) -> UUID:
         """Step 1 of the write contract. Every distinct submission gets its
@@ -185,44 +191,41 @@ class ToolRunsRepository:
             "buyer_role_id": self._role_id(BuyerRole, subjects.buyer_role_entry_id),
             "buyer_role_entry_ids": list(subjects.buyer_role_entry_ids),
         }
-        result = await self._session.execute(
-            update(ToolRun).where(ToolRun.id == run_id).values(**values).returning(ToolRun.payload)
-        )
-        payload = result.scalar_one_or_none() or {}
-        await self._log_activity(run_id, subjects, payload)
+        await self._session.execute(update(ToolRun).where(ToolRun.id == run_id).values(**values))
+        await self._log_activity(run_id, status, subjects)
 
-    async def _log_activity(self, run_id: UUID, subjects: SubjectRefs, payload: JsonObject) -> None:
-        """One `activities` row per completed Attio write, joined by
-        `tool_run_id`. `activities` CHECKs that a subject is present, which a
-        failed run (no resolved Attio id) never has, so this is a no-op
-        until `subjects` actually resolved one.
+    async def _log_activity(
+        self, run_id: UUID, status: ToolRunStatus, subjects: SubjectRefs
+    ) -> None:
+        """One `activities` row per distinct outcome of a run, linked by
+        `tool_run_id`; the submission itself stays on the run. `activities`
+        CHECKs that a subject is present, which a failed run (no resolved
+        Attio id) never has, so this is a no-op until `subjects` resolved one.
 
-        Best-effort: the Attio write already succeeded by the time this
-        runs, so a failure here must never stop `finish()` from marking the
-        run succeeded. The insert runs in its own savepoint — without one, a
-        failed `execute()` leaves the whole session in pending-rollback, and
-        the caller's own `commit()` would then raise and silently discard
-        the `tool_runs` status update alongside it.
+        The status is in the idempotency key so a run that failed and later
+        resumes to success records both outcomes, while a repeated `finish`
+        with the same outcome records nothing. Best-effort: the recorder runs
+        in its own savepoint and never raises, so a failure here cannot stop
+        `finish()` from marking the run.
         """
         if subjects.org_attio_id is not None:
-            subject_type, subject_attio_id = "Organization", subjects.org_attio_id
+            subject_type, subject_attio_id = SubjectType.ORGANIZATION, subjects.org_attio_id
         elif subjects.person_attio_id is not None:
-            subject_type, subject_attio_id = "Person", subjects.person_attio_id
+            subject_type, subject_attio_id = SubjectType.PERSON, subjects.person_attio_id
         else:
             return
-        try:
-            async with self._session.begin_nested():
-                await self._session.execute(
-                    insert(Activity).values(
-                        subject_type=subject_type,
-                        subject_attio_id=subject_attio_id,
-                        source="lead_magnet",
-                        tool_run_id=run_id,
-                        payload=payload,
-                    )
-                )
-        except Exception:
-            logger.exception("lead_magnet_activity_log_failed run_id=%s", run_id)
+        await self._activities.record(
+            ActivityEvent(
+                subject_type=subject_type,
+                event_type=EventType.LEAD_MAGNET_SUBMITTED,
+                source=ActivitySource.LEAD_MAGNET,
+                actor=ActivityActor.visitor(),
+                subject_attio_id=subject_attio_id,
+                outcome=status,
+                ledger=LedgerRef(LedgerType.TOOL_RUN, run_id),
+                idempotency_key=f"{EventType.LEAD_MAGNET_SUBMITTED}:{run_id}:{status}",
+            )
+        )
 
     @staticmethod
     def _role_id(

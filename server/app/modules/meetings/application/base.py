@@ -20,6 +20,7 @@ same reason.
 
 import asyncio
 
+from app.modules.activities import ActivityRecorderPort
 from app.modules.meetings.application.ports.meetings import MeetingsRepositoryPort
 from app.modules.meetings.application.ports.note_writer import NoteWriterPort
 from app.modules.meetings.application.ports.notes import NotesRepositoryPort
@@ -39,6 +40,7 @@ class ServiceBase:
         summarization_service: SummarizationService,
         note_writer: NoteWriterPort,
         summary_semaphore: asyncio.Semaphore,
+        activity_recorder: ActivityRecorderPort,
     ) -> None:
         self._meetings_repository = meetings_repository
         self._notes_repository = notes_repository
@@ -46,6 +48,7 @@ class ServiceBase:
         self._role_lookup = role_lookup
         self._summarization_service = summarization_service
         self._note_writer = note_writer
+        self._activity_recorder = activity_recorder
         # Gates only the expensive LLM call in
         # `PublishMixin.summarize_and_publish`, never the row-creation/
         # dedup path in `IngestMixin`. Injected rather than built here:

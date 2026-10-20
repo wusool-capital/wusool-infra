@@ -4,6 +4,8 @@ handler so both callers share one Attio-then-Postgres ordering and one
 `PartialWriteError` shape.
 """
 
+from typing import Literal
+
 from app.models import SellerRole
 from app.modules.attio import AttioError, attio_is_test, get_attio_client
 from app.modules.attio.providers.attio.entries import (
@@ -14,6 +16,7 @@ from app.modules.attio.providers.attio.entries import (
     patch_organization,
 )
 from app.modules.attio.providers.attio.options import OptionNotFoundError
+from app.modules.ddl_commands.api.command_tracking import CommandTracker, track_command
 from app.modules.ddl_commands.api.dependencies import ddl_commands_service
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.schemas import PrefillValue
@@ -33,7 +36,37 @@ async def write_seller_add(
     org_name: str | None,
     org_extracted: dict[str, PrefillValue | None],
     role_extracted: dict[str, PrefillValue | None],
+    requested_by: str | None,
+    invoked_via: Literal["slack", "discovery"],
     source_place_id: str | None = None,
+) -> SellerRole:
+    """Records a `command_runs` row around the write — see `_write_seller_add`."""
+    async with track_command(
+        "add_seller",
+        invoked_via=invoked_via,
+        requested_by=requested_by,
+        org_attio_id=None if is_new_org else org_attio_id,
+    ) as run:
+        return await _write_seller_add(
+            is_new_org=is_new_org,
+            org_attio_id=org_attio_id,
+            org_name=org_name,
+            org_extracted=org_extracted,
+            role_extracted=role_extracted,
+            source_place_id=source_place_id,
+            run=run,
+        )
+
+
+async def _write_seller_add(
+    *,
+    is_new_org: bool,
+    org_attio_id: str | None,
+    org_name: str | None,
+    org_extracted: dict[str, PrefillValue | None],
+    role_extracted: dict[str, PrefillValue | None],
+    source_place_id: str | None,
+    run: CommandTracker,
 ) -> SellerRole:
     """Attio first, then Postgres — same principle as `_write_seller_edit`,
     extended to creates: when `is_new_org`, the organization itself is
@@ -42,6 +75,7 @@ async def write_seller_add(
     `ddl-commands/README.md`, "Why Attio-first").
     """
     landed: list[str] = []
+    run.landed = landed
     attio_client = get_attio_client()
     is_test = attio_is_test()
 
@@ -104,11 +138,13 @@ async def write_seller_add(
     role_postgres_fields = build_postgres_values(
         table="seller_role", fields=SELLER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
     )
+    run.changed_fields = [*role_postgres_fields, *(org_postgres_fields or {})]
     try:
-        return await ddl_commands_service().create_seller(
+        role = await ddl_commands_service().create_seller(
             org_attio_id=org_attio_id,
             entry_id=entry_id,
             is_new_org=is_new_org,
+            context=run.context,
             org_name=org_name if is_new_org else None,
             org_fields=org_postgres_fields,
             role_fields=role_postgres_fields,
@@ -118,3 +154,6 @@ async def write_seller_add(
         raise
     except Exception as exc:
         raise PartialWriteError(landed, exc) from exc
+    run.org_attio_id = org_attio_id
+    run.seller_role_id = role.id
+    return role

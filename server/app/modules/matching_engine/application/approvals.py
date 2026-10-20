@@ -11,6 +11,11 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import cast
 
+from app.modules.activities import EventType
+from app.modules.matching_engine.application.activity_events import (
+    decision_event,
+    matching_actor,
+)
 from app.modules.matching_engine.application.base import ServiceBase
 from app.modules.matching_engine.application.errors import (
     DealGatewayError,
@@ -93,7 +98,7 @@ class ApprovalsMixin(ServiceBase):
                 seller_attio_id=candidate.seller_attio_id,
             )
             try:
-                await uow.deals.upsert(record)
+                await uow.deals.upsert(record, actor=matching_actor(approved_by))
                 updated = await uow.match_results.update_status(
                     match_result_id,
                     expected_status="PENDING_REVIEW",
@@ -108,6 +113,15 @@ class ApprovalsMixin(ServiceBase):
                         f"cannot transition match_result {match_result_id} to APPROVED; "
                         "it was reviewed concurrently"
                     )
+                await uow.activities.record(
+                    decision_event(
+                        event_type=EventType.MATCH_APPROVED,
+                        match=updated,
+                        decided_by=approved_by,
+                        outcome="approved",
+                        deal_attio_id=deal.attio_id,
+                    )
+                )
             except Exception as exc:
                 raise PartialWriteError(landed, exc) from exc
         return ApprovalResult(
@@ -193,6 +207,15 @@ class ApprovalsMixin(ServiceBase):
                 decided_at=datetime.now(UTC),
                 decision_notes=notes,
             )
+            if updated is not None:
+                await uow.activities.record(
+                    decision_event(
+                        event_type=EventType.MATCH_REJECTED,
+                        match=updated,
+                        decided_by=approved_by,
+                        outcome="rejected",
+                    )
+                )
         if updated is None:
             raise InvalidTransitionError(
                 f"cannot transition match_result {match_result_id} to REJECTED; "

@@ -56,7 +56,7 @@ Set-Location infrastructure/terraform
 tofu fmt -check -recursive
 Set-Location ../..
 
-Set-Location infrastructure/terraform/stacks/base   # repeat per changed stack: n8n, toolkit, postgres, peering, account
+Set-Location infrastructure/terraform/stacks/base   # repeat per changed stack: toolkit, postgres, peering, account
 tofu init -backend=false
 tofu validate
 Set-Location ../../../..
@@ -182,7 +182,6 @@ for `dev` in GitHub:
    - `OpenTofu Format`
    - `OpenTofu Validate (infrastructure/terraform/stacks/account)`
    - `OpenTofu Validate (infrastructure/terraform/stacks/base)`
-   - `OpenTofu Validate (infrastructure/terraform/stacks/n8n)`
    - `OpenTofu Validate (infrastructure/terraform/stacks/toolkit)`
    - `OpenTofu Validate (infrastructure/terraform/stacks/postgres)`
    - `OpenTofu Validate (infrastructure/terraform/stacks/peering)`

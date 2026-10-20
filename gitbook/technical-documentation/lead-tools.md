@@ -65,7 +65,8 @@ for good rather than retried.
 
 The module writes placeholder organization and person rows, and an activity
 row, to the database when a run finishes. Attio's webhook mirror then fills
-in the full records.
+in the full records. The activity row links to the run and holds no answers:
+those stay on `tool_runs`.
 
 ## Duplicates
 

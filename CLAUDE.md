@@ -102,6 +102,20 @@ while writing, not after a failed pipeline.
 Any comment added in code should only explain "why", not "how" — keep  
 comments clean, clear, and concise, and only add ones that add value. (Max 20 words per comment).
 
+### Running locally
+
+- Always run the app locally with `docker compose up` from `server/` (after
+  `aws sso login`). It starts a bundled, disposable Postgres, runs
+  `alembic upgrade head` against it, and reads every other secret from the dev
+  secret. Never run it any other way for testing.
+- Never run `alembic upgrade head` (or any migration or data script) from a
+  laptop against the dev database. Without a `DATABASE_URL` override, `uv run`
+  and `alembic` resolve the dev RDS URL from the dev secret, so a stray command
+  changes shared dev data. Migrations reach dev and prod only through the
+  deploy workflow.
+- If you must run outside compose, export `DATABASE_URL` pointing at a
+  disposable local Postgres first. Never at the dev or prod RDS.
+
 ### Run the checks before every commit and PR
 
 Before every PR, run the full CI suite from `server/` — the same gates GitHub
@@ -150,6 +164,15 @@ stack. PowerShell changes: `Invoke-ScriptAnalyzer` (Warning + Error) clean.
 
 ### After the change
 
+- **Hard rule: always keep GitBook up to date.** Any user-visible,
+  behavioural, configuration, or architecture change must update the
+  matching page under `gitbook/` (technical docs, user guide, and the
+  current release notes) in the same PR. Never merge a change that leaves
+  GitBook describing old behaviour.
+- **Never edit the release notes of a release that has already ended.** A
+  release note's delivery period is closed once it ends, so a later change
+  goes into the next release's note, which is written when that release is
+  prepared. If no open release note exists yet, skip it and say so in the PR.
 - Update the affected README, `CHANGELOG.md`, and the relevant `docs/` page
   in the same PR — run `$sync-terraform-docs` / `$sync-project-docs` /
   `$sync-crm-schema-docs` for the area you touched.

@@ -18,6 +18,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+import app.modules.ddl_commands.api.command_tracking as command_tracking_module
 import app.modules.ddl_commands.api.seller_write as seller_write_module
 import app.modules.ddl_commands.api.slack.handlers.actions as actions_module
 from app.modules.attio import AttioError
@@ -155,6 +156,30 @@ def _mock_slack_web_client(monkeypatch):
     posted = mock_slack_ephemeral(monkeypatch)
     mock_slack_auth(monkeypatch)
     return SimpleNamespace(posted=posted)
+
+
+@pytest.fixture(autouse=True)
+def _command_runs(monkeypatch):
+    """`track_command` reaches the database through `ddl_commands_service`.
+    These dispatch tests run with no database, so stub it and record what the
+    ledger was told instead."""
+    calls = SimpleNamespace(started=[], finished=[])
+
+    async def start_command_run(**kwargs):
+        calls.started.append(kwargs)
+        return uuid.uuid4()
+
+    async def finish_command_run(run_id, **kwargs):
+        calls.finished.append({"run_id": run_id, **kwargs})
+
+    monkeypatch.setattr(
+        command_tracking_module,
+        "ddl_commands_service",
+        lambda: SimpleNamespace(
+            start_command_run=start_command_run, finish_command_run=finish_command_run
+        ),
+    )
+    return calls
 
 
 # --------------------------------------------------------------------------
@@ -506,7 +531,9 @@ def _seller_edit_form_payload(
     }
 
 
-def test_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_client) -> None:
+def test_edit_form_writes_attio_before_postgres(
+    monkeypatch, _mock_slack_web_client, _command_runs
+) -> None:
     seller_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-1")
     monkeypatch.setattr(
@@ -564,6 +591,14 @@ def test_edit_form_writes_attio_before_postgres(monkeypatch, _mock_slack_web_cli
     assert kwargs["org_attio_id"] == "org-attio-1"
     text = _mock_slack_web_client.posted[0]["text"]
     assert "*Updated* seller profile for *Acme Capital*." in text
+    # The Slack user reaches the ledger and the write, and the run ends succeeded.
+    (started,) = _command_runs.started
+    assert (started["command"], started["invoked_via"]) == ("edit_seller", "slack")
+    assert started["requested_by"] == "U_TEST"
+    assert _command_runs.finished[0]["status"] == "succeeded"
+    assert kwargs["context"].actor.ref == "U_TEST"
+    assert kwargs["context"].command_run_id == _command_runs.finished[0]["run_id"]
+    assert _command_runs.finished[0]["changed_fields"] == ["outreach_tier"]
 
 
 def test_edit_form_attio_failure_prevents_postgres_write(
@@ -609,7 +644,7 @@ def test_edit_form_attio_failure_prevents_postgres_write(
 
 
 def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
-    monkeypatch, _mock_slack_web_client
+    monkeypatch, _mock_slack_web_client, _command_runs
 ) -> None:
     """Org fields PATCH to Attio successfully, then the role fields PATCH
     fails — Attio now holds a partial edit. The message must say the org
@@ -664,6 +699,9 @@ def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
     text = _mock_slack_web_client.posted[0]["text"]
     assert "*Couldn't write to Attio*" not in text
     assert "organization fields" in text
+    (finished,) = _command_runs.finished
+    assert finished["status"] == "partial"
+    assert finished["landed"] == ["organization fields (Attio)"]
 
 
 def test_edit_form_removed_org_is_rejected_before_any_write(
@@ -1315,7 +1353,7 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
     async def fake_execute(**kwargs):
         call_order.append("postgres_write")
         postgres_use_case.calls.append(kwargs)
-        return SimpleNamespace()
+        return SimpleNamespace(id=uuid.uuid4())
 
     async def fake_buyer_exists(org_attio_id, target_vertical):
         call_order.append(f"buyer_exists:{org_attio_id}:{target_vertical}")
@@ -1431,6 +1469,7 @@ async def test_concurrent_buyer_adds_for_one_vertical_create_one_attio_entry(mon
 
     async def fake_create_buyer(*, org_attio_id, role_fields, **_kwargs):
         created_roles.add((org_attio_id, role_fields.get("target_vertical")))
+        return SimpleNamespace(id=uuid.uuid4())
 
     async def fake_build_attio_values(*_args, **_kwargs):
         return {}
@@ -1452,6 +1491,7 @@ async def test_concurrent_buyer_adds_for_one_vertical_create_one_attio_entry(mon
             org_name=None,
             org_extracted={},
             role_extracted={"target_vertical": "Fintech"},
+            requested_by="U_TEST",
         )
 
     results = await asyncio.gather(add(), add(), return_exceptions=True)
@@ -1470,7 +1510,7 @@ async def test_buyer_add_lock_is_released_once_no_add_is_waiting(monkeypatch) ->
         return "entry-1"
 
     async def fake_create_buyer(**_kwargs):
-        return None
+        return SimpleNamespace(id=uuid.uuid4())
 
     async def fake_build_attio_values(*_args, **_kwargs):
         return {}
@@ -1491,6 +1531,7 @@ async def test_buyer_add_lock_is_released_once_no_add_is_waiting(monkeypatch) ->
         org_name=None,
         org_extracted={},
         role_extracted={"target_vertical": "Fintech"},
+        requested_by="U_TEST",
     )
     gc.collect()
 

@@ -26,6 +26,7 @@ from app.modules.enrichment.config import Settings as EnrichmentSettings
 from app.modules.lead_magnets.config import Settings as LeadMagnetsSettings
 from app.modules.matching_engine.config import Settings as MatchingEngineSettings
 from app.modules.meetings.config import Settings as MeetingsSettings
+from app.modules.utilities.secrets_manager import SecretLocation
 
 _ENV_EXAMPLE = Path(__file__).parent.parent / ".env.example"
 _SETTINGS_CLASSES = (
@@ -37,6 +38,32 @@ _SETTINGS_CLASSES = (
     DiscoverySettings,
     DiscrepanciesSettings,
     LeadMagnetsSettings,
+    SecretLocation,
+)
+
+# Supplied by Secrets Manager (or the AWS credential chain), so they must not
+# appear as live lines: a value in `.env` would shadow the secret.
+_SECRETS_MANAGER_KEYS = frozenset(
+    {
+        "DATABASE_URL",
+        "SLACK_BOT_TOKEN",
+        "SLACK_SIGNING_SECRET",
+        "ATTIO_API_KEY",
+        "ATTIO_WEBHOOK_SECRET",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "FIRECRAWL_API_KEY",
+        "DESKTOP_API_KEY",
+        "DIFFBOT_API_KEY",
+        "PEOPLE_DATA_LABS_API_KEY",
+        "APIFY_API_TOKEN",
+        "GOOGLE_PLACES_API_KEY",
+        "LEAD_MAGNET_SANITY_WEBHOOK_SECRET",
+        "LEAD_MAGNET_SANITY_WRITE_TOKEN",
+        "LEAD_MAGNET_WEBFLOW_API_TOKEN",
+        "LEAD_MAGNET_POSTHOG_API_KEY",
+        "ARCHITECTURE_BASIC_AUTH_PASSWORD",
+    }
 )
 
 
@@ -61,5 +88,14 @@ def test_env_example_covers_every_settings_field() -> None:
         re.findall(r"^([A-Z][A-Z0-9_]*)=", _ENV_EXAMPLE.read_text(encoding="utf-8"), re.MULTILINE)
     )
 
-    missing = sorted(expected - declared)
+    missing = sorted(expected - _SECRETS_MANAGER_KEYS - declared)
     assert missing == [], f"{_ENV_EXAMPLE.name} is missing: {missing}"
+
+
+def test_env_example_has_no_live_secret_lines() -> None:
+    declared = set(
+        re.findall(r"^([A-Z][A-Z0-9_]*)=", _ENV_EXAMPLE.read_text(encoding="utf-8"), re.MULTILINE)
+    )
+
+    leaked = sorted(declared & _SECRETS_MANAGER_KEYS)
+    assert leaked == [], f"{_ENV_EXAMPLE.name} sets Secrets Manager keys: {leaked}"

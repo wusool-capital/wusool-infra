@@ -35,9 +35,11 @@ _task_runner = get_shared_task_runner()
 _submission_idempotency_store = get_shared_idempotency_store()
 
 
-def _run_enrichment(role: ResolvedOrgRole, channel_id: str) -> None:
+def _run_enrichment(role: ResolvedOrgRole, channel_id: str, requested_by: str) -> None:
     _task_runner.run(
-        lambda: propose_and_post(target_from_resolved(role), channel_id=channel_id),
+        lambda: propose_and_post(
+            target_from_resolved(role), channel_id=channel_id, requested_by=requested_by
+        ),
         name=f"enrich:{role.role_id}",
     )
 
@@ -102,7 +104,11 @@ def register(app: AsyncApp) -> None:
             )
             return
         _task_runner.run(
-            lambda: propose_and_post(target_from_resolved(match), channel_id=channel_id),
+            lambda: propose_and_post(
+                target_from_resolved(match),
+                channel_id=channel_id,
+                requested_by=body["user"]["id"],
+            ),
             name=f"enrich:{role_id}",
         )
 
@@ -126,7 +132,7 @@ def register(app: AsyncApp) -> None:
             return
         if len(roles) == 1:
             await ack()
-            _run_enrichment(roles[0], metadata.channel_id)
+            _run_enrichment(roles[0], metadata.channel_id, metadata.requested_by)
             return
         await ack(
             response_action="update",
@@ -160,7 +166,7 @@ def register(app: AsyncApp) -> None:
         if match is None:
             await _notify_expired(client, metadata)
             return
-        _run_enrichment(match, metadata.channel_id)
+        _run_enrichment(match, metadata.channel_id, metadata.requested_by)
 
     @app.action("enrichment_review")
     async def handle_review(

@@ -20,9 +20,15 @@
 ## Credentials and access
 
 Application secrets live in AWS Secrets Manager and are read by each
-instance's role. GitHub Actions uses AWS OIDC roles, never committed keys.
-Local `.env` files are for development only and are never committed. n8n
-keeps its own users and stored credentials.
+instance's role at startup, so no secret file sits on the instance. Developers
+use the same path with their own AWS sign-in and can read the dev secret only.
+The app's database login can read and change data but not the schema. Only
+the deploy pipeline and admins hold the master login.
+
+Development and production share one AWS account, so an explicit deny, not a
+separate account, keeps developers away from the production secret.
+GitHub Actions uses AWS OIDC roles, never committed keys. Local `.env` files
+hold only non-secret settings and are never committed.
 
 The Toolkit has no user allowlist: anyone who can use the bot in its Slack
 channels can run its commands. Slack app installation and channel membership
@@ -49,6 +55,8 @@ may only use `http`, `https`, or `mailto`.
   topic.
 - **AWS Chatbot** posts infrastructure alarms to Slack. Security findings go
   by email only.
+- **IAM Identity Center** signs people in with MFA and seven-day sessions. The
+  Developer role is denied the production secret.
 - **CloudTrail** runs per environment, across regions, with log-file
   validation.
 - RDS and EC2 volumes are encrypted. OpenTofu state is in an encrypted,
@@ -80,18 +88,18 @@ Bedrock or Firecrawl, then to Attio. Report readers are recorded in
 `tool_runs` with their name, email, company, and the report, but only after
 confirming their code. Test submissions are always flagged.
 
-### n8n
-
-Workflow data and credentials live on its instance volume, which isn't backed
-up. A workflow can send data anywhere its owner configures, so each workflow
-needs its own data-flow review.
-
 ## Logging and examples
 
 CloudWatch receives selected system, bootstrap, and access logs. Application
 logs must never contain bearer tokens, provider keys, transcript bodies, or
-personal or financial payloads. n8n's bootstrap turns off shell tracing before
-reading its secret, so values never reach SSM history or CloudWatch.
+personal or financial payloads. The Toolkit's bootstrap turns off shell tracing
+before reading its secret, so values never reach SSM history or CloudWatch.
+
+A database error's message can quote the row that failed, such as an email in
+a duplicate-key error. The Toolkit's log formatter therefore writes database
+errors as their type, SQLSTATE, and constraint name only. It drops every message
+in an exception chain that contains one. The database engine also hides bound
+parameters, and stored error fields follow the same rule.
 
 Documentation, tests, screenshots, and support messages use synthetic or
 redacted people, companies, credentials, transcripts, and figures.
@@ -99,6 +107,8 @@ redacted people, companies, credentials, transcripts, and figures.
 ## Security failure behavior
 
 - Failed signatures and authentication are rejected before any processing.
+- If the app can't read its secret at startup, it doesn't start. A secret
+  edit changes nothing until the container restarts.
 - Missing optional provider credentials turn that provider off. Missing
   Slack, database, Attio, or desktop credentials stop the affected feature.
 - Lead tools return 403 for a disallowed origin and 429 at the rate limit.

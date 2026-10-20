@@ -142,7 +142,9 @@ async def _handle_enrich_command(
 
     if len(candidates) == 1:
         _task_runner.run(
-            lambda: propose_and_post(target_from_resolved(candidates[0]), channel_id=channel_id),
+            lambda: propose_and_post(
+                target_from_resolved(candidates[0]), channel_id=channel_id, requested_by=user_id
+            ),
             name=f"enrich:{candidates[0].role_id}",
         )
         # The proposal arrives as a channel message, not in this modal — say so

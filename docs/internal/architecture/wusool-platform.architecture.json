@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "14c167a20bb1649efac315d0f23f6342efe331d5"
+      "revision": "9957d889ba1b9c32f9d3b440f539cc9091367bee"
     },
     "viewBox": [
       1300,
@@ -163,7 +163,7 @@
       "id": "research",
       "type": "external",
       "label": "Research providers",
-      "sublabel": "Firecrawl · Diffbot · PDL · Google Places",
+      "sublabel": "Firecrawl \u00b7 Diffbot \u00b7 PDL \u00b7 Apify \u00b7 Places",
       "pos": [
         1000,
         650
@@ -184,31 +184,10 @@
       ]
     },
     {
-      "id": "n8n",
-      "type": "backend",
-      "label": "n8n",
-      "sublabel": "Caddy + Docker Compose",
-      "tag": "EC2 / persistent volume",
-      "pos": [
-        980,
-        130
-      ],
-      "size": [
-        200,
-        64
-      ],
-      "sources": [
-        {
-          "path": "gitbook/technical-documentation/n8n.md",
-          "label": "n8n runtime"
-        }
-      ]
-    },
-    {
       "id": "github",
       "type": "cloud",
       "label": "GitHub Actions",
-      "sublabel": "OIDC · build · OpenTofu · SSM",
+      "sublabel": "OIDC \u00b7 build \u00b7 OpenTofu \u00b7 SSM",
       "pos": [
         980,
         20
@@ -232,7 +211,7 @@
       "id": "operations",
       "type": "security",
       "label": "AWS operations",
-      "sublabel": "SSM access · logs · Secrets",
+      "sublabel": "SSM access \u00b7 logs \u00b7 Secrets",
       "pos": [
         980,
         520
@@ -364,12 +343,11 @@
       "wraps": [
         "toolkit",
         "postgres",
-        "n8n",
         "bedrock",
         "operations",
         "ses"
       ],
-      "pad": 24
+      "pad": 40
     },
     {
       "kind": "security-group",
@@ -470,6 +448,13 @@
     },
     {
       "from": "toolkit",
+      "to": "operations",
+      "label": "secrets at startup (instance role)",
+      "labelDy": 60,
+      "variant": "dashed"
+    },
+    {
+      "from": "toolkit",
       "to": "postgres",
       "label": "SQL",
       "variant": "emphasis",
@@ -489,13 +474,6 @@
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "top"
-    },
-    {
-      "from": "github",
-      "to": "n8n",
-      "label": "OpenTofu + SSM",
-      "variant": "emphasis",
-      "labelDy": 24
     }
   ],
   "cards": [
@@ -520,7 +498,9 @@
       "title": "Operational controls",
       "items": [
         "GitHub OIDC deploys through OpenTofu and SSM",
-        "Alarms and GuardDuty findings reach Slack via AWS Chatbot"
+        "Alarms and GuardDuty findings reach Slack via AWS Chatbot",
+        "The nightly resync runs on its own narrow OIDC role; a heartbeat alarm flags a missed run",
+        "App secrets are read from Secrets Manager at startup, with no secret files on the instance; devs read only the dev secret"
       ]
     }
   ]

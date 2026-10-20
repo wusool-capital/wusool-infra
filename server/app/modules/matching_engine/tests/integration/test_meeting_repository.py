@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.matching_engine.application.buyers import BuyersMixin
+from app.modules.matching_engine.domain.meetings import MIDDLE_TRUNCATED_MARKER
 from app.modules.matching_engine.persistence.repositories.buyers_repository import BuyerRepository
 from app.modules.matching_engine.persistence.repositories.meetings_repository import (
     MeetingRepository,
@@ -30,7 +31,7 @@ async def test_get_recent_by_org_truncates_long_summaries(
     notes = await repo.get_recent_by_org(org.attio_id)
 
     assert all(note.truncated for note in notes)
-    assert all(note.summary.endswith("... [truncated]") for note in notes)
+    assert all(MIDDLE_TRUNCATED_MARKER in note.summary for note in notes)
 
 
 async def test_get_recent_by_org_returns_empty_list_for_org_with_no_meetings(

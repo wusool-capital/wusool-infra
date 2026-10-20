@@ -53,7 +53,7 @@ def test_domain_and_application_dependencies_point_inward() -> None:
         for path in layer_root.rglob("*.py"):
             if "tests" in path.parts:
                 continue
-            relative = str(path.relative_to(_MODULE_ROOT))
+            relative = path.relative_to(_MODULE_ROOT).as_posix()
             allow_pydantic = relative in _PYDANTIC_ALLOWED_PATHS
             found = [
                 name

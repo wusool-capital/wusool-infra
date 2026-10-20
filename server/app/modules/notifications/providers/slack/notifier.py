@@ -18,9 +18,16 @@ class SlackWebClientNotifier:
         self._client = client
 
     async def post_message(
-        self, *, channel: str, text: str, blocks: Sequence[dict[str, Any] | Block] | None = None
+        self,
+        *,
+        channel: str,
+        text: str,
+        blocks: Sequence[dict[str, Any] | Block] | None = None,
+        thread_ts: str | None = None,
     ) -> str:
-        response = await self._client.chat_postMessage(channel=channel, text=text, blocks=blocks)
+        response = await self._client.chat_postMessage(
+            channel=channel, text=text, blocks=blocks, thread_ts=thread_ts
+        )
         return response["ts"]
 
     async def update_message(

@@ -51,31 +51,28 @@ set +x
 aws ecr get-login-password --region "${aws_region}" \
   | docker login --username AWS --password-stdin "${ecr_registry}"
 
-# Each app has its own Secrets Manager secret, containing: slack_bot_token,
-# slack_signing_secret, database_url, and optionally env: {} for extra
-# overrides. github_token is no longer read here - nothing on this instance
-# clones a repository.
+# The app reads its own secret from Secrets Manager at startup through the
+# instance role, so no secret is written to disk. runtime.env holds only
+# Terraform-owned, non-secret settings; process env outranks the secret, so
+# APP_ENV and ATTIO_IS_TEST cannot drift through a stale secret edit.
 #
-# The secret's `env: {}` passthrough is last-wins for operational settings,
-# including ATTIO_IS_TEST. APP_ENV is appended after it because deployment
-# identity comes from Terraform and must not drift through a stale secret.
+# The host still fetches the secret into a shell variable, solely to hash the
+# architecture viewer's Caddy password below. github_token is no longer read
+# here - nothing on this instance clones a repository.
 %{ for app in apps }
 # --- ${app.name} ---
 mkdir -p /opt/toolkit/${app.name}
 SECRET_JSON_${app.slug}=$(aws secretsmanager get-secret-value --secret-id "${app.app_secret_id}" --region "${aws_region}" --query SecretString --output text)
 
-cat > "/opt/toolkit/${app.name}/.env.production" <<ENVEOF
-DATABASE_URL=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.database_url // empty')
-SLACK_BOT_TOKEN=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.slack_bot_token // empty')
-SLACK_SIGNING_SECRET=$(echo "$SECRET_JSON_${app.slug}" | jq -r '.slack_signing_secret // empty')
-AWS_REGION=${aws_region}
+cat > "/opt/toolkit/${app.name}/runtime.env" <<ENVEOF
+APP_ENV=${app_env}
 ATTIO_IS_TEST=${attio_is_test}
+AWS_REGION=${aws_region}
+AWS_SECRETS_MANAGER_SECRET_ID=${app.app_secret_id}
 ENVEOF
-chmod 600 "/opt/toolkit/${app.name}/.env.production"
 
-echo "$SECRET_JSON_${app.slug}" | jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' >> "/opt/toolkit/${app.name}/.env.production"
-echo 'APP_ENV=${app_env}' >> "/opt/toolkit/${app.name}/.env.production"
-chmod 600 "/opt/toolkit/${app.name}/.env.production"
+# Superseded by the app's own secret fetch; remove the plaintext copy.
+rm -f "/opt/toolkit/${app.name}/.env.production"
 %{ endfor }
 
 # The architecture viewer is protected by Caddy Basic Auth. The human-readable
@@ -125,7 +122,7 @@ services:
     expose:
       - "8000"
     env_file:
-      - /opt/toolkit/${app.name}/.env.production
+      - /opt/toolkit/${app.name}/runtime.env
     logging:
       driver: awslogs
       options:

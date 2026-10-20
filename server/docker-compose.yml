@@ -55,21 +55,20 @@ services:
       # Always the bundled `db` service — intentionally not overridable via
       # .env, so a developer's real-tunnel DATABASE_URL never leaks in here.
       DATABASE_URL: postgresql://matching:matching@db:5432/wusool_crm
-      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-xoxb-local-dev}
-      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-local-dev-secret}
-      # Required (no default) by ddl_commands.Settings / attio.Settings —
-      # placeholders here just let the container boot without crashing;
-      # `/edit-*`/`/add-*`/`/webhooks/attio` won't actually reach Attio
-      # unless these are overridden with real values.
-      ATTIO_API_KEY: ${ATTIO_API_KEY:-local-dev-attio-key}
-      ATTIO_WEBHOOK_SECRET: ${ATTIO_WEBHOOK_SECRET:-local-dev-webhook-secret}
+      # Every other secret (Slack, Attio, ...) is read from Secrets Manager at
+      # startup, using the host's AWS profile mounted below.
+      AWS_PROFILE: ${AWS_PROFILE:-wusool-sso}
+      AWS_SECRETS_MANAGER_SECRET_ID: ${AWS_SECRETS_MANAGER_SECRET_ID:-/wusool/dev/toolkit}
+      HOME: /home/app
       ATTIO_IS_TEST: ${ATTIO_IS_TEST:-true}
       AWS_REGION: ${AWS_REGION:-eu-central-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      MEETING_NOTES_MAX_CHARS: ${MEETING_NOTES_MAX_CHARS:-3000}
+      MEETING_NOTES_MAX_TOTAL_CHARS: ${MEETING_NOTES_MAX_TOTAL_CHARS:-12000}
       ENABLE_SELLER_MEETING_NOTES: ${ENABLE_SELLER_MEETING_NOTES:-true}
       SYNC_ALERT_WEBHOOK_URL: ${SYNC_ALERT_WEBHOOK_URL:-}
+    # Read-write: the AWS CLI refreshes cached login/SSO tokens in place.
+    volumes:
+      - ${HOME}/.aws:/home/app/.aws
     depends_on:
       db:
         condition: service_healthy

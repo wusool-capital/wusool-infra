@@ -14,10 +14,17 @@ from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.enrichment.application.ports.company_data import CompanyDataClient
+from app.modules.enrichment.application.ports.linkedin import LinkedInClient
+from app.modules.enrichment.application.ports.linkedin_unit_of_work import (
+    LinkedInHistoryUnitOfWorkFactory,
+)
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
 from app.modules.enrichment.application.service import EnrichmentService
 from app.modules.enrichment.config import get_settings
+from app.modules.enrichment.persistence.linkedin_unit_of_work import SqlAlchemyLinkedInUnitOfWork
 from app.modules.enrichment.persistence.role_lookup import SqlAlchemyRoleReader
+from app.modules.enrichment.providers.apify.company import ApifyLinkedInCompanyClient
+from app.modules.enrichment.providers.apify.linkedin import ApifyLinkedInClient
 from app.modules.enrichment.providers.bedrock.client import BedrockConverseClient
 from app.modules.enrichment.providers.diffbot.client import DiffbotCompanyDataClient
 from app.modules.enrichment.providers.firecrawl.client import FirecrawlResearchClient
@@ -45,8 +52,25 @@ def build_people_data_labs_client(api_key: str) -> PeopleDataLabsCompanyDataClie
     return PeopleDataLabsCompanyDataClient(api_key)
 
 
+def build_apify_linkedin_client(token: str) -> ApifyLinkedInClient:
+    return ApifyLinkedInClient(token)
+
+
+def build_apify_company_client(token: str) -> ApifyLinkedInCompanyClient:
+    return ApifyLinkedInCompanyClient(token)
+
+
 def build_role_reader(sessionmaker: async_sessionmaker[AsyncSession]) -> SqlAlchemyRoleReader:
     return SqlAlchemyRoleReader(sessionmaker)
+
+
+def build_linkedin_history_uow_factory(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> LinkedInHistoryUnitOfWorkFactory:
+    def _factory() -> SqlAlchemyLinkedInUnitOfWork:
+        return SqlAlchemyLinkedInUnitOfWork(sessionmaker)
+
+    return _factory
 
 
 def build_slack_notifier() -> SlackWebClientNotifier:
@@ -60,6 +84,7 @@ def build_enrichment_service(
     research_client: FirecrawlResearchClient | None,
     review_port: EnrichmentReviewPort,
     company_data_clients: tuple[CompanyDataClient, ...] = (),
+    linkedin_client: LinkedInClient | None = None,
 ) -> EnrichmentService:
     settings = get_settings()
     return EnrichmentService(
@@ -72,6 +97,10 @@ def build_enrichment_service(
         max_tokens=settings.llm_max_tokens,
         min_confidence=settings.enrichment_min_confidence,
         company_data_clients=company_data_clients,
+        linkedin_client=linkedin_client,
+        linkedin_history_uow_factory=(
+            build_linkedin_history_uow_factory(sessionmaker) if linkedin_client else None
+        ),
     )
 
 

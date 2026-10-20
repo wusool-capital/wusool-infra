@@ -16,18 +16,17 @@ deploy anything; they have their own release steps below.
    stacks with changes since then are applied; a workflow or shared `tfvars`
    change applies every stack.
 3. **Base**, if changed.
-4. **n8n**, if changed: apply, run the bootstrap SSM document (two attempts of
-   up to 15 minutes), then poll `/healthz`.
-5. **Toolkit**: apply with the new image digest, which only *registers* a new
+4. **Toolkit**: apply with the new image digest, which only *registers* a new
    bootstrap document.
-6. **Migrate**: run `alembic upgrade head` on the Toolkit instance through
-   SSM, with two attempts. A failed migration stops the deploy before the new
-   version is rolled out.
-7. **Roll out**: run the bootstrap document, which pulls the new image and
+5. **Migrate**: run `alembic upgrade head` on the Toolkit instance through
+   SSM, with two attempts. Migrations use the database master login. The same
+   step then updates the app's data-only database role. A failure stops the
+   deploy before the new version is rolled out.
+6. **Roll out**: run the bootstrap document, which pulls the new image and
    restarts the container. It then removes old Docker images so they can't
    fill the disk.
-8. **Check**: poll `/health`, then check that `/embed.js` returns 200.
-9. **PostgreSQL**, if changed, last.
+7. **Check**: poll `/health`, then check that `/embed.js` returns 200.
+8. **PostgreSQL**, if changed, last.
 
 A stack's deployed commit is recorded only when its steps succeed. Deploys
 are never cancelled midway.
@@ -36,7 +35,7 @@ are never cancelled midway.
 
 - Pull requests to `dev` and `prod` must pass the database schema check,
   which runs `./checks.sh schema` against a disposable PostgreSQL.
-- `terraform-ci` validates all seven stacks, and `terraform-plan` comments
+- `terraform-ci` validates all six stacks, and `terraform-plan` comments
   plans on the pull request.
 - Locally, run `./checks.sh` from `server/` as described in the repository's
   contributor guide.
@@ -53,6 +52,14 @@ are never cancelled midway.
 **If a deploy fails:** don't rerun a failed apply repeatedly. Read the first
 failing step, check whether infrastructure or a migration partly completed,
 and inspect the logs. See `docs/runbooks/deployment-failure-and-rollback.md`.
+
+## Change a secret
+
+The Toolkit reads its Secrets Manager secret when the container starts, so an
+edit needs no bootstrap run. Restart the container through Systems Manager, or
+let the next deploy do it. Secrets Manager keeps the previous version, so a bad
+edit can be moved back. The environment name and test-mode flag come from
+Terraform, so the secret can't override them.
 
 ## Roll back the Toolkit
 
@@ -78,13 +85,10 @@ Migrations only go forward; there is no automatic database rollback. Don't
 run old code against a schema it doesn't understand. Use a forward fix or a
 recovery plan agreed with the database owner.
 
-## Roll back n8n or infrastructure
+## Roll back infrastructure
 
-Revert the change, review a fresh plan, and deploy through the branch. For
-n8n, rollback means restoring the previous image digest in the environment's
-`tfvars`. As with the Toolkit, applying only registers the bootstrap document,
-and the deploy then runs it. Escalate any plan that proposes replacing RDS,
-changing state, or deleting resources.
+Revert the change, review a fresh plan, and deploy through the branch.
+Escalate any plan that proposes replacing RDS, changing state, or deleting resources.
 
 ## Stacks applied by hand
 

@@ -15,6 +15,7 @@ from app.modules.enrichment.api.slack.handlers import actions as actions_module
 from app.modules.enrichment.bootstrap import create_app
 from app.modules.enrichment.config import get_settings
 from app.modules.enrichment.domain.targets import ResolvedOrgRole
+from app.modules.enrichment.tests.fakes.enrichment_calls import record_enrichment_calls
 from tests.slack_test_helpers import mock_slack_auth, mock_slack_ephemeral
 from tests.slack_test_helpers import post_interactivity as _shared_post_interactivity
 
@@ -297,3 +298,83 @@ def test_buyer_organization_with_one_role_enriches_without_a_vertical_step(monke
     assert response.status_code == 200
     assert response.text == ""  # closes the modal; no vertical step to show
     assert calls == [f"enrich:{role_id}"]
+
+
+def test_role_selection_passes_the_submitting_user_to_the_enrichment(monkeypatch) -> None:
+    async def fake_resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
+        return [
+            ResolvedOrgRole(
+                org_attio_id="org-1",
+                org_name="Blue Horizon",
+                role_id="fae6496c-63bf-42d1-873b-e432ad2bcd39",
+                kind="seller",
+            )
+        ]
+
+    mock_slack_auth(monkeypatch)
+    calls = record_enrichment_calls(monkeypatch, actions_module)
+    monkeypatch.setattr(
+        "app.modules.enrichment.api.dependencies.resolve_org_roles", fake_resolve_org_roles
+    )
+    payload = _role_selection_payload(view_id="V_USER")
+    payload["user"] = {"id": "U_SUBMITTER"}
+
+    assert _post_interactivity(payload, get_settings()).status_code == 200
+
+    assert [(c.channel_id, c.requested_by) for c in calls] == [("C_TEST", "U_SUBMITTER")]
+
+
+def _buyer_payload(callback_id: str, view_id: str, state: dict) -> dict:
+    from app.modules.enrichment.api.slack.views.buyer_selection import (
+        BuyerSelectionMetadata,
+        encode_roles,
+    )
+
+    role = ResolvedOrgRole(
+        org_attio_id="org-1",
+        org_name="Google Ventures",
+        role_id="fae6496c-63bf-42d1-873b-e432ad2bcd39",
+        kind="buyer",
+    )
+    return {
+        "type": "view_submission",
+        "user": {"id": "U_BUYER"},
+        "view": {
+            "type": "modal",
+            "id": view_id,
+            "callback_id": callback_id,
+            "private_metadata": BuyerSelectionMetadata(
+                requested_by="U_BUYER", channel_id="C_TEST", roles_token=encode_roles([role])
+            ).model_dump_json(),
+            "state": {"values": state},
+        },
+    }
+
+
+def test_buyer_vertical_passes_the_user_to_the_enrichment(monkeypatch) -> None:
+    mock_slack_auth(monkeypatch)
+    calls = record_enrichment_calls(monkeypatch, actions_module)
+    role_id = "fae6496c-63bf-42d1-873b-e432ad2bcd39"
+    payload = _buyer_payload(
+        "enrichment_buyer_vertical_modal",
+        "V_BV_USER",
+        {"buyer_vertical": {"selected_vertical": {"selected_option": {"value": role_id}}}},
+    )
+
+    assert _post_interactivity(payload, get_settings()).status_code == 200
+
+    assert [(c.role_id, c.requested_by) for c in calls] == [(role_id, "U_BUYER")]
+
+
+def test_single_role_buyer_organization_passes_the_user_to_the_enrichment(monkeypatch) -> None:
+    mock_slack_auth(monkeypatch)
+    calls = record_enrichment_calls(monkeypatch, actions_module)
+    payload = _buyer_payload(
+        "enrichment_buyer_organization_modal",
+        "V_BO_USER",
+        {"organization_id": {"selected_organization": {"selected_option": {"value": "org-1"}}}},
+    )
+
+    assert _post_interactivity(payload, get_settings()).status_code == 200
+
+    assert [c.requested_by for c in calls] == ["U_BUYER"]

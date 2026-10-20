@@ -16,7 +16,7 @@ stack:
    `embed.js` are included — `pyproject.toml`'s hatchling `packages =
    ["app"]` ships every non-Python file under `app/`, so no Dockerfile
    change was needed).
-2. `tofu apply` the `toolkit` stack (dependency order: base → n8n → toolkit
+2. `tofu apply` the `toolkit` stack (dependency order: base → toolkit
    → postgres).
 3. Run any pending Alembic migration — none is expected for this module,
    `tool_runs` and the `seller_roles` columns already exist.
@@ -49,8 +49,12 @@ EC2 instance's own IAM role (`modules/bedrock-access`), which is already
 granted in both `envs/dev.tfvars` and `envs/prod.tfvars`. Adding a key
 setting here would recreate the exact problem this migration removes.
 
-A secret edit only takes effect after the bootstrap SSM document re-runs
-(`.env.production` is generated at bootstrap, not read live) — see §5.
+The app reads this secret itself at startup, through the instance role; no
+secret file is written to the instance. A secret edit takes effect when the
+container restarts (`docker restart toolkit-toolkit-1` over SSM, or the next
+deploy), with no bootstrap re-run. Terraform-owned settings (`APP_ENV`,
+`ATTIO_IS_TEST`) come from `runtime.env` and cannot be overridden from the
+secret.
 
 ## 3. One-time: non-secret config (`envs/*.tfvars` + container env)
 
@@ -112,10 +116,10 @@ this step — it's one-time per hostname, not per deploy.
 
 ## 5. One-time: re-run the bootstrap document
 
-A Secrets Manager edit or a new `toolkit_extra_hostnames` value only takes
-effect once the instance's SSM bootstrap document re-runs (it writes
-`.env.production` and the Caddy site config from current secret/tfvars
-state, once, at bootstrap — neither is read live). After §2–4:
+A new `toolkit_extra_hostnames` value only takes effect once the instance's
+SSM bootstrap document re-runs (it writes the Caddy site config from current
+tfvars state, once, at bootstrap — not read live). Secret edits no longer need
+this; the app reads the secret at startup. After §3–4:
 
 ```bash
 aws ssm send-command --document-name wusool-toolkit-bootstrap \
@@ -322,5 +326,5 @@ Nothing to configure for this beyond the two interval settings already in
 paste).
 
 **Every deploy after that:** merge to `dev`/`main` → `_deploy.yml` does the
-rest automatically. Only repeat §5 if a future change edits the secret or
-`toolkit_extra_hostnames` again.
+rest automatically. Only repeat §5 if a future change edits
+`toolkit_extra_hostnames`; secret edits need only a container restart.

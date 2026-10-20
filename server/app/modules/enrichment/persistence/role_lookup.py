@@ -12,11 +12,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
-from app.models import BuyerRole, SellerRole
+from app.models import BuyerRole, Person, SellerRole
 from app.modules.enrichment.domain.field_plans import WriteTarget, enrichable_fields_for
+from app.modules.enrichment.domain.linkedin import Contact, LinkedInTargets
 from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.utilities.domain.json_types import JsonObject
+
+# Each contact is billed per profile, and a buyer has one key contact anyway.
+_MAX_CONTACTS = 3
 
 _ROLE_MODEL = {
     EnrichmentTargetKind.SELLER: SellerRole,
@@ -103,3 +107,50 @@ class SqlAlchemyRoleReader:
             )
 
         return values, context
+
+    async def load_linkedin_targets(
+        self, target: EnrichmentTarget, *, include_contacts: bool = True
+    ) -> LinkedInTargets:
+        """Buyer: the role's key contact. Seller: the organization's people.
+        Contacts with a LinkedIn URL sort first so the cap spends scrapes on
+        people we can actually look up. Off, only the company page is read."""
+        role_model = _ROLE_MODEL[target.kind]
+        async with self._sessionmaker() as session:
+            role = (
+                await session.execute(
+                    select(role_model)
+                    .where(role_model.id == target.role_id)
+                    .options(selectinload(role_model.organization))
+                )
+            ).scalar_one_or_none()
+            if role is None:
+                return LinkedInTargets()
+            org = role.organization
+            if not include_contacts:
+                return LinkedInTargets(company_url=org.linkedin)
+
+            people_query = select(Person).where(Person.removed_at.is_(None))
+            if isinstance(role, BuyerRole):
+                if role.key_contact_attio_id is None:
+                    return LinkedInTargets(company_url=org.linkedin)
+                people_query = people_query.where(Person.attio_id == role.key_contact_attio_id)
+            else:
+                people_query = people_query.where(Person.company_attio_id == org.attio_id)
+            people = (
+                await session.execute(
+                    people_query.order_by(
+                        Person.linkedin.is_(None), Person.name, Person.attio_id
+                    ).limit(_MAX_CONTACTS)
+                )
+            ).scalars()
+            contacts = tuple(
+                Contact(
+                    person_attio_id=p.attio_id,
+                    name=p.name,
+                    company_name=org.name,
+                    linkedin_url=p.linkedin,
+                    job_title=p.job_title,
+                )
+                for p in people
+            )
+        return LinkedInTargets(contacts=contacts, company_url=org.linkedin)

@@ -8,7 +8,6 @@ or completed restore test is recorded for any system.
 | Data | Protection | Gaps |
 | --- | --- | --- |
 | PostgreSQL (RDS) | Encrypted; deletion protection; 7 days of automated backups with point-in-time restore; a final snapshot kept on deletion | Single availability zone; no AWS Backup plan, cross-region copy, or manual snapshot schedule |
-| n8n workflows, credentials, executions | None | **No backup at all.** Losing the instance volume loses everything. |
 | Report and article content | Held in Sanity, including each report's rendered HTML | No export or backup in the repository; Sanity's Free plan keeps limited history |
 | Webflow site and CMS items | Webflow's own features only | No export in the repository; report cards can be rebuilt by republishing in Sanity |
 | Attio | Attio's own features only | No export in the repository |
@@ -59,9 +58,6 @@ procedure.
   Webflow card. If the Sanity content itself is lost, there is **no recovery
   path**: the rendered reports live in Sanity too. Exporting the Sanity
   dataset regularly is an open handover item.
-- **n8n:** with no backup, only the infrastructure can be rebuilt; workflows
-  and credentials must be re-created by hand. Adding a snapshot schedule is an
-  open handover item.
 
 Escalate any unclear recovery point, incompatible migration, missing secret,
 proposed instance deletion, or reconciliation mismatch.

@@ -22,12 +22,13 @@ and `attio_sync.sync_note` was already hardcoding the literal anyway.
 
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from app.modules.attio.domain.scope import record_scope
+from app.modules.utilities import SecretsManagerSettings
 
 
-class AttioSettings(BaseSettings):
+class AttioSettings(SecretsManagerSettings):
     """Attio settings. Instantiate the module's own via `get_settings()`, or
     compose this class as a field from another module's `Settings`."""
 

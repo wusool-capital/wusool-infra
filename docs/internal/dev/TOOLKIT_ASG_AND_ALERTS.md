@@ -59,17 +59,15 @@ automating, the next step is a Lambda that calls
 `autoscaling:SetInstanceHealth` off this alarm — not built, because it adds
 real Lambda-authoring/IAM surface and there's no evidence yet it's needed.
 
-## Alarms (all five route to `#infra-alerts`)
+## Alarms (all three route to `#infra-alerts`)
 
 | Alarm | Namespace / region | Fires when |
 |---|---|---|
 | `wusool-<env>-toolkit-not-in-service` | `AWS/AutoScaling`, eu-central-1 | ASG has 0 in-service instances |
 | `wusool-<env>-toolkit-high-cpu` | `AWS/EC2`, eu-central-1 | Toolkit instance CPU > 85% for 3×5min |
 | `wusool-<env>-toolkit-unreachable` | `AWS/Route53`, **us-east-1** | External `/health` check fails |
-| `wusool-<env>-n8n-status-check` | `AWS/EC2`, eu-central-1 | n8n instance fails AWS status checks (pre-existing, untouched) |
-| `wusool-<env>-n8n-high-cpu` | `AWS/EC2`, eu-central-1 | n8n instance CPU > 85% (pre-existing, untouched) |
 
-All five notify the same per-environment SNS topic
+All three notify the same per-environment SNS topic
 (`stacks/base`'s `aws_sns_topic.alerts`), which is what Chatbot subscribes
 to — nothing alarm-specific to configure when adding a sixth alarm later,
 as long as it points its `alarm_actions` at `var.alarm_topic_arn` (or, for a

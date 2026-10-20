@@ -5,6 +5,8 @@ from functools import lru_cache
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.modules.utilities import SecretsManagerSettings
+
 # Same member `lead_magnets` owns its deals with; the Attio key decides which workspace it lands in.
 _DEFAULT_DEAL_OWNER_ID = "bb40387a-b57b-491e-b8a6-9ba593d6e97d"
 
@@ -35,7 +37,7 @@ class ConfidenceSettings(BaseSettings):
     stale_data_penalty: float = 0.15
 
 
-class Settings(BaseSettings):
+class Settings(SecretsManagerSettings):
     """Root application settings. Instantiate via `get_settings()`."""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -78,8 +80,8 @@ class Settings(BaseSettings):
 
     # Meeting-notes enrichment: free-text call/meeting notes (`meetings`
     # table) appended to the buyer/reasoning prompts as unverified context.
-    meeting_notes_max_chars: int = 600
-    meeting_notes_max_total_chars: int = 4000
+    meeting_notes_max_chars: int = Field(default=3000, gt=0)
+    meeting_notes_max_total_chars: int = Field(default=12000, gt=0)
     enable_seller_meeting_notes: bool = True
 
     # Attio workspace member who owns the Qualified deal an approval creates.

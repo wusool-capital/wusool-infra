@@ -6,6 +6,10 @@ matter how many mixins it combines. Mirrors `matching_engine`'s own
 """
 
 from app.modules.enrichment.application.ports.company_data import CompanyDataClient
+from app.modules.enrichment.application.ports.linkedin import LinkedInClient
+from app.modules.enrichment.application.ports.linkedin_unit_of_work import (
+    LinkedInHistoryUnitOfWorkFactory,
+)
 from app.modules.enrichment.application.ports.llm import ExtractionClient
 from app.modules.enrichment.application.ports.research import ResearchClient
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
@@ -25,6 +29,8 @@ class ServiceBase:
         max_tokens: int,
         min_confidence: float,
         company_data_clients: tuple[CompanyDataClient, ...] = (),
+        linkedin_client: LinkedInClient | None = None,
+        linkedin_history_uow_factory: LinkedInHistoryUnitOfWorkFactory | None = None,
     ) -> None:
         self._research_client = research_client
         self._extraction_client = extraction_client
@@ -34,8 +40,10 @@ class ServiceBase:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._min_confidence = min_confidence
-        # Structured company-data tier of the seller research waterfall
-        # (Diffbot, then People Data Labs) — tried in order, before the
-        # free-text `ResearchClient` + LLM extraction path. Empty for
-        # buyer targets: see `EnrichMixin.propose`.
+        # Structured company-data tier, tried in order before the free-text
+        # research path: Diffbot, PDL, then the LinkedIn page.
         self._company_data_clients = company_data_clients
+        # Optional: unset (no Apify token) skips the LinkedIn scan entirely.
+        self._linkedin_client = linkedin_client
+        # Optional: without it every scan reports everything it finds.
+        self._linkedin_history_uow_factory = linkedin_history_uow_factory

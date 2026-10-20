@@ -9,9 +9,12 @@ out-of-scope record must not open a session at all.
 
 import pytest
 
+from app.modules.attio import WebhookEvent
 from app.modules.attio.config import record_scope
 from app.modules.attio.providers.attio import values as v
 from app.modules.ddl_commands.persistence import attio_sync as upsert
+
+_EVENT = WebhookEvent(event_type="record.updated")
 
 
 def _values(is_test: bool | None) -> dict:
@@ -101,7 +104,7 @@ async def test_out_of_scope_record_is_not_written(monkeypatch, sync_fn, path_fra
     monkeypatch.setattr(upsert, "get_sessionmaker", _explode)
     client = _FakeClient(_record(is_test=True))
 
-    await sync_fn(client, "rec-1")
+    await sync_fn(client, "rec-1", _EVENT)
 
     assert client.get_calls == [f"{path_fragment}rec-1"]
 
@@ -112,7 +115,7 @@ async def test_out_of_scope_role_entry_is_not_written(monkeypatch, list_slug) ->
     sync_fn = getattr(upsert, f"sync_{list_slug}")
     client = _FakeClient(_entry(is_test=True))
 
-    await sync_fn(client, "entry-1")
+    await sync_fn(client, "entry-1", _EVENT)
 
     assert client.get_calls == [f"/lists/{list_slug}/entries/entry-1"]
 
@@ -129,7 +132,7 @@ async def test_out_of_scope_role_entry_returns_before_fetching_siblings(
     sync_fn = getattr(upsert, f"sync_{list_slug}")
     client = _FakeClient(_entry(is_test=True))
 
-    await sync_fn(client, "entry-1")
+    await sync_fn(client, "entry-1", _EVENT)
 
     assert client.post_calls == []
 
@@ -144,7 +147,18 @@ class _FakeResult:
         return "row-1"
 
 
+class _FakeNested:
+    async def __aenter__(self) -> "_FakeNested":
+        return self
+
+    async def __aexit__(self, *_exc: object) -> None:
+        return None
+
+
 class _FakeSession:
+    def begin_nested(self) -> _FakeNested:
+        return _FakeNested()
+
     async def execute(self, *_args, **_kwargs) -> _FakeResult:
         return _FakeResult()
 
@@ -191,6 +205,6 @@ async def test_a_newer_test_entry_never_deactivates_a_production_entry(monkeypat
     newer_test = _entry(True, entry_id="entry-test") | {"created_at": "2026-09-01T00:00:00Z"}
 
     client = _SiblingClient(production, [production, newer_test])
-    await upsert.sync_seller_role(client, "entry-prod")
+    await upsert.sync_seller_role(client, "entry-prod", _EVENT)
 
     assert not any("entry-prod" in path for path in client.patch_calls)

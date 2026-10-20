@@ -4,8 +4,9 @@ concerns this module has.
 """
 
 from app.modules.enrichment.application.enrich import EnrichMixin
+from app.modules.enrichment.application.linkedin import LinkedInMixin
 from app.modules.enrichment.application.review import ReviewMixin
 
 
-class EnrichmentService(EnrichMixin, ReviewMixin):
+class EnrichmentService(EnrichMixin, LinkedInMixin, ReviewMixin):
     pass

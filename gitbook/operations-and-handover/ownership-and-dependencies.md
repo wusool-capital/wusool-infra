@@ -16,7 +16,6 @@ and keep them current in the client's operations register.
 | Slack | Toolkit app, workspace access, alerts channel | Unassigned |
 | Sanity Reports & Insights Studio | Report and article content, editors, webhooks | Unassigned |
 | Webflow | The website and its CMS collections | Unassigned |
-| n8n | Users, workflows, credentials, execution history | Unassigned |
 | Cloudflare | Public DNS for service hostnames | Unassigned |
 | WusoolScribe | Desktop releases, update feed, signing key, CRM submission | Unassigned |
 
@@ -35,6 +34,7 @@ Billing owners and plans aren't recorded in the repository unless stated.
 | Firecrawl | Web search for enrichment and Valuation | Unknown |
 | Diffbot | Structured company data | Free tier, 10,000 credits a month |
 | People Data Labs | Structured company data | Free tier, 100 lookups a month |
+| Apify (HarvestAPI actors) | LinkedIn company pages and posts for enrichment (profiles built, not used) | Pay per use. Free plan: $5 credit a month. Set a monthly spend cap |
 | Slack | Toolkit bot and alerts | Unknown |
 | Cloudflare | DNS | Unknown |
 | GitHub | Source control and Actions | Unknown |

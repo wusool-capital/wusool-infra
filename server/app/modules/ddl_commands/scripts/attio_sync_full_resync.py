@@ -30,7 +30,7 @@ agree while both are wrong — see the plan doc for that known gap.
 
 import asyncio
 import logging
-import resource
+import sys
 import time
 from collections.abc import AsyncIterator, Callable
 
@@ -45,12 +45,25 @@ from app.modules.attio.providers.attio.retry import post_with_retry
 from app.modules.ddl_commands.config import get_settings
 from app.modules.ddl_commands.persistence import attio_sync as upsert
 from app.modules.ddl_commands.persistence.database import get_sessionmaker, import_all_models
+from app.modules.ddl_commands.persistence.raw_events import prune_raw_events
+from app.modules.ddl_commands.persistence.resync_state import (
+    ObjectResult,
+    ResyncSummary,
+    record_resync_state,
+)
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.logging import configure_logging
+from app.modules.utilities.domain.safe_errors import describe_error
+
+# Unix-only; guarded so the unit tests also collect on Windows dev machines.
+if sys.platform != "win32":
+    import resource
 
 _logger = logging.getLogger("app.modules.ddl_commands.attio_sync.full_resync")
 
 _PAGE_SIZE: int = 500
+# Raw webhook events are for replay and debugging, so a quarter is plenty.
+_RAW_EVENT_RETENTION_DAYS: int = 90
 # Bounded well under the DB engine's default pool ceiling (pool_size=5 +
 # max_overflow=10 = 15, shared/database/session.py) -- each concurrent
 # batch/reconciliation task holds its own session.
@@ -73,6 +86,8 @@ _ID_QUERY = {
 
 def _rss_mb() -> float:
     """Return the process's maximum resident set size in MiB on Linux."""
+    if sys.platform == "win32":
+        return 0.0
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
 
@@ -588,8 +603,12 @@ async def run() -> None:
     # Its own client rather than the shared `get_attio_client()`: that one is
     # `lru_cache`d process-wide and this script closes what it opens.
     client = AttioClient(get_attio_settings().api_key)
+    started = time.monotonic()
     try:
         await _run(client)
+    except Exception as exc:
+        await _record_crash(exc, time.monotonic() - started)
+        raise
     finally:
         await client.aclose()
 
@@ -734,16 +753,65 @@ async def _run(client: AttioClientProtocol) -> None:
     total_failed = sum(failed for _, failed in summary.values())
     for slug, (ok, failed) in summary.items():
         _logger.info("full resync: %-14s synced=%-5d failed=%d", slug, ok, failed)
+    duration = time.monotonic() - run_started
     _logger.info(
         "full resync complete: synced=%d failed=%d duration=%.1fs",
         total_ok,
         total_failed,
-        time.monotonic() - run_started,
+        duration,
     )
+    await _record_run(summary, total_ok, total_failed, duration)
 
     if total_failed:
         # Non-zero exit code — the SSM/GH Actions caller must see this as failed.
         raise SystemExit(1)
+
+
+async def _record_run(
+    summary: dict[str, tuple[int, int]], total_ok: int, total_failed: int, duration: float
+) -> None:
+    """Prunes old raw events and records this run in `attio_sync_state`. Neither
+    may change the run's exit code: the sync itself already finished."""
+    pruned = 0
+    try:
+        pruned = await prune_raw_events(_RAW_EVENT_RETENTION_DAYS)
+    except Exception:
+        _logger.error("full resync: failed to prune attio_raw_events", exc_info=True)
+    try:
+        await record_resync_state(
+            ResyncSummary(
+                status="failed" if total_failed else "succeeded",
+                duration_seconds=round(duration, 1),
+                total_synced=total_ok,
+                total_failed=total_failed,
+                objects=[
+                    ObjectResult(name=name, synced=ok, failed=failed)
+                    for name, (ok, failed) in summary.items()
+                ],
+                raw_events_pruned=pruned,
+            )
+        )
+    except Exception:
+        _logger.error("full resync: failed to record attio_sync_state", exc_info=True)
+
+
+async def _record_crash(exc: Exception, duration: float) -> None:
+    """A run that raised before `_record_run` would otherwise leave the last
+    success looking current. Best-effort: the original error must still surface."""
+    try:
+        await record_resync_state(
+            ResyncSummary(
+                status="failed",
+                duration_seconds=round(duration, 1),
+                total_synced=0,
+                total_failed=0,
+                objects=[],
+                raw_events_pruned=0,
+                error=describe_error(exc)[:500],
+            )
+        )
+    except Exception:
+        _logger.error("full resync: failed to record the crash in attio_sync_state", exc_info=True)
 
 
 def main() -> None:
