@@ -76,8 +76,14 @@ deletion reconciliation.
 - **Bookkeeping:** it deletes raw events older than 90 days and records
   its counts in `attio_sync_state`. It writes no `activities` rows.
 
-If no Toolkit instance is running, the job warns and skips. A failure alerts
-the production infrastructure topic.
+The job signs in with its own narrow role, `wusool-gha-attio-resync-prod`.
+Only this workflow can use it. If no Toolkit instance is running, the job
+fails, unless production is deliberately set to `create_instance = false`.
+A failure alerts the production infrastructure topic. Each successful run
+also records a heartbeat in CloudWatch. If none arrives for 30 hours, an
+alarm alerts the same topic. That catches nights the workflow never runs.
+The window is 30 hours because GitHub often starts the schedule up to three
+hours late.
 
 ## Writes from the Toolkit
 

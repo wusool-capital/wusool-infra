@@ -15,8 +15,8 @@ _ALLOWED = {
 
 def test_only_check_buyer_and_find_match_ask_for_context() -> None:
     found = {
-        str(path.relative_to(_APP))
+        path.relative_to(_APP).as_posix()
         for path in _APP.rglob("*.py")
-        if "/tests/" not in str(path) and _LABEL in path.read_text()
+        if "/tests/" not in path.as_posix() and _LABEL in path.read_text(encoding="utf-8")
     }
     assert found == _ALLOWED

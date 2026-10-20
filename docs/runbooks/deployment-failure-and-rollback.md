@@ -51,7 +51,11 @@ P1 — Treat destructive changes, data loss, or security impact as P0.
    `/opt/toolkit/toolkit/runtime.env` holds the right
    `AWS_SECRETS_MANAGER_SECRET_ID`. A secret edit needs only a container
    restart, not a bootstrap re-run.
-7. If the first failure is service-specific, use
+7. If `Find the current toolkit instance` fails with "Toolkit ASG ... has no
+   running instance", the ASG is replacing its instance. Earlier deploys
+   skipped migrations and the rollout here and still passed. Wait until the
+   ASG shows one `InService` instance, then rerun the deploy.
+8. If the first failure is service-specific, use
    [toolkit-outage.md](toolkit-outage.md) or
    [n8n-outage.md](n8n-outage.md).
 

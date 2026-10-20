@@ -60,7 +60,7 @@ jobs:
 
       - uses: ./.github/actions/aws-oidc
         with:
-          role_arn: arn:aws:iam::030179310793:role/wusool-gha-apply-prod
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-attio-resync-prod
 
       - name: Find the current toolkit instance
         id: toolkit
@@ -76,9 +76,21 @@ jobs:
           ./.github/scripts/nightly-attio-resync.sh \
             "$IID" "${{ github.run_id }}" "/wusool/prod/toolkit"
 
+      # Feeds the attio-resync-heartbeat alarm (modules/toolkit-ec2). A publish
+      # error must not page as a failed resync; the alarm covers it.
+      - name: Publish heartbeat metric
+        if: steps.toolkit.outputs.instance_id != ''
+        continue-on-error: true
+        run: |
+          aws cloudwatch put-metric-data \
+            --namespace wusool/prod/toolkit \
+            --metric-name AttioNightlyResyncSuccess \
+            --value 1
+
+      # Empty only when no ASG exists; an ASG without an instance already failed above.
       - name: No toolkit instance in prod
         if: steps.toolkit.outputs.instance_id == ''
-        run: echo "::warning::No running toolkit instance found in prod (create_instance=false, or the ASG is mid-replacement) — skipping nightly resync. If this wasn't a deliberate create_instance=false, re-run this workflow."
+        run: echo "::notice::No prod toolkit ASG exists (create_instance = false) — skipping nightly resync."
 
       # A failed run used to be visible only in the Actions tab, which is how
       # ten consecutive failures (2026-09-03 to 2026-09-12) went unnoticed.

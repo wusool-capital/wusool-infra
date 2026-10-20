@@ -500,6 +500,7 @@
       "items": [
         "GitHub OIDC deploys through OpenTofu and SSM",
         "Alarms and GuardDuty findings reach Slack via AWS Chatbot",
+        "The nightly resync runs on its own narrow OIDC role; a heartbeat alarm flags a missed run",
         "App secrets are read from Secrets Manager at startup, with no secret files on the instance; devs read only the dev secret"
       ]
     }

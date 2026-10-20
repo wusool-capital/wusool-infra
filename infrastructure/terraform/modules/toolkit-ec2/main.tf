@@ -526,6 +526,24 @@ resource "aws_cloudwatch_metric_alarm" "history_write_failed" {
   ok_actions          = local.alarm_actions
 }
 
+# Catches nights the resync never runs. 30 h because GitHub fires the cron up to 3 h late.
+resource "aws_cloudwatch_metric_alarm" "attio_resync_heartbeat" {
+  count = var.environment == "prod" ? 1 : 0
+
+  alarm_name          = "${var.project}-${var.environment}-attio-resync-heartbeat"
+  alarm_description   = "No successful nightly Attio resync in 30 hours. Check the nightly-attio-sync workflow runs; see docs/runbooks/attio-sync-failure.md."
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 30
+  metric_name         = "AttioNightlyResyncSuccess"
+  namespace           = "${var.project}/${var.environment}/toolkit"
+  period              = 3600
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+}
+
 # External reachability check, run from outside AWS's network — the layer
 # that catches a network-path blip while the instance itself stays healthy
 # (confirmed against a real incident: 2026-09-09 prod, CPU flat, zero

@@ -299,7 +299,9 @@ toolkit's rollout trusts apply's exit code alone — each re-invokes its SSM
 bootstrap document and polls until the app is confirmed serving `/healthz`
 (n8n) or `/health` (toolkit) with a `200`. Authentication is GitHub OIDC role
 assumption (`wusool-gha-apply-dev` / `wusool-gha-apply-prod`, scoped by
-branch in their trust policy) — no static AWS keys. `terraform-plan.yml`
+branch in their trust policy) — no static AWS keys. The nightly Attio resync
+uses its own narrow `wusool-gha-attio-resync-prod` role, trusted for that
+workflow only. `terraform-plan.yml`
 comments a plan on every pull request; `terraform-ci.yml` runs
 `fmt`/`validate`; `ci.yml` runs `ruff`/`ty`/`pytest` for the `server/` app
 (one project — the root suite plus every module's own suite under

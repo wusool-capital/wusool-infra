@@ -46,5 +46,7 @@ class ToolStatic(StaticFiles):
             f"frame-ancestors {get_settings().lead_magnet_frame_ancestors}"
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Cache-Control"] = _IMMUTABLE if path.startswith("img/") else _SHORT
+        # Starlette passes an OS-native path, so `img\x.png` on Windows.
+        is_image = Path(path).parts[:1] == ("img",)
+        response.headers["Cache-Control"] = _IMMUTABLE if is_image else _SHORT
         return response
