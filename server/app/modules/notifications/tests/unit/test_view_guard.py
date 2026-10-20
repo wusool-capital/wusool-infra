@@ -108,13 +108,23 @@ async def test_guarded_ack_guards_response_action_view() -> None:
     assert _initial(json.loads(ack.response.body)["view"]) == "12"
 
 
-async def test_every_bolt_app_acks_through_the_guard() -> None:
+async def test_guarded_ack_guards_a_whole_response_dict() -> None:
+    ack = GuardedAck()
+    await ack({"response_action": "update", "view": _view("12.0", is_decimal_allowed=False)})
+
+    assert ack.response is not None
+    assert _initial(json.loads(ack.response.body)["view"]) == "12"
+
+
+async def test_every_bolt_app_listener_sends_through_the_guard() -> None:
     seen: list[AsyncAck] = []
 
     def register(app: AsyncApp) -> None:
         @app.view("form")
-        async def handle(ack: AsyncAck) -> None:
+        async def handle(ack: AsyncAck, client: AsyncWebClient) -> None:
             seen.append(ack)
+            await client.views_update(view_id="V2", view=_view("12.0", is_decimal_allowed=False))
+            await client.chat_postMessage(channel="C1", text="https://example.com")
             await ack(response_action="update", view=_view("12.0", is_decimal_allowed=False))
 
     app = build_bolt_app("xoxb-test", "secret", register)
@@ -137,8 +147,13 @@ async def test_every_bolt_app_acks_through_the_guard() -> None:
         headers={},
         status_code=200,
     )
-    with patch.object(AsyncWebClient, "api_call", new_callable=AsyncMock, return_value=auth):
+    with patch.object(
+        AsyncWebClient, "api_call", new_callable=AsyncMock, return_value=auth
+    ) as base:
         response = await app.async_dispatch(AsyncBoltRequest(body=body, headers=headers))
 
+    sent = {c.args[0]: c.kwargs.get("json") for c in base.call_args_list}
     assert isinstance(seen[0], GuardedAck)
     assert _initial(json.loads(response.body)["view"]) == "12"
+    assert _initial(sent["views.update"]["view"]) == "12"
+    assert sent["chat.postMessage"]["unfurl_links"] is False

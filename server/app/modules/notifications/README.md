@@ -38,8 +38,9 @@ notifications/
       notifier.py                          # SlackWebClientNotifier — implements SlackNotifierPort
       bolt_app.py                          # build_bolt_app(bot_token, signing_secret, register_fn) —
                                               # both modules' own api/slack/bolt_app.py call this instead
-                                              # of duplicating the same three lines; GuardedAck runs
-                                              # guard_view on ack(response_action=..., view=...) too
+                                              # of duplicating the same three lines; its middleware gives
+                                              # listeners a NoUnfurlWebClient and a GuardedAck, so every
+                                              # view and message a handler sends is guarded too
     ses/
       client.py                          # get_ses_client(region_name, ...) — one shared SES client, lru_cached
       mailer.py                            # SesMailer — implements EmailSenderPort

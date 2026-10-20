@@ -18,6 +18,12 @@ for current production evidence and open handover items.
   failing the whole form. This replaces the per-form fix from 2026-10-16.
   When Slack does reject a form, the log now names the exact field.
 
+### Fixed
+
+- Messages the bot sends while handling a command or button no longer
+  expand link previews. Only messages sent outside a Slack request had
+  previews turned off before.
+
 ## 2026-10-19
 
 ### Added
