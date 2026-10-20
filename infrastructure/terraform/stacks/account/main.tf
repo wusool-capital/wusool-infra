@@ -330,9 +330,8 @@ resource "aws_iam_role" "gha_apply" {
   description        = "GitHub Actions: terraform apply for the ${each.key} environment."
   assume_role_policy = data.aws_iam_policy_document.gha_apply_trust[each.key].json
 
-  # Raised for the nightly Attio resync's former 90-minute SSM poll; that job
-  # now uses gha_attio_resync below. prod stays at the default - its deploy
-  # polls cap at 15 minutes.
+  # dev was raised for the resync's old 90-minute poll (now gha_attio_resync).
+  # prod deploys poll at most 15 minutes.
   max_session_duration = each.key == "dev" ? 10800 : 3600
 }
 
@@ -438,8 +437,7 @@ resource "aws_iam_role_policy" "gha_apply_iam" {
   })
 }
 
-# Nightly Attio resync only. A data job has no business holding the apply
-# role's PowerUserAccess. Matches the gha-* Deny above, so apply can't edit it.
+# Nightly resync only, without apply's PowerUserAccess. The gha-* name keeps it under the Deny above.
 data "aws_iam_policy_document" "gha_attio_resync_trust" {
   statement {
     effect  = "Allow"

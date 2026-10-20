@@ -526,8 +526,7 @@ resource "aws_cloudwatch_metric_alarm" "history_write_failed" {
   ok_actions          = local.alarm_actions
 }
 
-# Catches nights the resync never runs, which its own failure alert cannot.
-# 30 h, not 24: GitHub fires the cron up to ~3 h late, gaps reached 25.9 h.
+# Catches nights the resync never runs. 30 h because GitHub fires the cron up to 3 h late.
 resource "aws_cloudwatch_metric_alarm" "attio_resync_heartbeat" {
   count = var.environment == "prod" ? 1 : 0
 
