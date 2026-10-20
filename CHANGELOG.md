@@ -17,6 +17,12 @@ for current production evidence and open handover items.
   becomes "12". A number that can't be fixed is left blank instead of
   failing the whole form. This replaces the per-form fix from 2026-10-16.
   When Slack does reject a form, the log now names the exact field.
+- The nightly Attio resync can no longer stop silently. A missing Toolkit
+  instance now fails the run and alerts, unless production is deliberately
+  set to run without one. A new heartbeat alarm alerts when no run has
+  succeeded for 30 hours, which catches a disabled workflow or a schedule
+  that never fires. The job now uses its own narrow AWS role instead of the
+  deploy role.
 
 ### Fixed
 
