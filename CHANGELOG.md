@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-20
+
+### Changed
+
+- Every Slack form, in every module, now goes through one shared check
+  before it opens. Numbers are written the way Slack accepts ("12.0"
+  becomes "12"), and one that can't be fixed is left blank instead of
+  failing the whole form. This replaces the per-form fix from 2026-10-16.
+  When Slack does reject a form, the log now names the exact field.
+
 ## 2026-10-19
 
 ### Added
@@ -70,11 +80,6 @@ for current production evidence and open handover items.
   schema. Schema changes run with a separate admin login. Only the deploy
   pipeline and admins can use it. A stray command from a laptop can no longer
   alter or wipe the shared dev database.
-- Every Slack form, in every module, now goes through one shared check
-  before it opens. Numbers are written the way Slack accepts ("12.0"
-  becomes "12"), and one that can't be fixed is left blank instead of
-  failing the whole form. This replaces the per-form fix from 2026-10-16.
-  When Slack does reject a form, the log now names the exact field.
 
 ### Fixed
 
