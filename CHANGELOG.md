@@ -686,12 +686,13 @@ for current production evidence and open handover items.
   Buyer Network) now sends two emails via SES. The visitor gets a branded
   confirmation with a "Book a Call" link. The deal team gets an internal
   notice with the submitted details and links back to the Attio
-  organisation/deal. Both are tracked and retried independently, so a failed
-  send never re-sends an email that already landed. It also never risks the
-  lead itself, because the Attio write is already durable by the time either
-  email is attempted. A CloudWatch alarm now fires on the shared environment
-  alert topic if a send permanently fails after SES's own retries are
-  exhausted.
+  organisation/deal.
+
+  Both are tracked and retried independently, so a failed send never re-sends
+  an email that already landed. It also never risks the lead itself, because
+  the Attio write is already durable by the time either email is attempted. A
+  CloudWatch alarm now fires on the shared environment alert topic if a send
+  permanently fails after SES's own retries are exhausted.
 
 - A record deleted in Attio now disappears from Postgres for **all six**
   mirrored objects, not just two. Deals, notes, buyer roles and seller roles
