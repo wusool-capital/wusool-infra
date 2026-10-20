@@ -329,10 +329,6 @@ resource "aws_iam_role" "gha_apply" {
   name               = "${var.project}-gha-apply-${each.key}"
   description        = "GitHub Actions: terraform apply for the ${each.key} environment."
   assume_role_policy = data.aws_iam_policy_document.gha_apply_trust[each.key].json
-
-  # dev was raised for the resync's old 90-minute poll (now gha_attio_resync).
-  # prod deploys poll at most 15 minutes.
-  max_session_duration = each.key == "dev" ? 10800 : 3600
 }
 
 # PowerUserAccess + targeted IAM. Deliberately not AdministratorAccess: the
@@ -491,6 +487,7 @@ resource "aws_iam_role_policy" "gha_attio_resync" {
         Effect = "Allow"
         Action = [
           "ec2:DescribeInstances",
+          "autoscaling:DescribeAutoScalingGroups",
           "ssm:DescribeInstanceInformation",
           "ssm:GetCommandInvocation",
           "ssm:CancelCommand",

@@ -26,6 +26,6 @@ runs:
         set -euo pipefail
         IID=$(aws ec2 describe-instances \
           --filters "Name=tag:Name,Values=wusool-${{ inputs.environment }}-toolkit" "Name=instance-state-name,Values=running" \
-          --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || echo "")
+          --query 'Reservations[0].Instances[0].InstanceId' --output text)
         [ "$IID" = "None" ] && IID=""
         echo "instance_id=$IID" >> "$GITHUB_OUTPUT"

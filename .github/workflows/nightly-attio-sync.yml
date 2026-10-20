@@ -76,26 +76,30 @@ jobs:
           ./.github/scripts/nightly-attio-resync.sh \
             "$IID" "${{ github.run_id }}" "/wusool/prod/toolkit"
 
-      # Feeds the attio-resync-heartbeat alarm (modules/toolkit-ec2), which
-      # catches nights this workflow never runs at all.
+      # Feeds the attio-resync-heartbeat alarm (modules/toolkit-ec2). A publish
+      # error must not page as a failed resync; the alarm covers it.
       - name: Publish heartbeat metric
         if: steps.toolkit.outputs.instance_id != ''
+        continue-on-error: true
         run: |
           aws cloudwatch put-metric-data \
             --namespace wusool/prod/toolkit \
             --metric-name AttioNightlyResyncSuccess \
             --value 1
 
-      # A green skip once hid a missing instance. Only a deliberate
-      # create_instance = false in prod.tfvars may skip.
+      # A green skip once hid a missing instance. Only a deliberately absent
+      # ASG (create_instance = false) may skip.
       - name: No toolkit instance in prod
         if: steps.toolkit.outputs.instance_id == ''
         run: |
-          if grep -Eq '^create_instance[[:space:]]*=[[:space:]]*false' infrastructure/terraform/envs/prod.tfvars; then
-            echo "::notice::create_instance = false in prod.tfvars — skipping nightly resync."
+          ASG=$(aws autoscaling describe-auto-scaling-groups \
+            --query "AutoScalingGroups[?starts_with(AutoScalingGroupName, 'wusool-prod-toolkit-')].AutoScalingGroupName" \
+            --output text)
+          if [ -z "$ASG" ]; then
+            echo "::notice::No prod toolkit ASG exists (create_instance = false) — skipping nightly resync."
             exit 0
           fi
-          echo "::error::No running toolkit instance found in prod (ASG mid-replacement, or the role cannot describe instances) — nightly resync did not run. Re-run this workflow once the instance is back."
+          echo "::error::Toolkit ASG $ASG has no running instance (likely mid-replacement) — nightly resync did not run. Re-run this workflow once the instance is back."
           exit 1
 
       # A failed run used to be visible only in the Actions tab, which is how

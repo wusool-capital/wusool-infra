@@ -15,9 +15,9 @@ CRM of record.
 
 - An Attio change is visible in Attio but missing from PostgreSQL.
 - `POST /webhooks/attio` deliveries are rejected or fail processing.
-- The scheduled `nightly-attio-sync.yml` workflow fails. It also fails when no
-  Toolkit instance is running, unless `envs/prod.tfvars` sets
-  `create_instance = false`.
+- The scheduled `nightly-attio-sync.yml` workflow fails. It also fails when the
+  Toolkit ASG has no running instance. It skips only when no prod Toolkit ASG
+  exists (`create_instance = false`).
 - `validate-postgres.ps1` reports count, relationship, or environment-flag
   mismatches.
 - CloudWatch/SNS reports a nightly resync failure.
@@ -47,9 +47,9 @@ CRM workflows; otherwise P2.
    The repository script is `.github/scripts/nightly-attio-resync.sh` and the
    remote command is `python -m app.modules.ddl_commands.scripts.attio_sync_full_resync`.
 3. If the instance is unavailable, use the Toolkit outage runbook and confirm
-   the current ASG-managed instance is SSM-online. If the run reports no
-   instance but the ASG is healthy, check the `wusool-gha-attio-resync-prod`
-   role: the instance lookup hides an `AccessDenied` as "no instance".
+   the current ASG-managed instance is SSM-online. An `AccessDenied` in the
+   run points at the `wusool-gha-attio-resync-prod` role's policy in
+   `infrastructure/terraform/stacks/account/main.tf`.
 4. For a heartbeat alarm, open the workflow's run history. No recent runs
    means the schedule didn't fire: check that the workflow is enabled and
    GitHub's status page. Failed runs mean diagnose the latest failure.

@@ -5646,6 +5646,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <ul>
           <li>&bull; GitHub OIDC deploys through OpenTofu and SSM</li>
           <li>&bull; Alarms and GuardDuty findings reach Slack via AWS Chatbot</li>
+          <li>&bull; The nightly resync runs on its own narrow OIDC role; a heartbeat alarm flags a missed run</li>
           <li>&bull; App secrets are read from Secrets Manager at startup, with no secret files on the instance; devs read only the dev secret</li>
         </ul>
       </div>
