@@ -183,6 +183,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `GET /reports/{slug}/pdf` | serves | The whole report as an A4 PDF, printed per download; 403 until the reader unlocks |
 | `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook for both document types; syncs the Webflow Reports card or Insights article |
 | `GET /analytics/config` | serves | The public PostHog key, host and `is_test` a page loads PostHog with. Fetched only after the visitor accepts tracking |
+| `GET /analytics/consent` | serves | A pixel the banner fires on Accept or Decline (`?choice=granted` or `denied`). Counts the choice anonymously and returns 204 |
 | `GET /go/book-call/{tool}` | serves | The emails' Book a Call button: 302 to the tool's calendar, and records `book_call_clicked`. The calendar comes from `tool`, never from the link |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
@@ -340,6 +341,7 @@ server adds the events a browser can't be trusted to send.
 | `book_call_clicked` (`source: tool`) | Browser, after consent | A click on an in-page Book a Call link | `tool`, `source` |
 | `lead_submitted` | Server | The lead is saved | `tool`, `submission_id`, `is_test`. Names the person only with consent |
 | `book_call_clicked` (`source: email`) | Server | A click on the email button | `tool`, `submission_id`, `source`, `is_test` |
+| `consent_choice` | Server | A click on the consent banner, through `GET /analytics/consent?choice=granted\|denied` | `choice`, `is_test`. A fresh id each time and no person, so it counts clicks without tracking anyone |
 
 **Consent decides who is named.** Every submit body may carry an optional
 `analytics` block (`AnalyticsContext` in `api/schemas.py`) with the browser's

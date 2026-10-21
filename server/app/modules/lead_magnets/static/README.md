@@ -353,6 +353,10 @@ reaches every embedded tool, including the Get Started modal, and a later
 change (a withdrawn choice, or another tab) is relayed too. Withdrawing
 opts the visitor out and clears the remembered UTM tags.
 
+Call `setConsent` from the banner's buttons. It also fires an anonymous pixel
+(`GET /analytics/consent?choice=...`) that counts the click as `consent_choice`
+without an id or a cookie. Writing `localStorage` alone works, but isn't counted.
+
 **Events.** Properties come only from an allowlist (`tool`, `step`, `language`,
 `source`, `submission_id`). Anything else is dropped before sending, and the
 script has no code that reads a form field.

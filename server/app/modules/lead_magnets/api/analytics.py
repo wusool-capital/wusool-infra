@@ -20,6 +20,8 @@ from app.modules.lead_magnets.bootstrap import build_analytics
 from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.domain.shared.book_call import calendar_url
 from app.modules.lead_magnets.domain.shared.lead_event import (
+    ConsentChoice,
+    ConsentEvent,
     LeadEvent,
     LeadPerson,
     LeadTool,
@@ -57,6 +59,19 @@ async def analytics_config(response: Response) -> AnalyticsConfig:
         assets_host=host.replace(".i.posthog.com", "-assets.i.posthog.com"),
         is_test=build_analytics().is_test,
     )
+
+
+@router.get(
+    "/analytics/consent",
+    status_code=204,
+    response_class=Response,
+    dependencies=[Depends(rate_limit_reads)],
+)
+async def consent_choice(choice: ConsentChoice, background: BackgroundTasks) -> Response:
+    """A pixel the consent banner fires on a click. Counts the choice only: it sets
+    no cookie, keeps no id, and the event it records belongs to nobody."""
+    background.add_task(capture_consent, ConsentEvent(choice=choice, at=datetime.now(UTC)))
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
 
 @router.get(
@@ -114,6 +129,13 @@ def track_lead(
             visitor_id=visitor_id,
         ),
     )
+
+
+async def capture_consent(event: ConsentEvent) -> None:
+    try:
+        await build_analytics().capture_consent(event)
+    except Exception:
+        logger.exception("posthog_capture_failed event=consent_choice")
 
 
 async def capture_lead(event: LeadEvent) -> None:

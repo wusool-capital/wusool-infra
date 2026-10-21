@@ -201,3 +201,13 @@ def test_every_embedded_frame_is_registered_with_the_analytics_bridge() -> None:
     js = (static_dir() / "embed.js").read_text()
     assert "analytics.add(iframe);" in js, "inline iframe is not registered"
     assert "analytics.add(frame);" in js, "modal iframe is not registered"
+
+
+def test_a_banner_click_is_counted_by_an_anonymous_pixel() -> None:
+    """The choice is counted without storing or identifying anyone: a plain
+    image request to the tools host, with no referrer."""
+    js = (static_dir() / "embed.js").read_text()
+
+    assert 'pixel.referrerPolicy = "no-referrer"' in js
+    assert '"/analytics/consent?choice="' in js
+    assert "countChoice(granted === true);" in js

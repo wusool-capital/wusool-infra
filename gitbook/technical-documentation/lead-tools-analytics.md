@@ -16,6 +16,13 @@ or leave a tool, and how many book a call. Reports use the same project. See
   email's Book a Call button. They are sent whether or not the visitor accepted
   tracking.
 
+## Banner choices
+
+Each click on the consent banner's Accept or Decline is counted, so the team
+can see the acceptance rate. The count carries no visitor id and sets no
+cookie, so it never identifies the person who clicked. Visitors who never click
+aren't counted.
+
 ## Who is named
 
 - A visitor who declined is counted but never identified. The event has no
@@ -44,6 +51,7 @@ calendar, never the link.
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /analytics/config` | The public PostHog key and host a page loads PostHog with, after the visitor accepts tracking |
+| `GET /analytics/consent` | Counts a consent banner click anonymously |
 | `GET /go/book-call/{tool}` | Redirects to the tool's calendar and counts the click |
 
 ## Code

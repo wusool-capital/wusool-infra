@@ -10,7 +10,12 @@ from app.modules.lead_magnets.domain.insights_report.report_event import (
     ReportEvent,
     ReportEventName,
 )
-from app.modules.lead_magnets.domain.shared.lead_event import LeadEvent, LeadEventName, LeadPerson
+from app.modules.lead_magnets.domain.shared.lead_event import (
+    ConsentEvent,
+    LeadEvent,
+    LeadEventName,
+    LeadPerson,
+)
 from app.modules.lead_magnets.providers.posthog import client as posthog_client
 from app.modules.lead_magnets.providers.posthog.client import PostHogAnalytics
 
@@ -255,3 +260,28 @@ async def test_an_unverified_unlock_never_links_a_visitor() -> None:
     await _analytics(sdk).capture(event)
 
     assert [c.event for c in sdk.calls] == ["report_unlocked"]
+
+
+async def test_a_banner_choice_is_counted_with_a_fresh_id_and_no_person() -> None:
+    sdk = _FakeSdk()
+    analytics = _analytics(sdk, is_test=True)
+    await analytics.capture_consent(ConsentEvent(choice="denied", at=_AT))
+    await analytics.capture_consent(ConsentEvent(choice="denied", at=_AT))
+
+    first, second = sdk.calls
+    assert first.event == "consent_choice"
+    assert first.properties == {
+        "choice": "denied",
+        "is_test": True,
+        "$process_person_profile": False,
+    }
+    assert first.distinct_id != second.distinct_id, "no two clicks share an identity"
+
+
+async def test_banner_counting_is_off_without_a_key_and_survives_sdk_errors() -> None:
+    blank = PostHogAnalytics("", host="https://eu.i.posthog.com", is_test=False)
+    await blank.capture_consent(ConsentEvent(choice="granted", at=_AT))
+
+    await _analytics(_FakeSdk(raises=RuntimeError("down"))).capture_consent(
+        ConsentEvent(choice="granted", at=_AT)
+    )

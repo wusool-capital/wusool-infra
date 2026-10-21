@@ -23,6 +23,18 @@ class LeadPerson:
     company: str
 
 
+ConsentChoice = Literal["granted", "denied"]
+
+
+@dataclass(frozen=True)
+class ConsentEvent:
+    """One click on the consent banner. Carries no visitor id, so it counts the
+    choice without tracking the person who made it."""
+
+    choice: ConsentChoice
+    at: datetime
+
+
 @dataclass(frozen=True)
 class LeadEvent:
     event: LeadEventName

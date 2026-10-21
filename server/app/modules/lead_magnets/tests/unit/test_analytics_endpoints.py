@@ -19,7 +19,7 @@ from app.modules.lead_magnets.api import analytics as analytics_api
 from app.modules.lead_magnets.api import dependencies as deps
 from app.modules.lead_magnets.api.get_started import endpoints as get_started_endpoints
 from app.modules.lead_magnets.api.schemas import AnalyticsContext, UtmTags
-from app.modules.lead_magnets.domain.shared.lead_event import LeadEvent
+from app.modules.lead_magnets.domain.shared.lead_event import ConsentEvent, LeadEvent
 
 _SELLER_CALENDAR = "https://calendar.app.google/UfXxu6dBkZ8wjhnT6"
 _BUYER_CALENDAR = "https://calendar.app.google/4FzN5jAf5KGQszjY7"
@@ -38,6 +38,7 @@ class _Settings:
 class _World:
     settings: _Settings = field(default_factory=_Settings)
     events: list[LeadEvent] = field(default_factory=list)
+    consents: list[ConsentEvent] = field(default_factory=list)
     recorded: list[dict[str, object]] = field(default_factory=list)
     broken: bool = False
 
@@ -52,6 +53,11 @@ class _Analytics:
         if self._world.broken:
             raise RuntimeError("analytics down")
         self._world.events.append(event)
+
+    async def capture_consent(self, event: ConsentEvent) -> None:
+        if self._world.broken:
+            raise RuntimeError("analytics down")
+        self._world.consents.append(event)
 
 
 class _Session:
@@ -345,3 +351,27 @@ def test_every_lead_endpoint_reports_its_own_lead(module: str, tool: str) -> Non
     calls = re.findall(r'track_lead\(\s*background,\s*tool="(\w+)"', source.read_text())
 
     assert calls == [tool]
+
+
+@pytest.mark.parametrize("choice", ["granted", "denied"])
+def test_a_banner_click_is_counted_without_naming_anyone(client, world, choice: str) -> None:
+    response = client.get(f"/analytics/consent?choice={choice}")
+
+    assert response.status_code == 204 and response.content == b""
+    assert response.headers["cache-control"] == "no-store"
+    assert "set-cookie" not in response.headers
+    (event,) = world.consents
+    assert event.choice == choice
+
+
+def test_only_a_real_choice_is_counted(client, world) -> None:
+    for query in ("", "?choice=maybe", "?choice=granted&email=a@b.co"):
+        client.get(f"/analytics/consent{query}")
+
+    assert [e.choice for e in world.consents] == ["granted"], "extra parameters are ignored"
+
+
+def test_a_broken_analytics_client_never_fails_the_banner(client, world) -> None:
+    world.broken = True
+
+    assert client.get("/analytics/consent?choice=denied").status_code == 204

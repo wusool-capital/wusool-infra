@@ -11,13 +11,13 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Literal
-from uuid import NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from posthog import AsyncPosthog
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report_event import ReportEvent
-from app.modules.lead_magnets.domain.shared.lead_event import LeadEvent
+from app.modules.lead_magnets.domain.shared.lead_event import ConsentEvent, LeadEvent
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +143,24 @@ class PostHogAnalytics:
             )
         except Exception as exc:  # noqa: BLE001 - analytics never fails a lead
             logger.warning("posthog_capture_failed event=%s error=%s", event.event, exc)
+
+    async def capture_consent(self, event: ConsentEvent) -> None:
+        if self._client is None:
+            return
+        try:
+            self._client.capture(
+                "consent_choice",
+                # A fresh id per click: the choice is counted, the visitor never is.
+                distinct_id=str(uuid4()),
+                properties={
+                    "choice": event.choice,
+                    "is_test": self.is_test,
+                    "$process_person_profile": False,
+                },
+                timestamp=event.at,
+            )
+        except Exception as exc:  # noqa: BLE001 - analytics never fails a visitor
+            logger.warning("posthog_capture_failed event=consent_choice error=%s", exc)
 
     def _identify(self, distinct_id: str, visitor_id: str, at: datetime) -> None:
         """Merges the visitor's earlier anonymous page views into the person."""

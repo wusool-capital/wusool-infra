@@ -281,6 +281,15 @@
       );
     }
 
+    // Counts the banner click anonymously: a plain image request, so nothing is stored or identified.
+    function countChoice(granted) {
+      try {
+        var pixel = new Image();
+        pixel.referrerPolicy = "no-referrer";
+        pixel.src = origin + "/analytics/consent?choice=" + (granted ? "granted" : "denied");
+      } catch (e) {}
+    }
+
     function broadcast() {
       for (var i = 0; i < frames.length; i++) post(frames[i]);
     }
@@ -304,6 +313,7 @@
       setConsent: function (granted) {
         store("set", CONSENT_KEY, granted === true ? "granted" : "denied");
         if (granted !== true) store("remove", UTM_KEY);
+        countChoice(granted === true);
         broadcast();
       },
     };

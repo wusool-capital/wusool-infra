@@ -4,7 +4,7 @@
 from typing import Protocol
 
 from app.modules.lead_magnets.domain.insights_report.report_event import ReportEvent
-from app.modules.lead_magnets.domain.shared.lead_event import LeadEvent
+from app.modules.lead_magnets.domain.shared.lead_event import ConsentEvent, LeadEvent
 
 
 class AnalyticsPort(Protocol):
@@ -14,6 +14,10 @@ class AnalyticsPort(Protocol):
 
     async def capture_lead(self, event: LeadEvent) -> None:
         """Queues a lead event, with the same never-raise rule."""
+        ...
+
+    async def capture_consent(self, event: ConsentEvent) -> None:
+        """Counts a banner choice anonymously, with the same never-raise rule."""
         ...
 
     async def shutdown(self) -> None:

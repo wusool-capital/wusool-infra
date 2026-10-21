@@ -25,6 +25,8 @@ for current production evidence and open handover items.
   redirects to the right calendar, once `LEAD_MAGNET_PUBLIC_BASE_URL` is set.
 - A lead's first-touch campaign tags (`utm_source` and the like) are saved
   with the lead.
+- Clicks on the consent banner's Accept and Decline are counted without
+  identifying anyone, so the team can see the acceptance rate.
 
 ### Changed
 
