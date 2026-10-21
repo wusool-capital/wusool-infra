@@ -315,9 +315,13 @@ event is sent. Before it goes live on the site:
    `denied`, or call `WusoolAnalytics.setConsent(bool)`; see `static/README.md`.
 3. Set `LEAD_MAGNET_PUBLIC_BASE_URL` in the secret's `env` map, then restart
    the container.
-4. On dev, with a test email: accept tracking, finish a tool, and check
-   `tool_*` and `lead_submitted` in PostHog Activity. Decline, and check that
-   only an anonymous `lead_submitted` arrives. Click the email button.
+4. On dev, with a test email. Before the banner exists, accept tracking in the
+   browser console on the tool page with
+   `localStorage.setItem("wusool_analytics_consent", "granted")`, then reload.
+   Finish a tool, and check `tool_*` and `lead_submitted` in PostHog Activity,
+   and that the person's Activity lists the earlier `tool_*` events. Then set it
+   to `denied` (or clear it) and reload: only an anonymous `lead_submitted`
+   should arrive. Click the email button.
 5. Look at the live event stream and confirm no event carries a form value.
 
 ## 8. The sweeper

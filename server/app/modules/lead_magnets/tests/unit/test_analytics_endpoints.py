@@ -280,6 +280,39 @@ def test_a_get_started_lead_that_declined_is_counted_without_an_id_or_email(clie
     assert stored["analytics"]["visitor_id"] is None, "never stored without consent"
 
 
+def test_a_malformed_analytics_block_never_costs_a_lead(client, world) -> None:
+    response = client.post(
+        "/get-started",
+        json=_get_started(
+            visitor_id="x" * 500, consent="yes", utm={"source": "a", "bogus": 1}, extra=True
+        ),
+    )
+
+    assert response.status_code == 200
+    (event,) = world.events
+    assert event.person is None and event.visitor_id is None, "a non-boolean consent is no consent"
+    stored = world.recorded[0]["payload"]
+    assert isinstance(stored, dict) and stored["analytics"]["utm"]["source"] == "a"
+
+
+def test_an_oversized_visitor_id_is_trimmed_not_rejected(client, world) -> None:
+    response = client.post("/get-started", json=_get_started(visitor_id="x" * 500, consent=True))
+
+    assert response.status_code == 200
+    assert world.events[0].visitor_id == "x" * 128
+
+
+@pytest.mark.parametrize("analytics", ["oops", 7, ["a"], None])
+def test_an_analytics_block_of_the_wrong_shape_is_ignored(client, world, analytics) -> None:
+    body = _get_started()
+    body["analytics"] = analytics
+
+    response = client.post("/get-started", json=body)
+
+    assert response.status_code == 200
+    assert world.events[0].person is None
+
+
 def test_a_lead_without_any_analytics_block_still_works(client, world) -> None:
     response = client.post("/get-started", json=_get_started())
 

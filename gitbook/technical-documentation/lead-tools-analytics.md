@@ -31,6 +31,14 @@ The Book a Call button in each email goes through the Toolkit. The Toolkit
 redirects to the right calendar and counts the click. The tool picks the
 calendar, never the link.
 
+## Counting caveats
+
+- Some mail scanners open every link in an email, so email clicks can be
+  overcounted for recipients on Microsoft 365 and similar systems.
+- Visitors who decline tracking or block scripts send no browser events. The
+  server still counts their leads and email clicks, so the funnel's early steps
+  undercount them.
+
 ## Endpoints
 
 | Endpoint | Purpose |

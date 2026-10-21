@@ -102,7 +102,9 @@
   function visitorId() {
     if (consent !== true || !ready || !window.posthog) return null;
     try {
-      return window.posthog.get_distinct_id() || null;
+      var id = window.posthog.get_distinct_id();
+      // An id that is already an email means the visitor was identified: never send that as an anonymous id.
+      return id && id.indexOf("@") < 0 ? String(id).slice(0, 128) : null;
     } catch (e) {
       return null;
     }

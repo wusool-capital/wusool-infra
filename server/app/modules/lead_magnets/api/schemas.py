@@ -26,9 +26,17 @@ Response field names are the ones the existing pages parse — `comps`,
 `overallScore`, `dimensions[].insight` — and are not renamed.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_validator,
+    model_validator,
+)
 
 from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import SECTORS, STAGES
 from app.modules.lead_magnets.domain.benchmark.benchmark_narrative import Tone
@@ -65,6 +73,35 @@ class AnalyticsContext(_Strict):
         return self
 
 
+_UTM_KEYS = ("source", "medium", "campaign", "term", "content")
+
+
+def _text(raw: JsonValue, limit: int) -> str | None:
+    return (raw.strip()[:limit] or None) if isinstance(raw, str) else None
+
+
+def _lenient_analytics(value: JsonValue | AnalyticsContext) -> AnalyticsContext | None:
+    """Analytics must never cost a lead: a malformed block is trimmed or dropped, not a 422."""
+    if isinstance(value, AnalyticsContext):
+        return value
+    if not isinstance(value, dict):
+        return None
+    raw_utm = value.get("utm")
+    utm = (
+        UtmTags(**{key: _text(raw_utm.get(key), 200) for key in _UTM_KEYS})
+        if isinstance(raw_utm, dict)
+        else None
+    )
+    return AnalyticsContext(
+        visitor_id=_text(value.get("visitor_id"), 128),
+        consent=value.get("consent") is True,
+        utm=utm,
+    )
+
+
+LenientAnalytics = Annotated[AnalyticsContext | None, BeforeValidator(_lenient_analytics)]
+
+
 class ReadinessAnswersIn(_Strict):
     """q1-q13 are 0-3 scores; q14 and q15 are free text.
 
@@ -92,7 +129,7 @@ class ReadinessAnswersIn(_Strict):
 
 class ReadinessRequest(_Strict):
     submission_id: str = Field(min_length=1, max_length=64)
-    analytics: AnalyticsContext | None = None
+    analytics: LenientAnalytics = None
     name: str = Field(min_length=1, max_length=200)
     company: str = Field(min_length=1, max_length=200)
     email: str = Field(min_length=3, max_length=320)
@@ -134,7 +171,7 @@ class BenchmarkRequest(_Strict):
     """
 
     submission_id: str = Field(min_length=1, max_length=64)
-    analytics: AnalyticsContext | None = None
+    analytics: LenientAnalytics = None
     mode: Literal["sme", "tech"] = "sme"
     # A sector key in SME mode, a funding stage in startup mode — the peer
     # cut the score is computed against, not necessarily the CRM sector (see
@@ -370,7 +407,7 @@ class ValuationRequest(_Strict):
     """
 
     submission_id: str = Field(min_length=1, max_length=64)
-    analytics: AnalyticsContext | None = None
+    analytics: LenientAnalytics = None
     company: str = Field(min_length=1, max_length=200)
     name: str | None = Field(default=None, max_length=200)
     email: str = Field(min_length=3, max_length=320)
@@ -454,7 +491,7 @@ class GetStartedRequest(_Strict):
     """
 
     submission_id: str = Field(min_length=1, max_length=64)
-    analytics: AnalyticsContext | None = None
+    analytics: LenientAnalytics = None
     name: str = Field(min_length=1, max_length=200)
     company: str = Field(min_length=1, max_length=200)
     email: str = Field(min_length=3, max_length=320)
@@ -511,7 +548,7 @@ class BuyerApplyRequest(_Strict):
     """
 
     submission_id: str = Field(min_length=1, max_length=64)
-    analytics: AnalyticsContext | None = None
+    analytics: LenientAnalytics = None
     full_name: str = Field(min_length=1, max_length=200)
     org_name: str = Field(min_length=1, max_length=200)
     email: str = Field(min_length=3, max_length=320)
@@ -558,7 +595,7 @@ class ReportUnlockRequest(_Strict):
     """
 
     submission_id: str = Field(min_length=1, max_length=64)
-    analytics: AnalyticsContext | None = None
+    analytics: LenientAnalytics = None
     name: str = Field(min_length=1, max_length=200)
     # Optional; `""`, not `None`, to match `AttioIdentityPayload.company`.
     company: str = Field(default="", max_length=200)

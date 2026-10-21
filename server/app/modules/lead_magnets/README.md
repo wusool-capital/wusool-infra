@@ -361,7 +361,12 @@ fails if it ever reads a field value. Session replay and autocapture stay off.
 **Email links.** With `LEAD_MAGNET_PUBLIC_BASE_URL` set, each email's Book a
 Call button points at `GET /go/book-call/{tool}?sid=<submission id>`. Blank
 keeps the direct calendar link, so dev and local runs are unaffected. The
-consent contract for the Webflow banner is in `static/README.md`.
+consent contract for the Webflow banner is in `static/README.md`. Mail
+scanners such as Microsoft Safe Links fetch every link in an email, so email
+`book_call_clicked` counts can be inflated for Microsoft 365 recipients.
+
+The `analytics` block is advisory: `LenientAnalytics` trims or drops anything
+malformed instead of returning a 422, so it can never cost a lead.
 
 Deleting a person on request also means deleting their PostHog person; the
 `submission_id` on anonymous events can't be tied back to anyone.
