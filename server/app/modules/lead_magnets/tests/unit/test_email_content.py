@@ -2,6 +2,8 @@
 behaviour here — every value comes from a visitor's own form input.
 """
 
+import pytest
+
 from app.modules.lead_magnets.domain.shared.email_content import (
     render_field_rows,
     render_internal_shell,
@@ -153,3 +155,44 @@ def test_get_started_internal_email_omits_missing_domain() -> None:
         {"company": "Acme", "years_active": 3, "sell_timeline": "Not Selling"}, {}, SubjectRefs()
     )
     assert "Not provided" in content.html
+
+
+@pytest.mark.parametrize(
+    "tool", ["benchmark", "buyer_network", "get_started", "readiness", "valuation"]
+)
+def test_the_book_call_button_goes_through_the_tracked_redirect(tool: str) -> None:
+    from app.modules.lead_magnets.application.shared.email_dispatch import (
+        build_confirmation_email,
+    )
+
+    html = build_confirmation_email(
+        tool, {"submission_id": "abc 123"}, "https://tools.example.com/"
+    ).html
+
+    assert f'href="https://tools.example.com/go/book-call/{tool}?sid=abc%20123"' in html
+    assert "calendar.app.google" not in html, "the calendar is only known to the server"
+
+
+@pytest.mark.parametrize(
+    ("tool", "calendar"),
+    [
+        ("valuation", "https://calendar.app.google/UfXxu6dBkZ8wjhnT6"),
+        ("buyer_network", "https://calendar.app.google/4FzN5jAf5KGQszjY7"),
+    ],
+)
+def test_with_no_base_url_the_button_keeps_the_direct_calendar_link(
+    tool: str, calendar: str
+) -> None:
+    from app.modules.lead_magnets.application.shared.email_dispatch import (
+        build_confirmation_email,
+    )
+
+    assert f'href="{calendar}"' in build_confirmation_email(tool, {"submission_id": "x"}).html
+
+
+def test_the_tracked_link_never_carries_an_email_or_a_url() -> None:
+    from app.modules.lead_magnets.domain.shared.book_call import book_call_href
+
+    href = book_call_href("https://tools.example.com", "readiness", "a&b=c/d")
+
+    assert href == "https://tools.example.com/go/book-call/readiness?sid=a%26b%3Dc%2Fd"

@@ -9,6 +9,7 @@ one that actually records the lead.
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
+from app.modules.lead_magnets.api.analytics import track_lead
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
     rate_limit,
@@ -125,6 +126,15 @@ async def submit_lead(
     await session.commit()
 
     background.add_task(run_completion, run_id)
+    track_lead(
+        background,
+        tool="valuation",
+        submission_id=request.submission_id,
+        analytics=request.analytics,
+        name=request.name,
+        email=request.email,
+        company=request.company,
+    )
 
     # Same mapper the completion pipeline uses, so this response and the
     # Attio entry can't drift.

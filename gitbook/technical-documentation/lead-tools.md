@@ -107,6 +107,8 @@ merged:
 | `POST /get-started` | Records a Get Started enquiry |
 | `GET /reports/{slug}`, `POST /reports/{slug}/unlock`, `POST /reports/{slug}/unlock/verify`, `GET /reports/{slug}/pdf` | Gated reports |
 | `POST /reports/webhooks/sanity` | Sanity publish webhook |
+| `GET /analytics/config` | The public PostHog key and host a page loads PostHog with, after the visitor accepts tracking |
+| `GET /go/book-call/{tool}` | The emails' Book a Call button: redirects to the tool's calendar and counts the click |
 
 | Response | Meaning |
 | --- | --- |
@@ -126,6 +128,26 @@ downloads 30. They are held in memory, and the IP is taken from the last
 **Option lists.** An option the CRM doesn't know, such as an unexpected
 selling timeline, fails the Attio write after the run is recorded. That lead
 never reaches the CRM. Keep the form options in step with Attio.
+
+## Website analytics
+
+The tools report to PostHog so the team can see where visitors start, finish
+or leave a tool, and how many book a call.
+
+- **Browser events** (opened, started, step, completed, abandoned, Book a
+  Call click) are sent only after the visitor accepts tracking. They carry the
+  tool, the step, the language and a random submission id, and never a form
+  value. Session recording is off.
+- **Server events** count every lead (`lead_submitted`) and every click on an
+  email's Book a Call button, whether or not the visitor accepted tracking.
+- **Who is named.** A visitor who declined is counted but never identified:
+  no email, no name. A visitor who accepted has their name, email and company
+  linked to their earlier page views, so Persons shows what each lead did.
+- **Campaign tags.** The `utm_` tags from the link a visitor arrived by are
+  saved with the lead, so a lead can be traced to a campaign.
+- **Email button.** The Book a Call button in each email goes through the
+  Toolkit, which redirects to the right calendar. The calendar is chosen by
+  the tool, never by the link.
 
 ## Failures and alerts
 

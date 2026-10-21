@@ -578,3 +578,59 @@ def test_a_known_reader_sends_a_view_for_each_page_and_pdf(client, world) -> Non
     ]
     view = world.events[-1]
     assert (view.email, view.slug, view.report_title) == ("dana@acme.ae", "other-report", "Other")
+
+
+def _unlock_with_analytics(client, world: _World, analytics: dict[str, object]):
+    body = {
+        "submission_id": "s",
+        "name": "Dana",
+        "email": "dana@acme.ae",
+        "company": "Acme",
+        "analytics": analytics,
+    }
+    sent = client.post("/reports/buyouts-in-the-gcc/unlock", json=body)
+    assert sent.status_code == 200, sent.text
+    return client.post(
+        "/reports/buyouts-in-the-gcc/unlock/verify",
+        json={"challenge_id": sent.json()["challenge_id"], "code": _sent_code(world)},
+    )
+
+
+def test_a_consented_unlock_carries_the_visitor_through_the_code_step(client, world) -> None:
+    response = _unlock_with_analytics(
+        client, world, {"visitor_id": "anon-1", "consent": True, "utm": {"source": "linkedin"}}
+    )
+
+    assert response.status_code == 200
+    unlocked = world.events[-1]
+    assert unlocked.event == "report_unlocked" and unlocked.visitor_id == "anon-1"
+    stored = world.recorded[0]["payload"]
+    assert stored["visitor_id"] == "anon-1"
+    assert stored["utm"]["source"] == "linkedin"
+
+
+def test_an_unlock_that_declined_tracking_sends_no_visitor_id(client, world) -> None:
+    response = _unlock_with_analytics(
+        client, world, {"visitor_id": "anon-1", "consent": False, "utm": {"source": "linkedin"}}
+    )
+
+    assert response.status_code == 200
+    assert world.events[-1].visitor_id is None
+    stored = world.recorded[0]["payload"]
+    assert stored["visitor_id"] is None and stored["utm"]["source"] == "linkedin"
+
+
+def test_with_the_email_code_off_the_visitor_is_never_linked(client, world) -> None:
+    world.settings.lead_magnet_report_email_otp = False
+
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={
+            "submission_id": "s",
+            "name": "Dana",
+            "email": "dana@acme.ae",
+            "analytics": {"visitor_id": "anon-1", "consent": True},
+        },
+    )
+
+    assert world.events[0].visitor_id is None, "an unproven address can't claim a visitor"

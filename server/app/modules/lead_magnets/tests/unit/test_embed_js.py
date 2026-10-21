@@ -181,3 +181,23 @@ def test_a_report_slug_falls_back_to_the_page_path_and_is_still_validated() -> N
     block = js[js.index('if (tool === "report")') :]
     fallback = block.index("location.pathname")
     assert fallback < block.index("/^[a-z0-9-]{1,256}$/.test(slug)"), "validated after the fallback"
+
+
+def test_embed_relays_consent_and_utm_to_the_tools_origin_only() -> None:
+    """The iframe's analytics.js stays off until embed.js answers its
+    "wusool-analytics-ready" with the banner's choice. Both directions are
+    pinned to the tools origin, and the reply goes to the iframe that asked."""
+    js = (static_dir() / "embed.js").read_text()
+    assert 'type: "wusool-analytics"' in js
+    assert 'event.data.type !== "wusool-analytics-ready"' in js
+    assert "if (event.origin !== origin) return;" in js
+    assert "frames[i].contentWindow === event.source" in js
+    assert re.search(
+        r"postMessage\(\s*\{[^}]*type: \"wusool-analytics\"[^}]*\},\s*origin\s*\)", js, re.S
+    )
+
+
+def test_every_embedded_frame_is_registered_with_the_analytics_bridge() -> None:
+    js = (static_dir() / "embed.js").read_text()
+    assert "analytics.add(iframe);" in js, "inline iframe is not registered"
+    assert "analytics.add(frame);" in js, "modal iframe is not registered"

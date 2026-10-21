@@ -4,11 +4,16 @@
 from typing import Protocol
 
 from app.modules.lead_magnets.domain.insights_report.report_event import ReportEvent
+from app.modules.lead_magnets.domain.shared.lead_event import LeadEvent
 
 
 class AnalyticsPort(Protocol):
     async def capture(self, event: ReportEvent) -> None:
         """Queues the event. Never raises: analytics must not fail a reader."""
+        ...
+
+    async def capture_lead(self, event: LeadEvent) -> None:
+        """Queues a lead event, with the same never-raise rule."""
         ...
 
     async def shutdown(self) -> None:

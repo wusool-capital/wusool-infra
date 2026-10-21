@@ -13,10 +13,8 @@ from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload,
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
-_SELLER_CTA = "https://calendar.app.google/UfXxu6dBkZ8wjhnT6"
 
-
-def build_confirmation(payload: JsonObject) -> EmailContent:
+def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
         subject="Your valuation request is in",
         html=render_confirmation_shell(
@@ -29,7 +27,7 @@ def build_confirmation(payload: JsonObject) -> EmailContent:
                 "you with an indicative valuation range and the assumptions behind it."
             ),
             cta_text="Book a Call",
-            cta_href=_SELLER_CTA,
+            cta_href=cta_href,
         ),
     )
 

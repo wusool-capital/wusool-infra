@@ -65,7 +65,7 @@ from app.modules.lead_magnets.domain.insights_report.report_event import (
     ReportEvent,
     ReportEventName,
 )
-from app.modules.lead_magnets.domain.insights_report.unlock import ReaderForm
+from app.modules.lead_magnets.domain.insights_report.unlock import ReaderForm, UtmValues
 from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload
 
 logger = logging.getLogger(__name__)
@@ -213,7 +213,7 @@ async def unlock_report(
     """Step one of the gate: email the reader a code. Nothing is recorded yet.
     With email verification off, the report opens straight away instead."""
     report = await _published(source, slug)
-    form = ReaderForm(**request.model_dump())
+    form = _reader_form(request)
     if not get_settings().lead_magnet_report_email_otp:
         return await _open_report(session, background, response, report, form, verified=False)
     try:
@@ -300,6 +300,7 @@ async def _open_report(
         company=form.company,
         domain=domain,
         email_verified=verified,
+        visitor_id=form.visitor_id if verified else None,
     )
 
     response.headers["Cache-Control"] = "no-store"
@@ -362,6 +363,7 @@ def _track(
     domain: str | None,
     format: Literal["html", "pdf"] | None = None,
     email_verified: bool = True,
+    visitor_id: str | None = None,
 ) -> None:
     """Sends a PostHog event after the response, so analytics never slows a reader."""
     background.add_task(
@@ -377,7 +379,21 @@ def _track(
             at=datetime.now(UTC),
             format=format,
             email_verified=email_verified,
+            visitor_id=visitor_id,
         ),
+    )
+
+
+def _reader_form(request: ReportUnlockRequest) -> ReaderForm:
+    analytics = request.analytics
+    utm = UtmValues(**analytics.utm.model_dump()) if analytics and analytics.utm else None
+    return ReaderForm(
+        submission_id=request.submission_id,
+        name=request.name,
+        company=request.company,
+        email=request.email,
+        visitor_id=analytics.visitor_id if analytics else None,
+        utm=utm,
     )
 
 

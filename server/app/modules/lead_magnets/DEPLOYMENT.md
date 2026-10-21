@@ -42,7 +42,8 @@ Confirm/add these keys under `env`:
 |---|---|---|
 | `FIRECRAWL_API_KEY` | Yes, for `/compare` | Without it, `/compare` still serves — comparables just come back empty (the search step is skipped, not the endpoint). |
 | `LEAD_MAGNET_FRAME_ANCESTORS` | No (has a default) | Defaults to `https://wusoolcapital.com https://www.wusoolcapital.com` in `config.py` — only set this if the embedding site's origin differs from that default. |
-| `LEAD_MAGNET_POSTHOG_API_KEY` | No | PostHog project API key for report events. Without it, no events are sent and reports work as before. The host defaults to EU (`LEAD_MAGNET_POSTHOG_HOST`). |
+| `LEAD_MAGNET_POSTHOG_API_KEY` | No | PostHog project API key for report and lead events. Without it, no events are sent and the pages never load PostHog. The host defaults to EU (`LEAD_MAGNET_POSTHOG_HOST`). |
+| `LEAD_MAGNET_PUBLIC_BASE_URL` | No | Public origin of the tools host, e.g. `https://tools.wusoolcapital.com` in prod. Makes the emails' Book a Call button a tracked redirect. Blank keeps the direct calendar link. Set dev to the dev tools host, or dev emails would count clicks on prod. |
 
 No `CLAUDE_KEY` and no Bedrock access keys — Bedrock is reached through the
 EC2 instance's own IAM role (`modules/bedrock-access`), which is already
@@ -300,6 +301,24 @@ overrides, enabling the dev webhook would write to the live site. Both
 environments read the same Sanity dataset, so keep the dev webhook disabled
 except while testing. The prod webhook fires on every Studio publish, so
 pinning a test article clears the live `/insights` pin; re-pin by hand after.
+
+### Website analytics rollout (AZM-155)
+
+Merging this is safe with the key blank: no page loads PostHog and no browser
+event is sent. Before it goes live on the site:
+
+1. Sign the PostHog DPA (EU) and publish privacy wording that names the
+   analytics provider and says that visitors who accept tracking have their
+   name, email and company linked to their activity.
+2. Install the consent banner and the PostHog snippet in Webflow. The banner
+   must set `localStorage["wusool_analytics_consent"]` to `granted` or
+   `denied`, or call `WusoolAnalytics.setConsent(bool)`; see `static/README.md`.
+3. Set `LEAD_MAGNET_PUBLIC_BASE_URL` in the secret's `env` map, then restart
+   the container.
+4. On dev, with a test email: accept tracking, finish a tool, and check
+   `tool_*` and `lead_submitted` in PostHog Activity. Decline, and check that
+   only an anonymous `lead_submitted` arrives. Click the email button.
+5. Look at the live event stream and confirm no event carries a form value.
 
 ## 8. The sweeper
 

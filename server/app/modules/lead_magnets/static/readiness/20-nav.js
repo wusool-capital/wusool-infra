@@ -26,7 +26,9 @@ function nextSection(from,to){
   } else {
     if(required.some(q=>answers[q]===undefined)){errEl.style.display='block';setTimeout(()=>errEl.style.display='none',3000);return;}
   }
-  errEl.style.display='none';goTo(to);
+  errEl.style.display='none';
+  window.WusoolAnalytics&&WusoolAnalytics.step('section-'+from);
+  goTo(to);
 }
 
 function clearConsentErr(){

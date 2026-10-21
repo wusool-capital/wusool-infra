@@ -9,17 +9,24 @@ to the running loop, so `capture` here is async to keep it on uvicorn's loop
 
 import asyncio
 import logging
+from datetime import datetime
 from typing import Literal
+from uuid import NAMESPACE_URL, uuid5
 
 from posthog import AsyncPosthog
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.lead_magnets.domain.insights_report.report_event import ReportEvent
+from app.modules.lead_magnets.domain.shared.lead_event import LeadEvent
 
 logger = logging.getLogger(__name__)
 
 # shortcut: Docker stops the container about 10 s after SIGTERM; a slower flush loses events.
 _SHUTDOWN_TIMEOUT_S = 5.0
+
+
+def _replay_key(event: LeadEvent) -> str:
+    return str(uuid5(NAMESPACE_URL, f"{event.event}:{event.tool}:{event.submission_id}"))
 
 
 class PersonSet(BaseModel):
@@ -64,26 +71,88 @@ class PostHogProperties(BaseModel):
         )
 
 
+class LeadProperties(BaseModel):
+    """A lead event's `properties`: tool and submission id, plus a person only if consented."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    tool: str
+    submission_id: str
+    is_test: bool
+    source: Literal["email"] | None = None
+    person_set: PersonSet | None = Field(default=None, alias="$set")
+    process_person_profile: bool | None = Field(default=None, alias="$process_person_profile")
+
+    @classmethod
+    def of(cls, event: LeadEvent, *, is_test: bool) -> "LeadProperties":
+        person = event.person
+        return cls(
+            tool=event.tool,
+            submission_id=event.submission_id,
+            is_test=is_test,
+            source=event.source,
+            person_set=(
+                PersonSet(name=person.name, email=person.email.lower(), company=person.company)
+                if person
+                else None
+            ),
+            process_person_profile=False if person is None else None,
+        )
+
+
 class PostHogAnalytics:
     def __init__(self, api_key: str, *, host: str, is_test: bool) -> None:
         self._client = AsyncPosthog(api_key, host=host) if api_key else None
-        self._is_test = is_test
+        self.is_test = is_test
         if self._client is None:
             logger.info("posthog_capture_skipped reason=no_api_key")
 
     async def capture(self, event: ReportEvent) -> None:
         if self._client is None:
             return
-        properties = PostHogProperties.of(event, is_test=self._is_test)
+        properties = PostHogProperties.of(event, is_test=self.is_test)
+        distinct_id = event.email.lower()
         try:
+            if event.event == "report_unlocked" and event.email_verified and event.visitor_id:
+                self._identify(distinct_id, event.visitor_id, event.at)
             self._client.capture(
                 event.event,
-                distinct_id=event.email.lower(),
+                distinct_id=distinct_id,
                 properties=properties.model_dump(by_alias=True, exclude_none=True),
                 timestamp=event.at,
             )
         except Exception as exc:  # noqa: BLE001 - analytics never fails a reader
             logger.warning("posthog_capture_failed event=%s error=%s", event.event, exc)
+
+    async def capture_lead(self, event: LeadEvent) -> None:
+        if self._client is None:
+            return
+        properties = LeadProperties.of(event, is_test=self.is_test)
+        person = event.person
+        distinct_id = person.email.lower() if person else event.submission_id
+        try:
+            if person and event.visitor_id:
+                self._identify(distinct_id, event.visitor_id, event.at)
+            self._client.capture(
+                event.event,
+                distinct_id=distinct_id,
+                properties=properties.model_dump(by_alias=True, exclude_none=True),
+                timestamp=event.at,
+                # A retried submit reuses its id, so PostHog drops the repeat.
+                uuid=_replay_key(event) if event.event == "lead_submitted" else None,
+            )
+        except Exception as exc:  # noqa: BLE001 - analytics never fails a lead
+            logger.warning("posthog_capture_failed event=%s error=%s", event.event, exc)
+
+    def _identify(self, distinct_id: str, visitor_id: str, at: datetime) -> None:
+        """Merges the visitor's earlier anonymous page views into the person."""
+        if self._client is not None:
+            self._client.capture(
+                "$identify",
+                distinct_id=distinct_id,
+                properties={"$anon_distinct_id": visitor_id},
+                timestamp=at,
+            )
 
     async def shutdown(self) -> None:
         if self._client is None:

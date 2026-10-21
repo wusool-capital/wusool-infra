@@ -8,6 +8,7 @@ the application.
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
+from app.modules.lead_magnets.api.analytics import track_lead
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
     rate_limit,
@@ -45,5 +46,14 @@ async def buyer_apply(
     await session.commit()
 
     background.add_task(run_completion, run_id)
+    track_lead(
+        background,
+        tool="buyer_network",
+        submission_id=request.submission_id,
+        analytics=request.analytics,
+        name=request.full_name,
+        email=request.email,
+        company=request.org_name,
+    )
 
     return BuyerApplyResponse(ok=True, run_id=str(run_id))

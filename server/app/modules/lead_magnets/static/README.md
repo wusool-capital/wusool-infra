@@ -337,3 +337,41 @@ benchmark and valuation swallow the failure and carry on, so for them this
 is a no-op today, included so one invariant covers every page.
 `test_static_contract.py::test_no_page_mints_its_own_submission_id` pins
 that no page calls `crypto.randomUUID` itself.
+
+## shared/analytics.js
+
+Consent-gated PostHog tracking for every tool page. It stays off, with no
+network call, until the visitor has accepted tracking. Direct visits and dev
+read `localStorage["wusool_analytics_consent"]` on this origin; embedded pages
+get the choice from `embed.js`, which relays the Webflow banner. If the parent
+has not answered after 3 seconds, the visitor counts as not consenting.
+
+**Consent contract for the Webflow banner.** On the Webflow origin, either set
+`localStorage["wusool_analytics_consent"]` to `"granted"` or `"denied"`, or call
+`WusoolAnalytics.setConsent(true | false)`, which `embed.js` defines. Either one
+reaches every embedded tool, including the Get Started modal, and a later
+change (a withdrawn choice, or another tab) is relayed too. Withdrawing
+opts the visitor out and clears the remembered UTM tags.
+
+**Events.** Properties come only from an allowlist (`tool`, `step`, `language`,
+`source`, `submission_id`). Anything else is dropped before sending, and the
+script has no code that reads a form field.
+
+| Event | When | Properties |
+|---|---|---|
+| `tool_opened` | The page loads | `tool`, `language`, `submission_id` |
+| `tool_started` | First input, change or click on a form control | same |
+| `tool_step_completed` | A page calls `WusoolAnalytics.step(name)` for the step just finished (once per step per load): readiness sections, benchmark steps, valuation gate and results | plus `step` |
+| `tool_completed` | A lead submit returns 2xx | plus the last `step` |
+| `tool_abandoned` | The page closes after a start and before completing (sent by beacon) | plus the last `step` |
+| `book_call_clicked` | A click on a `calendar.app.google` link in the page | plus `source: "tool"` |
+
+The script also wraps `fetch` for the lead submit routes (`SUBMIT_PATHS`, kept in
+step with the server by `test_static_contract.py`) and the report unlock. It adds
+an `analytics` object to the JSON body: `visitor_id` and `consent` (false and null
+when tracking was not accepted) and the visit's first-touch `utm` tags. The UTM tags
+go to our own server, so they are sent even without consent; remembering them
+across visits needs consent.
+
+Session replay and autocapture are off. Replay needs its own review, because the
+results pages show revenue and valuation figures as text.

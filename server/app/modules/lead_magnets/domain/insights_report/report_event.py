@@ -22,3 +22,5 @@ class ReportEvent:
     format: Literal["html", "pdf"] | None = None
     # False when the email code is off: nobody has proven the address is theirs.
     email_verified: bool = True
+    # The browser's PostHog id, sent only by visitors who accepted tracking.
+    visitor_id: str | None = None

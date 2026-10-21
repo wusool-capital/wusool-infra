@@ -15,6 +15,16 @@ for current production evidence and open handover items.
 - Report form submits, unlocks and views now go to PostHog, so the team can
   see who read which report and when without SQL. Nothing is sent until
   `LEAD_MAGNET_POSTHOG_API_KEY` is set in the Toolkit secret.
+- The lead tools now report to PostHog too: when a visitor opens, starts,
+  moves through, finishes or leaves a tool, and when they click Book a Call.
+  Browser events are sent only after the visitor accepts tracking, and never
+  include a form value. The Toolkit also counts every lead and every click on
+  an email's Book a Call button. A visitor who declined is counted but never
+  named. One who accepted is linked to their earlier page views by email.
+- The Book a Call button in the emails now goes through the Toolkit, which
+  redirects to the right calendar, once `LEAD_MAGNET_PUBLIC_BASE_URL` is set.
+- A lead's first-touch campaign tags (`utm_source` and the like) are saved
+  with the lead.
 
 ### Changed
 

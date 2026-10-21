@@ -275,7 +275,7 @@
       "id": "posthog",
       "type": "external",
       "label": "PostHog",
-      "sublabel": "report submits + views",
+      "sublabel": "tool + report events",
       "pos": [
         760,
         600
@@ -405,10 +405,16 @@
     {
       "from": "toolkit",
       "to": "posthog",
-      "label": "report events",
+      "label": "report + lead events",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "left"
+    },
+    {
+      "from": "website",
+      "to": "posthog",
+      "label": "browser events, after consent",
+      "variant": "dashed"
     },
     {
       "from": "attio",

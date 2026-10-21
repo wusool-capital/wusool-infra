@@ -360,6 +360,7 @@ def build_submission_service(session: AsyncSession) -> LeadMagnetService:
         mailer=build_lead_magnet_mailer(),
         email_from=settings.lead_magnet_email_from,
         email_to=settings.lead_magnet_email_to.split(),
+        public_base_url=settings.lead_magnet_public_base_url,
     )
 
 
