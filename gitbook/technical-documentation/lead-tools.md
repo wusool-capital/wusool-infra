@@ -46,6 +46,13 @@ never lost to a later failure:
 5. **Email the visitor** a confirmation through Amazon SES, with a Book a
    Call link.
 6. **Email the team** a notice linking to the Attio organization and deal.
+   The notice lists every form field and sets Reply-To to the lead's address,
+   so replying opens a draft addressed to the lead and keeps the conversation
+   in one thread. From stays the platform sender. Seller tools use the subject
+   `New Seller Lead - {Company}` and the buyer tool uses
+   `New Buyer Lead - {Name}`. If the lead's address is invalid, the subject
+   starts with `⚠️ Invalid email - `, there is no Reply-To or Reply button,
+   and no confirmation goes to the visitor.
 7. **Finish** the run and add its activity.
 
 Two tools record later than step 1 suggests. Valuation records nothing until

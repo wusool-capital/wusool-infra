@@ -177,6 +177,8 @@ class BuyerNetworkPayload(_Payload):
     email: str = ""
     full_name: str = ""
     linkedin_url: str | None = None
+    # `None`, not `False`: a payload stored before consent existed is "unknown".
+    consent: bool | None = None
 
 
 class GetStartedPayload(_Payload):
