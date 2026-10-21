@@ -391,3 +391,15 @@ def test_analytics_waits_for_consent_before_any_network_call() -> None:
     js = _analytics_js()
     assert "function load() {\n    if (loading || consent !== true) return;" in js
     assert js.count('"/analytics/config"') == 1
+
+
+def test_report_gate_asks_for_an_unticked_privacy_policy_checkbox() -> None:
+    """The gate used to say "by continuing you agree"; now the reader must tick
+    the same Privacy Policy line the lead tools use, and it starts unticked."""
+    html = (static_dir() / "report" / "index.html").read_text(encoding="utf-8")
+    js = (static_dir() / "report" / "10-main.js").read_text(encoding="utf-8")
+
+    checkbox = re.search(r'<input type="checkbox" id="consent"[^>]*>', html)
+    assert checkbox and "checked" not in checkbox.group(0)
+    assert "wusoolcapital.com/privacy-policy" in html
+    assert 'if(!document.getElementById("consent").checked)' in js

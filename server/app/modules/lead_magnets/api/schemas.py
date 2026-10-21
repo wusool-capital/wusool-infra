@@ -600,6 +600,8 @@ class ReportUnlockRequest(_Strict):
     # Optional; `""`, not `None`, to match `AttioIdentityPayload.company`.
     company: str = Field(default="", max_length=200)
     email: str = Field(min_length=3, max_length=320, pattern=_EMAIL_PATTERN)
+    # The Privacy Policy tick on the gate. The page enforces it; the server records it.
+    consent: bool = False
 
 
 class ReportCodeSent(BaseModel):

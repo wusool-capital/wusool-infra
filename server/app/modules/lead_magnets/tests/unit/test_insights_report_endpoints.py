@@ -634,3 +634,17 @@ def test_with_the_email_code_off_the_visitor_is_never_linked(client, world) -> N
     )
 
     assert world.events[0].visitor_id is None, "an unproven address can't claim a visitor"
+
+
+def test_the_privacy_tick_is_recorded_with_the_lead(client, world) -> None:
+    response = _unlock(client, world, consent=True)
+
+    assert response.status_code == 200
+    assert world.recorded[0]["payload"]["consent"] is True
+
+
+def test_a_request_without_the_tick_still_works_for_older_pages(client, world) -> None:
+    response = _unlock(client, world)
+
+    assert response.status_code == 200
+    assert world.recorded[0]["payload"]["consent"] is False

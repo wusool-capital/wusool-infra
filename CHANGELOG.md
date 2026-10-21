@@ -27,6 +27,8 @@ for current production evidence and open handover items.
   with the lead.
 - Clicks on the consent banner's Accept and Decline are counted without
   identifying anyone, so the team can see the acceptance rate.
+- The report gate now has a Privacy Policy checkbox, like the lead tools. The
+  reader ticks it before a code is sent, and the tick is saved with the lead.
 
 ### Changed
 

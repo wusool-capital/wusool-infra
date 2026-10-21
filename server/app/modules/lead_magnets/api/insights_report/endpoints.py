@@ -392,6 +392,7 @@ def _reader_form(request: ReportUnlockRequest) -> ReaderForm:
         name=request.name,
         company=request.company,
         email=request.email,
+        consent=request.consent,
         visitor_id=analytics.visitor_id if analytics else None,
         utm=utm,
     )

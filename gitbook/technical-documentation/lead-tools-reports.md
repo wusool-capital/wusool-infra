@@ -14,9 +14,10 @@ readers become leads.
 1. **`GET /reports/{slug}`** returns the stored report's preview to a new
    reader, or the whole report to a returning one. The preview is cut between
    block elements, never mid-tag, and never sends the rest to a new reader.
-2. **`POST /reports/{slug}/unlock`** takes name, email, and an optional
-   organization, and emails a one-time code through SES. Nothing is
-   recorded yet, so a mistyped address never becomes a lead.
+2. **`POST /reports/{slug}/unlock`** takes name, email, an optional
+   organization and the Privacy Policy tick, and emails a one-time code
+   through SES. Nothing is recorded yet, so a mistyped address never becomes
+   a lead.
 3. **`POST /reports/{slug}/unlock/verify`** checks the code. On a match it
    records the reader through the
    [write contract](lead-tools.md#the-write-contract), returns the whole
