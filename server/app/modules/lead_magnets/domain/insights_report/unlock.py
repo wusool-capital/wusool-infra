@@ -28,6 +28,8 @@ class ReaderForm:
     email: str
     # The Privacy Policy tick, recorded with the lead.
     consent: bool = False
+    # Whether the visitor accepted tracking on the banner, kept for later views.
+    analytics_consent: bool = False
     # Kept with the form because the code is typed back in a second request.
     visitor_id: str | None = None
     utm: UtmValues | None = None

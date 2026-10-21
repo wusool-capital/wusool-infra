@@ -285,3 +285,40 @@ async def test_banner_counting_is_off_without_a_key_and_survives_sdk_errors() ->
     await _analytics(_FakeSdk(raises=RuntimeError("down"))).capture_consent(
         ConsentEvent(choice="granted", at=_AT)
     )
+
+
+async def test_an_anonymous_report_event_carries_no_personal_detail() -> None:
+    sdk = _FakeSdk()
+    event = replace(
+        _event("report_unlocked"), identified=False, anonymous_id="page-load-7", format="pdf"
+    )
+    await _analytics(sdk, is_test=True).capture(event)
+
+    (call,) = sdk.calls
+    assert call.distinct_id == "page-load-7", "never the email"
+    assert call.properties == {
+        "slug": "buyouts-in-the-gcc",
+        "report_title": "Buyouts in the GCC",
+        "is_test": True,
+        "format": "pdf",
+        "$process_person_profile": False,
+    }
+
+
+async def test_anonymous_report_events_without_an_id_never_share_one() -> None:
+    sdk = _FakeSdk()
+    analytics = _analytics(sdk)
+    await analytics.capture(replace(_event("report_viewed"), identified=False))
+    await analytics.capture(replace(_event("report_viewed"), identified=False))
+
+    first, second = sdk.calls
+    assert first.distinct_id != second.distinct_id
+
+
+async def test_an_anonymous_unlock_never_links_a_visitor_or_sets_a_person() -> None:
+    sdk = _FakeSdk()
+    event = replace(_event("report_unlocked"), identified=False, visitor_id="anon-9")
+    await _analytics(sdk).capture(event)
+
+    assert [c.event for c in sdk.calls] == ["report_unlocked"]
+    assert "$set" not in sdk.calls[0].properties

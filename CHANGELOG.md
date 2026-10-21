@@ -14,7 +14,8 @@ for current production evidence and open handover items.
 
 - Report form submits, unlocks and views now go to PostHog, so the team can
   see who read which report and when without SQL. Nothing is sent until
-  `LEAD_MAGNET_POSTHOG_API_KEY` is set in the Toolkit secret.
+  `LEAD_MAGNET_POSTHOG_API_KEY` is set in the Toolkit secret. A reader who
+  declined tracking is counted anonymously, without name or email.
 - The lead tools now report to PostHog too. It records when a visitor opens,
   starts, finishes or leaves a tool, and Book a Call clicks. Browser events
   are sent only after the visitor accepts tracking. They never include a form

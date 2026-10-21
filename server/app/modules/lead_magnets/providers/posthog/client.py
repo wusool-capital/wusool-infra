@@ -35,6 +35,19 @@ class PersonSet(BaseModel):
     company: str
 
 
+class AnonymousReportProperties(BaseModel):
+    """A report event for a visitor who did not accept tracking: no name, email,
+    company or domain, and never a person."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    slug: str
+    report_title: str
+    is_test: bool
+    format: Literal["html", "pdf"] | None = None
+    process_person_profile: bool = Field(default=False, alias="$process_person_profile")
+
+
 class PostHogProperties(BaseModel):
     """The SDK's `properties`. `$` keys go out by alias."""
 
@@ -110,6 +123,9 @@ class PostHogAnalytics:
     async def capture(self, event: ReportEvent) -> None:
         if self._client is None:
             return
+        if not event.identified:
+            self._capture_anonymous(event)
+            return
         properties = PostHogProperties.of(event, is_test=self.is_test)
         distinct_id = event.email.lower()
         try:
@@ -118,6 +134,25 @@ class PostHogAnalytics:
             self._client.capture(
                 event.event,
                 distinct_id=distinct_id,
+                properties=properties.model_dump(by_alias=True, exclude_none=True),
+                timestamp=event.at,
+            )
+        except Exception as exc:  # noqa: BLE001 - analytics never fails a reader
+            logger.warning("posthog_capture_failed event=%s error=%s", event.event, exc)
+
+    def _capture_anonymous(self, event: ReportEvent) -> None:
+        if self._client is None:
+            return
+        properties = AnonymousReportProperties(
+            slug=event.slug,
+            report_title=event.report_title,
+            is_test=self.is_test,
+            format=event.format,
+        )
+        try:
+            self._client.capture(
+                event.event,
+                distinct_id=event.anonymous_id or str(uuid4()),
                 properties=properties.model_dump(by_alias=True, exclude_none=True),
                 timestamp=event.at,
             )

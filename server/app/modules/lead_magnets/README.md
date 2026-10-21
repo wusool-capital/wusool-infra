@@ -306,8 +306,8 @@ FROM tool_runs WHERE tool = 'insights_report' ORDER BY started_at DESC;
 ```
 
 The same reads also go to PostHog, so the team can see them without SQL.
-`providers/posthog/client.py` sends three server-side events, keyed by the
-reader's lower-cased email:
+`providers/posthog/client.py` sends three server-side events. For a visitor who
+accepted tracking on the banner they are keyed by the reader's lower-cased email:
 
 | Event | When | Person |
 |---|---|---|
@@ -315,7 +315,15 @@ reader's lower-cased email:
 | `report_unlocked` | The code is verified, or the form is sent with the email code off | With a verified code: `name`, `email`, `company` set. With the email code off: not created, since nobody proved the address |
 | `report_viewed` | A reader with the cookie opens the report (`format: html`) or the PDF (`format: pdf`), on every visit | Unchanged |
 
-Every event carries `slug`, `report_title`, `company`, `domain` and `is_test`.
+A visitor who declined, or never chose, is counted anonymously instead: the
+event carries only `slug`, `report_title`, `format` and `is_test`, with the
+page load's random submission id (a fresh id for a view), no person, and no
+link to earlier page views. The unlock request records the banner choice as
+`analytics_consent` in the run's payload, and later views follow that saved
+choice. A reader who changes their mind later keeps the unlock-time choice
+for views until a new unlock.
+
+For an accepting visitor every event also carries `company`, `domain` and `is_test`.
 In PostHog, **Activity** lists the events, **Persons** shows each reader, and
 an insight broken down by `report_title` shows reads per report. A blank
 `LEAD_MAGNET_POSTHOG_API_KEY` sends nothing; an SDK error is logged

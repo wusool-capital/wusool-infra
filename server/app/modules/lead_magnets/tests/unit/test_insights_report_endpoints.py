@@ -179,14 +179,20 @@ def _unlock(client, world: _World, **form: str):
     )
 
 
-def _reader_run(world: _World, slug: str) -> UUID:
+def _reader_run(world: _World, slug: str, *, consented: bool = False) -> UUID:
     run_id = uuid4()
     world.runs[run_id] = ToolRunRecord(
         id=run_id,
         tool="insights_report",
         status="succeeded",
         attempt_count=1,
-        payload={"name": "Dana", "email": "dana@acme.ae", "company": "Acme", "slug": slug},
+        payload={
+            "name": "Dana",
+            "email": "dana@acme.ae",
+            "company": "Acme",
+            "slug": slug,
+            "analytics_consent": consented,
+        },
         stage=None,
     )
     return run_id
@@ -648,3 +654,45 @@ def test_a_request_without_the_tick_still_works_for_older_pages(client, world) -
 
     assert response.status_code == 200
     assert world.recorded[0]["payload"]["consent"] is False
+
+
+def test_a_visitor_who_did_not_accept_tracking_is_counted_without_being_named(
+    client, world
+) -> None:
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "page-load-7", "name": "Dana", "email": "dana@acme.ae"},
+    )
+    verify = {
+        "challenge_id": client.post(
+            "/reports/buyouts-in-the-gcc/unlock",
+            json={"submission_id": "page-load-7", "name": "Dana", "email": "dana@acme.ae"},
+        ).json()["challenge_id"],
+        "code": _sent_code(world),
+    }
+    client.post("/reports/buyouts-in-the-gcc/unlock/verify", json=verify)
+
+    requested, requested_again, unlocked = world.events
+    assert [e.identified for e in (requested, requested_again, unlocked)] == [False] * 3
+    assert {e.anonymous_id for e in (requested, requested_again, unlocked)} == {"page-load-7"}
+    assert world.recorded[0]["payload"]["analytics_consent"] is False
+
+
+def test_a_visitor_who_accepted_tracking_is_named_in_the_report_events(client, world) -> None:
+    _unlock_with_analytics(client, world, {"consent": True, "visitor_id": "anon-1"})
+
+    assert [e.identified for e in world.events] == [True, True]
+    assert world.recorded[0]["payload"]["analytics_consent"] is True
+
+
+def test_a_return_view_follows_the_choice_saved_at_unlock(client, world) -> None:
+    client.cookies.set(
+        "wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc", consented=True))
+    )
+    client.get("/reports/buyouts-in-the-gcc")
+    client.cookies.set(
+        "wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc", consented=False))
+    )
+    client.get("/reports/buyouts-in-the-gcc")
+
+    assert [e.identified for e in world.events] == [True, False]

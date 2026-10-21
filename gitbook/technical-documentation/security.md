@@ -89,9 +89,9 @@ Bedrock or Firecrawl, then to Attio. Report readers are recorded in
 confirming their code. Test submissions are always flagged.
 
 PostHog (EU Cloud) receives usage events from the tools and reports. It never
-receives a form value. A visitor's name, email and company reach it only for
-a confirmed report reader, or for a visitor who accepted tracking. A visitor
-who declined is counted anonymously. PostHog is a processor under a signed
+receives a form value. A visitor's name, email and company reach it only if
+they accepted tracking. A visitor who declined is counted anonymously.
+PostHog is a processor under a signed
 data processing agreement, and a deletion request must also delete the person
 in PostHog.
 

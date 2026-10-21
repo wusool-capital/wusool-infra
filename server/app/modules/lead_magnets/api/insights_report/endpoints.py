@@ -169,7 +169,7 @@ async def _record_read(
     reader = await _known_reader(session, cookie)
     if reader is None:
         return False
-    identity, unlocked_slug = reader
+    identity, unlocked_slug, consented = reader
     if unlocked_slug != report.slug:
         run_id = await build_submission_service(session).record(
             tool=_TOOL,
@@ -193,6 +193,7 @@ async def _record_read(
         company=identity.company,
         domain=identity.domain,
         format=format,
+        identified=consented,
     )
     return True
 
@@ -233,6 +234,8 @@ async def unlock_report(
         email=form.email,
         company=form.company,
         domain=org_domain(form.email),
+        identified=form.analytics_consent,
+        anonymous_id=form.submission_id,
     )
     return ReportCodeSent(challenge_id=challenge_id)
 
@@ -301,6 +304,8 @@ async def _open_report(
         domain=domain,
         email_verified=verified,
         visitor_id=form.visitor_id if verified else None,
+        identified=form.analytics_consent,
+        anonymous_id=form.submission_id,
     )
 
     response.headers["Cache-Control"] = "no-store"
@@ -364,6 +369,8 @@ def _track(
     format: Literal["html", "pdf"] | None = None,
     email_verified: bool = True,
     visitor_id: str | None = None,
+    identified: bool = True,
+    anonymous_id: str | None = None,
 ) -> None:
     """Sends a PostHog event after the response, so analytics never slows a reader."""
     background.add_task(
@@ -380,6 +387,8 @@ def _track(
             format=format,
             email_verified=email_verified,
             visitor_id=visitor_id,
+            identified=identified,
+            anonymous_id=anonymous_id,
         ),
     )
 
@@ -393,6 +402,7 @@ def _reader_form(request: ReportUnlockRequest) -> ReaderForm:
         company=request.company,
         email=request.email,
         consent=request.consent,
+        analytics_consent=bool(analytics and analytics.consent),
         visitor_id=analytics.visitor_id if analytics else None,
         utm=utm,
     )
@@ -408,8 +418,8 @@ async def _capture(event: ReportEvent) -> None:
 
 async def _known_reader(
     session: SessionDep, cookie: str | None
-) -> tuple[AttioIdentityPayload, str] | None:
-    """The identity and report slug behind a reader cookie, or `None`."""
+) -> tuple[AttioIdentityPayload, str, bool] | None:
+    """The identity, report slug and tracking choice behind a reader cookie, or `None`."""
     if not cookie:
         return None
     try:
@@ -420,4 +430,8 @@ async def _known_reader(
     if run is None or run.tool != _TOOL:
         return None
     slug = run.payload.get("slug")
-    return AttioIdentityPayload.model_validate(run.payload), slug if isinstance(slug, str) else ""
+    return (
+        AttioIdentityPayload.model_validate(run.payload),
+        slug if isinstance(slug, str) else "",
+        run.payload.get("analytics_consent") is True,
+    )

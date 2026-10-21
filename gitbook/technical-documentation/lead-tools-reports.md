@@ -76,6 +76,11 @@ Each event names the report (`slug`, `report_title`). Look under **Activity**
 for the events and **Persons** for each reader. Break an insight down by
 `report_title` to count reads per report.
 
+These events name the reader only if they accepted tracking on the website
+banner. A reader who declined, or never chose, is counted anonymously: the
+report and the format, with no name, email or company. Later visits follow the
+choice made when they unlocked.
+
 When the email code is off, nobody has proved the address, so no person is
 created or edited. A deletion request also needs the reader deleted in
 PostHog, not only in Attio and Postgres.
