@@ -317,3 +317,9 @@ def test_is_valid_email_accepts(value: str) -> None:
 )
 def test_is_valid_email_rejects(value: str) -> None:
     assert not is_valid_email(value)
+
+
+def test_mailto_links_url_encode_the_address() -> None:
+    html = _internal("valuation", email="a?cc=x@acme.com")[1]
+    assert "mailto:a%3Fcc%3Dx@acme.com" in html
+    assert "mailto:a?cc" not in html

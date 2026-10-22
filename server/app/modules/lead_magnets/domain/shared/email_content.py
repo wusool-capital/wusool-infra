@@ -10,6 +10,7 @@ email templates so a rendered email matches the brand exactly.
 import re
 from dataclasses import dataclass
 from html import escape
+from urllib.parse import quote
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,11 @@ _EMAIL_RE = re.compile(EMAIL_PATTERN)
 def is_valid_email(value: str) -> bool:
     # `fullmatch`, not `match`: `$` alone would accept a trailing newline.
     return _EMAIL_RE.fullmatch(value) is not None
+
+
+def _mailto(email: str) -> str:
+    # URL-encode: the pattern allows `?`, `&` and `#`, which would add mailto headers.
+    return esc(f"mailto:{quote(email, safe='@')}")
 
 
 def esc(value: object) -> str:
@@ -160,7 +166,7 @@ def _lead_rows(name: str, email: str) -> str:
     cell = "padding:10px 14px;border-bottom:1px solid #f5f5f5;"
     if is_valid_email(email):
         value = (
-            f'<a href="mailto:{esc(email)}" style="color:#1a56b8;text-decoration:underline;">'
+            f'<a href="{_mailto(email)}" style="color:#1a56b8;text-decoration:underline;">'
             f"{esc(email)}</a>"
         )
         value_style = f"{cell}font-weight:600;"
@@ -202,7 +208,7 @@ def render_internal_shell(
     first_name = (lead_name.split() or ["lead"])[0]
     buttons = "".join(
         [
-            _link_button(f"Reply to {esc(first_name)}", f"mailto:{esc(lead_email)}", filled=True)
+            _link_button(f"Reply to {esc(first_name)}", _mailto(lead_email), filled=True)
             if valid
             else "",
             _link_button("View Organisation", org_url, filled=not valid) if org_url else "",
