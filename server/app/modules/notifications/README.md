@@ -14,7 +14,9 @@ Email has no in-request counterpart — `EmailSenderPort` is always the
 right thing. `send`'s `is_html` flag (default `False`) picks `Body.Html`
 over `Body.Text` on the underlying SES call — added for `lead_magnets`'
 HTML confirmation/internal-notice emails; `meetings`' plain-text feedback
-email is unaffected by the default.
+email is unaffected by the default. The optional `reply_to` argument sets
+SES `ReplyToAddresses`, so a reply goes to that address while From stays the
+authenticated sender. It is left out of the call when unset.
 
 ## Structure
 
