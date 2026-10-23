@@ -49,7 +49,7 @@ variable "snapshot_identifier" {
 }
 
 variable "extra_allowed_security_group_ids" {
-  description = "Additional SGs to grant ingress, beyond n8n and toolkit (e.g. scribe's SG, currently hardcoded elsewhere)."
+  description = "Additional SGs to grant ingress, beyond toolkit (e.g. scribe's SG, currently hardcoded elsewhere)."
   type        = list(string)
   default     = []
 }

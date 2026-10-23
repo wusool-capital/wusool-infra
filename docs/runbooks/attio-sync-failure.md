@@ -15,11 +15,14 @@ CRM of record.
 
 - An Attio change is visible in Attio but missing from PostgreSQL.
 - `POST /webhooks/attio` deliveries are rejected or fail processing.
-- The scheduled `nightly-attio-sync.yml` workflow fails or is skipped because no
-  Toolkit instance is SSM-online.
+- The scheduled `nightly-attio-sync.yml` workflow fails. It also fails when the
+  Toolkit ASG has no running instance. It skips only when no prod Toolkit ASG
+  exists (`create_instance = false`).
 - `validate-postgres.ps1` reports count, relationship, or environment-flag
   mismatches.
 - CloudWatch/SNS reports a nightly resync failure.
+- The `wusool-prod-attio-resync-heartbeat` alarm fires: no successful run in
+  30 hours. The workflow either kept failing or never started.
 
 ## Severity
 
@@ -44,10 +47,16 @@ CRM workflows; otherwise P2.
    The repository script is `.github/scripts/nightly-attio-resync.sh` and the
    remote command is `python -m app.modules.ddl_commands.scripts.attio_sync_full_resync`.
 3. If the instance is unavailable, use the Toolkit outage runbook and confirm
-   the current ASG-managed instance is SSM-online.
-4. Check webhook signature/workspace rejection versus Attio API failure versus
+   the current ASG-managed instance is SSM-online. An `AccessDenied` in the
+   run points at the `wusool-gha-attio-resync-prod` role's policy in
+   `infrastructure/terraform/stacks/account/main.tf`.
+4. For a heartbeat alarm, open the workflow's run history. No recent runs
+   means the schedule didn't fire: check that the workflow is enabled and
+   GitHub's status page. Failed runs mean diagnose the latest failure.
+   The alarm clears on the next successful run.
+5. Check webhook signature/workspace rejection versus Attio API failure versus
    PostgreSQL connectivity. The endpoint is `POST /webhooks/attio`.
-5. Run the verified read-only production validator through the RDS tunnel:
+6. Run the verified read-only production validator through the RDS tunnel:
    `server/scripts/postgres-sync/prod/validate-postgres.ps1`.
 
 ## Recovery
@@ -55,7 +64,8 @@ CRM workflows; otherwise P2.
 1. Fix the identified access, instance, or dependency issue with the responsible
    owner; do not rotate credentials or alter webhook subscriptions without
    explicit human approval.
-2. After understanding the failure, rerun the nightly workflow or its verified
+2. After understanding the failure, rerun the nightly workflow (Actions → Nightly
+   Attio full resync → Run workflow, on `dev` or `prod`) or its verified
    resync script. The script has bounded runtime/resources, prevents concurrent
    resyncs, streams output to the Toolkit CloudWatch log group, and cancels a
    timed-out SSM command.

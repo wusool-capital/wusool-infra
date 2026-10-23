@@ -6,11 +6,11 @@
 
 * [Choose a tool](user-guide/user-guide.md)
 * [Wusool Toolkit](user-guide/toolkit.md)
+  * [Find matches](user-guide/toolkit-find-match.md)
 * [WusoolScribe](user-guide/scribe.md)
 * [Attio CRM](user-guide/attio.md)
 * [Website lead tools](user-guide/lead-tools.md)
   * [Publish reports and articles in Sanity](user-guide/publish-in-sanity.md)
-* [n8n](user-guide/n8n.md)
 * [Troubleshooting and support](user-guide/troubleshooting.md)
 * [Glossary](user-guide/glossary.md)
 
@@ -19,6 +19,7 @@
 * [Platform architecture](technical-documentation/technical.md)
 * [Wusool Toolkit](technical-documentation/toolkit.md)
   * [Matching engine](technical-documentation/toolkit-matching.md)
+  * [Advisor's note in a match](technical-documentation/toolkit-matching-note.md)
   * [Discrepancy check](technical-documentation/toolkit-discrepancies.md)
   * [Profile commands](technical-documentation/toolkit-profile-commands.md)
   * [Enrichment](technical-documentation/toolkit-enrichment.md)
@@ -33,7 +34,6 @@
   * [Get Started](technical-documentation/lead-tools-get-started.md)
   * [Gated reports](technical-documentation/lead-tools-reports.md)
   * [Sanity and Webflow publishing](technical-documentation/lead-tools-publishing.md)
-* [n8n](technical-documentation/n8n.md)
 * [Security and data handling](technical-documentation/security.md)
 
 ## Operations and Handover

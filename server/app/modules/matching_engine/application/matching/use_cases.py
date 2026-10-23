@@ -24,6 +24,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Literal
 
+from app.modules.matching_engine.application.activity_events import run_completed_event
 from app.modules.matching_engine.application.approvals import MatchNotFoundError
 from app.modules.matching_engine.application.base import ServiceBase
 from app.modules.matching_engine.domain.buyers import BuyerContext
@@ -100,7 +101,7 @@ class MatchingMixin(ServiceBase):
         started_at = datetime.now(UTC)
 
         async with self._uow_factory() as uow:
-            await uow.match_results.create_run(
+            header = await uow.match_results.create_run(
                 run_id=run_id,
                 buyer_attio_id=buyer.org_attio_id,
                 buyer_role_id=buyer_role_id,
@@ -109,7 +110,7 @@ class MatchingMixin(ServiceBase):
 
         try:
             return await self._run(
-                run_id, buyer_role_id, buyer, requested_by, started_at, advisor_context
+                run_id, header.id, buyer_role_id, buyer, requested_by, started_at, advisor_context
             )
         except Exception as exc:
             logger.warning(
@@ -125,6 +126,16 @@ class MatchingMixin(ServiceBase):
                     errors={"message": "matching failed before results could be generated"},
                     completed_at=datetime.now(UTC),
                 )
+                await uow.activities.record(
+                    run_completed_event(
+                        run_id=run_id,
+                        header_row_id=header.id,
+                        buyer_role_id=buyer_role_id,
+                        requested_by=requested_by,
+                        status="FAILED",
+                        candidate_count=0,
+                    )
+                )
             return MatchRunResult(
                 run_id=str(run_id),
                 status="FAILED",
@@ -135,6 +146,7 @@ class MatchingMixin(ServiceBase):
     async def _run(
         self,
         run_id: uuid.UUID,
+        header_row_id: str,
         buyer_role_id: uuid.UUID,
         buyer: BuyerContext,
         requested_by: str | None,
@@ -283,6 +295,16 @@ class MatchingMixin(ServiceBase):
                 final_candidate_ids=[str(c.seller_role_id) for c, _ in shortlist],
                 execution_duration_ms=execution_duration_ms,
                 completed_at=datetime.now(UTC),
+            )
+            await uow.activities.record(
+                run_completed_event(
+                    run_id=run_id,
+                    header_row_id=header_row_id,
+                    buyer_role_id=buyer_role_id,
+                    requested_by=requested_by,
+                    status="GENERATED",
+                    candidate_count=len(shortlist),
+                )
             )
 
         results = []

@@ -8,7 +8,63 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-21
+
+### Changed
+
+- Replying to a lead notification now opens a draft addressed to the lead,
+  so the whole conversation stays in one thread. This covers all five lead
+  tools. The sender stays the platform address. The notice now lists every
+  form field, links the lead's email, and has a "Reply to" button.
+- Seller notices are titled "New Seller Lead - Company". Buyer notices are
+  titled "New Buyer Lead - Name".
+- A lead with a malformed email no longer breaks the run. The team notice
+  goes out with a warning in the subject, and the visitor gets no
+  confirmation.
+- Lead emails no longer contain em dashes.
+
+## 2026-10-20
+
+### Changed
+
+- Every Slack form, in every module, now goes through one shared check
+  before it opens. Numbers are written the way Slack accepts: "12.0"
+  becomes "12". A number that can't be fixed is left blank instead of
+  failing the whole form. This replaces the per-form fix from 2026-10-16.
+  When Slack does reject a form, the log now names the exact field.
+- The nightly Attio resync can no longer stop silently. A missing Toolkit
+  instance now fails the run and alerts, unless production is deliberately
+  set to run without one. A new heartbeat alarm alerts when no run has
+  succeeded for 30 hours, which catches a disabled workflow or a schedule
+  that never fires. The job now uses its own narrow AWS role instead of the
+  deploy role.
+- A Toolkit deploy that finds the server mid-replacement now fails instead of
+  skipping database migrations and the app rollout while reporting success.
+  Rerun it once the replacement finishes.
+- The n8n dev and prod servers are retired and removed from the
+  infrastructure. Deploys no longer apply or health-check n8n.
+
+### Fixed
+
+- Messages the bot sends while handling a command or button no longer
+  expand link previews. Only messages sent outside a Slack request had
+  previews turned off before.
+
 ## 2026-10-19
+
+### Added
+
+- Enrichment can now look at LinkedIn. After a proposal, the bot replies in
+  its thread with the organization's recent LinkedIn posts. The company's
+  LinkedIn page can also fill missing company details. People are not scraped.
+  It uses Apify and is skipped without an `APIFY_API_TOKEN`.
+
+  Each scan is saved in its own `linkedin_scans` table, plus signals and one
+  activity entry, even when nothing is new or the scan fails. The entry names
+  who ran it. A re-run shows only what is new. The thread reply always says
+  how the scan went, including when it was skipped or failed. The signals
+  table's buyer column is now called `org_attio_id`, since it also holds
+  sellers.
 
 ### Changed
 
@@ -17,6 +73,30 @@ for current production evidence and open handover items.
   summary keeps its start and its end, where next steps usually sit, and
   marks the cut in the middle. Buyers with short notes get the same prompt
   as before.
+- The activity log is now one history of what happens in the system. Each
+  entry records who did what, to which record, and when, and links to the
+  record that holds the detail. The audit and the reasoning are in
+  `docs/internal/dev/ACTIVITIES_AUDIT.md`.
+- Slack profile adds and edits, match runs and decisions, and deal stage changes
+  are now recorded. So are meeting publish and delete, lead submissions, and Attio
+  changes, including deletions.
+- Slack profile commands also keep a record of failed and partial saves.
+- New lead submissions no longer copy the visitor's answers onto the activity
+  entry. The answers stay on the lead run.
+- The activity log can no longer be edited or deleted: the database rejects any
+  change to an existing entry.
+- The database now keeps a log of incoming Attio events for 90 days, and the
+  nightly sync records how its last run went.
+- A new alarm fires when a history entry can't be written. History writes never
+  block the change they describe, so the alarm is the only signal of a lost entry.
+- Logs no longer include the details of a failed database write. Database errors
+  are logged by type and constraint name only.
+
+### Fixed
+
+- A buyer or seller profile event that arrived before Attio's list showed the
+  new entry no longer fails. It used to leave Attio and the database out of
+  step until the nightly sync.
 
 ## 2026-10-18
 
@@ -569,10 +649,10 @@ for current production evidence and open handover items.
 ### Added
 
 - **Get Started** is now a selectable lead-magnet on an organization's
-  `lead_source_detail`, alongside the Valuation Tool, M&A Readiness Tool,
-  Buyer Form and GCC SME Benchmark. Like the Benchmark before it, the tool
-  postdates the legacy workspace, so there is no historical data to backfill
-  — it only needs somewhere for new leads to land.
+  `lead_source_detail`. The others are the Valuation Tool, M&A Readiness Tool,
+  Buyer Form and GCC SME Benchmark. Like the Benchmark, the tool postdates the
+  legacy workspace, so there is no historical data to backfill. It only needs
+  somewhere for new leads to land.
 
 ## 2026-09-17
 
@@ -618,90 +698,95 @@ for current production evidence and open handover items.
 ### Fixed
 
 - Organizations removed from Attio (soft-deleted, `removed_at` set) could
-  still surface: a new lead-magnet submission could dedupe-match and reattach
-  itself to a removed org's old record instead of creating a fresh one, and
-  the matching engine's candidate pool for `/find-match` could still include
-  sellers on a removed organization, or seller roles superseded by a newer
-  submission (`is_active = false`). Also affected `/edit-seller`'s,
-  `/edit-buyer`'s, and `/find-match`'s buyer-resolution org-name search,
-  which already excluded superseded roles but not removed orgs. All four
-  queries now exclude removed organizations.
+  still surface. A new lead-magnet submission could dedupe-match and reattach
+  itself to a removed org's old record instead of creating a fresh one. The
+  matching engine's candidate pool for `/find-match` could still include
+  sellers on a removed organization. It could also include seller roles
+  superseded by a newer submission (`is_active = false`). The org-name search
+  behind `/edit-seller`, `/edit-buyer` and `/find-match`'s buyer resolution
+  excluded superseded roles but not removed orgs. All four queries now
+  exclude removed organizations.
 
 ## 2026-09-15
 
 ### Added
 
-- Organizations now record **which lead-magnet a lead came in through** —
-  Valuation Tool, M&A Readiness Tool, Buyer Form, or GCC SME Benchmark — in a
-  new `lead_source_detail` field on both Attio and Postgres. The existing
-  `lead_source` only ever said Inbound or Outbound, so "which leads came from
-  the Valuation Tool?" could not be answered outside the legacy workspace.
+- Organizations now record **which lead-magnet a lead came in through** in a
+  new `lead_source_detail` field on both Attio and Postgres. The options are
+  the Valuation Tool, M&A Readiness Tool, Buyer Form and GCC SME Benchmark.
+  The existing `lead_source` only ever said Inbound or Outbound. So "which
+  leads came from the Valuation Tool?" could not be answered outside the
+  legacy workspace.
 
-  The tool name had never been lost in translation: the migration simply never
+  The tool name had never been lost in translation. The migration simply never
   read it, even though the mapping configuration had described carrying it
   across since the beginning. Where a company used two tools, the most recent
   one is recorded, and a genuinely ambiguous pair (identical timestamps) is
   reported rather than guessed at.
 
 - Every lead-magnet submission (Valuation, M&A Readiness, GCC SME Benchmark,
-  Buyer Network) now sends two emails via SES: a branded confirmation to the
-  visitor with a "Book a Call" link, and an internal notice to the deal team
-  with the submitted details and links back to the Attio organisation/deal.
-  Both are tracked and retried independently, so a failed send never
-  re-sends an email that already landed and never risks the lead itself —
-  the Attio write is already durable by the time either email is attempted.
-  A CloudWatch alarm now fires on the shared environment alert topic if a
-  send permanently fails after SES's own retries are exhausted.
+  Buyer Network) now sends two emails via SES. The visitor gets a branded
+  confirmation with a "Book a Call" link. The deal team gets an internal
+  notice with the submitted details and links back to the Attio
+  organisation/deal.
+
+  Both are tracked and retried independently, so a failed send never re-sends
+  an email that already landed. It also never risks the lead itself, because
+  the Attio write is already durable by the time either email is attempted. A
+  CloudWatch alarm now fires on the shared environment alert topic if a send
+  permanently fails after SES's own retries are exhausted.
 
 - A record deleted in Attio now disappears from Postgres for **all six**
   mirrored objects, not just two. Deals, notes, buyer roles and seller roles
-  had no way to record a deletion at all: a deal deleted from the CRM stayed
-  in Postgres indefinitely, so matching, reporting and Slack search kept
+  had no way to record a deletion at all. A deal deleted from the CRM stayed
+  in Postgres indefinitely. Matching, reporting and Slack search kept
   counting and offering records nobody could see in Attio any more. The
   webhook now marks them removed within seconds, and a record re-created in
   Attio comes back live on its own.
 
-  The removal is recoverable by design — rows are marked, never erased,
-  because their Postgres-side children (deal-stage history, generated
-  documents, match results) are computed here and could not be rebuilt from
-  Attio. Deletion stays authored in Attio only; there is still no way to
-  delete a record from Slack or from Postgres.
+  The removal is recoverable by design. Rows are marked, never erased. Their
+  Postgres-side children (deal-stage history, generated documents, match
+  results) are computed here and could not be rebuilt from Attio. Deletion
+  stays authored in Attio only; there is still no way to delete a record from
+  Slack or from Postgres.
 
 ### Fixed
 
-- A person deleted in Attio and then re-created in it came back invisible:
-  the deletion marker was never cleared on re-appearance, so the row was
+- A person deleted in Attio and then re-created in it came back invisible.
+  The deletion marker was never cleared on re-appearance. So the row was
   present but skipped by everything that filters out deleted records.
 
 - Seller discovery's geography restriction silently produced wrong results
-  for a buyer whose `target_geography` includes a multi-country region:
-  geocoding the bare string `"GCC-wide"` (or the raw `"GCC-wide, Global"`
+  for a buyer whose `target_geography` includes a multi-country region.
+  Geocoding the bare string `"GCC-wide"` (or the raw `"GCC-wide, Global"`
   buyers actually carry) matched an unrelated US institution commonly
-  abbreviated "GCC" with `status: OK` and no error, restricting the search
-  to Glendale, CA instead of the Gulf states the buyer meant — traced live
-  from a buyer with `target_geography: ["GCC-wide", "Global"]` returning
-  only German sellers. Geocode results are now validated against Google's
-  own place-type and partial-match signals before they're trusted, and
-  `target_geography`'s known multi-country regions (GCC, MENA) and
-  explicit no-restriction terms (Global, Worldwide) resolve from a fixed
-  table instead of a single geocode call that can't answer them correctly.
+  abbreviated "GCC". It returned `status: OK` with no error, so the search was
+  restricted to Glendale, CA instead of the Gulf states the buyer meant. It
+  was traced live from a buyer with `target_geography: ["GCC-wide", "Global"]`
+  returning only German sellers.
+
+  Geocode results are now validated against Google's own place-type and
+  partial-match signals before they're trusted. `target_geography`'s known
+  multi-country regions (GCC, MENA) and explicit no-restriction terms (Global,
+  Worldwide) now resolve from a fixed table. A single geocode call can't
+  answer them correctly.
 
 ## 2026-09-14
 
 ### Added
 
 - WusoolScribe desktop app: a "Send feedback" bug icon in the sidebar opens
-  a form (category, message, optional contact) that a new
-  `POST /desktop/feedback` route on the `meetings` module durably records
-  in a new `feedback_submissions` table and best-effort emails via AWS SES
-  (`notifications` module) — no email credential ships in the desktop
-  binary, and a submission is never lost even if SES delivery fails.
+  a form (category, message, optional contact). A new `POST /desktop/feedback`
+  route on the `meetings` module durably records each submission in a new
+  `feedback_submissions` table. It also emails the team on a best-effort basis
+  via AWS SES (`notifications` module). No email credential ships in the
+  desktop binary. A submission is never lost even if SES delivery fails.
 - Every lead-magnet submission now creates an Attio deal at stage
-  **Inbound**, so a new lead lands in the pipeline instead of waiting to be
-  keyed in by hand. One deal per organisation: a company that runs two tools
-  is one lead, and a deal an advisor has already advanced is never dragged
-  back to Inbound. Each deal is assigned to an advisor on creation, with a
-  configured fallback so the write cannot silently stop if that advisor
+  **Inbound**. A new lead lands in the pipeline instead of waiting to be
+  keyed in by hand. There is one deal per organisation: a company that runs
+  two tools is one lead. A deal an advisor has already advanced is never
+  dragged back to Inbound. Each deal is assigned to an advisor on creation. A
+  configured fallback keeps the write from silently stopping if that advisor
   leaves the workspace.
 - The site's **Get Started** form is now served by the platform instead of
   Tally, as the fifth lead-magnet tool. A submission records the lead before
@@ -716,23 +801,25 @@ for current production evidence and open handover items.
 - Replaced `discovery`'s Firecrawl Google Maps scrape with Google's Places
   API (New) and Geocoding API. Seller leads now carry a real place link
   (`googleMapsUri`) instead of one recovered by regex-matching scraped
-  links, and a buyer's geography is enforced against each result's country
+  links. A buyer's geography is enforced against each result's country,
   rather than only appearing as words in the search query.
 
 ### Fixed
 
 - Buyer requirement extraction now sees a buyer's `target_geography`,
   `ebitda_ceiling`, and several other already-structured `buyer_roles`/
-  `organizations` fields that were silently dropped between the database
+  `organizations` fields. They had been silently dropped between the database
   row and the Bedrock prompt. A buyer with a real, populated
   `target_geography` (e.g. "GCC-wide, Global") could still trigger a fully
-  unrestricted seller-discovery search, because nothing ever told the
-  extraction step it existed — traced live from a UK-HQ'd buyer's search
-  surfacing Frankfurt/Cologne results with no geography signal anywhere in
-  the query. Also fixes a buyer with no free-text investment strategy/notes
-  on file: the prompt used to show the literal placeholder `Unknown` for a
-  blank field, which the model would sometimes echo back as if it were real
-  buyer data (a search for "Unknown companies").
+  unrestricted seller-discovery search. Nothing ever told the extraction step
+  it existed.
+
+  It was traced live from a UK-HQ'd buyer's search surfacing Frankfurt/Cologne
+  results with no geography signal anywhere in the query. This also fixes a
+  buyer with no free-text investment strategy/notes on file. The prompt used
+  to show the literal placeholder `Unknown` for a blank field. The model would
+  sometimes echo it back as if it were real buyer data (a search for "Unknown
+  companies").
 - A visitor who retried a lead-magnet form after a dropped network response
   was told they had already completed it. Each click generated a new
   submission id, so the retry looked like a second visit rather than the same
@@ -772,17 +859,19 @@ for current production evidence and open handover items.
   real-time webhook alone for that period and should be reconciled against
   Attio.
 - Every embedded lead-magnet tool was cut off partway down the form with no
-  way to scroll to the rest, losing any visitor who had not already finished.
+  way to scroll to the rest. This lost any visitor who had not already
+  finished.
+
   The embedded page measured its height from a value that, inside an iframe,
-  can never report less than the iframe already was, so the iframe never grew
-  past its placeholder; the loader then set `scrolling="no"`, which turned the
+  can never report less than the iframe already was. So the iframe never grew
+  past its placeholder. The loader then set `scrolling="no"`, which turned the
   clipped remainder into unreachable content rather than a scrollbar. Height
-  is now measured from the page body, the embed carries no fixed dimensions at
-  any screen size, and it clears the fixed height the marketing site puts on
-  its embed containers.
+  is now measured from the page body. The embed carries no fixed dimensions
+  at any screen size, and it clears the fixed height the marketing site puts
+  on its embed containers.
 - The four tools now use the marketing site's DM Sans rather than Inter and
   JetBrains Mono. The Valuation tool in particular was rendering in the
-  browser's default serif with form fields overflowing their card: a stray
+  browser's default serif, with form fields overflowing their card. A stray
   `<style>` tag at the top of its stylesheet made the browser discard the rule
   carrying both its font and its box-sizing reset.
 - The Valuation form's paired fields no longer stay side by side on a phone —
@@ -791,17 +880,17 @@ for current production evidence and open handover items.
   environment instead of falling back to `development` in production.
 - Lead-magnet submissions (Valuation, M&A Readiness, GCC SME Benchmark, Buyer
   Network) now create or reuse an Attio person record for the visitor's
-  email, so a lead lands attached to a CRM contact instead of only an
+  email. A lead now lands attached to a CRM contact, not only an
   organization. Benchmark submissions also now carry their raw financial
-  figures, consent flag, and funding stage through to Attio, and M&A
+  figures, consent flag, and funding stage through to Attio. M&A
   Readiness's country now reaches the organization record.
 - The GCC SME Benchmark form's optional mobile number field was silently
-  dropped before it ever reached the server — its own submit script never
-  read the field into the request. Now carried through to the visitor's
-  Attio person record.
-- The Valuation tool's revenue and profit before tax at the visitor's
-  last funding raise were computed client-side and shown back to the
-  visitor, but never included in the lead submission. Now reaches
+  dropped before it ever reached the server. Its own submit script never
+  read the field into the request. It is now carried through to the
+  visitor's Attio person record.
+- The Valuation tool computed revenue and profit before tax at the
+  visitor's last funding raise client-side and showed them back to the
+  visitor. They were never included in the lead submission. They now reach
   `tool_runs.payload`.
 
 ## 2026-09-12

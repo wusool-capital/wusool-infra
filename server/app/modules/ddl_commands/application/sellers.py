@@ -5,11 +5,14 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.models import SellerRole
+from app.modules.activities import EventType, SubjectType
+from app.modules.ddl_commands.application.activity_events import profile_write_event
 from app.modules.ddl_commands.application.base import ServiceBase
 from app.modules.ddl_commands.application.errors import (
     SellerAlreadyExistsError,
     SellerNotFoundError,
 )
+from app.modules.ddl_commands.application.write_context import WriteContext
 from app.modules.utilities.domain.json_types import JsonObject
 
 ResolutionStatus = Literal["none", "single", "multiple"]
@@ -43,6 +46,7 @@ class SellerService(ServiceBase):
         seller_role_id: str,
         fields: JsonObject,
         *,
+        context: WriteContext,
         org_attio_id: str | None = None,
         org_fields: JsonObject | None = None,
     ) -> SellerRole:
@@ -57,8 +61,22 @@ class SellerService(ServiceBase):
             if role is None:
                 raise SellerNotFoundError(seller_role_id)
             updated = await uow.sellers.update(seller_role_id, **fields) if fields else role
-            if org_fields and org_attio_id:
-                await uow.organizations.update(org_attio_id, **org_fields)
+            applied_org_fields = org_fields if org_fields and org_attio_id else {}
+            if applied_org_fields and org_attio_id:
+                await uow.organizations.update(org_attio_id, **applied_org_fields)
+            changed_fields = [*fields, *applied_org_fields]
+            # An edit that changed nothing is not an event.
+            if changed_fields:
+                await uow.activities.record(
+                    profile_write_event(
+                        subject_type=SubjectType.SELLER_ROLE,
+                        event_type=EventType.SELLER_EDITED,
+                        role_id=role.id,
+                        entry_id=role.legacy_entry_id,
+                        context=context,
+                        changed_fields=changed_fields,
+                    )
+                )
         assert updated is not None
         return updated
 
@@ -68,6 +86,7 @@ class SellerService(ServiceBase):
         org_attio_id: str,
         entry_id: str,
         is_new_org: bool,
+        context: WriteContext,
         org_name: str | None = None,
         org_fields: JsonObject | None = None,
         role_fields: JsonObject,
@@ -146,4 +165,16 @@ class SellerService(ServiceBase):
                     # one in one transaction -- it needs that loop reordered
                     # losers-first first.
                     raise SellerAlreadyExistsError(org_attio_id)
+            await uow.activities.record(
+                profile_write_event(
+                    subject_type=SubjectType.SELLER_ROLE,
+                    event_type=EventType.SELLER_ADDED,
+                    role_id=role.id,
+                    entry_id=entry_id,
+                    context=context,
+                    changed_fields=[*role_fields, *(org_fields or {})],
+                    is_new_org=is_new_org,
+                    idempotency_key=f"{EventType.SELLER_ADDED}:{entry_id}",
+                )
+            )
         return role

@@ -298,7 +298,7 @@ async def test_repeat_submissions_each_get_their_own_row_and_activity(
         assert (await _row(db_session, run_id)).payload["n"] == n
 
     activities = (
-        (await db_session.execute(select(Activity).where(Activity.tool_run_id.in_(run_ids))))
+        (await db_session.execute(select(Activity).where(Activity.ledger_id.in_(run_ids))))
         .scalars()
         .all()
     )
@@ -331,7 +331,7 @@ async def test_exact_retry_of_the_same_submission_does_not_write_attio_twice(db_
 
     assert attio.calls(_CO) == 1, "the retry must not repeat the Attio write"
     activities = (
-        (await db_session.execute(select(Activity).where(Activity.tool_run_id == first_run_id)))
+        (await db_session.execute(select(Activity).where(Activity.ledger_id == first_run_id)))
         .scalars()
         .all()
     )
@@ -521,7 +521,7 @@ async def test_real_attio_writers_seed_the_person_stub_and_fk(db_session) -> Non
     assert row.person_attio_id == "person-e2e-1"
 
     activity = (
-        await db_session.execute(select(Activity).where(Activity.tool_run_id == run_id))
+        await db_session.execute(select(Activity).where(Activity.ledger_id == run_id))
     ).scalar_one()
     assert activity.subject_type == "Organization"
     assert activity.subject_attio_id == "org-e2e-1"

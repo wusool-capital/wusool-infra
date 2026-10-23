@@ -104,7 +104,12 @@ class DiffbotCompanyDataClient:
         self._api_key = api_key
 
     async def lookup(
-        self, *, org_name: str, fields: tuple[EnrichableField, ...], domain: str | None = None
+        self,
+        *,
+        org_name: str,
+        fields: tuple[EnrichableField, ...],
+        domain: str | None = None,
+        linkedin_url: str | None = None,
     ) -> CompanyDataResult:
         requested = {f.name for f in fields}
         params = {"token": self._api_key, "type": "Organization", "name": org_name}

@@ -29,15 +29,6 @@ data "terraform_remote_state" "base" {
   }
 }
 
-data "terraform_remote_state" "n8n" {
-  backend = "s3"
-  config = {
-    bucket = "wusool-tfstate"
-    key    = "wusool/${var.environment}/n8n/terraform.tfstate"
-    region = "me-central-1"
-  }
-}
-
 data "terraform_remote_state" "toolkit" {
   backend = "s3"
   config = {

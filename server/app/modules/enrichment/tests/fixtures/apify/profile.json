@@ -1,0 +1,14 @@
+[
+  {
+    "publicIdentifier": "jane-doe",
+    "linkedinUrl": "https://www.linkedin.com/in/jane-doe",
+    "headline": "CFO at Globex",
+    "location": {"linkedinText": "Dubai, United Arab Emirates"},
+    "currentPosition": [{"companyName": "Globex"}],
+    "experience": [
+      {"position": "Chief Financial Officer", "companyName": "Globex", "endDate": {"text": "Present"}},
+      {"position": "Finance Director", "companyName": "Acme Co", "endDate": {"text": "Jan 2025"}}
+    ]
+  },
+  {"unexpected": "item without a url or identifier"}
+]

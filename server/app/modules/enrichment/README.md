@@ -13,8 +13,8 @@ _New to this codebase's layering? See
 ```
 domain/            # EnrichmentTarget, ProposedFieldValue/EnrichmentProposal, field plans, employee_bands
 application/        # EnrichMixin (structured lookup + research+extract), ReviewMixin (hand-off), ports/
-providers/          # diffbot/ + people_data_labs/ (structured, seller-only) — Firecrawl + Bedrock (fallback)
-persistence/        # SqlAlchemyRoleReader — reads current values + resolves a target by role id
+providers/          # diffbot/ + people_data_labs/ (structured) — apify/ (LinkedIn company page + profiles/posts) — Firecrawl + Bedrock (fallback)
+persistence/        # SqlAlchemyRoleReader — reads current values, resolves a target by role id, loads the company page (and, unwired, a role's contacts); linkedin_history
 api/                # /enrich-seller, /enrich-buyer Slack commands + handlers, buyer org → vertical modals, "Review & Save" button
 ```
 
@@ -31,7 +31,14 @@ only for whatever the previous tier didn't resolve:
    second opinion for whatever Diffbot missed. Free tier: 100 lookups/month
    — thinner, so it's tried second, not called for anything Diffbot already
    resolved.
-3. **Firecrawl + Bedrock** (existing) — free-text search, LLM-extracted.
+3. **LinkedIn company page** (`providers/apify/company.py`) — description,
+   HQ country, employee range and founding date (the year, stored as 1
+   January), from the company's own LinkedIn page. The logo is skipped: it is
+   a signed LinkedIn URL that expires within weeks.
+   Only runs when the organization already has a `linkedin` URL and fields are
+   still missing, because every Apify run is billed. Never part of
+   `propose_basic`.
+4. **Firecrawl + Bedrock** (existing) — free-text search, LLM-extracted.
    Last resort, and the only tier buyer targets ever use — see below.
 
 A field is only ever asked of one source: the waterfall order above, and
@@ -46,17 +53,89 @@ matched (`CompanyDataResult.website`). `propose_basic` reports it per
 contributing provider as `ProviderEvidence`, so `discovery` can check it
 against Google Maps before writing; `propose` ignores it.
 
-Both structured tiers are optional (`DIFFBOT_API_KEY`/
-`PEOPLE_DATA_LABS_API_KEY` unset just skips that tier) and are never called
-for a buyer target at all: none of `BUYER_ENRICHABLE_FIELDS` (AUM,
-investment strategy, notable investments) are fields either provider's
-schema tracks, so it would be a guaranteed-empty round trip every time —
-see `EnrichMixin._structured_lookup`'s docstring.
+The structured tiers are optional (`DIFFBOT_API_KEY`/
+`PEOPLE_DATA_LABS_API_KEY`/`APIFY_API_TOKEN` unset just skips that tier). For
+a buyer target they are asked only about `ORGANIZATION` fields: none of
+`BUYER_ROLE_ENRICHABLE_FIELDS` (AUM, investment strategy, notable
+investments) are fields any provider's schema tracks — see
+`EnrichMixin._structured_lookup`'s docstring.
 
 Diffbot's response shape has been verified against a live account (see
 `providers/diffbot/schemas.py`'s docstring for what didn't match the
 published docs). People Data Labs has not — confirm its `schemas.py`
 against a real `PEOPLE_DATA_LABS_API_KEY` account before relying on it.
+
+### LinkedIn scan (the company page's posts)
+
+After the proposal is posted, `api/dependencies.py::propose_and_post` runs
+`LinkedInMixin.scan_linkedin` and replies in the proposal's thread with the
+result — the scrape never holds up the proposal, and a failure only logs. The
+reply is posted for every outcome, so a quiet scan is never mistaken for one
+that didn't run: the posts, "No new posts in the past month", "skipped: no
+LinkedIn page is saved", or "the scan failed" (no error detail). Only a
+missing Apify token posts nothing. `LinkedInScan.outcome` (`ScanOutcome`)
+carries which one it was.
+
+Only the **organization** is scraped. The role's people are not: no profile
+scrape, no job changes, no contacts' posts, and contacts are not even read
+from the database. The people path is built and tested, but off — see
+"People path" below.
+
+- **Company page** (`SqlAlchemyRoleReader.load_linkedin_targets(...,
+  include_contacts=False)`): the organization's saved `linkedin` URL. Without
+  one the scan is skipped and logged, never searched by name.
+- **Apify** (`providers/apify/`): one posts run per scan, capped at 40s with
+  Apify's own `timeout` below ours so the vendor stops billing when we stop
+  waiting. At most 10 posts from the past month (Apify's rolling `postedLimit="month"`, so
+  this month's posts are included). A failed run (auth, rate limit, 5xx, timeout,
+  non-array body) raises `LinkedInUnavailableError` and the scan is `FAILED`,
+  so a vendor outage is never read as "no posts". An item that doesn't parse
+  is dropped. A company page's "posts" are its reposts, so the author is the
+  original poster. The company-page waterfall step still fails soft.
+- **Cost log:** every run logs `apify_run actor=… items=… duration_ms=…
+  outcome=…`; the token only ever travels in the `Authorization` header.
+- **History** (`application/linkedin_history.py::record_scan`, through the
+  `LinkedInHistoryUnitOfWork` port; persistence in `persistence/linkedin_unit_of_work.py`
+  and `repositories/`): one transaction per scan writes a `linkedin_scans` row
+  (this module's own run ledger, with real `started_at` and `finished_at`), one `signals` row per *new* post or
+  job change (`source='linkedin'`, typed payload, linked to the run; job
+  changes only come from the people path), and one
+  `linkedin.scan_completed` `activities` row for **every** scan, new items or
+  not, linked to the run (`ledger_type='tool_run'`). Its actor is the Slack user
+  who ran `/enrich-seller` or `/enrich-buyer` (or approved the match), else
+  `system('enrichment')`. A scan that raises or times out is stored too: the run
+  is `failed` with the error type name (never its message), and the activity's
+  outcome is `failed`, including a database error loading the targets. A scan
+  skipped for no company LinkedIn URL or no Apify token is not recorded, since
+  nothing ran. A signal is new if its (`source`,
+  `external_id`) is not stored yet: the post id, or `job_change:{person}:{hash
+  of the new title and company}`. `scan_linkedin` returns only the new items, so
+  a re-run is quiet, and falls back to the full scan if the history write fails.
+  Names, titles and post text live only in `signals`; the append-only
+  `activities` row holds counts. The post key is global, so a post stored for
+  one organization is not stored again for another. History is committed
+  before the Slack reply, so a failed reply leaves those items stored but unshown.
+
+`scan_linkedin_for_role(kind, role_id, requested_by=None)` (public) runs the same
+org-only scan on its own, for a caller that wants the data without a proposal.
+One gap: a run's `started_at` equals its `finished_at`, since it is written once
+the scan ends.
+
+**People path (built, not wired).** `scan_linkedin(target, include_people=True)`
+also scrapes a role's contacts: a buyer's `key_contact`, or a seller
+organization's people (capped at 3, those with a `person.linkedin` first). It
+runs one batched profile scrape plus the contacts' own posts, and reports job
+changes (`domain/linkedin.py::detect_job_change`: the scraped title and employer
+against `person.job_title` and the organization name, case, punctuation and
+containment ignored; a missing CRM value is "unknown", not a change;
+`person.role` is not compared). A contact without a URL is skipped, never
+searched by name, and listed in the reply. Nothing sets `include_people` today.
+Its parsing of the profile scraper has never been run live.
+
+The company and posts schemas were verified against a live run (2026-10-19).
+The profile scraper has not been run yet. A company page's "posts" are its
+reposts of other people's posts: the author is the original poster, and
+`repostedBy` is the company.
 
 ### Basic tier
 
@@ -70,17 +149,21 @@ posts a proposal for review and writes nothing. Providers also receive the
 company's domain when known, so a name shared by several companies still
 resolves to the right one.
 
-`fetch_json` logs a 429 as `*_rate_limited` rather than treating it like "no
-data", and retries once when `Retry-After` is at most 2 seconds.
+`fetch_json` (and `post_json_items`, used by Apify) logs a 429 as `*_rate_limited`
+rather than treating it like "no data". A GET is retried once when `Retry-After`
+is at most 2 seconds; a POST is never resent, since it can start a billed run.
 
 ## Public contract
 
 `EnrichmentReviewPort`, `RoleReaderPort`, `EnrichmentTarget`,
 `EnrichmentTargetKind`, `ProposedFieldValue`, `EnrichmentProposal`,
-`WriteTarget`, `enrich_and_post`, `propose_basic_seller_fields` — see `__init__.py`.
+`WriteTarget`, `enrich_and_post`, `propose_basic_seller_fields`,
+`scan_linkedin_for_role` and its result types (`LinkedInScan`, `JobChange`,
+`LinkedInPost`, `LinkedInProfile`, `Contact`) — see `__init__.py`.
 
-This module never writes to Attio or Postgres itself, and never renders a
-Slack edit form. `ddl_commands` implements `EnrichmentReviewPort`
+This module never writes to Attio and never renders a Slack edit form. Its only
+Postgres writes are the LinkedIn history rows above (`linkedin_scans`, `signals`,
+`activities`); CRM fields are written by `ddl_commands`. `ddl_commands` implements `EnrichmentReviewPort`
 (`providers/enrichment/review_adapter.py`) by opening its own real
 `/edit-seller`/`/edit-buyer` modal, prefilled with the proposed values —
 the submission then goes through that module's ordinary edit path
@@ -95,14 +178,18 @@ buyer "enrich first?" checkbox) never needs to look up org info on its own.
 
 ## Database
 
-Reads `seller_roles`/`buyer_roles`/`organizations` directly via `app.models`
-(no migration — every enrichable field already exists on those tables).
+Reads `seller_roles`/`buyer_roles`/`organizations`/`person` directly via
+`app.models`. Writes `linkedin_scans` (its own ledger), `signals` and
+`activities` for the LinkedIn scan. Migrations: the `signals.org_attio_id` rename
+(was `buyer_attio_id`), and `linkedin_scans` with `signals.linkedin_scan_id`.
 
 ## Setup
 
 See `server/.env.example`'s `enrichment` section. `FIRECRAWL_API_KEY`,
-`DIFFBOT_API_KEY`, and `PEOPLE_DATA_LABS_API_KEY` are all optional —
-missing any of them just skips that tier rather than requiring it to boot.
+`DIFFBOT_API_KEY`, `PEOPLE_DATA_LABS_API_KEY`, and `APIFY_API_TOKEN` are all
+optional — missing any of them just skips that tier rather than requiring it
+to boot. Set a monthly spend cap in Apify. The free plan limits the profile
+scraper to 50 runs in total, but only the unwired people path uses it.
 
 ## Testing
 

@@ -41,7 +41,11 @@ before the flag existed have none.
 | `record.*` for notes | `notes` |
 | `list-entry.*` for buyer and seller roles | `buyer_roles`, `seller_roles` |
 
-Webhook updates also write `activities`. Every other event is ignored.
+Each synced event also writes a typed `activities` row
+(`crm.record_created`, `crm.record_updated`, or `crm.record_deleted`) that
+names the Attio actor when Attio sends one. A deal's stage changes go to
+`deal_stage_events`, and each event is logged to `attio_raw_events` for 90
+days. Every other event is ignored.
 
 ## Deletions
 
@@ -69,14 +73,23 @@ deletion reconciliation.
 - **Guards:** an empty listing from Attio is never treated as "delete
   everything", and the final count check runs after deletion
   reconciliation.
+- **Bookkeeping:** it deletes raw events older than 90 days and records
+  its counts in `attio_sync_state`. It writes no `activities` rows.
 
-If no Toolkit instance is running, the job warns and skips. A failure alerts
-the production infrastructure topic.
+The job signs in with its own narrow role, `wusool-gha-attio-resync-prod`.
+Only this workflow can use it. If no Toolkit instance is running, the job
+fails, unless production is deliberately set to `create_instance = false`.
+A failure alerts the production infrastructure topic. Each successful run
+also records a heartbeat in CloudWatch. If none arrives for 30 hours, an
+alarm alerts the same topic. That catches nights the workflow never runs.
+The window is 30 hours because GitHub often starts the schedule up to three
+hours late.
 
 ## Writes from the Toolkit
 
 - Profile commands write Attio first, then PostgreSQL, so the next sync agrees
-  with what was stored.
+  with what was stored. Each attempt is also recorded in `command_runs`,
+  including failed and partial writes.
 - Lead tools write Attio only and let the mirror follow.
 - Scribe meetings create an Attio note, with or without an organization.
 
@@ -93,6 +106,10 @@ the production infrastructure topic.
   empty or partial page was accepted before retrying.
 - The notes backfill script is dry-run by default and must never guess an
   Attio ID from a local UUID.
+- History writes (`activities`, `deal_stage_events`, `command_runs`) never block
+  the change they describe. A failed one is logged and raises the
+  `history-write-failed` alarm. The history is append-only, so a missed row
+  can't be backfilled; see the database runbook.
 
 Runbooks in the repository: `docs/runbooks/attio-sync-failure.md`,
 `docs/runbooks/database-and-migration-failure.md`, and

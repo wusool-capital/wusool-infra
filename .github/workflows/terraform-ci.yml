@@ -41,7 +41,6 @@ jobs:
         root:
           - infrastructure/terraform/stacks/account
           - infrastructure/terraform/stacks/base
-          - infrastructure/terraform/stacks/n8n
           - infrastructure/terraform/stacks/toolkit
           - infrastructure/terraform/stacks/postgres
           - infrastructure/terraform/stacks/peering

@@ -27,6 +27,7 @@ from app.models.attio_raw_event import AttioRawEvent
 from app.models.attio_sync_state import AttioSyncState
 from app.models.buyer_intel import BuyerIntel
 from app.models.buyer_role import BuyerRole
+from app.models.command_run import CommandRun
 from app.models.deal import Deal
 from app.models.deal_stage_event import DealStageEvent
 from app.models.discovery_review import DiscoveryReview
@@ -34,6 +35,7 @@ from app.models.document import Document
 from app.models.feedback_submission import FeedbackSubmission
 from app.models.graph_edge import GraphEdge
 from app.models.investor_lender_role import InvestorLenderRole
+from app.models.linkedin_scan import LinkedInScan
 from app.models.match_result import MatchResult
 from app.models.match_score import MatchScore
 from app.models.meeting import Meeting
@@ -54,6 +56,8 @@ __all__ = [
     "AttioSyncState",
     "BuyerIntel",
     "BuyerRole",
+    "CommandRun",
+    "LinkedInScan",
     "Deal",
     "DealStageEvent",
     "DiscoveryReview",

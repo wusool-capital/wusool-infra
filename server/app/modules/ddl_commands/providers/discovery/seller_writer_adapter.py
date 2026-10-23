@@ -140,6 +140,8 @@ class DdlCommandsSellerWriterAdapter:
                     org_name=draft.org_name,
                     org_extracted=org_extracted,
                     role_extracted=role_extracted,
+                    requested_by=None,
+                    invoked_via="discovery",
                     source_place_id=draft.source_place_id,
                 )
             except PartialWriteError as exc:

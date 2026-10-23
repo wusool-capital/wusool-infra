@@ -76,13 +76,15 @@ class _FakeMailer:
 
     def __init__(self, *, fail_on: str | None = None) -> None:
         self.sent: list[tuple[list[str], str]] = []
+        self.reply_tos: list[str | None] = []
         self._fail_on = fail_on
 
-    async def send(self, *, to, from_addr, subject, body, is_html=False):
+    async def send(self, *, to, from_addr, subject, body, is_html=False, reply_to=None):
         kind = "internal" if to == _INTERNAL_TO else "confirmation"
         if kind == self._fail_on:
             raise RuntimeError(f"ses down ({kind})")
         self.sent.append((to, subject))
+        self.reply_tos.append(reply_to)
 
 
 _INTERNAL_TO = ["ops@wusoolcapital.com"]
@@ -309,6 +311,32 @@ async def test_confirmation_email_sends_to_the_visitor_address() -> None:
     await service.complete(_run(payload={"email": "visitor@acme.com"}))
 
     assert mailer.sent[0] == (["visitor@acme.com"], "Your valuation request is in")
+
+
+async def test_internal_notice_replies_to_the_lead() -> None:
+    tool_runs, attio = _FakeToolRuns(), _FakeAttio()
+    mailer = _FakeMailer()
+    service, _ = _service(tool_runs, attio, mailer=mailer)
+
+    await service.complete(_run(payload={"email": "visitor@acme.com", "company": "Acme"}))
+
+    assert mailer.sent[1][0] == _INTERNAL_TO
+    assert mailer.reply_tos == [None, "visitor@acme.com"]
+
+
+@pytest.mark.parametrize("bad", ["abc", "a@b.co\n", "a@b.co,x@y.z"])
+async def test_invalid_lead_email_is_flagged_not_replied_to_and_not_confirmed(bad: str) -> None:
+    tool_runs, attio = _FakeToolRuns(), _FakeAttio()
+    mailer = _FakeMailer()
+    service, _ = _service(tool_runs, attio, mailer=mailer)
+
+    await service.complete(_run(payload={"email": bad, "company": "Acme"}))
+
+    assert ("email_confirmation", {"sent": False}) in tool_runs.stages
+    assert len(mailer.sent) == 1
+    assert mailer.sent[0][1].startswith("⚠️ Invalid email - New Seller Lead")
+    assert mailer.reply_tos == [None]
+    assert tool_runs.calls[-1] == "finish:succeeded"
 
 
 async def test_no_visitor_address_skips_confirmation_without_failing() -> None:

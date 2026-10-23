@@ -34,6 +34,7 @@ from app.modules.utilities.domain.retry import retry_with_backoff
 
 if TYPE_CHECKING:
     from mypy_boto3_ses import SESClient
+    from mypy_boto3_ses.type_defs import SendEmailRequestTypeDef
 
 logger = logging.getLogger(__name__)
 
@@ -59,18 +60,28 @@ class SesMailer:
         self._client = client
 
     async def send(
-        self, *, to: list[str], from_addr: str, subject: str, body: str, is_html: bool = False
+        self,
+        *,
+        to: list[str],
+        from_addr: str,
+        subject: str,
+        body: str,
+        is_html: bool = False,
+        reply_to: str | None = None,
     ) -> None:
         def send_email() -> None:
             body_key = "Html" if is_html else "Text"
-            self._client.send_email(
-                Source=from_addr,
-                Destination={"ToAddresses": to},
-                Message={
+            message: SendEmailRequestTypeDef = {
+                "Source": from_addr,
+                "Destination": {"ToAddresses": to},
+                "Message": {
                     "Subject": {"Data": subject, "Charset": "UTF-8"},
                     "Body": {body_key: {"Data": body, "Charset": "UTF-8"}},
                 },
-            )
+            }
+            if reply_to:
+                message["ReplyToAddresses"] = [reply_to]
+            self._client.send_email(**message)
 
         def on_retry(attempt: int, exc: Exception, delay: float) -> None:
             error_code = (

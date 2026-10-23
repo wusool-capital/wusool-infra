@@ -33,6 +33,13 @@ Toolkit follows these rules.
 
 ![How a profile command saves](../.gitbook/assets/toolkit-profile-save.svg)
 
+Each command also writes a `command_runs` row before its Attio writes
+start, and finishes it as succeeded, failed, or partial. The row lists the
+Attio writes that landed and the names of the fields changed, never their
+values. A save that succeeds also records a `seller.added`, `seller.edited`,
+`buyer.added`, or `buyer.edited` activity for the Slack user. If the ledger
+write fails, the command still runs.
+
 ## Why Attio first
 
 A scheduled sync copies Attio into the database. A change written only to the

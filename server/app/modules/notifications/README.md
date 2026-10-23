@@ -14,7 +14,9 @@ Email has no in-request counterpart — `EmailSenderPort` is always the
 right thing. `send`'s `is_html` flag (default `False`) picks `Body.Html`
 over `Body.Text` on the underlying SES call — added for `lead_magnets`'
 HTML confirmation/internal-notice emails; `meetings`' plain-text feedback
-email is unaffected by the default.
+email is unaffected by the default. The optional `reply_to` argument sets
+SES `ReplyToAddresses`, so a reply goes to that address while From stays the
+authenticated sender. It is left out of the call when unset.
 
 ## Structure
 
@@ -33,11 +35,14 @@ notifications/
     email.py                           # EmailSenderPort Protocol
   providers/
     slack/
-      client.py                          # get_slack_client(bot_token) — one shared AsyncWebClient, lru_cached
+      client.py                          # get_slack_client(bot_token) — one shared AsyncWebClient, lru_cached;
+                                              # guard_view formats number inputs for Slack, blanks any it cannot
       notifier.py                          # SlackWebClientNotifier — implements SlackNotifierPort
       bolt_app.py                          # build_bolt_app(bot_token, signing_secret, register_fn) —
                                               # both modules' own api/slack/bolt_app.py call this instead
-                                              # of duplicating the same three lines
+                                              # of duplicating the same three lines; its middleware gives
+                                              # listeners a NoUnfurlWebClient and a GuardedAck, so every
+                                              # view and message a handler sends is guarded too
     ses/
       client.py                          # get_ses_client(region_name, ...) — one shared SES client, lru_cached
       mailer.py                            # SesMailer — implements EmailSenderPort

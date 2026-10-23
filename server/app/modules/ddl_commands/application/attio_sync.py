@@ -15,7 +15,7 @@ not an error.
 
 import logging
 
-from app.modules.attio import AttioClientProtocol, WebhookEvent, WebhookEventId
+from app.modules.attio import AttioClientProtocol, WebhookEvent
 from app.modules.ddl_commands.application.ports.attio_sync import (
     AttioRegistryPort,
     AttioSyncRepositoryPort,
@@ -49,12 +49,11 @@ async def dispatch_event(
     event: WebhookEvent,
 ) -> None:
     event_type = event.event_type
-    ids = event.id
 
     if event_type.startswith("record."):
-        await _dispatch_record_event(upsert, registry, client, event_type, ids)
+        await _dispatch_record_event(upsert, registry, client, event)
     elif event_type.startswith("list-entry."):
-        await _dispatch_list_entry_event(upsert, registry, client, event_type, ids)
+        await _dispatch_list_entry_event(upsert, registry, client, event)
     else:
         _logger.debug("ignoring unhandled event_type %s", event_type)
 
@@ -63,9 +62,9 @@ async def _dispatch_record_event(
     upsert: AttioSyncRepositoryPort,
     registry: AttioRegistryPort,
     client: AttioClientProtocol,
-    event_type: str,
-    ids: WebhookEventId,
+    event: WebhookEvent,
 ) -> None:
+    ids = event.id
     object_id = ids.object_id
     record_id = ids.record_id
     if not object_id or not record_id:
@@ -74,31 +73,31 @@ async def _dispatch_record_event(
     if slug is None:
         return  # object outside this sync's scope
 
-    if event_type == "record.deleted":
+    if event.event_type == "record.deleted":
         method_name = _RECORD_DELETE_METHODS.get(slug)
         if method_name:
-            await getattr(upsert, method_name)(record_id)
+            await getattr(upsert, method_name)(record_id, event)
         else:
             _logger.info("ignoring record.deleted for %s (no deletion handling)", slug)
         return
 
     if slug == "organizations":
-        await upsert.sync_organization(client, record_id)
+        await upsert.sync_organization(client, record_id, event)
     elif slug == "person":
-        await upsert.sync_person(client, record_id)
+        await upsert.sync_person(client, record_id, event)
     elif slug == "deal":
-        await upsert.sync_deal(client, record_id)
+        await upsert.sync_deal(client, record_id, event)
     elif slug == "note":
-        await upsert.sync_note(client, record_id)
+        await upsert.sync_note(client, record_id, event)
 
 
 async def _dispatch_list_entry_event(
     upsert: AttioSyncRepositoryPort,
     registry: AttioRegistryPort,
     client: AttioClientProtocol,
-    event_type: str,
-    ids: WebhookEventId,
+    event: WebhookEvent,
 ) -> None:
+    ids = event.id
     list_id = ids.list_id
     entry_id = ids.entry_id
     if not list_id or not entry_id:
@@ -107,16 +106,16 @@ async def _dispatch_list_entry_event(
     if slug is None:
         return  # list outside this sync's scope
 
-    if event_type == "list-entry.deleted":
+    if event.event_type == "list-entry.deleted":
         # No client argument: the entry is already gone, so there is nothing to
         # fetch and no sibling `is_active` reconciliation to run against it.
         method_name = _LIST_DELETE_METHODS.get(slug)
         if method_name:
-            await getattr(upsert, method_name)(entry_id)
+            await getattr(upsert, method_name)(entry_id, event)
         else:
             _logger.info("ignoring list-entry.deleted for %s (no deletion handling)", slug)
         return
 
     method_name = _LIST_SYNC_METHODS.get(slug)
     if method_name:
-        await getattr(upsert, method_name)(client, entry_id)
+        await getattr(upsert, method_name)(client, entry_id, event)

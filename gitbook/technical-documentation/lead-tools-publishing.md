@@ -18,7 +18,9 @@ Webflow Insights items.
    server opens each new version once in headless Chromium, with the network
    blocked, one render at a time, and a 30-second cap. It saves the drawn
    page and the preview cut back to Sanity. Readers are only ever served this
-   stored copy. The cut follows the editor's **Free pages** setting: one by
+   stored copy.
+
+   The cut follows the editor's **Free pages** setting: one by
    default, and never the last page. Changing it renders the report again.
    A report uploaded as an `.html` file instead of pasted (`htmlFile`) is
    downloaded from Sanity's CDN first: only this dataset's files, up to 20 MB.

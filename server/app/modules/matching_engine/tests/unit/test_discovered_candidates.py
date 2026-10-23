@@ -2,6 +2,7 @@
 rendered as their own message, and posted by `trigger_seller_discovery`."""
 
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -425,3 +426,28 @@ async def test_trigger_says_sellers_were_created_when_the_run_view_is_missing(
     assert "Created 1 seller(s) in the CRM" in text
     assert "1 skipped as possible duplicates" in text
     assert "No new sellers created" not in text
+
+
+class _CallingRunner(_RecordingRunner):
+    def run(self, coro_factory: Callable[[], Awaitable[None]], *, name: str) -> None:
+        super().run(coro_factory, name=name)
+        coro_factory()
+
+
+async def test_approving_a_discovered_seller_passes_the_approver_to_enrichment(
+    monkeypatch,
+) -> None:
+    actions, client, respond, body, _ = _decision_harness(monkeypatch, origin="discovery")
+    monkeypatch.setattr(actions, "_task_runner", _CallingRunner())
+    calls: list[tuple[str, str, str, str | None]] = []
+
+    def fake_enrich(
+        *, kind: str, role_id: str, channel_id: str, requested_by: str | None = None
+    ) -> None:
+        calls.append((kind, role_id, channel_id, requested_by))
+
+    monkeypatch.setattr(actions, "enrich_and_post", fake_enrich)
+
+    await actions._handle_decision(body, client, respond, "approve")
+
+    assert calls == [("seller", "s1", "C1", "U1")]

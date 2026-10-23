@@ -1,6 +1,6 @@
 # Monitoring and incident response
 
-Toolkit and n8n logs are kept in CloudWatch for 30 days. Infrastructure alarms
+Toolkit logs are kept in CloudWatch for 30 days. Infrastructure alarms
 publish to SNS topics, which reach email and, through AWS Chatbot, a Slack
 alerts channel. Confirm the live subscriptions during handover: the repository
 can't prove that recipients accepted them.
@@ -13,9 +13,8 @@ can't prove that recipients accepted them.
 | Toolkit unreachable | Route 53's HTTPS check of `/health` fails three times | **Slack only** (its topic is in `us-east-1`, with no email) | None |
 | Toolkit high CPU | Above 85% for 15 minutes | Email and Slack | None |
 | Lead email send failed | An email fails after SES's own retries, at least once in 5 minutes | Email and Slack | The sweeper tries again later |
-| n8n status check | A failed check for two minutes | Email and Slack | None |
-| n8n high CPU | Above 85% for 15 minutes | Email and Slack | None |
-| Nightly Attio resync failed | The production workflow run fails | Email and Slack | None |
+| Nightly Attio resync failed | The production workflow run fails, including when no Toolkit instance is running | Email and Slack | None |
+| Nightly Attio resync heartbeat | No successful run for 30 hours, for example the workflow is disabled or never starts | Email and Slack | None |
 | GuardDuty finding | Severity 4 or higher | **Email only** | None |
 | Security Hub finding | High or critical | **Email only** | None |
 
@@ -30,8 +29,7 @@ These only appear in logs, so someone must look for them:
 - report code emails that fail to send;
 - failed Sanity or Webflow syncs, and bad Sanity webhook signatures;
 - failed Attio writes from the lead tools, including person and deal writes;
-- the RDS database: there are no RDS alarms at all;
-- failed n8n workflows, which appear only in n8n's execution history.
+- the RDS database: there are no RDS alarms at all.
 
 The nightly resync only runs in production. Development has no mirror to
 check: its database is a hand-seeded sandbox.
@@ -50,7 +48,7 @@ check: its database is a hand-seeded sandbox.
 6. Verify health and the user flow, watch for recurrence, and record the
    resolution and follow-up owner.
 
-Use the matching runbook in `docs/runbooks/`: Toolkit outage, n8n outage,
+Use the matching runbook in `docs/runbooks/`: Toolkit outage,
 Attio sync failure, database and migration failure, or deployment failure.
 After resolving an incident, write a postmortem following
 `docs/postmortems/README.md`.

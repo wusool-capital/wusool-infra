@@ -7,7 +7,7 @@ infrastructure.
 | I want to… | Go to |
 | --- | --- |
 | Check a buyer's profile before matching | [Wusool Toolkit](toolkit.md#check-a-buyer-before-matching) |
-| Find and review buyer–seller matches | [Wusool Toolkit](toolkit.md#find-matches) |
+| Find and review buyer–seller matches | [Find matches](toolkit-find-match.md) |
 | Add, edit, or research a buyer or seller | [Wusool Toolkit](toolkit.md#maintain-buyer-and-seller-records) |
 | Record and transcribe a meeting | [WusoolScribe](scribe.md#record-a-meeting) |
 | Send a meeting note to the CRM | [WusoolScribe](scribe.md#send-a-meeting-to-attio) |
@@ -15,7 +15,6 @@ infrastructure.
 | Use a website valuation, readiness, benchmark, or buyer tool | [Website lead tools](lead-tools.md) |
 | See what readers of a gated report go through | [Website lead tools](lead-tools.md#read-a-gated-report) |
 | Publish a report or Insights article | [Publish in Sanity](publish-in-sanity.md) |
-| Open or use workflow automation | [n8n](n8n.md) |
 | Resolve a problem or request support | [Troubleshooting and support](troubleshooting.md) |
 | Look up an unfamiliar term | [Glossary](glossary.md) |
 
@@ -28,13 +27,12 @@ infrastructure.
 | **Attio** | View and manage the business CRM | Web browser or Attio app |
 | **Website lead tools** | Give website visitors useful reports and capture their details | Wusool Capital website |
 | **Sanity (Reports & Insights Studio)** | Write and publish gated reports and Insights articles | Web browser |
-| **n8n** | Build and run internal workflow automations | Web browser |
 
 Attio is the source of record. Toolkit edits, website leads, report readers
 and meeting notes all land there, so look in Attio first.
 
 {% hint style="info" %}
-Access is managed separately for Slack, WusoolScribe, Attio, Sanity, and n8n. If a
+Access is managed separately for Slack, WusoolScribe, Attio, and Sanity. If a
 product is missing or rejects your login, ask your Wusool administrator rather
 than creating a second account.
 {% endhint %}

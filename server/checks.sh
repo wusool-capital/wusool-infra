@@ -60,6 +60,7 @@ integration() {
   require_database
   uv run alembic upgrade head
   uv run pytest \
+    app/modules/activities/tests/integration \
     app/modules/ddl_commands/tests/integration \
     app/modules/lead_magnets/tests/integration \
     app/modules/matching_engine/tests/integration \
@@ -72,6 +73,7 @@ integration() {
 
 shell() {
   bash ../.github/scripts/tests/test-nightly-attio-resync.sh
+  bash ../.github/scripts/tests/test-find-toolkit-instance.sh
 }
 
 main() {

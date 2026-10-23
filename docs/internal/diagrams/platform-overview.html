@@ -22,9 +22,9 @@
     <p class="eyebrow">Architecture · Wusool docs</p>
     <h1>Wusool platform: products and data flow</h1>
     <div class="diagram-container">
-      <svg viewBox="0 0 720 496" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="platform-overview-title platform-overview-desc">
+      <svg viewBox="0 0 720 424" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="platform-overview-title platform-overview-desc">
         <title id="platform-overview-title">Wusool platform: products and data flow</title>
-        <desc id="platform-overview-desc">Architecture overview: Slack, WusoolScribe, the website tools and Sanity Studio all go through the Wusool server, which writes to Attio, the Wusool database and Webflow; n8n runs separately.</desc>
+        <desc id="platform-overview-desc">Architecture overview: Slack, WusoolScribe, the website tools and Sanity Studio all go through the Wusool server, which writes to Attio, the Wusool database and Webflow.</desc>
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#56596b"/></marker>
           <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#336a85"/></marker>
@@ -83,22 +83,16 @@
 <rect x="520" y="280" width="176" height="48" rx="6" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
 <text x="608" y="301" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">Webflow</text>
 <text x="608" y="315" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">/reports cards</text>
-<rect x="272" y="368" width="160" height="48" rx="6" fill="#f7f5f0"/>
-<rect x="272" y="368" width="160" height="48" rx="6" fill="rgba(0,5,35,0.02)" stroke="rgba(0,5,35,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
-<text x="352" y="389" fill="#000523" font-size="12" font-weight="600" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" text-anchor="middle">n8n</text>
-<text x="352" y="403" fill="#56596b" font-size="9" font-family="'Geist Mono', ui-monospace, Menlo, monospace" text-anchor="middle">separate workflows</text>
-<line x1="24" y1="440" x2="696" y2="440" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
-<text x="24" y="456" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
-<rect x="24" y="468" width="24" height="12" rx="2" fill="rgba(0,5,35,0.06)" stroke="#636575" stroke-width="1"/>
-<text x="56" y="477" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Where people work</text>
-<rect x="176" y="468" width="24" height="12" rx="2" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
-<text x="208" y="477" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Wusool server</text>
-<rect x="308" y="468" width="24" height="12" rx="2" fill="rgba(0,5,35,0.05)" stroke="#56596b" stroke-width="1"/>
-<text x="340" y="477" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Wusool data</text>
-<rect x="428" y="468" width="24" height="12" rx="2" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
-<text x="460" y="477" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">External service</text>
-<rect x="576" y="468" width="24" height="12" rx="2" fill="rgba(0,5,35,0.02)" stroke="rgba(0,5,35,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
-<text x="608" y="477" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Runs separately</text>
+<line x1="24" y1="368" x2="696" y2="368" stroke="rgba(0,5,35,0.10)" stroke-width="0.8"/>
+<text x="24" y="384" fill="#56596b" font-size="8" font-family="'Geist Mono', ui-monospace, Menlo, monospace" letter-spacing="0.18em">LEGEND</text>
+<rect x="24" y="396" width="24" height="12" rx="2" fill="rgba(0,5,35,0.06)" stroke="#636575" stroke-width="1"/>
+<text x="56" y="405" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Where people work</text>
+<rect x="176" y="396" width="24" height="12" rx="2" fill="#c6e1ee" stroke="#336a85" stroke-width="1"/>
+<text x="208" y="405" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Wusool server</text>
+<rect x="308" y="396" width="24" height="12" rx="2" fill="rgba(0,5,35,0.05)" stroke="#56596b" stroke-width="1"/>
+<text x="340" y="405" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">Wusool data</text>
+<rect x="428" y="396" width="24" height="12" rx="2" fill="rgba(0,5,35,0.03)" stroke="rgba(0,5,35,0.30)" stroke-width="1"/>
+<text x="460" y="405" fill="#56596b" font-size="9" font-family="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif">External service</text>
       </svg>
     </div>
   </div>

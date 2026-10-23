@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        stack: [base, n8n, toolkit, postgres]
+        stack: [base, toolkit, postgres]
     env:
       ENV: ${{ github.event.pull_request.base.ref == 'prod' && 'prod' || 'dev' }}
     steps:

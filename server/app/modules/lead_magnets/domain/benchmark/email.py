@@ -4,6 +4,7 @@ benchmark tool.
 
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    format_consent,
     format_count,
     format_pct,
     format_usd,
@@ -27,7 +28,7 @@ def build_confirmation(payload: JsonObject) -> EmailContent:
             sub="We'll be in touch within 48 hours to walk through where you stand.",
             body=(
                 "Your figures have been benchmarked against peer businesses in your "
-                "sector across the GCC — covering growth, margin, customer "
+                "sector across the GCC - covering growth, margin, customer "
                 "concentration and more. A member of our team will review your "
                 "percentile scores and reach out to discuss what they mean for your "
                 "business."
@@ -45,18 +46,25 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
 
     rows = render_field_rows(
         [
-            ("Email", identity.email or "—"),
-            ("Mode / Peer Group", f"{numbers.mode} — {identity.sector or numbers.peer_key or '—'}"),
+            ("Phone", identity.phone or "-"),
+            ("Website", identity.domain or "-"),
+            ("Geography", numbers.geography or identity.geography or identity.country or "-"),
+            ("Mode / Peer Group", f"{numbers.mode} - {identity.sector or numbers.peer_key or '-'}"),
             ("Revenue (this year)", format_usd(numbers.revenue)),
             ("Revenue (prior year)", format_usd(numbers.prev_revenue)),
             ("EBITDA (reported)", format_usd(numbers.ebitda_reported)),
             ("Owner Salary", format_usd(numbers.owner_salary)),
+            ("Salary Deducted in EBITDA", "Yes" if numbers.salary_deducted else "No"),
             ("Gross Margin", format_pct(numbers.gross_margin_pct)),
             ("Headcount", format_count(numbers.headcount)),
+            ("Rent Cost", format_usd(numbers.rent_cost)),
+            ("Capital Raised", format_usd(numbers.capital_raised)),
+            ("Outlets", format_count(numbers.outlets)),
             ("Recurring Revenue", format_pct(numbers.recurring_pct)),
             ("Top Customer Share", format_pct(numbers.top_customer_pct)),
             ("Years Active", format_count(numbers.years_active)),
             ("Days to Get Paid", format_count(numbers.days_to_get_paid)),
+            ("Consent", format_consent(numbers.consent)),
         ]
     )
 
@@ -83,11 +91,13 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
         )
 
     return EmailContent(
-        subject=f"New Benchmark — {company}",
+        subject=f"New Seller Lead - {company}",
         html=render_internal_shell(
             badge="New Benchmark",
             badge_color="#8a5fc2",
             title=str(company),
+            lead_name=identity.name,
+            lead_email=identity.email,
             rows_html=rows,
             extra_html=extra,
             org_url=subjects.org_web_url,

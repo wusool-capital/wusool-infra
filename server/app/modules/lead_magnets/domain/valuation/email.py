@@ -4,6 +4,7 @@ valuation tool.
 
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    format_consent,
     format_usd,
     render_confirmation_shell,
     render_field_rows,
@@ -43,14 +44,20 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
 
     rows = render_field_rows(
         [
-            ("Full Name", identity.name or "—"),
-            ("Email", identity.email or "—"),
-            ("Sector", identity.sector or identity.peer_key or "—"),
-            ("Geography", identity.geography or identity.country or "—"),
+            ("Company", str(company)),
+            ("Website", identity.domain or "-"),
+            ("Description", identity.description or "-"),
+            ("Sector", identity.sector or identity.peer_key or "-"),
+            ("Geography", identity.geography or identity.country or "-"),
+            ("Stage", numbers.stage or "-"),
             ("Revenue", format_usd(numbers.revenue)),
             ("Profit Before Tax", format_usd(numbers.profit_before_tax)),
             ("Owner Salary Add-back", format_usd(numbers.owner_salary)),
-            ("Stage", numbers.stage or "—"),
+            ("Revenue at Last Raise", format_usd(numbers.last_raise_revenue)),
+            ("PBT at Last Raise", format_usd(numbers.last_raise_pbt)),
+            ("Cash", format_usd(numbers.cash)),
+            ("Debt", format_usd(numbers.debt)),
+            ("Consent", format_consent(numbers.consent)),
         ]
     )
 
@@ -70,11 +77,13 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
         )
 
     return EmailContent(
-        subject=f"New Valuation — {company}",
+        subject=f"New Seller Lead - {company}",
         html=render_internal_shell(
             badge="New Valuation",
             badge_color="#b8863f",
             title=str(company),
+            lead_name=identity.name,
+            lead_email=identity.email,
             rows_html=rows,
             extra_html=extra,
             org_url=subjects.org_web_url,

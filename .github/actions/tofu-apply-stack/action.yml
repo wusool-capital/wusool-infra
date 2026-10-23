@@ -10,7 +10,7 @@ description: >
 
 inputs:
   stack:
-    description: 'Stack directory name under infrastructure/terraform/stacks/, e.g. base, n8n, toolkit, postgres'
+    description: 'Stack directory name under infrastructure/terraform/stacks/, e.g. base, toolkit, postgres'
     required: true
   environment:
     description: 'dev or prod'

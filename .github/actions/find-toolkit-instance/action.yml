@@ -14,7 +14,7 @@ inputs:
 
 outputs:
   instance_id:
-    description: 'The running instance ID, or empty string if none is found (create_instance=false, or the ASG is mid-replacement).'
+    description: 'The running instance ID, or empty string only when no toolkit ASG exists (create_instance=false). Fails if the ASG exists without a running instance.'
     value: ${{ steps.find.outputs.instance_id }}
 
 runs:
@@ -24,8 +24,5 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        IID=$(aws ec2 describe-instances \
-          --filters "Name=tag:Name,Values=wusool-${{ inputs.environment }}-toolkit" "Name=instance-state-name,Values=running" \
-          --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || echo "")
-        [ "$IID" = "None" ] && IID=""
+        IID=$("$GITHUB_WORKSPACE/.github/scripts/find-toolkit-instance.sh" "${{ inputs.environment }}")
         echo "instance_id=$IID" >> "$GITHUB_OUTPUT"

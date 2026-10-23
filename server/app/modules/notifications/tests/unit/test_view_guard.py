@@ -1,0 +1,159 @@
+"""Every Slack form number is sent in a form Slack accepts, on any path."""
+
+import json
+import time
+from typing import Any
+from unittest.mock import AsyncMock, patch
+from urllib.parse import urlencode
+
+import pytest
+from slack_bolt.async_app import AsyncApp, AsyncBoltRequest
+from slack_bolt.context.ack.async_ack import AsyncAck
+from slack_sdk.errors import SlackApiError
+from slack_sdk.signature import SignatureVerifier
+from slack_sdk.web.async_client import AsyncWebClient
+from slack_sdk.web.async_slack_response import AsyncSlackResponse
+
+from app.modules.notifications.providers.slack.bolt_app import GuardedAck, build_bolt_app
+from app.modules.notifications.providers.slack.client import NoUnfurlWebClient, guard_view
+
+
+def _view(value: str, *, is_decimal_allowed: bool) -> dict[str, Any]:
+    element = {
+        "type": "number_input",
+        "action_id": "n",
+        "is_decimal_allowed": is_decimal_allowed,
+        "initial_value": value,
+    }
+    return {"type": "modal", "blocks": [{"type": "input", "block_id": "n", "element": element}]}
+
+
+def _initial(view: dict[str, Any]) -> str | None:
+    return view["blocks"][0]["element"].get("initial_value")
+
+
+@pytest.mark.parametrize(
+    ("value", "is_decimal_allowed", "expected"),
+    [
+        ("12.0", False, "12"),  # enrichment float in a whole-number box
+        ("1.5e+16", True, "15000000000000000"),
+        ("1.5E+16", False, "15000000000000000"),  # str(Decimal) form
+        ("12", False, "12"),
+        ("-3", False, "-3"),
+        ("12.5", True, "12.5"),
+        ("5000000.0", True, "5000000.0"),
+    ],
+)
+def test_number_is_rewritten_into_a_form_slack_accepts(
+    value: str, is_decimal_allowed: bool, expected: str
+) -> None:
+    view = _view(value, is_decimal_allowed=is_decimal_allowed)
+
+    assert _initial(guard_view(view)) == expected
+    assert _initial(view) == value  # caller's view is not mutated
+
+
+@pytest.mark.parametrize(
+    ("value", "is_decimal_allowed"),
+    [("12.5", False), ("nan", True), ("inf", True), ("abc", True)],
+)
+def test_number_that_cannot_be_fixed_is_blanked_not_rounded(
+    value: str, is_decimal_allowed: bool
+) -> None:
+    assert _initial(guard_view(_view(value, is_decimal_allowed=is_decimal_allowed))) is None
+
+
+@pytest.mark.parametrize("method", ["views.open", "views.update", "views.push"])
+async def test_client_guards_every_view_call(method: str) -> None:
+    with patch.object(AsyncWebClient, "api_call", new_callable=AsyncMock) as base:
+        await NoUnfurlWebClient(token="x").api_call(
+            method, json={"view": _view("12.0", is_decimal_allowed=False)}
+        )
+
+    assert _initial(base.call_args.kwargs["json"]["view"]) == "12"
+
+
+async def test_client_logs_slacks_reason_when_a_view_is_rejected(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    response = {"ok": False, "response_metadata": {"messages": ["[ERROR] bad /blocks/3"]}}
+    error = SlackApiError("invalid_arguments", response)
+    with (
+        patch.object(AsyncWebClient, "api_call", new_callable=AsyncMock, side_effect=error),
+        pytest.raises(SlackApiError),
+    ):
+        await NoUnfurlWebClient(token="x").api_call("views.open", json={"view": {}})
+
+    assert "bad /blocks/3" in caplog.text
+
+
+async def test_client_stays_quiet_when_slack_gives_no_reason(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    error = SlackApiError("not_found", {"ok": False, "error": "not_found"})
+    with (
+        patch.object(AsyncWebClient, "api_call", new_callable=AsyncMock, side_effect=error),
+        pytest.raises(SlackApiError),
+    ):
+        await NoUnfurlWebClient(token="x").api_call("views.update", json={"view": {}})
+
+    assert "Slack rejected" not in caplog.text
+
+
+async def test_guarded_ack_guards_response_action_view() -> None:
+    ack = GuardedAck()
+    await ack(response_action="update", view=_view("12.0", is_decimal_allowed=False))
+
+    assert ack.response is not None
+    assert _initial(json.loads(ack.response.body)["view"]) == "12"
+
+
+async def test_guarded_ack_guards_a_whole_response_dict() -> None:
+    ack = GuardedAck()
+    await ack({"response_action": "update", "view": _view("12.0", is_decimal_allowed=False)})
+
+    assert ack.response is not None
+    assert _initial(json.loads(ack.response.body)["view"]) == "12"
+
+
+async def test_every_bolt_app_listener_sends_through_the_guard() -> None:
+    seen: list[AsyncAck] = []
+
+    def register(app: AsyncApp) -> None:
+        @app.view("form")
+        async def handle(ack: AsyncAck, client: AsyncWebClient) -> None:
+            seen.append(ack)
+            await client.views_update(view_id="V2", view=_view("12.0", is_decimal_allowed=False))
+            await client.chat_postMessage(channel="C1", text="https://example.com")
+            await ack(response_action="update", view=_view("12.0", is_decimal_allowed=False))
+
+    app = build_bolt_app("xoxb-test", "secret", register)
+    payload = {"type": "view_submission", "team": {"id": "T1"}, "user": {"id": "U1"}}
+    payload["view"] = {"id": "V1", "type": "modal", "callback_id": "form", "state": {"values": {}}}
+    body = urlencode({"payload": json.dumps(payload)})
+    timestamp = str(int(time.time()))
+    signature = SignatureVerifier("secret").generate_signature(timestamp=timestamp, body=body)
+    headers = {
+        "content-type": ["application/x-www-form-urlencoded"],
+        "x-slack-request-timestamp": [timestamp],
+        "x-slack-signature": [signature],
+    }
+    auth = AsyncSlackResponse(
+        client=None,
+        http_verb="POST",
+        api_url="auth.test",
+        req_args={},
+        data={"ok": True, "user_id": "UB", "bot_id": "B1", "team_id": "T1"},
+        headers={},
+        status_code=200,
+    )
+    with patch.object(
+        AsyncWebClient, "api_call", new_callable=AsyncMock, return_value=auth
+    ) as base:
+        response = await app.async_dispatch(AsyncBoltRequest(body=body, headers=headers))
+
+    sent = {c.args[0]: c.kwargs.get("json") for c in base.call_args_list}
+    assert isinstance(seen[0], GuardedAck)
+    assert _initial(json.loads(response.body)["view"]) == "12"
+    assert _initial(sent["views.update"]["view"]) == "12"
+    assert sent["chat.postMessage"]["unfurl_links"] is False

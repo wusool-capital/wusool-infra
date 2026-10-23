@@ -10,16 +10,31 @@ any path with `tests` in it; `slack_test_helpers.py`'s own docstring
 already established the same precedent for Slack dispatch tests).
 """
 
+from dataclasses import dataclass, field
+
 import aiohttp
+from pydantic import JsonValue
+
+JsonBody = dict[str, JsonValue] | list[JsonValue]
+
+
+@dataclass(frozen=True)
+class RecordedRequest:
+    """One request the code under test made, for asserting on afterwards."""
+
+    url: str
+    params: dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
+    data: str | None = None
 
 
 class FakeAiohttpResponse:
-    def __init__(self, status: int, body: dict, headers: dict[str, str] | None = None) -> None:
+    def __init__(self, status: int, body: JsonBody, headers: dict[str, str] | None = None) -> None:
         self.status = status
         self._body = body
         self.headers = headers or {}
 
-    async def json(self) -> dict:
+    async def json(self) -> JsonBody:
         return self._body
 
     async def __aenter__(self) -> "FakeAiohttpResponse":
@@ -44,6 +59,8 @@ class FakeAiohttpSession:
         self._get = get
         self._post = post
         self.get_calls = 0
+        self.post_calls: list[RecordedRequest] = []
+        self.timeouts: list[aiohttp.ClientTimeout | None] = []
 
     def get(self, url: str, **kwargs: object) -> FakeAiohttpResponse:
         self.get_calls += 1
@@ -52,7 +69,18 @@ class FakeAiohttpSession:
             return self._get.pop(0) if len(self._get) > 1 else self._get[0]
         return self._resolve(self._get, "get")
 
-    def post(self, url: str, **kwargs: object) -> FakeAiohttpResponse:
+    def post(
+        self,
+        url: str,
+        *,
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+        data: str | None = None,
+        json: dict[str, JsonValue] | None = None,
+    ) -> FakeAiohttpResponse:
+        self.post_calls.append(
+            RecordedRequest(url=url, params=params or {}, headers=headers or {}, data=data)
+        )
         return self._resolve(self._post, "post")
 
     @staticmethod
@@ -72,4 +100,8 @@ class FakeAiohttpSession:
 
 
 def patch_aiohttp_session(monkeypatch, session: FakeAiohttpSession) -> None:
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda **kwargs: session)  # noqa: ARG005
+    def _client_session(*, timeout: aiohttp.ClientTimeout | None = None) -> FakeAiohttpSession:
+        session.timeouts.append(timeout)
+        return session
+
+    monkeypatch.setattr(aiohttp, "ClientSession", _client_session)
