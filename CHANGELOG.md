@@ -8,6 +8,13 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-23
+
+### Changed
+
+- Lead notification emails now also go to tech@wusoolcapital.com, alongside
+  Ramzy and Jules. This applies to all five lead tools in dev and prod.
+
 ## 2026-10-21
 
 ### Changed
