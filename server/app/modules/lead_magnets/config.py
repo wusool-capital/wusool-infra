@@ -91,10 +91,12 @@ class Settings(SecretsManagerSettings):
     # `_ensure_email_confirmation`/`_ensure_email_internal` in `submit.py`.
     # `.env.example` lists both keys blank, same reasoning as
     # `lead_magnet_deal_owner_id` above — these are identities (a mailbox,
-    # the same two people), not fixed infra facts, so they live here as
+    # the same few people), not fixed infra facts, so they live here as
     # defaults only, not duplicated there.
     lead_magnet_email_from: str = "contact@wusoolcapital.com"
-    lead_magnet_email_to: str = "ramzy@wusoolcapital.com jules@wusoolcapital.com"
+    lead_magnet_email_to: str = (
+        "ramzy@wusoolcapital.com jules@wusoolcapital.com tech@wusoolcapital.com"
+    )
 
     # Gated reports. A blank project id disables `/reports/*`, so local dev needs no Sanity.
     lead_magnet_sanity_project_id: str = ""
