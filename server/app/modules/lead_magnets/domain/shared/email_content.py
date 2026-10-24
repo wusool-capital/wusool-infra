@@ -50,6 +50,30 @@ def _mailto(email: str) -> str:
     return esc(f"mailto:{quote(email, safe='@')}")
 
 
+@dataclass(frozen=True)
+class ReplyDraft:
+    """What the Reply button pre-fills. The subject is the confirmation the lead
+    already received, so the draft lines up with their own thread."""
+
+    confirmation_subject: str
+    thank_you: str
+    purpose: str
+    booking_url: str
+
+
+def _reply_href(email: str, first_name: str, draft: ReplyDraft) -> str:
+    greeting = f"Hi {first_name}," if first_name else "Hi,"
+    body = (
+        f"{greeting}\n\n{draft.thank_you} It's great to hear from you.\n\n"
+        f"I'd welcome a short call to {draft.purpose}. You can book a time here:\n"
+        f"{draft.booking_url}\n\n"
+        "Or reply with a few times that work for you, and I'll confirm one.\n\n"
+        "Warm regards,\nThe Wusool Capital team"
+    )
+    subject = quote(f"Re: {draft.confirmation_subject}", safe="")
+    return esc(f"mailto:{quote(email, safe='@')}?subject={subject}&body={quote(body, safe='')}")
+
+
 def esc(value: object) -> str:
     """Escapes a value that may carry a visitor's raw form input before it's
     interpolated into HTML — every field-table cell, free-text answer, and
@@ -192,6 +216,7 @@ def render_internal_shell(
     title: str,
     lead_name: str,
     lead_email: str,
+    reply: ReplyDraft,
     rows_html: str,
     org_url: str | None,
     deal_url: str | None,
@@ -205,10 +230,14 @@ def render_internal_shell(
     fields. The Reply button exists only for a valid address.
     """
     valid = is_valid_email(lead_email)
-    first_name = (lead_name.split() or ["lead"])[0]
+    first_name = (lead_name.split() or [""])[0]
     buttons = "".join(
         [
-            _link_button(f"Reply to {esc(first_name)}", _mailto(lead_email), filled=True)
+            _link_button(
+                f"Reply to {esc(first_name or 'lead')}",
+                _reply_href(lead_email, first_name, reply),
+                filled=True,
+            )
             if valid
             else "",
             _link_button("View Organisation", org_url, filled=not valid) if org_url else "",

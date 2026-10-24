@@ -433,8 +433,10 @@ The order is the whole point; it is what makes a lost lead impossible.
 6. **Email the internal team** a notice, with links back to the Attio
    organisation/deal (`SubjectRefs.org_web_url`/`deal_web_url`). The notice
    sets Reply-To to the lead's address, so a reply opens a draft to the lead.
-   The body shows every form field, a `mailto:` link and a Reply button. An
-   invalid address sets no Reply-To, flags the subject with
+   The body shows every form field, a `mailto:` link and a Reply button. The
+   button opens a pre-filled draft that asks the lead for a call: subject
+   `Re: {confirmation subject}` and the tool's calendar link in the body (a
+   `ReplyDraft` in each `domain/<tool>/email.py`). An invalid address sets no Reply-To, flags the subject with
    `⚠️ Invalid email - `, and skips the visitor confirmation. The run still
    succeeds.
 7. **`tool_runs.finish(...)`**, then one `activities` row

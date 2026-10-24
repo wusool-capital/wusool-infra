@@ -3,8 +3,10 @@ readiness tool.
 """
 
 from app.modules.lead_magnets.domain.readiness.readiness import ReadinessAnswers
+from app.modules.lead_magnets.domain.shared.book_call import calendar_url
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    ReplyDraft,
     esc,
     render_confirmation_shell,
     render_field_rows,
@@ -14,10 +16,18 @@ from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload,
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
+_CONFIRMATION_SUBJECT = "Your M&A readiness assessment is complete"
+_REPLY = ReplyDraft(
+    confirmation_subject=_CONFIRMATION_SUBJECT,
+    thank_you="Thank you for completing the M&A readiness assessment with Wusool Capital.",
+    purpose="go through your readiness results and how to close any gaps",
+    booking_url=calendar_url("readiness"),
+)
+
 
 def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
-        subject="Your M&A readiness assessment is complete",
+        subject=_CONFIRMATION_SUBJECT,
         html=render_confirmation_shell(
             tag="M&amp;A Readiness",
             heading="Your readiness assessment is complete.",
@@ -87,6 +97,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
             badge_color="#3f6fb8",
             title=str(company),
             lead_name=identity.name or parsed.name,
+            reply=_REPLY,
             lead_email=identity.email,
             rows_html=rows,
             extra_html=extra,

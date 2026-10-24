@@ -2,8 +2,10 @@
 benchmark tool.
 """
 
+from app.modules.lead_magnets.domain.shared.book_call import calendar_url
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    ReplyDraft,
     format_consent,
     format_count,
     format_pct,
@@ -16,10 +18,18 @@ from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload,
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
+_CONFIRMATION_SUBJECT = "Your GCC SME benchmark report is ready"
+_REPLY = ReplyDraft(
+    confirmation_subject=_CONFIRMATION_SUBJECT,
+    thank_you="Thank you for using the GCC SME benchmark from Wusool Capital.",
+    purpose="walk through where your business stands against its peers",
+    booking_url=calendar_url("benchmark"),
+)
+
 
 def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
-        subject="Your GCC SME benchmark report is ready",
+        subject=_CONFIRMATION_SUBJECT,
         html=render_confirmation_shell(
             tag="GCC SME Benchmark",
             heading="Your benchmark report is ready.",
@@ -95,6 +105,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
             badge_color="#8a5fc2",
             title=str(company),
             lead_name=identity.name,
+            reply=_REPLY,
             lead_email=identity.email,
             rows_html=rows,
             extra_html=extra,
