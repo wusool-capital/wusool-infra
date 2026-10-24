@@ -2,8 +2,10 @@
 network tool.
 """
 
+from app.modules.lead_magnets.domain.shared.book_call import calendar_url
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    ReplyDraft,
     format_consent,
     format_usd,
     render_confirmation_shell,
@@ -14,10 +16,18 @@ from app.modules.lead_magnets.domain.shared.schemas import BuyerNetworkPayload
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
+_CONFIRMATION_SUBJECT = "Application received"
+_REPLY = ReplyDraft(
+    confirmation_subject=_CONFIRMATION_SUBJECT,
+    thank_you="Thank you for applying to the Wusool Capital buyer network.",
+    purpose="understand your acquisition priorities and deal criteria",
+    booking_url=calendar_url("buyer_network"),
+)
+
 
 def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
-        subject="Application received",
+        subject=_CONFIRMATION_SUBJECT,
         html=render_confirmation_shell(
             tag="Buyer Network",
             heading="Application received.",
@@ -65,6 +75,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
             badge_color="#1f9d6c",
             title=str(company),
             lead_name=buyer.full_name,
+            reply=_REPLY,
             lead_email=buyer.email,
             rows_html=rows,
             org_url=subjects.org_web_url,

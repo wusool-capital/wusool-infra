@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-24
+
+### Changed
+
+- The "Reply to" button on every lead notification now opens a draft that is
+  already written. It thanks the lead, asks for a short call, and links the
+  booking calendar. The subject matches the confirmation the lead received.
+
 ## 2026-10-23
 
 ### Changed
