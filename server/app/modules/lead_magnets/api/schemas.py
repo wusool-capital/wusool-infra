@@ -40,6 +40,7 @@ from pydantic import (
 
 from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import SECTORS, STAGES
 from app.modules.lead_magnets.domain.benchmark.benchmark_narrative import Tone
+from app.modules.lead_magnets.domain.shared.email_content import EMAIL_PATTERN
 
 
 class _Strict(BaseModel):
@@ -577,14 +578,6 @@ class BuyerApplyResponse(BaseModel):
     run_id: str
 
 
-# The browser's own email grammar, plus a dot in the domain, so "dana@acme" fails.
-_EMAIL_PATTERN = (
-    r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+"
-    r"@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
-    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
-)
-
-
 class ReportUnlockRequest(_Strict):
     """The gate on an insights report (PRD 3): name, email and an optional organisation.
 
@@ -599,7 +592,7 @@ class ReportUnlockRequest(_Strict):
     name: str = Field(min_length=1, max_length=200)
     # Optional; `""`, not `None`, to match `AttioIdentityPayload.company`.
     company: str = Field(default="", max_length=200)
-    email: str = Field(min_length=3, max_length=320, pattern=_EMAIL_PATTERN)
+    email: str = Field(min_length=3, max_length=320, pattern=EMAIL_PATTERN)
     # The Privacy Policy tick on the gate. The page enforces it; the server records it.
     consent: bool = False
 

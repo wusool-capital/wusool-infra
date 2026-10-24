@@ -70,7 +70,7 @@ lead_magnets/
       dedup.py                     # normalisation + key composition (pure)
       tool_run.py                  # the ledger's own vocabulary (Tool, Stage, …)
       attio_values.py              # tool result -> Attio attribute values
-      email_content.py             # shared HTML shell + formatting for the two emails
+      email_content.py             # shared HTML shell, formatting and `is_valid_email`
       prompts.py                   # every prompt, as a pure function
       sector_mapping.py            # tool sector -> sector_focus; raises on unmapped
       sector_options.py            # the live 85 option titles; generated
@@ -431,7 +431,12 @@ The order is the whole point; it is what makes a lost lead impossible.
 5. **Email the visitor** a confirmation, via SES (`domain/<tool>/email.py`
    builds the HTML, `notifications.EmailSenderPort` sends it).
 6. **Email the internal team** a notice, with links back to the Attio
-   organisation/deal (`SubjectRefs.org_web_url`/`deal_web_url`).
+   organisation/deal (`SubjectRefs.org_web_url`/`deal_web_url`). The notice
+   sets Reply-To to the lead's address, so a reply opens a draft to the lead.
+   The body shows every form field, a `mailto:` link and a Reply button. An
+   invalid address sets no Reply-To, flags the subject with
+   `⚠️ Invalid email - `, and skips the visitor confirmation. The run still
+   succeeds.
 7. **`tool_runs.finish(...)`**, then one `activities` row
    (`lead_magnet.submitted`, visitor actor) joined by `tool_run_id`. The row
    holds no submission data; the answers stay on `tool_runs.payload`.

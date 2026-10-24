@@ -8,6 +8,28 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-23
+
+### Changed
+
+- Lead notification emails now also go to tech@wusoolcapital.com, alongside
+  Ramzy and Jules. This applies to all five lead tools in dev and prod.
+
+## 2026-10-21
+
+### Changed
+
+- Replying to a lead notification now opens a draft addressed to the lead,
+  so the whole conversation stays in one thread. This covers all five lead
+  tools. The sender stays the platform address. The notice now lists every
+  form field, links the lead's email, and has a "Reply to" button.
+- Seller notices are titled "New Seller Lead - Company". Buyer notices are
+  titled "New Buyer Lead - Name".
+- A lead with a malformed email no longer breaks the run. The team notice
+  goes out with a warning in the subject, and the visitor gets no
+  confirmation.
+- Lead emails no longer contain em dashes.
+
 ## 2026-10-20
 
 ### Added

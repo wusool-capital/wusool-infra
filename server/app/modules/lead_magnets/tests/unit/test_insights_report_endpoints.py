@@ -118,7 +118,7 @@ def world(monkeypatch) -> _World:
             return b"%PDF-1.7 fake"
 
     class _Mailer:
-        async def send(self, *, to, from_addr, subject, body, is_html=False):
+        async def send(self, *, to, from_addr, subject, body, is_html=False, reply_to=None):
             world.emails.append((to, subject, body))
 
     class _Analytics:

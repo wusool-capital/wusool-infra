@@ -44,22 +44,24 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
     score: dict[str, object] = score_raw if isinstance(score_raw, dict) else {}
     overall_score = score.get("overallScore")
     score_band = score.get("scoreBand")
-    score_text = f"{overall_score:g} / 100" if isinstance(overall_score, (int, float)) else "—"
-    score_band_text = str(score_band) if isinstance(score_band, str) and score_band else "—"
+    score_text = f"{overall_score:g} / 100" if isinstance(overall_score, (int, float)) else "-"
+    score_band_text = str(score_band) if isinstance(score_band, str) and score_band else "-"
 
     rows = render_field_rows(
         [
-            ("Full Name", identity.name or parsed.name or "—"),
-            ("Email", identity.email or "—"),
-            ("Sector", identity.sector or parsed.sector or "—"),
-            ("Country", identity.country or parsed.country or "—"),
-            ("Est. Revenue", parsed.revenue or "—"),
+            ("Website", identity.domain or "-"),
+            ("Sector", identity.sector or parsed.sector or "-"),
+            ("Country", identity.country or parsed.country or "-"),
+            ("Est. Revenue", parsed.revenue or "-"),
             ("Readiness Score", score_text),
             ("Readiness Band", score_band_text),
         ]
     )
 
-    scored_rows = render_field_rows(answers.scored_labels())
+    scored_rows = render_field_rows(
+        # Labels also feed the AI prompt, so the dash is swapped here, not at the source.
+        [(label, value.replace("—", "-")) for label, value in answers.scored_labels()]
+    )
     free_text_fields = (("Biggest concern", answers.q14), ("What would help most", answers.q15))
     free_text = "".join(
         f'<tr><td colspan="2" style="padding:10px 14px 0;color:#666666;">{esc(label)}</td></tr>'
@@ -79,11 +81,13 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
     )
 
     return EmailContent(
-        subject=f"New Readiness — {company}",
+        subject=f"New Seller Lead - {company}",
         html=render_internal_shell(
             badge="New Readiness",
             badge_color="#3f6fb8",
             title=str(company),
+            lead_name=identity.name or parsed.name,
+            lead_email=identity.email,
             rows_html=rows,
             extra_html=extra,
             org_url=subjects.org_web_url,

@@ -4,6 +4,7 @@ Started tool.
 
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    format_consent,
     format_count,
     format_usd,
     render_confirmation_shell,
@@ -37,31 +38,32 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
     numbers = GetStartedPayload.model_validate(payload)
     company = identity.company or payload.get("company_name") or "Unknown"
 
-    sector = identity.sector or "—"
+    sector = identity.sector or "-"
     sector_other = payload.get("sector_other")
     if sector_other:
-        sector = f"{sector} — {sector_other}"
+        sector = f"{sector} - {sector_other}"
 
     rows = render_field_rows(
         [
-            ("Full Name", identity.name or "—"),
-            ("Email", identity.email or "—"),
             ("Business Website", identity.domain or "Not provided"),
-            ("Country", identity.geography or "—"),
+            ("Country", identity.geography or "-"),
             ("Sector", sector),
             ("Annual Revenue", format_usd(numbers.revenue)),
             ("Annual EBITDA", format_usd(numbers.ebitda)),
             ("Years in Business", format_count(numbers.years_active)),
-            ("Looking to Sell", numbers.sell_timeline or "—"),
+            ("Looking to Sell", numbers.sell_timeline or "-"),
+            ("Consent", format_consent(numbers.consent)),
         ]
     )
 
     return EmailContent(
-        subject=f"New Seller Lead — {company}",
+        subject=f"New Seller Lead - {company}",
         html=render_internal_shell(
             badge="New Seller Lead",
             badge_color="#c96a3e",
             title=str(company),
+            lead_name=identity.name,
+            lead_email=identity.email,
             rows_html=rows,
             org_url=subjects.org_web_url,
             deal_url=subjects.deal_web_url,

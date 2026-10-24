@@ -32,6 +32,7 @@ from app.modules.lead_magnets.application.shared.email_dispatch import (
 )
 from app.modules.lead_magnets.application.shared.ports import AttioWriterPort, ToolRunsPort
 from app.modules.lead_magnets.domain.shared.dedup import idempotency_key
+from app.modules.lead_magnets.domain.shared.email_content import is_valid_email
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs, Tool, ToolRunRecord
 from app.modules.notifications import EmailSenderPort
 from app.modules.utilities.domain.json_types import JsonObject
@@ -191,9 +192,11 @@ class SubmissionService:
         the sweeper should retry.
 
         Skips, permanently, rather than retries, when there is no visitor
-        address or no configured sender — that is a config/data gap the
-        sweeper re-attempting on a timer cannot fix, and the lead is already
-        safe regardless of whether this email goes out.
+        address, an invalid one, or no configured sender — that is a
+        config/data gap the sweeper re-attempting on a timer cannot fix, and
+        the lead is already safe regardless of whether this email goes out.
+        An invalid address would be rejected by SES and fail the run before
+        the team notice goes out.
         """
         if run.payload.get("email_confirmation"):
             return True
@@ -201,7 +204,7 @@ class SubmissionService:
         recipient = run.payload.get("email")
         if (
             not isinstance(recipient, str)
-            or not recipient
+            or not is_valid_email(recipient)
             or not self._email_from
             or not sends_emails(run.tool)
         ):
@@ -231,7 +234,8 @@ class SubmissionService:
         self, run: ToolRunRecord, ai: JsonObject, subjects: SubjectRefs
     ) -> bool | None:
         """Step 6. Same shape as `_ensure_email_confirmation`, sent to the
-        internal team instead of the visitor, with Attio links.
+        internal team instead of the visitor, with Attio links. Reply-To is
+        the lead's address; an invalid one is flagged in the subject instead.
         """
         if run.payload.get("email_internal"):
             return True
@@ -242,12 +246,21 @@ class SubmissionService:
 
         try:
             content = build_internal_email(run.tool, run.payload, ai, subjects)
+            lead_email = run.payload.get("email")
+            reply_to = (
+                lead_email if isinstance(lead_email, str) and is_valid_email(lead_email) else None
+            )
+            subject = content.subject
+            if reply_to is None:
+                logger.warning("lead_magnet_invalid_lead_email tool=%s", run.tool)
+                subject = f"⚠️ Invalid email - {subject}"
             await self._mailer.send(
                 to=self._email_to,
                 from_addr=self._email_from,
-                subject=content.subject,
+                subject=subject,
                 body=content.html,
                 is_html=True,
+                reply_to=reply_to,
             )
         except Exception as exc:  # noqa: BLE001 - the lead + Attio write already landed
             logger.warning("lead_magnet_internal_email_failed tool=%s error=%s", run.tool, exc)

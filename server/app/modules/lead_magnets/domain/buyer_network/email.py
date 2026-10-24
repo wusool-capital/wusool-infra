@@ -4,6 +4,7 @@ network tool.
 
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    format_consent,
     format_usd,
     render_confirmation_shell,
     render_field_rows,
@@ -40,28 +41,31 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
         "–".join(
             format_usd(v) for v in (buyer.check_size_min, buyer.check_size_max) if v is not None
         )
-        or "—"
+        or "-"
     )
 
     rows = render_field_rows(
         [
-            ("Full Name", buyer.full_name or "—"),
-            ("Email", buyer.email or "—"),
-            ("Org Type", ", ".join(buyer.org_type) or "—"),
-            ("Geo Focus", ", ".join(buyer.target_geography) or "—"),
-            ("Sectors", ", ".join(buyer.sector_focus) or "—"),
+            ("Organisation", company),
+            ("Website", buyer.domain or "-"),
+            ("Org Type", ", ".join(buyer.org_type) or "-"),
+            ("Geo Focus", ", ".join(buyer.target_geography) or "-"),
+            ("Sectors", ", ".join(buyer.sector_focus) or "-"),
             ("Check Size", check_size),
-            ("Prior GCC Deal", buyer.prior_gcc_acquisition or "—"),
+            ("Prior GCC Deal", buyer.prior_gcc_acquisition or "-"),
             ("LinkedIn", buyer.linkedin_url or "Not provided"),
+            ("Consent", format_consent(buyer.consent)),
         ]
     )
 
     return EmailContent(
-        subject=f"New Buyer — {company}",
+        subject=f"New Buyer Lead - {buyer.full_name or 'Unknown'}",
         html=render_internal_shell(
             badge="New Buyer",
             badge_color="#1f9d6c",
             title=str(company),
+            lead_name=buyer.full_name,
+            lead_email=buyer.email,
             rows_html=rows,
             org_url=subjects.org_web_url,
             deal_url=subjects.deal_web_url,
