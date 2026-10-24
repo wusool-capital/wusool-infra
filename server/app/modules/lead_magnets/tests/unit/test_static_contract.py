@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel
 
 from app.modules.lead_magnets.api.schemas import (
     AnalyzeRequest,
@@ -66,6 +67,12 @@ def _payload_keys(js: str, marker: str) -> set[str]:
     return keys
 
 
+def _page_fields(model: type[BaseModel]) -> set[str]:
+    """The fields a page's own payload builds. `analytics` is added by
+    shared/analytics.js when it wraps `fetch`, so no page lists it."""
+    return set(model.model_fields) - {"analytics"}
+
+
 def _local_refs(html: str) -> list[str]:
     return [ref for ref in _TAG_REF.findall(html) if not _EXTERNAL_HREF.match(ref)]
 
@@ -101,13 +108,13 @@ def test_benchmark_payload_field_names_match_the_request_schema() -> None:
     side and not the other 422s silently in prod, not at review time."""
     js = (static_dir() / "benchmark" / "60-render.js").read_text(encoding="utf-8")
     keys = _payload_keys(js, "const payload = {")
-    assert keys == set(BenchmarkRequest.model_fields)
+    assert keys == _page_fields(BenchmarkRequest)
 
 
 def test_readiness_payload_field_names_match_the_request_schema() -> None:
     js = (static_dir() / "readiness" / "30-submit.js").read_text(encoding="utf-8")
     keys = _payload_keys(js, "const payload={")
-    assert keys == set(ReadinessRequest.model_fields)
+    assert keys == _page_fields(ReadinessRequest)
 
 
 def test_valuation_payload_field_names_match_their_request_schemas() -> None:
@@ -140,7 +147,7 @@ def test_valuation_payload_field_names_match_their_request_schemas() -> None:
     submit_keys = _payload_keys(main[submit_start:], "body:JSON.stringify({")
     # Sent once /analyze and /compare settle, carrying their comps, discounts,
     # DCF assumptions and search terms, so Attio values the lead as shown.
-    assert submit_keys == set(ValuationRequest.model_fields)
+    assert submit_keys == _page_fields(ValuationRequest)
     gate_handler = main[main.index("const handleGate") : main.index("const upd=")]
     assert 'fetch("/submit-lead"' not in gate_handler
 
@@ -148,7 +155,7 @@ def test_valuation_payload_field_names_match_their_request_schemas() -> None:
 def test_buyers_payload_field_names_match_the_request_schema() -> None:
     js = (static_dir() / "buyers" / "10-main.js").read_text(encoding="utf-8")
     keys = _payload_keys(js, "const payload={")
-    assert keys == set(BuyerApplyRequest.model_fields)
+    assert keys == _page_fields(BuyerApplyRequest)
 
 
 def test_buyers_select_options_match_the_live_validation_sets() -> None:
@@ -237,7 +244,7 @@ def test_benchmark_percent_validation_rejects_non_numeric_input() -> None:
 def test_get_started_payload_field_names_match_the_request_schema() -> None:
     js = (static_dir() / "get-started" / "10-main.js").read_text(encoding="utf-8")
     keys = _payload_keys(js, "const payload={")
-    assert keys == set(GetStartedRequest.model_fields)
+    assert keys == _page_fields(GetStartedRequest)
 
 
 def test_get_started_select_options_match_the_live_validation_sets() -> None:
@@ -290,7 +297,7 @@ def test_no_page_mints_its_own_submission_id(tool_dir: Path) -> None:
 
 def test_report_gate_payload_field_names_match_the_request_schema() -> None:
     js = (static_dir() / "report" / "10-main.js").read_text(encoding="utf-8")
-    assert _payload_keys(js, "const payload={") == set(ReportUnlockRequest.model_fields)
+    assert _payload_keys(js, "const payload={") == _page_fields(ReportUnlockRequest)
 
 
 def test_report_gate_asks_for_a_work_email_and_only_accepts_emails() -> None:
@@ -299,3 +306,100 @@ def test_report_gate_asks_for_a_work_email_and_only_accepts_emails() -> None:
     assert 'type="email"' in field and "required" in field
     assert r'pattern="[^@\s]+@[^@\s]+\.[^@\s]+"' in field, "a dot in the domain is required"
     assert '<label for="email">Work email *</label>' in html
+
+
+def _analytics_js() -> str:
+    return (static_dir() / "shared" / "analytics.js").read_text(encoding="utf-8")
+
+
+def _js_array(js: str, name: str) -> list[str]:
+    block = re.search(rf"var {name} = \[(.*?)\];", js, re.DOTALL).group(1)
+    return re.findall(r'"([^"]+)"', block)
+
+
+@pytest.mark.parametrize("tool_dir", _tool_dirs(), ids=lambda p: p.name)
+def test_every_tool_page_loads_analytics_after_the_submission_id(tool_dir: Path) -> None:
+    """analytics.js reads `window.WUSOOL_SUBMISSION_ID` on load, and has to be a
+    plain script: valuation's other scripts are babel, which would defer it."""
+    html = (tool_dir / "index.html").read_text(encoding="utf-8")
+    if "submission-id.js" not in html:
+        pytest.skip(f"{tool_dir.name} is not a tool page")
+    tag = re.search(r'<script src="\.\./shared/analytics\.js\?v=\d+"></script>', html)
+    assert tag, f"{tool_dir.name}/index.html must load shared/analytics.js as a plain script"
+    assert html.index("../shared/submission-id.js") < tag.start()
+
+
+def test_analytics_only_ever_sends_the_allowlisted_properties() -> None:
+    assert _js_array(_analytics_js(), "ALLOWED_PROPS") == [
+        "tool",
+        "step",
+        "language",
+        "source",
+        "submission_id",
+    ]
+
+
+def test_analytics_never_reads_a_form_value() -> None:
+    """Revenue, valuation and contact details sit in these forms, so the
+    tracker must have no way to read one, not only an allowlist to drop it."""
+    js = _analytics_js()
+    assert not re.search(r"\.value\b", js)
+    assert "FormData" not in js and "serialize" not in js
+
+
+def test_analytics_submit_paths_are_the_servers_lead_submit_routes() -> None:
+    from fastapi import FastAPI
+
+    from app.modules.lead_magnets.api.router import router
+
+    app = FastAPI()
+    app.include_router(router)
+    schema = app.openapi()
+    models = schema["components"]["schemas"]
+    server_paths = set()
+    for path, operations in schema["paths"].items():
+        content = operations.get("post", {}).get("requestBody", {}).get("content", {})
+        ref = content.get("application/json", {}).get("schema", {}).get("$ref")
+        if ref and "submission_id" in models[ref.rsplit("/", 1)[1]]["properties"]:
+            if not path.startswith("/reports/"):
+                server_paths.add(path)
+
+    assert server_paths, "no lead submit routes found; the discovery above no longer matches"
+    assert set(_js_array(_analytics_js(), "SUBMIT_PATHS")) == server_paths
+
+
+def test_analytics_names_every_served_tool() -> None:
+    block = re.search(r"var TOOLS = \{(.*?)\};", _analytics_js(), re.DOTALL).group(1)
+    names = dict(re.findall(r'"?([\w-]+)"?:\s*"([^"]+)"', block))
+    assert names == {
+        "benchmark": "benchmark",
+        "readiness": "readiness",
+        "valuation": "valuation",
+        "buyers": "buyer_network",
+        "get-started": "get_started",
+        "report": "insights_report",
+    }
+    tool_pages = {
+        p.name for p in _tool_dirs() if "submission-id.js" in (p / "index.html").read_text("utf-8")
+    }
+    assert set(names) == tool_pages, "a tool page has no analytics name"
+
+
+def test_analytics_waits_for_consent_before_any_network_call() -> None:
+    """The config fetch and the PostHog script are only reachable through
+    `load()`, which returns unless consent was given."""
+    js = _analytics_js()
+    assert "function load() {\n    if (loading || consent !== true) return;" in js
+    assert js.count('"/analytics/config"') == 1
+
+
+def test_report_gate_asks_for_an_unticked_privacy_policy_checkbox() -> None:
+    """The gate used to say "by continuing you agree"; now the reader must tick
+    the same Privacy Policy line the lead tools use, and it starts unticked."""
+    html = (static_dir() / "report" / "index.html").read_text(encoding="utf-8")
+    js = (static_dir() / "report" / "10-main.js").read_text(encoding="utf-8")
+
+    checkbox = re.search(r'<input type="checkbox" id="consent"[^>]*>', html)
+    assert checkbox and "checked" not in checkbox.group(0)
+    assert "wusoolcapital.com/privacy-policy" in html
+    assert 'if(!document.getElementById("consent").checked)' in js

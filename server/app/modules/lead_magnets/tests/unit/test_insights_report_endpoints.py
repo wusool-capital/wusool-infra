@@ -23,6 +23,7 @@ from app.modules.lead_magnets.api import dependencies as deps
 from app.modules.lead_magnets.api.insights_report import endpoints
 from app.modules.lead_magnets.application.insights_report.unlock import ReportUnlock
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument
+from app.modules.lead_magnets.domain.insights_report.report_event import ReportEvent
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.domain.shared.tool_run import ToolRunRecord
 from app.modules.lead_magnets.persistence.unlock_challenges import InMemoryUnlockChallenges
@@ -71,6 +72,7 @@ class _World:
     articles: list[tuple[str | None, str | None]] = field(default_factory=list)
     printed: list[str] = field(default_factory=list)
     emails: list[tuple[list[str], str, str]] = field(default_factory=list)
+    events: list[ReportEvent] = field(default_factory=list)
 
 
 class _Source:
@@ -119,6 +121,10 @@ def world(monkeypatch) -> _World:
         async def send(self, *, to, from_addr, subject, body, is_html=False, reply_to=None):
             world.emails.append((to, subject, body))
 
+    class _Analytics:
+        async def capture(self, event: ReportEvent) -> None:
+            world.events.append(event)
+
     async def fake_completion(run_id: UUID) -> None:
         world.completed.append(run_id)
 
@@ -140,6 +146,7 @@ def world(monkeypatch) -> _World:
     monkeypatch.setattr(endpoints, "build_tool_runs", lambda session: _ToolRuns())
     monkeypatch.setattr(endpoints, "run_completion", fake_completion)
     monkeypatch.setattr(endpoints, "build_report_unlock", lambda: unlock)
+    monkeypatch.setattr(endpoints, "build_analytics", lambda: _Analytics())
     return world
 
 
@@ -172,14 +179,20 @@ def _unlock(client, world: _World, **form: str):
     )
 
 
-def _reader_run(world: _World, slug: str) -> UUID:
+def _reader_run(world: _World, slug: str, *, consented: bool = False) -> UUID:
     run_id = uuid4()
     world.runs[run_id] = ToolRunRecord(
         id=run_id,
         tool="insights_report",
         status="succeeded",
         attempt_count=1,
-        payload={"name": "Dana", "email": "dana@acme.ae", "company": "Acme", "slug": slug},
+        payload={
+            "name": "Dana",
+            "email": "dana@acme.ae",
+            "company": "Acme",
+            "slug": slug,
+            "analytics_consent": consented,
+        },
         stage=None,
     )
     return run_id
@@ -484,3 +497,202 @@ def test_pdf_downloads_have_their_own_per_ip_limit_apart_from_the_unlock(client,
 
     assert downloads == [200, 429]
     assert unlock.status_code == 200, "downloading never uses up the unlock budget"
+
+
+def _sent(world: _World) -> list[tuple[str, str | None]]:
+    return [(e.event, e.format) for e in world.events]
+
+
+def test_unlock_and_verify_each_send_one_posthog_event(client, world) -> None:
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "Dana", "email": "Dana@Acme.ae", "company": "Acme"},
+    )
+    assert _sent(world) == [("report_code_requested", None)]
+
+    _unlock(client, world, name="Dana", email="dana@acme.ae", company="Acme")
+
+    requested, again, unlocked = world.events
+    assert again.event == "report_code_requested"
+    assert unlocked.event == "report_unlocked"
+    assert (unlocked.name, unlocked.email, unlocked.company) == ("Dana", "dana@acme.ae", "Acme")
+    assert (unlocked.slug, unlocked.report_title) == ("buyouts-in-the-gcc", "Buyouts in the GCC")
+    assert unlocked.domain == "acme.ae"
+    assert unlocked.email_verified is True
+    assert requested.at.tzinfo is not None
+
+
+def test_a_failed_code_email_sends_no_event(client, world, monkeypatch) -> None:
+    class _Down:
+        async def send(self, **kwargs):
+            raise RuntimeError("ses down")
+
+    monkeypatch.setattr(
+        endpoints,
+        "build_report_unlock",
+        lambda: ReportUnlock(
+            challenges=InMemoryUnlockChallenges(), mailer=_Down(), email_from="x@y.z", ttl_s=600
+        ),
+    )
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "D", "email": "dana@acme.ae"},
+    )
+    assert world.events == []
+
+
+def test_with_email_otp_off_only_the_unlock_is_sent(client, world) -> None:
+    world.settings.lead_magnet_report_email_otp = False
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "Dana", "email": "dana@acme.ae", "company": "Acme"},
+    )
+    assert _sent(world) == [("report_unlocked", None)]
+    assert world.events[0].email_verified is False, "nobody proved the address is theirs"
+
+
+def test_a_broken_analytics_client_never_fails_the_reader(client, world, monkeypatch) -> None:
+    def broken() -> None:
+        raise RuntimeError("analytics down")
+
+    monkeypatch.setattr(endpoints, "build_analytics", broken)
+    world.settings.lead_magnet_report_email_otp = False
+
+    response = client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "s", "name": "Dana", "email": "dana@acme.ae", "company": "Acme"},
+    )
+
+    assert response.status_code == 200
+    assert "wusool_reader=" in response.headers["set-cookie"]
+    assert len(world.recorded) == 1 and len(world.completed) == 1
+
+
+def test_a_known_reader_sends_a_view_for_each_page_and_pdf(client, world) -> None:
+    assert client.get("/reports/buyouts-in-the-gcc").json()["locked"] is True
+    assert world.events == [], "an anonymous preview is not a view"
+
+    client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
+    client.get("/reports/buyouts-in-the-gcc")
+    client.get("/reports/buyouts-in-the-gcc")
+    client.get("/reports/other-report/pdf")
+
+    assert _sent(world) == [
+        ("report_viewed", "html"),
+        ("report_viewed", "html"),
+        ("report_viewed", "pdf"),
+    ]
+    view = world.events[-1]
+    assert (view.email, view.slug, view.report_title) == ("dana@acme.ae", "other-report", "Other")
+
+
+def _unlock_with_analytics(client, world: _World, analytics: dict[str, object]):
+    body = {
+        "submission_id": "s",
+        "name": "Dana",
+        "email": "dana@acme.ae",
+        "company": "Acme",
+        "analytics": analytics,
+    }
+    sent = client.post("/reports/buyouts-in-the-gcc/unlock", json=body)
+    assert sent.status_code == 200, sent.text
+    return client.post(
+        "/reports/buyouts-in-the-gcc/unlock/verify",
+        json={"challenge_id": sent.json()["challenge_id"], "code": _sent_code(world)},
+    )
+
+
+def test_a_consented_unlock_carries_the_visitor_through_the_code_step(client, world) -> None:
+    response = _unlock_with_analytics(
+        client, world, {"visitor_id": "anon-1", "consent": True, "utm": {"source": "linkedin"}}
+    )
+
+    assert response.status_code == 200
+    unlocked = world.events[-1]
+    assert unlocked.event == "report_unlocked" and unlocked.visitor_id == "anon-1"
+    stored = world.recorded[0]["payload"]
+    assert stored["visitor_id"] == "anon-1"
+    assert stored["utm"]["source"] == "linkedin"
+
+
+def test_an_unlock_that_declined_tracking_sends_no_visitor_id(client, world) -> None:
+    response = _unlock_with_analytics(
+        client, world, {"visitor_id": "anon-1", "consent": False, "utm": {"source": "linkedin"}}
+    )
+
+    assert response.status_code == 200
+    assert world.events[-1].visitor_id is None
+    stored = world.recorded[0]["payload"]
+    assert stored["visitor_id"] is None and stored["utm"]["source"] == "linkedin"
+
+
+def test_with_the_email_code_off_the_visitor_is_never_linked(client, world) -> None:
+    world.settings.lead_magnet_report_email_otp = False
+
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={
+            "submission_id": "s",
+            "name": "Dana",
+            "email": "dana@acme.ae",
+            "analytics": {"visitor_id": "anon-1", "consent": True},
+        },
+    )
+
+    assert world.events[0].visitor_id is None, "an unproven address can't claim a visitor"
+
+
+def test_the_privacy_tick_is_recorded_with_the_lead(client, world) -> None:
+    response = _unlock(client, world, consent=True)
+
+    assert response.status_code == 200
+    assert world.recorded[0]["payload"]["consent"] is True
+
+
+def test_a_request_without_the_tick_still_works_for_older_pages(client, world) -> None:
+    response = _unlock(client, world)
+
+    assert response.status_code == 200
+    assert world.recorded[0]["payload"]["consent"] is False
+
+
+def test_a_visitor_who_did_not_accept_tracking_is_counted_without_being_named(
+    client, world
+) -> None:
+    client.post(
+        "/reports/buyouts-in-the-gcc/unlock",
+        json={"submission_id": "page-load-7", "name": "Dana", "email": "dana@acme.ae"},
+    )
+    verify = {
+        "challenge_id": client.post(
+            "/reports/buyouts-in-the-gcc/unlock",
+            json={"submission_id": "page-load-7", "name": "Dana", "email": "dana@acme.ae"},
+        ).json()["challenge_id"],
+        "code": _sent_code(world),
+    }
+    client.post("/reports/buyouts-in-the-gcc/unlock/verify", json=verify)
+
+    requested, requested_again, unlocked = world.events
+    assert [e.identified for e in (requested, requested_again, unlocked)] == [False] * 3
+    assert {e.anonymous_id for e in (requested, requested_again, unlocked)} == {"page-load-7"}
+    assert world.recorded[0]["payload"]["analytics_consent"] is False
+
+
+def test_a_visitor_who_accepted_tracking_is_named_in_the_report_events(client, world) -> None:
+    _unlock_with_analytics(client, world, {"consent": True, "visitor_id": "anon-1"})
+
+    assert [e.identified for e in world.events] == [True, True]
+    assert world.recorded[0]["payload"]["analytics_consent"] is True
+
+
+def test_a_return_view_follows_the_choice_saved_at_unlock(client, world) -> None:
+    client.cookies.set(
+        "wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc", consented=True))
+    )
+    client.get("/reports/buyouts-in-the-gcc")
+    client.cookies.set(
+        "wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc", consented=False))
+    )
+    client.get("/reports/buyouts-in-the-gcc")
+
+    assert [e.identified for e in world.events] == [True, False]

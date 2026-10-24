@@ -14,10 +14,8 @@ from app.modules.lead_magnets.domain.shared.schemas import BuyerNetworkPayload
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
-_BUYER_CTA = "https://calendar.app.google/4FzN5jAf5KGQszjY7"
 
-
-def build_confirmation(payload: JsonObject) -> EmailContent:
+def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
         subject="Application received",
         html=render_confirmation_shell(
@@ -30,7 +28,7 @@ def build_confirmation(payload: JsonObject) -> EmailContent:
                 "acquisition priorities and align on deal criteria."
             ),
             cta_text="Book a Call",
-            cta_href=_BUYER_CTA,
+            cta_href=cta_href,
         ),
     )
 

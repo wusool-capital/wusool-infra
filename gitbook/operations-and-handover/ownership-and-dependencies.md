@@ -16,6 +16,7 @@ and keep them current in the client's operations register.
 | Slack | Toolkit app, workspace access, alerts channel | Unassigned |
 | Sanity Reports & Insights Studio | Report and article content, editors, webhooks | Unassigned |
 | Webflow | The website and its CMS collections | Unassigned |
+| PostHog | Report access analytics, project access, the data processing agreement | Unassigned |
 | Cloudflare | Public DNS for service hostnames | Unassigned |
 | WusoolScribe | Desktop releases, update feed, signing key, CRM submission | Unassigned |
 
@@ -30,6 +31,7 @@ Billing owners and plans aren't recorded in the repository unless stated.
 | Attio | CRM of record | Unknown |
 | Sanity | Report and article content | Free plan |
 | Webflow | Website and CMS | Unknown |
+| PostHog (EU Cloud) | Who requested, unlocked and read each report. Receives reader names and emails | Free tier, 1M events a month. Set a billing limit |
 | Google Cloud (Places, Geocoding) | Seller discovery | Unknown |
 | Firecrawl | Web search for enrichment and Valuation | Unknown |
 | Diffbot | Structured company data | Free tier, 10,000 credits a month |

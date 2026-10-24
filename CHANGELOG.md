@@ -32,6 +32,27 @@ for current production evidence and open handover items.
 
 ## 2026-10-20
 
+### Added
+
+- Report form submits, unlocks and views now go to PostHog, so the team can
+  see who read which report and when without SQL. Nothing is sent until
+  `LEAD_MAGNET_POSTHOG_API_KEY` is set in the Toolkit secret. A reader who
+  declined tracking is counted anonymously, without name or email.
+- The lead tools now report to PostHog too. It records when a visitor opens,
+  starts, finishes or leaves a tool, and Book a Call clicks. Browser events
+  are sent only after the visitor accepts tracking. They never include a form
+  value. The Toolkit also counts every lead and every email Book a Call click.
+  A visitor who declined is counted but never named. One who accepted is
+  linked to their earlier page views by email.
+- The Book a Call button in the emails now goes through the Toolkit, which
+  redirects to the right calendar, once `LEAD_MAGNET_PUBLIC_BASE_URL` is set.
+- A lead's first-touch campaign tags (`utm_source` and the like) are saved
+  with the lead.
+- Clicks on the consent banner's Accept and Decline are counted without
+  identifying anyone, so the team can see the acceptance rate.
+- The report gate now has a Privacy Policy checkbox, like the lead tools. The
+  reader ticks it before a code is sent, and the tick is saved with the lead.
+
 ### Changed
 
 - Every Slack form, in every module, now goes through one shared check

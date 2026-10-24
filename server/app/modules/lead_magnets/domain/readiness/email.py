@@ -14,10 +14,8 @@ from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload,
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
-_SELLER_CTA = "https://calendar.app.google/UfXxu6dBkZ8wjhnT6"
 
-
-def build_confirmation(payload: JsonObject) -> EmailContent:
+def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
         subject="Your M&A readiness assessment is complete",
         html=render_confirmation_shell(
@@ -31,7 +29,7 @@ def build_confirmation(payload: JsonObject) -> EmailContent:
                 "out to discuss how to close any gaps before a sale process."
             ),
             cta_text="Book a Call",
-            cta_href=_SELLER_CTA,
+            cta_href=cta_href,
         ),
     )
 

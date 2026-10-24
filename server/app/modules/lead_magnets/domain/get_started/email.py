@@ -15,12 +15,8 @@ from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload,
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
-# Get Started is a seller tool like valuation/readiness/benchmark, not a
-# buyer one — same calendar as those three, not buyer_network's own.
-_SELLER_CTA = "https://calendar.app.google/UfXxu6dBkZ8wjhnT6"
 
-
-def build_confirmation(payload: JsonObject) -> EmailContent:
+def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
         subject="Thanks for reaching out to Wusool Capital",
         html=render_confirmation_shell(
@@ -32,7 +28,7 @@ def build_confirmation(payload: JsonObject) -> EmailContent:
                 "and reach out to discuss your priorities and the options available to you."
             ),
             cta_text="Book a Call",
-            cta_href=_SELLER_CTA,
+            cta_href=cta_href,
         ),
     )
 

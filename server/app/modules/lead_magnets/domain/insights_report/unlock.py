@@ -10,6 +10,15 @@ _DOTLESS_DOMAINS = frozenset({"gmail.com", "googlemail.com"})
 
 
 @dataclass(frozen=True)
+class UtmValues:
+    source: str | None = None
+    medium: str | None = None
+    campaign: str | None = None
+    term: str | None = None
+    content: str | None = None
+
+
+@dataclass(frozen=True)
 class ReaderForm:
     """The gate's fields, named as `AttioIdentityPayload` reads them back."""
 
@@ -17,6 +26,13 @@ class ReaderForm:
     name: str
     company: str
     email: str
+    # The Privacy Policy tick, recorded with the lead.
+    consent: bool = False
+    # Whether the visitor accepted tracking on the banner, kept for later views.
+    analytics_consent: bool = False
+    # Kept with the form because the code is typed back in a second request.
+    visitor_id: str | None = None
+    utm: UtmValues | None = None
 
 
 @dataclass(frozen=True)

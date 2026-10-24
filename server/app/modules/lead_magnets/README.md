@@ -182,6 +182,9 @@ posts to, so repointing it is a host change rather than a path change.
 | `POST /reports/{slug}/unlock/verify` | serves | Takes `{challenge_id, code}`. On a match it returns the whole report and records the reader. A wrong code is 400; an expired, used-up or unknown code is 410 |
 | `GET /reports/{slug}/pdf` | serves | The whole report as an A4 PDF, printed per download; 403 until the reader unlocks |
 | `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook for both document types; syncs the Webflow Reports card or Insights article |
+| `GET /analytics/config` | serves | The public PostHog key, host and `is_test` a page loads PostHog with. Fetched only after the visitor accepts tracking |
+| `GET /analytics/consent` | serves | A pixel the banner fires on Accept or Decline (`?choice=granted` or `denied`). Counts the choice anonymously and returns 204 |
+| `GET /go/book-call/{tool}` | serves | The emails' Book a Call button: 302 to the tool's calendar, and records `book_call_clicked`. The calendar comes from `tool`, never from the link |
 
 `/enrich`, `/analyze` and `/compare` are stateless: they build the report the
 visitor reads while still in the tool, long before there is a submission to
@@ -301,6 +304,82 @@ SELECT started_at, payload->>'report_title' AS report, payload->>'slug' AS slug,
        payload->>'name' AS name, payload->>'email' AS email, payload->>'company' AS company
 FROM tool_runs WHERE tool = 'insights_report' ORDER BY started_at DESC;
 ```
+
+The same reads also go to PostHog, so the team can see them without SQL.
+`providers/posthog/client.py` sends three server-side events. For a visitor who
+accepted tracking on the banner they are keyed by the reader's lower-cased email:
+
+| Event | When | Person |
+|---|---|---|
+| `report_code_requested` | The form is sent and the code is emailed, even if never verified | Not created: `$process_person_profile` is off |
+| `report_unlocked` | The code is verified, or the form is sent with the email code off | With a verified code: `name`, `email`, `company` set. With the email code off: not created, since nobody proved the address |
+| `report_viewed` | A reader with the cookie opens the report (`format: html`) or the PDF (`format: pdf`), on every visit | Unchanged |
+
+A visitor who declined, or never chose, is counted anonymously instead: the
+event carries only `slug`, `report_title`, `format` and `is_test`, with the
+page load's random submission id (a fresh id for a view), no person, and no
+link to earlier page views. The unlock request records the banner choice as
+`analytics_consent` in the run's payload, and later views follow that saved
+choice. A reader who changes their mind later keeps the unlock-time choice
+for views until a new unlock.
+
+For an accepting visitor every event also carries `company`, `domain` and `is_test`.
+In PostHog, **Activity** lists the events, **Persons** shows each reader, and
+an insight broken down by `report_title` shows reads per report. A blank
+`LEAD_MAGNET_POSTHOG_API_KEY` sends nothing; an SDK error is logged
+(`posthog_capture_failed`) and never fails the request.
+
+Events are sent in the background and queued in memory. A deploy flushes the
+queue (capped at 5 s), but a crash or kill can lose the events still queued.
+
+PostHog holds a reader's name, email and company, so a deletion request must
+also delete that person in PostHog, not only in Attio and Postgres. The email
+is the person's `distinct_id`, so a person can't be renamed.
+
+## Website analytics (AZM-155)
+
+The five lead tools and the reports report to the same PostHog project as the
+gated-report events above, so one funnel runs from the first visit to a
+booked call. Browser events come from `static/shared/analytics.js`; the
+server adds the events a browser can't be trusted to send.
+
+| Event | Sent by | When | Properties |
+|---|---|---|---|
+| `tool_opened`, `tool_started`, `tool_step_completed`, `tool_completed`, `tool_abandoned` | Browser, after consent | The visitor opens, starts, moves through, finishes or leaves a tool | `tool`, `step`, `language`, `submission_id` |
+| `book_call_clicked` (`source: tool`) | Browser, after consent | A click on an in-page Book a Call link | `tool`, `source` |
+| `lead_submitted` | Server | The lead is saved | `tool`, `submission_id`, `is_test`. Names the person only with consent |
+| `book_call_clicked` (`source: email`) | Server | A click on the email button | `tool`, `submission_id`, `source`, `is_test` |
+| `consent_choice` | Server | A click on the consent banner, through `GET /analytics/consent?choice=granted\|denied` | `choice`, `is_test`. A fresh id each time and no person, so it counts clicks without tracking anyone |
+
+**Consent decides who is named.** Every submit body may carry an optional
+`analytics` block (`AnalyticsContext` in `api/schemas.py`) with the browser's
+PostHog `visitor_id`, a `consent` flag and first-touch `utm` tags. The model
+drops `visitor_id` unless `consent` is true. Without consent, `lead_submitted`
+is anonymous: it carries only the tool and a random submission id, creates no
+person and sends no email. With consent, it is keyed on the email, sets name,
+email and company, and an `$identify` event merges the visitor's earlier page
+views into that person. A retried submit reuses its event id, so PostHog
+drops the repeat.
+
+**Nothing reads form values.** The browser script has an allowlist of
+properties (`tool`, `step`, `language`, `source`, `submission_id`), and a test
+fails if it ever reads a field value. Session replay and autocapture stay off.
+
+**UTM tags** are stored in `tool_runs.payload` (`analytics.utm`; for reports
+`utm`), with no migration and no Attio attribute yet.
+
+**Email links.** With `LEAD_MAGNET_PUBLIC_BASE_URL` set, each email's Book a
+Call button points at `GET /go/book-call/{tool}?sid=<submission id>`. Blank
+keeps the direct calendar link, so dev and local runs are unaffected. The
+consent contract for the Webflow banner is in `static/README.md`. Mail
+scanners such as Microsoft Safe Links fetch every link in an email, so email
+`book_call_clicked` counts can be inflated for Microsoft 365 recipients.
+
+The `analytics` block is advisory: `LenientAnalytics` trims or drops anything
+malformed instead of returning a 422, so it can never cost a lead.
+
+Deleting a person on request also means deleting their PostHog person; the
+`submission_id` on anonymous events can't be tied back to anyone.
 
 ## Insights articles from Sanity
 

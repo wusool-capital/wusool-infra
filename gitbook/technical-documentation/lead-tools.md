@@ -14,7 +14,8 @@ second hostname pointing at the same container. The sub-pages cover each tool.
 | Gated reports | The full report and a PDF, after an emailed code | None | [Gated reports](lead-tools-reports.md) |
 
 Reports and Insights articles are published from Sanity; see
-[Sanity and Webflow publishing](lead-tools-publishing.md).
+[Sanity and Webflow publishing](lead-tools-publishing.md). Usage events are in
+[Website analytics](lead-tools-analytics.md).
 
 ## Embedding
 

@@ -11,6 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.lead_magnets.api.analytics import track_lead
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
     rate_limit,
@@ -63,6 +64,15 @@ async def readiness_score(
         domain=request.domain,
     )
     await session.commit()
+    track_lead(
+        background,
+        tool="readiness",
+        submission_id=request.submission_id,
+        analytics=request.analytics,
+        name=request.name,
+        email=request.email,
+        company=request.company,
+    )
 
     # `record()` reuses the same row for an exact retry of the same
     # request (same `submission_id`) rather than starting a new one — see
