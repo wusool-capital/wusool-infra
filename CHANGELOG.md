@@ -13,8 +13,8 @@ for current production evidence and open handover items.
 ### Added
 
 - Session replay for the lead tools and reports, for visitors who accept
-  tracking. All text and inputs are masked and result screens are blanked. It
-  stays off until the PostHog project setting is switched on.
+  tracking. It shows what the visitor types and sees, and records no network or
+  console data. It stays off until the PostHog project setting is switched on.
 
 ## 2026-10-24
 
