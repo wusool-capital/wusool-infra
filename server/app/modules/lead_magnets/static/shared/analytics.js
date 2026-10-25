@@ -12,6 +12,9 @@
 
   // The only properties an event may carry; anything else is dropped in track().
   var ALLOWED_PROPS = ["tool", "step", "language", "source", "submission_id"];
+  // Replay blanks these out: result screens and the report carry revenue and valuation figures.
+  var REPLAY_BLOCK =
+    "svg, canvas, #resultsScreen, #cover, #metrics, #flags, #meta, #report, .results-revealed";
   // Kept in step with the server's submit routes by test_static_contract.py.
   var SUBMIT_PATHS = [
     "/benchmark",
@@ -161,7 +164,16 @@
             autocapture: false,
             capture_pageview: false,
             capture_pageleave: false,
-            disable_session_recording: true,
+            // Replay shows layout and clicks only: all text and inputs are masked, no network or console.
+            session_recording: {
+              maskAllInputs: true,
+              maskTextSelector: "*",
+              blockSelector: REPLAY_BLOCK,
+              recordHeaders: false,
+              recordBody: false,
+            },
+            enable_recording_console_log: false,
+            capture_performance: false,
             persistence: "localStorage+cookie",
             cross_subdomain_cookie: true,
             person_profiles: "identified_only",

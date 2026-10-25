@@ -393,6 +393,38 @@ def test_analytics_waits_for_consent_before_any_network_call() -> None:
     assert js.count('"/analytics/config"') == 1
 
 
+def test_replay_masks_text_and_inputs_and_records_no_network_or_console() -> None:
+    """Replay is allowed only in its masked form: the pages show revenue and
+    valuation figures as text, and submit bodies hold names and emails."""
+    js = _analytics_js()
+    assert "disable_session_recording" not in js
+    for setting in (
+        "maskAllInputs: true",
+        'maskTextSelector: "*"',
+        "recordHeaders: false",
+        "recordBody: false",
+        "enable_recording_console_log: false",
+        "capture_performance: false",
+    ):
+        assert setting in js, f"replay setting missing: {setting}"
+
+
+def test_replay_blocks_charts_and_every_result_container() -> None:
+    """A renamed container would silently start recording its figures."""
+    selector = re.search(r'var REPLAY_BLOCK =\s*"(.*?)";', _analytics_js(), re.DOTALL)
+    assert selector, "REPLAY_BLOCK is missing"
+    blocked = {part.strip() for part in selector.group(1).split(",")}
+    assert {"svg", "canvas"} <= blocked
+    pages = "".join(
+        file.read_text(encoding="utf-8")
+        for tool in _tool_dirs()
+        for file in tool.iterdir()
+        if file.suffix in {".html", ".js"}
+    )
+    for name in blocked - {"svg", "canvas"}:
+        assert name[1:] in pages, f"{name} is blocked in replay but no tool page uses it"
+
+
 def test_report_gate_asks_for_an_unticked_privacy_policy_checkbox() -> None:
     """The gate used to say "by continuing you agree"; now the reader must tick
     the same Privacy Policy line the lead tools use, and it starts unticked."""
