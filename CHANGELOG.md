@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-25
+
+### Added
+
+- Session replay for the lead tools and reports, for visitors who accept
+  tracking. All text and inputs are masked and result screens are blanked. It
+  stays off until the PostHog project setting is switched on.
+
 ## 2026-10-24
 
 ### Changed
