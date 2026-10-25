@@ -326,10 +326,9 @@ event is sent. Before it goes live on the site:
 6. Session replay is off until the PostHog project setting "Record user sessions"
    is on, so the deploy changes nothing by itself. Before switching it on, keep
    "Capture console logs" and "Capture network payloads" off, and have the
-   privacy wording cover recording. Then, on dev, accept tracking, finish a tool
-   through to its results, and watch the recording: no name, email, figure or
-   result text may be readable. Set consent to `denied` mid-session and confirm
-   the recording stops.
+   privacy wording say that recording shows what the visitor types and sees.
+   Then accept tracking, finish a tool through to its results, and watch the
+   recording. Set consent to `denied` mid-session and confirm the recording stops.
 
 ## 8. The sweeper
 

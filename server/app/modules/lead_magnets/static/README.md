@@ -378,9 +378,8 @@ go to our own server, so they are sent even without consent; remembering them
 across visits needs consent.
 
 Autocapture is off. Session replay runs only after the visitor accepts tracking,
-and only if the PostHog project has "Record user sessions" switched on. The page
-sets `session_recording` itself: all text and inputs are masked, and `REPLAY_BLOCK`
-blanks charts and every result container, because those screens show revenue and
-valuation figures. Network bodies, headers and console output are never recorded.
-A new result container must be added to `REPLAY_BLOCK`; `test_static_contract.py`
-fails if a listed one no longer exists.
+and only if the PostHog project has "Record user sessions" switched on. The
+recording shows the page as the visitor saw it, including the text they typed and
+the results. Network bodies, headers and console output are never recorded.
+To hide a screen or field later, add a `blockSelector` or `maskTextSelector` to
+`session_recording` in `analytics.js`.
