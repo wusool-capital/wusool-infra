@@ -91,6 +91,9 @@ confirming their code. Test submissions are always flagged.
 PostHog (EU Cloud) receives usage events from the tools and reports. It never
 receives a form value. A visitor's name, email and company reach it only if
 they accepted tracking. A visitor who declined is counted anonymously.
+Session replay, when switched on, records only visitors who accepted tracking.
+It shows the page as they saw it, including typed text and results, and records
+no network requests or console output.
 PostHog is a processor under a signed
 data processing agreement, and a deletion request must also delete the person
 in PostHog.

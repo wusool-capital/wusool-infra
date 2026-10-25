@@ -393,6 +393,20 @@ def test_analytics_waits_for_consent_before_any_network_call() -> None:
     assert js.count('"/analytics/config"') == 1
 
 
+def test_replay_never_records_requests_or_console_output() -> None:
+    """Replay shows the page, but submit bodies hold names, emails and revenue,
+    so network and console capture stay off."""
+    js = _analytics_js()
+    assert "disable_session_recording" not in js
+    for setting in (
+        "recordHeaders: false",
+        "recordBody: false",
+        "enable_recording_console_log: false",
+        "capture_performance: false",
+    ):
+        assert setting in js, f"replay setting missing: {setting}"
+
+
 def test_report_gate_asks_for_an_unticked_privacy_policy_checkbox() -> None:
     """The gate used to say "by continuing you agree"; now the reader must tick
     the same Privacy Policy line the lead tools use, and it starts unticked."""

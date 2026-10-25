@@ -11,7 +11,11 @@ or leave a tool, and how many book a call. Reports use the same project. See
 - **Browser events** are opened, started, step completed, completed and
   abandoned, plus Book a Call clicks inside a tool. They are sent only after
   the visitor accepts tracking. They carry the tool, the step, the language and
-  a random submission id, and never a form value. Session recording is off.
+  a random submission id, and never a form value.
+- **Session replay** records how a visitor moves through a tool, including what
+  they type and the results they see. It runs only after the visitor accepts
+  tracking. It is switched on or off in the PostHog project settings, with no
+  deploy.
 - **Server events** count every lead (`lead_submitted`) and every click on an
   email's Book a Call button. They are sent whether or not the visitor accepted
   tracking.

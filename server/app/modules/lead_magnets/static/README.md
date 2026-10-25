@@ -377,5 +377,9 @@ when tracking was not accepted) and the visit's first-touch `utm` tags. The UTM 
 go to our own server, so they are sent even without consent; remembering them
 across visits needs consent.
 
-Session replay and autocapture are off. Replay needs its own review, because the
-results pages show revenue and valuation figures as text.
+Autocapture is off. Session replay runs only after the visitor accepts tracking,
+and only if the PostHog project has "Record user sessions" switched on. The
+recording shows the page as the visitor saw it, including the text they typed and
+the results. Network bodies, headers and console output are never recorded.
+To hide a screen or field later, add a `blockSelector` or `maskTextSelector` to
+`session_recording` in `analytics.js`.

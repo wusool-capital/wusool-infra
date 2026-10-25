@@ -161,7 +161,14 @@
             autocapture: false,
             capture_pageview: false,
             capture_pageleave: false,
-            disable_session_recording: true,
+            // Replay shows the page as the visitor saw it; requests and console output stay unrecorded.
+            session_recording: {
+              maskAllInputs: false,
+              recordHeaders: false,
+              recordBody: false,
+            },
+            enable_recording_console_log: false,
+            capture_performance: false,
             persistence: "localStorage+cookie",
             cross_subdomain_cookie: true,
             person_profiles: "identified_only",
