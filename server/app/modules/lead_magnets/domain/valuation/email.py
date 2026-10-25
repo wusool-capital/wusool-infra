@@ -2,8 +2,10 @@
 valuation tool.
 """
 
+from app.modules.lead_magnets.domain.shared.book_call import calendar_url
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    ReplyDraft,
     format_consent,
     format_usd,
     render_confirmation_shell,
@@ -14,12 +16,18 @@ from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload,
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
-_SELLER_CTA = "https://calendar.app.google/UfXxu6dBkZ8wjhnT6"
+_CONFIRMATION_SUBJECT = "Your valuation request is in"
+_REPLY = ReplyDraft(
+    confirmation_subject=_CONFIRMATION_SUBJECT,
+    thank_you="Thank you for requesting a valuation with Wusool Capital.",
+    purpose="walk you through your indicative valuation range",
+    booking_url=calendar_url("valuation"),
+)
 
 
-def build_confirmation(payload: JsonObject) -> EmailContent:
+def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
-        subject="Your valuation request is in",
+        subject=_CONFIRMATION_SUBJECT,
         html=render_confirmation_shell(
             tag="Valuation",
             heading="Your valuation request is in.",
@@ -30,7 +38,7 @@ def build_confirmation(payload: JsonObject) -> EmailContent:
                 "you with an indicative valuation range and the assumptions behind it."
             ),
             cta_text="Book a Call",
-            cta_href=_SELLER_CTA,
+            cta_href=cta_href,
         ),
     )
 
@@ -83,6 +91,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
             badge_color="#b8863f",
             title=str(company),
             lead_name=identity.name,
+            reply=_REPLY,
             lead_email=identity.email,
             rows_html=rows,
             extra_html=extra,

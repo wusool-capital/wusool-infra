@@ -2,8 +2,10 @@
 Started tool.
 """
 
+from app.modules.lead_magnets.domain.shared.book_call import calendar_url
 from app.modules.lead_magnets.domain.shared.email_content import (
     EmailContent,
+    ReplyDraft,
     format_consent,
     format_count,
     format_usd,
@@ -15,14 +17,18 @@ from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload,
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.utilities.domain.json_types import JsonObject
 
-# Get Started is a seller tool like valuation/readiness/benchmark, not a
-# buyer one — same calendar as those three, not buyer_network's own.
-_SELLER_CTA = "https://calendar.app.google/UfXxu6dBkZ8wjhnT6"
+_CONFIRMATION_SUBJECT = "Thanks for reaching out to Wusool Capital"
+_REPLY = ReplyDraft(
+    confirmation_subject=_CONFIRMATION_SUBJECT,
+    thank_you="Thank you for reaching out to Wusool Capital.",
+    purpose="understand your priorities and the options available to you",
+    booking_url=calendar_url("get_started"),
+)
 
 
-def build_confirmation(payload: JsonObject) -> EmailContent:
+def build_confirmation(payload: JsonObject, cta_href: str) -> EmailContent:
     return EmailContent(
-        subject="Thanks for reaching out to Wusool Capital",
+        subject=_CONFIRMATION_SUBJECT,
         html=render_confirmation_shell(
             tag="Get Started",
             heading="We've got it.",
@@ -32,7 +38,7 @@ def build_confirmation(payload: JsonObject) -> EmailContent:
                 "and reach out to discuss your priorities and the options available to you."
             ),
             cta_text="Book a Call",
-            cta_href=_SELLER_CTA,
+            cta_href=cta_href,
         ),
     )
 
@@ -67,6 +73,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
             badge_color="#c96a3e",
             title=str(company),
             lead_name=identity.name,
+            reply=_REPLY,
             lead_email=identity.email,
             rows_html=rows,
             org_url=subjects.org_web_url,

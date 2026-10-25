@@ -34,6 +34,7 @@
   * [Get Started](technical-documentation/lead-tools-get-started.md)
   * [Gated reports](technical-documentation/lead-tools-reports.md)
   * [Sanity and Webflow publishing](technical-documentation/lead-tools-publishing.md)
+  * [Website analytics](technical-documentation/lead-tools-analytics.md)
 * [Security and data handling](technical-documentation/security.md)
 
 ## Operations and Handover

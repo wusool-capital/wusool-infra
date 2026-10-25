@@ -42,6 +42,7 @@ from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
 from app.modules.lead_magnets.providers.chromium.renderer import ChromiumReportRenderer
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
+from app.modules.lead_magnets.providers.posthog.client import PostHogAnalytics
 from app.modules.lead_magnets.providers.sanity.article_source import SanityArticleSource
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
 from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
@@ -296,6 +297,22 @@ def build_report_unlock() -> ReportUnlock:
     )
 
 
+@lru_cache
+def build_analytics() -> PostHogAnalytics:
+    """One per process: the SDK's queue and batching live in it."""
+    settings = get_settings()
+    return PostHogAnalytics(
+        settings.lead_magnet_posthog_api_key,
+        host=settings.lead_magnet_posthog_host,
+        is_test=attio_is_test(),
+    )
+
+
+async def shutdown_analytics() -> None:
+    """Called by `main.py`'s lifespan, so queued events are sent before exit."""
+    await build_analytics().shutdown()
+
+
 def build_report_sync() -> ReportSync:
     settings = get_settings()
     return ReportSync(
@@ -343,6 +360,7 @@ def build_submission_service(session: AsyncSession) -> LeadMagnetService:
         mailer=build_lead_magnet_mailer(),
         email_from=settings.lead_magnet_email_from,
         email_to=settings.lead_magnet_email_to.split(),
+        public_base_url=settings.lead_magnet_public_base_url,
     )
 
 

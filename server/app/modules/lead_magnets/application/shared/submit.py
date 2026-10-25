@@ -60,7 +60,9 @@ class SubmissionService:
         mailer: EmailSenderPort,
         email_from: str,
         email_to: list[str],
+        public_base_url: str = "",
     ) -> None:
+        self._public_base_url = public_base_url
         self._tool_runs = tool_runs
         self._attio = attio
         self._run_ai = run_ai
@@ -212,7 +214,7 @@ class SubmissionService:
             return True
 
         try:
-            content = build_confirmation_email(run.tool, run.payload)
+            content = build_confirmation_email(run.tool, run.payload, self._public_base_url)
             await self._mailer.send(
                 to=[recipient],
                 from_addr=self._email_from,

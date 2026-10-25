@@ -7,6 +7,7 @@ response can lose the lead.
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
+from app.modules.lead_magnets.api.analytics import track_lead
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
     rate_limit,
@@ -60,6 +61,15 @@ async def benchmark(
     await session.commit()
 
     background.add_task(run_completion, run_id)
+    track_lead(
+        background,
+        tool="benchmark",
+        submission_id=request.submission_id,
+        analytics=request.analytics,
+        name=request.name,
+        email=request.email,
+        company=request.company,
+    )
 
     # Scored after the row exists, so even an unexpected failure here leaves
     # the lead recorded rather than losing it to a 500.

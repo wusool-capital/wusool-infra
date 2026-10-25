@@ -272,6 +272,26 @@
       ]
     },
     {
+      "id": "posthog",
+      "type": "external",
+      "label": "PostHog",
+      "sublabel": "tool + report events",
+      "pos": [
+        760,
+        600
+      ],
+      "size": [
+        180,
+        56
+      ],
+      "sources": [
+        {
+          "path": "server/app/modules/lead_magnets/providers/posthog/client.py",
+          "label": "Report events"
+        }
+      ]
+    },
+    {
       "id": "ses",
       "type": "cloud",
       "label": "Amazon SES",
@@ -381,6 +401,20 @@
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "right"
+    },
+    {
+      "from": "toolkit",
+      "to": "posthog",
+      "label": "report + lead events",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "from": "website",
+      "to": "posthog",
+      "label": "browser events, after consent",
+      "variant": "dashed"
     },
     {
       "from": "attio",

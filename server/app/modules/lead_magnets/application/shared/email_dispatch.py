@@ -6,7 +6,9 @@ from app.modules.lead_magnets.domain.benchmark import email as benchmark_email
 from app.modules.lead_magnets.domain.buyer_network import email as buyer_network_email
 from app.modules.lead_magnets.domain.get_started import email as get_started_email
 from app.modules.lead_magnets.domain.readiness import email as readiness_email
+from app.modules.lead_magnets.domain.shared.book_call import book_call_href
 from app.modules.lead_magnets.domain.shared.email_content import EmailContent
+from app.modules.lead_magnets.domain.shared.lead_event import is_lead_tool
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.domain.valuation import email as valuation_email
 from app.modules.utilities.domain.json_types import JsonObject
@@ -25,8 +27,14 @@ def sends_emails(tool: str) -> bool:
     return tool in _BUILDERS
 
 
-def build_confirmation_email(tool: str, payload: JsonObject) -> EmailContent:
-    return _BUILDERS[tool].build_confirmation(payload)
+def build_confirmation_email(
+    tool: str, payload: JsonObject, public_base_url: str = ""
+) -> EmailContent:
+    if not is_lead_tool(tool):
+        raise KeyError(tool)
+    submission_id = str(payload.get("submission_id") or "")
+    href = book_call_href(public_base_url, tool, submission_id)
+    return _BUILDERS[tool].build_confirmation(payload, href)
 
 
 def build_internal_email(

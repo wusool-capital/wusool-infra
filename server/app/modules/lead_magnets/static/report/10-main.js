@@ -44,13 +44,17 @@ async function submitGateForm(e){
   const form=document.getElementById("gate-form");
   const err=document.getElementById("e-form");
   const emailErr=document.getElementById("e-email");
-  for(const id of ["e-form","e-email","e-wait","e-send"])document.getElementById(id).classList.remove("show");
+  for(const id of ["e-form","e-email","e-wait","e-send","e-consent"])document.getElementById(id).classList.remove("show");
   if(!document.getElementById("email").checkValidity()){
     emailErr.classList.add("show");
     return;
   }
   if(!form.checkValidity()){
     err.classList.add("show");
+    return;
+  }
+  if(!document.getElementById("consent").checked){
+    document.getElementById("e-consent").classList.add("show");
     return;
   }
 
@@ -64,7 +68,8 @@ async function submitGateForm(e){
     submission_id:window.WUSOOL_SUBMISSION_ID,
     name:document.getElementById("name").value.trim(),
     email:document.getElementById("email").value.trim(),
-    company:document.getElementById("company").value.trim()
+    company:document.getElementById("company").value.trim(),
+    consent:true
   };
 
   try{

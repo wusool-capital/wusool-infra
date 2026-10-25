@@ -31,6 +31,7 @@
   // child iframe's height messages must come from — not the parent
   // page's own origin, which is Webflow's.
   var toolsOrigin = new URL(script.src, window.location.href).origin;
+  var analytics = analyticsBridge(toolsOrigin);
 
   // Modal mode is an early return, deliberately placed above every line of
   // the inline path below. A tag without `data-modal` — which is all four of
@@ -83,6 +84,7 @@
 
   var host = script.parentNode;
   host.insertBefore(iframe, script);
+  analytics.add(iframe);
   // Webflow's embed containers ship a fixed `height:100vh` that the iframe
   // then overflows, so everything past one screen was painted over by the
   // footer. The iframe sizes itself; the container must just get out of the
@@ -185,6 +187,7 @@
         frame.title = "Wusool " + toolName + " form";
         frame.style.cssText = "width:100%;height:100%;border:0;display:block";
         panel.appendChild(frame);
+        analytics.add(frame);
       }
       overlay.hidden = false;
       overlay.style.display = "flex";
@@ -215,5 +218,105 @@
     for (var i = 0; i < triggers.length; i++) {
       triggers[i].addEventListener("click", openModal);
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Relays the banner's consent and the visit's UTM tags to every tool
+  // iframe (shared/analytics.js answers with "wusool-analytics-ready").
+  // One shared object, so several embed tags on a page use one bridge.
+  // The banner sets localStorage["wusool_analytics_consent"] to "granted"
+  // or "denied", or calls WusoolAnalytics.setConsent(true|false).
+  // ---------------------------------------------------------------------
+  function analyticsBridge(origin) {
+    if (window.WusoolAnalytics && window.WusoolAnalytics.add) return window.WusoolAnalytics;
+
+    var CONSENT_KEY = "wusool_analytics_consent";
+    var UTM_KEY = "wusool_utm";
+    var FIELDS = ["source", "medium", "campaign", "term", "content"];
+    var frames = [];
+
+    function store(method, key, value) {
+      try {
+        if (method === "get") return localStorage.getItem(key);
+        if (method === "set") return localStorage.setItem(key, value);
+        return localStorage.removeItem(key);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function fromQuery() {
+      var params = new URLSearchParams(window.location.search);
+      var out = {};
+      var any = false;
+      for (var i = 0; i < FIELDS.length; i++) {
+        var raw = params.get("utm_" + FIELDS[i]);
+        out[FIELDS[i]] = raw && raw.trim() ? raw.trim().slice(0, 200) : null;
+        if (out[FIELDS[i]]) any = true;
+      }
+      return any ? out : null;
+    }
+
+    // First-touch is remembered only once the visitor has accepted tracking.
+    function utm() {
+      var current = fromQuery();
+      if (store("get", CONSENT_KEY) !== "granted") return current;
+      try {
+        var first = JSON.parse(store("get", UTM_KEY));
+        if (first && typeof first === "object") return first;
+      } catch (e) {}
+      if (current) store("set", UTM_KEY, JSON.stringify(current));
+      return current;
+    }
+
+    function post(frame) {
+      if (!frame.contentWindow) return;
+      frame.contentWindow.postMessage(
+        {
+          type: "wusool-analytics",
+          consent: store("get", CONSENT_KEY) === "granted",
+          utm: utm(),
+        },
+        origin
+      );
+    }
+
+    // Counts the banner click anonymously: a plain image request, so nothing is stored or identified.
+    function countChoice(granted) {
+      try {
+        var pixel = new Image();
+        pixel.referrerPolicy = "no-referrer";
+        pixel.src = origin + "/analytics/consent?choice=" + (granted ? "granted" : "denied");
+      } catch (e) {}
+    }
+
+    function broadcast() {
+      for (var i = 0; i < frames.length; i++) post(frames[i]);
+    }
+
+    window.addEventListener("message", function (event) {
+      if (event.origin !== origin) return;
+      if (!event.data || event.data.type !== "wusool-analytics-ready") return;
+      for (var i = 0; i < frames.length; i++) {
+        if (frames[i].contentWindow === event.source) post(frames[i]);
+      }
+    });
+    // Another tab changed the banner choice.
+    window.addEventListener("storage", function (event) {
+      if (event.key === CONSENT_KEY) broadcast();
+    });
+
+    window.WusoolAnalytics = {
+      add: function (frame) {
+        frames.push(frame);
+      },
+      setConsent: function (granted) {
+        store("set", CONSENT_KEY, granted === true ? "granted" : "denied");
+        if (granted !== true) store("remove", UTM_KEY);
+        countChoice(granted === true);
+        broadcast();
+      },
+    };
+    return window.WusoolAnalytics;
   }
 })();

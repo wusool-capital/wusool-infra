@@ -34,6 +34,7 @@ class ServiceBase:
         mailer: EmailSenderPort,
         email_from: str,
         email_to: list[str],
+        public_base_url: str = "",
     ) -> None:
         self._pipelines = Pipelines(llm)
         self._submissions = SubmissionService(
@@ -44,4 +45,5 @@ class ServiceBase:
             mailer=mailer,
             email_from=email_from,
             email_to=email_to,
+            public_base_url=public_base_url,
         )

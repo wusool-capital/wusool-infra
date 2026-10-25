@@ -9,7 +9,8 @@ budget (`rate_limit_reads`), so reading never uses up a reader's unlock.
 
 import logging
 from dataclasses import asdict
-from typing import Annotated
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import (
@@ -48,6 +49,7 @@ from app.modules.lead_magnets.application.insights_report.unlock import (
 )
 from app.modules.lead_magnets.application.shared.ports import ReportSourcePort
 from app.modules.lead_magnets.bootstrap import (
+    build_analytics,
     build_article_sync,
     build_report_renderer,
     build_report_source,
@@ -59,7 +61,11 @@ from app.modules.lead_magnets.bootstrap import (
 )
 from app.modules.lead_magnets.config import get_settings
 from app.modules.lead_magnets.domain.insights_report.report import ReportDocument, org_domain
-from app.modules.lead_magnets.domain.insights_report.unlock import ReaderForm
+from app.modules.lead_magnets.domain.insights_report.report_event import (
+    ReportEvent,
+    ReportEventName,
+)
+from app.modules.lead_magnets.domain.insights_report.unlock import ReaderForm, UtmValues
 from app.modules.lead_magnets.domain.shared.schemas import AttioIdentityPayload
 
 logger = logging.getLogger(__name__)
@@ -107,7 +113,7 @@ async def read_report(
     # The body depends on the cookie, so no shared cache may store it.
     response.headers["Cache-Control"] = "no-store"
 
-    if not await _record_read(session, background, report, wusool_reader):
+    if not await _record_read(session, background, report, wusool_reader, "html"):
         return ReportResponse(
             title=report.title, html=report.html[: report.preview_end], locked=True
         )
@@ -130,7 +136,7 @@ async def download_report_pdf(
     """The whole report as a PDF, for unlocked readers only. Printed on each
     download, on its own per-IP budget, because each one launches Chromium."""
     report = await _published(source, slug)
-    if not await _record_read(session, background, report, wusool_reader):
+    if not await _record_read(session, background, report, wusool_reader, "pdf"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "unlock the report first")
     try:
         pdf = await build_report_renderer().pdf(report.html)
@@ -152,6 +158,7 @@ async def _record_read(
     background: BackgroundTasks,
     report: ReportDocument,
     cookie: str | None,
+    format: Literal["html", "pdf"],
 ) -> bool:
     """Whether the cookie belongs to a reader who unlocked a report.
 
@@ -162,7 +169,7 @@ async def _record_read(
     reader = await _known_reader(session, cookie)
     if reader is None:
         return False
-    identity, unlocked_slug = reader
+    identity, unlocked_slug, consented = reader
     if unlocked_slug != report.slug:
         run_id = await build_submission_service(session).record(
             tool=_TOOL,
@@ -177,6 +184,17 @@ async def _record_read(
         )
         await session.commit()
         background.add_task(run_completion, run_id)
+    _track(
+        background,
+        "report_viewed",
+        report,
+        name=identity.name,
+        email=identity.email,
+        company=identity.company,
+        domain=identity.domain,
+        format=format,
+        identified=consented,
+    )
     return True
 
 
@@ -196,9 +214,9 @@ async def unlock_report(
     """Step one of the gate: email the reader a code. Nothing is recorded yet.
     With email verification off, the report opens straight away instead."""
     report = await _published(source, slug)
-    form = ReaderForm(**request.model_dump())
+    form = _reader_form(request)
     if not get_settings().lead_magnet_report_email_otp:
-        return await _open_report(session, background, response, report, form)
+        return await _open_report(session, background, response, report, form, verified=False)
     try:
         challenge_id = await build_report_unlock().send_code(
             slug=slug, report_title=report.title, form=form
@@ -208,6 +226,17 @@ async def unlock_report(
     except CodeNotSent:
         logger.exception("insights_report_code_email_failed slug=%s", slug)
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "could not send code") from None
+    _track(
+        background,
+        "report_code_requested",
+        report,
+        name=form.name,
+        email=form.email,
+        company=form.company,
+        domain=org_domain(form.email),
+        identified=form.analytics_consent,
+        anonymous_id=form.submission_id,
+    )
     return ReportCodeSent(challenge_id=challenge_id)
 
 
@@ -235,7 +264,7 @@ async def verify_report_unlock(
     except ChallengeGone:
         raise HTTPException(status.HTTP_410_GONE, "code expired") from None
 
-    opened = await _open_report(session, background, response, report, form)
+    opened = await _open_report(session, background, response, report, form, verified=True)
     unlock.spend(request.challenge_id)
     return opened
 
@@ -246,6 +275,8 @@ async def _open_report(
     response: Response,
     report: ReportDocument,
     form: ReaderForm,
+    *,
+    verified: bool,
 ) -> ReportResponse:
     """Records the lead, as `/get-started` does, and sets the reader cookie.
     Attio is written in the background."""
@@ -263,6 +294,19 @@ async def _open_report(
     )
     await session.commit()
     background.add_task(run_completion, run_id)
+    _track(
+        background,
+        "report_unlocked",
+        report,
+        name=form.name,
+        email=form.email,
+        company=form.company,
+        domain=domain,
+        email_verified=verified,
+        visitor_id=form.visitor_id if verified else None,
+        identified=form.analytics_consent,
+        anonymous_id=form.submission_id,
+    )
 
     response.headers["Cache-Control"] = "no-store"
     response.set_cookie(
@@ -313,10 +357,69 @@ async def _sync(event: SanityWebhookBody) -> None:
         logger.exception("%s_sync_failed slug=%s", _SYNC_LOG[event.type], event.slug)
 
 
+def _track(
+    background: BackgroundTasks,
+    event: ReportEventName,
+    report: ReportDocument,
+    *,
+    name: str,
+    email: str,
+    company: str,
+    domain: str | None,
+    format: Literal["html", "pdf"] | None = None,
+    email_verified: bool = True,
+    visitor_id: str | None = None,
+    identified: bool = True,
+    anonymous_id: str | None = None,
+) -> None:
+    """Sends a PostHog event after the response, so analytics never slows a reader."""
+    background.add_task(
+        _capture,
+        ReportEvent(
+            event=event,
+            name=name,
+            email=email,
+            company=company,
+            domain=domain,
+            slug=report.slug,
+            report_title=report.title,
+            at=datetime.now(UTC),
+            format=format,
+            email_verified=email_verified,
+            visitor_id=visitor_id,
+            identified=identified,
+            anonymous_id=anonymous_id,
+        ),
+    )
+
+
+def _reader_form(request: ReportUnlockRequest) -> ReaderForm:
+    analytics = request.analytics
+    utm = UtmValues(**analytics.utm.model_dump()) if analytics and analytics.utm else None
+    return ReaderForm(
+        submission_id=request.submission_id,
+        name=request.name,
+        company=request.company,
+        email=request.email,
+        consent=request.consent,
+        analytics_consent=bool(analytics and analytics.consent),
+        visitor_id=analytics.visitor_id if analytics else None,
+        utm=utm,
+    )
+
+
+async def _capture(event: ReportEvent) -> None:
+    # Built here, not in the request, so a failure can never turn a saved lead into a 500.
+    try:
+        await build_analytics().capture(event)
+    except Exception:
+        logger.exception("posthog_capture_failed event=%s", event.event)
+
+
 async def _known_reader(
     session: SessionDep, cookie: str | None
-) -> tuple[AttioIdentityPayload, str] | None:
-    """The identity and report slug behind a reader cookie, or `None`."""
+) -> tuple[AttioIdentityPayload, str, bool] | None:
+    """The identity, report slug and tracking choice behind a reader cookie, or `None`."""
     if not cookie:
         return None
     try:
@@ -327,4 +430,8 @@ async def _known_reader(
     if run is None or run.tool != _TOOL:
         return None
     slug = run.payload.get("slug")
-    return AttioIdentityPayload.model_validate(run.payload), slug if isinstance(slug, str) else ""
+    return (
+        AttioIdentityPayload.model_validate(run.payload),
+        slug if isinstance(slug, str) else "",
+        run.payload.get("analytics_consent") is True,
+    )

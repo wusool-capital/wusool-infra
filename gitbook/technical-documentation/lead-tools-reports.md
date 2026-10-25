@@ -14,9 +14,10 @@ readers become leads.
 1. **`GET /reports/{slug}`** returns the stored report's preview to a new
    reader, or the whole report to a returning one. The preview is cut between
    block elements, never mid-tag, and never sends the rest to a new reader.
-2. **`POST /reports/{slug}/unlock`** takes name, email, and an optional
-   organization, and emails a one-time code through SES. Nothing is
-   recorded yet, so a mistyped address never becomes a lead.
+2. **`POST /reports/{slug}/unlock`** takes name, email, an optional
+   organization and the Privacy Policy tick, and emails a one-time code
+   through SES. Nothing is recorded yet, so a mistyped address never becomes
+   a lead.
 3. **`POST /reports/{slug}/unlock/verify`** checks the code. On a match it
    records the reader through the
    [write contract](lead-tools.md#the-write-contract), returns the whole
@@ -60,6 +61,29 @@ readers get no confirmation or team emails.
 Every reader's first access to each report is one `tool_runs` row with the
 report in its payload. Repeat visits to the same report aren't recorded. The
 module README has a ready-made query.
+
+The Toolkit also sends three events to PostHog, so the team can see reads
+without SQL:
+
+- `report_code_requested`: the form was sent and a code emailed. It's sent
+  even if the code is never typed in, and creates no person in PostHog.
+- `report_unlocked`: the report opened. It sets the reader's name, email and
+  company on their PostHog person.
+- `report_viewed`: a returning reader opened the report or its PDF. It's sent
+  on every visit, with `format` set to `html` or `pdf`.
+
+Each event names the report (`slug`, `report_title`). Look under **Activity**
+for the events and **Persons** for each reader. Break an insight down by
+`report_title` to count reads per report.
+
+These events name the reader only if they accepted tracking on the website
+banner. A reader who declined, or never chose, is counted anonymously: the
+report and the format, with no name, email or company. Later visits follow the
+choice made when they unlocked.
+
+When the email code is off, nobody has proved the address, so no person is
+created or edited. A deletion request also needs the reader deleted in
+PostHog, not only in Attio and Postgres.
 
 ## Code
 

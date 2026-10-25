@@ -2,6 +2,9 @@
 behaviour here — every value comes from a visitor's own form input.
 """
 
+import re
+from urllib.parse import parse_qs, unquote, urlsplit
+
 import pytest
 
 from app.modules.lead_magnets.application.shared.email_dispatch import (
@@ -9,11 +12,19 @@ from app.modules.lead_magnets.application.shared.email_dispatch import (
     build_internal_email,
 )
 from app.modules.lead_magnets.domain.shared.email_content import (
+    ReplyDraft,
     is_valid_email,
     render_field_rows,
     render_internal_shell,
 )
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
+
+_REPLY = ReplyDraft(
+    confirmation_subject="Your request is in",
+    thank_you="Thank you.",
+    purpose="talk",
+    booking_url="https://calendar.example/book",
+)
 
 
 def test_field_row_values_are_escaped() -> None:
@@ -35,6 +46,7 @@ def test_internal_shell_title_is_escaped() -> None:
         title="<script>alert(1)</script> Co",
         lead_name="Dana Lee",
         lead_email="dana@acme.com",
+        reply=_REPLY,
         rows_html="",
         org_url=None,
         deal_url=None,
@@ -50,6 +62,7 @@ def test_internal_shell_omits_buttons_without_urls() -> None:
         title="Acme",
         lead_name="Dana Lee",
         lead_email="dana@acme.com",
+        reply=_REPLY,
         rows_html="",
         org_url=None,
         deal_url=None,
@@ -65,6 +78,7 @@ def test_internal_shell_includes_only_the_urls_given() -> None:
         title="Acme",
         lead_name="Dana Lee",
         lead_email="dana@acme.com",
+        reply=_REPLY,
         rows_html="",
         org_url="https://app.attio.com/org/1",
         deal_url=None,
@@ -167,6 +181,47 @@ def test_get_started_internal_email_omits_missing_domain() -> None:
         {"company": "Acme", "years_active": 3, "sell_timeline": "Not Selling"}, {}, SubjectRefs()
     )
     assert "Not provided" in content.html
+
+
+@pytest.mark.parametrize(
+    "tool", ["benchmark", "buyer_network", "get_started", "readiness", "valuation"]
+)
+def test_the_book_call_button_goes_through_the_tracked_redirect(tool: str) -> None:
+    from app.modules.lead_magnets.application.shared.email_dispatch import (
+        build_confirmation_email,
+    )
+
+    html = build_confirmation_email(
+        tool, {"submission_id": "abc 123"}, "https://tools.example.com/"
+    ).html
+
+    assert f'href="https://tools.example.com/go/book-call/{tool}?sid=abc%20123"' in html
+    assert "calendar.app.google" not in html, "the calendar is only known to the server"
+
+
+@pytest.mark.parametrize(
+    ("tool", "calendar"),
+    [
+        ("valuation", "https://calendar.app.google/UfXxu6dBkZ8wjhnT6"),
+        ("buyer_network", "https://calendar.app.google/4FzN5jAf5KGQszjY7"),
+    ],
+)
+def test_with_no_base_url_the_button_keeps_the_direct_calendar_link(
+    tool: str, calendar: str
+) -> None:
+    from app.modules.lead_magnets.application.shared.email_dispatch import (
+        build_confirmation_email,
+    )
+
+    assert f'href="{calendar}"' in build_confirmation_email(tool, {"submission_id": "x"}).html
+
+
+def test_the_tracked_link_never_carries_an_email_or_a_url() -> None:
+    from app.modules.lead_magnets.domain.shared.book_call import book_call_href
+
+    href = book_call_href("https://tools.example.com", "readiness", "a&b=c/d")
+
+    assert href == "https://tools.example.com/go/book-call/readiness?sid=a%26b%3Dc%2Fd"
 
 
 _SUBJECTS = SubjectRefs(
@@ -323,3 +378,55 @@ def test_mailto_links_url_encode_the_address() -> None:
     html = _internal("valuation", email="a?cc=x@acme.com")[1]
     assert "mailto:a%3Fcc%3Dx@acme.com" in html
     assert "mailto:a?cc" not in html
+
+
+_REPLY_SUBJECTS = {
+    "valuation": "Re: Your valuation request is in",
+    "readiness": "Re: Your M&A readiness assessment is complete",
+    "benchmark": "Re: Your GCC SME benchmark report is ready",
+    "get_started": "Re: Thanks for reaching out to Wusool Capital",
+    "buyer_network": "Re: Application received",
+}
+
+
+def _reply_query(tool: str, **overrides: object) -> dict[str, list[str]]:
+    html = _internal(tool, **overrides)[1]
+    href = re.search(r'href="(mailto:[^"]*\?[^"]*)"', html)
+    assert href, "no Reply button with a draft"
+    return parse_qs(urlsplit(href.group(1).replace("&amp;", "&")).query)
+
+
+@pytest.mark.parametrize("tool", list(_PAYLOADS))
+def test_reply_button_prefills_a_call_scheduling_draft(tool: str) -> None:
+    query = _reply_query(tool)
+    first = str(_PAYLOADS[tool].get("name") or _PAYLOADS[tool].get("full_name")).split()[0]
+    body = query["body"][0]
+    assert query["subject"] == [_REPLY_SUBJECTS[tool]]
+    assert body.startswith(f"Hi {first},\n\n")
+    assert "I'd welcome a short call to" in body
+    assert "https://calendar.app.google/" in body
+    assert "reply with a few times that work for you" in body
+    assert body.endswith("Warm regards,\nThe Wusool Capital team")
+    assert "—" not in body
+
+
+def test_reply_draft_links_the_buyer_calendar_for_buyers_only() -> None:
+    assert "4FzN5jAf5KGQszjY7" in _reply_query("buyer_network")["body"][0]
+    for tool in ("valuation", "readiness", "benchmark", "get_started"):
+        assert "UfXxu6dBkZ8wjhnT6" in _reply_query(tool)["body"][0]
+
+
+def test_reply_draft_survives_special_characters_in_the_address_and_name() -> None:
+    html = _internal("valuation", email="a?cc=x@acme.com", name="D&na")[1]
+    href = re.search(r'href="(mailto:[^"]*)"', html)
+    assert href
+    raw = unquote(href.group(1).split("?", 1)[0])
+    assert raw == "mailto:a?cc=x@acme.com"
+    assert "Reply to D&amp;na" in html
+    body = _reply_query("valuation", email="a?cc=x@acme.com", name="D&na")["body"][0]
+    assert body.startswith("Hi D&na,")
+
+
+def test_reply_draft_without_a_name_drops_the_first_name() -> None:
+    body = _reply_query("valuation", name="")["body"][0]
+    assert body.startswith("Hi,\n\n")

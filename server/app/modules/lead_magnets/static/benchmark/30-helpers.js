@@ -171,6 +171,7 @@ function validate(step){
 function go(step){
   if(step===2 && !validate(1)) return;
   if(step===3 && !validate(2)) return;
+  if(step>1 && window.WusoolAnalytics) WusoolAnalytics.step("step-"+(step-1));
   ["s1","s2","s3","s4","s5"].forEach((s,i)=>$(s).classList.toggle("hide", i!==step-1));
   window.scrollTo({top:$("app").offsetTop-24,behavior:"smooth"});
 }

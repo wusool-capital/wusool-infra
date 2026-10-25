@@ -31,6 +31,7 @@ function App(){
     const cfgData={revenue:data.revenue,ebitda:adjEBITDA};
     setCfg(cfgData);
     setGated(true);
+    window.WusoolAnalytics&&WusoolAnalytics.step("gate");
   };
 
   const upd=useCallback(u=>setVd(p=>({...p,...u})),[]);
@@ -128,7 +129,7 @@ function App(){
     if(!gated)return;
     const elapsed=Date.now()-(gateTimeRef.current||Date.now());
     const minDelay=Math.max(10000-elapsed,1000);
-    const timer=setTimeout(()=>setResultsReady(true),minDelay);
+    const timer=setTimeout(()=>{setResultsReady(true);window.WusoolAnalytics&&WusoolAnalytics.step("results");},minDelay);
     return()=>clearTimeout(timer);
   },[gated]);
 

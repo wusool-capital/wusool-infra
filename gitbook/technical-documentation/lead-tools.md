@@ -14,7 +14,8 @@ second hostname pointing at the same container. The sub-pages cover each tool.
 | Gated reports | The full report and a PDF, after an emailed code | None | [Gated reports](lead-tools-reports.md) |
 
 Reports and Insights articles are published from Sanity; see
-[Sanity and Webflow publishing](lead-tools-publishing.md).
+[Sanity and Webflow publishing](lead-tools-publishing.md). Usage events are in
+[Website analytics](lead-tools-analytics.md).
 
 ## Embedding
 
@@ -46,8 +47,8 @@ never lost to a later failure:
 5. **Email the visitor** a confirmation through Amazon SES, with a Book a
    Call link.
 6. **Email the team** a notice linking to the Attio organization and deal.
-   The notice lists every form field and sets Reply-To to the lead, so a
-   reply opens a draft to the lead. Subjects are `New Seller Lead - {Company}`
+   The notice lists every form field and sets Reply-To to the lead. Its Reply
+   button pre-fills a call request. Subjects are `New Seller Lead - {Company}`
    and `New Buyer Lead - {Name}`. An invalid address gets a `⚠️ Invalid email - `
    subject, no Reply-To and no visitor confirmation.
 7. **Finish** the run and add its activity.
