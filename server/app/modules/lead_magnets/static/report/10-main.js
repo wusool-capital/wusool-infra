@@ -13,6 +13,16 @@ function render(data){
   else download.removeAttribute("aria-disabled");
   document.getElementById("download").classList.remove("hide");
   fit();
+  if(data.interactive_url)mountLive(data.interactive_url);
+}
+
+// The static preview stays until the live report has drawn, and stays for good if it fails.
+function mountLive(url){
+  const live=document.getElementById("live");
+  if(live.firstChild)return;
+  window.WusoolInteractive.mount(live,url).then(frame=>{
+    frame.addEventListener("ready",()=>document.getElementById("report").classList.add("hide"));
+  }).catch(error=>console.warn("live report",error));
 }
 
 // Fixed-width exports (A4 is 794px) scale to fill the frame, up or down; reflowing HTML stays 1:1.
