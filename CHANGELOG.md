@@ -8,6 +8,20 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-29
+
+### Added
+
+- Reports and Insights articles can keep their charts and clicks. A report with
+  **Keep it interactive** on opens as the live report after the form, and the
+  free preview stays flat. An article shows still images for its charts, which
+  turn live as the reader scrolls to them.
+
+### Changed
+
+- A report's pictures are now stored as Sanity images instead of inside the
+  saved page, so large reports can be saved.
+
 ## 2026-10-25
 
 ### Added

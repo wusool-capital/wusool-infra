@@ -24,6 +24,8 @@ Webflow Insights items.
    default, and never the last page. Changing it renders the report again.
    A report uploaded as an `.html` file instead of pasted (`htmlFile`) is
    downloaded from Sanity's CDN first: only this dataset's files, up to 20 MB.
+   The saved page has no embedded pictures. Each one is uploaded to Sanity
+   as an image and linked by URL, because Sanity rejects a save over 4 MB.
 3. **Rich text reports** become a styled A4 page first, cut at the editor's
    **Locked share** (75% by default). Then they follow the same path.
 4. **Card.** The server creates or updates the report's card in Webflow's
@@ -60,6 +62,11 @@ The same webhook carries Insights articles, which aren't gated.
 - A Sanity article's **Pin to top of /insights** clears every other pin on
   the site, hand-written articles included.
 - Hiding articles stays in Webflow.
+- An article can carry an HTML file and chart blocks. The server captures a
+  still image of each chart with Chromium and stores it on the article.
+  The Webflow page shows the still, and `embed.js` with `data-tool="insight"`
+  swaps in the live chart as the reader scrolls to it. The Insights page
+  template needs that script added by hand.
 
 ## Known gaps
 

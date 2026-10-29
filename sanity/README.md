@@ -67,7 +67,7 @@ magick -density 300 favicon.svg -define icon:auto-resize=48,32,16 favicon.ico
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, htmlFile, excerpt, cover, silo, publishedAt, bannerPinned, cta, seoTitle, seoDescription, ogTitle, freePages, lockedPercent)) \|\| !defined(renderedHtml))) \|\| _type == "insights"` |
+   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, htmlFile, interactive, excerpt, cover, silo, publishedAt, bannerPinned, cta, seoTitle, seoDescription, ogTitle, freePages, lockedPercent)) \|\| !defined(renderedHtml))) \|\| (_type == "insights" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, contentType, excerpt, bodyFormat, body, bodyHtml, keyTakeaways, keyTakeawaysHtml, faq, faqHtml, htmlFile, cover, author, silo, publishedAt, featured, h1, seoTitle, seoDescription, ogTitle, targetKeyword, cta))))` |
    | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
@@ -75,11 +75,11 @@ magick -density 300 favicon.svg -define icon:auto-resize=48,32,16 favicon.ico
    | API version | `v2025-02-19` |
 
    One webhook per environment serves both types; the server routes each
-   event by `type`, and treats a missing `type` as a report. Articles need no
-   update guard: the server writes to them only to untick another article's
-   `/insights` pin, and that write's own sync is what updates Webflow. The filter
-   skips report updates that touch only `renderedHtml`, so the server's
-   own save never starts a second sync. Creates and deletes always pass,
+   event by `type`, and treats a missing `type` as a report. The filter
+   lists every field an editor can change, so the server's own saves never start
+   a second sync: `renderedHtml` on a report, and `exhibitImages` on an article.
+   An article's pin write still passes, because it changes `featured`, and that
+   write's own sync is what updates Webflow. Creates and deletes always pass,
    since `delta::changedAny` doesn't match them reliably; an unpublish fires
    as a delete. `!defined(renderedHtml)` catches a report whose rendered copy
    was dropped, for example when an older draft is published over it.
@@ -171,9 +171,39 @@ in the featured block. One article holds the pin at a time:
 - Pinning a hand-written article in Webflow still works until a Sanity
   article takes the pin.
 
+## Interactive reports and charts
+
+An HTML export keeps its charts and clicks. The file stays a Sanity file
+asset. After the form, the reader's browser fetches it from `cdn.sanity.io`
+and runs it in a sandboxed frame with no access to the page. Opening the
+CDN URL directly runs nothing, because the CDN serves HTML with
+`script-src 'none'`. Fetching it works because the CDN honours the
+project's CORS origins.
+
+- **Report.** Tick **Keep it interactive** next to the HTML file. The free
+  preview stays flat. The PDF always prints the flat copy.
+- **Article.** Upload the file as **Charts HTML file**, then add a **Chart
+  from the HTML file** block where each chart goes. The server captures a
+  still image of each chart at sync and keeps it in the hidden
+  `exhibitImages` field. The still image shows first and turns live as the
+  reader scrolls to it.
+- **Pictures.** A rendered report stores its pictures as Sanity images,
+  not inside the page. Sanity rejects a save over 4 MB, and the padel
+  report's pictures alone are about 19 MB.
+
+CORS origins (Sanity manage → API → CORS origins), credentials **off**:
+
+| Origin | Why |
+|---|---|
+| `https://www.wusoolcapital.com` | Insight pages on the website |
+| `https://wusoolcapital.com` | The same pages without `www` |
+| `https://tools.wusoolcapital.com` | The report page, which runs in a frame on the website |
+| `http://localhost:3333` | The Studio (already listed) |
+
 ## Accepted risk
 
 On the Free plan the dataset is public. The project ID ships in this
 Studio's public bundle, so a technical person could read full reports
-without the form. A private dataset (Growth plan) plus a read token in
+without the form. The CORS origins above add no new exposure: the files were
+already public. A private dataset (Growth plan) plus a read token in
 `providers/sanity/report_source.py` closes this. Nothing else changes.

@@ -336,6 +336,25 @@ PostHog holds a reader's name, email and company, so a deletion request must
 also delete that person in PostHog, not only in Attio and Postgres. The email
 is the person's `distinct_id`, so a person can't be renamed.
 
+### Interactive reports
+
+A report with `interactive` on keeps its charts and clicks for unlocked readers.
+`GET /reports/{slug}` and both unlock responses then carry `interactive_url`,
+the Sanity CDN URL of the uploaded `htmlFile`. They return only the static
+preview as `html`, so the full text never travels with it. A locked reader never
+gets the URL, and the provider drops any URL outside this dataset's own files.
+The PDF still prints the flattened copy.
+
+The browser fetches the file straight from the CDN and runs it in a sandboxed
+`srcdoc` frame (`static/shared/interactive.js`). The frame has an opaque origin,
+so it cannot reach cookies, storage or the page. Sanity's `script-src 'none'`
+header applies only to navigating to the file, not to this fetch.
+
+A render now uploads every embedded `data:image` to Sanity and swaps in its CDN
+URL before the preview is cut and saved (`domain/insights_report/images.py`,
+`ReportSourcePort.upload_image`). Sanity rejects a save over 4 MB. An upload
+failure stops the sync before anything is saved.
+
 ## Website analytics (AZM-155)
 
 The five lead tools and the reports report to the same PostHog project as the
@@ -406,6 +425,14 @@ endpoint routes on the projected `type`.
   every other live item. Each unticked article's own webhook rewrites its
   item, so a failed Webflow step still heals. Like the report banner, it never refills an empty
   pin: the featured block's own sort shows the newest article.
+- **Live charts.** An article can carry an `htmlFile` and `exhibit` blocks. Before
+  each read, `ArticleSync` captures a still of every chart that has none for the
+  current file: Chromium screenshots it
+  (`ReportRendererPort.exhibit_images`), it is uploaded, and its URL is saved on
+  the article as `exhibitImages` with a revision guard. A body then writes
+  `<figure data-exhibit data-bundle><img></figure>`, and `embed.js
+  data-tool="insight"` swaps each live figure for a frame when it scrolls
+  near. A chart with no still yet is left out, never a broken image.
 - **Plumbing.** `providers/webflow/collection.py` holds the Webflow API code
   both providers share: live create, staged update then publish, unpublish,
   and option lookups.

@@ -292,6 +292,21 @@ block must sort **Featured** (on first), then **Published Date** (newest),
 with a limit of 1, like `/reports`. With a "Featured is on" filter instead,
 unpinning leaves the block empty.
 
+**Live charts in articles (one-time, by hand).** In the Webflow Designer, open the
+Insights collection page template and add one Embed element after the article's
+rich text:
+
+```html
+<script src="https://tools.wusoolcapital.com/embed.js" data-tool="insight"></script>
+```
+
+Publish the Webflow site. Without it, articles show the still images only. In
+sanity.io/manage, update the **dev and prod** webhook filter to the one in
+`sanity/README.md`, which lists the article fields so the server's own save of
+`exhibitImages` doesn't start a second sync. Add the CORS origins listed there.
+Check that Webflow keeps the `data-exhibit` and `data-bundle` attributes on a
+published article's figures; if it strips them, the charts stay as still images.
+
 Dev writes to test collections only, set in the `/wusool/dev/toolkit`
 secret (2026-10-07): `LEAD_MAGNET_WEBFLOW_REPORTS_COLLECTION_ID` is
 `Reports (test)` (`6ac65e8154b939a67fa81fbe`) and
