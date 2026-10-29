@@ -20,6 +20,11 @@
   if (!script) return;
 
   var tool = script.getAttribute("data-tool");
+  // Not an iframe tool: it upgrades an article's chart images in place, so it takes no TOOLS entry.
+  if (tool === "insight") {
+    liveCharts(new URL(script.src, window.location.href).origin);
+    return;
+  }
   var src = TOOLS[tool];
   // Unknown tool name: no-op. The path always comes from this map, never
   // from the attribute itself, so a bad value can't be turned into an
@@ -109,6 +114,68 @@
     if (!isFinite(height) || height <= 0) return;
     iframe.style.height = Math.min(maxHeight, height) + "px";
   });
+
+  // ---------------------------------------------------------------------
+  // Insight mode: an article's charts are still images until scrolled to. The server
+  // writes `data-exhibit` and `data-bundle` on each live figure. Declared here, below
+  // the early return that calls it, like buildModal.
+  // ---------------------------------------------------------------------
+  function liveCharts(origin) {
+    var figures = document.querySelectorAll("figure[data-exhibit][data-bundle]");
+    if (!figures.length || !("IntersectionObserver" in window)) return;
+
+    var loading = null;
+    function loader() {
+      loading =
+        loading ||
+        new Promise(function (resolve, reject) {
+          var tag = document.createElement("script");
+          tag.src = origin + "/shared/interactive.js?v=1";
+          tag.onload = function () {
+            resolve(window.WusoolInteractive);
+          };
+          tag.onerror = reject;
+          document.head.appendChild(tag);
+        });
+      return loading;
+    }
+
+    function swap(figure) {
+      var bundle = figure.getAttribute("data-bundle");
+      // Whatever the page's markup says, only the project's own files are ever loaded.
+      if (!/^https:\/\/cdn\.sanity\.io\/files\//.test(bundle)) return;
+      var still = figure.querySelector("img");
+      var holder = document.createElement("div");
+      figure.appendChild(holder);
+      loader()
+        .then(function (api) {
+          return api.mount(holder, bundle, figure.getAttribute("data-exhibit"));
+        })
+        .then(function (frame) {
+          // The still keeps its space until the chart has drawn, so the page does not jump.
+          frame.addEventListener("ready", function () {
+            if (still) still.style.display = "none";
+          });
+        })
+        .catch(function () {
+          holder.remove(); // the still image stays
+        });
+    }
+
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          swap(entry.target);
+        });
+      },
+      { rootMargin: "400px 0px" },
+    );
+    Array.prototype.forEach.call(figures, function (figure) {
+      observer.observe(figure);
+    });
+  }
 
   // ---------------------------------------------------------------------
   // Modal mode. Function declaration, so it is hoisted above the early
