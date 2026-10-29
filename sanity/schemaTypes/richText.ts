@@ -57,6 +57,31 @@ export const richText = [
   }),
 ]
 
+// A chart from the article's HTML file: a still image in the page, live once the reader scrolls to it.
+export const exhibit = defineArrayMember({
+  name: 'exhibit',
+  type: 'object',
+  title: 'Chart from the HTML file',
+  fields: [
+    defineField({
+      name: 'exhibitId',
+      title: 'Chart id',
+      type: 'string',
+      description: 'Section id and figure number in the HTML file, such as beat-3#0.',
+      validation: (rule) => rule.required().regex(/^[A-Za-z0-9_-]+#\d+$/, 'Like beat-3#0'),
+    }),
+    defineField({name: 'alt', title: 'Alt text', type: 'string', validation: (rule) => rule.required()}),
+    defineField({
+      name: 'live',
+      title: 'Interactive',
+      type: 'boolean',
+      initialValue: true,
+      description: 'Off keeps the still image, for charts that do nothing when clicked.',
+    }),
+  ],
+  preview: {select: {title: 'exhibitId', subtitle: 'alt'}},
+})
+
 // Which of a document's rich-text / pasted-HTML pairs is shown and published.
 export const bodyFormat = (initial: 'rich' | 'html', description: string) =>
   defineField({

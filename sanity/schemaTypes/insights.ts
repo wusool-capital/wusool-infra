@@ -1,20 +1,20 @@
 import {defineField, defineType} from 'sanity'
 
 import {SILOS} from './report'
-import {bodyFormat, isHtml, isRich, richText} from './richText'
+import {bodyFormat, exhibit, isHtml, isRich, richText} from './richText'
 
 // Exact Webflow names; the sync resolves them to Webflow ids. "Report" belongs to /reports.
 const CONTENT_TYPES = ['Article', 'Playbook', 'Case Study', 'Press']
 const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar', 'Wusool Capital']
 
 // One rich-text field and its pasted-HTML twin; `bodyFormat` shows one of the pair.
-const richOrHtml = (name: string, title: string, required: boolean) => [
+const richOrHtml = (name: string, title: string, required: boolean, of = richText) => [
   defineField({
     name,
     title,
     type: 'array',
     group: 'content',
-    of: richText,
+    of,
     hidden: isHtml,
     validation: (rule) =>
       rule.custom((value, context) =>
@@ -90,7 +90,34 @@ export const insights = defineType({
       validation: (rule) => rule.required(),
     }),
     bodyFormat('rich', 'Applies to the body, key takeaways and FAQ.'),
-    ...richOrHtml('body', 'Body', true),
+    ...richOrHtml('body', 'Body', true, [...richText, exhibit]),
+    defineField({
+      name: 'htmlFile',
+      group: 'content',
+      title: 'Charts HTML file',
+      type: 'file',
+      options: {accept: '.html,text/html'},
+      description: 'The exported article. Its charts are shown live where the body has a chart block.',
+      hidden: isHtml,
+    }),
+    // Written by the server: one still image per chart, taken from the file.
+    defineField({
+      name: 'exhibitImages',
+      group: 'content',
+      type: 'array',
+      hidden: true,
+      readOnly: true,
+      of: [
+        {
+          type: 'object',
+          fields: [
+            {name: 'exhibitId', type: 'string'},
+            {name: 'bundleUrl', type: 'string'},
+            {name: 'url', type: 'string'},
+          ],
+        },
+      ],
+    }),
     ...richOrHtml('keyTakeaways', 'Key takeaways', false),
     ...richOrHtml('faq', 'FAQ', false),
     defineField({name: 'cover', group: 'content', title: 'Cover image', type: 'image'}),

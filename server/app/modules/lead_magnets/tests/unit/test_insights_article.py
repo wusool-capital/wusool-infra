@@ -9,11 +9,16 @@ import pytest
 from pydantic import TypeAdapter
 
 from app.modules.lead_magnets.application.insights_article.sync import ArticleSync
-from app.modules.lead_magnets.domain.insights_article.article import ArticleDocument, CmsItem
+from app.modules.lead_magnets.domain.insights_article.article import (
+    ArticleDocument,
+    CmsItem,
+    PendingExhibits,
+)
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.providers.sanity.article_source import SanityArticleSource
 from app.modules.lead_magnets.providers.sanity.portable_text import (
     Block,
+    Exhibits,
     rich_report,
     sanitize,
     to_html,
@@ -280,9 +285,27 @@ class _Source:
         self._articles = {a.slug: a for a in articles}
         self.unpinned: list[str] = []
         self._log = log if log is not None else []
+        self.pending: PendingExhibits | None = None
+        self.uploaded: list[bytes] = []
+        self.saved: list[dict[str, str]] = []
+        self.save_ok = True
 
     async def get(self, slug: str) -> ArticleDocument | None:
         return self._articles.get(slug)
+
+    async def pending_exhibits(self, slug: str) -> PendingExhibits | None:
+        return self.pending
+
+    async def bundle(self, pending: PendingExhibits) -> str:
+        return "<html>bundle</html>"
+
+    async def upload_image(self, data: bytes, mime: str) -> str:
+        self.uploaded.append(data)
+        return f"https://cdn.sanity.io/images/p/production/{len(self.uploaded)}.png"
+
+    async def save_exhibit_images(self, pending: PendingExhibits, urls: dict[str, str]) -> bool:
+        self.saved.append(urls)
+        return self.save_ok
 
     async def unpin_others(self, document_id: str, *, pinned_at: str | None) -> None:
         self.unpinned.append(f"{document_id}@{pinned_at}")
@@ -311,15 +334,28 @@ class _Cms:
         self.calls.append(("unpin_others", keep_id))
 
 
+class _Renderer:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[str, ...]]] = []
+
+    async def exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
+        self.calls.append((html, exhibit_ids))
+        return {i: f"png-{i}".encode() for i in exhibit_ids}
+
+
 async def _sync(
     cms: _Cms,
     *articles: ArticleDocument,
     slug: str | None,
     previous: str | None,
     source: _Source | None = None,
+    renderer: _Renderer | None = None,
 ):
     source = source or _Source(*articles)
-    await ArticleSync(source=source, cms=cms).sync(slug=slug, previous_slug=previous)
+    renderer = renderer or _Renderer()
+    await ArticleSync(source=source, cms=cms, renderer=renderer).sync(
+        slug=slug, previous_slug=previous
+    )
 
 
 async def test_a_new_article_is_created_and_a_managed_one_updated() -> None:
@@ -459,3 +495,168 @@ async def test_an_article_with_a_null_body_format_reads_as_pasted_html(monkeypat
     article = await SanityArticleSource(project_id="p", dataset="production").get("x")
 
     assert article is not None and article.body_html == "<p>Pasted</p>"
+
+
+_LIVE = "https://cdn.sanity.io/files/p/production/abc-live.html"
+_OLD = "https://cdn.sanity.io/files/p/production/old.html"
+_STILL = "https://cdn.sanity.io/images/p/production/still.png"
+
+
+def _exhibit(exhibit_id: str = "beat-3#0", **extra) -> dict:
+    return {"_type": "exhibit", "exhibitId": exhibit_id, "alt": "Courts by country", **extra}
+
+
+def test_a_live_chart_is_a_still_image_that_carries_what_the_page_needs_to_go_live() -> None:
+    blocks = _BLOCKS.validate_python([_exhibit()])
+
+    html = to_html(blocks, Exhibits(bundle_url=_LIVE, images={"beat-3#0": _STILL}))
+
+    assert html == (
+        f'<figure data-exhibit="beat-3#0" data-bundle="{_LIVE}">'
+        '<img src="https://cdn.sanity.io/images/p/production/still.png?w=1600&amp;fm=jpg" '
+        'alt="Courts by country"></figure>'
+    )
+
+
+def test_a_chart_marked_not_interactive_stays_a_plain_image() -> None:
+    blocks = _BLOCKS.validate_python([_exhibit(live=False)])
+
+    html = to_html(blocks, Exhibits(bundle_url=_LIVE, images={"beat-3#0": _STILL}))
+
+    assert 'data-exhibit="beat-3#0"' in html and "data-bundle" not in html
+
+
+def test_a_chart_without_a_still_is_left_out_rather_than_a_broken_image() -> None:
+    blocks = _BLOCKS.validate_python([_exhibit(), _text("After")])
+
+    assert to_html(blocks, Exhibits(bundle_url=_LIVE, images={})) == "<p>After</p>"
+    assert to_html(blocks) == "<p>After</p>"
+
+
+def _rich_doc(**changes) -> dict:
+    return {**_SANITY_ARTICLE, "_rev": "r1", "bodyFormat": "rich", **changes}
+
+
+async def test_the_live_file_must_be_the_datasets_own_or_charts_stay_out(monkeypatch) -> None:
+    doc = _rich_doc(
+        body=[_exhibit(), _text("Text")],
+        htmlFileUrl="https://evil.example/files/p/production/x.html",
+        exhibitImages=[{"exhibitId": "beat-3#0", "bundleUrl": _LIVE, "url": _STILL}],
+    )
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    article = await SanityArticleSource(project_id="p", dataset="production").get("exit-guide")
+
+    assert article is not None and article.body_html == "<p>Text</p>"
+
+
+async def test_stills_taken_from_an_older_file_are_captured_again(monkeypatch) -> None:
+    doc = _rich_doc(
+        body=[_exhibit("beat-3#0"), _exhibit("beat-4#1")],
+        htmlFileUrl=_LIVE,
+        exhibitImages=[
+            {"exhibitId": "beat-3#0", "bundleUrl": _LIVE, "url": _STILL},
+            {"exhibitId": "beat-4#1", "bundleUrl": _OLD, "url": _STILL},
+        ],
+    )
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    pending = await SanityArticleSource(project_id="p", dataset="production").pending_exhibits("x")
+
+    assert pending == PendingExhibits(
+        document_id="doc-1",
+        revision="r1",
+        bundle_url=_LIVE,
+        ids=("beat-4#1",),
+        stills={"beat-3#0": _STILL},
+    )
+
+
+async def test_nothing_is_pending_once_every_chart_has_a_still(monkeypatch) -> None:
+    doc = _rich_doc(
+        body=[_exhibit()],
+        htmlFileUrl=_LIVE,
+        exhibitImages=[{"exhibitId": "beat-3#0", "bundleUrl": _LIVE, "url": _STILL}],
+    )
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    source = SanityArticleSource(project_id="p", dataset="production")
+
+    assert await source.pending_exhibits("x") is None
+
+
+async def test_saving_stills_keeps_the_old_ones_and_is_guarded_by_the_revision(monkeypatch) -> None:
+    sent: list[httpx.Request] = []
+    status = 200
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(status, json={})
+
+    _use_transport(monkeypatch, handler)
+    source = SanityArticleSource(project_id="p", dataset="production", write_token="tok")
+    pending = PendingExhibits(
+        document_id="doc-1", revision="r1", bundle_url=_LIVE, ids=("b#1",), stills={"a#0": "u0"}
+    )
+
+    assert await source.save_exhibit_images(pending, {"b#1": "u1"})
+    status = 409
+    assert not await source.save_exhibit_images(pending, {"b#1": "u1"})
+
+    assert json.loads(sent[0].content) == {
+        "mutations": [
+            {
+                "patch": {
+                    "id": "doc-1",
+                    "ifRevisionID": "r1",
+                    "set": {
+                        "exhibitImages": [
+                            {"exhibitId": "a#0", "bundleUrl": _LIVE, "url": "u0"},
+                            {"exhibitId": "b#1", "bundleUrl": _LIVE, "url": "u1"},
+                        ]
+                    },
+                }
+            }
+        ]
+    }
+
+
+async def test_missing_stills_are_captured_before_the_article_is_read_and_written() -> None:
+    source = _Source(_article())
+    source.pending = PendingExhibits(
+        document_id="doc-1", revision="r1", bundle_url=_LIVE, ids=("a#0", "b#1"), stills={}
+    )
+    renderer, cms = _Renderer(), _Cms()
+
+    await _sync(cms, slug="exit-guide", previous=None, source=source, renderer=renderer)
+
+    assert renderer.calls == [("<html>bundle</html>", ("a#0", "b#1"))]
+    assert source.uploaded == [b"png-a#0", b"png-b#1"]
+    assert source.saved == [
+        {
+            "a#0": "https://cdn.sanity.io/images/p/production/1.png",
+            "b#1": "https://cdn.sanity.io/images/p/production/2.png",
+        }
+    ]
+    assert cms.calls == [("create", "exit-guide")]
+
+
+async def test_an_article_edited_mid_capture_is_left_to_the_next_webhook() -> None:
+    source = _Source(_article())
+    source.pending = PendingExhibits(
+        document_id="doc-1", revision="r1", bundle_url=_LIVE, ids=("a#0",), stills={}
+    )
+    source.save_ok = False
+    cms = _Cms()
+
+    await _sync(cms, slug="exit-guide", previous=None, source=source)
+
+    assert cms.calls == []
+
+
+async def test_an_article_with_no_charts_never_starts_chromium() -> None:
+    renderer, cms = _Renderer(), _Cms()
+
+    await _sync(cms, _article(), slug="exit-guide", previous=None, renderer=renderer)
+
+    assert renderer.calls == [] and cms.calls == [("create", "exit-guide")]

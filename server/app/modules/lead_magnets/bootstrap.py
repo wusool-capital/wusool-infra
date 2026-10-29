@@ -337,6 +337,7 @@ def build_article_sync() -> ArticleSync:
             token=settings.lead_magnet_webflow_api_token,
             collection_id=settings.lead_magnet_webflow_insights_collection_id,
         ),
+        renderer=build_report_renderer(),
     )
 
 

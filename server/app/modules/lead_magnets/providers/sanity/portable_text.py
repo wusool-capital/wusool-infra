@@ -7,6 +7,7 @@ Studio's editor offers only what `_ALLOWED_TAGS` keeps.
 """
 
 import re
+from dataclasses import dataclass
 from html import escape
 from typing import Annotated, Literal
 
@@ -46,7 +47,11 @@ _ALLOWED_TAGS = {
     "img",
     "figcaption",
 }
-_ALLOWED_ATTRIBUTES = {"a": {"href", "target"}, "img": {"src", "alt"}}
+_ALLOWED_ATTRIBUTES = {
+    "a": {"href", "target"},
+    "img": {"src", "alt"},
+    "figure": {"data-exhibit", "data-bundle"},
+}
 
 
 class _Span(BaseModel):
@@ -84,7 +89,25 @@ class ImageBlock(BaseModel):
     alt: str | None = None
 
 
-Block = Annotated[TextBlock | ImageBlock, Field(discriminator="type_")]
+class ExhibitBlock(BaseModel):
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    type_: Literal["exhibit"] = Field(alias="_type")
+    exhibit_id: str = Field(alias="exhibitId")
+    alt: str = ""
+    # Unset reads as live, like a block made before the toggle.
+    live: bool | None = None
+
+
+Block = Annotated[TextBlock | ImageBlock | ExhibitBlock, Field(discriminator="type_")]
+
+
+@dataclass(frozen=True)
+class Exhibits:
+    """What an article's chart blocks need: where the live file is, and each chart's still."""
+
+    bundle_url: str
+    images: dict[str, str]
 
 
 def sanitize(html: str) -> str:
@@ -102,7 +125,7 @@ def _resize_images(tag: str, attribute: str, value: str) -> str:
     return resized(value) if (tag, attribute) == ("img", "src") else value
 
 
-def to_html(blocks: list[Block]) -> str:
+def to_html(blocks: list[Block], exhibits: Exhibits | None = None) -> str:
     out: list[str] = []
     # Open list tags, innermost last; each still has an unclosed <li>.
     lists: list[str] = []
@@ -124,12 +147,26 @@ def to_html(blocks: list[Block]) -> str:
             if block.url:
                 alt = escape(block.alt or "")
                 out.append(f'<figure><img src="{escape(block.url)}" alt="{alt}"></figure>')
+        elif isinstance(block, ExhibitBlock):
+            out.append(_exhibit(block, exhibits))
         else:
             tag = _STYLES.get(block.style, "p")
             out.append(f"<{tag}>{_inline(block)}</{tag}>")
     while lists:
         out.append(f"</li></{lists.pop()}>")
     return sanitize("".join(out))
+
+
+def _exhibit(block: ExhibitBlock, exhibits: Exhibits | None) -> str:
+    # No still yet means the sync hasn't captured it; the chart is left out, never a broken image.
+    still = exhibits.images.get(block.exhibit_id) if exhibits else None
+    if exhibits is None or not still:
+        return ""
+    bundle = f' data-bundle="{escape(exhibits.bundle_url)}"' if block.live is not False else ""
+    return (
+        f'<figure data-exhibit="{escape(block.exhibit_id)}"{bundle}>'
+        f'<img src="{escape(still)}" alt="{escape(block.alt)}"></figure>'
+    )
 
 
 def _inline(block: TextBlock) -> str:

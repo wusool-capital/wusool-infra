@@ -91,6 +91,9 @@ class _FakeRenderer:
         self.free_pages.append(free_pages)
         return f"<flat>{html}</flat>"
 
+    async def exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
+        raise AssertionError("a report has no charts to capture")
+
     async def pdf(self, html: str) -> bytes:
         raise AssertionError("the sync never prints")
 
