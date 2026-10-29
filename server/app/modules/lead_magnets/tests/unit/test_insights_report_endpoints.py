@@ -219,14 +219,14 @@ def test_an_interactive_report_never_hands_the_live_file_to_a_locked_reader(clie
     assert _LIVE_URL not in str(body)
 
 
-def test_an_unlocked_reader_of_an_interactive_report_gets_the_live_file_and_a_preview(
+def test_an_unlocked_reader_of_an_interactive_report_gets_the_live_file_and_the_whole_copy(
     client, world
 ) -> None:
     body = _unlock(client, world, slug="live-report").json()
 
     assert body["locked"] is False
     assert body["interactive_url"] == _LIVE_URL
-    assert _REST not in body["html"], "the live frame replaces the full html"
+    assert _REST in body["html"], "a failed live load must still leave the report readable"
 
 
 def test_a_plain_report_has_no_interactive_url(client, world) -> None:

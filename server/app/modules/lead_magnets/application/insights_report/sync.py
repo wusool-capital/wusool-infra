@@ -82,8 +82,7 @@ class ReportSync:
                 await self._cms.unpin(other_id, other.pins)
 
     async def _externalize_images(self, html: str) -> str:
-        """Embedded pictures would push the saved page past Sanity's 4 MB save limit.
-        Runs before the split, so `preview_end` indexes the final string."""
+        """Embedded pictures break Sanity's 4 MB save limit. Runs before the split."""
         urls = {
             image.uri: await self._source.upload_image(image.data, image.mime)
             for image in data_images(html)

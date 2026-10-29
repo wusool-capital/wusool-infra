@@ -2,8 +2,6 @@
 
 import base64
 
-import pytest
-
 from app.modules.lead_magnets.domain.insights_report.images import data_images, swap_images
 
 
@@ -41,6 +39,14 @@ def test_the_swap_reaches_attributes_and_css_alike() -> None:
     assert swapped.count("https://cdn.sanity.io/images/p/d/a.png") == 3
 
 
-def test_a_corrupt_payload_raises_rather_than_uploading_garbage() -> None:
-    with pytest.raises(ValueError):
-        data_images('<img src="data:image/png;base64,AAAAA=A">')
+def test_unpadded_base64_decodes_as_browsers_read_it() -> None:
+    (found,) = data_images('<img src="data:image/png;base64,YWJjZA">')
+
+    assert found.data == b"abcd"
+
+
+def test_a_payload_that_cannot_decode_stays_inline_instead_of_stopping_the_report() -> None:
+    html = '<img src="data:image/png;base64,AAAAA"><img src="data:image/png;base64,YWJj">'
+
+    assert [i.data for i in data_images(html)] == [b"abc"]
+    assert swap_images(html, {}) == html

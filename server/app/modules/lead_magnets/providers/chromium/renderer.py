@@ -61,7 +61,8 @@ _DRAW_MS = 1500
 _HIDE_PINNED = """() => {
   for (const el of document.querySelectorAll('body *')) {
     const position = getComputedStyle(el).position;
-    if ((position === 'fixed' || position === 'sticky') && !el.querySelector('figure')) {
+    const inChart = el.closest('figure') || el.querySelector('figure');
+    if ((position === 'fixed' || position === 'sticky') && !inChart) {
       el.style.setProperty('display', 'none', 'important');
     }
   }

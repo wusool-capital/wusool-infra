@@ -58,6 +58,7 @@ class _Still(BaseModel):
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
+    key: str = Field(default="", alias="_key")
     exhibit_id: str = Field(alias="exhibitId")
     bundle_url: str = Field(alias="bundleUrl")
     url: str
@@ -249,7 +250,7 @@ class SanityArticleSource:
 
     async def save_exhibit_images(self, pending: PendingExhibits, urls: dict[str, str]) -> bool:
         stills = [
-            _Still(exhibit_id=i, bundle_url=pending.bundle_url, url=u)
+            _Still(key=i.replace("#", "-"), exhibit_id=i, bundle_url=pending.bundle_url, url=u)
             for i, u in (pending.stills | urls).items()
         ]
         patch = _Patch(

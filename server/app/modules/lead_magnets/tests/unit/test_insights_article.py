@@ -611,8 +611,8 @@ async def test_saving_stills_keeps_the_old_ones_and_is_guarded_by_the_revision(m
                     "ifRevisionID": "r1",
                     "set": {
                         "exhibitImages": [
-                            {"exhibitId": "a#0", "bundleUrl": _LIVE, "url": "u0"},
-                            {"exhibitId": "b#1", "bundleUrl": _LIVE, "url": "u1"},
+                            {"_key": "a-0", "exhibitId": "a#0", "bundleUrl": _LIVE, "url": "u0"},
+                            {"_key": "b-1", "exhibitId": "b#1", "bundleUrl": _LIVE, "url": "u1"},
                         ]
                     },
                 }
@@ -660,3 +660,28 @@ async def test_an_article_with_no_charts_never_starts_chromium() -> None:
     await _sync(cms, _article(), slug="exit-guide", previous=None, renderer=renderer)
 
     assert renderer.calls == [] and cms.calls == [("create", "exit-guide")]
+
+
+def test_pasted_html_cannot_name_a_file_to_run_in_a_frame() -> None:
+    html = f'<figure data-exhibit="a#0" data-bundle="{_LIVE}"><img src="{_STILL}" alt="x"></figure>'
+
+    cleaned = sanitize(html)
+
+    assert "data-bundle" not in cleaned and "data-exhibit" not in cleaned
+    assert "<img" in cleaned
+
+
+async def test_a_chart_that_cannot_be_captured_does_not_stop_the_text_publishing() -> None:
+    class _Broken(_Renderer):
+        async def exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
+            raise ValueError("no chart a#0 in the article's HTML file")
+
+    source = _Source(_article())
+    source.pending = PendingExhibits(
+        document_id="doc-1", revision="r1", bundle_url=_LIVE, ids=("a#0",), stills={}
+    )
+    cms = _Cms()
+
+    await _sync(cms, slug="exit-guide", previous=None, source=source, renderer=_Broken())
+
+    assert cms.calls == [("create", "exit-guide")] and source.saved == []

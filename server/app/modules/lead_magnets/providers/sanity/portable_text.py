@@ -47,11 +47,9 @@ _ALLOWED_TAGS = {
     "img",
     "figcaption",
 }
-_ALLOWED_ATTRIBUTES = {
-    "a": {"href", "target"},
-    "img": {"src", "alt"},
-    "figure": {"data-exhibit", "data-bundle"},
-}
+_ALLOWED_ATTRIBUTES = {"a": {"href", "target"}, "img": {"src", "alt"}}
+# Only chart blocks the server builds itself; pasted HTML never gets to name a file to run.
+_EXHIBIT_ATTRIBUTES = {**_ALLOWED_ATTRIBUTES, "figure": {"data-exhibit", "data-bundle"}}
 
 
 class _Span(BaseModel):
@@ -110,11 +108,11 @@ class Exhibits:
     images: dict[str, str]
 
 
-def sanitize(html: str) -> str:
+def sanitize(html: str, *, exhibits: bool = False) -> str:
     return nh3.clean(
         html,
         tags=_ALLOWED_TAGS,
-        attributes=_ALLOWED_ATTRIBUTES,
+        attributes=_EXHIBIT_ATTRIBUTES if exhibits else _ALLOWED_ATTRIBUTES,
         url_schemes={"http", "https", "mailto"},
         attribute_filter=_resize_images,
     )
@@ -154,7 +152,7 @@ def to_html(blocks: list[Block], exhibits: Exhibits | None = None) -> str:
             out.append(f"<{tag}>{_inline(block)}</{tag}>")
     while lists:
         out.append(f"</li></{lists.pop()}>")
-    return sanitize("".join(out))
+    return sanitize("".join(out), exhibits=True)
 
 
 def _exhibit(block: ExhibitBlock, exhibits: Exhibits | None) -> str:

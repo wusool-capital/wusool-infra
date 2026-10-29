@@ -116,9 +116,7 @@
   });
 
   // ---------------------------------------------------------------------
-  // Insight mode: an article's charts are still images until scrolled to. The server
-  // writes `data-exhibit` and `data-bundle` on each live figure. Declared here, below
-  // the early return that calls it, like buildModal.
+  // Insight mode: swaps an article's chart stills for live frames as they scroll near.
   // ---------------------------------------------------------------------
   function liveCharts(origin) {
     var figures = document.querySelectorAll("figure[data-exhibit][data-bundle]");
@@ -142,8 +140,8 @@
 
     function swap(figure) {
       var bundle = figure.getAttribute("data-bundle");
-      // Whatever the page's markup says, only the project's own files are ever loaded.
-      if (!/^https:\/\/cdn\.sanity\.io\/files\//.test(bundle)) return;
+      // Pinned to this dataset: a page's markup must not choose what runs in the frame.
+      if (!/^https:\/\/cdn\.sanity\.io\/files\/itidwo8t\/production\//.test(bundle)) return;
       var still = figure.querySelector("img");
       var holder = document.createElement("div");
       figure.appendChild(holder);

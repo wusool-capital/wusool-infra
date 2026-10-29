@@ -1,16 +1,8 @@
-/*
- * Loads an exported bundle straight from the Sanity CDN into a sandboxed frame,
- * so its charts and clicks work. Without `allow-same-origin` the frame has an
- * opaque origin: no cookies, no storage, no reach into this page. The CDN serves
- * the file with `script-src 'none'`, which only applies to navigating to it, so
- * it is fetched (the project's CORS origins allow that) and set as `srcdoc`.
- */
+// Mounts an exported bundle in a sandboxed frame, so its charts work without reaching the page.
 (function () {
   "use strict";
 
-  // Runs inside the frame, as text. It reports the frame's height and, given an
-  // exhibit id (`<section id>#<figure index>`), hides everything but that figure.
-  // The bundle swaps its page in after load, so it keeps polling.
+  // Runs inside the frame as text: reports height and hides all but the exhibit's figure.
   function isolate(exhibit) {
     function target() {
       var at = exhibit.split("#");
@@ -39,6 +31,7 @@
       document.body.style.setProperty("margin", "0", "important");
     }
     var last = 0;
+    // Polls because the bundle swaps its page in after load.
     setInterval(function () {
       var height;
       if (exhibit) {
@@ -56,6 +49,7 @@
     }, 250);
   }
 
+  var LOAD_TIMEOUT_MS = 30000;
   var fetched = {};
 
   // One download per bundle, however many exhibits share it.
@@ -72,11 +66,11 @@
     return fetched[url];
   }
 
-  // `exhibit` empty: the whole bundle. The frame's own origin is "null", so the
-  // sender is matched by window, never by origin.
+  // Empty `exhibit` mounts the whole bundle. Senders match by window: the frame's origin is "null".
   function mount(container, url, exhibit) {
     return bundle(url).then(function (html) {
-      var script = "<script>(" + isolate + ")(" + JSON.stringify(exhibit || "") + ");<\/script>";
+      var id = JSON.stringify(exhibit || "").replace(/</g, "\\u003c");
+      var script = "<script>(" + isolate + ")(" + id + ");<\/script>";
       // Before </head>, never ahead of the doctype: that would drop the bundle into quirks mode.
       var doc = html.indexOf("</head>") < 0 ? script + html : html.replace("</head>", function () { return script + "</head>"; });
       var frame = document.createElement("iframe");
@@ -84,6 +78,9 @@
       // Not 0: a bundle first laid out in a zero-height viewport stays collapsed once resized.
       frame.style.cssText = "display:block;width:100%;border:0;height:600px";
       frame.title = exhibit ? "Interactive chart" : "Interactive report";
+      // Collapsed until it draws, so a bundle that never does leaves no gap.
+      var holder = document.createElement("div");
+      holder.style.cssText = "position:relative;height:0;overflow:hidden";
       window.addEventListener("message", function (event) {
         var data = event.data;
         if (event.source !== frame.contentWindow || !data || data.type !== "wusool:frame-height") return;
@@ -92,11 +89,16 @@
         // First paint of the bundle: callers swap their placeholder for the frame now.
         if (!frame.dataset.ready) {
           frame.dataset.ready = "1";
+          holder.style.cssText = "";
           frame.dispatchEvent(new Event("ready"));
         }
       });
       frame.srcdoc = doc;
-      container.appendChild(frame);
+      holder.appendChild(frame);
+      container.appendChild(holder);
+      setTimeout(function () {
+        if (!frame.dataset.ready) holder.remove();
+      }, LOAD_TIMEOUT_MS);
       return frame;
     });
   }

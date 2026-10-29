@@ -15,8 +15,7 @@ class ArticleSourcePort(Protocol):
         ...
 
     async def pending_exhibits(self, slug: str) -> PendingExhibits | None:
-        """The charts in the body with no still image for the article's current HTML
-        file, or `None` when there is nothing to capture."""
+        """Charts in the body with no still for the current HTML file, else `None`."""
         ...
 
     async def bundle(self, pending: PendingExhibits) -> str:

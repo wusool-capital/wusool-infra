@@ -50,17 +50,23 @@ class ArticleSync:
         await self._write(article)
 
     async def _capture_stills(self, slug: str) -> bool:
-        """Charts show as a still image until the reader scrolls to them, so each needs one.
-        Runs before the read, so the page written to Webflow already carries them."""
-        pending = await self._source.pending_exhibits(slug)
-        if pending is None:
+        """False only when the article changed mid-capture. A failure leaves the charts out."""
+        try:
+            pending = await self._source.pending_exhibits(slug)
+            if pending is None:
+                return True
+            shots = await self._renderer.exhibit_images(
+                await self._source.bundle(pending), pending.ids
+            )
+            urls = {
+                exhibit_id: await self._source.upload_image(png, "image/png")
+                for exhibit_id, png in shots.items()
+            }
+            return await self._source.save_exhibit_images(pending, urls)
+        except Exception:
+            # A wrong chart id or a Chromium timeout must not block unrelated text edits.
+            logger.exception("insights_article_stills_failed slug=%s", slug)
             return True
-        shots = await self._renderer.exhibit_images(await self._source.bundle(pending), pending.ids)
-        urls = {
-            exhibit_id: await self._source.upload_image(png, "image/png")
-            for exhibit_id, png in shots.items()
-        }
-        return await self._source.save_exhibit_images(pending, urls)
 
     async def _write(self, article: ArticleDocument) -> None:
         item = await self._cms.find(article.slug)

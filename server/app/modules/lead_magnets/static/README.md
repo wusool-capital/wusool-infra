@@ -341,10 +341,11 @@ messages by `event.source`, never by origin. The frame fires a `ready` event
 when the bundle first draws.
 
 The report page mounts the whole bundle after an unlock when the response has
-`interactive_url`, and hides the static preview once the frame is ready. If the
-load fails, the preview stays. `embed.js` with `data-tool="insight"` mounts one
-frame per live chart figure as it scrolls near, and only for files under
-`https://cdn.sanity.io/files/`.
+`interactive_url`, and hides the static copy once the frame is ready. If the
+load fails, the copy stays. A frame is collapsed until it draws and removed after
+30 s without a first paint, so a bundle that never draws leaves no gap.
+`embed.js` with `data-tool="insight"` mounts one frame per live chart figure as it
+scrolls near, and only for files under this project's own dataset.
 
 ## shared/submission-id.js
 

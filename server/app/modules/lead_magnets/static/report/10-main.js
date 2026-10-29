@@ -16,7 +16,7 @@ function render(data){
   if(data.interactive_url)mountLive(data.interactive_url);
 }
 
-// The static preview stays until the live report has drawn, and stays for good if it fails.
+// The static copy stays until the live report has drawn, and for good if it fails.
 function mountLive(url){
   const live=document.getElementById("live");
   if(live.firstChild)return;

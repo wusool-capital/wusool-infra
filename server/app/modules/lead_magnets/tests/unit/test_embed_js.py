@@ -222,4 +222,4 @@ def test_insight_mode_loads_the_loader_from_the_tools_origin_and_only_cdn_files(
     loaded = re.search(r'tag\.src = origin \+ "(/shared/interactive\.js)\?v=\d+"', js)
     assert loaded, "the loader must be requested from the tools origin"
     assert (static_dir() / loaded.group(1).lstrip("/")).is_file()
-    assert r"^https:\/\/cdn\.sanity\.io\/files\/" in js
+    assert r"^https:\/\/cdn\.sanity\.io\/files\/itidwo8t\/production\/" in js

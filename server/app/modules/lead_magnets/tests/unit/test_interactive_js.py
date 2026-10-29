@@ -66,3 +66,33 @@ async def test_a_chart_is_shown_alone_with_its_own_content_and_its_height_report
     assert shown["compat"] == "CSS1Compat", "the script went ahead of the doctype"
     assert shown["cookie"] == "blocked", "the frame must not share the page's origin"
     assert 120 < frame_height < 220, "the frame follows the chart, not its starting height"
+
+
+async def test_a_chart_that_never_draws_leaves_no_gap_in_the_page() -> None:
+    await _require_chromium()
+    loader = (static_dir() / "shared" / "interactive.js").read_text(encoding="utf-8")
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch()
+        page = await browser.new_page()
+        await page.route(
+            "http://test.local/page", lambda r: r.fulfill(content_type="text/html", body=_PAGE)
+        )
+        await page.route(
+            "http://test.local/bundle.html",
+            lambda r: r.fulfill(
+                content_type="text/html", body=_BUNDLE, headers={"access-control-allow-origin": "*"}
+            ),
+        )
+        await page.goto("http://test.local/page")
+        await page.add_script_tag(content=loader)
+        # `beat-9` is not in the bundle, so the frame can never report a height.
+        await page.evaluate(
+            "() => WusoolInteractive.mount(document.getElementById('host'), "
+            "'http://test.local/bundle.html', 'beat-9#0')"
+        )
+        await asyncio.sleep(1.2)
+        host_height = await page.evaluate("document.getElementById('host').offsetHeight")
+        await browser.close()
+
+    assert host_height == 0

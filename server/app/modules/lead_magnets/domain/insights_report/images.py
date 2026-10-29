@@ -1,11 +1,7 @@
-"""Finds the base64 images a flattened report carries and swaps them for URLs. Pure.
-
-An exported report embeds every picture as a `data:` URI, which is far past
-Sanity's 4 MB save limit. The literal URI is replaced wherever it appears, so
-`<img>`, `srcset`, `<image href>` and CSS `url(...)` are all covered at once.
-"""
+"""Swaps a flattened report's base64 images for URLs, since Sanity rejects saves over 4 MB. Pure."""
 
 import base64
+import binascii
 import re
 from dataclasses import dataclass
 
@@ -23,12 +19,18 @@ class DataImage:
 def data_images(html: str) -> list[DataImage]:
     """Each distinct embedded image once, in page order."""
     seen: dict[str, DataImage] = {}
+    skipped: set[str] = set()
     for match in _DATA_IMAGE.finditer(html):
         uri = match.group(0)
-        if uri not in seen:
-            seen[uri] = DataImage(
-                uri=uri, mime=match.group(1), data=base64.b64decode(match.group(2), validate=True)
-            )
+        if uri in seen or uri in skipped:
+            continue
+        payload = match.group(2)
+        try:
+            data = base64.b64decode(payload + "=" * (-len(payload) % 4), validate=True)
+        except binascii.Error:
+            skipped.add(uri)  # left inline: a bad picture must not stop the report publishing
+            continue
+        seen[uri] = DataImage(uri=uri, mime=match.group(1), data=data)
     return list(seen.values())
 
 

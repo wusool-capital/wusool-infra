@@ -33,8 +33,7 @@ class ReportSourcePort(Protocol):
         ...
 
     async def upload_image(self, data: bytes, mime: str) -> str:
-        """Stores one image and returns its CDN URL. Identical bytes give the
-        same URL, so a repeat publish adds no assets. Raises on failure."""
+        """Stores one image and returns its CDN URL; the same bytes give the same URL."""
         ...
 
     async def unpin_others(

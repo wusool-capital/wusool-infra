@@ -265,7 +265,7 @@ async def test_a_chart_that_is_not_there_or_not_an_id_raises(exhibit_id: str) ->
 _DRAWN_ON_SCROLL = """<!DOCTYPE html><html><body style="margin:0">
 <div style="height:1600px">spacer</div>
 <section id="beat-1"><figure id="f" style="margin:0;height:120px;background:#fff">
-  <div id="bar" style="height:120px;background:#fff"></div></figure></section>
+  <div id="bar" style="position:sticky;top:0;height:120px;background:#fff"></div></figure></section>
 <div style="height:1600px">spacer</div>
 <div style="position:fixed;left:0;right:0;bottom:0;height:900px;background:#00f"></div>
 <script>
