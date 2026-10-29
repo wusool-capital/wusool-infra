@@ -304,8 +304,10 @@ Publish the Webflow site. Without it, articles show the still images only. In
 sanity.io/manage, update the **dev and prod** webhook filter to the one in
 `sanity/README.md`, which lists the article fields so the server's own save of
 `exhibitImages` doesn't start a second sync. Add the CORS origins listed there.
-Check that Webflow keeps the `data-exhibit` and `data-bundle` attributes on a
-published article's figures; if it strips them, the charts stay as still images.
+Checked 2026-10-29 against the Insights (test) collection: Webflow keeps
+`data-exhibit` and `data-bundle` on a rich-text `<figure>`, and `alt` and
+`figcaption`. It strips a `#fragment` from an image URL, and it copies every
+image to its own CDN, so the still images are served by Webflow.
 
 Dev writes to test collections only, set in the `/wusool/dev/toolkit`
 secret (2026-10-07): `LEAD_MAGNET_WEBFLOW_REPORTS_COLLECTION_ID` is

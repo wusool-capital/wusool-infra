@@ -432,7 +432,8 @@ endpoint routes on the projected `type`.
   the article as `exhibitImages` with a revision guard. A body then writes
   `<figure data-exhibit data-bundle><img></figure>`, and `embed.js
   data-tool="insight"` swaps each live figure for a frame when it scrolls
-  near. A chart with no still yet is left out, never a broken image.
+  near. A chart with no still yet is left out, never a broken image. Webflow keeps the
+`data-*` attributes and copies each still to its own CDN (checked 2026-10-29).
 - **Plumbing.** `providers/webflow/collection.py` holds the Webflow API code
   both providers share: live create, staged update then publish, unpublish,
   and option lookups.

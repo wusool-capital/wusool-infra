@@ -191,6 +191,11 @@ project's CORS origins.
   not inside the page. Sanity rejects a save over 4 MB, and the padel
   report's pictures alone are about 19 MB.
 
+Deploy in this order: first the webhook filter above, in both dev and prod, then
+the server. A server that saves `exhibitImages` before the filter is updated
+starts a second sync while the first is still writing, and a new article can
+get two Webflow items.
+
 CORS origins (Sanity manage → API → CORS origins), credentials **off**:
 
 | Origin | Why |
@@ -198,6 +203,7 @@ CORS origins (Sanity manage → API → CORS origins), credentials **off**:
 | `https://www.wusoolcapital.com` | Insight pages on the website |
 | `https://wusoolcapital.com` | The same pages without `www` |
 | `https://tools.wusoolcapital.com` | The report page, which runs in a frame on the website |
+| `https://63-184-6-136.sslip.io` | The same report page on dev |
 | `http://localhost:3333` | The Studio (already listed) |
 
 ## Accepted risk
