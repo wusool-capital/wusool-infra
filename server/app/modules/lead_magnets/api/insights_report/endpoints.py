@@ -117,6 +117,18 @@ async def read_report(
         return ReportResponse(
             title=report.title, html=report.html[: report.preview_end], locked=True
         )
+    return _unlocked(report)
+
+
+def _unlocked(report: ReportDocument) -> ReportResponse:
+    if report.interactive_url:
+        # The live bundle replaces the page; the preview stays as the fallback.
+        return ReportResponse(
+            title=report.title,
+            html=report.html[: report.preview_end],
+            locked=False,
+            interactive_url=report.interactive_url,
+        )
     return ReportResponse(title=report.title, html=report.html, locked=False)
 
 
@@ -318,7 +330,7 @@ async def _open_report(
         httponly=True,
         samesite="lax",
     )
-    return ReportResponse(title=report.title, html=report.html, locked=False)
+    return _unlocked(report)
 
 
 @router.post("/reports/webhooks/sanity", status_code=status.HTTP_202_ACCEPTED)

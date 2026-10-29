@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from uuid import UUID, uuid4
 
 import pytest
@@ -46,6 +46,8 @@ _OTHER = ReportDocument(
     excerpt="E",
     preview_end=_REPORT.preview_end,
 )
+_LIVE_URL = "https://cdn.sanity.io/files/proj/production/abc-live.html"
+_LIVE = replace(_REPORT, slug="live-report", interactive_url=_LIVE_URL)
 _SECRET = "s3cret"
 
 
@@ -80,7 +82,7 @@ class _Source:
         self._world = world
 
     async def get(self, slug: str) -> ReportDocument | None:
-        return {r.slug: r for r in (_REPORT, _OTHER)}.get(slug)
+        return {r.slug: r for r in (_REPORT, _OTHER, _LIVE)}.get(slug)
 
     async def refresh(self, slug: str) -> ReportDocument | None:
         return await self.get(slug)
@@ -168,13 +170,13 @@ def _sent_code(world: _World) -> str:
     return subject.split(" ", 1)[0]
 
 
-def _unlock(client, world: _World, **form: str):
+def _unlock(client, world: _World, *, slug: str = "buyouts-in-the-gcc", **form: str):
     """Both gate steps: request the code, then type it back."""
     body = {"submission_id": "s", "name": "D", "email": "dana@acme.ae", "company": "A", **form}
-    sent = client.post("/reports/buyouts-in-the-gcc/unlock", json=body)
+    sent = client.post(f"/reports/{slug}/unlock", json=body)
     assert sent.status_code == 200, sent.text
     return client.post(
-        "/reports/buyouts-in-the-gcc/unlock/verify",
+        f"/reports/{slug}/unlock/verify",
         json={"challenge_id": sent.json()["challenge_id"], "code": _sent_code(world)},
     )
 
@@ -207,6 +209,28 @@ def test_the_preview_never_carries_the_gated_rest(client) -> None:
     assert "part 0" in body["html"]
     assert _REST not in body["html"]
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_an_interactive_report_never_hands_the_live_file_to_a_locked_reader(client) -> None:
+    body = client.get("/reports/live-report").json()
+
+    assert body["locked"] is True
+    assert body["interactive_url"] is None
+    assert _LIVE_URL not in str(body)
+
+
+def test_an_unlocked_reader_of_an_interactive_report_gets_the_live_file_and_a_preview(
+    client, world
+) -> None:
+    body = _unlock(client, world, slug="live-report").json()
+
+    assert body["locked"] is False
+    assert body["interactive_url"] == _LIVE_URL
+    assert _REST not in body["html"], "the live frame replaces the full html"
+
+
+def test_a_plain_report_has_no_interactive_url(client, world) -> None:
+    assert _unlock(client, world).json()["interactive_url"] is None
 
 
 def test_unknown_or_unconfigured_reports_are_404(client, world) -> None:

@@ -610,6 +610,8 @@ class ReportResponse(BaseModel):
     title: str
     html: str
     locked: bool
+    # Set for an unlocked interactive report; `html` is then only the static preview.
+    interactive_url: str | None = None
 
 
 class SanityWebhookBody(BaseModel):

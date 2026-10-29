@@ -46,7 +46,8 @@ _QUERY = (
     '_id, "slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
     'bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url, '
-    "seoTitle, seoDescription, ogTitle}"
+    "seoTitle, seoDescription, ogTitle, "
+    '"interactiveUrl": select(interactive == true => htmlFile.asset->url)}'
 )
 # Raw perspective so open drafts are unticked too; publishing one must not re-pin it.
 # Release versions are left alone: they are the editor's staged content, not live state.
@@ -83,6 +84,7 @@ class _SanityReport(BaseModel):
     seo_title: str | None = Field(default=None, alias="seoTitle")
     seo_description: str | None = Field(default=None, alias="seoDescription")
     og_title: str | None = Field(default=None, alias="ogTitle")
+    interactive_url: str | None = Field(default=None, alias="interactiveUrl")
 
 
 class _QueryResponse(BaseModel):
@@ -275,6 +277,10 @@ class SanityReportSource:
             for slug, lost in sorted(by_slug.items())
         ]
 
+    def _own_file(self, url: str | None) -> str | None:
+        # The browser loads this URL into a frame, so it must be this dataset's own file.
+        return url if url and url.startswith(self._files_url) else None
+
     async def _download(self, url: str) -> str:
         """Raises, not None: a failed fetch stops the sync before it unpublishes."""
         # Editors control the document, so only this dataset's own files are fetched.
@@ -341,4 +347,5 @@ class SanityReportSource:
             seo_title=doc.seo_title,
             seo_description=doc.seo_description,
             og_title=doc.og_title,
+            interactive_url=self._own_file(doc.interactive_url),
         )

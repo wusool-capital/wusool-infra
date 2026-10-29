@@ -87,6 +87,30 @@ async def test_sanity_report_is_parsed_and_cached(monkeypatch) -> None:
     assert requests[0].url.params["$slug"] == '"buyouts-in-the-gcc"'
 
 
+_OWN_FILE = "https://cdn.sanity.io/files/p/production/a-live.html"
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (_OWN_FILE, _OWN_FILE),
+        ("https://evil.example/files/p/production/a-live.html", None),
+        ("https://cdn.sanity.io/files/other/production/a-live.html", None),
+        (None, None),
+    ],
+)
+async def test_the_live_file_is_only_exposed_when_it_is_the_datasets_own(
+    monkeypatch, url: str | None, expected: str | None
+) -> None:
+    doc = {**_SANITY_REPORT, "interactiveUrl": url}
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+    source = SanityReportSource(project_id="p", dataset="production")
+
+    report = await source.get("buyouts-in-the-gcc")
+
+    assert report is not None and report.interactive_url == expected
+
+
 async def test_misses_are_cached_and_refresh_reads_fresh_into_the_cache(monkeypatch) -> None:
     hosts: list[str] = []
     published = False
