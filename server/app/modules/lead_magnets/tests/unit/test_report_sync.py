@@ -1,6 +1,8 @@
 """`ReportSync`: what a Sanity publish does to the flattened report and the
 Webflow Reports card."""
 
+from dataclasses import replace
+
 import pytest
 
 from app.modules.lead_magnets.application.insights_report.sync import ReportSync
@@ -33,6 +35,7 @@ class _FakeSource:
         self.free_pages = free_pages
         self.superseded = False
         self.saved: list[tuple[str, str, int, str]] = []
+        self.uploaded: list[tuple[bytes, str]] = []
         # Per pin, the slugs of the other reports still ticked in Sanity.
         self.ticked: dict[str, list[str]] = {"banner": []}
         self.unpinned: list[tuple[tuple[str, ...], str, str | None]] = []
@@ -63,6 +66,10 @@ class _FakeSource:
             return False
         self.saved.append((source.document_id, html, preview_end, rendered_from))
         return True
+
+    async def upload_image(self, data: bytes, mime: str) -> str:
+        self.uploaded.append((data, mime))
+        return f"https://cdn.sanity.io/images/p/d/{len(self.uploaded)}.png"
 
     async def unpin_others(self, pins, document_id: str, *, pinned_at: str | None):
         self.unpinned.append((tuple(pins), document_id, pinned_at))
@@ -265,5 +272,34 @@ async def test_a_render_superseded_by_a_newer_edit_is_dropped_and_touches_nothin
     source.superseded = True
 
     await _sync(source=source, cms=cms).sync(slug="buyouts-in-the-gcc", previous_slug=None)
+
+    assert source.saved == [] and cms.calls == []
+
+
+async def test_embedded_images_are_uploaded_once_and_swapped_before_the_split() -> None:
+    uri = "data:image/png;base64,AAAA"
+    html = f'<p>x</p><img src="{uri}"><img src="{uri}">'
+    source = _FakeSource(replace(_report(), html=html), stale=True)
+
+    await _sync(source=source, cms=_FakeCms()).sync(slug="buyouts-in-the-gcc", previous_slug=None)
+
+    assert source.uploaded == [(b"\x00\x00\x00", "image/png")]
+    _, saved, preview_end, _ = source.saved[0]
+    assert "data:image" not in saved
+    assert saved.count("https://cdn.sanity.io/images/p/d/1.png") == 2
+    assert preview_end == len(split_report(saved)[0])
+
+
+async def test_a_failed_image_upload_stops_the_sync_before_anything_is_saved() -> None:
+    class _Failing(_FakeSource):
+        async def upload_image(self, data: bytes, mime: str) -> str:
+            raise RuntimeError("Sanity rejected the image")
+
+    html = '<img src="data:image/png;base64,AAAA">'
+    source = _Failing(replace(_report(), html=html), stale=True)
+    cms = _FakeCms()
+
+    with pytest.raises(RuntimeError):
+        await _sync(source=source, cms=cms).sync(slug="buyouts-in-the-gcc", previous_slug=None)
 
     assert source.saved == [] and cms.calls == []

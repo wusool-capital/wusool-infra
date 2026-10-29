@@ -15,6 +15,7 @@ from app.modules.lead_magnets.application.shared.ports import (
     ReportsCmsPort,
     ReportSourcePort,
 )
+from app.modules.lead_magnets.domain.insights_report.images import data_images, swap_images
 from app.modules.lead_magnets.domain.insights_report.report import fingerprint
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 
@@ -48,6 +49,7 @@ class ReportSync:
             version := fingerprint(source.html, source.free_pages)
         ):
             rendered = await self._renderer.render(source.html, free_pages=source.free_pages)
+            rendered = await self._externalize_images(rendered)
             preview, _ = split_report(rendered)
             saved = await self._source.save_rendered(
                 source, html=rendered, preview_end=len(preview), rendered_from=version
@@ -78,6 +80,15 @@ class ReportSync:
         for other in lost:
             if other_id := await self._cms.find(other.slug):
                 await self._cms.unpin(other_id, other.pins)
+
+    async def _externalize_images(self, html: str) -> str:
+        """Embedded pictures would push the saved page past Sanity's 4 MB save limit.
+        Runs before the split, so `preview_end` indexes the final string."""
+        urls = {
+            image.uri: await self._source.upload_image(image.data, image.mime)
+            for image in data_images(html)
+        }
+        return swap_images(html, urls)
 
     async def _unpublish(self, slug: str) -> None:
         if card_id := await self._cms.find(slug):

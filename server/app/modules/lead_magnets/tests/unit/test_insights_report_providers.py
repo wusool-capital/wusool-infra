@@ -610,6 +610,34 @@ async def test_save_rendered_is_guarded_by_the_revision_it_read(monkeypatch) -> 
     }
 
 
+@pytest.mark.parametrize(("mime", "kind"), [("image/png", "images"), ("image/avif", "files")])
+async def test_upload_image_posts_raw_bytes_and_returns_the_cdn_url(
+    monkeypatch, mime: str, kind: str
+) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={"document": {"url": "https://cdn.sanity.io/x"}})
+
+    _use_transport(monkeypatch, handler)
+    store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
+
+    assert await store.upload_image(b"bytes", mime) == "https://cdn.sanity.io/x"
+    assert sent[0].url.path == f"/v2025-02-19/assets/{kind}/production"
+    assert sent[0].headers["authorization"] == "Bearer tok"
+    assert sent[0].headers["content-type"] == mime
+    assert sent[0].content == b"bytes"
+
+
+async def test_a_rejected_image_upload_raises(monkeypatch) -> None:
+    _use_transport(monkeypatch, lambda request: httpx.Response(400, json={}))
+    store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await store.upload_image(b"bytes", "image/png")
+
+
 async def test_article_unpin_others_unticks_drafts_too_in_one_transaction(monkeypatch) -> None:
     sent: list[httpx.Request] = []
 

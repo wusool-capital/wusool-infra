@@ -38,6 +38,9 @@ _CACHE_TTL_S = 300
 _CACHE_MAX = 512
 # An exported report is about 1 MB; the cap only stops a runaway file filling memory.
 _HTML_FILE_MAX_BYTES = 20_000_000
+_IMAGE_PIPELINE_MIMES = frozenset(
+    {"image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"}
+)
 _QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{'
     '_id, "slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
@@ -101,6 +104,18 @@ class _SanitySource(BaseModel):
     rendered_from: str | None = Field(default=None, alias="renderedFrom")
     free_pages: int = Field(default=1, ge=1, alias="freePages")
     locked_percent: int = Field(default=75, alias="lockedPercent")
+
+
+class _UploadedAsset(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    url: str
+
+
+class _UploadResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    document: _UploadedAsset
 
 
 class _SourceResponse(BaseModel):
@@ -169,6 +184,8 @@ class SanityReportSource:
         self._api_url = f"https://{project_id}.api.sanity.io{path}"
         self._mutate_url = f"https://{project_id}.api.sanity.io/{API_VERSION}/data/mutate/{dataset}"
         self._files_url = f"https://cdn.sanity.io/files/{project_id}/{dataset}/"
+        self._assets_url = f"https://{project_id}.api.sanity.io/{API_VERSION}/assets"
+        self._dataset = dataset
         self._write_token = write_token
         self._timeout_s = timeout_s
         # ponytail: per-process cache; a webhook refreshes one worker, the TTL bounds the rest.
@@ -218,6 +235,18 @@ class SanityReportSource:
             return False
         response.raise_for_status()
         return True
+
+    async def upload_image(self, data: bytes, mime: str) -> str:
+        # AVIF and other formats the image pipeline may not accept go up as plain files.
+        kind = "images" if mime in _IMAGE_PIPELINE_MIMES else "files"
+        async with httpx.AsyncClient(timeout=self._timeout_s) as client:
+            response = await client.post(
+                f"{self._assets_url}/{kind}/{self._dataset}",
+                content=data,
+                headers={"Authorization": f"Bearer {self._write_token}", "content-type": mime},
+            )
+        response.raise_for_status()
+        return _UploadResponse.model_validate_json(response.content).document.url
 
     async def unpin_others(
         self, pins: list[Pin], document_id: str, *, pinned_at: str | None
