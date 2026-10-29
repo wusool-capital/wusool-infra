@@ -43,6 +43,8 @@ class ReportDocument:
     seo_title: str | None = None
     seo_description: str | None = None
     og_title: str | None = None
+    # CDN file of the live bundle; only an unlocked reader of an interactive report is given it.
+    interactive_url: str | None = None
 
     @property
     def pins(self) -> list[Pin]:

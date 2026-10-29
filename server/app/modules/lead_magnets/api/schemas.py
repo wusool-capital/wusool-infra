@@ -610,6 +610,8 @@ class ReportResponse(BaseModel):
     title: str
     html: str
     locked: bool
+    # Set for an unlocked interactive report; the live file replaces `html` once drawn.
+    interactive_url: str | None = None
 
 
 class SanityWebhookBody(BaseModel):

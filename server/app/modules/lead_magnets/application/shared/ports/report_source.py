@@ -32,6 +32,10 @@ class ReportSourcePort(Protocol):
         when the document changed since `source` was read; nothing is saved."""
         ...
 
+    async def upload_image(self, data: bytes, mime: str) -> str:
+        """Stores one image and returns its CDN URL; the same bytes give the same URL."""
+        ...
+
     async def unpin_others(
         self, pins: list[Pin], document_id: str, *, pinned_at: str | None
     ) -> list[LostPins]:

@@ -24,6 +24,16 @@ person chooses to go ahead anyway.
 list in `reference.md`) in `checks.md`. Tell the person only what readers lose, in plain
 words, such as "the table will show as plain text".
 
+**An exported article (a bundle with live charts):** upload it as `htmlFile` and keep
+`bodyFormat: "rich"`. Decode it and list its charts as **Decode an exported bundle** in
+`reference.md` describes. Show the person the list (id and caption) and ask which
+are interactive: "These charts are in the file. Which ones react when you click or hover?"
+Then put an `exhibit` block in the body at the place each chart belongs:
+`exhibitId` from the list, `alt` describing the chart in one sentence, and `live: false`
+for the ones that don't react. The staff confirm the list; never guess it. Convert the
+rest of the article's text to Portable Text as above. The server captures the still
+images after publish, so a chart appears in the page only once the sync has run.
+
 **Either:** if the input has a key-takeaways or FAQ section, move it into
 `keyTakeaways` / `faq` instead of the body. Both are optional.
 
@@ -82,7 +92,10 @@ shorten it.
 
 ## 8. Publish (with approval)
 
-Follow **Publish** in `reference.md`. Then confirm it reached Webflow: the Insights
+Follow **Publish** in `reference.md`. For an article with charts, wait for the stills
+first, using the published id (no `drafts.`): `count(*[_id == $id][0].exhibitImages)`
+must equal the number of `exhibit` blocks (check about every 20 seconds, up to about
+3 minutes). Then confirm it reached Webflow: the Insights
 collection's **list collection items** action filtered by `slug` should return the item
 within a minute. If it doesn't, the slug may belong to a hand-written article (the sync
 skips it silently); tell the person the article didn't reach the site and why, in one

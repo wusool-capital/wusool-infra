@@ -14,15 +14,18 @@ page on wusoolcapital.com within a few moments.
    pages readers see before the form (1 if blank; the last page always
    stays locked). For rich text, **Locked share (%)** is how much sits behind
    the form, by text length (75 if blank).
-4. Optionally fill in the excerpt, cover image, primary silo, date, and the
+4. For an uploaded HTML file, optionally tick **Keep it interactive**.
+   After the form, readers then get the live report, with its charts and
+   clicks. The free preview stays flat, and the PDF is always flat.
+5. Optionally fill in the excerpt, cover image, primary silo, date, and the
    end-of-page button (text and link). The **SEO** tab sets the search and
    share titles; blank ones use the title and excerpt.
-5. Optionally tick **Pin to home page banner** to show "Just released:
+6. Optionally tick **Pin to home page banner** to show "Just released:
    {title}. Get the playbook →" across the top of the home page. It moves
    from whichever report held it before. Visitors can close the bar; it
    returns when a different report is pinned. The top of `/reports` always
    shows the newest report.
-6. Publish.
+7. Publish.
 
 **Expected result:** the report has a card on `wusoolcapital.com/reports`
 and its own page at `wusoolcapital.com/reports/<slug>`. See
@@ -47,10 +50,15 @@ see.
    body, and optionally the key takeaways and FAQ.
 3. Optionally fill in the cover image, author, silo, SEO fields and the
    end-of-page button. Blank SEO fields use the title and excerpt.
-4. Optionally tick **Pin to top of /insights** to make it the featured
+4. For an article with live charts, upload the exported file in
+   **Charts HTML file**. Then add a **Chart from the HTML file** block in the
+   body where each chart goes. Turn **Interactive** off for charts that
+   don't react to clicks. Charts show as pictures first and turn live as
+   the reader scrolls to them.
+5. Optionally tick **Pin to top of /insights** to make it the featured
    article. It replaces whichever article is pinned now, hand-written ones
    included.
-5. Publish.
+6. Publish.
 
 **Expected result:** the article appears on `wusoolcapital.com/insights`.
 Articles are not gated. Unticking the pin, or unpublishing the pinned

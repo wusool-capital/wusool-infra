@@ -117,7 +117,17 @@ async def read_report(
         return ReportResponse(
             title=report.title, html=report.html[: report.preview_end], locked=True
         )
-    return ReportResponse(title=report.title, html=report.html, locked=False)
+    return _unlocked(report)
+
+
+def _unlocked(report: ReportDocument) -> ReportResponse:
+    # The full copy stays so a failed live load still leaves the whole report readable.
+    return ReportResponse(
+        title=report.title,
+        html=report.html,
+        locked=False,
+        interactive_url=report.interactive_url,
+    )
 
 
 @router.get(
@@ -318,7 +328,7 @@ async def _open_report(
         httponly=True,
         samesite="lax",
     )
-    return ReportResponse(title=report.title, html=report.html, locked=False)
+    return _unlocked(report)
 
 
 @router.post("/reports/webhooks/sanity", status_code=status.HTTP_202_ACCEPTED)

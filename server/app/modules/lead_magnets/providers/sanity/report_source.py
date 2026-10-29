@@ -28,6 +28,7 @@ from app.modules.lead_magnets.domain.insights_report.report import (
     ReportDocument,
     ReportSource,
 )
+from app.modules.lead_magnets.providers.sanity.assets import upload_image
 from app.modules.lead_magnets.providers.sanity.images import resized
 from app.modules.lead_magnets.providers.sanity.portable_text import Block, rich_report
 
@@ -43,7 +44,8 @@ _QUERY = (
     '_id, "slug": slug.current, title, "html": renderedHtml, "previewEnd": renderedPreviewEnd, '
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
     'bannerPinned, silo, "ctaText": cta.text, "ctaUrl": cta.url, '
-    "seoTitle, seoDescription, ogTitle}"
+    "seoTitle, seoDescription, ogTitle, "
+    '"interactiveUrl": select(interactive == true => htmlFile.asset->url)}'
 )
 # Raw perspective so open drafts are unticked too; publishing one must not re-pin it.
 # Release versions are left alone: they are the editor's staged content, not live state.
@@ -80,6 +82,7 @@ class _SanityReport(BaseModel):
     seo_title: str | None = Field(default=None, alias="seoTitle")
     seo_description: str | None = Field(default=None, alias="seoDescription")
     og_title: str | None = Field(default=None, alias="ogTitle")
+    interactive_url: str | None = Field(default=None, alias="interactiveUrl")
 
 
 class _QueryResponse(BaseModel):
@@ -169,6 +172,8 @@ class SanityReportSource:
         self._api_url = f"https://{project_id}.api.sanity.io{path}"
         self._mutate_url = f"https://{project_id}.api.sanity.io/{API_VERSION}/data/mutate/{dataset}"
         self._files_url = f"https://cdn.sanity.io/files/{project_id}/{dataset}/"
+        self._assets_url = f"https://{project_id}.api.sanity.io/{API_VERSION}/assets"
+        self._dataset = dataset
         self._write_token = write_token
         self._timeout_s = timeout_s
         # ponytail: per-process cache; a webhook refreshes one worker, the TTL bounds the rest.
@@ -219,6 +224,16 @@ class SanityReportSource:
         response.raise_for_status()
         return True
 
+    async def upload_image(self, data: bytes, mime: str) -> str:
+        return await upload_image(
+            assets_url=self._assets_url,
+            dataset=self._dataset,
+            write_token=self._write_token,
+            data=data,
+            mime=mime,
+            timeout_s=self._timeout_s,
+        )
+
     async def unpin_others(
         self, pins: list[Pin], document_id: str, *, pinned_at: str | None
     ) -> list[LostPins]:
@@ -245,6 +260,10 @@ class SanityReportSource:
             LostPins(slug=slug, pins=tuple(p for p in pins if p in lost))
             for slug, lost in sorted(by_slug.items())
         ]
+
+    def _own_file(self, url: str | None) -> str | None:
+        # The browser loads this URL into a frame, so it must be this dataset's own file.
+        return url if url and url.startswith(self._files_url) else None
 
     async def _download(self, url: str) -> str:
         """Raises, not None: a failed fetch stops the sync before it unpublishes."""
@@ -312,4 +331,5 @@ class SanityReportSource:
             seo_title=doc.seo_title,
             seo_description=doc.seo_description,
             og_title=doc.og_title,
+            interactive_url=self._own_file(doc.interactive_url),
         )
