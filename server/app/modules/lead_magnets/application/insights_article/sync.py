@@ -15,6 +15,7 @@ import logging
 from app.modules.lead_magnets.application.shared.ports import (
     ArticlesCmsPort,
     ArticleSourcePort,
+    ReportRendererPort,
 )
 from app.modules.lead_magnets.domain.insights_article.article import ArticleDocument
 
@@ -22,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 class ArticleSync:
-    def __init__(self, *, source: ArticleSourcePort, cms: ArticlesCmsPort) -> None:
+    def __init__(
+        self, *, source: ArticleSourcePort, cms: ArticlesCmsPort, renderer: ReportRendererPort
+    ) -> None:
         self._source = source
         self._cms = cms
+        self._renderer = renderer
 
     async def sync(self, *, slug: str | None, previous_slug: str | None) -> None:
         """`slug` is `None` when the article was deleted or unpublished;
@@ -34,11 +38,35 @@ class ArticleSync:
         if slug is None:
             return
 
+        if not await self._capture_stills(slug):
+            # Edited again mid-capture; that edit's own webhook syncs the newer version.
+            logger.info("insights_article_sync_superseded slug=%s", slug)
+            return
+
         article = await self._source.get(slug)
         if article is None:
             await self._unpublish(slug)
             return
         await self._write(article)
+
+    async def _capture_stills(self, slug: str) -> bool:
+        """False only when the article changed mid-capture. A failure leaves the charts out."""
+        try:
+            pending = await self._source.pending_exhibits(slug)
+            if pending is None:
+                return True
+            shots = await self._renderer.exhibit_images(
+                await self._source.bundle(pending), pending.ids
+            )
+            urls = {
+                exhibit_id: await self._source.upload_image(png, "image/png")
+                for exhibit_id, png in shots.items()
+            }
+            return await self._source.save_exhibit_images(pending, urls)
+        except Exception:
+            # A wrong chart id or a Chromium timeout must not block unrelated text edits.
+            logger.exception("insights_article_stills_failed slug=%s", slug)
+            return True
 
     async def _write(self, article: ArticleDocument) -> None:
         item = await self._cms.find(article.slug)

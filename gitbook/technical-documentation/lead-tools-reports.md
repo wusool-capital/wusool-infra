@@ -25,6 +25,12 @@ readers become leads.
 4. **`GET /reports/{slug}/pdf`** prints the stored report to A4 on each
    download. It returns 403 without a reader cookie.
 
+An **interactive** report adds `interactive_url` to steps 1 and 3. It is the
+Sanity CDN URL of the report's HTML file, next to the whole stored report. The
+browser fetches that file and runs it in a sandboxed frame with no access to the
+page. If that fails, the stored copy stays. A locked reader never receives the
+URL. The PDF still prints the stored copy.
+
 A returning reader skips the form. Their first visit to a different report
 records one more run, so every report a person reads becomes one activity.
 

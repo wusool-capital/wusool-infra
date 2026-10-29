@@ -9,13 +9,15 @@ Use `reference.md` for every field rule and for how to upload, create and publis
 
 ## 2. Check HTML (`bodyFormat: "html"`)
 
-Exported reports are often around 1 MB. **Never read the whole file into the
-conversation**: run these in the code tool on the attached file, and never print
-matching lines in full (a single line can be the whole bundle).
+Exported reports run from about 1 MB to about 20 MB. **Never read the whole file into the
+conversation**. First decode the file as **Decode an exported bundle** in `reference.md`
+describes, then run these in the code tool, and never print matching lines in full (a
+single line can be the whole bundle).
 
 ```bash
-F=report.html   # the attached file's path in the code tool
-wc -c "$F"
+O=report.html   # the attached file's path in the code tool
+F=decoded.html  # its readable text, from the decode step
+wc -c "$O"
 # Meta refresh: stripped on render; the page must not depend on it
 grep -ciE 'http-equiv=["'\'']?refresh' "$F"
 # External hosts
@@ -36,7 +38,8 @@ checks out." in one line.
 
 What each result means:
 
-- **Size:** over 20 MB is refused by the server.
+- **Size:** over 20,000,000 bytes (`wc -c` on the original file) is refused by the
+  server. Within 1 MB of it, warn that a small re-export could cross the limit.
 - **External hosts:** any host other than `fonts.googleapis.com`, `fonts.gstatic.com` or
   `cdn.sanity.io` is blocked while rendering, so a script or image from it won't appear.
   Stylesheets from it load for readers but are missing in the PDF.
@@ -49,6 +52,12 @@ What each result means:
 
 `freePages` is a staff field (default 1). With a page viewer, it must leave at least the
 last page locked.
+
+**Keep it interactive?** Ask this only for a bundle that runs scripts (the decoded text
+has `<script`). Say it plainly: "After the form, readers get the live report, with its
+charts and clicks, instead of a flat copy. The free preview stays flat. It is a download
+of about the file's size for each reader." On yes, set `interactive: true`; on no,
+leave it unset. Record the answer in `checks.md`.
 
 ## 3. Check rich text (`bodyFormat: "rich"`)
 
@@ -77,9 +86,14 @@ staff-field table, and "Still blank: … Leave these blank?". Wait for an OK.
 
 ## 5. Write the draft
 
+If a draft with this slug already exists, **patch it; never create a second one**. Look it
+up in the raw perspective, upload the new file, then patch `htmlFile` (and `interactive`)
+on that draft. Show the person what changes first.
+
 1. Upload the cover (if given), any rich-text images and, for HTML, the report file as `file`.
 2. Create the draft with every field, including `bodyFormat`, `publishedAt`,
-   `bannerPinned` and, for HTML, `htmlFile`. Never set `html`.
+   `bannerPinned` and, for HTML, `htmlFile` and, if they said yes to "Keep it
+   interactive?", `interactive: true`. Never set `html`.
 3. For HTML, confirm the upload is the whole file:
 
    ```groq
@@ -107,6 +121,8 @@ seconds between checks (the code tool can `sleep`), for up to about 3 minutes, u
 - If it never renders, tell the person the report isn't showing on the site yet and
   that publishing again retries it. Put the likely cause in `checks.md`: the server may
   not be deployed with `htmlFile` support yet, or the sync failed.
+- For an interactive report, open the live page, unlock it, and check the report is
+  clickable. If the person can't, say so: readers still get the flat copy.
 - Check Webflow: the Reports collection's **list collection items** action filtered by
   `slug` should return the item. Without the Webflow connector, say this check didn't run.
 

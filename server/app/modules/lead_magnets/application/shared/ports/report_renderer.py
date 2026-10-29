@@ -10,6 +10,10 @@ class ReportRendererPort(Protocol):
         Without a gate of its own, it is gated after `free_pages` pages."""
         ...
 
+    async def exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
+        """A PNG per chart id (`<section id>#<figure number>`). Raises if one is missing."""
+        ...
+
     async def pdf(self, html: str) -> bytes:
         """Already-flattened HTML printed to A4, honouring the report's own page size."""
         ...

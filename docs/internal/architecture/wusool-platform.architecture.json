@@ -163,7 +163,7 @@
       "id": "research",
       "type": "external",
       "label": "Research providers",
-      "sublabel": "Firecrawl \u00b7 Diffbot \u00b7 PDL \u00b7 Apify \u00b7 Places",
+      "sublabel": "Firecrawl · Diffbot · PDL · Apify · Places",
       "pos": [
         1000,
         650
@@ -187,7 +187,7 @@
       "id": "github",
       "type": "cloud",
       "label": "GitHub Actions",
-      "sublabel": "OIDC \u00b7 build \u00b7 OpenTofu \u00b7 SSM",
+      "sublabel": "OIDC · build · OpenTofu · SSM",
       "pos": [
         980,
         20
@@ -211,7 +211,7 @@
       "id": "operations",
       "type": "security",
       "label": "AWS operations",
-      "sublabel": "SSM access \u00b7 logs \u00b7 Secrets",
+      "sublabel": "SSM access · logs · Secrets",
       "pos": [
         980,
         520
@@ -480,6 +480,13 @@
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "top"
+    },
+    {
+      "from": "website",
+      "to": "sanity",
+      "label": "live report and charts (CDN)",
+      "variant": "dashed",
+      "labelSegment": 0
     }
   ],
   "cards": [

@@ -121,6 +121,20 @@ export const report = defineType({
       hidden: isRich,
     }),
     defineField({
+      name: 'interactive',
+      group: 'content',
+      title: 'Keep it interactive',
+      type: 'boolean',
+      initialValue: false,
+      description:
+        'After the form, readers get the live report from the HTML file, with its charts and clicks. The free preview stays static. Needs the HTML file above.',
+      hidden: isRich,
+      validation: (rule) =>
+        rule.custom((value, context) =>
+          value && !context.document?.htmlFile ? 'Upload the HTML file to keep it interactive' : true,
+        ),
+    }),
+    defineField({
       name: 'freePages',
       group: 'content',
       title: 'Free pages',

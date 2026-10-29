@@ -325,6 +325,28 @@ code here: the renderer strips `<script>`, inline `on*` handlers,
 `javascript:` URLs, iframes, objects, `<base>` and meta refreshes before
 saving. `test_report_renderer.py` pins this, and CI fails if it can't run.
 
+## shared/interactive.js
+
+Loads an exported bundle from the Sanity CDN into a sandboxed frame:
+`sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"`, no
+`allow-same-origin`. `WusoolInteractive.mount(container, url, exhibit)` fetches
+the file once per URL and sets it as `srcdoc`, with a small script injected
+before `</head>` (never ahead of the doctype, which would force quirks mode).
+
+With an `exhibit` id (`<section id>#<figure number>`), that script hides
+everything but that figure, strips its ancestors' padding, and keeps polling,
+because the bundle swaps its page in after load. Without one, it reports the
+whole page's height. The frame's origin is `"null"`, so the parent matches
+messages by `event.source`, never by origin. The frame fires a `ready` event
+when the bundle first draws.
+
+The report page mounts the whole bundle after an unlock when the response has
+`interactive_url`, and hides the static copy once the frame is ready. If the
+load fails, the copy stays. A frame is collapsed until it draws and removed after
+30 s without a first paint, so a bundle that never draws leaves no gap.
+`embed.js` with `data-tool="insight"` mounts one frame per live chart figure as it
+scrolls near, and only for files under this project's own dataset.
+
 ## shared/submission-id.js
 
 One id per page load, for every tool. It must not be generated inside a

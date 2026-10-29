@@ -35,6 +35,18 @@ class ArticleDocument:
 
 
 @dataclass(frozen=True)
+class PendingExhibits:
+    """Charts whose still image hasn't been captured from the article's current HTML file."""
+
+    document_id: str
+    revision: str
+    bundle_url: str
+    ids: tuple[str, ...]
+    # Every chart's still so far, kept when the new ones are saved.
+    stills: dict[str, str]
+
+
+@dataclass(frozen=True)
 class CmsItem:
     """An existing Insights item, reduced to what the sync decides on."""
 

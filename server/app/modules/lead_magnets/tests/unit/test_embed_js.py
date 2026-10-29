@@ -211,3 +211,15 @@ def test_a_banner_click_is_counted_by_an_anonymous_pixel() -> None:
     assert 'pixel.referrerPolicy = "no-referrer"' in js
     assert '"/analytics/consent?choice="' in js
     assert "countChoice(granted === true);" in js
+
+
+def test_insight_mode_loads_the_loader_from_the_tools_origin_and_only_cdn_files() -> None:
+    """Webflow serves the article, so a relative path would 404 there; and a page's
+    markup must never decide which URL runs inside the frame."""
+    js = (static_dir() / "embed.js").read_text()
+
+    assert 'tool === "insight"' in js and "insight" not in _tools_map()
+    loaded = re.search(r'tag\.src = origin \+ "(/shared/interactive\.js)\?v=\d+"', js)
+    assert loaded, "the loader must be requested from the tools origin"
+    assert (static_dir() / loaded.group(1).lstrip("/")).is_file()
+    assert r"^https:\/\/cdn\.sanity\.io\/files\/itidwo8t\/production\/" in js

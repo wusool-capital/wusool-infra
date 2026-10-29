@@ -38,7 +38,7 @@ One upload per file; the file never goes into the conversation.
    ```
 
 3. The response's `reference` is the field value, as is: `cover`, a rich-text image
-   block (add `_key` and `alt`), or the report's `htmlFile`.
+   block (add `_key` and `alt`), or the `htmlFile` of a report or article.
 4. A `403` saying `blocked-by-allowlist` or `Host not in allowlist` means the code tool
    can't reach Sanity. Tell the person uploads are blocked: a Claude org owner must add `mcp.sanity.io` under
    **Organization settings → Capabilities → Code execution → Additional allowed domains**,
@@ -98,6 +98,9 @@ Rules for staff fields:
   explicit OK. Required ones can't be left blank.
 - After writing, end with one line listing the fields left blank.
 
+Reports with an HTML file also have **Keep it interactive** (no, if left blank: readers get
+the flat copy after the form). Ask it as `reports.md` describes.
+
 ### Insights staff fields (Studio order)
 
 | Field | Required | If left blank |
@@ -152,6 +155,7 @@ Rules for staff fields:
 | `body` | rich text | Required when `rich` |
 | `htmlFile` | file | The exported page as an uploaded `.html` file. Use this for HTML reports |
 | `html` | text | The same page pasted as text. Exactly one of `html` and `htmlFile`; leave `html` unset |
+| `interactive` | boolean | HTML only, needs `htmlFile`. `true` gives unlocked readers the live report; the free preview stays flat. Blank = flat |
 | `freePages` | integer ≥ 1 | HTML only. Blank = 1; the last page always stays locked |
 | `lockedPercent` | integer 10–90 | Rich only. Blank = 75 |
 | `cover` | image | Uploaded (see Upload a file). Without one, the Webflow card and share image are blank |
@@ -170,6 +174,8 @@ Rules for staff fields:
 | `excerpt` | text | Required, 2–3 sentences |
 | `bodyFormat` | `"rich"` \| `"html"` | Always set; applies to body, key takeaways and FAQ |
 | `body` / `bodyHtml` | rich text / text | Required (whichever `bodyFormat` picks) |
+| `htmlFile` | file | Rich only. The exported article, for its live charts. Used with `exhibit` blocks in `body` |
+| `exhibitImages` | array | Written by the server. Never set it |
 | `keyTakeaways` / `keyTakeawaysHtml` | rich text / text | Optional |
 | `faq` / `faqHtml` | rich text / text | Optional |
 | `cover` | image | Uploaded (see Upload a file). Without one, the Webflow card and share image are blank |
@@ -191,6 +197,57 @@ Rules for staff fields:
 
 There are no author, category or link document types.
 
+## Decode an exported bundle
+
+Design-tool exports are self-unpacking: the page sits inside `__bundler/template` and
+`__bundler/manifest`, so grepping the raw file misses most of it (it reports "no page
+viewer" for a report that has one). Run this in the code tool first; it writes the
+readable text to `decoded.html` and prints nothing else. A plain HTML file with no bundle
+is copied as it is.
+
+```python
+import base64, gzip, json, re, sys
+
+html = open(sys.argv[1], encoding="utf-8").read()
+
+
+def block(kind):
+    found = re.search(rf'<script type="__bundler/{kind}">(.*?)</script>', html, re.S)
+    return found.group(1) if found else None
+
+
+template = block("template")
+if template is None:
+    text = html
+else:
+    parts = [json.loads(template)]
+    for item in json.loads(block("manifest")).values():
+        if "javascript" in item["mime"] or item["mime"].startswith("text/"):
+            raw = base64.b64decode(item["data"])
+            parts.append((gzip.decompress(raw) if item.get("compressed") else raw).decode("utf-8", "replace"))
+    text = "\n".join(parts)
+open("decoded.html", "w", encoding="utf-8").write(text)
+```
+
+Run the checks on `decoded.html`. Only the size check uses the original file.
+
+To list an article's charts, run this on `decoded.html`. A chart's id is the id of the
+section it sits in, then `#`, then its number in that section, counting from 0:
+
+```python
+import re
+
+text = open("decoded.html", encoding="utf-8").read()
+for section in re.split(r'(?=<section\b)', text):
+    name = re.match(r'<section\b[^>]*\bid="([^"]+)"', section)
+    if not name:
+        continue
+    for number, figure in enumerate(re.findall(r'<figure\b.*?</figure>', section, re.S)):
+        caption = re.search(r'<figcaption[^>]*>(.*?)</figcaption>', figure, re.S)
+        label = re.sub(r'<[^>]+>', '', caption.group(1)).strip()[:80] if caption else ""
+        print(f"{name.group(1)}#{number}  {label}")
+```
+
 ## Rich text (Portable Text)
 
 Allowed, and nothing else:
@@ -201,6 +258,9 @@ Allowed, and nothing else:
 - **Annotation:** `link` with `href` (full URL, site path, or `mailto:`) and optional `blank`.
 - **Image block:** `{_type:"image", _key, asset:{_type:"reference", _ref:"image-…"}, alt}`.
   Ask the person to attach each image, upload it, and always set `alt`.
+- **Chart block (insights only):** `{_type:"exhibit", _key, exhibitId, alt, live}`. It
+  needs `htmlFile` on the article. `exhibitId` is `<section id>#<number>` from the chart
+  list; `alt` is required; `live: false` keeps the still image for a chart that doesn't react.
 - **Not possible:** tables, embeds, iframes, code blocks, colours, fonts. Turn tables into
   lists or short paragraphs, and say so in `checks.md`.
 
