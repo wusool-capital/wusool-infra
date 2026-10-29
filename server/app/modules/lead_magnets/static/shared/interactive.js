@@ -18,16 +18,23 @@
       return section ? section.querySelectorAll("figure")[Number(at[1])] || null : null;
     }
     function show(figure) {
-      document.body.style.margin = "0";
-      for (var node = figure; node && node !== document.body; node = node.parentNode) {
-        node.style.padding = "0";
-        node.style.margin = "0";
-        node.style.maxWidth = "none";
-        for (var i = 0; i < node.parentNode.children.length; i++) {
-          var sibling = node.parentNode.children[i];
-          if (sibling !== node && sibling.tagName !== "SCRIPT") sibling.style.display = "none";
+      // Siblings are hidden with !important because the bundle's own styles also set display.
+      var keep = [];
+      for (var node = figure; node; node = node.parentElement) keep.push(node);
+      keep.forEach(function (node) {
+        if (node !== figure && node !== document.documentElement) {
+          node.style.setProperty("padding", "0", "important");
+          node.style.setProperty("margin", "0", "important");
+          node.style.setProperty("max-width", "none", "important");
         }
-      }
+        Array.prototype.forEach.call(node.children, function (child) {
+          if (keep.indexOf(child) < 0 && child.tagName !== "STYLE" && child.tagName !== "SCRIPT") {
+            child.style.setProperty("display", "none", "important");
+          }
+        });
+      });
+      document.documentElement.style.setProperty("overflow", "hidden", "important");
+      document.body.style.setProperty("margin", "0", "important");
     }
     var last = 0;
     setInterval(function () {
@@ -67,6 +74,8 @@
   function mount(container, url, exhibit) {
     return bundle(url).then(function (html) {
       var script = "<script>(" + isolate + ")(" + JSON.stringify(exhibit || "") + ");<\/script>";
+      // Before </head>, never ahead of the doctype: that would drop the bundle into quirks mode.
+      var doc = html.indexOf("</head>") < 0 ? script + html : html.replace("</head>", function () { return script + "</head>"; });
       var frame = document.createElement("iframe");
       frame.setAttribute("sandbox", "allow-scripts allow-popups allow-popups-to-escape-sandbox");
       frame.style.cssText = "display:block;width:100%;border:0;height:0";
@@ -82,7 +91,7 @@
           frame.dispatchEvent(new Event("ready"));
         }
       });
-      frame.srcdoc = script + html;
+      frame.srcdoc = doc;
       container.appendChild(frame);
       return frame;
     });
