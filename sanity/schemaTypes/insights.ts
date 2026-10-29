@@ -1,4 +1,4 @@
-import {defineField, defineType} from 'sanity'
+import {type ArrayOfType, defineField, defineType} from 'sanity'
 
 import {SILOS} from './report'
 import {bodyFormat, exhibit, isHtml, isRich, richText} from './richText'
@@ -8,7 +8,12 @@ const CONTENT_TYPES = ['Article', 'Playbook', 'Case Study', 'Press']
 const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar', 'Wusool Capital']
 
 // One rich-text field and its pasted-HTML twin; `bodyFormat` shows one of the pair.
-const richOrHtml = (name: string, title: string, required: boolean, of = richText) => [
+const richOrHtml = (
+  name: string,
+  title: string,
+  required: boolean,
+  of: ArrayOfType[] = richText,
+) => [
   defineField({
     name,
     title,
