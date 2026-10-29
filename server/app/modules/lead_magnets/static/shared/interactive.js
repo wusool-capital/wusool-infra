@@ -50,6 +50,8 @@
   }
 
   var LOAD_TIMEOUT_MS = 30000;
+  // Same ceiling embed.js puts on a report: the 71-page one is about 118,000px.
+  var MAX_FRAME_HEIGHT = 200000;
   var fetched = {};
 
   // One download per bundle, however many exhibits share it.
@@ -84,8 +86,8 @@
       window.addEventListener("message", function (event) {
         var data = event.data;
         if (event.source !== frame.contentWindow || !data || data.type !== "wusool:frame-height") return;
-        if (typeof data.height !== "number") return;
-        frame.style.height = data.height + "px";
+        if (typeof data.height !== "number" || !isFinite(data.height) || data.height <= 0) return;
+        frame.style.height = Math.min(data.height, MAX_FRAME_HEIGHT) + "px";
         // First paint of the bundle: callers swap their placeholder for the frame now.
         if (!frame.dataset.ready) {
           frame.dataset.ready = "1";

@@ -96,3 +96,37 @@ async def test_a_chart_that_never_draws_leaves_no_gap_in_the_page() -> None:
         await browser.close()
 
     assert host_height == 0
+
+
+_GREEDY = """<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><p>tiny</p><script>
+  setInterval(() => parent.postMessage({type: 'wusool:frame-height', height: 9e9}, '*'), 50);
+</script></body></html>"""
+
+
+async def test_a_bundle_cannot_ask_for_an_absurd_frame_height() -> None:
+    await _require_chromium()
+    loader = (static_dir() / "shared" / "interactive.js").read_text(encoding="utf-8")
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch()
+        page = await browser.new_page()
+        await page.route(
+            "http://test.local/page", lambda r: r.fulfill(content_type="text/html", body=_PAGE)
+        )
+        await page.route(
+            "http://test.local/bundle.html",
+            lambda r: r.fulfill(
+                content_type="text/html", body=_GREEDY, headers={"access-control-allow-origin": "*"}
+            ),
+        )
+        await page.goto("http://test.local/page")
+        await page.add_script_tag(content=loader)
+        await page.evaluate(
+            "() => WusoolInteractive.mount(document.getElementById('host'), "
+            "'http://test.local/bundle.html')"
+        )
+        await asyncio.sleep(1)
+        height = await page.evaluate("document.querySelector('iframe').offsetHeight")
+        await browser.close()
+
+    assert height == 200000
