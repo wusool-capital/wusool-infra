@@ -27,6 +27,8 @@
           node.style.setProperty("margin", "0", "important");
           node.style.setProperty("max-width", "none", "important");
         }
+        // The figure's own children are the chart; only its ancestors' other children go.
+        if (node === figure) return;
         Array.prototype.forEach.call(node.children, function (child) {
           if (keep.indexOf(child) < 0 && child.tagName !== "STYLE" && child.tagName !== "SCRIPT") {
             child.style.setProperty("display", "none", "important");
@@ -43,7 +45,8 @@
         var figure = target();
         if (!figure) return;
         show(figure);
-        height = Math.ceil(figure.getBoundingClientRect().height);
+        // The bottom edge, not the height: the figure can sit a few px below the frame's top.
+        height = Math.ceil(figure.getBoundingClientRect().bottom);
       } else {
         height = document.body ? document.body.scrollHeight : 0;
       }
@@ -78,7 +81,8 @@
       var doc = html.indexOf("</head>") < 0 ? script + html : html.replace("</head>", function () { return script + "</head>"; });
       var frame = document.createElement("iframe");
       frame.setAttribute("sandbox", "allow-scripts allow-popups allow-popups-to-escape-sandbox");
-      frame.style.cssText = "display:block;width:100%;border:0;height:0";
+      // Not 0: a bundle first laid out in a zero-height viewport stays collapsed once resized.
+      frame.style.cssText = "display:block;width:100%;border:0;height:600px";
       frame.title = exhibit ? "Interactive chart" : "Interactive report";
       window.addEventListener("message", function (event) {
         var data = event.data;
