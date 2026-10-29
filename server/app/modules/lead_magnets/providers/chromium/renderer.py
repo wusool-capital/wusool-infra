@@ -56,6 +56,16 @@ _PRINT_ASSET_MAX_BYTES = 5_000_000
 # Staff-entered, so it is checked again before it reaches a selector.
 _EXHIBIT_ID = re.compile(r"^[A-Za-z0-9_-]+#\d+$")
 _STILL_WIDTH_PX = 800
+_VISIT_MS = 150
+_DRAW_MS = 1500
+_HIDE_PINNED = """() => {
+  for (const el of document.querySelectorAll('body *')) {
+    const position = getComputedStyle(el).position;
+    if ((position === 'fixed' || position === 'sticky') && !el.querySelector('figure')) {
+      el.style.setProperty('display', 'none', 'important');
+    }
+  }
+}"""
 
 _HERE = Path(__file__).parent
 _WAIT_FOR_QUIET = (_HERE / "wait_for_quiet.js").read_text()
@@ -127,16 +137,23 @@ class ChromiumReportRenderer:
             settle = {"quietMs": _QUIET_MS, "maxMs": _SETTLE_MAX_MS}
             await page.evaluate(_WAIT_FOR_QUIET, settle)
             await page.evaluate("document.fonts.ready.then(() => true)")
-            shots: dict[str, bytes] = {}
+            # A sticky bar or header would be painted over the chart in an element screenshot.
+            await page.evaluate(_HIDE_PINNED)
+            figures = {}
             for exhibit_id in exhibit_ids:
                 if not _EXHIBIT_ID.match(exhibit_id):
                     raise ValueError(f"not a chart id: {exhibit_id!r}")
                 section, index = exhibit_id.rsplit("#", 1)
-                figures = page.locator(f'[id="{section}"] figure')
-                if await figures.count() <= int(index):
+                found = page.locator(f'[id="{section}"] figure')
+                if await found.count() <= int(index):
                     raise ValueError(f"no chart {exhibit_id} in the article's HTML file")
-                shots[exhibit_id] = await figures.nth(int(index)).screenshot()
-            return shots
+                figures[exhibit_id] = found.nth(int(index))
+            # Charts draw when scrolled to, so visit them all, then wait once for the drawing.
+            for figure in figures.values():
+                await figure.scroll_into_view_if_needed()
+                await page.wait_for_timeout(_VISIT_MS)
+            await page.wait_for_timeout(_DRAW_MS)
+            return {i: await figure.screenshot() for i, figure in figures.items()}
 
     async def _pdf(self, html: str) -> bytes:
         # Flattened HTML has no scripts, so nothing to wait for beyond load and fonts.

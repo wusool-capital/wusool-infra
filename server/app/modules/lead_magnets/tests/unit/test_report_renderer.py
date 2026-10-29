@@ -4,6 +4,7 @@ Dockerfile does); skipped where it isn't there.
 """
 
 import asyncio
+import base64
 import functools
 import os
 import re
@@ -259,3 +260,47 @@ async def test_a_chart_that_is_not_there_or_not_an_id_raises(exhibit_id: str) ->
 
     with pytest.raises(ValueError):
         await ChromiumReportRenderer().exhibit_images(_ARTICLE, (exhibit_id,))
+
+
+_DRAWN_ON_SCROLL = """<!DOCTYPE html><html><body style="margin:0">
+<div style="height:1600px">spacer</div>
+<section id="beat-1"><figure id="f" style="margin:0;height:120px;background:#fff">
+  <div id="bar" style="height:120px;background:#fff"></div></figure></section>
+<div style="height:1600px">spacer</div>
+<div style="position:fixed;left:0;right:0;bottom:0;height:900px;background:#00f"></div>
+<script>
+  new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) {
+      setTimeout(() => { document.getElementById('bar').style.background = '#f00'; }, 400);
+    }
+  }).observe(document.getElementById('f'));
+</script></body></html>"""
+
+_PIXEL = """async (b64) => {
+  const img = new Image();
+  img.src = 'data:image/png;base64,' + b64;
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width; canvas.height = img.height;
+  const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+  return Array.from(ctx.getImageData(10, 60, 1, 1).data);
+}"""
+
+
+async def test_a_chart_that_draws_on_scroll_is_captured_drawn_and_clear_of_pinned_overlays() -> (
+    None
+):
+    await _require_chromium()
+
+    shots = await ChromiumReportRenderer().exhibit_images(_DRAWN_ON_SCROLL, ("beat-1#0",))
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch()
+        page = await browser.new_page()
+        red, green, blue, _ = await page.evaluate(
+            _PIXEL, base64.b64encode(shots["beat-1#0"]).decode()
+        )
+        await browser.close()
+    assert (red, green, blue) == (255, 0, 0), (
+        "drawn red; blue would mean the fixed overlay was captured"
+    )
