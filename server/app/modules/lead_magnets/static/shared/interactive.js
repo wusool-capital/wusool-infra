@@ -12,6 +12,18 @@
       if (site) link.href = new URL(href, site).href;
       link.target = "_blank";
     }, true);
+    // The frame resolves "#id" against the parent's URL, so following it loads the parent page inside the frame.
+    document.addEventListener("click", function (event) {
+      var link = event.target.closest && event.target.closest('a[href^="#"]');
+      if (!link || event.defaultPrevented) return;
+      event.preventDefault();
+      var id = decodeURIComponent(link.getAttribute("href").slice(1));
+      var target = id && (document.getElementById(id) || document.getElementsByName(id)[0]);
+      if (!target) return;
+      // Not scrollIntoView: that also scrolls the parent page, sliding the frame under the site header.
+      var margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+      window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - margin });
+    });
     function target() {
       var at = exhibit.split("#");
       var section = document.getElementById(at[0]);
