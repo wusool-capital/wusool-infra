@@ -51,12 +51,14 @@ class ReportUnlock:
         challenges: UnlockChallengesPort,
         mailer: EmailSenderPort,
         email_from: str,
+        reply_to: str,
         ttl_s: int,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._challenges = challenges
         self._mailer = mailer
         self._email_from = email_from
+        self._reply_to = reply_to
         self._ttl_s = ttl_s
         self._clock = clock
         self._per_email = FixedWindowRateLimiter(limit=_CODES_PER_EMAIL, window_s=_CODES_WINDOW_S)
@@ -80,6 +82,8 @@ class ReportUnlock:
                 subject=email.subject,
                 body=email.html,
                 is_html=True,
+                reply_to=self._reply_to,
+                text=email.text,
             )
         except Exception as exc:
             self._challenges.delete(challenge_id)

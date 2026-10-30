@@ -35,6 +35,9 @@ for current production evidence and open handover items.
 - Full-page images in a report, such as section covers, no longer show
   enlarged and cropped in Safari. Safari ignored their `height: 100%`, so the
   page now pins them to the page's height.
+- Report code emails are less likely to land in spam. They come from
+  `reports@wusoolcapital.com` with a plain-text part, and SES uses
+  `mail.wusoolcapital.com` as its return address.
 
 ## 2026-10-29
 

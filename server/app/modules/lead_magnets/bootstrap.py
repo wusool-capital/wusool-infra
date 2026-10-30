@@ -292,7 +292,8 @@ def build_report_unlock() -> ReportUnlock:
     return ReportUnlock(
         challenges=InMemoryUnlockChallenges(),
         mailer=build_lead_magnet_mailer(),
-        email_from=settings.lead_magnet_email_from,
+        email_from=settings.lead_magnet_report_code_email_from,
+        reply_to=settings.lead_magnet_email_from,
         ttl_s=settings.lead_magnet_report_code_ttl_s,
     )
 
