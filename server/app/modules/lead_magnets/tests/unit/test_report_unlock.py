@@ -1,6 +1,8 @@
 """`ReportUnlock`: a code opens the gate once, only before it expires, only for
 the report it was sent for, and only within five guesses."""
 
+from dataclasses import dataclass
+
 import pytest
 
 from app.modules.lead_magnets.application.insights_report.unlock import (
@@ -23,10 +25,17 @@ _FORM = ReaderForm(submission_id="s", name="Dana", company="Acme", email="dana@a
 _SLUG = "buyouts"
 
 
+@dataclass(frozen=True)
+class _Sent:
+    from_addr: str
+    reply_to: str | None
+    text: str | None
+
+
 class _Mailer:
     def __init__(self) -> None:
         self.codes: list[str] = []
-        self.sent: list[dict[str, object]] = []
+        self.sent: list[_Sent] = []
 
     async def send(
         self,
@@ -40,7 +49,7 @@ class _Mailer:
         text: str | None = None,
     ) -> None:
         self.codes.append(subject.split(" ", 1)[0])
-        self.sent.append({"from": from_addr, "reply_to": reply_to, "text": text})
+        self.sent.append(_Sent(from_addr=from_addr, reply_to=reply_to, text=text))
 
 
 class _Clock:
@@ -189,6 +198,6 @@ async def test_the_code_goes_from_its_own_sender_with_a_text_part(unlock, mailer
     await _send(unlock)
 
     sent = mailer.sent[0]
-    assert sent["from"] == "reports@wusoolcapital.com"
-    assert sent["reply_to"] == "contact@wusoolcapital.com"
-    assert isinstance(sent["text"], str) and mailer.codes[0] in sent["text"]
+    assert sent.from_addr == "reports@wusoolcapital.com"
+    assert sent.reply_to == "contact@wusoolcapital.com"
+    assert sent.text is not None and mailer.codes[0] in sent.text

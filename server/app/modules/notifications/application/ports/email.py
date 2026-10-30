@@ -18,5 +18,6 @@ class EmailSenderPort(Protocol):
         body: str,
         is_html: bool = False,
         reply_to: str | None = None,
+        # A plain-text alternative to an HTML body; ignored when `is_html` is False.
         text: str | None = None,
     ) -> None: ...
