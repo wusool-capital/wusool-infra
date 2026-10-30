@@ -705,7 +705,6 @@ async def test_a_whole_page_article_is_only_its_files_marker(monkeypatch) -> Non
     assert article is not None
     assert (article.body_html, article.page_url) == (_PAGE_MARKER, _LIVE)
     assert article.key_takeaways_html is None and article.faq_html is None
-    assert article.hide_header is False
 
 
 async def test_a_whole_page_article_can_drop_the_templates_header(monkeypatch) -> None:
@@ -714,8 +713,7 @@ async def test_a_whole_page_article_can_drop_the_templates_header(monkeypatch) -
 
     article = await SanityArticleSource(project_id="p", dataset="production").get("exit-guide")
 
-    assert article is not None
-    assert (article.body_html, article.hide_header) == (_BARE_MARKER, True)
+    assert article is not None and article.body_html == _BARE_MARKER
 
 
 async def test_hiding_the_header_is_ignored_outside_whole_page_mode(monkeypatch) -> None:
@@ -724,7 +722,7 @@ async def test_hiding_the_header_is_ignored_outside_whole_page_mode(monkeypatch)
 
     article = await SanityArticleSource(project_id="p", dataset="production").get("exit-guide")
 
-    assert article is not None and article.hide_header is False
+    assert article is not None and "data-page" not in article.body_html
 
 
 async def test_a_whole_page_article_without_the_datasets_own_file_is_not_written(

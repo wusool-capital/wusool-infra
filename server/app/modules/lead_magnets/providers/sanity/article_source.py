@@ -192,9 +192,8 @@ class SanityArticleSource:
             return None
         exhibits = self._exhibits(doc)
         page_url = self._own_file(doc.html_file_url) if doc.body_format == "page" else None
-        hide_header = bool(doc.hide_header)
         body = (
-            page_marker(page_url, hide_header=hide_header)
+            page_marker(page_url, hide_header=bool(doc.hide_header))
             if page_url
             else doc.html(doc.body, doc.body_html, exhibits)
         )
@@ -225,7 +224,6 @@ class SanityArticleSource:
             cta_text=doc.cta_text,
             cta_url=doc.cta_url,
             page_url=page_url,
-            hide_header=hide_header and page_url is not None,
         )
 
     async def pending_exhibits(self, slug: str) -> PendingExhibits | None:
