@@ -128,7 +128,7 @@
       loading ||
       new Promise(function (resolve, reject) {
         var tag = document.createElement("script");
-        tag.src = origin + "/shared/interactive.js?v=8";
+        tag.src = origin + "/shared/interactive.js?v=9";
         tag.onload = function () {
           resolve(window.WusoolInteractive);
         };
