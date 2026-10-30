@@ -128,7 +128,7 @@
       loading ||
       new Promise(function (resolve, reject) {
         var tag = document.createElement("script");
-        tag.src = origin + "/shared/interactive.js?v=3";
+        tag.src = origin + "/shared/interactive.js?v=4";
         tag.onload = function () {
           resolve(window.WusoolInteractive);
         };
@@ -143,12 +143,12 @@
     return /^https:\/\/cdn\.sanity\.io\/files\/itidwo8t\/production\//.test(url || "");
   }
 
-  // The bottom of the site's fixed header, which the page must sit below.
-  function headerBottom() {
+  // The site's fixed header, which the page must sit below.
+  function fixedHeader() {
     for (var node = document.elementFromPoint(window.innerWidth / 2, 1); node; node = node.parentElement) {
-      if (getComputedStyle(node).position === "fixed") return Math.ceil(node.getBoundingClientRect().bottom);
+      if (getComputedStyle(node).position === "fixed") return node;
     }
-    return 0;
+    return null;
   }
 
   function wholePage(origin, figure) {
@@ -166,17 +166,29 @@
     interactive(origin)
       .then(function (api) {
         // Measured once the page has laid out, not while this script is still parsing.
-        top = headerBottom();
+        var header = fixedHeader();
+        top = header ? Math.ceil(header.getBoundingClientRect().bottom) : 0;
         return api.mount(holder, bundle, "", {
           height: "calc(100vh - " + top + "px)",
           site: window.location.origin,
         });
       })
       .then(function (frame) {
+        // With no hero under it, the header is painted the hero's navy at the top, as on other articles.
+        function paintHeader(atTop) {
+          var header = bare && fixedHeader();
+          if (header) header.style.backgroundColor = atTop ? "#0b0d18" : "";
+        }
+        window.addEventListener("message", function (event) {
+          var data = event.data;
+          if (event.source !== frame.contentWindow || !data || data.type !== "wusool:frame-top") return;
+          paintHeader(data.top === true);
+        });
         frame.addEventListener("ready", function () {
           if (bare) {
             holder.style.paddingTop = top + "px";
             article.style.display = "none";
+            paintHeader(true);
           } else {
             body.style.display = "none";
           }
@@ -184,6 +196,9 @@
       })
       .catch(function () {
         holder.remove();
+        // The template's head style hides the fallback until the page draws; a failed load shows it now.
+        article.style.visibility = "visible";
+        body.style.visibility = "visible";
       });
   }
 

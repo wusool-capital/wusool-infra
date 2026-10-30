@@ -12,6 +12,17 @@
       if (site) link.href = new URL(href, site).href;
       link.target = "_blank";
     }, true);
+    // A whole page tells the site when it leaves the top, so the site's header can change with it.
+    if (site) {
+      var atTop = null;
+      var reportTop = function () {
+        var top = window.scrollY < 8;
+        if (top === atTop) return;
+        atTop = top;
+        parent.postMessage({ type: "wusool:frame-top", top: top }, "*");
+      };
+      window.addEventListener("scroll", reportTop, { passive: true });
+    }
     // The frame resolves "#id" against the parent's URL, so following it loads the parent page inside the frame.
     document.addEventListener("click", function (event) {
       var link = event.target.closest && event.target.closest('a[href^="#"]');
