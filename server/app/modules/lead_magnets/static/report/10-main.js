@@ -42,6 +42,14 @@ function fit(){
 }
 window.addEventListener("resize",fit);
 
+// Sites refuse to load in this frame, so a report link followed in place shows a blank page.
+document.getElementById("report").addEventListener("click",e=>{
+  const link=e.target.closest("a[href]");
+  if(!link||link.getAttribute("href").startsWith("#"))return;
+  link.target="_blank";
+  link.rel="noopener";
+});
+
 async function loadReport(){
   // A missing report renders nothing, so the iframe stays at zero height.
   const r=await fetch(REPORT_URL,{credentials:"same-origin"});

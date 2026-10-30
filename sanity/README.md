@@ -67,7 +67,7 @@ magick -density 300 favicon.svg -define icon:auto-resize=48,32,16 favicon.ico
    | URL | `https://tools.wusoolcapital.com/reports/webhooks/sanity` (dev: `https://63-184-6-136.sslip.io/reports/webhooks/sanity`) |
    | Dataset | `production` |
    | Trigger on | Create, Update, Delete |
-   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, htmlFile, interactive, excerpt, cover, silo, publishedAt, bannerPinned, cta, seoTitle, seoDescription, ogTitle, freePages, lockedPercent)) \|\| !defined(renderedHtml))) \|\| (_type == "insights" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, contentType, excerpt, bodyFormat, body, bodyHtml, keyTakeaways, keyTakeawaysHtml, faq, faqHtml, htmlFile, cover, author, silo, publishedAt, featured, h1, seoTitle, seoDescription, ogTitle, targetKeyword, cta))))` |
+   | Filter | `(_type == "report" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, bodyFormat, body, html, htmlFile, interactive, excerpt, cover, silo, publishedAt, bannerPinned, cta, seoTitle, seoDescription, ogTitle, freePages, lockedPercent)) \|\| !defined(renderedHtml))) \|\| (_type == "insights" && (delta::operation() != "update" \|\| delta::changedAny((title, slug, contentType, excerpt, bodyFormat, body, bodyHtml, keyTakeaways, keyTakeawaysHtml, faq, faqHtml, htmlFile, hideHeader, cover, author, silo, publishedAt, featured, h1, seoTitle, seoDescription, ogTitle, targetKeyword, cta))))` |
    | Projection | `{"type": coalesce(after()._type, before()._type), "slug": after().slug.current, "previousSlug": before().slug.current}` |
    | HTTP method | `POST` |
    | Secret | a random string, also stored as `LEAD_MAGNET_SANITY_WEBHOOK_SECRET` |
@@ -138,9 +138,19 @@ tick, and publishing that draft takes the pin back.
 ## Publishing an Insights article
 
 Fill in the title, slug, content type, excerpt and body. Pick **Write with**
-first: the rich text editor, or pasted HTML. The choice applies to the body,
-key takeaways and FAQ. Pasted HTML is cleaned on publish: scripts, styles,
-tables and anything else Webflow's rich text can't show are removed.
+first: the rich text editor, pasted HTML, or HTML file as the whole page.
+The choice applies to the body, key takeaways and FAQ. Pasted HTML is cleaned
+on publish: scripts, styles, tables and anything else Webflow's rich text
+can't show are removed.
+
+**HTML file as the whole page** keeps an exported design exactly, sidebar
+included. Upload the file as **Charts HTML file**; the body, key takeaways
+and FAQ are hidden. On publish the server writes a marker and the page's text
+to the Webflow body. The marker is where `embed.js` mounts the file, a full
+screen tall under the site header, and the text is what search engines read.
+The file scrolls inside its frame, so sticky parts stay put. Its links open in
+a new tab. **Hide header and author details** drops the template's title and
+author row, so only the site navbar sits above the file.
 
 The SEO title, SEO description, share title and H1 default to the title and
 excerpt when left blank. Cover image, author, silo, date, target keyword and

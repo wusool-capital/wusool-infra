@@ -13,6 +13,7 @@ from app.modules.lead_magnets.domain.insights_article.article import (
     ArticleDocument,
     CmsItem,
     PendingExhibits,
+    text_paragraphs,
 )
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 from app.modules.lead_magnets.providers.sanity.article_source import SanityArticleSource
@@ -296,8 +297,8 @@ class _Source:
     async def pending_exhibits(self, slug: str) -> PendingExhibits | None:
         return self.pending
 
-    async def bundle(self, pending: PendingExhibits) -> str:
-        return "<html>bundle</html>"
+    async def html_file(self, url: str) -> str:
+        return "<html>bundle</html>" if url == _LIVE and self.pending else f"<html>{url}</html>"
 
     async def upload_image(self, data: bytes, mime: str) -> str:
         self.uploaded.append(data)
@@ -341,6 +342,10 @@ class _Renderer:
     async def exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
         self.calls.append((html, exhibit_ids))
         return {i: f"png-{i}".encode() for i in exhibit_ids}
+
+    async def text(self, html: str) -> str:
+        self.calls.append((html, ()))
+        return "Sizing the market\n\n  Rents & prices  \n"
 
 
 async def _sync(
@@ -685,3 +690,88 @@ async def test_a_chart_that_cannot_be_captured_does_not_stop_the_text_publishing
     await _sync(cms, slug="exit-guide", previous=None, source=source, renderer=_Broken())
 
     assert cms.calls == [("create", "exit-guide")] and source.saved == []
+
+
+_PAGE_MARKER = f'<figure data-page data-bundle="{_LIVE}"></figure>'
+_BARE_MARKER = f'<figure data-page="bare" data-bundle="{_LIVE}"></figure>'
+
+
+async def test_a_whole_page_article_is_only_its_files_marker(monkeypatch) -> None:
+    doc = _rich_doc(bodyFormat="page", htmlFileUrl=_LIVE, body=[_text("Ignored")])
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    article = await SanityArticleSource(project_id="p", dataset="production").get("exit-guide")
+
+    assert article is not None
+    assert (article.body_html, article.page_url) == (_PAGE_MARKER, _LIVE)
+    assert article.key_takeaways_html is None and article.faq_html is None
+
+
+async def test_a_whole_page_article_can_drop_the_templates_header(monkeypatch) -> None:
+    doc = _rich_doc(bodyFormat="page", htmlFileUrl=_LIVE, hideHeader=True)
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    article = await SanityArticleSource(project_id="p", dataset="production").get("exit-guide")
+
+    assert article is not None and article.body_html == _BARE_MARKER
+
+
+async def test_hiding_the_header_is_ignored_outside_whole_page_mode(monkeypatch) -> None:
+    doc = _rich_doc(body=[_text("Text")], hideHeader=True)
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    article = await SanityArticleSource(project_id="p", dataset="production").get("exit-guide")
+
+    assert article is not None and "data-page" not in article.body_html
+
+
+async def test_a_whole_page_article_without_the_datasets_own_file_is_not_written(
+    monkeypatch,
+) -> None:
+    doc = _rich_doc(bodyFormat="page", htmlFileUrl="https://evil.example/x.html")
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    assert await SanityArticleSource(project_id="p", dataset="production").get("x") is None
+
+
+async def test_a_whole_page_article_carries_its_text_for_search_engines() -> None:
+    written: list[ArticleDocument] = []
+
+    class _Recording(_Cms):
+        async def create(self, article: ArticleDocument) -> str:
+            written.append(article)
+            return await super().create(article)
+
+    renderer = _Renderer()
+    article = _article(body_html=_PAGE_MARKER, page_url=_LIVE)
+
+    await _sync(_Recording(), article, slug="exit-guide", previous=None, renderer=renderer)
+
+    assert renderer.calls == [(f"<html>{_LIVE}</html>", ())]
+    assert written[0].body_html == (
+        _PAGE_MARKER + "<p>Sizing the market</p><p>Rents &amp; prices</p>"
+    )
+
+
+async def test_a_page_whose_text_cannot_be_read_still_publishes_its_marker() -> None:
+    class _Broken(_Renderer):
+        async def text(self, html: str) -> str:
+            raise TimeoutError
+
+    cms = _Cms()
+    article = _article(body_html=_PAGE_MARKER, page_url=_LIVE)
+
+    await _sync(cms, article, slug="exit-guide", previous=None, renderer=_Broken())
+
+    assert cms.calls == [("create", "exit-guide")]
+
+
+def test_page_text_is_escaped_and_drops_blank_lines() -> None:
+    assert text_paragraphs("<b>x</b>\n\n y ") == "<p>&lt;b&gt;x&lt;/b&gt;</p><p>y</p>"
+
+
+@pytest.mark.parametrize("marker", [_PAGE_MARKER, _BARE_MARKER])
+def test_pasted_html_cannot_mark_a_file_as_the_whole_page(marker: str) -> None:
+    cleaned = sanitize(marker)
+
+    assert "data-page" not in cleaned and "data-bundle" not in cleaned

@@ -108,6 +108,10 @@ class ChromiumReportRenderer:
         async with self._lock:
             return await asyncio.wait_for(self._render(html, free_pages), _RENDER_TIMEOUT_S)
 
+    async def text(self, html: str) -> str:
+        async with self._lock:
+            return await asyncio.wait_for(self._text(html), _RENDER_TIMEOUT_S)
+
     async def exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
         async def locked() -> dict[str, bytes]:
             async with self._lock:
@@ -125,11 +129,13 @@ class ChromiumReportRenderer:
 
     async def _render(self, html: str, free_pages: int) -> str:
         async with _isolated_page() as page:
-            await page.set_content(_META_REFRESH.sub("", html), wait_until="load")
-            settle = {"quietMs": _QUIET_MS, "maxMs": _SETTLE_MAX_MS}
-            await page.evaluate(_WAIT_FOR_QUIET, settle)
-            await page.evaluate("document.fonts.ready.then(() => true)")
+            await _settle(page, html)
             return await page.evaluate(_SERIALIZE, free_pages)
+
+    async def _text(self, html: str) -> str:
+        async with _isolated_page() as page:
+            await _settle(page, html)
+            return await page.evaluate("document.body.innerText")
 
     async def _exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
         async with _isolated_page() as page:
@@ -170,6 +176,13 @@ class ChromiumReportRenderer:
                 margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
                 prefer_css_page_size=True,
             )
+
+
+async def _settle(page: Page, html: str) -> None:
+    await page.set_content(_META_REFRESH.sub("", html), wait_until="load")
+    settle = {"quietMs": _QUIET_MS, "maxMs": _SETTLE_MAX_MS}
+    await page.evaluate(_WAIT_FOR_QUIET, settle)
+    await page.evaluate("document.fonts.ready.then(() => true)")
 
 
 @asynccontextmanager

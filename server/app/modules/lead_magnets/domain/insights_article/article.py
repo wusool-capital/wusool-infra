@@ -5,6 +5,7 @@
 """
 
 from dataclasses import dataclass
+from html import escape
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,13 @@ class ArticleDocument:
     silo: str | None = None
     cta_text: str | None = None
     cta_url: str | None = None
+    # Set when the HTML file is the whole page; `body_html` then marks where it mounts.
+    page_url: str | None = None
+
+
+def text_paragraphs(text: str) -> str:
+    """Plain text as escaped paragraphs, one per non-blank line."""
+    return "".join(f"<p>{escape(line.strip())}</p>" for line in text.splitlines() if line.strip())
 
 
 @dataclass(frozen=True)

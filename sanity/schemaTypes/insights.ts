@@ -1,11 +1,13 @@
 import {type ArrayOfType, defineField, defineType} from 'sanity'
 
 import {SILOS} from './report'
-import {bodyFormat, exhibit, isHtml, isRich, richText} from './richText'
+import {bodyFormat, type Context, exhibit, isHtml, isPage, isRich, richText} from './richText'
 
 // Exact Webflow names; the sync resolves them to Webflow ids. "Report" belongs to /reports.
 const CONTENT_TYPES = ['Article', 'Playbook', 'Case Study', 'Press']
 const AUTHORS = ['Jules Chasles', 'Hugo Cugnet', 'Ramzy Osman', 'Maria Najjar', 'Wusool Capital']
+
+const isPasted = (context: Context) => isHtml(context) && !isPage(context)
 
 // One rich-text field and its pasted-HTML twin; `bodyFormat` shows one of the pair.
 const richOrHtml = (
@@ -35,10 +37,10 @@ const richOrHtml = (
     group: 'content',
     rows: 16,
     description: 'Scripts, styles and anything Webflow rich text cannot show are removed on publish.',
-    hidden: isRich,
+    hidden: (context) => !isPasted(context),
     validation: (rule) =>
       rule.custom((value, context) =>
-        required && isHtml({document: context.document}) && !value?.trim()
+        required && isPasted({document: context.document}) && !value?.trim()
           ? 'Required'
           : true,
       ),
@@ -94,7 +96,11 @@ export const insights = defineType({
       description: '2-3 sentences for the /insights card and search results.',
       validation: (rule) => rule.required(),
     }),
-    bodyFormat('rich', 'Applies to the body, key takeaways and FAQ.'),
+    bodyFormat(
+      'rich',
+      'Applies to the body, key takeaways and FAQ. "HTML file as the whole page" shows the uploaded file as the article, as it looks opened in a browser.',
+      true,
+    ),
     ...richOrHtml('body', 'Body', true, [...richText, exhibit]),
     defineField({
       name: 'htmlFile',
@@ -102,8 +108,22 @@ export const insights = defineType({
       title: 'Charts HTML file',
       type: 'file',
       options: {accept: '.html,text/html'},
-      description: 'The exported article. Its charts are shown live where the body has a chart block.',
-      hidden: isHtml,
+      description:
+        'The exported article. With the rich text editor, its charts are shown live where the body has a chart block.',
+      hidden: isPasted,
+      validation: (rule) =>
+        rule.custom((value, context) =>
+          isPage({document: context.document}) && !value?.asset ? 'Required' : true,
+        ),
+    }),
+    defineField({
+      name: 'hideHeader',
+      group: 'content',
+      title: 'Hide header and author details',
+      type: 'boolean',
+      initialValue: false,
+      description: 'Shows only the site navbar above the page, so the file fills the screen.',
+      hidden: (context) => !isPage(context),
     }),
     // Written by the server: one still image per chart, taken from the file.
     defineField({
