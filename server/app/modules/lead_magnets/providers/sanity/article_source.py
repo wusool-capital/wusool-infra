@@ -44,7 +44,7 @@ _QUERY = (
     f'"faq": faq{_RICH}, faqHtml, h1, seoTitle, seoDescription, ogTitle, targetKeyword, '
     'publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, author, silo, '
     '"ctaText": cta.text, "ctaUrl": cta.url, '
-    '"htmlFileUrl": htmlFile.asset->url, exhibitImages}'
+    '"htmlFileUrl": htmlFile.asset->url, hideHeader, exhibitImages}'
 )
 # Raw perspective, so open drafts are unticked too; publishing one must not re-pin it.
 _PINNED_QUERY = (
@@ -96,6 +96,7 @@ class _SanityArticle(BaseModel):
     cta_text: str | None = Field(default=None, alias="ctaText")
     cta_url: str | None = Field(default=None, alias="ctaUrl")
     html_file_url: str | None = Field(default=None, alias="htmlFileUrl")
+    hide_header: bool | None = Field(default=None, alias="hideHeader")
     exhibit_images: list[_Still] | None = Field(default=None, alias="exhibitImages")
 
     def exhibit_ids(self) -> list[str]:
@@ -191,7 +192,12 @@ class SanityArticleSource:
             return None
         exhibits = self._exhibits(doc)
         page_url = self._own_file(doc.html_file_url) if doc.body_format == "page" else None
-        body = page_marker(page_url) if page_url else doc.html(doc.body, doc.body_html, exhibits)
+        hide_header = bool(doc.hide_header)
+        body = (
+            page_marker(page_url, hide_header=hide_header)
+            if page_url
+            else doc.html(doc.body, doc.body_html, exhibits)
+        )
         if body is None:
             # The Studio requires a body; treated as unpublished rather than written blank.
             logger.warning("insights_article_no_body slug=%s", slug)
@@ -219,6 +225,7 @@ class SanityArticleSource:
             cta_text=doc.cta_text,
             cta_url=doc.cta_url,
             page_url=page_url,
+            hide_header=hide_header and page_url is not None,
         )
 
     async def pending_exhibits(self, slug: str) -> PendingExhibits | None:

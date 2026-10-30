@@ -35,6 +35,7 @@ class ArticleDocument:
     cta_url: str | None = None
     # Set when the HTML file is the whole page; `body_html` then marks where it mounts.
     page_url: str | None = None
+    hide_header: bool = False
 
 
 def text_paragraphs(text: str) -> str:

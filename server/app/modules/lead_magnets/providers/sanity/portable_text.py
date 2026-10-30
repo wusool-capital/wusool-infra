@@ -155,9 +155,10 @@ def to_html(blocks: list[Block], exhibits: Exhibits | None = None) -> str:
     return sanitize("".join(out), exhibits=True)
 
 
-def page_marker(bundle_url: str) -> str:
+def page_marker(bundle_url: str, *, hide_header: bool) -> str:
     """Where an article's whole-page HTML file mounts; only the server writes one."""
-    return f'<figure data-page data-bundle="{escape(bundle_url)}"></figure>'
+    page = ' data-page="bare"' if hide_header else " data-page"
+    return f'<figure{page} data-bundle="{escape(bundle_url)}"></figure>'
 
 
 def _exhibit(block: ExhibitBlock, exhibits: Exhibits | None) -> str:

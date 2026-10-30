@@ -693,6 +693,7 @@ async def test_a_chart_that_cannot_be_captured_does_not_stop_the_text_publishing
 
 
 _PAGE_MARKER = f'<figure data-page data-bundle="{_LIVE}"></figure>'
+_BARE_MARKER = f'<figure data-page="bare" data-bundle="{_LIVE}"></figure>'
 
 
 async def test_a_whole_page_article_is_only_its_files_marker(monkeypatch) -> None:
@@ -704,6 +705,26 @@ async def test_a_whole_page_article_is_only_its_files_marker(monkeypatch) -> Non
     assert article is not None
     assert (article.body_html, article.page_url) == (_PAGE_MARKER, _LIVE)
     assert article.key_takeaways_html is None and article.faq_html is None
+    assert article.hide_header is False
+
+
+async def test_a_whole_page_article_can_drop_the_templates_header(monkeypatch) -> None:
+    doc = _rich_doc(bodyFormat="page", htmlFileUrl=_LIVE, hideHeader=True)
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    article = await SanityArticleSource(project_id="p", dataset="production").get("exit-guide")
+
+    assert article is not None
+    assert (article.body_html, article.hide_header) == (_BARE_MARKER, True)
+
+
+async def test_hiding_the_header_is_ignored_outside_whole_page_mode(monkeypatch) -> None:
+    doc = _rich_doc(body=[_text("Text")], hideHeader=True)
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": doc}))
+
+    article = await SanityArticleSource(project_id="p", dataset="production").get("exit-guide")
+
+    assert article is not None and article.hide_header is False
 
 
 async def test_a_whole_page_article_without_the_datasets_own_file_is_not_written(
@@ -751,7 +772,8 @@ def test_page_text_is_escaped_and_drops_blank_lines() -> None:
     assert text_paragraphs("<b>x</b>\n\n y ") == "<p>&lt;b&gt;x&lt;/b&gt;</p><p>y</p>"
 
 
-def test_pasted_html_cannot_mark_a_file_as_the_whole_page() -> None:
-    cleaned = sanitize(_PAGE_MARKER)
+@pytest.mark.parametrize("marker", [_PAGE_MARKER, _BARE_MARKER])
+def test_pasted_html_cannot_mark_a_file_as_the_whole_page(marker: str) -> None:
+    cleaned = sanitize(marker)
 
     assert "data-page" not in cleaned and "data-bundle" not in cleaned

@@ -116,6 +116,15 @@ export const insights = defineType({
           isPage({document: context.document}) && !value?.asset ? 'Required' : true,
         ),
     }),
+    defineField({
+      name: 'hideHeader',
+      group: 'content',
+      title: 'Hide header and author details',
+      type: 'boolean',
+      initialValue: false,
+      description: 'Shows only the site navbar above the page, so the file fills the screen.',
+      hidden: (context) => !isPage(context),
+    }),
     // Written by the server: one still image per chart, taken from the file.
     defineField({
       name: 'exhibitImages',

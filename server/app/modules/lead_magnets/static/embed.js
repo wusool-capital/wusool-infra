@@ -156,8 +156,12 @@
     if (!ownBundle(bundle)) return;
     // The template's article stays until the page draws: it is the fallback and what search engines read.
     var article = figure.closest("section") || figure.parentNode;
+    var bare = figure.getAttribute("data-page") === "bare";
+    // The rich-text fields' shared wrapper; the title and author row sit outside it.
+    var body = (figure.closest(".w-richtext") || figure).parentNode;
     var holder = document.createElement("div");
-    article.parentNode.insertBefore(holder, article);
+    // After the article, not inside it, so the page is never squeezed by the template's column.
+    article.parentNode.insertBefore(holder, bare ? article : article.nextSibling);
     var top = 0;
     interactive(origin)
       .then(function (api) {
@@ -170,8 +174,12 @@
       })
       .then(function (frame) {
         frame.addEventListener("ready", function () {
-          holder.style.paddingTop = top + "px";
-          article.style.display = "none";
+          if (bare) {
+            holder.style.paddingTop = top + "px";
+            article.style.display = "none";
+          } else {
+            body.style.display = "none";
+          }
         });
       })
       .catch(function () {

@@ -14,7 +14,8 @@ for current production evidence and open handover items.
 
 - An Insights article can be an exported HTML file shown as the whole page,
   with its own design, sidebar and live charts. The page's text still goes to
-  Webflow for search engines.
+  Webflow for search engines. **Hide header and author details** leaves only
+  the site navbar above it.
 
 ### Fixed
 

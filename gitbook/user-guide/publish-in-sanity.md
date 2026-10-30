@@ -51,7 +51,8 @@ see.
    and FAQ. For the whole page, upload the exported file in
    **Charts HTML file** instead. The article page then shows that file as it
    looks in a browser, sidebar and charts included. Its links open in a new
-   tab.
+   tab. Tick **Hide header and author details** to show only the site navbar
+   above it.
 3. Optionally fill in the cover image, author, silo, SEO fields and the
    end-of-page button. Blank SEO fields use the title and excerpt.
 4. For an article with live charts, upload the exported file in
