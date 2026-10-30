@@ -64,6 +64,16 @@
       document.documentElement.style.setProperty("overflow", "hidden", "important");
       document.body.style.setProperty("margin", "0", "important");
     }
+    // Content wider than the frame shrinks to fit it; content that already fits stays 1:1.
+    // Measured unzoomed: once shrunk, a fluid page fills the frame and hides its real width.
+    function fitWidth() {
+      var root = document.documentElement;
+      document.body.style.zoom = "";
+      var fit = root.clientWidth / root.scrollWidth;
+      if (fit < 1) document.body.style.zoom = String(fit);
+    }
+    var fitted = null;
+    var resized = new ResizeObserver(fitWidth);
     var last = 0;
     // Polls because the bundle swaps its page in after load.
     setInterval(function () {
@@ -74,8 +84,19 @@
         show(figure);
         // The bottom edge, not the height: the figure can sit a few px below the frame's top.
         height = Math.ceil(figure.getBoundingClientRect().bottom);
-      } else {
-        height = document.body ? document.body.scrollHeight : 0;
+      } else if (document.body) {
+        if (document.body !== fitted) {
+          fitted = document.body;
+          resized.observe(fitted);
+          // A report sizes the frame, so its own "html,body{height:100%}" would only let the frame grow.
+          if (!site) {
+            [document.documentElement, fitted].forEach(function (node) {
+              node.style.setProperty("height", "auto", "important");
+              node.style.setProperty("min-height", "0", "important");
+            });
+          }
+        }
+        height = Math.ceil(document.body.scrollHeight * (parseFloat(document.body.style.zoom) || 1));
       }
       if (!height || height === last) return;
       last = height;

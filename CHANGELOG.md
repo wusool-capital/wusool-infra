@@ -28,6 +28,8 @@ for current production evidence and open handover items.
   translucent on scroll, as on other articles.
 - Reports no longer cut off the bottom of each page on iPhones. Safari was
   enlarging the text until it overflowed the fixed-size pages.
+- A live report shrinks to fit a phone's width, so each page shows whole
+  without scrolling sideways. Readers pinch to zoom in.
 
 ## 2026-10-29
 
