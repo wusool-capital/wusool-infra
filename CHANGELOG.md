@@ -38,6 +38,8 @@ for current production evidence and open handover items.
 - Report code emails are less likely to land in spam. They come from
   `reports@wusoolcapital.com` with a plain-text part, and SES uses
   `mail.wusoolcapital.com` as its return address.
+- Report code emails show "Wusool Capital" as the sender name instead of the
+  bare address.
 
 ## 2026-10-29
 
