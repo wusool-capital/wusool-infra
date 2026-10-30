@@ -4,9 +4,6 @@
 
   // Runs inside the frame as text: reports height and hides all but the exhibit's figure.
   function isolate(exhibit, site) {
-    // iOS enlarges text in a wide page, overflowing a bundle's fixed-height pages.
-    document.documentElement.style.setProperty("-webkit-text-size-adjust", "100%");
-    document.documentElement.style.setProperty("text-size-adjust", "100%");
     // Sites refuse to load in a frame, so a link followed in place shows a blank page.
     document.addEventListener("click", function (event) {
       var link = event.target.closest && event.target.closest("a[href]");
@@ -73,11 +70,21 @@
       if (fit < 1) document.body.style.zoom = String(fit);
     }
     var fitted = null;
-    var resized = new ResizeObserver(fitWidth);
+    // Deferred: resizing the observed body inside the callback raises a loop error the bundle reports.
+    var resized = new ResizeObserver(function () {
+      requestAnimationFrame(fitWidth);
+    });
+    var root = null;
     var last = 0;
     // Polls because the bundle swaps its page in after load.
     setInterval(function () {
       var height;
+      // Again on each swapped-in document: iOS enlarges text in a shrunk page, overflowing fixed-height pages.
+      if (document.documentElement !== root) {
+        root = document.documentElement;
+        root.style.setProperty("-webkit-text-size-adjust", "100%");
+        root.style.setProperty("text-size-adjust", "100%");
+      }
       if (exhibit) {
         var figure = target();
         if (!figure) return;
