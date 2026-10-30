@@ -8,6 +8,11 @@ Default to `bodyFormat: "rich"`: convert the input to Portable Text. Use `"html"
 when the person wants to keep pasted HTML as it is. The choice covers the body, key
 takeaways and FAQ together.
 
+For an exported article with its own design (a bundle, often with a sidebar and live
+charts), ask: "Show it exactly as designed, as the whole page, or as a standard article
+with its live charts?" Exactly as designed is `bodyFormat: "page"`; a standard article
+is `"rich"` with chart blocks (see **An exported article** below).
+
 In the code tool, save the input as `source.md` (or `source.html`).
 
 Then follow `blog-worthiness.md`. Continue only on a **Publish** verdict, or when the
@@ -34,7 +39,15 @@ for the ones that don't react. The staff confirm the list; never guess it. Conve
 rest of the article's text to Portable Text as above. The server captures the still
 images after publish, so a chart appears in the page only once the sync has run.
 
-**Either:** if the input has a key-takeaways or FAQ section, move it into
+**Whole page (`"page"`):** upload the file as `htmlFile`; set no `body`, `keyTakeaways`
+or `faq` (the page replaces them). Decode it as **Decode an exported bundle** in
+`reference.md` describes and list its links in `checks.md`. Tell the person about any
+link that goes nowhere, such as `#…placeholder`, and fix it in the file before upload
+with their answer (use a full `https://www.wusoolcapital.com/...` address). Links to
+`#section` anchors are fine: they scroll the page. Every other link opens in a new tab.
+Ask the staff field **Hide header and author details**.
+
+**Rich or HTML:** if the input has a key-takeaways or FAQ section, move it into
 `keyTakeaways` / `faq` instead of the body. Both are optional.
 
 ## 3. Fields
@@ -76,7 +89,8 @@ When the person said yes to "Is this insight + report?":
 2. Set `cta: {"text": "Download the full report", "url": "/reports/<reportSlug>"}`.
 3. Add one inline link to `/reports/<reportSlug>` in the body, where the article first
    mentions the report (rich: a `link` markDef; HTML: an `<a href>`). Show the person
-   the sentence.
+   the sentence. For a whole page, check instead that the file's report links point to
+   `https://www.wusoolcapital.com/reports/<reportSlug>`.
 
 ## 6. Confirm
 
