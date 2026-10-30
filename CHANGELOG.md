@@ -24,7 +24,8 @@ for current production evidence and open handover items.
 - Contents links inside a live report or whole-page article scroll to their
   section. They used to load the website inside the frame.
 - A whole-page article no longer flashes its plain-text copy while the page
-  loads.
+  loads. With the header hidden, the site navbar starts dark and turns
+  translucent on scroll, as on other articles.
 
 ## 2026-10-29
 
