@@ -26,19 +26,27 @@ function mountLive(url){
 }
 
 // Fixed-width exports (A4 is 794px) scale to fill the frame, up or down; reflowing HTML stays 1:1.
+// A transform, not CSS zoom: iOS Safari mis-sizes images under zoom. It lays out at full size, then scales.
 function fit(){
   const report=document.getElementById("report");
-  report.style.zoom="";
+  report.style.transform="";
+  report.style.marginBottom="";
   report.style.width="min-content";
   const narrowest=report.scrollWidth;
   report.style.width="max-content";
   const widest=report.scrollWidth;
   report.style.width="";
   const available=document.documentElement.clientWidth;
-  let scale=1;
-  if(widest<=available)scale=available/widest;
-  else if(narrowest>available)scale=available/narrowest;
-  report.style.zoom=String(scale);
+  let width=available;
+  if(widest<=available)width=widest;
+  else if(narrowest>available)width=narrowest;
+  if(width===available)return;
+  const scale=available/width;
+  report.style.width=width+"px";
+  report.style.transformOrigin="0 0";
+  report.style.transform=`scale(${scale})`;
+  // The layout box keeps its full size, so the margin makes the page as tall as what's drawn.
+  report.style.marginBottom=report.offsetHeight*(scale-1)+"px";
 }
 window.addEventListener("resize",fit);
 
