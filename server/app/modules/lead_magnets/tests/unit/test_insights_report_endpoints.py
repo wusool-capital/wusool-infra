@@ -120,7 +120,9 @@ def world(monkeypatch) -> _World:
             return b"%PDF-1.7 fake"
 
     class _Mailer:
-        async def send(self, *, to, from_addr, subject, body, is_html=False, reply_to=None):
+        async def send(
+            self, *, to, from_addr, subject, body, is_html=False, reply_to=None, text=None
+        ):
             world.emails.append((to, subject, body))
 
     class _Analytics:
@@ -133,7 +135,8 @@ def world(monkeypatch) -> _World:
     unlock = ReportUnlock(
         challenges=InMemoryUnlockChallenges(),
         mailer=_Mailer(),
-        email_from="contact@wusoolcapital.com",
+        email_from="reports@wusoolcapital.com",
+        reply_to="contact@wusoolcapital.com",
         ttl_s=600,
     )
 
@@ -344,7 +347,11 @@ def test_a_failed_code_email_is_503_not_a_crash(client, world, monkeypatch) -> N
         endpoints,
         "build_report_unlock",
         lambda: ReportUnlock(
-            challenges=InMemoryUnlockChallenges(), mailer=_Down(), email_from="x@y.z", ttl_s=600
+            challenges=InMemoryUnlockChallenges(),
+            mailer=_Down(),
+            email_from="x@y.z",
+            reply_to="x@y.z",
+            ttl_s=600,
         ),
     )
     response = client.post(
@@ -555,7 +562,11 @@ def test_a_failed_code_email_sends_no_event(client, world, monkeypatch) -> None:
         endpoints,
         "build_report_unlock",
         lambda: ReportUnlock(
-            challenges=InMemoryUnlockChallenges(), mailer=_Down(), email_from="x@y.z", ttl_s=600
+            challenges=InMemoryUnlockChallenges(),
+            mailer=_Down(),
+            email_from="x@y.z",
+            reply_to="x@y.z",
+            ttl_s=600,
         ),
     )
     client.post(

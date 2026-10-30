@@ -18,4 +18,5 @@ class EmailSenderPort(Protocol):
         body: str,
         is_html: bool = False,
         reply_to: str | None = None,
+        text: str | None = None,
     ) -> None: ...

@@ -26,6 +26,7 @@ _SLUG = "buyouts"
 class _Mailer:
     def __init__(self) -> None:
         self.codes: list[str] = []
+        self.sent: list[dict[str, object]] = []
 
     async def send(
         self,
@@ -36,8 +37,10 @@ class _Mailer:
         body: str,
         is_html: bool = False,
         reply_to: str | None = None,
+        text: str | None = None,
     ) -> None:
         self.codes.append(subject.split(" ", 1)[0])
+        self.sent.append({"from": from_addr, "reply_to": reply_to, "text": text})
 
 
 class _Clock:
@@ -63,7 +66,8 @@ def unlock(mailer: _Mailer, clock: _Clock) -> ReportUnlock:
     return ReportUnlock(
         challenges=InMemoryUnlockChallenges(),
         mailer=mailer,
-        email_from="contact@wusoolcapital.com",
+        email_from="reports@wusoolcapital.com",
+        reply_to="contact@wusoolcapital.com",
         ttl_s=600,
         clock=clock,
     )
@@ -135,7 +139,12 @@ async def test_a_failed_send_leaves_no_challenge_and_refunds_the_quota(clock) ->
 
     challenges = InMemoryUnlockChallenges()
     unlock = ReportUnlock(
-        challenges=challenges, mailer=_Down(), email_from="x@y.z", ttl_s=600, clock=clock
+        challenges=challenges,
+        mailer=_Down(),
+        email_from="x@y.z",
+        reply_to="x@y.z",
+        ttl_s=600,
+        clock=clock,
     )
     for _ in range(4):
         with pytest.raises(CodeNotSent):
@@ -172,3 +181,14 @@ def test_the_code_email_is_branded_and_escapes_the_title() -> None:
     assert "042917" in email.html and "expires in 10 minutes" in email.html
     assert "M&amp;A &lt;Playbook&gt;" in email.html
     assert "a0288d00.png" in email.html, "same Wusool logo as the other tool emails"
+    assert email.text is not None and "042917" in email.text
+    assert "M&A <Playbook>" in email.text, "plain text is not HTML-escaped"
+
+
+async def test_the_code_goes_from_its_own_sender_with_a_text_part(unlock, mailer) -> None:
+    await _send(unlock)
+
+    sent = mailer.sent[0]
+    assert sent["from"] == "reports@wusoolcapital.com"
+    assert sent["reply_to"] == "contact@wusoolcapital.com"
+    assert isinstance(sent["text"], str) and mailer.codes[0] in sent["text"]

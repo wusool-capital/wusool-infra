@@ -20,4 +20,10 @@ def build_code_email(*, code: str, report_title: str, ttl_min: int) -> EmailCont
                 "you can safely ignore this email."
             ),
         ),
+        text=(
+            f"Your Wusool report code is {code}\n\n"
+            f"Enter it to read {report_title}. It expires in {ttl_min} minutes.\n"
+            "If you didn't ask for it, you can safely ignore this email.\n\n"
+            "Wusool Capital - M&A Advisory, UAE & GCC\n"
+        ),
     )
