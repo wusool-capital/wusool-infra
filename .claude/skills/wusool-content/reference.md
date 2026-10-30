@@ -72,7 +72,7 @@ The Studio's `initialValue`s don't apply. Always set these yourself:
 
   | Type | Field | Value |
   |---|---|---|
-  | both | `bodyFormat` | `"rich"` or `"html"`. Unset reads as HTML on the server. |
+  | both | `bodyFormat` | `"rich"` or `"html"`; insights also `"page"`. Unset reads as HTML on the server. |
   | both | `publishedAt` | The person's date, else the current time in UTC, as ISO 8601, from the code tool (`date -u +%Y-%m-%dT%H:%M:%SZ`). Never a fixed or example time |
   | report | `bannerPinned` | `false`, unless the person asks to pin it |
   | insights | `contentType` | `"Article"` unless told otherwise |
@@ -120,6 +120,7 @@ the flat copy after the form). Ask it as `reports.md` describes.
 | Share title | No | The title |
 | Target keyword | No | None |
 | End-of-page button (text + link) | No | No button. Insight + report fills it automatically |
+| Hide header and author details (whole page only) | No | The title and author row show above the page |
 | Insight + report? | Ask always | Not linked to a report |
 
 ### Reports staff fields (Studio order)
@@ -172,9 +173,10 @@ the flat copy after the form). Ask it as `reports.md` describes.
 | `slug` | `{_type:"slug", current}` | Required, `^[a-z0-9-]+$`, max 96, unique in Sanity insights **and** Webflow Insights |
 | `contentType` | enum | Required: `Article`, `Playbook`, `Case Study`, `Press` |
 | `excerpt` | text | Required, 2–3 sentences |
-| `bodyFormat` | `"rich"` \| `"html"` | Always set; applies to body, key takeaways and FAQ |
-| `body` / `bodyHtml` | rich text / text | Required (whichever `bodyFormat` picks) |
-| `htmlFile` | file | Rich only. The exported article, for its live charts. Used with `exhibit` blocks in `body` |
+| `bodyFormat` | `"rich"` \| `"html"` \| `"page"` | Always set; applies to body, key takeaways and FAQ. `"page"` shows `htmlFile` as the whole article page |
+| `body` / `bodyHtml` | rich text / text | Required for `"rich"` / `"html"`. Leave unset for `"page"` |
+| `htmlFile` | file | The exported article. Rich: its live charts, used with `exhibit` blocks in `body`. Page: required, it is the page |
+| `hideHeader` | boolean | Page only. `true` shows just the site navbar above the page; blank keeps the title and author row |
 | `exhibitImages` | array | Written by the server. Never set it |
 | `keyTakeaways` / `keyTakeawaysHtml` | rich text / text | Optional |
 | `faq` / `faqHtml` | rich text / text | Optional |
