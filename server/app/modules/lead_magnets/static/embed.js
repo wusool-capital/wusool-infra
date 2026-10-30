@@ -20,9 +20,12 @@
   if (!script) return;
 
   var tool = script.getAttribute("data-tool");
-  // Not an iframe tool: it upgrades an article's chart images in place, so it takes no TOOLS entry.
+  // Not an iframe tool: it upgrades an article in place, so it takes no TOOLS entry.
   if (tool === "insight") {
-    liveCharts(new URL(script.src, window.location.href).origin);
+    var origin = new URL(script.src, window.location.href).origin;
+    var page = document.querySelector("figure[data-page][data-bundle]");
+    if (page) wholePage(origin, page);
+    else liveCharts(origin);
     return;
   }
   var src = TOOLS[tool];
@@ -116,36 +119,85 @@
   });
 
   // ---------------------------------------------------------------------
-  // Insight mode: swaps an article's chart stills for live frames as they scroll near.
+  // Insight mode: an article's HTML file as the whole page, or its chart
+  // stills swapped for live frames as they scroll near.
   // ---------------------------------------------------------------------
+  var loading = null;
+  function interactive(origin) {
+    loading =
+      loading ||
+      new Promise(function (resolve, reject) {
+        var tag = document.createElement("script");
+        tag.src = origin + "/shared/interactive.js?v=2";
+        tag.onload = function () {
+          resolve(window.WusoolInteractive);
+        };
+        tag.onerror = reject;
+        document.head.appendChild(tag);
+      });
+    return loading;
+  }
+
+  // Pinned to this dataset: a page's markup must not choose what runs in the frame.
+  function ownBundle(url) {
+    return /^https:\/\/cdn\.sanity\.io\/files\/itidwo8t\/production\//.test(url || "");
+  }
+
+  // The bottom of the site's fixed header, which the page must sit below.
+  function headerBottom() {
+    for (var node = document.elementFromPoint(window.innerWidth / 2, 1); node; node = node.parentElement) {
+      if (getComputedStyle(node).position === "fixed") return Math.ceil(node.getBoundingClientRect().bottom);
+    }
+    return 0;
+  }
+
+  function wholePage(origin, figure) {
+    var bundle = figure.getAttribute("data-bundle");
+    if (!ownBundle(bundle)) return;
+    // The template's article stays until the page draws: it is the fallback and what search engines read.
+    var article = figure.closest("section") || figure.parentNode;
+    var bare = figure.getAttribute("data-page") === "bare";
+    // The rich-text fields' shared wrapper; the title and author row sit outside it.
+    var body = (figure.closest(".w-richtext") || figure).parentNode;
+    var holder = document.createElement("div");
+    // After the article, not inside it, so the page is never squeezed by the template's column.
+    article.parentNode.insertBefore(holder, bare ? article : article.nextSibling);
+    var top = 0;
+    interactive(origin)
+      .then(function (api) {
+        // Measured once the page has laid out, not while this script is still parsing.
+        top = headerBottom();
+        return api.mount(holder, bundle, "", {
+          height: "calc(100vh - " + top + "px)",
+          site: window.location.origin,
+        });
+      })
+      .then(function (frame) {
+        frame.addEventListener("ready", function () {
+          if (bare) {
+            holder.style.paddingTop = top + "px";
+            article.style.display = "none";
+          } else {
+            body.style.display = "none";
+          }
+        });
+      })
+      .catch(function () {
+        holder.remove();
+      });
+  }
+
   function liveCharts(origin) {
     var figures = document.querySelectorAll("figure[data-exhibit][data-bundle]");
     if (!figures.length || !("IntersectionObserver" in window)) return;
 
-    var loading = null;
-    function loader() {
-      loading =
-        loading ||
-        new Promise(function (resolve, reject) {
-          var tag = document.createElement("script");
-          tag.src = origin + "/shared/interactive.js?v=1";
-          tag.onload = function () {
-            resolve(window.WusoolInteractive);
-          };
-          tag.onerror = reject;
-          document.head.appendChild(tag);
-        });
-      return loading;
-    }
-
     function swap(figure) {
       var bundle = figure.getAttribute("data-bundle");
-      // Pinned to this dataset: a page's markup must not choose what runs in the frame.
-      if (!/^https:\/\/cdn\.sanity\.io\/files\/itidwo8t\/production\//.test(bundle)) return;
+      if (!ownBundle(bundle)) return;
       var still = figure.querySelector("img");
       var holder = document.createElement("div");
       figure.appendChild(holder);
-      loader()
+      interactive(origin)
         .then(function (api) {
           return api.mount(holder, bundle, figure.getAttribute("data-exhibit"));
         })

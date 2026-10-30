@@ -4,6 +4,8 @@ export type Context = {document?: SanityDocument}
 // Unset reads as pasted HTML: reports made before the toggle have none. New documents always set it.
 export const isRich = ({document}: Context) => document?.bodyFormat === 'rich'
 export const isHtml = ({document}: Context) => !isRich({document})
+// Insights only: the HTML file is the whole article page.
+export const isPage = ({document}: Context) => document?.bodyFormat === 'page'
 
 // Only what the server's sanitizer keeps and Webflow's rich text renders.
 export const richText = [
@@ -83,7 +85,7 @@ export const exhibit = defineArrayMember({
 })
 
 // Which of a document's rich-text / pasted-HTML pairs is shown and published.
-export const bodyFormat = (initial: 'rich' | 'html', description: string) =>
+export const bodyFormat = (initial: 'rich' | 'html', description: string, page = false) =>
   defineField({
     name: 'bodyFormat',
     title: 'Write with',
@@ -93,6 +95,7 @@ export const bodyFormat = (initial: 'rich' | 'html', description: string) =>
       list: [
         {title: 'Rich text editor', value: 'rich'},
         {title: 'Pasted HTML', value: 'html'},
+        ...(page ? [{title: 'HTML file as the whole page', value: 'page'}] : []),
       ],
       layout: 'radio',
       direction: 'horizontal',

@@ -11,13 +11,17 @@ own sort, as on `/reports`; the sync never refills it.
 """
 
 import logging
+from dataclasses import replace
 
 from app.modules.lead_magnets.application.shared.ports import (
     ArticlesCmsPort,
     ArticleSourcePort,
     ReportRendererPort,
 )
-from app.modules.lead_magnets.domain.insights_article.article import ArticleDocument
+from app.modules.lead_magnets.domain.insights_article.article import (
+    ArticleDocument,
+    text_paragraphs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +51,19 @@ class ArticleSync:
         if article is None:
             await self._unpublish(slug)
             return
+        if article.page_url:
+            article = await self._with_page_text(article, article.page_url)
         await self._write(article)
+
+    async def _with_page_text(self, article: ArticleDocument, url: str) -> ArticleDocument:
+        """The page's text below its marker, for search engines; the live page covers it."""
+        try:
+            text = await self._renderer.text(await self._source.html_file(url))
+        except Exception:
+            # The marker alone still shows the page; only the indexable copy is missing.
+            logger.exception("insights_article_page_text_failed slug=%s", article.slug)
+            return article
+        return replace(article, body_html=article.body_html + text_paragraphs(text))
 
     async def _capture_stills(self, slug: str) -> bool:
         """False only when the article changed mid-capture. A failure leaves the charts out."""
@@ -56,7 +72,7 @@ class ArticleSync:
             if pending is None:
                 return True
             shots = await self._renderer.exhibit_images(
-                await self._source.bundle(pending), pending.ids
+                await self._source.html_file(pending.bundle_url), pending.ids
             )
             urls = {
                 exhibit_id: await self._source.upload_image(png, "image/png")
