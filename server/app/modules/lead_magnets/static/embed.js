@@ -184,6 +184,9 @@
       })
       .catch(function () {
         holder.remove();
+        // The template's head style hides the fallback until the page draws; a failed load shows it now.
+        article.style.visibility = "visible";
+        body.style.visibility = "visible";
       });
   }
 

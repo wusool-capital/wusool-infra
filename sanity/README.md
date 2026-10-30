@@ -152,6 +152,10 @@ The file scrolls inside its frame, so sticky parts stay put. Its links open in
 a new tab. **Hide header and author details** drops the template's title and
 author row, so only the site navbar sits above the file.
 
+The Insights template's head code carries a style that keeps the text copy
+invisible until the file draws, so readers never see it flash. It shows
+anyway after 12 seconds, or at once if the load fails.
+
 The SEO title, SEO description, share title and H1 default to the title and
 excerpt when left blank. Cover image, author, silo, date, target keyword and
 the end-of-page button are optional. Then publish.
