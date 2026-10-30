@@ -2,8 +2,20 @@
 (function () {
   "use strict";
 
+  // iOS Safari 18 ignores some images' "height: 100%" and draws them at full natural height, so pin it in px.
+  // Where the browser gets it right the heights already match and nothing changes.
+  function pinImages(root) {
+    Array.prototype.forEach.call(root.querySelectorAll("img"), function (img) {
+      var box = img.parentElement;
+      if (img.style.height !== "100%" || !box || !img.complete) return;
+      var style = getComputedStyle(box);
+      var room = box.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      if (room > 0 && Math.abs(img.offsetHeight - room) > 1) img.style.height = room + "px";
+    });
+  }
+
   // Runs inside the frame as text: reports height and hides all but the exhibit's figure.
-  function isolate(exhibit, site) {
+  function isolate(exhibit, site, pinImages) {
     // Sites refuse to load in a frame, so a link followed in place shows a blank page.
     document.addEventListener("click", function (event) {
       var link = event.target.closest && event.target.closest("a[href]");
@@ -105,6 +117,7 @@
         root.style.setProperty("-webkit-text-size-adjust", "100%");
         root.style.setProperty("text-size-adjust", "100%");
       }
+      pinImages(document);
       if (exhibit) {
         var figure = target();
         if (!figure) return;
@@ -156,7 +169,7 @@
     return bundle(url).then(function (html) {
       var id = JSON.stringify(exhibit || "").replace(/</g, "\\u003c");
       var site = JSON.stringify(page ? page.site : "").replace(/</g, "\\u003c");
-      var script = "<script>(" + isolate + ")(" + id + "," + site + ");<\/script>";
+      var script = "<script>(" + isolate + ")(" + id + "," + site + "," + pinImages + ");<\/script>";
       // Before </head>, never ahead of the doctype: that would drop the bundle into quirks mode.
       var doc = html.indexOf("</head>") < 0 ? script + html : html.replace("</head>", function () { return script + "</head>"; });
       var frame = document.createElement("iframe");
@@ -189,5 +202,5 @@
     });
   }
 
-  window.WusoolInteractive = { mount: mount };
+  window.WusoolInteractive = { mount: mount, pinImages: pinImages };
 })();

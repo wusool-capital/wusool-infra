@@ -12,6 +12,7 @@ function render(data){
   if(data.locked)download.setAttribute("aria-disabled","true");
   else download.removeAttribute("aria-disabled");
   document.getElementById("download").classList.remove("hide");
+  window.WusoolInteractive.pinImages(document.getElementById("report"));
   fit();
   if(data.interactive_url)mountLive(data.interactive_url);
 }
@@ -24,6 +25,11 @@ function mountLive(url){
     frame.addEventListener("ready",()=>document.getElementById("report").classList.add("hide"));
   }).catch(error=>console.warn("live report",error));
 }
+
+// Images take their size on load, so each is checked as it arrives (load doesn't bubble, hence capture).
+document.getElementById("report").addEventListener("load",e=>{
+  if(e.target.tagName==="IMG")window.WusoolInteractive.pinImages(document.getElementById("report"));
+},true);
 
 // Fixed-width exports (A4 is 794px) scale to fill the frame, up or down; reflowing HTML stays 1:1.
 // A transform, not CSS zoom: iOS Safari mis-sizes images under zoom. It lays out at full size, then scales.

@@ -310,7 +310,9 @@ so every report is static HTML here. Fixed-width exports, such as 794 px A4
 pages, are scaled with a CSS `transform` to fill the frame (`fit()` in
 `10-main.js`), up on desktop and down on a phone. Not CSS `zoom`: iOS Safari
 mis-sizes images under it. The live report frame shrinks the same way
-(`shared/interactive.js`). Reflowing HTML stays at 1:1. On a phone, fixed pages mean pinch-to-zoom reading, a limit of
+(`shared/interactive.js`). Reflowing HTML stays at 1:1. Both also pin any
+`height: 100%` image that came out a different height from its box
+(`pinImages`): Safari ignores that height on some full-page covers. On a phone, fixed pages mean pinch-to-zoom reading, a limit of
 fixed-page documents.
 
 While locked, `#gate` overlays the end of the preview: the last stretch is
