@@ -297,11 +297,8 @@ class _Source:
     async def pending_exhibits(self, slug: str) -> PendingExhibits | None:
         return self.pending
 
-    async def bundle(self, pending: PendingExhibits) -> str:
-        return "<html>bundle</html>"
-
     async def html_file(self, url: str) -> str:
-        return f"<html>{url}</html>"
+        return "<html>bundle</html>" if url == _LIVE and self.pending else f"<html>{url}</html>"
 
     async def upload_image(self, data: bytes, mime: str) -> str:
         self.uploaded.append(data)

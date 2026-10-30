@@ -235,9 +235,6 @@ class SanityArticleSource:
             document_id=doc.id, revision=doc.rev, bundle_url=url, ids=missing, stills=stills
         )
 
-    async def bundle(self, pending: PendingExhibits) -> str:
-        return await self.html_file(pending.bundle_url)
-
     async def html_file(self, url: str) -> str:
         """Raises, not None: a failed fetch stops the sync before it writes a half-built page."""
         async with httpx.AsyncClient(timeout=self._timeout_s, follow_redirects=False) as client:

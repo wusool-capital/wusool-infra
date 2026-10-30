@@ -72,7 +72,7 @@ class ArticleSync:
             if pending is None:
                 return True
             shots = await self._renderer.exhibit_images(
-                await self._source.bundle(pending), pending.ids
+                await self._source.html_file(pending.bundle_url), pending.ids
             )
             urls = {
                 exhibit_id: await self._source.upload_image(png, "image/png")

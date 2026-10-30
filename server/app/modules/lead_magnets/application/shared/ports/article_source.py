@@ -18,12 +18,8 @@ class ArticleSourcePort(Protocol):
         """Charts in the body with no still for the current HTML file, else `None`."""
         ...
 
-    async def bundle(self, pending: PendingExhibits) -> str:
-        """The article's HTML file. Raises on a failed download."""
-        ...
-
     async def html_file(self, url: str) -> str:
-        """The HTML file at `url`, an article's `page_url`. Raises on a failed download."""
+        """The article's HTML file at `url`. Raises on a failed download."""
         ...
 
     async def upload_image(self, data: bytes, mime: str) -> str:
