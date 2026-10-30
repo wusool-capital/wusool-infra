@@ -21,6 +21,8 @@ for current production evidence and open handover items.
 
 - Links in a report, live or static, open in a new tab. They used to show a
   blank page inside the report.
+- Contents links inside a live report or whole-page article scroll to their
+  section. They used to load the website inside the frame.
 
 ## 2026-10-29
 
