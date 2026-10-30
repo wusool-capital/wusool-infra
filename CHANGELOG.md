@@ -8,6 +8,19 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-10-30
+
+### Added
+
+- An Insights article can be an exported HTML file shown as the whole page,
+  with its own design, sidebar and live charts. The page's text still goes to
+  Webflow for search engines.
+
+### Fixed
+
+- Links in a report, live or static, open in a new tab. They used to show a
+  blank page inside the report.
+
 ## 2026-10-29
 
 ### Added

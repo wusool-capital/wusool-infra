@@ -22,6 +22,10 @@ class ArticleSourcePort(Protocol):
         """The article's HTML file. Raises on a failed download."""
         ...
 
+    async def html_file(self, url: str) -> str:
+        """The HTML file at `url`, an article's `page_url`. Raises on a failed download."""
+        ...
+
     async def upload_image(self, data: bytes, mime: str) -> str:
         """Stores one image and returns its CDN URL. Raises on failure."""
         ...

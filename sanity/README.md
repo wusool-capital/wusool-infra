@@ -138,9 +138,18 @@ tick, and publishing that draft takes the pin back.
 ## Publishing an Insights article
 
 Fill in the title, slug, content type, excerpt and body. Pick **Write with**
-first: the rich text editor, or pasted HTML. The choice applies to the body,
-key takeaways and FAQ. Pasted HTML is cleaned on publish: scripts, styles,
-tables and anything else Webflow's rich text can't show are removed.
+first: the rich text editor, pasted HTML, or HTML file as the whole page.
+The choice applies to the body, key takeaways and FAQ. Pasted HTML is cleaned
+on publish: scripts, styles, tables and anything else Webflow's rich text
+can't show are removed.
+
+**HTML file as the whole page** keeps an exported design exactly, sidebar
+included. Upload the file as **Charts HTML file**; the body, key takeaways
+and FAQ are hidden. On publish the server writes a marker and the page's text
+to the Webflow body. The marker is where `embed.js` mounts the file, a full
+screen tall under the site header, and the text is what search engines read.
+The file scrolls inside its frame, so sticky parts stay put. Its links open in
+a new tab.
 
 The SEO title, SEO description, share title and H1 default to the title and
 excerpt when left blank. Cover image, author, silo, date, target keyword and

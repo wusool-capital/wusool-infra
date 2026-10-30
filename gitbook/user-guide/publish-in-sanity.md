@@ -46,8 +46,12 @@ see.
 
 1. Create an **Insights article** and fill in the title, slug, content type
    and excerpt.
-2. Pick **Write with**: the rich text editor, or pasted HTML. Then write the
-   body, and optionally the key takeaways and FAQ.
+2. Pick **Write with**: the rich text editor, pasted HTML, or **HTML file
+   as the whole page**. Then write the body. Optionally add the key takeaways
+   and FAQ. For the whole page, upload the exported file in
+   **Charts HTML file** instead. The article page then shows that file as it
+   looks in a browser, sidebar and charts included. Its links open in a new
+   tab.
 3. Optionally fill in the cover image, author, silo, SEO fields and the
    end-of-page button. Blank SEO fields use the title and excerpt.
 4. For an article with live charts, upload the exported file in

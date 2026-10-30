@@ -3,7 +3,15 @@
   "use strict";
 
   // Runs inside the frame as text: reports height and hides all but the exhibit's figure.
-  function isolate(exhibit) {
+  function isolate(exhibit, site) {
+    // Sites refuse to load in a frame, so a link followed in place shows a blank page.
+    document.addEventListener("click", function (event) {
+      var link = event.target.closest && event.target.closest("a[href]");
+      var href = link && link.getAttribute("href");
+      if (!href || href.charAt(0) === "#") return;
+      if (site) link.href = new URL(href, site).href;
+      link.target = "_blank";
+    }, true);
     function target() {
       var at = exhibit.split("#");
       var section = document.getElementById(at[0]);
@@ -69,17 +77,19 @@
   }
 
   // Empty `exhibit` mounts the whole bundle. Senders match by window: the frame's origin is "null".
-  function mount(container, url, exhibit) {
+  // `page` ({height, site}) mounts it as the whole page: a fixed height it scrolls in, so sticky parts stay put.
+  function mount(container, url, exhibit, page) {
     return bundle(url).then(function (html) {
       var id = JSON.stringify(exhibit || "").replace(/</g, "\\u003c");
-      var script = "<script>(" + isolate + ")(" + id + ");<\/script>";
+      var site = JSON.stringify(page ? page.site : "").replace(/</g, "\\u003c");
+      var script = "<script>(" + isolate + ")(" + id + "," + site + ");<\/script>";
       // Before </head>, never ahead of the doctype: that would drop the bundle into quirks mode.
       var doc = html.indexOf("</head>") < 0 ? script + html : html.replace("</head>", function () { return script + "</head>"; });
       var frame = document.createElement("iframe");
       frame.setAttribute("sandbox", "allow-scripts allow-popups allow-popups-to-escape-sandbox");
       // Not 0: a bundle first laid out in a zero-height viewport stays collapsed once resized.
       frame.style.cssText = "display:block;width:100%;border:0;height:600px";
-      frame.title = exhibit ? "Interactive chart" : "Interactive report";
+      frame.title = exhibit ? "Interactive chart" : page ? "Article" : "Interactive report";
       // Collapsed until it draws, so a bundle that never does leaves no gap.
       var holder = document.createElement("div");
       holder.style.cssText = "position:relative;height:0;overflow:hidden";
@@ -87,7 +97,7 @@
         var data = event.data;
         if (event.source !== frame.contentWindow || !data || data.type !== "wusool:frame-height") return;
         if (typeof data.height !== "number" || !isFinite(data.height) || data.height <= 0) return;
-        frame.style.height = Math.min(data.height, MAX_FRAME_HEIGHT) + "px";
+        frame.style.height = page ? page.height : Math.min(data.height, MAX_FRAME_HEIGHT) + "px";
         // First paint of the bundle: callers swap their placeholder for the frame now.
         if (!frame.dataset.ready) {
           frame.dataset.ready = "1";

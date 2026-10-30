@@ -26,6 +26,7 @@ from app.modules.lead_magnets.providers.sanity.portable_text import (
     Block,
     ExhibitBlock,
     Exhibits,
+    page_marker,
     sanitize,
     to_html,
 )
@@ -75,7 +76,7 @@ class _SanityArticle(BaseModel):
     content_type: str = Field(alias="contentType")
     excerpt: str
     # GROQ projects an unset field as null, read as pasted HTML like the Studio does.
-    body_format: Literal["rich", "html"] | None = Field(default=None, alias="bodyFormat")
+    body_format: Literal["rich", "html", "page"] | None = Field(default=None, alias="bodyFormat")
     body: list[Block] | None = None
     body_html: str | None = Field(default=None, alias="bodyHtml")
     key_takeaways: list[Block] | None = Field(default=None, alias="keyTakeaways")
@@ -116,6 +117,9 @@ class _SanityArticle(BaseModel):
         exhibits: Exhibits | None = None,
     ) -> str | None:
         """The field in the editor's chosen format; the other one is ignored even if filled."""
+        if self.body_format == "page":
+            # The file is the whole page, so nothing else the editor wrote is shown.
+            return None
         if self.body_format != "rich":
             html = sanitize(pasted) if pasted else ""
         else:
@@ -186,7 +190,8 @@ class SanityArticleSource:
         if doc is None:
             return None
         exhibits = self._exhibits(doc)
-        body = doc.html(doc.body, doc.body_html, exhibits)
+        page_url = self._own_file(doc.html_file_url) if doc.body_format == "page" else None
+        body = page_marker(page_url) if page_url else doc.html(doc.body, doc.body_html, exhibits)
         if body is None:
             # The Studio requires a body; treated as unpublished rather than written blank.
             logger.warning("insights_article_no_body slug=%s", slug)
@@ -213,6 +218,7 @@ class SanityArticleSource:
             silo=doc.silo,
             cta_text=doc.cta_text,
             cta_url=doc.cta_url,
+            page_url=page_url,
         )
 
     async def pending_exhibits(self, slug: str) -> PendingExhibits | None:
@@ -230,9 +236,12 @@ class SanityArticleSource:
         )
 
     async def bundle(self, pending: PendingExhibits) -> str:
+        return await self.html_file(pending.bundle_url)
+
+    async def html_file(self, url: str) -> str:
         """Raises, not None: a failed fetch stops the sync before it writes a half-built page."""
         async with httpx.AsyncClient(timeout=self._timeout_s, follow_redirects=False) as client:
-            response = await client.get(pending.bundle_url)
+            response = await client.get(url)
         response.raise_for_status()
         if len(response.content) > _HTML_FILE_MAX_BYTES:
             raise ValueError(f"article html file is over {_HTML_FILE_MAX_BYTES} bytes")

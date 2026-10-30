@@ -14,6 +14,10 @@ class ReportRendererPort(Protocol):
         """A PNG per chart id (`<section id>#<figure number>`). Raises if one is missing."""
         ...
 
+    async def text(self, html: str) -> str:
+        """The page's visible text as a browser draws it, one line per block."""
+        ...
+
     async def pdf(self, html: str) -> bytes:
         """Already-flattened HTML printed to A4, honouring the report's own page size."""
         ...

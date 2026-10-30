@@ -155,6 +155,11 @@ def to_html(blocks: list[Block], exhibits: Exhibits | None = None) -> str:
     return sanitize("".join(out), exhibits=True)
 
 
+def page_marker(bundle_url: str) -> str:
+    """Where an article's whole-page HTML file mounts; only the server writes one."""
+    return f'<figure data-page data-bundle="{escape(bundle_url)}"></figure>'
+
+
 def _exhibit(block: ExhibitBlock, exhibits: Exhibits | None) -> str:
     # No still yet means the sync hasn't captured it; the chart is left out, never a broken image.
     still = exhibits.images.get(block.exhibit_id) if exhibits else None

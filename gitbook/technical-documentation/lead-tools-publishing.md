@@ -67,6 +67,14 @@ The same webhook carries Insights articles, which aren't gated.
   The Webflow page shows the still, and `embed.js` with `data-tool="insight"`
   swaps in the live chart as the reader scrolls to it. The Insights page
   template needs that script added by hand.
+- An article written as **HTML file as the whole page** gets a
+  `<figure data-page data-bundle>` marker as its Webflow body. Below it goes
+  the page's text, read by Chromium. The same `embed.js` script mounts the file in
+  a sandboxed frame, a full screen tall under the site header. It hides the
+  template's article once the file has drawn.
+- Links inside a report or article frame open in a new tab. Followed in
+  place, they showed a blank page, because the website refuses to load in a
+  frame.
 
 ## Known gaps
 
