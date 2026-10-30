@@ -32,6 +32,9 @@ for current production evidence and open handover items.
   shrink with a CSS transform, so images and text keep their proportions on
   iPhones. Readers pinch to zoom in. A whole-page article now sits above the
   phone browser's toolbar.
+- Full-page images in a report, such as section covers, no longer show
+  enlarged and cropped in Safari. Safari ignored their `height: 100%`, so the
+  page now pins them to the page's height.
 
 ## 2026-10-29
 
