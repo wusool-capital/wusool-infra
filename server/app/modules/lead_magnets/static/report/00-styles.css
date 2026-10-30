@@ -4,6 +4,8 @@
   --navy-12:rgba(0,5,35,.11); --navy-06:rgba(0,5,35,.05); --white:#fff; --r:4px;
 }
 body{margin:0;overflow-x:hidden}
+/* iOS enlarges text in a scaled-down report, overflowing its fixed-height pages. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 /* A report's own "html,body{height:100%}" ratchets a self-sizing iframe ever taller. */
 html,body{height:auto!important;min-height:0!important}
 
