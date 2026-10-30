@@ -42,6 +42,11 @@ records one more run, so every report a person reads becomes one activity.
   Gmail dots count as the same inbox.
 - Pending codes are held in memory, because one container runs. A deploy
   drops codes in flight, and those readers request a new one.
+- The code comes from `reports@wusoolcapital.com`
+  (`LEAD_MAGNET_REPORT_CODE_EMAIL_FROM`), with replies going to the contact
+  inbox. It carries a plain-text part beside the HTML. SES sends it with
+  `mail.wusoolcapital.com` as its return address, so SPF and DKIM both align
+  for DMARC.
 - The emailed code can be switched off by a server setting. The form then
   opens the report straight away and records the reader.
 

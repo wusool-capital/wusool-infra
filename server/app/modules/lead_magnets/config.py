@@ -63,6 +63,8 @@ class Settings(SecretsManagerSettings):
     lead_magnet_report_email_otp: bool = True
     # How long the emailed report unlock code stays valid.
     lead_magnet_report_code_ttl_s: int = 600
+    # A sender of its own, so the code email's reputation is apart from the shared contact@ inbox.
+    lead_magnet_report_code_email_from: str = "reports@wusoolcapital.com"
 
     # Attio `workspace_membership_id` of the advisor a new inbound deal is
     # assigned to. Every deal in the live workspace has an owner, so a

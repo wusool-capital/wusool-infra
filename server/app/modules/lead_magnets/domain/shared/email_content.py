@@ -17,6 +17,7 @@ from urllib.parse import quote
 class EmailContent:
     subject: str
     html: str
+    text: str | None = None
 
 
 # Same asset the live tool pages already embed (`static/img/a0288d00.png`),

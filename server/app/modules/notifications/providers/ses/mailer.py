@@ -34,7 +34,7 @@ from app.modules.utilities.domain.retry import retry_with_backoff
 
 if TYPE_CHECKING:
     from mypy_boto3_ses import SESClient
-    from mypy_boto3_ses.type_defs import SendEmailRequestTypeDef
+    from mypy_boto3_ses.type_defs import BodyTypeDef, SendEmailRequestTypeDef
 
 logger = logging.getLogger(__name__)
 
@@ -68,15 +68,20 @@ class SesMailer:
         body: str,
         is_html: bool = False,
         reply_to: str | None = None,
+        text: str | None = None,
     ) -> None:
         def send_email() -> None:
             body_key = "Html" if is_html else "Text"
+            body_parts: BodyTypeDef = {body_key: {"Data": body, "Charset": "UTF-8"}}
+            # A plain-text part beside the HTML: HTML-only mail scores worse with spam filters.
+            if is_html and text:
+                body_parts["Text"] = {"Data": text, "Charset": "UTF-8"}
             message: SendEmailRequestTypeDef = {
                 "Source": from_addr,
                 "Destination": {"ToAddresses": to},
                 "Message": {
                     "Subject": {"Data": subject, "Charset": "UTF-8"},
-                    "Body": {body_key: {"Data": body, "Charset": "UTF-8"}},
+                    "Body": body_parts,
                 },
             }
             if reply_to:
