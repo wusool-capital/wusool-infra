@@ -26,6 +26,8 @@ for current production evidence and open handover items.
 - A whole-page article no longer flashes its plain-text copy while the page
   loads. With the header hidden, the site navbar starts dark and turns
   translucent on scroll, as on other articles.
+- Reports no longer cut off the bottom of each page on iPhones. Safari was
+  enlarging the text until it overflowed the fixed-size pages.
 
 ## 2026-10-29
 
