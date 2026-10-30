@@ -62,18 +62,38 @@
       document.body.style.setProperty("margin", "0", "important");
     }
     // Content wider than the frame shrinks to fit it; content that already fits stays 1:1.
-    // Measured unzoomed: once shrunk, a fluid page fills the frame and hides its real width.
+    // A transform, not CSS zoom: iOS Safari mis-sizes images under zoom. It lays out as on desktop, then shrinks.
+    var scale = 1;
     function fitWidth() {
       var root = document.documentElement;
-      document.body.style.zoom = "";
-      var fit = root.clientWidth / root.scrollWidth;
-      if (fit < 1) document.body.style.zoom = String(fit);
+      var body = document.body;
+      ["transform", "transform-origin", "width", "box-sizing", "margin-bottom"].forEach(function (name) {
+        body.style.removeProperty(name);
+      });
+      scale = 1;
+      var style = getComputedStyle(body);
+      var sides = parseFloat(style.marginLeft) + parseFloat(style.marginRight);
+      var natural = root.scrollWidth - sides;
+      var room = root.clientWidth - sides;
+      if (natural <= room) return;
+      scale = room / natural;
+      body.style.boxSizing = "border-box";
+      body.style.width = natural + "px";
+      body.style.transformOrigin = "0 0";
+      body.style.transform = "scale(" + scale + ")";
+      // A transform keeps the full-size layout box, so pull up the empty space it leaves below.
+      body.style.marginBottom = parseFloat(style.marginBottom) - body.offsetHeight * (1 - scale) + "px";
+    }
+    function refit() {
+      // Deferred: resizing the observed body inside its callback raises a loop error the bundle reports.
+      requestAnimationFrame(function () {
+        if (document.body) fitWidth();
+      });
     }
     var fitted = null;
-    // Deferred: resizing the observed body inside the callback raises a loop error the bundle reports.
-    var resized = new ResizeObserver(function () {
-      requestAnimationFrame(fitWidth);
-    });
+    var resized = new ResizeObserver(refit);
+    // The body's width is pinned while shrunk, so only the window reports a rotation.
+    window.addEventListener("resize", refit);
     var root = null;
     var last = 0;
     // Polls because the bundle swaps its page in after load.
@@ -103,7 +123,7 @@
             });
           }
         }
-        height = Math.ceil(document.body.scrollHeight * (parseFloat(document.body.style.zoom) || 1));
+        height = Math.ceil(document.body.scrollHeight * scale);
       }
       if (!height || height === last) return;
       last = height;

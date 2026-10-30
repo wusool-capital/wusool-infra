@@ -307,9 +307,10 @@ preview cut left open, and the reader keeps their place.
 
 Reports reach this page already flattened (`providers/chromium/renderer.py`),
 so every report is static HTML here. Fixed-width exports, such as 794 px A4
-pages, are scaled with CSS `zoom` to fill the frame (`fit()` in
-`10-main.js`), up on desktop and down on a phone. Reflowing HTML stays at
-1:1. On a phone, fixed pages mean pinch-to-zoom reading, a limit of
+pages, are scaled with a CSS `transform` to fill the frame (`fit()` in
+`10-main.js`), up on desktop and down on a phone. Not CSS `zoom`: iOS Safari
+mis-sizes images under it. The live report frame shrinks the same way
+(`shared/interactive.js`). Reflowing HTML stays at 1:1. On a phone, fixed pages mean pinch-to-zoom reading, a limit of
 fixed-page documents.
 
 While locked, `#gate` overlays the end of the preview: the last stretch is

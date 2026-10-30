@@ -128,7 +128,7 @@
       loading ||
       new Promise(function (resolve, reject) {
         var tag = document.createElement("script");
-        tag.src = origin + "/shared/interactive.js?v=7";
+        tag.src = origin + "/shared/interactive.js?v=8";
         tag.onload = function () {
           resolve(window.WusoolInteractive);
         };
@@ -168,8 +168,10 @@
         // Measured once the page has laid out, not while this script is still parsing.
         var header = fixedHeader();
         top = header ? Math.ceil(header.getBoundingClientRect().bottom) : 0;
+        // dvh, not vh: on phones vh ignores the browser's toolbars, so the page's bottom would sit under them.
+        var vh = window.CSS && CSS.supports("height", "1dvh") ? "dvh" : "vh";
         return api.mount(holder, bundle, "", {
-          height: "calc(100vh - " + top + "px)",
+          height: "calc(100" + vh + " - " + top + "px)",
           site: window.location.origin,
         });
       })
@@ -265,7 +267,7 @@
 
     var panel = document.createElement("div");
     panel.style.cssText =
-      "position:relative;width:min(680px,92vw);height:min(90vh,900px);" +
+      "position:relative;width:min(680px,92vw);height:min(90vh,900px);height:min(90dvh,900px);" +
       "background:#fff;border-radius:12px;overflow:hidden;" +
       "box-shadow:0 24px 64px rgba(0,0,0,.32)";
 
