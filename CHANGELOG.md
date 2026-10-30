@@ -28,8 +28,10 @@ for current production evidence and open handover items.
   translucent on scroll, as on other articles.
 - Reports no longer cut off the bottom of each page on iPhones. Safari was
   enlarging the text until it overflowed the fixed-size pages.
-- A live report shrinks to fit a phone's width, so each page shows whole
-  without scrolling sideways. Readers pinch to zoom in.
+- Reports and whole-page articles fit any screen width. Fixed-size pages
+  shrink with a CSS transform, so images and text keep their proportions on
+  iPhones. Readers pinch to zoom in. A whole-page article now sits above the
+  phone browser's toolbar.
 
 ## 2026-10-29
 
