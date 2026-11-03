@@ -1,0 +1,59 @@
+name: Client quality
+
+on:
+  pull_request:
+    branches: [dev, prod]
+
+permissions:
+  contents: read
+  # `dorny/paths-filter` needs this on a private repo; see python-quality.yml.
+  pull-requests: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      client: ${{ steps.filter.outputs.client }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # server/** too: an API change must regenerate client/src/gen.
+          filters: |
+            client:
+              - 'client/**'
+              - 'server/app/modules/matching_engine/api/**'
+              - 'server/main.py'
+              - '.github/workflows/client-quality.yml'
+
+  checks:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [quality, unit, api, build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - uses: astral-sh/setup-uv@v9.0.0
+        if: matrix.target == 'api'
+        with: { version: latest }
+      - run: ./checks.sh ${{ matrix.target }}
+        working-directory: client
+
+  client-gate:
+    name: Client quality (required)
+    if: always()
+    needs: [changes, checks]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'HARD GATE: blocks merge'
+        run: |
+          if [[ '${{ needs.changes.result }}' != 'success' || '${{ needs.checks.result }}' == 'failure' || '${{ needs.checks.result }}' == 'cancelled' ]]; then exit 1; fi

@@ -1,0 +1,27 @@
+/* client/DESIGN.md front matter, one-to-one. The only place hex values live. */
+:root {
+  --canvas: #010102;
+  --surface-1: #0f1011;
+  --surface-2: #141516;
+  --surface-3: #18191a;
+  --surface-4: #191a1b;
+  --hairline: #23252a;
+  --hairline-strong: #34343a;
+  --hairline-tertiary: #3e3e44;
+
+  --ink: #f7f8f8;
+  --ink-muted: #d0d6e0;
+  --ink-subtle: #8a8f98;
+  --ink-tertiary: #62666d;
+
+  --primary: #5e6ad2;
+  --primary-hover: #828fff;
+  --primary-focus: #5e69d1;
+  --on-primary: #ffffff;
+
+  --success: #27a644;
+  /* App extensions (DESIGN.md "App extensions"). */
+  --warning: #d4a248;
+  --danger: #e06c6c;
+  --overlay: #000000;
+}
