@@ -31,7 +31,7 @@ export function ScoreBar({
         aria-valuemax={100}
         aria-valuenow={Math.round(value)}
         aria-valuetext={`${score(value)} of 100${below ? `, below the ${score(threshold)} discovery threshold` : ""}`}
-        className="relative h-1 bg-surface-4"
+        className="relative h-1 bg-hairline"
       >
         <span
           className={cn(
@@ -66,7 +66,7 @@ export function ScoreFigure({
       <span className={cn("text-body", below ? "text-ink-muted" : "text-ink")}>
         {score(value)}
       </span>
-      <span aria-hidden className="relative h-[2px] w-full bg-surface-4">
+      <span aria-hidden className="relative h-[2px] w-full bg-hairline">
         <span
           className={cn(
             "absolute inset-y-0 left-0",
