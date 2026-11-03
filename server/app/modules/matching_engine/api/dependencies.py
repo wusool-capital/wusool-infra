@@ -9,6 +9,7 @@ from functools import lru_cache
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.discovery import DiscoveryOutcome
 from app.modules.discrepancies import DiscrepancyCheckResult
 from app.modules.matching_engine.api.buyers import BuyerResolutionRead, BuyerSummary
 from app.modules.matching_engine.api.matching import MatchAnalysis, MatchResultRead, MatchScoreRead
@@ -276,7 +277,7 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         return
     if outcome.status != "ok":
         await notifier.update_message(
-            channel=channel_id, ts=placeholder_ts, text=_DISCOVERY_STATUS_TEXT[outcome.status]
+            channel=channel_id, ts=placeholder_ts, text=DISCOVERY_STATUS_TEXT[outcome.status]
         )
         return
 
@@ -310,27 +311,7 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         )
         return
 
-    notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
-    if outcome.awaiting_review:
-        notes.append(f"{outcome.awaiting_review} still awaiting an earlier website review.")
-    if outcome.unverified_skipped:
-        notes.append(
-            f"{outcome.unverified_skipped} skipped because their website didn't match Google Maps."
-        )
-    if outcome.possible_duplicates:
-        notes.append(
-            f"{outcome.possible_duplicates} skipped as possible duplicates "
-            "(a similar name is already in the CRM)."
-        )
-    if outcome.failed:
-        notes.append(
-            "Couldn't save: "
-            + ", ".join(
-                f"{f.lead.name} (partly saved: {'; '.join(f.landed)})" if f.landed else f.lead.name
-                for f in outcome.failed
-            )
-            + "."
-        )
+    notes = discovery_outcome_notes(outcome)
     created_ids = {str(c.seller_role_id) for c in outcome.created}
     discovered = (
         [r for r in view.results if r.origin == "discovery" and r.seller_role_id in created_ids]
@@ -361,7 +342,33 @@ async def trigger_seller_discovery(run_id: uuid.UUID, *, channel_id: str) -> Non
         )
 
 
-_DISCOVERY_STATUS_TEXT = {
+DISCOVERY_STATUS_TEXT = {
     "disabled": "Seller discovery isn't configured.",
     "daily_cap_reached": "Daily discovery limit reached for this buyer. Try again tomorrow.",
 }
+
+
+def discovery_outcome_notes(outcome: DiscoveryOutcome) -> list[str]:
+    """Advisor-facing counts of the leads discovery skipped or couldn't save."""
+    notes = [f"{outcome.already_in_crm} more already in the CRM."] if outcome.already_in_crm else []
+    if outcome.awaiting_review:
+        notes.append(f"{outcome.awaiting_review} still awaiting an earlier website review.")
+    if outcome.unverified_skipped:
+        notes.append(
+            f"{outcome.unverified_skipped} skipped because their website didn't match Google Maps."
+        )
+    if outcome.possible_duplicates:
+        notes.append(
+            f"{outcome.possible_duplicates} skipped as possible duplicates "
+            "(a similar name is already in the CRM)."
+        )
+    if outcome.failed:
+        notes.append(
+            "Couldn't save: "
+            + ", ".join(
+                f"{f.lead.name} (partly saved: {'; '.join(f.landed)})" if f.landed else f.lead.name
+                for f in outcome.failed
+            )
+            + "."
+        )
+    return notes

@@ -54,6 +54,7 @@ _SECRETS_MANAGER_KEYS = frozenset(
         "AWS_SECRET_ACCESS_KEY",
         "FIRECRAWL_API_KEY",
         "DESKTOP_API_KEY",
+        "WEB_API_KEY",
         "DIFFBOT_API_KEY",
         "PEOPLE_DATA_LABS_API_KEY",
         "APIFY_API_TOKEN",
