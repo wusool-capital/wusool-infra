@@ -104,6 +104,50 @@ approver. A changed deal stage is also recorded in `deal_stage_events`. If
 Attio already has a deal for that buyer and seller, the approver chooses to
 promote it or create a new one. Only an Inbound deal is promoted.
 
+## Web API
+
+The web app (`client/`) runs the same flow in a browser. The Toolkit container
+serves its build at `/app` (`SpaStatic`, which falls back to `index.html` for
+deep links and caches hashed assets for a year) and its API under `/api`:
+
+| Route | Does |
+| --- | --- |
+| `GET /api/buyers?q=` | Buyer search. |
+| `POST /api/buyers/{id}/preflight` | Discrepancy check against the advisor's note. |
+| `POST /api/match-runs` | Starts a run and returns 202 with its id. |
+| `GET /api/match-runs/{id}` | Run state, candidates with reasoning, discovery progress. |
+| `POST /api/match-runs/{id}/discovery` | Starts discovery by hand. |
+| `POST /api/match-runs/{id}/candidates/{cid}/approve` | Approve, with the promote or create choice. |
+| `POST /api/match-runs/{id}/candidates/{cid}/reject` | Reject. |
+| `GET /api/match-runs/{id}/export.csv` | The candidates as CSV, with formula characters neutralised. |
+
+**Access.** Every route needs `Authorization: Bearer <WEB_API_KEY>`. A wrong
+key gets 401; while the key is unset, every route returns 503. Decisions are
+recorded with `approved_by` set to `web`, and runs have no `requested_by`,
+until sign-in with Slack exists.
+
+**Runs.** The route commits the run's header row (`start_run`) and returns.
+The matching itself (`execute_run`) runs on the shared in-process task runner,
+as Slack's runs do. A run with no `completed_at` reads as running. After
+`MATCH_RUN_STALE_AFTER_MINUTES` (default 15) it reads as stale: a deploy or
+restart cut it off.
+
+**Discovery.** Below `WEB_FALLBACK_MIN_SCORE`, a web run starts discovery
+itself. Its progress and outcome counts live in an in-process tracker; after a
+restart the page offers the manual start instead.
+
+**Settings.** `WEB_API_KEY` is a field of the Toolkit secret in Secrets
+Manager and must be added by hand to `/wusool/dev/toolkit` and the production
+secret. `WEB_ALLOWED_ORIGINS` (CORS) stays empty while the app is served from
+the same host.
+
+**Build and deploy.** The Toolkit image has a Node stage that builds
+`client/`, passed in as a named build context (`--build-context
+client=client` in `_build.yml`, `additional_contexts` in
+`docker-compose.yml`). Changes under `client/**` trigger the deploy workflows.
+The `Client quality` workflow checks types, lint, tests, the build, and that
+the generated API client matches the server.
+
 ## Data it reads and writes
 
 | Data | Use |

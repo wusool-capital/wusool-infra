@@ -8,6 +8,17 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-03
+
+### Added
+
+- A web version of find-match at `/app` on the Toolkit host. One page walks
+  through the run in order (buyer, profile check, matching, shortlist,
+  discovery, export) with a steps bar at the top. Advisors approve or reject
+  each seller, choose between an existing Attio deal and a new one, and
+  download the shortlist as CSV. Access uses a shared key until sign-in with
+  Slack arrives.
+
 ## 2026-10-30
 
 ### Added
