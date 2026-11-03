@@ -36,11 +36,15 @@ export function TopBar({
             return (
               <Fragment key={`${crumb.label}-${String(index)}`}>
                 {index > 0 && (
-                  <li aria-hidden className="text-ink-tertiary">
+                  <li aria-hidden className="hidden text-ink-tertiary md:block">
                     /
                   </li>
                 )}
-                <li className="min-w-0 truncate">
+                <li
+                  className={
+                    last ? "min-w-0 truncate" : "hidden shrink-0 md:block"
+                  }
+                >
                   {crumb.to !== undefined && !last ? (
                     <Link
                       to={crumb.to}

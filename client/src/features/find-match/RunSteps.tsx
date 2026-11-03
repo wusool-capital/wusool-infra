@@ -315,6 +315,9 @@ export function DiscoveryStep({
           : reviewCount(found)
       }
     >
+      {found.length > 0 && discovery.message && (
+        <p className="text-body-sm text-ink">{discovery.message}</p>
+      )}
       {discovery.notes.length > 0 && (
         <ul className="flex flex-col gap-xxs text-body-sm text-ink-muted">
           {discovery.notes.map((note) => (

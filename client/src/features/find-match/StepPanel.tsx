@@ -42,7 +42,9 @@ export function StepPanel({
         lifted
           ? "border-hairline-strong bg-surface-2"
           : "border-hairline bg-surface-1",
-        state === "upcoming" && "border-dashed bg-transparent",
+        state === "upcoming" &&
+          children === undefined &&
+          "border-dashed bg-transparent",
       )}
     >
       <h2 className="flex min-h-12 items-center">
