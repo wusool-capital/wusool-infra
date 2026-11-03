@@ -68,6 +68,8 @@ router = APIRouter(
     tags=["find-match"],
     dependencies=[Depends(require_web_api_key)],
     responses=_ERRORS,
+    # Short operation ids become the generated client's function and hook names.
+    generate_unique_id_function=lambda route: route.name,
 )
 
 
@@ -355,6 +357,7 @@ def _run_detail(run_id: uuid.UUID, analysis: MatchAnalysisData) -> RunDetailResp
         candidates_considered=run.candidates_considered,
         candidates_filtered=run.candidates_filtered,
         low_match_quality=low_quality,
+        discovery_threshold=settings.web_fallback_min_score,
         notes=list(tracked.notes) if tracked is not None else [],
         discovery=discovery,
         candidates=candidates,

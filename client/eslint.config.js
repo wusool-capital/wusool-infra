@@ -37,4 +37,9 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // TanStack Router's plugin splits and hot-reloads route files itself.
+    files: ["src/routes/**/*.tsx"],
+    rules: { "react-refresh/only-export-components": "off" },
+  },
 );

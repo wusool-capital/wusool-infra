@@ -21,7 +21,9 @@ def api_error(status_code: int, error: ApiError) -> HTTPException:
     return HTTPException(status_code=status_code, detail=error.model_dump(mode="json"))
 
 
-async def require_web_api_key(authorization: str | None = Header(default=None)) -> None:
+async def require_web_api_key(
+    authorization: str | None = Header(default=None, include_in_schema=False),
+) -> None:
     configured = get_settings().web_api_key
     if configured is None or not configured.get_secret_value():
         raise api_error(

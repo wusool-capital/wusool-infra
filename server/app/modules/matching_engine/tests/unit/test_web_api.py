@@ -181,6 +181,7 @@ def test_completed_run_carries_candidates_and_reasoning(api) -> None:
 
     assert body["state"] == "completed"
     assert body["low_match_quality"] is False
+    assert body["discovery_threshold"] == 50.0
     assert body["discovery"]["status"] == "not_needed"
     assert body["candidates"][0]["why_it_matches"] == "Strong sector fit"
 

@@ -6,10 +6,16 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.matching_engine.domain.matching.deals import DealResolution
 from app.modules.matching_engine.domain.matching.run_state import RunState
+
+
+class _Schema(BaseModel):
+    # A defaulted field is still always present in responses, so the client sees it as required.
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
 
 CriterionName = Literal["vertical", "geography", "ticket_band", "ebitda"]
 ApiErrorCode = Literal[
@@ -26,13 +32,13 @@ DiscoveryStatus = Literal[
 ]
 
 
-class DiscrepancyRead(BaseModel):
+class DiscrepancyRead(_Schema):
     criterion: CriterionName
     stored: str
     stated: str | None = None
 
 
-class ContextReadingRead(BaseModel):
+class ContextReadingRead(_Schema):
     """What the advisor's note was read as; amounts are absolute USD."""
 
     verticals: list[str] = []
@@ -48,11 +54,11 @@ class ContextReadingRead(BaseModel):
     seller_status: list[str] = []
 
 
-class PreflightRequest(BaseModel):
+class PreflightRequest(_Schema):
     advisor_context: str | None = Field(default=None, max_length=4000)
 
 
-class PreflightResponse(BaseModel):
+class PreflightResponse(_Schema):
     buyer_role_id: str
     conflicts: list[DiscrepancyRead]
     missing: list[DiscrepancyRead]
@@ -61,16 +67,16 @@ class PreflightResponse(BaseModel):
     context: ContextReadingRead
 
 
-class StartRunRequest(BaseModel):
+class StartRunRequest(_Schema):
     buyer_role_id: uuid.UUID
     advisor_context: str | None = Field(default=None, max_length=4000)
 
 
-class StartRunResponse(BaseModel):
+class StartRunResponse(_Schema):
     run_id: uuid.UUID
 
 
-class CandidateRead(BaseModel):
+class CandidateRead(_Schema):
     id: uuid.UUID
     rank: int
     origin: Literal["crm", "discovery"]
@@ -89,13 +95,13 @@ class CandidateRead(BaseModel):
     deal_attio_id: str | None
 
 
-class DiscoveryRead(BaseModel):
+class DiscoveryRead(_Schema):
     status: DiscoveryStatus
     message: str | None = None
     notes: list[str] = []
 
 
-class RunDetailResponse(BaseModel):
+class RunDetailResponse(_Schema):
     run_id: uuid.UUID
     buyer_role_id: str
     buyer_org_name: str
@@ -105,34 +111,35 @@ class RunDetailResponse(BaseModel):
     error: str | None
     candidates_considered: int | None
     candidates_filtered: int | None
-    # True once a completed run's best CRM score is below the discovery threshold.
+    # True once a completed run's best CRM score is below `discovery_threshold`.
     low_match_quality: bool
+    discovery_threshold: float
     notes: list[str]
     discovery: DiscoveryRead
     candidates: list[CandidateRead]
 
 
-class ApproveRequest(BaseModel):
+class ApproveRequest(_Schema):
     resolution: DealResolution | None = None
     existing_deal_id: str | None = None
 
 
-class DecisionResponse(BaseModel):
+class DecisionResponse(_Schema):
     candidate: CandidateRead
 
 
-class ExistingDealRead(BaseModel):
+class ExistingDealRead(_Schema):
     attio_id: str
     name: str
     stage: str | None
     web_url: str | None
 
 
-class ApiError(BaseModel):
+class ApiError(_Schema):
     code: ApiErrorCode
     message: str
     existing_deals: list[ExistingDealRead] = []
 
 
-class ApiErrorResponse(BaseModel):
+class ApiErrorResponse(_Schema):
     detail: ApiError

@@ -28,7 +28,6 @@ unit() {
 api() {
   (cd ../server && uv run python scripts/export_openapi.py ../client/openapi.json)
   npm run gen:api
-  npx prettier --write openapi.json >/dev/null
   git diff --exit-code -- openapi.json src/gen
   if [[ -n "$(git status --porcelain -- openapi.json src/gen)" ]]; then
     echo "Untracked generated API files; run npm run gen:api and commit them" >&2
