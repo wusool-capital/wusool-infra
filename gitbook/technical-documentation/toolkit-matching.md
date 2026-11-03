@@ -140,7 +140,7 @@ enrichment Slack does and posts it to `WEB_REVIEW_CHANNEL_ID`. With that
 setting unset the step is skipped. The profile check can't be skipped.
 
 **One search per run.** Slack and the web claim a run's search outside the
-CRM on the run row, so a second click, a retry or a restart can't search
+CRM on the run row. A second click, a retry or a restart can't search
 twice. The outcome and notes stay on the row, so the run page shows them
 after a restart. A search that had nothing to search on, hit the daily cap or
 failed releases its claim. It can then run again.
