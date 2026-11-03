@@ -67,7 +67,7 @@ standard AWS credential provider chain), `LLM_TEMPERATURE`/`LLM_MAX_TOKENS`/
 Firecrawl lead search it triggers, and `FIRECRAWL_API_KEY`, belong to
 `discovery` now), `MEETING_NOTES_MAX_CHARS`/
 `MEETING_NOTES_MAX_TOTAL_CHARS`, `ENABLE_SELLER_MEETING_NOTES`,
-`WEB_API_KEY` (Secrets Manager; unset keeps `/api/*` disabled),
+`WEB_API_KEY` (the Toolkit secret's `env` map; unset keeps `/api/*` disabled),
 `WEB_ALLOWED_ORIGINS` (CORS, empty for same-origin hosting),
 `MATCH_RUN_STALE_AFTER_MINUTES` (default 15).
 

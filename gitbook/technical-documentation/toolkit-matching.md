@@ -150,10 +150,10 @@ itself. Its progress and outcome counts live in an in-process tracker; after a
 restart the page offers the manual start instead. The manual start is also
 offered on runs that cleared the threshold.
 
-**Settings.** `WEB_API_KEY` is a field of the Toolkit secret in Secrets
-Manager and must be added by hand to `/wusool/dev/toolkit` and the production
-secret. `WEB_ALLOWED_ORIGINS` (CORS) stays empty while the app is served from
-the same host.
+**Settings.** `WEB_API_KEY` and `WEB_REVIEW_CHANNEL_ID` are entries in the
+`env` map of the Toolkit secret (`/wusool/<env>/toolkit`). A top-level key
+is ignored. Both are set in dev and prod. `WEB_ALLOWED_ORIGINS` (CORS) stays
+empty while the app is served from the same host.
 
 **Build and deploy.** The Toolkit image has a Node stage that builds
 `client/`, passed in as a named build context (`--build-context

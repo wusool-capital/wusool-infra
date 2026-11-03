@@ -38,7 +38,7 @@ are the authorization boundary.
 The web app has no user sign-in yet. One shared key unlocks it, so anyone
 holding the key can read buyer and match data and approve deals. The database
 records those decisions as `web`, not as a person. The key lives in the
-browser tab's session storage. Rotate it by changing `WEB_API_KEY` in the
+browser tab's session storage. Rotate it by changing `env.WEB_API_KEY` in the
 Toolkit secret and restarting. Sign-in with Slack replaces it.
 
 The Toolkit's role can send SES email from any verified identity.
