@@ -56,8 +56,12 @@ function FindMatchPage(): React.JSX.Element {
     <>
       <TopBar crumbs={[{ label: "Tools", to: "/" }, { label: "Find match" }]} />
       <StepsBar steps={steps} />
-      <main className="mx-auto flex w-full max-w-[760px] flex-col gap-lg px-md py-xl md:px-xl">
-        <h1 className="text-headline">New find-match run</h1>
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto flex w-full max-w-[760px] flex-col gap-lg px-md py-xl outline-none md:px-xl"
+      >
+        <h1 className="text-headline text-balance">New find-match run</h1>
         <ol className="flex flex-col gap-sm">
           <StepPanel
             id="buyer"
@@ -88,7 +92,7 @@ function FindMatchPage(): React.JSX.Element {
                 : "Add a note, then check"
             }
           >
-            {buyer !== null && (
+            {buyer === null ? undefined : (
               <ProfileCheck
                 key={buyer.id}
                 buyer={buyer}

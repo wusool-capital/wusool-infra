@@ -130,6 +130,7 @@
     @apply h-full;
   }
   body {
+    touch-action: manipulation;
     @apply bg-canvas font-sans text-body text-ink antialiased;
   }
   :focus-visible {

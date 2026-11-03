@@ -60,9 +60,13 @@ function RunPage(): React.JSX.Element {
       ) : (
         <div className="h-[49px] border-b border-hairline" />
       )}
-      <main className="mx-auto flex w-full max-w-[760px] flex-col gap-lg px-md py-xl md:px-xl">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto flex w-full max-w-[760px] flex-col gap-lg px-md py-xl outline-none md:px-xl"
+      >
         <div className="flex flex-col gap-xxs">
-          <h1 className="text-headline">{buyerName}</h1>
+          <h1 className="text-headline text-balance">{buyerName}</h1>
           <p className="text-body-sm text-ink-subtle">
             {run ? `Started ${relativeTime(run.started_at)}` : "Find-match run"}
             {" · "}

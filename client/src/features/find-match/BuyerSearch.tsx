@@ -69,7 +69,8 @@ export function BuyerSearch({
         aria-activedescendant={active ? `${listId}-${active.id}` : undefined}
         autoComplete="off"
         autoFocus
-        placeholder="Search buyers by organization name"
+        name="buyer-search"
+        placeholder="Search buyers by organization name…"
         value={query}
         onChange={(event) => {
           setQuery(event.target.value);

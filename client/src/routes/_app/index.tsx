@@ -19,12 +19,19 @@ function HomePage(): React.JSX.Element {
   return (
     <>
       <TopBar crumbs={[{ label: "Tools" }]} />
-      <main className="mx-auto flex w-full max-w-[1100px] flex-col gap-xxl px-md py-xxl md:px-xl">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto flex w-full max-w-[1100px] flex-col gap-xxl px-md py-xxl outline-none md:px-xl"
+      >
         <section
           aria-labelledby="home-title"
           className="mx-auto flex w-full max-w-[680px] flex-col gap-lg"
         >
-          <h1 id="home-title" className="text-center text-headline">
+          <h1
+            id="home-title"
+            className="text-center text-headline text-balance"
+          >
             Which buyer are we matching?
           </h1>
           <form
@@ -34,7 +41,7 @@ function HomePage(): React.JSX.Element {
               if (trimmed.length < 2) return;
               void navigate({ to: "/find-match", search: { q: trimmed } });
             }}
-            className="flex items-end gap-sm rounded-lg border border-hairline bg-surface-1 p-sm focus-within:border-hairline-strong"
+            className="flex items-end gap-sm rounded-lg border border-hairline bg-surface-1 p-sm focus-within:border-hairline-strong has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-primary-focus/50"
           >
             <label htmlFor="home-buyer" className="sr-only">
               Buyer name
@@ -45,7 +52,8 @@ function HomePage(): React.JSX.Element {
               onChange={(event) => {
                 setQuery(event.target.value);
               }}
-              placeholder="Type a buyer's name to start a find-match run"
+              name="buyer"
+              placeholder="Type a buyer's name to start a find-match run…"
               autoComplete="off"
               className="min-h-11 flex-1 bg-transparent px-xs text-body text-ink outline-none placeholder:text-ink-subtle"
             />
@@ -97,7 +105,7 @@ function HomePage(): React.JSX.Element {
                 ) : (
                   <p className="text-caption text-ink-subtle">
                     In Slack:{" "}
-                    <code className="font-mono text-mono">
+                    <code translate="no" className="font-mono text-mono">
                       {tool.slackCommand}
                     </code>
                   </p>

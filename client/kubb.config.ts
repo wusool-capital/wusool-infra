@@ -19,6 +19,10 @@ export default defineConfig({
       importPath: "@/lib/api-client",
       validator: { response: "zod" },
     }),
-    pluginReactQuery({ output: { path: "hooks", banner }, client: "client", hooks: true }),
+    pluginReactQuery({
+      output: { path: "hooks", banner },
+      client: "client",
+      hooks: true,
+    }),
   ],
 });

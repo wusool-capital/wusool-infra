@@ -254,7 +254,9 @@ export function CandidateCard({
       {!pending && candidate.deal_attio_id && (
         <p className="text-caption text-ink-subtle">
           Qualified deal in Attio{" "}
-          <code className="font-mono text-mono">{candidate.deal_attio_id}</code>
+          <code translate="no" className="font-mono text-mono">
+            {candidate.deal_attio_id}
+          </code>
         </p>
       )}
     </article>

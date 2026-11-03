@@ -60,7 +60,7 @@ export function ApiKeyGate({
         className="flex w-full max-w-[400px] flex-col gap-lg rounded-lg border border-hairline bg-surface-1 p-lg"
       >
         <div className="flex flex-col gap-xs">
-          <h1 className="text-card-title">Wusool Toolkit</h1>
+          <h1 className="text-card-title text-balance">Wusool Toolkit</h1>
           <p className="text-body-sm text-ink-subtle">
             Enter the team access key to use the web tools. It's kept for this
             tab only.
@@ -88,7 +88,7 @@ export function ApiKeyGate({
           )}
         </div>
         <Button type="submit" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? "Checking…" : "Continue"}
+          {form.formState.isSubmitting ? "Checking…" : "Use this key"}
         </Button>
       </form>
     </main>

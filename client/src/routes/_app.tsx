@@ -33,6 +33,12 @@ function AppLayout(): React.JSX.Element {
           },
         }}
       >
+        <a
+          href="#main"
+          className="sr-only z-50 rounded-md bg-surface-3 px-md py-xs text-body-sm focus:not-sr-only focus:fixed focus:top-xs focus:left-xs"
+        >
+          Skip to content
+        </a>
         <div className="flex h-full">
           <aside className="hidden w-[240px] shrink-0 border-r border-hairline md:block">
             <Sidebar />
@@ -42,7 +48,7 @@ function AppLayout(): React.JSX.Element {
               role="dialog"
               aria-modal="true"
               aria-label="Navigation"
-              className="fixed inset-0 z-40 bg-canvas md:hidden"
+              className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-canvas md:hidden"
             >
               <Button
                 variant="tertiary"

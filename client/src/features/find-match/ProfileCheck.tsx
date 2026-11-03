@@ -56,8 +56,10 @@ function CheckResult({
             </p>
             <p className="text-ink-subtle">
               Fill these in with{" "}
-              <code className="font-mono text-mono">/edit-buyer</code> in Slack
-              for a sharper match, or run it now.
+              <code translate="no" className="font-mono text-mono">
+                /edit-buyer
+              </code>{" "}
+              in Slack for a sharper match, or run it now.
             </p>
           </AlertDescription>
         </Alert>
@@ -133,7 +135,7 @@ export function ProfileCheck({
         </Label>
         <Textarea
           id="advisor-context"
-          placeholder="e.g. Healthcare clinics in the GCC, ticket $5–20M, EBITDA above $2M"
+          placeholder="e.g. Healthcare clinics in the GCC, ticket $5–20M, EBITDA above $2M…"
           aria-invalid={fieldError !== undefined}
           aria-describedby="advisor-context-help"
           {...form.register("advisor_context", {

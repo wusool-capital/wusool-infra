@@ -12,8 +12,12 @@ function SettingsPage(): React.JSX.Element {
   return (
     <>
       <TopBar crumbs={[{ label: "Tools", to: "/" }, { label: "Settings" }]} />
-      <main className="mx-auto flex w-full max-w-[760px] flex-col gap-xl px-md py-xl md:px-xl">
-        <h1 className="text-headline">Settings</h1>
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto flex w-full max-w-[760px] flex-col gap-xl px-md py-xl outline-none md:px-xl"
+      >
+        <h1 className="text-headline text-balance">Settings</h1>
         <section
           aria-labelledby="access-title"
           className="grid gap-md rounded-lg border border-hairline bg-surface-1 p-lg md:grid-cols-[1fr_auto] md:items-center"

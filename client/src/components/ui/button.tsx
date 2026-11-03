@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 // DESIGN.md button-*: rounded-md, 8px 14px, `button` type. Never pill-shaped.
 const buttonVariants = cva(
-  "inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-xs rounded-md px-[14px] py-xs text-button whitespace-nowrap transition-colors outline-none disabled:pointer-events-none disabled:text-ink-tertiary [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-xs rounded-md px-[14px] py-xs text-button whitespace-nowrap transition-colors disabled:pointer-events-none disabled:text-ink-tertiary [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
