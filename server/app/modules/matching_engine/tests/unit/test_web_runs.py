@@ -8,14 +8,6 @@ from app.modules.matching_engine.api.http import web_runs
 from app.modules.matching_engine.api.http.run_tracker import run_tracker
 
 
-class _Session:
-    async def __aenter__(self):
-        return None
-
-    async def __aexit__(self, *_args):
-        return False
-
-
 def _patch(monkeypatch, *, status: str, scores: list[float]):
     result = SimpleNamespace(
         status=status,
@@ -24,8 +16,9 @@ def _patch(monkeypatch, *, status: str, scores: list[float]):
     )
     service = SimpleNamespace(execute_run=AsyncMock(return_value=result))
     discover = AsyncMock()
-    monkeypatch.setattr(web_runs, "get_sessionmaker", lambda: _Session)
-    monkeypatch.setattr(web_runs, "matching_engine_service", lambda _session: service)
+    monkeypatch.setattr(
+        web_runs, "detached_matching_engine_service", AsyncMock(return_value=service)
+    )
     monkeypatch.setattr(
         web_runs, "get_settings", lambda: SimpleNamespace(web_fallback_min_score=50.0)
     )

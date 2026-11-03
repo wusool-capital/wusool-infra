@@ -12,8 +12,8 @@ from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.modules.matching_engine.api.buyers import BuyerSummary
 from app.modules.matching_engine.api.dependencies import (
+    detached_matching_engine_service,
     find_buyer_discrepancies,
-    matching_engine_service,
     resolve_buyer,
     resolve_buyer_by_id,
 )
@@ -44,7 +44,6 @@ from app.modules.matching_engine.application.errors import (
     ExistingDealsFoundError,
     PartialWriteError,
 )
-from app.modules.matching_engine.application.service import MatchingEngineService
 from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.domain.matching.entities import (
     MatchAnalysisData,
@@ -52,7 +51,6 @@ from app.modules.matching_engine.domain.matching.entities import (
 )
 from app.modules.matching_engine.domain.matching.run_state import run_state
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
-from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.utilities import get_shared_task_runner
 
 _task_runner = get_shared_task_runner()
@@ -75,13 +73,6 @@ router = APIRouter(
 
 def _not_found(message: str) -> ApiError:
     return ApiError(code="not_found", message=message)
-
-
-async def _service() -> MatchingEngineService:
-    # The session only backs buyer lookups these routes don't use; each use case
-    # opens its own short transactions, so it isn't held across the request.
-    async with get_sessionmaker()() as session:
-        return matching_engine_service(session)
 
 
 @router.get("/buyers", response_model=list[BuyerSummary])
@@ -132,7 +123,7 @@ async def start_match_run(body: StartRunRequest) -> StartRunResponse:
     buyer = await resolve_buyer_by_id(str(body.buyer_role_id))
     if buyer is None:
         raise api_error(status.HTTP_404_NOT_FOUND, _not_found("Buyer not found."))
-    service = await _service()
+    service = await detached_matching_engine_service()
     started = await service.start_run(buyer, None)
     _task_runner.run(
         lambda: execute_web_run(started, buyer, advisor_context=body.advisor_context),
@@ -172,7 +163,7 @@ async def approve_candidate(
     run_id: uuid.UUID, candidate_id: uuid.UUID, body: ApproveRequest
 ) -> DecisionResponse:
     await _require_candidate(run_id, candidate_id)
-    service = await _service()
+    service = await detached_matching_engine_service()
     try:
         await service.approve_match(
             candidate_id,
@@ -216,7 +207,7 @@ async def approve_candidate(
 )
 async def reject_candidate(run_id: uuid.UUID, candidate_id: uuid.UUID) -> DecisionResponse:
     await _require_candidate(run_id, candidate_id)
-    service = await _service()
+    service = await detached_matching_engine_service()
     try:
         await service.reject_match(candidate_id, WEB_ACTOR)
     except (MatchNotFoundError, InvalidTransitionError) as exc:
@@ -285,7 +276,7 @@ def _csv_cell(value: str | int | float | None) -> str:
 
 
 async def _load_run(run_id: uuid.UUID) -> MatchAnalysisData:
-    service = await _service()
+    service = await detached_matching_engine_service()
     analysis = await service.get_match_analysis(run_id)
     if analysis is None:
         raise api_error(status.HTTP_404_NOT_FOUND, _not_found("Run not found."))

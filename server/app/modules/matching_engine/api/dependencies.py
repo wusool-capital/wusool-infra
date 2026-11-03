@@ -67,6 +67,13 @@ def matching_engine_service(session: AsyncSession) -> MatchingEngineService:
     )
 
 
+async def detached_matching_engine_service() -> MatchingEngineService:
+    """For use cases that open their own `uow_factory` transactions: the session
+    only backs buyer/meeting lookups they never make, so it isn't held open."""
+    async with get_sessionmaker()() as session:
+        return matching_engine_service(session)
+
+
 async def resolve_buyer(buyer_name: str) -> BuyerResolutionRead:
     async with get_sessionmaker()() as session:
         resolution = await matching_engine_service(session).resolve_buyer(buyer_name)

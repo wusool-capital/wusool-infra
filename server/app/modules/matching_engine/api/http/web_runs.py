@@ -9,8 +9,8 @@ import uuid
 
 from app.modules.matching_engine.api.dependencies import (
     DISCOVERY_STATUS_TEXT,
+    detached_matching_engine_service,
     discovery_outcome_notes,
-    matching_engine_service,
 )
 from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
 from app.modules.matching_engine.application.matching.use_cases import StartedRun
@@ -18,7 +18,6 @@ from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import DiscoveredCandidate
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
-from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.utilities import get_shared_idempotency_store
 
 logger = logging.getLogger(__name__)
@@ -30,8 +29,7 @@ _discovery_idempotency_store = get_shared_idempotency_store()
 async def execute_web_run(
     started: StartedRun, buyer: BuyerContext, *, advisor_context: str | None
 ) -> None:
-    async with get_sessionmaker()() as session:
-        service = matching_engine_service(session)
+    service = await detached_matching_engine_service()
     # `execute_run` records its own failures on the run row.
     result = await service.execute_run(started, buyer, None, advisor_context=advisor_context)
     run_tracker.set_notes(started.run_id, result.notes)
@@ -65,8 +63,7 @@ async def _discover(run_id: uuid.UUID) -> TrackedDiscovery:
     from app.modules.discovery import discover_and_create_sellers
     from app.modules.matching_engine.application.discovery_bridge import extract_query_terms
 
-    async with get_sessionmaker()() as session:
-        service = matching_engine_service(session)
+    service = await detached_matching_engine_service()
     analysis = await service.get_match_analysis(run_id)
     if analysis is None or analysis.run.requirement_profile is None:
         return TrackedDiscovery(status="skipped", message="This run has no requirement profile.")

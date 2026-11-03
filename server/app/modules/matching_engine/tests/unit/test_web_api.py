@@ -62,7 +62,7 @@ def api(monkeypatch):
     async def _service():
         return service
 
-    monkeypatch.setattr(routes, "_service", _service)
+    monkeypatch.setattr(routes, "detached_matching_engine_service", _service)
     monkeypatch.setattr(routes, "_task_runner", runner)
     monkeypatch.setattr(routes, "get_settings", lambda: _settings())
     monkeypatch.setattr(auth, "get_settings", lambda: _settings())
