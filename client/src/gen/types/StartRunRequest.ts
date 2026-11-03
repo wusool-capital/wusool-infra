@@ -8,4 +8,5 @@ export type StartRunRequest = {
    * @type string
    */
   buyer_role_id: string;
+  request_id?: string | null;
 };

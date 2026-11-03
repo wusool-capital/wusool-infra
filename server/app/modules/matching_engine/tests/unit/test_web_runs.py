@@ -1,9 +1,11 @@
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
+from app.modules.matching_engine.api import dependencies as deps
 from app.modules.matching_engine.api.dependencies import RunDiscovery
 from app.modules.matching_engine.api.http import web_runs
 from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
@@ -17,12 +19,13 @@ def _patch(monkeypatch, *, status: str, scores: list[float]):
     )
     service = SimpleNamespace(execute_run=AsyncMock(return_value=result))
     discover = AsyncMock()
-    monkeypatch.setattr(
-        web_runs, "detached_matching_engine_service", AsyncMock(return_value=service)
-    )
-    monkeypatch.setattr(
-        web_runs, "get_settings", lambda: SimpleNamespace(web_fallback_min_score=50.0)
-    )
+
+    @asynccontextmanager
+    async def _open():
+        yield service
+
+    monkeypatch.setattr(web_runs, "open_matching_engine_service", _open)
+    monkeypatch.setattr(deps, "get_settings", lambda: SimpleNamespace(web_fallback_min_score=50.0))
     monkeypatch.setattr(web_runs, "discover_for_web_run", discover)
     return discover
 
@@ -94,9 +97,9 @@ async def test_web_reports_the_shared_search_outcome(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_repeat_search_leaves_the_first_outcome(monkeypatch) -> None:
+async def test_a_search_held_elsewhere_defers_to_the_run_row(monkeypatch) -> None:
     run_id = uuid4()
-    run_tracker.set_discovery(run_id, TrackedDiscovery(status="done", message="Found 2"))
+    run_tracker.set_discovery(run_id, TrackedDiscovery(status="running"))
     monkeypatch.setattr(
         web_runs,
         "discover_sellers_for_run",
@@ -106,9 +109,7 @@ async def test_a_repeat_search_leaves_the_first_outcome(monkeypatch) -> None:
     await web_runs.discover_for_web_run(run_id)
 
     tracked = run_tracker.get(run_id)
-    assert tracked is not None and tracked.discovery == TrackedDiscovery(
-        status="done", message="Found 2"
-    )
+    assert tracked is not None and tracked.discovery is None
 
 
 @pytest.mark.asyncio

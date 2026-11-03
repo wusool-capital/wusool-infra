@@ -5,8 +5,10 @@ definitions here; those live in each concept's own `api/<concept>.py`.
 
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import timedelta
 from functools import lru_cache
 from typing import Literal
 
@@ -16,7 +18,10 @@ from app.modules.discovery import DiscoveryOutcome
 from app.modules.discrepancies import DiscrepancyCheckResult
 from app.modules.matching_engine.api.buyers import BuyerResolutionRead, BuyerSummary
 from app.modules.matching_engine.api.matching import MatchAnalysis, MatchResultRead, MatchScoreRead
-from app.modules.matching_engine.application.matching.use_cases import MatchResultView
+from app.modules.matching_engine.application.matching.use_cases import (
+    MatchResultView,
+    MatchRunResult,
+)
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
 from app.modules.matching_engine.application.service import MatchingEngineService
 from app.modules.matching_engine.bootstrap import build_bedrock_client as _build_bedrock_client
@@ -35,18 +40,8 @@ from app.modules.matching_engine.domain.matching.scoring import needs_web_fallba
 from app.modules.matching_engine.persistence.database import get_sessionmaker
 from app.modules.matching_engine.providers.bedrock.client import BedrockConverseClient
 from app.modules.notifications import SlackWebClientNotifier
-from app.modules.utilities import get_shared_idempotency_store
 
 logger = logging.getLogger(__name__)
-
-# One discovery search per run, however it's triggered — the automatic
-# below-threshold trigger in `run_match_and_post` and the manual "Find more
-# sellers" button both call `trigger_seller_discovery` with the same
-# `run_id`, and the button stays visible/clickable after the automatic
-# trigger already fired, so without this an operator clicking it (or a
-# retried Slack delivery of that click) re-runs the search and posts a
-# second, duplicate "Found N potential sellers" message.
-_discovery_idempotency_store = get_shared_idempotency_store()
 
 
 def _matching_unit_of_work_factory() -> MatchingUnitOfWorkFactory:
@@ -71,11 +66,12 @@ def matching_engine_service(session: AsyncSession) -> MatchingEngineService:
     )
 
 
-async def detached_matching_engine_service() -> MatchingEngineService:
-    """For use cases that open their own `uow_factory` transactions: the session
-    only backs buyer/meeting lookups they never make, so it isn't held open."""
+@asynccontextmanager
+async def open_matching_engine_service() -> AsyncIterator[MatchingEngineService]:
+    """The service with its session open for as long as the caller uses it, as
+    `build_matching_engine_service` requires. An idle session holds no connection."""
     async with get_sessionmaker()() as session:
-        return matching_engine_service(session)
+        yield matching_engine_service(session)
 
 
 async def resolve_buyer(buyer_name: str) -> BuyerResolutionRead:
@@ -187,10 +183,7 @@ async def run_match_and_post(
         )
 
         blocks = build_match_result_blocks(result)
-        scores = [c.match_score for c in result.results]
-        should_trigger_discovery = result.status == "GENERATED" and needs_web_fallback(
-            scores, get_settings().web_fallback_min_score
-        )
+        should_trigger_discovery = discovery_follows_match(result)
 
         await notifier.update_message(
             channel=channel_id,
@@ -234,6 +227,15 @@ async def run_match_and_post(
                 "seller_discovery_trigger_failed",
                 extra={"run_id": str(discovery_run_id), "channel_id": channel_id},
             )
+
+
+def discovery_follows_match(result: MatchRunResult) -> bool:
+    """A successful run whose every score is below `WEB_FALLBACK_MIN_SCORE`
+    searches outside the CRM on its own, from Slack or the web."""
+    scores = [c.match_score for c in result.results]
+    return result.status == "GENERATED" and needs_web_fallback(
+        scores, get_settings().web_fallback_min_score
+    )
 
 
 DiscoveryRunKind = Literal[
@@ -288,21 +290,39 @@ async def discover_sellers_for_run(
     """Below-threshold match quality, or "Find more sellers": hand the run's own
     (industry, geography) to `discovery`, which pre-filters against the CRM and
     auto-creates the genuinely new sellers, then append them to this run as
-    `PENDING_REVIEW` rows. One search per run, whichever path asks first.
+    `PENDING_REVIEW` rows. One search per run, whichever path asks first,
+    claimed on the run row so it holds across restarts.
     `on_search_start` runs once a search is certain, before it starts."""
-    idempotency_key = f"discovery:{run_id}"
-    if _discovery_idempotency_store.seen(idempotency_key):
-        logger.info("seller_discovery_duplicate_trigger_skipped run_id=%s", run_id)
-        return RunDiscovery(kind="duplicate")
-    _discovery_idempotency_store.mark(idempotency_key)
+    async with open_matching_engine_service() as service:
+        stale_after = timedelta(minutes=get_settings().match_run_stale_after_minutes)
+        if not await service.claim_discovery(run_id, stale_after=stale_after):
+            logger.info("seller_discovery_duplicate_trigger_skipped run_id=%s", run_id)
+            return RunDiscovery(kind="duplicate")
 
+        result = await _search_claimed(service, run_id, on_search_start)
+        # Only a search that created sellers holds its claim; anything else may be retried.
+        kept = result.kind in ("done", "setup_failed")
+        try:
+            await service.finish_discovery(
+                run_id,
+                outcome=("done" if result.kind == "done" else "failed") if kept else None,
+                message=result.summary() if kept else None,
+                notes=result.notes,
+            )
+        except Exception:
+            logger.exception("seller_discovery_record_failed", extra={"run_id": str(run_id)})
+        return result
+
+
+async def _search_claimed(
+    service: MatchingEngineService,
+    run_id: uuid.UUID,
+    on_search_start: Callable[[], Awaitable[None]] | None,
+) -> RunDiscovery:
     from app.modules.discovery import discover_and_create_sellers
     from app.modules.matching_engine.application.discovery_bridge import extract_query_terms
 
-    async with get_sessionmaker()() as session:
-        service = matching_engine_service(session)
-        analysis = await service.get_match_analysis(run_id)
-
+    analysis = await service.get_match_analysis(run_id)
     if analysis is None or analysis.run.requirement_profile is None:
         return RunDiscovery(kind="no_profile")
 

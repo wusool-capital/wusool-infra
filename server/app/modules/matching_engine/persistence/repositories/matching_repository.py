@@ -14,18 +14,20 @@ internal fetch-then-mutate/fetch-then-derive-ids methods.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import MatchResult, MatchScore
 from app.modules.matching_engine.domain.matching.entities import (
+    DiscoveryRecord,
     FilterSkipped,
     MatchResultEntity,
     MatchScoreResult,
 )
 from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.persistence.mappers import (
+    discovery_record_to_dict,
     filters_skipped_to_list,
     profile_to_dict,
     to_match_result_entity,
@@ -167,6 +169,54 @@ class MatchResultRepository:
         run.execution_duration_ms = execution_duration_ms
         run.errors = errors
         run.completed_at = completed_at or datetime.now(run.started_at.tzinfo)
+        await self._session.flush()
+
+    async def claim_discovery(
+        self, run_id: uuid.UUID, *, now: datetime, stale_before: datetime
+    ) -> bool:
+        """Atomically claims the run's one search outside the CRM: only the
+        first caller wins, across restarts and processes. A claim that never
+        recorded an outcome and is older than `stale_before` was lost, so it
+        can be retaken."""
+        current = MatchResult.metadata_["discovery"]
+        stmt = (
+            update(MatchResult)
+            .where(
+                MatchResult.run_id == run_id,
+                MatchResult.rank.is_(None),
+                or_(
+                    ~MatchResult.metadata_.has_key("discovery"),
+                    and_(
+                        ~current.has_key("outcome") | (current["outcome"].astext.is_(None)),
+                        current["claimed_at"].astext < stale_before.isoformat(),
+                    ),
+                ),
+            )
+            .values(
+                metadata_=MatchResult.metadata_.op("||")(
+                    func.jsonb_build_object(
+                        "discovery", func.jsonb_build_object("claimed_at", now.isoformat())
+                    )
+                )
+            )
+            .returning(MatchResult.id)
+            .execution_options(synchronize_session=False)
+        )
+        claimed = (await self._session.execute(stmt)).scalar_one_or_none()
+        return claimed is not None
+
+    async def finish_discovery(self, run_id: uuid.UUID, record: DiscoveryRecord | None) -> None:
+        """Records the claimed search's outcome, or with None releases the claim
+        so the run can search again (nothing was searched, or it can be retried)."""
+        run = await self._get_run_row(run_id)
+        if run is None:
+            return
+        metadata = dict(run.metadata_ or {})
+        if record is None:
+            metadata.pop("discovery", None)
+        else:
+            metadata["discovery"] = discovery_record_to_dict(record)
+        run.metadata_ = metadata
         await self._session.flush()
 
     async def create_candidates(self, rows: list[JsonObject]) -> list[MatchResultEntity]:

@@ -139,6 +139,12 @@ and seller role. Approving a discovered seller queues the same full
 enrichment Slack does and posts it to `WEB_REVIEW_CHANNEL_ID`. With that
 setting unset the step is skipped. The profile check can't be skipped.
 
+**One search per run.** Slack and the web claim a run's search outside the
+CRM on the run row, so a second click, a retry or a restart can't search
+twice. The outcome and notes stay on the row, so the run page shows them
+after a restart. A search that had nothing to search on, hit the daily cap or
+failed releases its claim. It can then run again.
+
 **Discovery.** Below `WEB_FALLBACK_MIN_SCORE`, a web run starts discovery
 itself. Its progress and outcome counts live in an in-process tracker; after a
 restart the page offers the manual start instead. The manual start is also

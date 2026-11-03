@@ -21,7 +21,7 @@ not a single request-scoped Unit of Work.
 import logging
 import uuid
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from app.modules.matching_engine.application.activity_events import run_completed_event
@@ -31,6 +31,7 @@ from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     DiscoveredCandidate,
+    DiscoveryRecord,
     MatchAnalysisData,
 )
 from app.modules.matching_engine.domain.matching.overrides import unlabelled_amount_note
@@ -383,6 +384,35 @@ class MatchingMixin(ServiceBase):
             scores = await uow.match_results.get_scores_for_run(run_id)
 
         return MatchAnalysisData(run=run, candidates=candidates, scores=scores)
+
+    async def claim_discovery(self, run_id: uuid.UUID, *, stale_after: timedelta) -> bool:
+        """True for the one caller allowed to search outside the CRM for this run."""
+        now = datetime.now(UTC)
+        async with self._uow_factory() as uow:
+            return await uow.match_results.claim_discovery(
+                run_id, now=now, stale_before=now - stale_after
+            )
+
+    async def finish_discovery(
+        self,
+        run_id: uuid.UUID,
+        *,
+        outcome: Literal["done", "failed"] | None,
+        message: str | None = None,
+        notes: tuple[str, ...] = (),
+    ) -> None:
+        """Keeps a search's outcome on the run; `outcome=None` releases the claim."""
+        async with self._uow_factory() as uow:
+            run = await uow.match_results.get_run(run_id)
+            claimed_at = run.discovery.claimed_at if run and run.discovery else datetime.now(UTC)
+            await uow.match_results.finish_discovery(
+                run_id,
+                DiscoveryRecord(
+                    claimed_at=claimed_at, outcome=outcome, message=message, notes=notes
+                )
+                if outcome is not None
+                else None,
+            )
 
     async def get_seller_profiles(self, seller_role_ids: list[str]) -> list[SellerProfile]:
         async with self._uow_factory() as uow:

@@ -84,6 +84,8 @@ class PreflightResponse(_Schema):
 class StartRunRequest(_Schema):
     buyer_role_id: uuid.UUID
     advisor_context: str | None = Field(default=None, max_length=4000)
+    # One per "Run match" attempt; a retry or double submit with it returns the same run.
+    request_id: uuid.UUID | None = None
 
 
 class StartRunResponse(_Schema):

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { z } from "zod";
 
 import { PageHeader } from "@/components/PageHeader";
@@ -87,12 +87,23 @@ function FindMatchPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [buyer, setBuyer] = useState<BuyerSummary | null>(null);
   const start = useStartMatchRun();
+  // Same buyer and note reuse one request id, so a double click or retry starts one run.
+  const requestIds = useRef(new Map<string, string>());
   const steps = preRunSteps(buyer === null ? "buyer" : "check");
 
   const run = (advisorContext: string | null): void => {
     if (buyer === null) return;
+    const key = `${buyer.id}\n${advisorContext ?? ""}`;
+    const requestId = requestIds.current.get(key) ?? crypto.randomUUID();
+    requestIds.current.set(key, requestId);
     start.mutate(
-      { body: { buyer_role_id: buyer.id, advisor_context: advisorContext } },
+      {
+        body: {
+          buyer_role_id: buyer.id,
+          advisor_context: advisorContext,
+          request_id: requestId,
+        },
+      },
       {
         onSuccess: ({ run_id }) => {
           rememberRun({

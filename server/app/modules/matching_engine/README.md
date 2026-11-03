@@ -215,7 +215,15 @@ Routes, all under `/api` and all behind `Authorization: Bearer <WEB_API_KEY>`
   threshold offer it too, like Slack's button. Both paths call
   `api.dependencies.discover_sellers_for_run`, which runs the search, adds
   the new sellers to the run and returns a `RunDiscovery`. Slack posts it as
-  messages; the web keeps it in the tracker. One run never searches twice.
+  messages; the web keeps it in the tracker. One run never searches twice:
+  the search is claimed on the run row's `metadata.discovery`, atomically and
+  across restarts. A search that created sellers keeps the claim and its
+  outcome and notes. Anything else releases it so it can be retried, for
+  example after the daily cap. A claim with no outcome expires after
+  `MATCH_RUN_STALE_AFTER_MINUTES`.
+- **Double submits.** `POST /match-runs` takes a client `request_id`; a
+  repeat with it returns the first run. Approve and Reject are guarded by the
+  row's status, so a repeat gets 409 `already_reviewed`.
 - **Slack parity.** `GET /match-runs/{id}` returns the requirement profile
   (`mandate`), each scored candidate's `criteria` and every candidate's
   `profile` (`SellerRepositoryPort.get_profiles`). Approving a discovered

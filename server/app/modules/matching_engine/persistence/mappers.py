@@ -4,6 +4,7 @@ application/domain code consumes the domain dataclasses below, never the
 `app.models` ORM classes directly.
 """
 
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import inspect
@@ -12,6 +13,7 @@ from app.models import BuyerRole, MatchResult, MatchScore, SellerRole
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CriterionScore,
+    DiscoveryRecord,
     FilterSkipped,
     MatchResultEntity,
     MatchScoreResult,
@@ -232,6 +234,32 @@ def _source_url(metadata: JsonObject | None) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def discovery_record_from_dict(data: JsonObject | None) -> DiscoveryRecord | None:
+    if not data:
+        return None
+    claimed_at = data.get("claimed_at")
+    if not isinstance(claimed_at, str):
+        return None
+    outcome = data.get("outcome")
+    message = data.get("message")
+    notes = data.get("notes")
+    return DiscoveryRecord(
+        claimed_at=datetime.fromisoformat(claimed_at),
+        outcome=outcome if outcome in ("done", "failed") else None,
+        message=message if isinstance(message, str) else None,
+        notes=tuple(n for n in notes if isinstance(n, str)) if isinstance(notes, list) else (),
+    )
+
+
+def discovery_record_to_dict(record: DiscoveryRecord) -> JsonObject:
+    return {
+        "claimed_at": record.claimed_at.isoformat(),
+        "outcome": record.outcome,
+        "message": record.message,
+        "notes": list(record.notes),
+    }
+
+
 def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
     return MatchResultEntity(
         id=str(row.id),
@@ -271,4 +299,7 @@ def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
         completed_at=row.completed_at,
         origin="discovery" if (row.metadata_ or {}).get("origin") == "discovery" else "crm",
         source_url=_source_url(row.metadata_),
+        discovery=discovery_record_from_dict((row.metadata_ or {}).get("discovery"))
+        if row.rank is None
+        else None,
     )

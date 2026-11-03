@@ -3,9 +3,11 @@
 Every action re-validates against the database, as the Slack handlers do.
 """
 
+import asyncio
 import csv
 import io
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, get_args
 
@@ -14,13 +16,13 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.modules.enrichment import enrich_and_post
 from app.modules.matching_engine.api.buyers import BuyerSummary
 from app.modules.matching_engine.api.dependencies import (
-    detached_matching_engine_service,
     find_buyer_discrepancies,
+    open_matching_engine_service,
     resolve_buyer,
     resolve_buyer_by_id,
 )
 from app.modules.matching_engine.api.http.auth import WEB_ACTOR, api_error, require_web_api_key
-from app.modules.matching_engine.api.http.run_tracker import run_tracker
+from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
 from app.modules.matching_engine.api.http.schemas import (
     ApiError,
     ApiErrorResponse,
@@ -52,6 +54,7 @@ from app.modules.matching_engine.application.errors import (
     ExistingDealsFoundError,
     PartialWriteError,
 )
+from app.modules.matching_engine.application.service import MatchingEngineService
 from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.domain.matching.entities import (
     MatchAnalysisData,
@@ -79,6 +82,17 @@ router = APIRouter(
     # Short operation ids become the generated client's function and hook names.
     generate_unique_id_function=lambda route: route.name,
 )
+
+
+async def _service() -> AsyncIterator[MatchingEngineService]:
+    async with open_matching_engine_service() as service:
+        yield service
+
+
+Service = Annotated[MatchingEngineService, Depends(_service)]
+
+# Serialises the request-id check with the run it starts, so a double submit can't start two.
+_start_lock = asyncio.Lock()
 
 
 def _not_found(message: str) -> ApiError:
@@ -129,12 +143,18 @@ async def preflight(buyer_role_id: uuid.UUID, body: PreflightRequest) -> Preflig
     response_model=StartRunResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def start_match_run(body: StartRunRequest) -> StartRunResponse:
+async def start_match_run(body: StartRunRequest, service: Service) -> StartRunResponse:
     buyer = await resolve_buyer_by_id(str(body.buyer_role_id))
     if buyer is None:
         raise api_error(status.HTTP_404_NOT_FOUND, _not_found("Buyer not found."))
-    service = await detached_matching_engine_service()
-    started = await service.start_run(buyer, None)
+    async with _start_lock:
+        if body.request_id is not None and (existing := run_tracker.started_run(body.request_id)):
+            return StartRunResponse(run_id=existing)
+        started = await service.start_run(buyer, None)
+        if body.request_id is not None:
+            run_tracker.remember_start(body.request_id, started.run_id)
+    # Before scheduling, so the first poll can't find it idle and call it stale.
+    run_tracker.set_executing(started.run_id, True)
     _task_runner.run(
         lambda: execute_web_run(started, buyer, advisor_context=body.advisor_context),
         name=f"web-find-match:{started.run_id}",
@@ -143,8 +163,8 @@ async def start_match_run(body: StartRunRequest) -> StartRunResponse:
 
 
 @router.get("/match-runs/{run_id}", response_model=RunDetailResponse)
-async def get_match_run(run_id: uuid.UUID) -> RunDetailResponse:
-    return await _run_detail(run_id, await _load_run(run_id))
+async def get_match_run(run_id: uuid.UUID, service: Service) -> RunDetailResponse:
+    return await _run_detail(service, run_id, await _load_run(service, run_id))
 
 
 @router.post(
@@ -152,16 +172,22 @@ async def get_match_run(run_id: uuid.UUID) -> RunDetailResponse:
     response_model=RunDetailResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def start_discovery(run_id: uuid.UUID) -> RunDetailResponse:
+async def start_discovery(run_id: uuid.UUID, service: Service) -> RunDetailResponse:
     """The web's "Find more sellers": a repeat call is a no-op, as in Slack."""
-    analysis = await _load_run(run_id)
+    analysis = await _load_run(service, run_id)
     if analysis.run.completed_at is None or analysis.run.status == "FAILED":
         raise api_error(
             status.HTTP_409_CONFLICT,
             ApiError(code="run_not_ready", message="The run hasn't completed successfully."),
         )
+    detail = await _run_detail(service, run_id, analysis)
+    if detail.discovery.status in ("running", "done"):
+        return detail
+    # Before scheduling, so a poll in the gap keeps showing the search as running.
+    run_tracker.set_discovery(run_id, TrackedDiscovery(status="running"))
     _task_runner.run(lambda: discover_for_web_run(run_id), name=f"web-discover:{run_id}")
-    return await _run_detail(run_id, analysis)
+    detail.discovery = DiscoveryRead(status="running")
+    return detail
 
 
 @router.post(
@@ -170,10 +196,9 @@ async def start_discovery(run_id: uuid.UUID) -> RunDetailResponse:
     responses={409: {"model": ApiErrorResponse}, 502: {"model": ApiErrorResponse}},
 )
 async def approve_candidate(
-    run_id: uuid.UUID, candidate_id: uuid.UUID, body: ApproveRequest
+    run_id: uuid.UUID, candidate_id: uuid.UUID, body: ApproveRequest, service: Service
 ) -> DecisionResponse:
-    await _require_candidate(run_id, candidate_id)
-    service = await detached_matching_engine_service()
+    candidate = _require_candidate(await _load_run(service, run_id), candidate_id)
     try:
         await service.approve_match(
             candidate_id,
@@ -208,10 +233,10 @@ async def approve_candidate(
         ) from exc
     except (MatchNotFoundError, InvalidTransitionError) as exc:
         raise _decision_error(exc) from exc
-    decided = await _decided(run_id, candidate_id)
+    decided = await _decided(service, run_id, candidate_id)
     channel_id = get_settings().web_review_channel_id
     if decided.candidate.origin == "discovery" and decided.candidate.status == "APPROVED":
-        role_id = await _seller_role_id(run_id, candidate_id)
+        role_id = candidate.seller_role_id
         if channel_id and role_id:
             # Discovery only paid for basic enrichment; an approved seller earns the full research.
             _task_runner.run(
@@ -227,14 +252,15 @@ async def approve_candidate(
     response_model=DecisionResponse,
     responses={409: {"model": ApiErrorResponse}},
 )
-async def reject_candidate(run_id: uuid.UUID, candidate_id: uuid.UUID) -> DecisionResponse:
-    await _require_candidate(run_id, candidate_id)
-    service = await detached_matching_engine_service()
+async def reject_candidate(
+    run_id: uuid.UUID, candidate_id: uuid.UUID, service: Service
+) -> DecisionResponse:
+    _require_candidate(await _load_run(service, run_id), candidate_id)
     try:
         await service.reject_match(candidate_id, WEB_ACTOR)
     except (MatchNotFoundError, InvalidTransitionError) as exc:
         raise _decision_error(exc) from exc
-    return await _decided(run_id, candidate_id)
+    return await _decided(service, run_id, candidate_id)
 
 
 _EXPORT_FIELDS: tuple[ExportField, ...] = get_args(ExportField)
@@ -275,11 +301,12 @@ def _export_value(c: CandidateRead, field: ExportField) -> str | int | float | N
 )
 async def export_match_run(
     run_id: uuid.UUID,
+    service: Service,
     fields: Annotated[list[ExportField] | None, Query()] = None,
 ) -> Response:
     """`fields` picks and orders the columns; omitted, every column is exported."""
     columns = list(dict.fromkeys(fields)) if fields else list(_EXPORT_FIELDS)
-    detail = await _run_detail(run_id, await _load_run(run_id))
+    detail = await _run_detail(service, run_id, await _load_run(service, run_id))
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(columns)
@@ -296,30 +323,27 @@ async def export_match_run(
 def _csv_cell(value: str | int | float | None) -> str:
     text = "" if value is None else str(value)
     # LLM-written text reaches Excel; a leading formula character must not execute.
-    return f"'{text}" if text[:1] in ("=", "+", "-", "@") else text
+    return f"'{text}" if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
 
 
-async def _load_run(run_id: uuid.UUID) -> MatchAnalysisData:
-    service = await detached_matching_engine_service()
+async def _load_run(service: MatchingEngineService, run_id: uuid.UUID) -> MatchAnalysisData:
     analysis = await service.get_match_analysis(run_id)
     if analysis is None:
         raise api_error(status.HTTP_404_NOT_FOUND, _not_found("Run not found."))
     return analysis
 
 
-async def _require_candidate(run_id: uuid.UUID, candidate_id: uuid.UUID) -> None:
-    analysis = await _load_run(run_id)
-    if not any(c.id == str(candidate_id) for c in analysis.candidates):
+def _require_candidate(analysis: MatchAnalysisData, candidate_id: uuid.UUID) -> MatchResultEntity:
+    candidate = next((c for c in analysis.candidates if c.id == str(candidate_id)), None)
+    if candidate is None:
         raise api_error(status.HTTP_404_NOT_FOUND, _not_found("Candidate not found in this run."))
+    return candidate
 
 
-async def _seller_role_id(run_id: uuid.UUID, candidate_id: uuid.UUID) -> str | None:
-    analysis = await _load_run(run_id)
-    return next((c.seller_role_id for c in analysis.candidates if c.id == str(candidate_id)), None)
-
-
-async def _decided(run_id: uuid.UUID, candidate_id: uuid.UUID) -> DecisionResponse:
-    detail = await _run_detail(run_id, await _load_run(run_id))
+async def _decided(
+    service: MatchingEngineService, run_id: uuid.UUID, candidate_id: uuid.UUID
+) -> DecisionResponse:
+    detail = await _run_detail(service, run_id, await _load_run(service, run_id))
     candidate = next(c for c in detail.candidates if c.id == candidate_id)
     return DecisionResponse(candidate=candidate)
 
@@ -333,9 +357,13 @@ def _decision_error(exc: MatchNotFoundError | InvalidTransitionError) -> Excepti
     )
 
 
-async def _run_detail(run_id: uuid.UUID, analysis: MatchAnalysisData) -> RunDetailResponse:
+async def _run_detail(
+    service: MatchingEngineService, run_id: uuid.UUID, analysis: MatchAnalysisData
+) -> RunDetailResponse:
     settings = get_settings()
-    service = await detached_matching_engine_service()
+    now = datetime.now(UTC)
+    stale_after = timedelta(minutes=settings.match_run_stale_after_minutes)
+    tracked = run_tracker.get(run_id)
     profiles = {
         p.seller_role_id: p
         for p in await service.get_seller_profiles(
@@ -347,9 +375,11 @@ async def _run_detail(run_id: uuid.UUID, analysis: MatchAnalysisData) -> RunDeta
         status=run.status,
         started_at=run.started_at,
         completed_at=run.completed_at,
-        now=datetime.now(UTC),
-        stale_after=timedelta(minutes=settings.match_run_stale_after_minutes),
+        now=now,
+        stale_after=stale_after,
     )
+    if state == "stale" and tracked is not None and tracked.executing:
+        state = "running"
     reasoning = {s.seller_attio_id: s.reasoning for s in analysis.scores}
     criteria = {
         s.seller_attio_id: [
@@ -369,13 +399,20 @@ async def _run_detail(run_id: uuid.UUID, analysis: MatchAnalysisData) -> RunDeta
         crm_scores, settings.web_fallback_min_score
     )
 
-    tracked = run_tracker.get(run_id)
+    record = run.discovery
     if tracked is not None and tracked.discovery is not None:
         discovery = DiscoveryRead(
             status=tracked.discovery.status,
             message=tracked.discovery.message,
             notes=list(tracked.discovery.notes),
         )
+    elif record is not None and record.outcome is not None:
+        # Kept on the run row, so Slack's searches and pre-restart ones show too.
+        discovery = DiscoveryRead(
+            status=record.outcome, message=record.message, notes=list(record.notes)
+        )
+    elif record is not None and now - record.claimed_at <= stale_after:
+        discovery = DiscoveryRead(status="running")
     elif any(c.origin == "discovery" for c in candidates):
         discovery = DiscoveryRead(status="done")
     elif low_quality:

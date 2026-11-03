@@ -21,5 +21,8 @@ export async function downloadRunCsv(
   link.href = url;
   link.download = `find-match-${runId}.csv`;
   link.click();
-  URL.revokeObjectURL(url);
+  // Some browsers start the download after click() returns; revoking now would cancel it.
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
 }

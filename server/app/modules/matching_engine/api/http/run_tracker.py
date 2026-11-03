@@ -25,11 +25,15 @@ class TrackedDiscovery:
 class TrackedRun:
     notes: tuple[str, ...] = ()
     discovery: TrackedDiscovery | None = None
+    # True while this process is matching it, so a slow run never reads as stale.
+    executing: bool = False
 
 
 @dataclass
 class RunTracker:
     _runs: dict[uuid.UUID, TrackedRun] = field(default_factory=dict)
+    # Client request id -> run it started, so a repeated "Run match" returns the same run.
+    _starts: dict[uuid.UUID, uuid.UUID] = field(default_factory=dict)
 
     def get(self, run_id: uuid.UUID) -> TrackedRun | None:
         return self._runs.get(run_id)
@@ -39,6 +43,20 @@ class RunTracker:
 
     def set_discovery(self, run_id: uuid.UUID, discovery: TrackedDiscovery) -> None:
         self._put(run_id, replace(self._current(run_id), discovery=discovery))
+
+    def clear_discovery(self, run_id: uuid.UUID) -> None:
+        self._put(run_id, replace(self._current(run_id), discovery=None))
+
+    def set_executing(self, run_id: uuid.UUID, executing: bool) -> None:
+        self._put(run_id, replace(self._current(run_id), executing=executing))
+
+    def started_run(self, request_id: uuid.UUID) -> uuid.UUID | None:
+        return self._starts.get(request_id)
+
+    def remember_start(self, request_id: uuid.UUID, run_id: uuid.UUID) -> None:
+        self._starts[request_id] = run_id
+        while len(self._starts) > _MAX_TRACKED_RUNS:
+            del self._starts[next(iter(self._starts))]
 
     def _current(self, run_id: uuid.UUID) -> TrackedRun:
         return self._runs.get(run_id, TrackedRun())

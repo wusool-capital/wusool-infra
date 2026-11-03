@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -14,7 +15,11 @@ from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, r
 from app.modules.matching_engine.application.approvals import InvalidTransitionError
 from app.modules.matching_engine.application.errors import ExistingDealsFoundError
 from app.modules.matching_engine.domain.matching.deals import ExistingDeal
-from app.modules.matching_engine.domain.matching.entities import CriterionScore, ScoreDims
+from app.modules.matching_engine.domain.matching.entities import (
+    CriterionScore,
+    DiscoveryRecord,
+    ScoreDims,
+)
 from app.modules.matching_engine.domain.requirements import HardRequirement
 from app.modules.matching_engine.domain.sellers import SellerProfile
 from app.modules.utilities import Money
@@ -42,7 +47,7 @@ def _row(**overrides):
         "risks_and_gaps": None, "decision": None, "decided_at": None, "deal_attio_id": None,
         "errors": None, "started_at": datetime.now(UTC), "completed_at": datetime.now(UTC),
         "candidates_considered": 10, "candidates_filtered": 4, "origin": "crm",
-        "source_url": None, "requirement_profile": None,
+        "source_url": None, "requirement_profile": None, "discovery": None,
     }  # fmt: skip
     return SimpleNamespace(**{**fields, **overrides})
 
@@ -81,10 +86,11 @@ def api(monkeypatch):
     )
     runner = MagicMock()
 
+    @asynccontextmanager
     async def _service():
-        return service
+        yield service
 
-    monkeypatch.setattr(routes, "detached_matching_engine_service", _service)
+    monkeypatch.setattr(routes, "open_matching_engine_service", _service)
     monkeypatch.setattr(routes, "_task_runner", runner)
     monkeypatch.setattr(routes, "get_settings", lambda: _settings())
     monkeypatch.setattr(auth, "get_settings", lambda: _settings())
@@ -477,3 +483,107 @@ def test_run_detail_matches_slacks_full_analysis(api) -> None:
         }
     ]
     assert discovered["criteria"] == []
+
+
+def test_a_repeated_start_returns_the_same_run(api, monkeypatch) -> None:
+    run_id = uuid4()
+    api.service.start_run.return_value = SimpleNamespace(run_id=run_id)
+    monkeypatch.setattr(routes, "resolve_buyer_by_id", AsyncMock(return_value=SimpleNamespace()))
+    body = {"buyer_role_id": str(uuid4()), "request_id": str(uuid4())}
+
+    first = api.client.post("/api/match-runs", json=body, headers=_HEADERS)
+    second = api.client.post("/api/match-runs", json=body, headers=_HEADERS)
+
+    assert first.json() == second.json() == {"run_id": str(run_id)}
+    api.service.start_run.assert_awaited_once()
+    api.runner.run.assert_called_once()
+
+
+def test_a_slow_run_still_executing_is_not_stale(api) -> None:
+    run_id = uuid4()
+    run = _row(rank=None, completed_at=None, started_at=datetime.now(UTC) - timedelta(hours=1))
+    api.service.get_match_analysis.return_value = _analysis(run=run, candidates=[])
+    run_tracker.set_executing(run_id, True)
+
+    body = api.client.get(f"/api/match-runs/{run_id}", headers=_HEADERS).json()
+
+    assert body["state"] == "running"
+
+
+def test_manual_discovery_reads_as_running_before_the_task_starts(api) -> None:
+    run_id = uuid4()
+    api.service.get_match_analysis.return_value = _analysis()
+
+    response = api.client.post(f"/api/match-runs/{run_id}/discovery", headers=_HEADERS)
+
+    assert response.json()["discovery"]["status"] == "running"
+    tracked = run_tracker.get(run_id)
+    assert tracked is not None and tracked.discovery == TrackedDiscovery(status="running")
+
+
+def test_manual_discovery_while_one_runs_is_a_no_op(api) -> None:
+    run_id = uuid4()
+    api.service.get_match_analysis.return_value = _analysis()
+    run_tracker.set_discovery(run_id, TrackedDiscovery(status="running"))
+
+    response = api.client.post(f"/api/match-runs/{run_id}/discovery", headers=_HEADERS)
+
+    assert response.status_code == 202
+    api.runner.run.assert_not_called()
+
+
+def test_a_finished_search_shows_from_the_run_row(api) -> None:
+    record = DiscoveryRecord(
+        claimed_at=datetime.now(UTC) - timedelta(days=1),
+        outcome="done",
+        message="Found 2 new seller(s)",
+        notes=("1 more already in the CRM.",),
+    )
+    run = _row(rank=None, status="GENERATED", discovery=record)
+    api.service.get_match_analysis.return_value = _analysis(run=run)
+
+    body = api.client.get(f"/api/match-runs/{uuid4()}", headers=_HEADERS).json()
+
+    assert body["discovery"] == {
+        "status": "done",
+        "message": "Found 2 new seller(s)",
+        "notes": ["1 more already in the CRM."],
+    }
+
+
+def test_a_claimed_search_reads_as_running(api) -> None:
+    run = _row(
+        rank=None, status="GENERATED", discovery=DiscoveryRecord(claimed_at=datetime.now(UTC))
+    )
+    api.service.get_match_analysis.return_value = _analysis(run=run)
+
+    body = api.client.get(f"/api/match-runs/{uuid4()}", headers=_HEADERS).json()
+
+    assert body["discovery"]["status"] == "running"
+
+
+@pytest.mark.parametrize("prefix", ["\t", "\r"])
+def test_export_csv_neutralises_tab_and_return_prefixes(api, prefix) -> None:
+    api.service.get_match_analysis.return_value = _analysis(
+        candidates=[_row(recommended_pitch=f"{prefix}=HYPERLINK(1)")]
+    )
+
+    response = api.client.get(f"/api/match-runs/{uuid4()}/export.csv", headers=_HEADERS)
+
+    assert f"'{prefix}=HYPERLINK(1)" in response.text
+
+
+def test_an_approval_reads_the_run_twice(api) -> None:
+    candidate = _row()
+    decided = _row(id=candidate.id, status="APPROVED", decision="APPROVED")
+    api.service.get_match_analysis.side_effect = [
+        _analysis(candidates=[candidate]),
+        _analysis(candidates=[decided]),
+    ]
+
+    api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/approve", json={}, headers=_HEADERS
+    )
+
+    assert api.service.get_match_analysis.await_count == 2
+    api.service.get_seller_profiles.assert_awaited_once()
