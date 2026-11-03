@@ -52,6 +52,17 @@ export function rememberRun(run: RecentRun): void {
   });
 }
 
+export function forgetRecentRuns(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    return;
+  }
+  listeners.forEach((notify) => {
+    notify();
+  });
+}
+
 function subscribe(notify: () => void): () => void {
   listeners.add(notify);
   return () => listeners.delete(notify);

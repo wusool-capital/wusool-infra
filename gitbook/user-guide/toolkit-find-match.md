@@ -91,20 +91,32 @@ The same flow runs in a browser at `/app` on the Toolkit host, for example
 3. Add your note about the search, if any, then **Check profile**. Missing or
    conflicting details show here. **Run match** starts the run; **Skip check
    and run** skips the check.
-4. The steps bar at the top shows where the run is. Matching usually takes
-   under a minute, and the page updates by itself.
-5. Approve or reject each seller. Open **Full reasoning** for the pitch and
-   the risks. If Attio already has a deal for the pair, choose **Use this
-   deal** or **Create a new deal**.
-6. If no seller scores 50 or more, the Google Maps search starts by itself
-   and new sellers appear under **Discovery** for review.
-7. **Download CSV** saves the shortlist with every decision so far.
+4. The steps bar under the title shows where the run is. Matching usually
+   takes under a minute, and the page updates by itself.
+5. The run page opens on the first seller still to review. The strip at the
+   top counts the sellers considered, those that passed the filters, the
+   shortlist and your approvals. The ranked list is on the left. The selected
+   seller's score, reasons, pitch and risks are on the right, with
+   **Approve** and **Reject** at the bottom. Move through the list with the
+   up and down arrow keys. After each decision the next seller waiting for
+   review opens.
+6. If Attio already has a deal for the pair, choose **Use this deal** or
+   **Create a new deal**.
+7. If no seller scores 50 or more, **Outside the CRM** offers **Find more
+   sellers**. New sellers from Google Maps join the list under **Found
+   outside the CRM** for review.
+8. **Download CSV**, next to the title, saves the shortlist with every
+   decision so far.
+
+The home page lists your recent runs with how many sellers each still has to
+review. **Settings** explains what each decision writes and lets you clear the
+recent-runs list.
 
 The web version differs from Slack in a few ways:
 
 - Approvals and rejections are recorded as made from the web app, not by
   your Slack name, until sign-in with Slack arrives.
-- **Recent runs** in the sidebar lists runs started on that device only.
+- **Recent runs** on the home page lists runs started on that device only.
 - To fill in missing buyer details, use `/edit-buyer` in Slack, then check
   again. The other commands are Slack-only for now.
 - If the Toolkit restarts during a run, the page says the run never finished.

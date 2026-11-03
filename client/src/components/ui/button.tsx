@@ -4,25 +4,27 @@ import { Slot } from "radix-ui";
 
 import { cn } from "@/lib/utils";
 
-// DESIGN.md button-*: rounded-md, 8px 14px, `button` type. Never pill-shaped.
+// Square like wusoolcapital.com's buttons; gulf blue fill is kept to one action per screen.
 const buttonVariants = cva(
-  "inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-xs rounded-md px-[14px] py-xs text-button whitespace-nowrap transition-colors disabled:pointer-events-none disabled:text-ink-tertiary [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-xs rounded-md px-sm text-body font-medium whitespace-nowrap transition-[background-color,border-color,color,transform] duration-150 select-none active:translate-y-px disabled:pointer-events-none disabled:text-ink-subtle [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-on-primary hover:bg-primary-hover active:bg-primary-focus disabled:bg-surface-2",
+          "bg-primary text-on-primary hover:bg-primary-hover disabled:bg-surface-3",
         secondary:
-          "border border-hairline bg-surface-1 text-ink hover:border-hairline-strong hover:bg-surface-2",
-        tertiary: "bg-transparent text-ink hover:bg-surface-1",
+          "border border-hairline-strong bg-transparent text-ink hover:border-hairline-tertiary hover:bg-surface-2",
+        tertiary:
+          "bg-transparent text-ink-muted hover:bg-surface-2 hover:text-ink",
         danger:
-          "border border-danger/30 bg-transparent text-danger hover:bg-danger/12",
-        link: "min-h-0 px-0 py-0 text-primary-hover underline-offset-4 hover:underline",
+          "border border-hairline-strong bg-transparent text-ink hover:border-danger/60 hover:bg-danger-tint hover:text-danger",
+        link: "h-auto px-0 text-ink underline decoration-hairline-tertiary underline-offset-4 hover:decoration-ink",
       },
       size: {
         default: "",
-        sm: "min-h-8 px-sm py-xxs",
-        icon: "size-10 px-0 py-0",
+        sm: "h-8 px-[10px]",
+        lg: "h-11 px-md",
+        icon: "size-9 px-0",
       },
     },
     defaultVariants: {

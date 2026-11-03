@@ -1,4 +1,4 @@
-import { AlertTriangle, ExternalLink } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Check, X } from "lucide-react";
 import { useState } from "react";
 
 import { candidateStatus } from "@/components/status";
@@ -27,19 +27,14 @@ function Reasoning({
   );
   if (sections.length === 0) return null;
   return (
-    <details className="group">
-      <summary className="cursor-pointer text-body-sm text-primary-hover hover:underline">
-        Full reasoning
-      </summary>
-      <dl className="mt-sm flex flex-col gap-sm">
-        {sections.map(([label, text]) => (
-          <div key={label} className="flex flex-col gap-xxs">
-            <dt className="text-caption text-ink-subtle">{label}</dt>
-            <dd className="text-body-sm text-ink-muted">{text}</dd>
-          </div>
-        ))}
-      </dl>
-    </details>
+    <dl className="flex flex-col gap-md">
+      {sections.map(([label, text]) => (
+        <div key={label} className="flex flex-col gap-xxs">
+          <dt className="text-small text-ink-subtle">{label}</dt>
+          <dd className="text-body text-ink-muted">{text}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -67,15 +62,17 @@ function DealChoice({
           Promote an existing deal to Qualified, or create a new one. Only an
           Inbound deal moves.
         </p>
-        <ul className="mt-xs flex flex-col gap-xs">
+        <ul className="mt-xs flex flex-col">
           {deals.map((deal) => (
             <li
               key={deal.attio_id}
-              className="flex flex-wrap items-center gap-sm"
+              className="flex flex-wrap items-center justify-between gap-sm border-t border-hairline py-xs"
             >
-              <span className="text-ink">{deal.name}</span>
-              <span className="text-caption text-ink-subtle">
-                {deal.stage ?? "No stage"}
+              <span className="flex flex-col">
+                <span className="text-ink">{deal.name}</span>
+                <span className="text-small text-ink-subtle">
+                  {deal.stage ?? "No stage"}
+                </span>
               </span>
               <Button
                 size="sm"
@@ -90,7 +87,7 @@ function DealChoice({
             </li>
           ))}
         </ul>
-        <div className="mt-xs flex flex-wrap gap-sm">
+        <div className="mt-xs flex flex-wrap gap-xs">
           <Button
             size="sm"
             variant="secondary"
@@ -113,14 +110,17 @@ function DealChoice({
   );
 }
 
-export function CandidateCard({
+// The selected candidate in full: its score, its case, and the decision.
+export function CandidateDetail({
   runId,
   candidate,
   threshold,
+  onDecided,
 }: {
   runId: string;
   candidate: CandidateRead;
   threshold: number;
+  onDecided?: (candidateId: string) => void;
 }): React.JSX.Element {
   const decision = useDecision(runId, candidate.id);
   const [choosing, setChoosing] = useState(false);
@@ -129,6 +129,7 @@ export function CandidateCard({
   const discovered = candidate.origin === "discovery";
   const failure =
     decision.isError && deals === null ? decision.error.message : null;
+  const decided = (): void => onDecided?.(candidate.id);
 
   const approve = (resolution?: {
     resolution: "promote_existing" | "create_new";
@@ -138,6 +139,7 @@ export function CandidateCard({
     decision.mutate(
       resolution ? { kind: "approve", resolution } : { kind: "approve" },
       {
+        onSuccess: decided,
         onError: (error) => {
           if (existingDeals(error) !== null) setChoosing(true);
         },
@@ -148,49 +150,44 @@ export function CandidateCard({
   return (
     <article
       aria-labelledby={`candidate-${candidate.id}`}
-      className="flex flex-col gap-md rounded-lg border border-hairline bg-surface-1 p-md"
+      className="flex animate-rise flex-col gap-lg"
     >
-      <header className="flex flex-wrap items-start justify-between gap-sm">
-        <div className="flex min-w-0 flex-col gap-xxs">
+      <header className="flex flex-col gap-xs">
+        <div className="flex items-start justify-between gap-sm">
           <h3
             id={`candidate-${candidate.id}`}
-            className="text-body font-medium text-ink"
+            className="text-figure font-medium text-balance"
           >
-            {discovered ? null : (
-              <span className="text-ink-subtle tabular-nums">
-                {candidate.rank}.{" "}
-              </span>
-            )}
             {candidate.seller_org_name}
           </h3>
-          {discovered ? (
-            <p className="text-caption text-ink-subtle">
-              Found via Google Maps · not scored
-              {candidate.source_url && (
-                <>
-                  {" · "}
-                  <a
-                    href={candidate.source_url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-flex items-center gap-[2px] text-primary-hover hover:underline"
-                  >
-                    Website <ExternalLink aria-hidden className="size-3" />
-                  </a>
-                </>
-              )}
-            </p>
-          ) : (
-            <p className="text-caption text-ink-subtle">
-              Data confidence{" "}
-              <span className="tabular-nums">
-                {score(candidate.data_confidence)}
-              </span>
-              /100
-            </p>
-          )}
+          <StatusBadge status={candidateStatus(candidate.status)} />
         </div>
-        <StatusBadge status={candidateStatus(candidate.status)} />
+        {discovered ? (
+          <p className="text-body text-ink-subtle">
+            Found via Google Maps · not scored
+            {candidate.source_url && (
+              <>
+                {" · "}
+                <a
+                  href={candidate.source_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-[2px] text-ink underline decoration-hairline-tertiary underline-offset-4 hover:decoration-ink"
+                >
+                  Website <ArrowUpRight aria-hidden className="size-3.5" />
+                </a>
+              </>
+            )}
+          </p>
+        ) : (
+          <p className="text-body text-ink-subtle">
+            Rank {candidate.rank} · Data confidence{" "}
+            <span className="text-ink-muted">
+              {score(candidate.data_confidence)}
+            </span>
+            /100
+          </p>
+        )}
       </header>
 
       {!discovered && candidate.match_score != null && (
@@ -198,9 +195,7 @@ export function CandidateCard({
       )}
 
       {candidate.why_it_matches && (
-        <p className="text-body-sm text-ink-muted">
-          {candidate.why_it_matches}
-        </p>
+        <p className="text-lead text-ink">{candidate.why_it_matches}</p>
       )}
       {!discovered && <Reasoning candidate={candidate} />}
 
@@ -224,39 +219,51 @@ export function CandidateCard({
         />
       )}
       {failure && (
-        <p role="alert" className="text-body-sm text-danger">
-          {failure}
-        </p>
+        <Alert tone="danger">
+          <AlertTriangle aria-hidden />
+          <AlertTitle>{failure}</AlertTitle>
+        </Alert>
       )}
 
       {pending && deals === null && (
-        <div className="flex flex-wrap gap-sm">
+        <div className="flex flex-wrap gap-xs border-t border-hairline pt-md lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg">
           <Button
-            variant="secondary"
+            size="lg"
             disabled={decision.isPending}
             onClick={() => {
               approve();
             }}
           >
+            <Check aria-hidden />
             Approve
           </Button>
           <Button
+            size="lg"
             variant="danger"
             disabled={decision.isPending}
             onClick={() => {
-              decision.mutate({ kind: "reject" });
+              decision.mutate({ kind: "reject" }, { onSuccess: decided });
             }}
           >
+            <X aria-hidden />
             Reject
           </Button>
         </div>
       )}
-      {!pending && candidate.deal_attio_id && (
-        <p className="text-caption text-ink-subtle">
-          Qualified deal in Attio{" "}
-          <code translate="no" className="font-mono text-mono">
-            {candidate.deal_attio_id}
-          </code>
+      {!pending && (
+        <p className="border-t border-hairline pt-md text-body text-ink-subtle lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg">
+          {candidate.deal_attio_id ? (
+            <>
+              Qualified deal in Attio{" "}
+              <code translate="no" className="text-ink-muted">
+                {candidate.deal_attio_id}
+              </code>
+            </>
+          ) : candidate.status === "APPROVED" ? (
+            "Approved."
+          ) : (
+            "Rejected. Nothing was written to Attio."
+          )}
         </p>
       )}
     </article>

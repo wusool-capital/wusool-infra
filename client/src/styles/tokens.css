@@ -1,31 +1,34 @@
-/* Wusool Capital brand colours (wusoolcapital.com) on DESIGN.md's roles.
-   See DESIGN.md "Wusool brand colours". The only place hex values live. */
+/* Wusool Capital (wusoolcapital.com): near-black ground tinted toward its
+   midnight blue, gold-white ink, gulf blue as the one accent. The only place
+   hex values live. */
 :root {
-  /* Midnight blue (#000523) and a ladder lifted from it. */
-  --canvas: #000523;
-  --surface-1: #070c2c;
-  --surface-2: #0c1234;
-  --surface-3: #11183b;
-  --surface-4: #161d42;
-  --hairline: #1f2650;
-  --hairline-strong: #2c3462;
-  --hairline-tertiary: #39416f;
+  /* Ground, then cards one step darker (data-terminal), then raised fills. */
+  --canvas: #0c0d11;
+  --surface-1: #08090c;
+  --surface-2: #121318;
+  --surface-3: #191a21;
+  --surface-4: #23252d;
+  --hairline: #1d1f27;
+  --hairline-strong: #343743;
+  --hairline-tertiary: #4a4d5a;
 
-  /* Gold-white (#f7f5f0) ink. */
+  /* Gold-white (#f7f5f0) ink and two greys that read apart, both ≥4.5:1. */
   --ink: #f7f5f0;
-  --ink-muted: #ccd5df;
-  --ink-subtle: #8e9aab;
-  --ink-tertiary: #5d6c7b;
+  --ink-muted: #b9bbc2;
+  --ink-subtle: #8f929b;
+  --ink-tertiary: #6f727c;
 
-  /* Gulf blue (#c6e1ee) CTA with midnight text, as on the site's buttons. */
+  /* Gulf blue (#c6e1ee) with midnight (#000523) text, as on the site's CTA. */
   --primary: #c6e1ee;
-  --primary-hover: #ddeef6;
-  --primary-focus: #7fb4ce;
+  --primary-hover: #dcedf6;
+  --primary-focus: #c6e1ee;
   --on-primary: #000523;
 
-  --success: #16da80;
-  /* App extensions (DESIGN.md "App extensions"). */
-  --warning: #d4a248;
-  --danger: #f06272;
+  --success: #3fc07a;
+  --success-tint: #12261b;
+  --warning: #e2b25c;
+  --warning-tint: #2a2315;
+  --danger: #e8607a;
+  --danger-tint: #2c1820;
   --overlay: #000000;
 }

@@ -1,14 +1,12 @@
 @import "tailwindcss";
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource/instrument-serif/400.css";
 @import "./tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Clear Tailwind's palette so only DESIGN.md colours exist as utilities. */
+  /* Clear Tailwind's palette so only the tokens exist as utilities. */
   --color-*: initial;
   --color-transparent: transparent;
   --color-current: currentColor;
@@ -29,11 +27,14 @@
   --color-primary-focus: var(--primary-focus);
   --color-on-primary: var(--on-primary);
   --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
   --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
   --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
   --color-overlay: var(--overlay);
 
-  /* shadcn's semantic names, pointed at DESIGN.md tokens. */
+  /* shadcn's semantic names, pointed at the tokens. */
   --color-background: var(--canvas);
   --color-foreground: var(--ink);
   --color-card: var(--surface-1);
@@ -42,56 +43,34 @@
   --color-popover-foreground: var(--ink);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--on-primary);
-  --color-secondary: var(--surface-1);
-  --color-secondary-foreground: var(--ink);
   --color-muted: var(--surface-2);
   --color-muted-foreground: var(--ink-subtle);
-  --color-accent: var(--surface-2);
-  --color-accent-foreground: var(--ink);
   --color-destructive: var(--danger);
   --color-border: var(--hairline);
-  --color-input: var(--hairline);
+  --color-input: var(--hairline-strong);
   --color-ring: var(--primary-focus);
 
   --font-sans:
-    "Inter", "SF Pro Display", -apple-system, system-ui, "Segoe UI", Roboto,
-    sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    "Instrument Sans Variable", -apple-system, system-ui, "Segoe UI", sans-serif;
+  /* The serif echoes the Wusool Capital wordmark; titles only. */
+  --font-serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
 
-  --text-display-md: 40px;
-  --text-display-md--line-height: 1.15;
-  --text-display-md--letter-spacing: -1px;
-  --text-display-md--font-weight: 600;
-  --text-headline: 28px;
-  --text-headline--line-height: 1.2;
-  --text-headline--letter-spacing: -0.6px;
-  --text-headline--font-weight: 600;
-  --text-card-title: 22px;
-  --text-card-title--line-height: 1.25;
-  --text-card-title--letter-spacing: -0.4px;
-  --text-card-title--font-weight: 500;
-  --text-subhead: 20px;
-  --text-subhead--line-height: 1.4;
-  --text-subhead--letter-spacing: -0.2px;
-  --text-body-lg: 18px;
-  --text-body-lg--line-height: 1.5;
-  --text-body-lg--letter-spacing: -0.1px;
-  --text-body: 16px;
+  /* Six sizes: title, figure, section, lead, body, small. */
+  --text-title: 32px;
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.01em;
+  --text-figure: 24px;
+  --text-figure--line-height: 1.15;
+  --text-figure--letter-spacing: -0.01em;
+  --text-section: 15px;
+  --text-section--line-height: 1.4;
+  --text-section--font-weight: 600;
+  --text-lead: 16px;
+  --text-lead--line-height: 1.55;
+  --text-body: 14px;
   --text-body--line-height: 1.5;
-  --text-body--letter-spacing: -0.05px;
-  --text-body-sm: 14px;
-  --text-body-sm--line-height: 1.5;
-  --text-caption: 12px;
-  --text-caption--line-height: 1.4;
-  --text-button: 14px;
-  --text-button--line-height: 1.2;
-  --text-button--font-weight: 500;
-  --text-eyebrow: 13px;
-  --text-eyebrow--line-height: 1.3;
-  --text-eyebrow--letter-spacing: 0.4px;
-  --text-eyebrow--font-weight: 500;
-  --text-mono: 13px;
-  --text-mono--line-height: 1.5;
+  --text-small: 13px;
+  --text-small--line-height: 1.45;
 
   --spacing-xxs: 4px;
   --spacing-xs: 8px;
@@ -100,21 +79,23 @@
   --spacing-lg: 24px;
   --spacing-xl: 32px;
   --spacing-xxl: 48px;
-  --spacing-section: 96px;
 
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-xxl: 24px;
+  /* Square, like the site's buttons: 2px controls, 4px panels. */
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
 
-  /* DESIGN.md: hierarchy comes from the surface ladder, never shadows. */
   --shadow-*: initial;
-  --shadow-xs: none;
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.5);
+
+  --animate-rise: rise 180ms cubic-bezier(0.2, 0, 0, 1) both;
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
 }
 
 @layer base {
@@ -131,10 +112,19 @@
   }
   body {
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    font-feature-settings: "tnum" 1;
     @apply bg-canvas font-sans text-body text-ink antialiased;
   }
+  /* One text face everywhere; commands and IDs read as words, not code blocks. */
+  code {
+    font-family: inherit;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
   :focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--primary-focus) 50%, transparent);
+    outline: 1px solid var(--primary-focus);
     outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {

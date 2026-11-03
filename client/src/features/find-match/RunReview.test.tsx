@@ -1,10 +1,12 @@
-import { screen } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { candidate, run } from "@/test/fixtures";
+import { getMatchRunQueryKey } from "@/gen/hooks/useGetMatchRun";
+import { candidate, jsonResponse, run, RUN_ID } from "@/test/fixtures";
 import { renderWithQuery } from "@/test/render";
 
-import { DiscoveryStep, MatchingStep, ShortlistStep } from "./RunSteps";
+import { DiscoverySection, Review, RunProgress } from "./RunReview";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => (
@@ -12,23 +14,21 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-describe("run steps", () => {
+describe("run review", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("shows progress while matching runs", () => {
     renderWithQuery(
-      <MatchingStep
-        run={run({ state: "running", completed_at: null })}
-        state="active"
-      />,
+      <RunProgress run={run({ state: "running", completed_at: null })} />,
     );
     expect(screen.getByText(/Reading the mandate/)).toBeInTheDocument();
   });
 
   it("explains a stale run and offers a new one", () => {
     renderWithQuery(
-      <MatchingStep
-        run={run({ state: "stale", completed_at: null })}
-        state="attention"
-      />,
+      <RunProgress run={run({ state: "stale", completed_at: null })} />,
     );
     expect(screen.getByText("This run never finished")).toBeInTheDocument();
     expect(
@@ -38,32 +38,25 @@ describe("run steps", () => {
 
   it("shows a failed run's error", () => {
     renderWithQuery(
-      <MatchingStep
+      <RunProgress
         run={run({ state: "failed", error: "matching failed early" })}
-        state="attention"
       />,
     );
     expect(screen.getByText(/matching failed early/)).toBeInTheDocument();
   });
 
-  it("says when no CRM seller qualified", async () => {
-    renderWithQuery(
-      <ShortlistStep run={run({ candidates: [] })} state="done" />,
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: /No CRM seller qualified/ }),
-    );
+  it("says when no CRM seller qualified", () => {
+    renderWithQuery(<Review run={run({ candidates: [] })} />);
     expect(screen.getByText(/No seller in the CRM passed/)).toBeInTheDocument();
   });
 
   it("warns about low match quality", () => {
     renderWithQuery(
-      <ShortlistStep
+      <Review
         run={run({
           low_match_quality: true,
           candidates: [candidate({ match_score: 31 })],
         })}
-        state="active"
       />,
     );
     expect(
@@ -73,11 +66,10 @@ describe("run steps", () => {
 
   it("offers a manual search when discovery is available", () => {
     renderWithQuery(
-      <DiscoveryStep
+      <DiscoverySection
         run={run({
           discovery: { status: "available", message: null, notes: [] },
         })}
-        state="active"
       />,
     );
     expect(
@@ -94,7 +86,7 @@ describe("run steps", () => {
       source_url: "https://alnoor.example",
     });
     renderWithQuery(
-      <DiscoveryStep
+      <Review
         run={run({
           low_match_quality: true,
           discovery: {
@@ -104,10 +96,49 @@ describe("run steps", () => {
           },
           candidates: [candidate({ status: "REJECTED" }), found],
         })}
-        state="active"
       />,
     );
-    expect(screen.getByText("Al Noor Dental")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Found outside the CRM · 1" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("2 more already in the CRM.")).toBeInTheDocument();
+  });
+
+  it("opens the first pending candidate and moves on after a decision", async () => {
+    const first = candidate();
+    const second = candidate({
+      id: "5e4d3c2b-1a0f-4e9d-8c7b-6a5f4e3d2c1b",
+      rank: 2,
+      seller_org_name: "Riyadh Physio Group",
+    });
+    const current = run({ candidates: [first, second] });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          candidate: { ...first, status: "REJECTED", decision: "REJECTED" },
+        }),
+      ),
+    );
+    const { client, rerender } = renderWithQuery(<Review run={current} />);
+    const key = getMatchRunQueryKey({ path: { run_id: RUN_ID } });
+    client.setQueryData(key, current);
+
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Gulf Dental Partners" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    rerender(
+      <QueryClientProvider client={client}>
+        <Review run={client.getQueryData(key) ?? current} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 3, name: "Riyadh Physio Group" }),
+      ).toBeInTheDocument();
+    });
   });
 });

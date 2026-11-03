@@ -6,7 +6,7 @@ import type { RunDetailResponse } from "@/gen/types/RunDetailResponse";
 import { candidate, jsonResponse, run, RUN_ID } from "@/test/fixtures";
 import { renderWithQuery } from "@/test/render";
 
-import { CandidateCard } from "./CandidateCard";
+import { CandidateDetail } from "./CandidateDetail";
 
 const existingDeals = {
   detail: {
@@ -28,7 +28,7 @@ function setup(fetchMock: ReturnType<typeof vi.fn>): {
 } {
   vi.stubGlobal("fetch", fetchMock);
   const { client } = renderWithQuery(
-    <CandidateCard runId={RUN_ID} candidate={candidate()} threshold={50} />,
+    <CandidateDetail runId={RUN_ID} candidate={candidate()} threshold={50} />,
   );
   const key = getMatchRunQueryKey({ path: { run_id: RUN_ID } });
   client.setQueryData(key, run());
@@ -38,7 +38,7 @@ function setup(fetchMock: ReturnType<typeof vi.fn>): {
   };
 }
 
-describe("CandidateCard", () => {
+describe("CandidateDetail", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });

@@ -55,11 +55,8 @@ function CheckResult({
               .
             </p>
             <p className="text-ink-subtle">
-              Fill these in with{" "}
-              <code translate="no" className="font-mono text-mono">
-                /edit-buyer
-              </code>{" "}
-              in Slack for a sharper match, or run it now.
+              Fill these in with <code translate="no">/edit-buyer</code> in
+              Slack for a sharper match, or run it now.
             </p>
           </AlertDescription>
         </Alert>
@@ -80,9 +77,9 @@ function CheckResult({
         </Alert>
       )}
       {reading.length > 0 && (
-        <div className="flex flex-col gap-xxs rounded-md bg-surface-1 px-md py-sm">
-          <p className="text-caption text-ink-subtle">Read from your note</p>
-          <ul className="flex flex-col gap-xxs text-body-sm text-ink-muted">
+        <div className="flex flex-col gap-xxs rounded-lg border border-hairline bg-surface-1 px-md py-sm">
+          <p className="text-small text-ink-subtle">Read from your note</p>
+          <ul className="flex flex-col gap-xxs text-body text-ink-muted">
             {reading.map((line) => (
               <li key={line}>{line}</li>
             ))}
@@ -147,9 +144,7 @@ export function ProfileCheck({
         <p
           id="advisor-context-help"
           className={
-            fieldError
-              ? "text-caption text-danger"
-              : "text-caption text-ink-subtle"
+            fieldError ? "text-small text-danger" : "text-small text-ink-subtle"
           }
         >
           {fieldError ??
@@ -157,6 +152,39 @@ export function ProfileCheck({
         </p>
       </div>
 
+      <div className="flex flex-wrap gap-xs">
+        {checked ? (
+          <Button
+            type="button"
+            size="lg"
+            disabled={starting}
+            onClick={() => {
+              onRun(note());
+            }}
+          >
+            {starting ? "Starting…" : "Run match"}
+          </Button>
+        ) : (
+          <Button type="submit" size="lg" disabled={preflight.isPending}>
+            {preflight.isPending ? "Checking profile…" : "Check profile"}
+          </Button>
+        )}
+        {!checked && (
+          <Button
+            type="button"
+            size="lg"
+            variant="tertiary"
+            disabled={starting || preflight.isPending}
+            onClick={() => {
+              void form.handleSubmit(() => {
+                onRun(note());
+              })();
+            }}
+          >
+            Skip check and run
+          </Button>
+        )}
+      </div>
       {preflight.isSuccess && (
         <CheckResult
           result={preflight.data}
@@ -180,38 +208,6 @@ export function ProfileCheck({
           <AlertDescription>{startError}</AlertDescription>
         </Alert>
       )}
-
-      <div className="flex flex-wrap gap-sm">
-        {checked ? (
-          <Button
-            type="button"
-            disabled={starting}
-            onClick={() => {
-              onRun(note());
-            }}
-          >
-            {starting ? "Starting…" : "Run match"}
-          </Button>
-        ) : (
-          <Button type="submit" disabled={preflight.isPending}>
-            {preflight.isPending ? "Checking profile…" : "Check profile"}
-          </Button>
-        )}
-        {!checked && (
-          <Button
-            type="button"
-            variant="tertiary"
-            disabled={starting || preflight.isPending}
-            onClick={() => {
-              void form.handleSubmit(() => {
-                onRun(note());
-              })();
-            }}
-          >
-            Skip check and run
-          </Button>
-        )}
-      </div>
     </form>
   );
 }

@@ -59,7 +59,9 @@ export function BuyerSearch({
 
   return (
     <div className="flex flex-col gap-sm">
-      <Label htmlFor={`${listId}-input`}>Buyer</Label>
+      <Label htmlFor={`${listId}-input`} className="sr-only">
+        Buyer
+      </Label>
       <Input
         id={`${listId}-input`}
         role="combobox"
@@ -80,20 +82,23 @@ export function BuyerSearch({
       />
 
       {!enabled && (
-        <p className="text-caption text-ink-subtle">
+        <p className="text-small text-ink-subtle">
           Type at least {MIN_CHARS} letters.
         </p>
       )}
 
       {enabled && search.isPending && (
-        <div aria-hidden className="flex flex-col gap-xxs">
+        <div
+          aria-hidden
+          className="flex flex-col rounded-lg border border-hairline bg-surface-1"
+        >
           {[0, 1, 2].map((row) => (
             <div
               key={row}
-              className="flex flex-col gap-xs rounded-md px-sm py-sm"
+              className="flex min-h-14 flex-col justify-center gap-[6px] border-b border-hairline px-md last:border-b-0"
             >
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-3 w-72 max-w-full" />
+              <Skeleton className="h-[14px] w-48" />
+              <Skeleton className="h-[10px] w-72 max-w-full" />
             </div>
           ))}
         </div>
@@ -102,7 +107,7 @@ export function BuyerSearch({
       {enabled && search.isError && (
         <div
           role="alert"
-          className="flex items-center gap-sm text-body-sm text-ink-muted"
+          className="flex items-center gap-sm text-body text-ink-muted"
         >
           Couldn't search buyers.
           <Button
@@ -117,7 +122,7 @@ export function BuyerSearch({
       )}
 
       {enabled && search.isSuccess && results.length === 0 && (
-        <p className="text-body-sm text-ink-subtle">
+        <p className="text-body text-ink-subtle">
           No buyer matches “{term}”. Try a shorter name.
         </p>
       )}
@@ -126,7 +131,7 @@ export function BuyerSearch({
         id={listId}
         role="listbox"
         aria-label="Matching buyers"
-        className="flex flex-col gap-[2px]"
+        className="flex flex-col overflow-hidden rounded-lg border border-hairline bg-surface-1 empty:hidden"
       >
         {results.map((buyer, index) => {
           const meta = buyerMeta(buyer);
@@ -143,14 +148,16 @@ export function BuyerSearch({
                 onPick(buyer);
               }}
               className={cn(
-                "flex cursor-pointer flex-col gap-[2px] rounded-md px-sm py-xs",
-                index === highlight ? "bg-surface-3" : "hover:bg-surface-2",
+                "relative flex min-h-14 cursor-pointer flex-col justify-center gap-[2px] border-b border-hairline px-md py-[10px] last:border-b-0",
+                index === highlight
+                  ? "bg-surface-3 before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-primary before:content-['']"
+                  : "hover:bg-surface-2",
               )}
             >
-              <span className="text-body-sm text-ink">
+              <span className="text-body font-medium text-ink">
                 {buyer.organization.name}
               </span>
-              <span className="text-caption text-ink-subtle">
+              <span className="text-small text-ink-subtle">
                 {meta || "No mandate details yet"}
               </span>
             </li>

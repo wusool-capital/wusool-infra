@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -17,62 +18,49 @@ const STATE_TEXT: Record<StepState, string> = {
   attention: "needs attention",
 };
 
-// The whole sequence stays visible so the advisor always knows where the run is.
+// The whole sequence stays visible; the current step carries the one 1px accent line.
 export function StepsBar({ steps }: { steps: StepStates }): React.JSX.Element {
-  const position = STEP_ORDER.findIndex(
+  const list = useRef<HTMLOListElement>(null);
+  const currentId = STEP_ORDER.find(
     (id) => steps[id] === "active" || steps[id] === "attention",
   );
-  const current = position === -1 ? STEP_ORDER.length - 1 : position;
-  const currentId = STEP_ORDER[current] ?? "export";
-
+  // On a phone the row scrolls; keep the current step in view.
+  useEffect(() => {
+    const ol = list.current;
+    const li = ol?.querySelector<HTMLElement>("[data-current]");
+    if (ol && li) ol.scrollLeft = li.offsetLeft - ol.offsetLeft - 16;
+  }, [currentId]);
   return (
-    <nav
-      aria-label="Find-match progress"
-      className="border-b border-hairline bg-canvas"
-    >
-      <p className="px-md pt-sm text-caption text-ink-subtle md:hidden">
-        Step {current + 1} of {STEP_ORDER.length} · {STEP_LABELS[currentId]}
-      </p>
-      <ol className="flex gap-xxs px-md py-sm md:gap-xs md:px-lg">
+    <nav aria-label="Find-match progress" className="border-b border-hairline">
+      <ol
+        ref={list}
+        className="-mb-px flex [scrollbar-width:none] gap-lg overflow-x-auto"
+      >
         {STEP_ORDER.map((id) => {
           const state = steps[id];
+          const current = state === "active" || state === "attention";
           return (
             <li
               key={id}
               aria-current={state === "active" ? "step" : undefined}
-              className="flex min-w-0 flex-1 flex-col gap-xs"
+              data-current={current ? "" : undefined}
+              className={cn(
+                "flex shrink-0 items-center gap-[6px] border-b py-xs text-body whitespace-nowrap",
+                current ? "border-primary" : "border-transparent",
+                state === "active" && "text-ink",
+                state === "attention" && "text-warning",
+                state === "done" && "text-ink-muted",
+                (state === "upcoming" || state === "skipped") &&
+                  "text-ink-subtle",
+              )}
             >
-              <span
-                aria-hidden
-                className={cn(
-                  "h-[3px] rounded-full",
-                  state === "done" && "bg-ink-muted",
-                  state === "active" && "bg-ink",
-                  state === "attention" && "bg-warning",
-                  (state === "upcoming" || state === "skipped") &&
-                    "bg-surface-4",
-                )}
-              />
-              <span
-                aria-hidden
-                className={cn(
-                  "hidden min-w-0 items-center gap-xxs truncate text-caption md:flex",
-                  state === "active" && "text-ink",
-                  state === "done" && "text-ink-muted",
-                  state === "attention" && "text-warning",
-                  (state === "upcoming" || state === "skipped") &&
-                    "text-ink-subtle",
-                  state === "skipped" && "line-through",
-                )}
-              >
-                {state === "done" && (
-                  <Check aria-hidden className="size-3 shrink-0" />
-                )}
-                <span className="truncate">{STEP_LABELS[id]}</span>
+              {state === "done" && (
+                <Check aria-hidden className="size-3.5" strokeWidth={2} />
+              )}
+              <span className={cn(state === "skipped" && "line-through")}>
+                {STEP_LABELS[id]}
               </span>
-              <span className="sr-only">
-                {STEP_LABELS[id]}, {STATE_TEXT[state]}
-              </span>
+              <span className="sr-only">, {STATE_TEXT[state]}</span>
             </li>
           );
         })}

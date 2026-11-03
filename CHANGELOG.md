@@ -14,10 +14,13 @@ for current production evidence and open handover items.
 
 - A web version of find-match at `/app` on the Toolkit host. One page walks
   through the run in order (buyer, profile check, matching, shortlist,
-  discovery, export) with a steps bar at the top. Advisors approve or reject
-  each seller, choose between an existing Attio deal and a new one, and
-  download the shortlist as CSV. Access uses a shared key until sign-in with
-  Slack arrives.
+  discovery, export) with a steps bar at the top. The run page shows the
+  shortlist as a ranked list beside the selected seller's reasoning, with every
+  score plotted against the discovery threshold. After each decision the next
+  seller waiting for review opens. Advisors approve or reject each seller,
+  choose between an existing Attio deal and a new one, and download the
+  shortlist as CSV. The app uses the Wusool Capital palette. Access uses a
+  shared key until sign-in with Slack arrives.
 
 ## 2026-10-30
 

@@ -59,35 +59,46 @@ Commit `openapi.json` and `src/gen/` whenever a route or schema changes.
 
 ## Design system
 
-`DESIGN.md` (Linear's design system plus an "App extensions" section) is the
-source of truth. Its tokens are copied one-to-one into
-`src/styles/tokens.css`, mapped to Tailwind utilities in the `@theme` block
-of `src/styles/index.css`, and onto shadcn's variable names there too, so
-components never hold a hex value. Tailwind's own colour palette and shadows
-are cleared.
+`src/styles/tokens.css` is the source of truth. It holds the Wusool Capital
+palette taken from wusoolcapital.com: a near-black ground tinted toward its
+midnight blue (`#000523`), gold-white ink (`#f7f5f0`), and gulf blue
+(`#c6e1ee`) as the one accent. The tokens are mapped to Tailwind utilities in
+the `@theme` block of `src/styles/index.css` and onto shadcn's variable names,
+so components never hold a hex value. Tailwind's own colour palette and shadows
+are cleared. `DESIGN.md` (Linear's design system) is kept for reference only.
 
-The shadcn components in `src/components/ui/` are restyled to the DESIGN.md
-component specs. `cn()` in `src/lib/utils.ts` registers the custom type scale
-with `tailwind-merge`; without it, `text-caption` is read as a colour and
-dropped.
+The rules the components follow:
 
-Each screen goes through the loop in `frontend-plan.md` §1.3: set its
-direction (the taste skill), build with tokens only, take screenshots at 1440,
-1024, 768 and 480px with Playwright, fix what they show, then audit with the
-web-design-guidelines rules.
+- **Type.** Instrument Sans for everything, with tabular figures on. Instrument
+  Serif, after the firm's wordmark, is used for page titles only. Six sizes:
+  `title`, `figure`, `section`, `lead`, `body`, `small`.
+- **Accent.** Gulf blue marks the current selection as a 1px line (rail item,
+  current step, selected row, focused field), the scores above the discovery
+  line, and the screen's one primary action.
+- **Surfaces.** Cards sit one step darker than the ground, with 1px borders
+  and no shadows. Corners are square (2px controls, 4px panels), like the
+  site's buttons.
+- **Status.** Pills are a dark tint of the hue with the hue as text. Notices
+  carry their colour only on the icon and a 2px leading edge.
+
+The shadcn components in `src/components/ui/` are restyled to these rules.
+`cn()` in `src/lib/utils.ts` registers the type scale with `tailwind-merge`;
+without it, `text-small` is read as a colour and dropped.
 
 ## Structure
 
 ```
 src/
   routes/          file-based routes (TanStack Router); _app.tsx is the shell
-    _app/          index (tools), find-match, runs/$runId, settings
+    _app/          index (home), find-match, runs/$runId, settings
   features/
-    find-match/    one component per step, the steps bar and run state
-  components/      shell (Sidebar, TopBar, ApiKeyGate) and ui/ (shadcn)
+    find-match/    buyer search, profile check, the run funnel, the shortlist
+                   list and detail, discovery, and the steps bar
+  components/      shell (Rail, PageHeader, Mark, ApiKeyGate) and ui/ (shadcn)
   lib/             api-client, access key, recent runs, formatting
   gen/             generated API client (do not edit)
 ```
 
-Recent runs in the sidebar are remembered per device in `localStorage`; there
-is no list-runs endpoint yet.
+Recent runs on the home page are remembered per device in `localStorage`;
+there is no list-runs endpoint yet. Each row fetches its run to show how many
+sellers are still to review.

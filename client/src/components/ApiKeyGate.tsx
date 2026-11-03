@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { Mark } from "@/components/Mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,14 +58,17 @@ export function ApiKeyGate({
             setServerError(await verify(value));
           })(event);
         }}
-        className="flex w-full max-w-[400px] flex-col gap-lg rounded-lg border border-hairline bg-surface-1 p-lg"
+        className="flex w-full max-w-[400px] animate-rise flex-col gap-lg"
       >
-        <div className="flex flex-col gap-xs">
-          <h1 className="text-card-title text-balance">Wusool Toolkit</h1>
-          <p className="text-body-sm text-ink-subtle">
-            Enter the team access key to use the web tools. It's kept for this
-            tab only.
-          </p>
+        <div className="flex flex-col gap-md">
+          <Mark className="h-7 w-10" />
+          <div className="flex flex-col gap-xs">
+            <h1 className="font-serif text-title">Wusool Toolkit</h1>
+            <p className="text-lead text-ink-muted">
+              Enter the team access key to use the web tools. It's kept for this
+              tab only.
+            </p>
+          </div>
         </div>
         <div className="flex flex-col gap-xs">
           <Label htmlFor="api-key">Access key</Label>
@@ -82,12 +86,12 @@ export function ApiKeyGate({
             })}
           />
           {fieldError && (
-            <p id="api-key-error" className="text-caption text-danger">
+            <p id="api-key-error" className="text-small text-danger">
               {fieldError}
             </p>
           )}
         </div>
-        <Button type="submit" disabled={form.formState.isSubmitting}>
+        <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? "Checking…" : "Use this key"}
         </Button>
       </form>

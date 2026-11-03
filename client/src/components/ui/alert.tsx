@@ -3,19 +3,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-// Status panels: same hue at 12% fill / 32% border (DESIGN.md App extensions).
+// In-block notices: colour only on the icon and a 2px leading edge, text stays ink.
 const alertVariants = cva(
-  "relative grid w-full grid-cols-[0_1fr] items-start gap-y-xxs rounded-lg border px-md py-sm text-body-sm has-[>svg]:grid-cols-[16px_1fr] has-[>svg]:gap-x-sm [&>svg]:mt-[3px] [&>svg]:size-4",
+  "relative grid w-full grid-cols-[0_1fr] items-start gap-y-xxs rounded-lg border-l-2 bg-surface-2 py-sm pr-md pl-sm text-body has-[>svg]:grid-cols-[16px_1fr] has-[>svg]:gap-x-sm [&>svg]:mt-[2px] [&>svg]:size-4",
   {
     variants: {
       tone: {
-        neutral:
-          "border-hairline bg-surface-1 text-ink [&>svg]:text-ink-subtle",
-        warning:
-          "border-warning/32 bg-warning/12 text-ink [&>svg]:text-warning",
-        danger: "border-danger/32 bg-danger/12 text-ink [&>svg]:text-danger",
-        success:
-          "border-success/32 bg-success/12 text-ink [&>svg]:text-success",
+        neutral: "border-hairline-strong [&>svg]:text-ink-subtle",
+        warning: "border-warning [&>svg]:text-warning",
+        danger: "border-danger [&>svg]:text-danger",
+        success: "border-success [&>svg]:text-success",
       },
     },
     defaultVariants: {
