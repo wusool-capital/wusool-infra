@@ -102,15 +102,19 @@ The same flow runs in a browser at `/app` on the Toolkit host, for example
    review opens.
 6. If Attio already has a deal for the pair, choose **Use this deal** or
    **Create a new deal**.
-7. If no seller scores 50 or more, **Outside the CRM** offers **Find more
-   sellers**. New sellers from Google Maps join the list under **Found
-   outside the CRM** for review.
+7. If no seller scores 50 or more, the search outside the CRM starts by
+   itself. Otherwise **Outside the CRM** offers **Find more sellers anyway**,
+   as Slack's **Find more sellers** does. New sellers from Google Maps join
+   the list under **Found outside the CRM** for review. Each run searches
+   once.
 8. **Download CSV**, next to the title, saves the shortlist with every
-   decision so far.
+   decision so far. Choose its columns under **Settings → CSV export**. The
+   default **Business** preset keeps rank, seller, score, decision, why it
+   matches, pitch and risks. **Everything** adds the rest.
 
 The home page lists your recent runs with how many sellers each still has to
-review. **Settings** explains what each decision writes and lets you clear the
-recent-runs list.
+review. **Settings** explains what each decision writes, picks the CSV columns for
+this browser, and lets you clear the recent-runs list.
 
 The web version differs from Slack in a few ways:
 

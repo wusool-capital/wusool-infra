@@ -118,9 +118,15 @@ export function buildUrl(
   );
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(
-    (config.query ?? {}) as Record<string, Scalar | null | undefined>,
+    (config.query ?? {}) as Record<
+      string,
+      Scalar | Scalar[] | null | undefined
+    >,
   )) {
-    if (value !== undefined && value !== null) params.set(key, String(value));
+    if (value === undefined || value === null) continue;
+    // FastAPI reads a list parameter as the same key repeated.
+    for (const item of Array.isArray(value) ? value : [value])
+      params.append(key, String(item));
   }
   const search = params.toString();
   return `${config.baseURL ?? BASE_URL}${url}${search ? `?${search}` : ""}`;

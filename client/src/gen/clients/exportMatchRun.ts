@@ -6,6 +6,7 @@ import { exportMatchRunResponseSchema, exportMatchRunErrorSchema } from '../zod/
 import { client } from '@/lib/api-client'
 
 /**
+ * @description `fields` picks and orders the columns; omitted, every column is exported.
  * @summary Export Match Run
  * {@link /api/match-runs/:run_id/export.csv}
  */

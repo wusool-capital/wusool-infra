@@ -11,6 +11,11 @@ import { useStartDiscovery } from "@/gen/hooks/useStartDiscovery";
 import type { CandidateRead } from "@/gen/types/CandidateRead";
 import type { RunDetailResponse } from "@/gen/types/RunDetailResponse";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import {
+  EXPORT_PRESETS,
+  matchingPreset,
+  useExportFields,
+} from "@/lib/export-fields";
 import { score } from "@/lib/format";
 
 import { CandidateDetail } from "./CandidateDetail";
@@ -268,7 +273,7 @@ export function Review({
   );
 }
 
-// Search outside the CRM: offered when every score is low, then its outcome.
+// Search outside the CRM: offered on every finished run, then its outcome.
 export function DiscoverySection({
   run,
 }: {
@@ -295,13 +300,40 @@ export function DiscoverySection({
   const { discovery } = run;
   const found = run.candidates.filter((c) => c.origin === "discovery");
 
+  const findMore = (
+    <>
+      {startDiscovery.isError && (
+        <p role="alert" className="text-body text-danger">
+          {startDiscovery.error.message}
+        </p>
+      )}
+      <Button
+        variant="secondary"
+        disabled={startDiscovery.isPending || run.state !== "completed"}
+        onClick={() => {
+          startDiscovery.mutate({ path: { run_id: run.run_id } });
+        }}
+      >
+        <Search aria-hidden />
+        {discovery.status === "not_needed"
+          ? "Find more sellers anyway"
+          : "Find more sellers"}
+      </Button>
+    </>
+  );
+
   let body: React.ReactNode;
   if (discovery.status === "not_needed") {
+    // As in Slack, the advisor can still search when the CRM shortlist looks good.
     body = (
-      <p className="text-body text-ink-muted">
-        Not needed: the shortlist cleared the {score(run.discovery_threshold)}{" "}
-        line.
-      </p>
+      <div className="flex flex-col items-start gap-sm">
+        <p className="text-body text-ink-muted">
+          Not needed: the shortlist cleared the {score(run.discovery_threshold)}{" "}
+          line. You can still search Google Maps for sellers the CRM doesn't
+          have yet.
+        </p>
+        {findMore}
+      </div>
     );
   } else if (discovery.status === "running") {
     body = (
@@ -325,21 +357,7 @@ export function DiscoverySection({
           Google Maps for sellers in this buyer's sector and geography;
           genuinely new ones are added to the CRM for review.
         </p>
-        {startDiscovery.isError && (
-          <p role="alert" className="text-body text-danger">
-            {startDiscovery.error.message}
-          </p>
-        )}
-        <Button
-          variant="secondary"
-          disabled={startDiscovery.isPending}
-          onClick={() => {
-            startDiscovery.mutate({ path: { run_id: run.run_id } });
-          }}
-        >
-          <Search aria-hidden />
-          Find more sellers
-        </Button>
+        {findMore}
       </div>
     );
   } else if (discovery.status !== "done") {
@@ -380,6 +398,11 @@ export function ExportButton({
 }): React.JSX.Element {
   const [exportError, setExportError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const fields = useExportFields();
+  const preset = matchingPreset(fields);
+  const fieldsLabel = preset
+    ? `${EXPORT_PRESETS[preset].label} fields`
+    : `${String(fields.length)} chosen fields`;
   return (
     <>
       {exportError && (
@@ -393,7 +416,7 @@ export function ExportButton({
         onClick={() => {
           setBusy(true);
           setExportError(null);
-          downloadRunCsv(run.run_id)
+          downloadRunCsv(run.run_id, fields)
             .catch((error: unknown) => {
               setExportError(
                 error instanceof Error ? error.message : "Export failed",
@@ -407,6 +430,13 @@ export function ExportButton({
         <Download aria-hidden />
         {busy ? "Preparing…" : "Download CSV"}
       </Button>
+      <Link
+        to="/settings"
+        hash="export-title"
+        className="text-small text-ink-subtle underline-offset-4 hover:text-ink hover:underline"
+      >
+        {fieldsLabel} · change
+      </Link>
     </>
   );
 }

@@ -119,7 +119,7 @@ deep links and caches hashed assets for a year) and its API under `/api`:
 | `POST /api/match-runs/{id}/discovery` | Starts discovery by hand. |
 | `POST /api/match-runs/{id}/candidates/{cid}/approve` | Approve, with the promote or create choice. |
 | `POST /api/match-runs/{id}/candidates/{cid}/reject` | Reject. |
-| `GET /api/match-runs/{id}/export.csv` | The candidates as CSV, with formula characters neutralised. |
+| `GET /api/match-runs/{id}/export.csv` | The candidates as CSV, with formula characters neutralised. Repeat `fields` to choose and order columns; without it, all are exported. |
 
 **Access.** Every route needs `Authorization: Bearer <WEB_API_KEY>`. A wrong
 key gets 401; while the key is unset, every route returns 503. Decisions are
@@ -134,7 +134,8 @@ restart cut it off.
 
 **Discovery.** Below `WEB_FALLBACK_MIN_SCORE`, a web run starts discovery
 itself. Its progress and outcome counts live in an in-process tracker; after a
-restart the page offers the manual start instead.
+restart the page offers the manual start instead. The manual start is also
+offered on runs that cleared the threshold.
 
 **Settings.** `WEB_API_KEY` is a field of the Toolkit secret in Secrets
 Manager and must be added by hand to `/wusool/dev/toolkit` and the production

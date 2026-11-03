@@ -196,7 +196,7 @@ Routes, all under `/api` and all behind `Authorization: Bearer <WEB_API_KEY>`
 | `POST /match-runs/{id}/discovery` | Starts discovery by hand ("Find more sellers"); a repeat is a no-op. |
 | `POST /match-runs/{id}/candidates/{cid}/approve` | Approve. Takes the promote or create choice. |
 | `POST /match-runs/{id}/candidates/{cid}/reject` | Reject. |
-| `GET /match-runs/{id}/export.csv` | The candidates as CSV. |
+| `GET /match-runs/{id}/export.csv` | The candidates as CSV; repeat `fields` to choose and order columns. |
 
 - **Who.** There is no login yet: decisions are recorded with
   `approved_by="web"` and runs with `requested_by` NULL.
@@ -211,7 +211,8 @@ Routes, all under `/api` and all behind `Authorization: Bearer <WEB_API_KEY>`
   starts discovery automatically, as Slack does, without posting to Slack.
   Its progress and the run's advisor notes are kept in an in-process tracker
   (`api/http/run_tracker.py`). A restart loses it; the run page then offers
-  **Find more sellers** to start the search by hand. The same idempotency key
+  **Find more sellers** to start the search by hand. Runs that cleared the
+  threshold offer it too, like Slack's button. The same idempotency key
   as Slack stops one run from searching twice.
 - **Existing deal.** Approve returns 409 with the existing Attio deals; the
   page asks to promote one or create a new deal, the same choice Slack offers.

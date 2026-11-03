@@ -30,6 +30,20 @@ ApiErrorCode = Literal[
 DiscoveryStatus = Literal[
     "not_needed", "available", "running", "done", "skipped", "unavailable", "failed"
 ]
+ExportField = Literal[
+    "rank",
+    "origin",
+    "seller",
+    "seller_attio_id",
+    "match_score",
+    "data_confidence",
+    "status",
+    "why_it_matches",
+    "why_chosen_over_alternatives",
+    "recommended_pitch",
+    "risks_and_gaps",
+    "source_url",
+]
 
 
 class DiscrepancyRead(_Schema):

@@ -314,3 +314,28 @@ def test_export_csv_neutralises_formulas(api) -> None:
     lines = response.text.splitlines()
     assert lines[0].startswith("rank,origin,seller")
     assert "'=cmd()" in lines[1]
+
+
+def test_export_csv_keeps_only_requested_fields_in_order(api) -> None:
+    api.service.get_match_analysis.return_value = _analysis()
+
+    response = api.client.get(
+        f"/api/match-runs/{uuid4()}/export.csv",
+        params=[("fields", "match_score"), ("fields", "seller"), ("fields", "match_score")],
+        headers=_HEADERS,
+    )
+
+    assert response.status_code == 200
+    rows = response.text.splitlines()
+    assert rows[0] == "match_score,seller"
+    assert all(row.count(",") == 1 for row in rows[1:])
+
+
+def test_export_csv_rejects_unknown_field(api) -> None:
+    api.service.get_match_analysis.return_value = _analysis()
+
+    response = api.client.get(
+        f"/api/match-runs/{uuid4()}/export.csv", params={"fields": "password"}, headers=_HEADERS
+    )
+
+    assert response.status_code == 422

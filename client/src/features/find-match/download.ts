@@ -1,11 +1,16 @@
 import { authHeaders, buildUrl } from "@/lib/api-client";
+import type { ExportField } from "@/lib/export-fields";
 
 // A plain link can't carry the API key header, so fetch the file and hand it to the browser.
-export async function downloadRunCsv(runId: string): Promise<void> {
+export async function downloadRunCsv(
+  runId: string,
+  fields: readonly ExportField[],
+): Promise<void> {
   const response = await fetch(
     buildUrl({
       url: "/api/match-runs/{run_id}/export.csv",
       path: { run_id: runId },
+      query: { fields: [...fields] },
     }),
     { headers: authHeaders() },
   );

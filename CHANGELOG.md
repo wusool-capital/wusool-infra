@@ -17,10 +17,11 @@ for current production evidence and open handover items.
   discovery, export) with a steps bar at the top. The run page shows the
   shortlist as a ranked list beside the selected seller's reasoning, with every
   score plotted against the discovery threshold. After each decision the next
-  seller waiting for review opens. Advisors approve or reject each seller,
-  choose between an existing Attio deal and a new one, and download the
-  shortlist as CSV. The app uses the Wusool Capital palette. Access uses a
-  shared key until sign-in with Slack arrives.
+  seller waiting for review opens. Advisors approve or reject each seller and
+  choose between an existing Attio deal and a new one. They download the
+  shortlist as CSV with the columns picked in Settings (Business by default). Any finished run can search outside the CRM, not only one with
+  low scores. The app uses the Wusool Capital palette. Access uses a shared key
+  until sign-in with Slack arrives.
 
 ## 2026-10-30
 

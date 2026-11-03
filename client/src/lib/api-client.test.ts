@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { jsonResponse } from "@/test/fixtures";
 
-import { ApiRequestError, client } from "./api-client";
+import { ApiRequestError, buildUrl, client } from "./api-client";
 import { getApiKey, setApiKey } from "./api-key";
 
 describe("api client", () => {
@@ -64,5 +64,11 @@ describe("api client", () => {
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).detail?.code).toBe("unauthorized");
     expect(getApiKey()).toBeNull();
+  });
+
+  it("repeats a list query parameter", () => {
+    expect(
+      buildUrl({ url: "/x", query: { fields: ["seller", "match_score"] } }),
+    ).toMatch(/\/x\?fields=seller&fields=match_score$/);
   });
 });

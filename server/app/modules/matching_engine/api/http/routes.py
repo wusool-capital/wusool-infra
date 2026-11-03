@@ -7,6 +7,7 @@ import csv
 import io
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Annotated, get_args
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
@@ -29,6 +30,7 @@ from app.modules.matching_engine.api.http.schemas import (
     DiscoveryRead,
     DiscrepancyRead,
     ExistingDealRead,
+    ExportField,
     PreflightRequest,
     PreflightResponse,
     RunDetailResponse,
@@ -215,20 +217,35 @@ async def reject_candidate(run_id: uuid.UUID, candidate_id: uuid.UUID) -> Decisi
     return await _decided(run_id, candidate_id)
 
 
-_CSV_COLUMNS = (
-    "rank",
-    "origin",
-    "seller",
-    "seller_attio_id",
-    "match_score",
-    "data_confidence",
-    "status",
-    "why_it_matches",
-    "why_chosen_over_alternatives",
-    "recommended_pitch",
-    "risks_and_gaps",
-    "source_url",
-)
+_EXPORT_FIELDS: tuple[ExportField, ...] = get_args(ExportField)
+
+
+def _export_value(c: CandidateRead, field: ExportField) -> str | int | float | None:
+    match field:
+        case "rank":
+            return c.rank
+        case "origin":
+            return c.origin
+        case "seller":
+            return c.seller_org_name
+        case "seller_attio_id":
+            return c.seller_attio_id
+        case "match_score":
+            return c.match_score
+        case "data_confidence":
+            return c.data_confidence
+        case "status":
+            return c.status
+        case "why_it_matches":
+            return c.why_it_matches
+        case "why_chosen_over_alternatives":
+            return c.why_chosen_over_alternatives
+        case "recommended_pitch":
+            return c.recommended_pitch
+        case "risks_and_gaps":
+            return c.risks_and_gaps
+        case "source_url":
+            return c.source_url
 
 
 @router.get(
@@ -236,31 +253,18 @@ _CSV_COLUMNS = (
     response_class=Response,
     responses={200: {"content": {"text/csv": {}}}},
 )
-async def export_match_run(run_id: uuid.UUID) -> Response:
+async def export_match_run(
+    run_id: uuid.UUID,
+    fields: Annotated[list[ExportField] | None, Query()] = None,
+) -> Response:
+    """`fields` picks and orders the columns; omitted, every column is exported."""
+    columns = list(dict.fromkeys(fields)) if fields else list(_EXPORT_FIELDS)
     detail = _run_detail(run_id, await _load_run(run_id))
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(_CSV_COLUMNS)
+    writer.writerow(columns)
     for c in detail.candidates:
-        writer.writerow(
-            [
-                _csv_cell(v)
-                for v in (
-                    c.rank,
-                    c.origin,
-                    c.seller_org_name,
-                    c.seller_attio_id,
-                    c.match_score,
-                    c.data_confidence,
-                    c.status,
-                    c.why_it_matches,
-                    c.why_chosen_over_alternatives,
-                    c.recommended_pitch,
-                    c.risks_and_gaps,
-                    c.source_url,
-                )
-            ]
-        )
+        writer.writerow([_csv_cell(_export_value(c, f)) for f in columns])
     filename = f"find-match-{run_id}.csv"
     return Response(
         content=buffer.getvalue(),

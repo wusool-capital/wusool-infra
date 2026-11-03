@@ -77,6 +77,30 @@ describe("run review", () => {
     ).toBeInTheDocument();
   });
 
+  it("lets the advisor search anyway when the shortlist is good", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(
+          202,
+          run({ discovery: { status: "running", message: null, notes: [] } }),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    renderWithQuery(<DiscoverySection run={run()} />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Find more sellers anyway" }),
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      `/api/match-runs/${RUN_ID}/discovery`,
+    );
+  });
+
   it("lists discovered sellers for review", () => {
     const found = candidate({
       id: "0d1c2b3a-4f5e-6d7c-8b9a-0f1e2d3c4b5a",
