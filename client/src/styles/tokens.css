@@ -1,27 +1,31 @@
-/* client/DESIGN.md front matter, one-to-one. The only place hex values live. */
+/* Wusool Capital brand colours (wusoolcapital.com) on DESIGN.md's roles.
+   See DESIGN.md "Wusool brand colours". The only place hex values live. */
 :root {
-  --canvas: #010102;
-  --surface-1: #0f1011;
-  --surface-2: #141516;
-  --surface-3: #18191a;
-  --surface-4: #191a1b;
-  --hairline: #23252a;
-  --hairline-strong: #34343a;
-  --hairline-tertiary: #3e3e44;
+  /* Midnight blue (#000523) and a ladder lifted from it. */
+  --canvas: #000523;
+  --surface-1: #070c2c;
+  --surface-2: #0c1234;
+  --surface-3: #11183b;
+  --surface-4: #161d42;
+  --hairline: #1f2650;
+  --hairline-strong: #2c3462;
+  --hairline-tertiary: #39416f;
 
-  --ink: #f7f8f8;
-  --ink-muted: #d0d6e0;
-  --ink-subtle: #8a8f98;
-  --ink-tertiary: #62666d;
+  /* Gold-white (#f7f5f0) ink. */
+  --ink: #f7f5f0;
+  --ink-muted: #ccd5df;
+  --ink-subtle: #8e9aab;
+  --ink-tertiary: #5d6c7b;
 
-  --primary: #5e6ad2;
-  --primary-hover: #828fff;
-  --primary-focus: #5e69d1;
-  --on-primary: #ffffff;
+  /* Gulf blue (#c6e1ee) CTA with midnight text, as on the site's buttons. */
+  --primary: #c6e1ee;
+  --primary-hover: #ddeef6;
+  --primary-focus: #7fb4ce;
+  --on-primary: #000523;
 
-  --success: #27a644;
+  --success: #16da80;
   /* App extensions (DESIGN.md "App extensions"). */
   --warning: #d4a248;
-  --danger: #e06c6c;
+  --danger: #f06272;
   --overlay: #000000;
 }

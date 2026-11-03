@@ -558,16 +558,41 @@ only for status — never decoratively, never as a section or card fill.
 | Token | Value | Use |
 |---|---|---|
 | `warning` | #d4a248 | Stale runs, low match quality, an existing Attio deal, a discrepancy conflict |
-| `danger` | #e06c6c | Failed runs, rejected candidates, form-field errors |
-| `success` | #27a644 (`semantic-success`) | Completed runs, approved candidates |
+| `danger` | #f06272 | Failed runs, rejected candidates, form-field errors |
+| `success` | #16da80 | Completed runs, approved candidates |
 
-Each reaches WCAG AA (≥ 4.5:1) as text on canvas through surface-4. Tinted
+Each reaches WCAG AA (≥ 4.5:1) as text on canvas through surface-4 of the
+Wusool palette below. Tinted
 backgrounds use the same hue at 12% opacity with a 1px border at 32%.
+
+### Wusool brand colours
+
+The web app wears Wusool Capital's colours (wusoolcapital.com), not Linear's.
+They replace the front-matter colour values role for role; Linear's type,
+spacing, radii, components and rules stay as written. Where this section and
+the front matter disagree on a colour, this section wins.
+
+| Role | Value | Source |
+|---|---|---|
+| `canvas` | #000523 | Site's midnight blue |
+| `surface-1` … `surface-4` | #070c2c, #0c1234, #11183b, #161d42 | Midnight lifted in small lightness steps |
+| `hairline`, `hairline-strong`, `hairline-tertiary` | #1f2650, #2c3462, #39416f | Same ladder, one step further |
+| `ink` | #f7f5f0 | Site's gold-white |
+| `ink-muted`, `ink-subtle` | #ccd5df, #8e9aab | Cool greys between gold-white and midnight |
+| `ink-tertiary` | #5d6c7b | Site's slate grey |
+| `primary` | #c6e1ee | Site's gulf blue (its "Get Started" button) |
+| `on-primary` | #000523 | Midnight text on gulf blue, as on the site (14.7:1) |
+| `primary-hover`, `primary-focus` | #ddeef6, #7fb4ce | Lighter gulf blue; the site's deeper gulf blue |
+| `success` | #16da80 | Site's green |
+| `danger` | #f06272 | Site's red (#ea384c) lightened to clear 4.5:1 on every surface |
+
+Gulf blue takes over every rule written for lavender: primary CTA, focus
+ring, active nav item and link emphasis only.
 
 ### Contrast notes
 
-- `ink-tertiary` (#62666d) is 3.3:1 on surface-1, so it is for disabled or decorative marks only, never readable text.
-- `primary` (#5e6ad2) is 4.05:1 as text on surface-1, so link text uses `primary-hover` (#828fff, 6.6:1). `primary` stays the button fill (white text 4.7:1).
+- `ink-tertiary` (#5d6c7b) is 3.6:1 on surface-1, so it is for disabled or decorative marks only, never readable text.
+- Gulf blue reads at 14:1 as link text on surface-1, so links use `primary-hover` without a contrast concern.
 
 ### Form-field validation
 
