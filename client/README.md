@@ -31,12 +31,12 @@ set it only when the app is hosted apart from the API.
 `Client quality` workflow (`.github/workflows/client-quality.yml`, a required
 check):
 
-| Target | Runs |
-| --- | --- |
+| Target    | Runs                                                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `quality` | `tsc` (strict, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), ESLint (`typescript-eslint` strict type-checked, `no-explicit-any` as an error), Prettier |
-| `unit` | Vitest and Testing Library |
-| `api` | Regenerates the API client and fails if `openapi.json` or `src/gen/` changed |
-| `build` | `vite build` |
+| `unit`    | Vitest and Testing Library                                                                                                                                          |
+| `api`     | Regenerates the API client and fails if `openapi.json` or `src/gen/` changed                                                                                        |
+| `build`   | `vite build`                                                                                                                                                        |
 
 ## The API client
 
