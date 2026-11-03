@@ -100,8 +100,15 @@ The same flow runs in a browser at `/app` on the Toolkit host, for example
    **Approve** and **Reject** at the bottom. Move through the list with the
    up and down arrow keys. After each decision the next seller waiting for
    review opens.
-6. If Attio already has a deal for the pair, choose **Use this deal** or
-   **Create a new deal**.
+   A CRM seller also shows Slack's criteria breakdown. A seller found outside
+   the CRM shows what Google Maps and basic enrichment found: country,
+   sector, website, employees, founding year and any revenue estimate.
+   **Buyer and mandate** shows the thesis, ideal target and hard requirements
+   the run matched against.
+6. If Attio already has a deal for the pair, choose **Use this deal** (up to
+   three, each linked to Attio) or **Create a new deal**. Approving a seller
+   found outside the CRM also posts full research on it to the Slack review
+   channel, as approving it in Slack does.
 7. If no seller scores 50 or more, the search outside the CRM starts by
    itself. Otherwise **Outside the CRM** offers **Find more sellers anyway**,
    as Slack's **Find more sellers** does. New sellers from Google Maps join

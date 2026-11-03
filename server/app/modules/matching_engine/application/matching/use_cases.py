@@ -39,7 +39,7 @@ from app.modules.matching_engine.domain.matching.scoring import (
     select_top_n,
 )
 from app.modules.matching_engine.domain.matching.ticket import TicketBand
-from app.modules.matching_engine.domain.sellers import SellerCandidate
+from app.modules.matching_engine.domain.sellers import SellerCandidate, SellerProfile
 
 logger = logging.getLogger(__name__)
 
@@ -383,6 +383,10 @@ class MatchingMixin(ServiceBase):
             scores = await uow.match_results.get_scores_for_run(run_id)
 
         return MatchAnalysisData(run=run, candidates=candidates, scores=scores)
+
+    async def get_seller_profiles(self, seller_role_ids: list[str]) -> list[SellerProfile]:
+        async with self._uow_factory() as uow:
+            return await uow.sellers.get_profiles(seller_role_ids)
 
     async def get_match_run_view(self, run_id: uuid.UUID) -> MatchRunView | None:
         """Rebuilds the compact Slack result-message state from persisted

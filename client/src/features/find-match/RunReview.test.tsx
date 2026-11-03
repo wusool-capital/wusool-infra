@@ -6,7 +6,12 @@ import { getMatchRunQueryKey } from "@/gen/hooks/useGetMatchRun";
 import { candidate, jsonResponse, run, RUN_ID } from "@/test/fixtures";
 import { renderWithQuery } from "@/test/render";
 
-import { DiscoverySection, Review, RunProgress } from "./RunReview";
+import {
+  DiscoverySection,
+  MandateSection,
+  Review,
+  RunProgress,
+} from "./RunReview";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => (
@@ -101,6 +106,39 @@ describe("run review", () => {
     );
   });
 
+  it("says when fewer than three CRM sellers qualified, as Slack does", () => {
+    renderWithQuery(<Review run={run()} />);
+    expect(
+      screen.getByText("Only 1 qualifying candidate available — fewer than 3."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the buyer's mandate from the run", () => {
+    renderWithQuery(
+      <MandateSection
+        run={run({
+          mandate: {
+            strategic_thesis: "Roll up GCC clinics",
+            ideal_target: null,
+            hard_requirements: [
+              {
+                criterion: "sector",
+                value: "Healthcare Services / Clinics",
+                source: "crm_field",
+                human_confirmed: true,
+              },
+            ],
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("Roll up GCC clinics")).toBeInTheDocument();
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+    expect(
+      screen.getByText(/sector: Healthcare Services \/ Clinics/),
+    ).toBeInTheDocument();
+  });
+
   it("lists discovered sellers for review", () => {
     const found = candidate({
       id: "0d1c2b3a-4f5e-6d7c-8b9a-0f1e2d3c4b5a",
@@ -141,6 +179,7 @@ describe("run review", () => {
       vi.fn().mockResolvedValue(
         jsonResponse(200, {
           candidate: { ...first, status: "REJECTED", decision: "REJECTED" },
+          research_channel_id: null,
         }),
       ),
     );

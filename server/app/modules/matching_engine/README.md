@@ -214,6 +214,11 @@ Routes, all under `/api` and all behind `Authorization: Bearer <WEB_API_KEY>`
   **Find more sellers** to start the search by hand. Runs that cleared the
   threshold offer it too, like Slack's button. The same idempotency key
   as Slack stops one run from searching twice.
+- **Slack parity.** `GET /match-runs/{id}` returns the requirement profile
+  (`mandate`), each scored candidate's `criteria` and every candidate's
+  `profile` (`SellerRepositoryPort.get_profiles`). Approving a discovered
+  seller runs `enrich_and_post` into `WEB_REVIEW_CHANNEL_ID`, skipped when
+  unset.
 - **Existing deal.** Approve returns 409 with the existing Attio deals; the
   page asks to promote one or create a new deal, the same choice Slack offers.
 - **Export.** Cells starting with `=`, `+`, `-` or `@` are prefixed with `'`

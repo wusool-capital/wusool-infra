@@ -85,17 +85,30 @@ async def _discover(run_id: uuid.UUID) -> TrackedDiscovery:
         return TrackedDiscovery(status="unavailable", message=DISCOVERY_STATUS_TEXT[outcome.status])
 
     notes = discovery_outcome_notes(outcome)
-    await service.append_discovered_candidates(
-        run_id,
-        [
-            DiscoveredCandidate(
-                seller_role_id=str(created.seller_role_id),
-                seller_attio_id=created.org_attio_id,
-                source_url=created.source_url,
-            )
-            for created in outcome.created
-        ],
-    )
+    try:
+        await service.append_discovered_candidates(
+            run_id,
+            [
+                DiscoveredCandidate(
+                    seller_role_id=str(created.seller_role_id),
+                    seller_attio_id=created.org_attio_id,
+                    source_url=created.source_url,
+                )
+                for created in outcome.created
+            ],
+        )
+    except Exception:
+        # The sellers already exist in the CRM, so this must not read like the search failed.
+        logger.exception("web_discovered_candidates_setup_failed", extra={"run_id": str(run_id)})
+        names = ", ".join(c.org_name for c in outcome.created)
+        return TrackedDiscovery(
+            status="failed",
+            message=(
+                f"Created {len(outcome.created)} seller(s) in the CRM ({names}) but couldn't "
+                "set them up for review. Find them in the CRM."
+            ),
+            notes=tuple(notes),
+        )
     message = (
         f"Found {len(outcome.created)} new seller(s)."
         if outcome.created

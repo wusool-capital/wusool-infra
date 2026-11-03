@@ -90,6 +90,45 @@ class StartRunResponse(_Schema):
     run_id: uuid.UUID
 
 
+class MoneyRead(_Schema):
+    amount: float
+    currency: str
+
+
+class SellerProfileRead(_Schema):
+    description: str | None
+    hq_country: str | None
+    sector_focus: list[str]
+    website: str | None
+    employee_range: str | None
+    founded_year: int | None
+    location_count: int | None
+    est_revenue: MoneyRead | None
+    est_ebitda: MoneyRead | None
+
+
+class CriterionRead(_Schema):
+    criterion: str
+    criterion_type: Literal["hard", "soft"]
+    result: str
+    data_backing: str
+
+
+class HardRequirementRead(_Schema):
+    criterion: str
+    value: str | None
+    source: str
+    human_confirmed: bool
+
+
+class MandateRead(_Schema):
+    """Slack's "Buyer & Mandate" section of View Full Analysis."""
+
+    strategic_thesis: str | None
+    ideal_target: str | None
+    hard_requirements: list[HardRequirementRead]
+
+
 class CandidateRead(_Schema):
     id: uuid.UUID
     rank: int
@@ -107,6 +146,8 @@ class CandidateRead(_Schema):
     decision: str | None
     decided_at: datetime | None
     deal_attio_id: str | None
+    profile: SellerProfileRead | None
+    criteria: list[CriterionRead]
 
 
 class DiscoveryRead(_Schema):
@@ -131,6 +172,7 @@ class RunDetailResponse(_Schema):
     notes: list[str]
     discovery: DiscoveryRead
     candidates: list[CandidateRead]
+    mandate: MandateRead | None
 
 
 class ApproveRequest(_Schema):
@@ -140,6 +182,8 @@ class ApproveRequest(_Schema):
 
 class DecisionResponse(_Schema):
     candidate: CandidateRead
+    # Set when Slack will receive a research proposal for this seller, as Slack approvals do.
+    research_channel_id: str | None = None
 
 
 class ExistingDealRead(_Schema):

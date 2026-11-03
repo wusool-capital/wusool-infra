@@ -133,6 +133,13 @@
       },
       "CandidateRead": {
         "properties": {
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/CriterionRead"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
           "data_confidence": {
             "anyOf": [
               {
@@ -201,6 +208,16 @@
             ],
             "title": "Origin",
             "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SellerProfileRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "rank": {
             "title": "Rank",
@@ -297,7 +314,9 @@
           "status",
           "decision",
           "decided_at",
-          "deal_attio_id"
+          "deal_attio_id",
+          "profile",
+          "criteria"
         ],
         "title": "CandidateRead",
         "type": "object"
@@ -434,14 +453,58 @@
         "title": "ContextReadingRead",
         "type": "object"
       },
+      "CriterionRead": {
+        "properties": {
+          "criterion": {
+            "title": "Criterion",
+            "type": "string"
+          },
+          "criterion_type": {
+            "enum": [
+              "hard",
+              "soft"
+            ],
+            "title": "Criterion Type",
+            "type": "string"
+          },
+          "data_backing": {
+            "title": "Data Backing",
+            "type": "string"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "criterion",
+          "criterion_type",
+          "result",
+          "data_backing"
+        ],
+        "title": "CriterionRead",
+        "type": "object"
+      },
       "DecisionResponse": {
         "properties": {
           "candidate": {
             "$ref": "#/components/schemas/CandidateRead"
+          },
+          "research_channel_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Research Channel Id"
           }
         },
         "required": [
-          "candidate"
+          "candidate",
+          "research_channel_id"
         ],
         "title": "DecisionResponse",
         "type": "object"
@@ -580,6 +643,100 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HardRequirementRead": {
+        "properties": {
+          "criterion": {
+            "title": "Criterion",
+            "type": "string"
+          },
+          "human_confirmed": {
+            "title": "Human Confirmed",
+            "type": "boolean"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "criterion",
+          "value",
+          "source",
+          "human_confirmed"
+        ],
+        "title": "HardRequirementRead",
+        "type": "object"
+      },
+      "MandateRead": {
+        "description": "Slack's \"Buyer & Mandate\" section of View Full Analysis.",
+        "properties": {
+          "hard_requirements": {
+            "items": {
+              "$ref": "#/components/schemas/HardRequirementRead"
+            },
+            "title": "Hard Requirements",
+            "type": "array"
+          },
+          "ideal_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ideal Target"
+          },
+          "strategic_thesis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategic Thesis"
+          }
+        },
+        "required": [
+          "strategic_thesis",
+          "ideal_target",
+          "hard_requirements"
+        ],
+        "title": "MandateRead",
+        "type": "object"
+      },
+      "MoneyRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "number"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "title": "MoneyRead",
+        "type": "object"
+      },
       "PreflightRequest": {
         "properties": {
           "advisor_context": {
@@ -709,6 +866,16 @@
             "title": "Low Match Quality",
             "type": "boolean"
           },
+          "mandate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MandateRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -751,9 +918,120 @@
           "discovery_threshold",
           "notes",
           "discovery",
-          "candidates"
+          "candidates",
+          "mandate"
         ],
         "title": "RunDetailResponse",
+        "type": "object"
+      },
+      "SellerProfileRead": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "employee_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Range"
+          },
+          "est_ebitda": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "est_revenue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "founded_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Founded Year"
+          },
+          "hq_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq Country"
+          },
+          "location_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Count"
+          },
+          "sector_focus": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sector Focus",
+            "type": "array"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "required": [
+          "description",
+          "hq_country",
+          "sector_focus",
+          "website",
+          "employee_range",
+          "founded_year",
+          "location_count",
+          "est_revenue",
+          "est_ebitda"
+        ],
+        "title": "SellerProfileRead",
         "type": "object"
       },
       "StartRunRequest": {

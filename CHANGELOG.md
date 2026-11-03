@@ -20,7 +20,10 @@ for current production evidence and open handover items.
   seller waiting for review opens. Advisors approve or reject each seller and
   choose between an existing Attio deal and a new one. They download the
   shortlist as CSV with the columns picked in Settings (Business by default). Any finished run can search outside the CRM, not only one with
-  low scores. The app uses the Wusool Capital palette. Access uses a shared key
+  low scores. Runs show Slack's full analysis: the buyer's mandate and each
+  seller's criteria. Sellers found outside the CRM show what enrichment found,
+  and approving one posts full research to Slack. The app uses the Wusool
+  Capital palette. Access uses a shared key
   until sign-in with Slack arrives.
 
 ## 2026-10-30

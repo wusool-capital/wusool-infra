@@ -2,6 +2,7 @@
 
 import type { CandidateRead } from './CandidateRead'
 import type { DiscoveryRead } from './DiscoveryRead'
+import type { MandateRead } from './MandateRead'
 
 export const runDetailResponseStateEnum = {
   running: 'running',
@@ -23,6 +24,7 @@ export type RunDetailResponse = {
   discovery_threshold: number;
   error: string | null;
   low_match_quality: boolean;
+  mandate: MandateRead | null;
   notes: string[];
   /**
    * @description

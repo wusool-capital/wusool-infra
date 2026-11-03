@@ -25,6 +25,15 @@ export function candidate(
     decision: null,
     decided_at: null,
     deal_attio_id: null,
+    profile: null,
+    criteria: [
+      {
+        criterion: "sector",
+        criterion_type: "hard",
+        result: "Pass",
+        data_backing: "crm_field",
+      },
+    ],
     ...overrides,
   };
 }
@@ -47,6 +56,7 @@ export function run(
     notes: [],
     discovery: { status: "not_needed", message: null, notes: [] },
     candidates: [candidate()],
+    mandate: null,
     ...overrides,
   };
 }

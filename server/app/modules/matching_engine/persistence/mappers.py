@@ -23,7 +23,7 @@ from app.modules.matching_engine.domain.requirements import (
     RequirementProfile,
     SoftPreference,
 )
-from app.modules.matching_engine.domain.sellers import SellerCandidate
+from app.modules.matching_engine.domain.sellers import SellerCandidate, SellerProfile
 from app.modules.utilities.domain.json_types import JsonArray, JsonObject
 from app.modules.utilities.domain.money import Money
 
@@ -91,6 +91,23 @@ def to_seller_candidate(role: SellerRole) -> SellerCandidate:
         geographic_focus=list(role.organization.geographic_focus),
         sector_focus=list(role.organization.sector_focus),
         hq_country=role.organization.hq_country,
+    )
+
+
+def to_seller_profile(role: SellerRole) -> SellerProfile:
+    org = role.organization
+    domains = list(org.domains or [])
+    return SellerProfile(
+        seller_role_id=str(role.id),
+        description=org.description,
+        hq_country=org.hq_country,
+        sector_focus=list(org.sector_focus or []),
+        website=domains[0] if domains else None,
+        employee_range=org.employee_range,
+        founded_year=org.foundation_date.year if org.foundation_date else None,
+        location_count=role.location_count,
+        est_revenue=_money(role.est_revenue),
+        est_ebitda=_money(role.est_ebitda),
     )
 
 

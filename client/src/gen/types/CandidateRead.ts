@@ -1,5 +1,8 @@
 // @ts-nocheck
 
+import type { CriterionRead } from './CriterionRead'
+import type { SellerProfileRead } from './SellerProfileRead'
+
 export const candidateReadOriginEnum = {
   crm: 'crm',
   discovery: 'discovery',
@@ -8,6 +11,7 @@ export const candidateReadOriginEnum = {
 export type CandidateReadOriginEnumKey = (typeof candidateReadOriginEnum)[keyof typeof candidateReadOriginEnum];
 
 export type CandidateRead = {
+  criteria: CriterionRead[];
   data_confidence: number | null;
   deal_attio_id: string | null;
   decided_at: string | null;
@@ -20,6 +24,7 @@ export type CandidateRead = {
   id: string;
   match_score: number | null;
   origin: CandidateReadOriginEnumKey;
+  profile: SellerProfileRead | null;
   rank: number;
   recommended_pitch: string | null;
   risks_and_gaps: string | null;

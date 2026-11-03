@@ -3,6 +3,7 @@
 import * as z from 'zod'
 import { candidateReadSchema } from './candidateReadSchema'
 import { discoveryReadSchema } from './discoveryReadSchema'
+import { mandateReadSchema } from './mandateReadSchema'
 
 export const runDetailResponseSchema = z.object({
   buyer_org_name: z.string(),
@@ -15,6 +16,7 @@ export const runDetailResponseSchema = z.object({
   discovery_threshold: z.number(),
   error: z.union([z.string(), z.null()]),
   low_match_quality: z.boolean(),
+  mandate: z.union([mandateReadSchema, z.null()]),
   notes: z.array(z.string()),
   run_id: z.uuid(),
   started_at: z.iso.datetime(),

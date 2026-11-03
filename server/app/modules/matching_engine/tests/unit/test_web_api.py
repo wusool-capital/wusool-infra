@@ -14,16 +14,21 @@ from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, r
 from app.modules.matching_engine.application.approvals import InvalidTransitionError
 from app.modules.matching_engine.application.errors import ExistingDealsFoundError
 from app.modules.matching_engine.domain.matching.deals import ExistingDeal
+from app.modules.matching_engine.domain.matching.entities import CriterionScore, ScoreDims
+from app.modules.matching_engine.domain.requirements import HardRequirement
+from app.modules.matching_engine.domain.sellers import SellerProfile
+from app.modules.utilities import Money
 
 _KEY = "test-web-key"
 _HEADERS = {"Authorization": f"Bearer {_KEY}"}
 
 
-def _settings(key: str | None = _KEY):
+def _settings(key: str | None = _KEY, *, review_channel: str | None = None):
     return SimpleNamespace(
         web_api_key=SecretStr(key) if key is not None else None,
         web_fallback_min_score=50.0,
         match_run_stale_after_minutes=15,
+        web_review_channel_id=review_channel,
     )
 
 
@@ -37,7 +42,7 @@ def _row(**overrides):
         "risks_and_gaps": None, "decision": None, "decided_at": None, "deal_attio_id": None,
         "errors": None, "started_at": datetime.now(UTC), "completed_at": datetime.now(UTC),
         "candidates_considered": 10, "candidates_filtered": 4, "origin": "crm",
-        "source_url": None,
+        "source_url": None, "requirement_profile": None,
     }  # fmt: skip
     return SimpleNamespace(**{**fields, **overrides})
 
@@ -45,7 +50,23 @@ def _row(**overrides):
 def _analysis(*, run=None, candidates=None):
     run = run or _row(rank=None, status="GENERATED")
     candidates = candidates if candidates is not None else [_row(run_id=run.run_id)]
-    scores = [SimpleNamespace(seller_attio_id="seller-1", reasoning="Strong sector fit")]
+    scores = [
+        SimpleNamespace(
+            seller_attio_id="seller-1",
+            reasoning="Strong sector fit",
+            dims=ScoreDims(
+                criteria=[
+                    CriterionScore(
+                        criterion="sector",
+                        criterion_type="hard",
+                        weight=None,
+                        result="Pass",
+                        data_backing="crm_field",
+                    )
+                ]
+            ),
+        )
+    ]
     return SimpleNamespace(run=run, candidates=candidates, scores=scores)
 
 
@@ -53,6 +74,7 @@ def _analysis(*, run=None, candidates=None):
 def api(monkeypatch):
     service = SimpleNamespace(
         get_match_analysis=AsyncMock(return_value=None),
+        get_seller_profiles=AsyncMock(return_value=[]),
         start_run=AsyncMock(),
         approve_match=AsyncMock(),
         reject_match=AsyncMock(),
@@ -339,3 +361,119 @@ def test_export_csv_rejects_unknown_field(api) -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_run_detail_carries_the_sellers_profile(api) -> None:
+    found = _row(origin="discovery", match_score=None, seller_attio_id="seller-2")
+    api.service.get_match_analysis.return_value = _analysis(candidates=[found])
+    api.service.get_seller_profiles.return_value = [
+        SellerProfile(
+            seller_role_id=found.seller_role_id,
+            description="Cold storage in Dubai",
+            hq_country="United Arab Emirates",
+            sector_focus=["Logistics / 3PL / Freight"],
+            website="example.ae",
+            employee_range="11-50",
+            founded_year=2011,
+            location_count=2,
+            est_revenue=Money(amount=5_000_000, currency="USD"),
+            est_ebitda=None,
+        )
+    ]
+
+    response = api.client.get(f"/api/match-runs/{uuid4()}", headers=_HEADERS)
+
+    profile = response.json()["candidates"][0]["profile"]
+    assert profile["website"] == "example.ae"
+    assert profile["founded_year"] == 2011
+    assert profile["est_revenue"] == {"amount": 5_000_000, "currency": "USD"}
+    assert profile["est_ebitda"] is None
+    api.service.get_seller_profiles.assert_awaited_once_with([found.seller_role_id])
+
+
+def _approve_discovered(api):
+    candidate = _row(origin="discovery", match_score=None)
+    decided = _row(
+        id=candidate.id,
+        seller_role_id=candidate.seller_role_id,
+        origin="discovery",
+        match_score=None,
+        status="APPROVED",
+        decision="APPROVED",
+    )
+    api.service.get_match_analysis.side_effect = [_analysis(candidates=[candidate])] + [
+        _analysis(candidates=[decided])
+    ] * 3
+    return candidate, api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/approve", json={}, headers=_HEADERS
+    )
+
+
+def test_approving_a_discovered_seller_queues_full_research(api, monkeypatch) -> None:
+    monkeypatch.setattr(routes, "get_settings", lambda: _settings(review_channel="C123"))
+
+    _, response = _approve_discovered(api)
+
+    assert response.status_code == 200
+    assert response.json()["research_channel_id"] == "C123"
+    api.runner.run.assert_called_once()
+
+
+def test_no_review_channel_skips_research(api) -> None:
+    _, response = _approve_discovered(api)
+
+    assert response.status_code == 200
+    assert response.json()["research_channel_id"] is None
+    api.runner.run.assert_not_called()
+
+
+def test_approving_a_crm_seller_never_queues_research(api, monkeypatch) -> None:
+    monkeypatch.setattr(routes, "get_settings", lambda: _settings(review_channel="C123"))
+    candidate = _row()
+    decided = _row(id=candidate.id, status="APPROVED", decision="APPROVED")
+    api.service.get_match_analysis.side_effect = [
+        _analysis(candidates=[candidate]),
+        _analysis(candidates=[decided]),
+    ]
+
+    api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/approve", json={}, headers=_HEADERS
+    )
+
+    api.runner.run.assert_not_called()
+
+
+def test_run_detail_matches_slacks_full_analysis(api) -> None:
+    profile = SimpleNamespace(
+        strategic_thesis="Roll up GCC clinics",
+        ideal_target_description="Profitable clinic chain",
+        hard_requirements=[
+            HardRequirement(
+                criterion="sector",
+                value="Healthcare Services / Clinics",
+                source="crm_field",
+                confidence="high",
+                human_confirmed=True,
+            )
+        ],
+    )
+    run = _row(rank=None, status="GENERATED", requirement_profile=profile)
+    found = _row(origin="discovery", match_score=None)
+    api.service.get_match_analysis.return_value = _analysis(
+        run=run, candidates=[_row(run_id=run.run_id), found]
+    )
+
+    body = api.client.get(f"/api/match-runs/{uuid4()}", headers=_HEADERS).json()
+
+    assert body["mandate"]["strategic_thesis"] == "Roll up GCC clinics"
+    assert body["mandate"]["hard_requirements"][0]["human_confirmed"] is True
+    crm, discovered = body["candidates"]
+    assert crm["criteria"] == [
+        {
+            "criterion": "sector",
+            "criterion_type": "hard",
+            "result": "Pass",
+            "data_backing": "crm_field",
+        }
+    ]
+    assert discovered["criteria"] == []

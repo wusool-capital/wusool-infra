@@ -11,6 +11,7 @@ from typing import Annotated, get_args
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
+from app.modules.enrichment import enrich_and_post
 from app.modules.matching_engine.api.buyers import BuyerSummary
 from app.modules.matching_engine.api.dependencies import (
     detached_matching_engine_service,
@@ -26,14 +27,19 @@ from app.modules.matching_engine.api.http.schemas import (
     ApproveRequest,
     CandidateRead,
     ContextReadingRead,
+    CriterionRead,
     DecisionResponse,
     DiscoveryRead,
     DiscrepancyRead,
     ExistingDealRead,
     ExportField,
+    HardRequirementRead,
+    MandateRead,
+    MoneyRead,
     PreflightRequest,
     PreflightResponse,
     RunDetailResponse,
+    SellerProfileRead,
     StartRunRequest,
     StartRunResponse,
 )
@@ -53,7 +59,9 @@ from app.modules.matching_engine.domain.matching.entities import (
 )
 from app.modules.matching_engine.domain.matching.run_state import run_state
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
-from app.modules.utilities import get_shared_task_runner
+from app.modules.matching_engine.domain.requirements import RequirementProfile
+from app.modules.matching_engine.domain.sellers import SellerProfile
+from app.modules.utilities import Money, get_shared_task_runner
 
 _task_runner = get_shared_task_runner()
 
@@ -136,7 +144,7 @@ async def start_match_run(body: StartRunRequest) -> StartRunResponse:
 
 @router.get("/match-runs/{run_id}", response_model=RunDetailResponse)
 async def get_match_run(run_id: uuid.UUID) -> RunDetailResponse:
-    return _run_detail(run_id, await _load_run(run_id))
+    return await _run_detail(run_id, await _load_run(run_id))
 
 
 @router.post(
@@ -153,7 +161,7 @@ async def start_discovery(run_id: uuid.UUID) -> RunDetailResponse:
             ApiError(code="run_not_ready", message="The run hasn't completed successfully."),
         )
     _task_runner.run(lambda: discover_for_web_run(run_id), name=f"web-discover:{run_id}")
-    return _run_detail(run_id, analysis)
+    return await _run_detail(run_id, analysis)
 
 
 @router.post(
@@ -193,13 +201,25 @@ async def approve_candidate(
             if not exc.landed
             else "Approval failed partway through. Already saved: "
             f"{'; '.join(exc.landed)}. Check the match's status before retrying."
-        )
+        ) + f" ({exc.cause})"
+
         raise api_error(
             status.HTTP_502_BAD_GATEWAY, ApiError(code="partial_write", message=message)
         ) from exc
     except (MatchNotFoundError, InvalidTransitionError) as exc:
         raise _decision_error(exc) from exc
-    return await _decided(run_id, candidate_id)
+    decided = await _decided(run_id, candidate_id)
+    channel_id = get_settings().web_review_channel_id
+    if decided.candidate.origin == "discovery" and decided.candidate.status == "APPROVED":
+        role_id = await _seller_role_id(run_id, candidate_id)
+        if channel_id and role_id:
+            # Discovery only paid for basic enrichment; an approved seller earns the full research.
+            _task_runner.run(
+                lambda: enrich_and_post(kind="seller", role_id=role_id, channel_id=channel_id),
+                name=f"web-enrich-approved:{role_id}",
+            )
+            decided.research_channel_id = channel_id
+    return decided
 
 
 @router.post(
@@ -259,7 +279,7 @@ async def export_match_run(
 ) -> Response:
     """`fields` picks and orders the columns; omitted, every column is exported."""
     columns = list(dict.fromkeys(fields)) if fields else list(_EXPORT_FIELDS)
-    detail = _run_detail(run_id, await _load_run(run_id))
+    detail = await _run_detail(run_id, await _load_run(run_id))
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(columns)
@@ -293,8 +313,13 @@ async def _require_candidate(run_id: uuid.UUID, candidate_id: uuid.UUID) -> None
         raise api_error(status.HTTP_404_NOT_FOUND, _not_found("Candidate not found in this run."))
 
 
+async def _seller_role_id(run_id: uuid.UUID, candidate_id: uuid.UUID) -> str | None:
+    analysis = await _load_run(run_id)
+    return next((c.seller_role_id for c in analysis.candidates if c.id == str(candidate_id)), None)
+
+
 async def _decided(run_id: uuid.UUID, candidate_id: uuid.UUID) -> DecisionResponse:
-    detail = _run_detail(run_id, await _load_run(run_id))
+    detail = await _run_detail(run_id, await _load_run(run_id))
     candidate = next(c for c in detail.candidates if c.id == candidate_id)
     return DecisionResponse(candidate=candidate)
 
@@ -308,8 +333,15 @@ def _decision_error(exc: MatchNotFoundError | InvalidTransitionError) -> Excepti
     )
 
 
-def _run_detail(run_id: uuid.UUID, analysis: MatchAnalysisData) -> RunDetailResponse:
+async def _run_detail(run_id: uuid.UUID, analysis: MatchAnalysisData) -> RunDetailResponse:
     settings = get_settings()
+    service = await detached_matching_engine_service()
+    profiles = {
+        p.seller_role_id: p
+        for p in await service.get_seller_profiles(
+            [c.seller_role_id for c in analysis.candidates if c.seller_role_id]
+        )
+    }
     run = analysis.run
     state = run_state(
         status=run.status,
@@ -319,7 +351,19 @@ def _run_detail(run_id: uuid.UUID, analysis: MatchAnalysisData) -> RunDetailResp
         stale_after=timedelta(minutes=settings.match_run_stale_after_minutes),
     )
     reasoning = {s.seller_attio_id: s.reasoning for s in analysis.scores}
-    candidates = [_candidate(c, reasoning) for c in analysis.candidates]
+    criteria = {
+        s.seller_attio_id: [
+            CriterionRead(
+                criterion=c.criterion,
+                criterion_type=c.criterion_type,
+                result=c.result,
+                data_backing=c.data_backing,
+            )
+            for c in s.dims.criteria
+        ]
+        for s in analysis.scores
+    }
+    candidates = [_candidate(c, reasoning, criteria, profiles) for c in analysis.candidates]
     crm_scores = [c.match_score or 0.0 for c in candidates if c.origin == "crm"]
     low_quality = state == "completed" and needs_web_fallback(
         crm_scores, settings.web_fallback_min_score
@@ -356,10 +400,33 @@ def _run_detail(run_id: uuid.UUID, analysis: MatchAnalysisData) -> RunDetailResp
         notes=list(tracked.notes) if tracked is not None else [],
         discovery=discovery,
         candidates=candidates,
+        mandate=_mandate(run.requirement_profile) if run.requirement_profile else None,
     )
 
 
-def _candidate(c: MatchResultEntity, reasoning: dict[str, str | None]) -> CandidateRead:
+def _mandate(profile: RequirementProfile) -> MandateRead:
+    return MandateRead(
+        strategic_thesis=profile.strategic_thesis,
+        ideal_target=profile.ideal_target_description,
+        hard_requirements=[
+            HardRequirementRead(
+                criterion=r.criterion,
+                value=r.value,
+                source=r.source,
+                human_confirmed=r.human_confirmed,
+            )
+            for r in profile.hard_requirements
+        ],
+    )
+
+
+def _candidate(
+    c: MatchResultEntity,
+    reasoning: dict[str, str | None],
+    criteria: dict[str, list[CriterionRead]],
+    profiles: dict[str, SellerProfile],
+) -> CandidateRead:
+    profile = profiles.get(c.seller_role_id) if c.seller_role_id else None
     return CandidateRead(
         id=uuid.UUID(c.id),
         rank=c.rank or 0,
@@ -377,4 +444,29 @@ def _candidate(c: MatchResultEntity, reasoning: dict[str, str | None]) -> Candid
         decision=c.decision,
         decided_at=c.decided_at,
         deal_attio_id=c.deal_attio_id,
+        profile=_profile(profile) if profile else None,
+        # Discovered sellers are unscored, so like Slack they show no breakdown.
+        criteria=criteria.get(c.seller_attio_id, [])
+        if c.seller_attio_id and c.match_score is not None
+        else [],
     )
+
+
+def _profile(p: SellerProfile) -> SellerProfileRead:
+    return SellerProfileRead(
+        description=p.description,
+        hq_country=p.hq_country,
+        sector_focus=p.sector_focus,
+        website=p.website,
+        employee_range=p.employee_range,
+        founded_year=p.founded_year,
+        location_count=p.location_count,
+        est_revenue=_money(p.est_revenue),
+        est_ebitda=_money(p.est_ebitda),
+    )
+
+
+def _money(m: Money | None) -> MoneyRead | None:
+    if m is None or m.amount is None:
+        return None
+    return MoneyRead(amount=m.amount, currency=m.currency or "USD")

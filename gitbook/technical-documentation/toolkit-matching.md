@@ -132,6 +132,13 @@ as Slack's runs do. A run with no `completed_at` reads as running. After
 `MATCH_RUN_STALE_AFTER_MINUTES` (default 15) it reads as stale: a deploy or
 restart cut it off.
 
+**Parity with Slack.** The run detail carries the requirement profile as
+`mandate` and each scored candidate's `criteria`, the two parts of View Full
+Analysis. Each candidate also carries `profile`, read from its organisation
+and seller role. Approving a discovered seller queues the same full
+enrichment Slack does and posts it to `WEB_REVIEW_CHANNEL_ID`. With that
+setting unset the step is skipped. The profile check can't be skipped.
+
 **Discovery.** Below `WEB_FALLBACK_MIN_SCORE`, a web run starts discovery
 itself. Its progress and outcome counts live in an in-process tracker; after a
 restart the page offers the manual start instead. The manual start is also

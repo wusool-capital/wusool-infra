@@ -59,3 +59,38 @@ async def test_failed_run_never_starts_discovery(monkeypatch) -> None:
     )
 
     discover.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sellers_created_but_not_attached_say_so(monkeypatch) -> None:
+    import app.modules.discovery as discovery_module
+    from app.modules.matching_engine.application import discovery_bridge
+
+    run_id = uuid4()
+    service = SimpleNamespace(
+        get_match_analysis=AsyncMock(
+            return_value=SimpleNamespace(
+                run=SimpleNamespace(requirement_profile=object(), buyer_role_id=uuid4())
+            )
+        ),
+        append_discovered_candidates=AsyncMock(side_effect=RuntimeError("db down")),
+    )
+    created = SimpleNamespace(
+        seller_role_id=uuid4(), org_attio_id="org-1", source_url="https://maps", org_name="Acme"
+    )
+    outcome = SimpleNamespace(status="ok", created=(created,))
+    monkeypatch.setattr(
+        web_runs, "detached_matching_engine_service", AsyncMock(return_value=service)
+    )
+    monkeypatch.setattr(
+        discovery_bridge, "extract_query_terms", lambda _profile: ("clinics", "Riyadh", [])
+    )
+    monkeypatch.setattr(
+        discovery_module, "discover_and_create_sellers", AsyncMock(return_value=outcome)
+    )
+    monkeypatch.setattr(web_runs, "discovery_outcome_notes", lambda _o: [])
+
+    result = await web_runs._discover(run_id)
+
+    assert result.status == "failed"
+    assert "Created 1 seller(s) in the CRM (Acme)" in (result.message or "")

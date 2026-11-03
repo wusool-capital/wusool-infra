@@ -235,6 +235,12 @@ export function Review({
               </AlertDescription>
             </Alert>
           )}
+          {crm.length > 0 && crm.length < 3 && (
+            <p className="text-body text-ink-subtle">
+              Only {crm.length} qualifying candidate
+              {crm.length === 1 ? "" : "s"} available — fewer than 3.
+            </p>
+          )}
           {all.length === 0 ? (
             <p className="rounded-lg border border-dashed border-hairline-strong px-md py-sm text-body text-ink-muted">
               No seller in the CRM passed the filters and the sector check for
@@ -251,6 +257,7 @@ export function Review({
           )}
         </section>
         <DiscoverySection run={run} />
+        <MandateSection run={run} />
         {notes}
       </div>
 
@@ -270,6 +277,60 @@ export function Review({
         </aside>
       )}
     </div>
+  );
+}
+
+// Slack's "Buyer & Mandate" from View Full Analysis: what the run matched against.
+export function MandateSection({
+  run,
+}: {
+  run: RunDetailResponse;
+}): React.JSX.Element | null {
+  const { mandate } = run;
+  if (!mandate) return null;
+  return (
+    <section aria-labelledby="mandate-title" className="flex flex-col gap-sm">
+      <SectionTitle id="mandate-title">Buyer and mandate</SectionTitle>
+      <dl className="flex flex-col rounded-lg border border-hairline bg-surface-1">
+        {(
+          [
+            ["Strategic thesis", mandate.strategic_thesis ?? "Unknown"],
+            ["Ideal target", mandate.ideal_target ?? "Unknown"],
+          ] as const
+        ).map(([label, text]) => (
+          <div
+            key={label}
+            className="grid gap-xxs border-b border-hairline px-md py-sm md:grid-cols-[minmax(0,2fr)_minmax(0,5fr)] md:gap-md"
+          >
+            <dt className="text-body text-ink-subtle">{label}</dt>
+            <dd className="text-body text-ink">{text}</dd>
+          </div>
+        ))}
+        <div className="grid gap-xxs px-md py-sm md:grid-cols-[minmax(0,2fr)_minmax(0,5fr)] md:gap-md">
+          <dt className="text-body text-ink-subtle">Hard requirements</dt>
+          <dd>
+            {mandate.hard_requirements.length === 0 ? (
+              <p className="text-body text-ink">None extracted.</p>
+            ) : (
+              <ul className="flex flex-col gap-xxs">
+                {mandate.hard_requirements.map((r) => (
+                  <li
+                    key={`${r.criterion}-${r.value ?? ""}`}
+                    className="text-body text-ink"
+                  >
+                    {r.criterion.replaceAll("_", " ")}: {r.value ?? "Unknown"}{" "}
+                    <span className="text-small text-ink-subtle">
+                      {r.source.replaceAll("_", " ")}
+                      {r.human_confirmed ? " · confirmed" : " · not confirmed"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 

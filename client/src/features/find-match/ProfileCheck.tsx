@@ -169,19 +169,15 @@ export function ProfileCheck({
             {preflight.isPending ? "Checking profile…" : "Check profile"}
           </Button>
         )}
-        {!checked && (
+        {checked && (
+          // A buyer fixed with /edit-buyer meanwhile is only seen by checking again, as Slack does after an edit.
           <Button
-            type="button"
+            type="submit"
             size="lg"
             variant="tertiary"
-            disabled={starting || preflight.isPending}
-            onClick={() => {
-              void form.handleSubmit(() => {
-                onRun(note());
-              })();
-            }}
+            disabled={starting}
           >
-            Skip check and run
+            Check again
           </Button>
         )}
       </div>

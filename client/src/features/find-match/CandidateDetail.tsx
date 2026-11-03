@@ -7,7 +7,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { CandidateRead } from "@/gen/types/CandidateRead";
 import type { ExistingDealRead } from "@/gen/types/ExistingDealRead";
-import { score } from "@/lib/format";
+import type { SellerProfileRead } from "@/gen/types/SellerProfileRead";
+import { money, score } from "@/lib/format";
 
 import { ScoreBar } from "./ScoreBar";
 import { existingDeals, useDecision } from "./useDecision";
@@ -38,6 +39,113 @@ function Reasoning({
   );
 }
 
+// Slack's per-criterion line from View Full Analysis: type, result and what backs it.
+function Criteria({
+  candidate,
+}: {
+  candidate: CandidateRead;
+}): React.JSX.Element | null {
+  if (candidate.criteria.length === 0) return null;
+  return (
+    <section aria-label="Criteria" className="flex flex-col gap-xxs">
+      <h4 className="text-small text-ink-subtle">Criteria</h4>
+      <ul className="flex flex-col rounded-md border border-hairline">
+        {candidate.criteria.map((c) => (
+          <li
+            key={`${c.criterion}-${c.criterion_type}`}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-sm border-b border-hairline px-sm py-xs last:border-b-0"
+          >
+            <span className="text-body text-ink">
+              {c.criterion.replaceAll("_", " ")}{" "}
+              <span className="text-small text-ink-subtle">
+                {c.criterion_type} · {c.data_backing.replaceAll("_", " ")}
+              </span>
+            </span>
+            <span
+              className={
+                c.result === "Pass"
+                  ? "text-small text-success"
+                  : c.result === "Fail"
+                    ? "text-small text-danger"
+                    : "text-small text-ink-subtle"
+              }
+            >
+              {c.result}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function websiteUrl(website: string): string {
+  return /^https?:\/\//.test(website) ? website : `https://${website}`;
+}
+
+// What discovery wrote for a found seller: Google Maps plus basic enrichment, unverified by research.
+function Profile({
+  profile,
+}: {
+  profile: SellerProfileRead;
+}): React.JSX.Element {
+  const rows: [string, React.ReactNode][] = [];
+  if (profile.hq_country) rows.push(["Country", profile.hq_country]);
+  if (profile.sector_focus.length > 0)
+    rows.push(["Sector", profile.sector_focus.join(", ")]);
+  if (profile.website)
+    rows.push([
+      "Website",
+      <a
+        key="website"
+        href={websiteUrl(profile.website)}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-ink underline decoration-hairline-tertiary underline-offset-4 hover:decoration-ink"
+      >
+        {profile.website}
+      </a>,
+    ]);
+  if (profile.employee_range) rows.push(["Employees", profile.employee_range]);
+  if (profile.founded_year !== null)
+    rows.push(["Founded", String(profile.founded_year)]);
+  if (profile.location_count !== null)
+    rows.push(["Locations", String(profile.location_count)]);
+  if (profile.est_revenue)
+    rows.push(["Revenue (est.)", money(profile.est_revenue.amount)]);
+  if (profile.est_ebitda)
+    rows.push(["EBITDA (est.)", money(profile.est_ebitda.amount)]);
+  return (
+    <section aria-label="Company profile" className="flex flex-col gap-xs">
+      <h4 className="text-small text-ink-subtle">
+        What discovery found · Google Maps and basic enrichment
+      </h4>
+      {profile.description && (
+        <p className="text-body text-ink-muted">{profile.description}</p>
+      )}
+      {rows.length > 0 ? (
+        <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-sm gap-y-xxs">
+          {rows.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-body text-ink-subtle">{label}</dt>
+              <dd className="text-body text-ink">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        !profile.description && (
+          <p className="text-body text-ink-subtle">
+            Enrichment found nothing beyond the name.
+          </p>
+        )
+      )}
+    </section>
+  );
+}
+
+// Like Slack, at most three deals get a promote button.
+const MAX_PROMOTABLE_DEALS = 3;
+
 function DealChoice({
   deals,
   busy,
@@ -63,13 +171,26 @@ function DealChoice({
           Inbound deal moves.
         </p>
         <ul className="mt-xs flex flex-col">
-          {deals.map((deal) => (
+          {deals.slice(0, MAX_PROMOTABLE_DEALS).map((deal) => (
             <li
               key={deal.attio_id}
               className="flex flex-wrap items-center justify-between gap-sm border-t border-hairline py-xs"
             >
               <span className="flex flex-col">
-                <span className="text-ink">{deal.name}</span>
+                {deal.web_url ? (
+                  <a
+                    href={deal.web_url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-[2px] text-ink underline decoration-hairline-tertiary underline-offset-4 hover:decoration-ink"
+                  >
+                    {deal.name}
+                    <ArrowUpRight aria-hidden className="size-3.5" />
+                    <span className="sr-only">(open in Attio)</span>
+                  </a>
+                ) : (
+                  <span className="text-ink">{deal.name}</span>
+                )}
                 <span className="text-small text-ink-subtle">
                   {deal.stage ?? "No stage"}
                 </span>
@@ -147,6 +268,8 @@ export function CandidateDetail({
     );
   };
 
+  const researchChannel = decision.data?.research_channel_id ?? null;
+
   return (
     <article
       aria-labelledby={`candidate-${candidate.id}`}
@@ -174,7 +297,7 @@ export function CandidateDetail({
                   rel="noreferrer noopener"
                   className="inline-flex items-center gap-[2px] text-ink underline decoration-hairline-tertiary underline-offset-4 hover:decoration-ink"
                 >
-                  Website <ArrowUpRight aria-hidden className="size-3.5" />
+                  View on Maps <ArrowUpRight aria-hidden className="size-3.5" />
                 </a>
               </>
             )}
@@ -197,7 +320,16 @@ export function CandidateDetail({
       {candidate.why_it_matches && (
         <p className="text-lead text-ink">{candidate.why_it_matches}</p>
       )}
+      {!discovered && <Criteria candidate={candidate} />}
       {!discovered && <Reasoning candidate={candidate} />}
+      {discovered && pending && (
+        <p className="text-body text-ink-subtle">
+          Unverified and unscored; approve to open a Qualified deal.
+        </p>
+      )}
+      {discovered && candidate.profile && (
+        <Profile profile={candidate.profile} />
+      )}
 
       {deals !== null && (
         <DealChoice
@@ -249,6 +381,13 @@ export function CandidateDetail({
             Reject
           </Button>
         </div>
+      )}
+      {candidate.status === "APPROVED" && decision.isSuccess && (
+        <p role="status" className="text-body text-ink-muted">
+          Match with {candidate.seller_org_name} approved.
+          {researchChannel &&
+            " Full research on this seller is being posted to Slack for review."}
+        </p>
       )}
       {!pending && (
         <p className="border-t border-hairline pt-md text-body text-ink-subtle lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg">
