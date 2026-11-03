@@ -8,22 +8,18 @@ import logging
 import uuid
 
 from app.modules.matching_engine.api.dependencies import (
-    DISCOVERY_STATUS_TEXT,
+    RunDiscovery,
     detached_matching_engine_service,
-    discovery_outcome_notes,
+    discover_sellers_for_run,
 )
 from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
+from app.modules.matching_engine.api.http.schemas import DiscoveryStatus
 from app.modules.matching_engine.application.matching.use_cases import StartedRun
 from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.domain.buyers import BuyerContext
-from app.modules.matching_engine.domain.matching.entities import DiscoveredCandidate
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
-from app.modules.utilities import get_shared_idempotency_store
 
 logger = logging.getLogger(__name__)
-
-# Same store and key as the Slack trigger, so one run never searches twice.
-_discovery_idempotency_store = get_shared_idempotency_store()
 
 
 async def execute_web_run(
@@ -44,74 +40,31 @@ async def execute_web_run(
 
 
 async def discover_for_web_run(run_id: uuid.UUID) -> None:
-    key = f"discovery:{run_id}"
-    if _discovery_idempotency_store.seen(key):
-        return
-    _discovery_idempotency_store.mark(key)
-    run_tracker.set_discovery(run_id, TrackedDiscovery(status="running"))
+    """The web's report of `discover_sellers_for_run`, the same search Slack runs."""
+
+    async def _running() -> None:
+        run_tracker.set_discovery(run_id, TrackedDiscovery(status="running"))
+
     try:
-        run_tracker.set_discovery(run_id, await _discover(run_id))
+        result = await discover_sellers_for_run(run_id, on_search_start=_running)
     except Exception:
         logger.exception("web_seller_discovery_failed", extra={"run_id": str(run_id)})
-        run_tracker.set_discovery(
-            run_id,
-            TrackedDiscovery(status="failed", message="Seller search failed unexpectedly."),
-        )
+        result = RunDiscovery(kind="search_failed")
+    if result.kind == "duplicate":
+        # A repeat leaves the first search's progress or outcome as it is.
+        return
+    run_tracker.set_discovery(run_id, _tracked(result))
 
 
-async def _discover(run_id: uuid.UUID) -> TrackedDiscovery:
-    from app.modules.discovery import discover_and_create_sellers
-    from app.modules.matching_engine.application.discovery_bridge import extract_query_terms
-
-    service = await detached_matching_engine_service()
-    analysis = await service.get_match_analysis(run_id)
-    if analysis is None or analysis.run.requirement_profile is None:
-        return TrackedDiscovery(status="skipped", message="This run has no requirement profile.")
-
-    industry, geography, exclude_terms = extract_query_terms(analysis.run.requirement_profile)
-    if not industry and not geography:
-        return TrackedDiscovery(
-            status="skipped",
-            message="The buyer's profile has no sector or geography to search on.",
-        )
-
-    outcome = await discover_and_create_sellers(
-        industry=industry,
-        geography=geography,
-        quota_key=analysis.run.buyer_role_id,
-        exclude_terms=exclude_terms,
-    )
-    if outcome.status != "ok":
-        return TrackedDiscovery(status="unavailable", message=DISCOVERY_STATUS_TEXT[outcome.status])
-
-    notes = discovery_outcome_notes(outcome)
-    try:
-        await service.append_discovered_candidates(
-            run_id,
-            [
-                DiscoveredCandidate(
-                    seller_role_id=str(created.seller_role_id),
-                    seller_attio_id=created.org_attio_id,
-                    source_url=created.source_url,
-                )
-                for created in outcome.created
-            ],
-        )
-    except Exception:
-        # The sellers already exist in the CRM, so this must not read like the search failed.
-        logger.exception("web_discovered_candidates_setup_failed", extra={"run_id": str(run_id)})
-        names = ", ".join(c.org_name for c in outcome.created)
-        return TrackedDiscovery(
-            status="failed",
-            message=(
-                f"Created {len(outcome.created)} seller(s) in the CRM ({names}) but couldn't "
-                "set them up for review. Find them in the CRM."
-            ),
-            notes=tuple(notes),
-        )
-    message = (
-        f"Found {len(outcome.created)} new seller(s)."
-        if outcome.created
-        else "No new potential sellers found."
-    )
-    return TrackedDiscovery(status="done", message=message, notes=tuple(notes))
+def _tracked(result: RunDiscovery) -> TrackedDiscovery:
+    status: DiscoveryStatus
+    match result.kind:
+        case "no_profile" | "no_terms":
+            status = "skipped"
+        case "unavailable":
+            status = "unavailable"
+        case "search_failed" | "setup_failed":
+            status = "failed"
+        case "done" | "duplicate":
+            status = "done"
+    return TrackedDiscovery(status=status, message=result.summary(), notes=result.notes)

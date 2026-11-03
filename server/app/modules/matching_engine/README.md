@@ -212,8 +212,10 @@ Routes, all under `/api` and all behind `Authorization: Bearer <WEB_API_KEY>`
   Its progress and the run's advisor notes are kept in an in-process tracker
   (`api/http/run_tracker.py`). A restart loses it; the run page then offers
   **Find more sellers** to start the search by hand. Runs that cleared the
-  threshold offer it too, like Slack's button. The same idempotency key
-  as Slack stops one run from searching twice.
+  threshold offer it too, like Slack's button. Both paths call
+  `api.dependencies.discover_sellers_for_run`, which runs the search, adds
+  the new sellers to the run and returns a `RunDiscovery`. Slack posts it as
+  messages; the web keeps it in the tracker. One run never searches twice.
 - **Slack parity.** `GET /match-runs/{id}` returns the requirement profile
   (`mandate`), each scored candidate's `criteria` and every candidate's
   `profile` (`SellerRepositoryPort.get_profiles`). Approving a discovered

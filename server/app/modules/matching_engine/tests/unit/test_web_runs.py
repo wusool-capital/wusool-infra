@@ -4,8 +4,9 @@ from uuid import uuid4
 
 import pytest
 
+from app.modules.matching_engine.api.dependencies import RunDiscovery
 from app.modules.matching_engine.api.http import web_runs
-from app.modules.matching_engine.api.http.run_tracker import run_tracker
+from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
 
 
 def _patch(monkeypatch, *, status: str, scores: list[float]):
@@ -61,36 +62,65 @@ async def test_failed_run_never_starts_discovery(monkeypatch) -> None:
     discover.assert_not_awaited()
 
 
+def _created(name: str = "Acme") -> SimpleNamespace:
+    return SimpleNamespace(seller_role_id=uuid4(), org_name=name)
+
+
 @pytest.mark.asyncio
-async def test_sellers_created_but_not_attached_say_so(monkeypatch) -> None:
-    import app.modules.discovery as discovery_module
-    from app.modules.matching_engine.application import discovery_bridge
-
+async def test_web_reports_the_shared_search_outcome(monkeypatch) -> None:
     run_id = uuid4()
-    service = SimpleNamespace(
-        get_match_analysis=AsyncMock(
-            return_value=SimpleNamespace(
-                run=SimpleNamespace(requirement_profile=object(), buyer_role_id=uuid4())
-            )
-        ),
-        append_discovered_candidates=AsyncMock(side_effect=RuntimeError("db down")),
-    )
-    created = SimpleNamespace(
-        seller_role_id=uuid4(), org_attio_id="org-1", source_url="https://maps", org_name="Acme"
-    )
-    outcome = SimpleNamespace(status="ok", created=(created,))
-    monkeypatch.setattr(
-        web_runs, "detached_matching_engine_service", AsyncMock(return_value=service)
-    )
-    monkeypatch.setattr(
-        discovery_bridge, "extract_query_terms", lambda _profile: ("clinics", "Riyadh", [])
-    )
-    monkeypatch.setattr(
-        discovery_module, "discover_and_create_sellers", AsyncMock(return_value=outcome)
-    )
-    monkeypatch.setattr(web_runs, "discovery_outcome_notes", lambda _o: [])
+    seen_running: list[str | None] = []
 
-    result = await web_runs._discover(run_id)
+    async def fake_search(_run_id, *, on_search_start):
+        await on_search_start()
+        tracked = run_tracker.get(_run_id)
+        seen_running.append(tracked.discovery.status if tracked and tracked.discovery else None)
+        return RunDiscovery(
+            kind="setup_failed",
+            outcome=SimpleNamespace(status="ok", created=(_created(),)),
+            notes=("2 more already in the CRM.",),
+        )
 
-    assert result.status == "failed"
-    assert "Created 1 seller(s) in the CRM (Acme)" in (result.message or "")
+    monkeypatch.setattr(web_runs, "discover_sellers_for_run", fake_search)
+
+    await web_runs.discover_for_web_run(run_id)
+
+    assert seen_running == ["running"]
+    tracked = run_tracker.get(run_id)
+    assert tracked is not None and tracked.discovery is not None
+    assert tracked.discovery.status == "failed"
+    assert "Created 1 seller(s) in the CRM (Acme)" in (tracked.discovery.message or "")
+    assert tracked.discovery.notes == ("2 more already in the CRM.",)
+
+
+@pytest.mark.asyncio
+async def test_a_repeat_search_leaves_the_first_outcome(monkeypatch) -> None:
+    run_id = uuid4()
+    run_tracker.set_discovery(run_id, TrackedDiscovery(status="done", message="Found 2"))
+    monkeypatch.setattr(
+        web_runs,
+        "discover_sellers_for_run",
+        AsyncMock(return_value=RunDiscovery(kind="duplicate")),
+    )
+
+    await web_runs.discover_for_web_run(run_id)
+
+    tracked = run_tracker.get(run_id)
+    assert tracked is not None and tracked.discovery == TrackedDiscovery(
+        status="done", message="Found 2"
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_crash_reads_as_a_failed_search(monkeypatch) -> None:
+    run_id = uuid4()
+    monkeypatch.setattr(
+        web_runs, "discover_sellers_for_run", AsyncMock(side_effect=RuntimeError("boom"))
+    )
+
+    await web_runs.discover_for_web_run(run_id)
+
+    tracked = run_tracker.get(run_id)
+    assert tracked is not None and tracked.discovery is not None
+    assert tracked.discovery.status == "failed"
+    assert tracked.discovery.message == "Seller search failed unexpectedly."
