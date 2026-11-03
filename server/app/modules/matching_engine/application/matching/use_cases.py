@@ -92,10 +92,24 @@ class MatchRunView:
     results: list[MatchResultView]
 
 
+@dataclass(frozen=True)
+class StartedRun:
+    """The committed run header — lets a caller return the run id before matching finishes."""
+
+    run_id: uuid.UUID
+    header_row_id: str
+    buyer_role_id: uuid.UUID
+    started_at: datetime
+
+
 class MatchingMixin(ServiceBase):
     async def run_match(
         self, buyer: BuyerContext, requested_by: str | None, *, advisor_context: str | None = None
     ) -> MatchRunResult:
+        started = await self.start_run(buyer, requested_by)
+        return await self.execute_run(started, buyer, requested_by, advisor_context=advisor_context)
+
+    async def start_run(self, buyer: BuyerContext, requested_by: str | None) -> StartedRun:
         run_id = uuid.uuid4()
         buyer_role_id = uuid.UUID(buyer.buyer_role_id)
         started_at = datetime.now(UTC)
@@ -107,10 +121,32 @@ class MatchingMixin(ServiceBase):
                 buyer_role_id=buyer_role_id,
                 requested_by=requested_by,
             )
+        return StartedRun(
+            run_id=run_id,
+            header_row_id=header.id,
+            buyer_role_id=buyer_role_id,
+            started_at=started_at,
+        )
 
+    async def execute_run(
+        self,
+        started: StartedRun,
+        buyer: BuyerContext,
+        requested_by: str | None,
+        *,
+        advisor_context: str | None = None,
+    ) -> MatchRunResult:
+        run_id = started.run_id
+        buyer_role_id = started.buyer_role_id
         try:
             return await self._run(
-                run_id, header.id, buyer_role_id, buyer, requested_by, started_at, advisor_context
+                run_id,
+                started.header_row_id,
+                buyer_role_id,
+                buyer,
+                requested_by,
+                started.started_at,
+                advisor_context,
             )
         except Exception as exc:
             logger.warning(
@@ -129,7 +165,7 @@ class MatchingMixin(ServiceBase):
                 await uow.activities.record(
                     run_completed_event(
                         run_id=run_id,
-                        header_row_id=header.id,
+                        header_row_id=started.header_row_id,
                         buyer_role_id=buyer_role_id,
                         requested_by=requested_by,
                         status="FAILED",
