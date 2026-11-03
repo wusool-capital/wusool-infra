@@ -132,9 +132,22 @@ export function buildUrl(
   return `${config.baseURL ?? BASE_URL}${url}${search ? `?${search}` : ""}`;
 }
 
+// Writes made with the session cookie must carry this; another site's page can't send it.
+const CLIENT_HEADER = { "X-Wusool-Client": "web" };
+
 export function authHeaders(): Record<string, string> {
   const key = getApiKey();
-  return key === null ? {} : { Authorization: `Bearer ${key}` };
+  return key === null
+    ? { ...CLIENT_HEADER }
+    : { ...CLIENT_HEADER, Authorization: `Bearer ${key}` };
+}
+
+const unauthorizedListeners = new Set<() => void>();
+
+// The sign-in gate listens, so an expired session anywhere returns the page to sign-in.
+export function onUnauthorized(listener: () => void): () => void {
+  unauthorizedListeners.add(listener);
+  return () => unauthorizedListeners.delete(listener);
 }
 
 export async function client(config: RequestConfig): Promise<{
@@ -169,8 +182,13 @@ export async function client(config: RequestConfig): Promise<{
     return { data: result ? result.value : body, error: undefined, response };
   }
 
-  // A rejected key means the stored one is wrong: drop it so the key prompt shows.
-  if (response.status === 401) setApiKey(null);
+  // A rejected key or session: drop the key and send the page back to sign-in.
+  if (response.status === 401) {
+    setApiKey(null);
+    unauthorizedListeners.forEach((notify) => {
+      notify();
+    });
+  }
   const error = new ApiRequestError(response.status, errorDetail(body));
   if (config.throwOnError ?? true) throw error;
   return { data: undefined, error, response };

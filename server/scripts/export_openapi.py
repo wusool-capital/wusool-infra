@@ -12,6 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from app.modules.matching_engine.api.http.auth_routes import router as auth_router
 from app.modules.matching_engine.api.http.routes import router
 
 
@@ -19,6 +20,7 @@ def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: export_openapi.py <output-path>")
     app = FastAPI(title="Wusool web API", version="1")
+    app.include_router(auth_router)
     app.include_router(router)
     spec = json.dumps(app.openapi(), indent=2, sort_keys=True)
     Path(sys.argv[1]).write_text(spec + "\n", encoding="utf-8")

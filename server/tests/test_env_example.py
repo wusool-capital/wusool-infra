@@ -55,6 +55,8 @@ _SECRETS_MANAGER_KEYS = frozenset(
         "FIRECRAWL_API_KEY",
         "DESKTOP_API_KEY",
         "WEB_API_KEY",
+        "SLACK_CLIENT_SECRET",
+        "WEB_SESSION_SECRET",
         "DIFFBOT_API_KEY",
         "PEOPLE_DATA_LABS_API_KEY",
         "APIFY_API_TOKEN",

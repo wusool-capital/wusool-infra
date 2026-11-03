@@ -81,6 +81,25 @@
         "title": "ApproveRequest",
         "type": "object"
       },
+      "AuthConfigResponse": {
+        "description": "Which sign-in methods the page should offer.",
+        "properties": {
+          "api_key": {
+            "title": "Api Key",
+            "type": "boolean"
+          },
+          "slack_sign_in": {
+            "title": "Slack Sign In",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "slack_sign_in",
+          "api_key"
+        ],
+        "title": "AuthConfigResponse",
+        "type": "object"
+      },
       "BuyerSummary": {
         "properties": {
           "id": {
@@ -719,6 +738,47 @@
         "title": "MandateRead",
         "type": "object"
       },
+      "MeResponse": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "slack_user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slack User Id"
+          },
+          "via": {
+            "enum": [
+              "slack",
+              "key"
+            ],
+            "title": "Via",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slack_user_id",
+          "name",
+          "via"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
       "MoneyRead": {
         "properties": {
           "amount": {
@@ -1166,6 +1226,82 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/auth/config": {
+      "get": {
+        "operationId": "get_auth_config",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Auth Config",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "get_me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/buyers": {
       "get": {
         "operationId": "search_buyers",

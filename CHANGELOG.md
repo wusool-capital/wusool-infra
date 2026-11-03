@@ -23,8 +23,8 @@ for current production evidence and open handover items.
   low scores. Runs show Slack's full analysis: the buyer's mandate and each
   seller's criteria. Sellers found outside the CRM show what enrichment found,
   and approving one posts full research to Slack. The app uses the Wusool
-  Capital palette. Access uses a shared key
-  until sign-in with Slack arrives.
+  Capital palette. Advisors sign in with Slack, so web runs and decisions
+  carry the same Slack user as `/find-match`.
 
 ## 2026-10-30
 

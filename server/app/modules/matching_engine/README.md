@@ -67,7 +67,9 @@ standard AWS credential provider chain), `LLM_TEMPERATURE`/`LLM_MAX_TOKENS`/
 Firecrawl lead search it triggers, and `FIRECRAWL_API_KEY`, belong to
 `discovery` now), `MEETING_NOTES_MAX_CHARS`/
 `MEETING_NOTES_MAX_TOTAL_CHARS`, `ENABLE_SELLER_MEETING_NOTES`,
-`WEB_API_KEY` (the Toolkit secret's `env` map; unset keeps `/api/*` disabled),
+`WEB_API_KEY` (the Toolkit secret's `env` map; a fallback to Slack sign-in),
+`SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/`WEB_SESSION_SECRET`/`WEB_PUBLIC_URL`/
+`WEB_SESSION_DAYS` (Sign in with Slack; all four strings are needed to turn it on),
 `WEB_ALLOWED_ORIGINS` (CORS, empty for same-origin hosting),
 `MATCH_RUN_STALE_AFTER_MINUTES` (default 15).
 
@@ -184,8 +186,10 @@ profile check, matching, shortlist, discovery, export. `server/main.py`
 serves its build at `/app` (`api/http/spa.py`, with a fallback to
 `index.html` for deep links) and includes `api/http/routes.py`.
 
-Routes, all under `/api` and all behind `Authorization: Bearer <WEB_API_KEY>`
-(401 on a wrong key, 503 while the key is unset):
+Routes, all under `/api`. Sign-in lives in `api/http/auth_routes.py`
+(`/api/auth/*`), and every other route needs a Slack session cookie
+(`api/http/session.py`) or `Authorization: Bearer <WEB_API_KEY>`. A missing or
+wrong one gets 401, and 503 comes back while neither is configured:
 
 | Route | Does |
 | --- | --- |

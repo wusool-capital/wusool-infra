@@ -125,8 +125,8 @@ this browser, and lets you clear the recent-runs list.
 
 The web version differs from Slack in a few ways:
 
-- Approvals and rejections are recorded as made from the web app, not by
-  your Slack name, until sign-in with Slack arrives.
+- You sign in with your Slack account, so runs and decisions are recorded under
+  your name, as in Slack. You stay signed in for 30 days after your last visit.
 - **Recent runs** on the home page lists runs started on that device only.
 - To fill in missing buyer details, use `/edit-buyer` in Slack, then check
   again. The other commands are Slack-only for now.

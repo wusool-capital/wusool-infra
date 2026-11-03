@@ -22,14 +22,18 @@ logger = logging.getLogger(__name__)
 
 
 async def execute_web_run(
-    started: StartedRun, buyer: BuyerContext, *, advisor_context: str | None
+    started: StartedRun,
+    buyer: BuyerContext,
+    *,
+    advisor_context: str | None,
+    requested_by: str | None = None,
 ) -> None:
     run_tracker.set_executing(started.run_id, True)
     try:
         async with open_matching_engine_service() as service:
             # `execute_run` records its own failures on the run row.
             result = await service.execute_run(
-                started, buyer, None, advisor_context=advisor_context
+                started, buyer, requested_by, advisor_context=advisor_context
             )
     finally:
         run_tracker.set_executing(started.run_id, False)

@@ -1,9 +1,9 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { KeyRound, Plus, Settings, Waypoints } from "lucide-react";
+import { LogOut, Plus, Settings, Waypoints } from "lucide-react";
 import { Tooltip } from "radix-ui";
 
 import { Mark } from "@/components/Mark";
-import { setApiKey } from "@/lib/api-key";
+import { displayName, useCurrentUser, useSignOut } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 type Destination = "/" | "/find-match" | "/settings";
@@ -91,6 +91,8 @@ function RailLink({
 
 export function Rail(): React.JSX.Element {
   const path = usePath();
+  const user = useCurrentUser();
+  const signOut = useSignOut();
   return (
     <Tooltip.Provider delayDuration={200}>
       <nav
@@ -111,16 +113,16 @@ export function Rail(): React.JSX.Element {
           {NAV.filter((item) => item.to === "/settings").map((item) => (
             <RailLink key={item.to} item={item} path={path} />
           ))}
-          <Tip label="Forget access key">
+          <Tip label={`Sign out · ${displayName(user)}`}>
             <button
               type="button"
-              aria-label="Forget access key"
+              aria-label={`Sign out ${displayName(user)}`}
               onClick={() => {
-                setApiKey(null);
+                void signOut();
               }}
               className={cn(railItem, "cursor-pointer")}
             >
-              <KeyRound aria-hidden className="size-[18px]" strokeWidth={1.5} />
+              <LogOut aria-hidden className="size-[18px]" strokeWidth={1.5} />
             </button>
           </Tip>
         </div>

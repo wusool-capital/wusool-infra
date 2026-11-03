@@ -201,5 +201,18 @@ class ApiError(_Schema):
     existing_deals: list[ExistingDealRead] = []
 
 
+class AuthConfigResponse(_Schema):
+    """Which sign-in methods the page should offer."""
+
+    slack_sign_in: bool
+    api_key: bool
+
+
+class MeResponse(_Schema):
+    slack_user_id: str | None
+    name: str | None
+    via: Literal["slack", "key"]
+
+
 class ApiErrorResponse(_Schema):
     detail: ApiError

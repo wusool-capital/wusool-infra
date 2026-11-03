@@ -68,6 +68,7 @@ from app.modules.enrichment.api.slack.handlers import (
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.lead_magnets.api.static import ToolStatic, static_dir
 from app.modules.lead_magnets.bootstrap import run_sweeper_forever, shutdown_analytics
+from app.modules.matching_engine.api.http.auth_routes import router as web_auth_router
 from app.modules.matching_engine.api.http.routes import router as find_match_web_router
 from app.modules.matching_engine.api.http.spa import SpaStatic, web_app_dist
 from app.modules.matching_engine.api.slack.edit_gate import MatchingEngineEditGate
@@ -212,6 +213,7 @@ app.include_router(meetings_router)
 # separate app.
 app.include_router(lead_magnets_router)
 # The web find-match app's API (`client/`); disabled until WEB_API_KEY is set.
+app.include_router(web_auth_router)
 app.include_router(find_match_web_router)
 if settings.web_allowed_origins:
     app.add_middleware(

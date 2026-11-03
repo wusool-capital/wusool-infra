@@ -121,10 +121,16 @@ deep links and caches hashed assets for a year) and its API under `/api`:
 | `POST /api/match-runs/{id}/candidates/{cid}/reject` | Reject. |
 | `GET /api/match-runs/{id}/export.csv` | The candidates as CSV, with formula characters neutralised. Repeat `fields` to choose and order columns; without it, all are exported. |
 
-**Access.** Every route needs `Authorization: Bearer <WEB_API_KEY>`. A wrong
-key gets 401; while the key is unset, every route returns 503. Decisions are
-recorded with `approved_by` set to `web`, and runs have no `requested_by`,
-until sign-in with Slack exists.
+**Access.** People sign in with Slack (OpenID Connect, `openid profile`)
+through `/api/auth/slack/login`. Only the workspace the Toolkit bot is
+installed in is allowed. The callback sets a signed `HttpOnly` session cookie
+for `WEB_SESSION_DAYS` (30), renewed by use. Once a day each session asks
+Slack (`users.info`, bot scope `users:read`) whether the person is still
+active. Runs record their Slack user ID as `requested_by`. Decisions record it
+as `approved_by`, the same IDs Slack's `/find-match` writes. Cookie requests
+that change data must send `X-Wusool-Client: web`. `Authorization: Bearer
+<WEB_API_KEY>` still works as a fallback and records `web`. With neither set
+up, every route returns 503.
 
 **Runs.** The route commits the run's header row (`start_run`) and returns.
 The matching itself (`execute_run`) runs on the shared in-process task runner,

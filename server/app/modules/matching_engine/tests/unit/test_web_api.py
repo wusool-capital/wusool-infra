@@ -34,6 +34,11 @@ def _settings(key: str | None = _KEY, *, review_channel: str | None = None):
         web_fallback_min_score=50.0,
         match_run_stale_after_minutes=15,
         web_review_channel_id=review_channel,
+        slack_client_id=None,
+        slack_client_secret=None,
+        web_session_secret=None,
+        web_public_url=None,
+        web_session_days=30,
     )
 
 

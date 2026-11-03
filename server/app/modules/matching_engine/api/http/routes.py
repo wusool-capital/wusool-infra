@@ -21,7 +21,7 @@ from app.modules.matching_engine.api.dependencies import (
     resolve_buyer,
     resolve_buyer_by_id,
 )
-from app.modules.matching_engine.api.http.auth import WEB_ACTOR, api_error, require_web_api_key
+from app.modules.matching_engine.api.http.auth import CurrentUser, api_error, require_web_user
 from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
 from app.modules.matching_engine.api.http.schemas import (
     ApiError,
@@ -77,7 +77,7 @@ _ERRORS: dict[int | str, dict[str, type[ApiErrorResponse]]] = {
 router = APIRouter(
     prefix="/api",
     tags=["find-match"],
-    dependencies=[Depends(require_web_api_key)],
+    dependencies=[Depends(require_web_user)],
     responses=_ERRORS,
     # Short operation ids become the generated client's function and hook names.
     generate_unique_id_function=lambda route: route.name,
@@ -143,20 +143,27 @@ async def preflight(buyer_role_id: uuid.UUID, body: PreflightRequest) -> Preflig
     response_model=StartRunResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def start_match_run(body: StartRunRequest, service: Service) -> StartRunResponse:
+async def start_match_run(
+    body: StartRunRequest, service: Service, user: CurrentUser
+) -> StartRunResponse:
     buyer = await resolve_buyer_by_id(str(body.buyer_role_id))
     if buyer is None:
         raise api_error(status.HTTP_404_NOT_FOUND, _not_found("Buyer not found."))
     async with _start_lock:
         if body.request_id is not None and (existing := run_tracker.started_run(body.request_id)):
             return StartRunResponse(run_id=existing)
-        started = await service.start_run(buyer, None)
+        started = await service.start_run(buyer, user.slack_user_id)
         if body.request_id is not None:
             run_tracker.remember_start(body.request_id, started.run_id)
     # Before scheduling, so the first poll can't find it idle and call it stale.
     run_tracker.set_executing(started.run_id, True)
     _task_runner.run(
-        lambda: execute_web_run(started, buyer, advisor_context=body.advisor_context),
+        lambda: execute_web_run(
+            started,
+            buyer,
+            advisor_context=body.advisor_context,
+            requested_by=user.slack_user_id,
+        ),
         name=f"web-find-match:{started.run_id}",
     )
     return StartRunResponse(run_id=started.run_id)
@@ -196,13 +203,17 @@ async def start_discovery(run_id: uuid.UUID, service: Service) -> RunDetailRespo
     responses={409: {"model": ApiErrorResponse}, 502: {"model": ApiErrorResponse}},
 )
 async def approve_candidate(
-    run_id: uuid.UUID, candidate_id: uuid.UUID, body: ApproveRequest, service: Service
+    run_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    body: ApproveRequest,
+    service: Service,
+    user: CurrentUser,
 ) -> DecisionResponse:
     candidate = _require_candidate(await _load_run(service, run_id), candidate_id)
     try:
         await service.approve_match(
             candidate_id,
-            WEB_ACTOR,
+            user.actor,
             resolution=body.resolution,
             existing_deal_id=body.existing_deal_id,
         )
@@ -240,7 +251,12 @@ async def approve_candidate(
         if channel_id and role_id:
             # Discovery only paid for basic enrichment; an approved seller earns the full research.
             _task_runner.run(
-                lambda: enrich_and_post(kind="seller", role_id=role_id, channel_id=channel_id),
+                lambda: enrich_and_post(
+                    kind="seller",
+                    role_id=role_id,
+                    channel_id=channel_id,
+                    requested_by=user.slack_user_id,
+                ),
                 name=f"web-enrich-approved:{role_id}",
             )
             decided.research_channel_id = channel_id
@@ -253,11 +269,11 @@ async def approve_candidate(
     responses={409: {"model": ApiErrorResponse}},
 )
 async def reject_candidate(
-    run_id: uuid.UUID, candidate_id: uuid.UUID, service: Service
+    run_id: uuid.UUID, candidate_id: uuid.UUID, service: Service, user: CurrentUser
 ) -> DecisionResponse:
     _require_candidate(await _load_run(service, run_id), candidate_id)
     try:
-        await service.reject_match(candidate_id, WEB_ACTOR)
+        await service.reject_match(candidate_id, user.actor)
     except (MatchNotFoundError, InvalidTransitionError) as exc:
         raise _decision_error(exc) from exc
     return await _decided(service, run_id, candidate_id)

@@ -35,11 +35,12 @@ The Toolkit has no user allowlist: anyone who can use the bot in its Slack
 channels can run its commands. Slack app installation and channel membership
 are the authorization boundary.
 
-The web app has no user sign-in yet. One shared key unlocks it, so anyone
-holding the key can read buyer and match data and approve deals. The database
-records those decisions as `web`, not as a person. The key lives in the
-browser tab's session storage. Rotate it by changing `env.WEB_API_KEY` in the
-Toolkit secret and restarting. Sign-in with Slack replaces it.
+The web app uses Sign in with Slack, limited to the bot's own workspace. The
+session is a signed `HttpOnly`, `SameSite=Lax` cookie. Rotating
+`env.WEB_SESSION_SECRET` signs everyone out. A person removed from Slack loses
+access within a day, which needs the bot's `users:read` scope. The shared
+`WEB_API_KEY` still opens the API as a fallback and records decisions as `web`.
+Remove it from the secret once everyone signs in with Slack.
 
 The Toolkit's role can send SES email from any verified identity.
 

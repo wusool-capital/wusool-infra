@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { setApiKey } from "@/lib/api-key";
+import { displayName, useCurrentUser, useSignOut } from "@/lib/session";
 import {
   EXPORT_FIELDS,
   EXPORT_PRESETS,
@@ -164,6 +164,31 @@ function ExportFields(): React.JSX.Element {
   );
 }
 
+function AccessLine(): React.JSX.Element {
+  const user = useCurrentUser();
+  const signOut = useSignOut();
+  const viaKey = user === null || user.via === "key";
+  return (
+    <Line
+      label={displayName(user)}
+      action={
+        <Button
+          variant="danger"
+          onClick={() => {
+            void signOut();
+          }}
+        >
+          Sign out
+        </Button>
+      }
+    >
+      {viaKey
+        ? "Using the shared access key for this tab. Decisions are recorded as the web app, not a person."
+        : "Signed in with Slack."}
+    </Line>
+  );
+}
+
 function SettingsPage(): React.JSX.Element {
   const runs = useRecentRuns();
   return (
@@ -179,24 +204,10 @@ function SettingsPage(): React.JSX.Element {
       <div className="flex flex-col">
         <Row
           id="access-title"
-          title="Access key"
-          description="Saved for this browser tab only. Approvals you make are recorded as made from the web app until sign-in with Slack arrives."
+          title="Signed in"
+          description="Runs you start and decisions you make are recorded under your Slack account, the same as /find-match in Slack. You stay signed in for 30 days after your last visit."
         >
-          <Line
-            label="Team access key"
-            action={
-              <Button
-                variant="danger"
-                onClick={() => {
-                  setApiKey(null);
-                }}
-              >
-                Forget key
-              </Button>
-            }
-          >
-            In use for this tab. Forgetting it asks for the key again.
-          </Line>
+          <AccessLine />
         </Row>
 
         <Row

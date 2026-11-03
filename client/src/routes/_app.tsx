@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { ApiKeyGate } from "@/components/ApiKeyGate";
+import { AuthGate } from "@/components/AuthGate";
 import { BottomBar, Rail } from "@/components/Rail";
 
 export const Route = createFileRoute("/_app")({
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout(): React.JSX.Element {
   return (
-    <ApiKeyGate>
+    <AuthGate>
       <a
         href="#main"
         className="sr-only z-50 rounded-md bg-surface-3 px-md py-xs text-body focus:not-sr-only focus:fixed focus:top-xs focus:left-xs"
@@ -27,6 +27,6 @@ function AppLayout(): React.JSX.Element {
           <BottomBar />
         </div>
       </div>
-    </ApiKeyGate>
+    </AuthGate>
   );
 }

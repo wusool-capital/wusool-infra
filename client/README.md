@@ -19,8 +19,10 @@ npm run dev        # http://localhost:5173/app, proxies /api to localhost:8000
 ```
 
 `docker compose` publishes the bot on port 8080 by default, so either set
-`COMPOSE_BOT_PORT=8000` or change the proxy target in `vite.config.ts`. The
-app asks for the access key (`WEB_API_KEY`) once per browser tab.
+`COMPOSE_BOT_PORT=8000` or change the proxy target in `vite.config.ts`.
+Deployed, the app signs people in with Slack. Locally, Slack can't send you
+back to `localhost`, so use **Use an access key instead** with
+`WEB_API_KEY`.
 
 `VITE_API_BASE_URL` (see `.env.example`) stays empty for same-origin hosting;
 set it only when the app is hosted apart from the API.
