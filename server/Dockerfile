@@ -26,6 +26,17 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
 
+# Web app (client/), passed in as the named build context `client`
+# (`--build-context client=client`; see _build.yml and docker-compose.yml).
+FROM node:24-bookworm-slim AS client-build
+
+WORKDIR /client
+COPY --from=client package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY --from=client . .
+RUN npm run build
+
+
 # Runtime: no uv, no build tools, no tests — just the venv and the entrypoint.
 FROM python:3.12-slim-bookworm AS runtime
 
@@ -35,6 +46,8 @@ WORKDIR /app
 
 COPY --from=builder --chown=app:app /app/.venv ./.venv
 COPY --from=builder --chown=app:app /app/main.py ./main.py
+# Served at /app by main.py (`web_app_dist` looks for it next to main.py).
+COPY --from=client-build --chown=app:app /client/dist ./client-dist
 
 # alembic.ini + alembic/ are plain config/data files, not part of the
 # installed package (venv install above only copies Python package
